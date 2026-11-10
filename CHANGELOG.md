@@ -23,3 +23,4 @@ bullet with the area in bold.
   `$XDG_DATA_HOME/slinger` (on macOS, `~/Library/Application Support/slinger`)
   and `--data-dir` sets it.
 - **Canvas:** geometry queries on a page: the item under a point, the items inside a lasso (even one that crosses itself), the strokes an eraser touches, the items a box touches, and the box around a selection. Fast enough for pen input on a page of 7500 strokes.
+- **Canvas:** undo and redo. Your undo takes back only your own changes, never an agent's, and an agent's undo never touches yours. A lasso move or one erase gesture is one undo step.

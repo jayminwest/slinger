@@ -39,6 +39,10 @@ canvas/      pages of items, changed only by operations. Build (Canvas::new),
              so a log of them replays to the same canvas, ids included. The
              storage layout is private. Keeps the author rule: an agent changes
              only items it made; removing what is already gone succeeds.
+             History: undo and redo per author; a step is one op or a group
+             (lasso move, erase gesture). Undo applies inverse ops (Restore,
+             PageRestore put things back under their old ids) and returns
+             them, so the op log stays append-only. Not persisted.
 canvas/geometry.rs  pure queries on a page: item at a point, items in a
              lasso (nonzero winding), strokes an eraser touches, items touching a
              box, bounds of a set. No errors: degenerate input finds nothing.

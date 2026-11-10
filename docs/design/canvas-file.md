@@ -48,7 +48,9 @@ Both alternatives use these. They are part of the pick.
   they are made.
 - **Undo is not in the file.** Undo and redo write the inverse change as ordinary
   operations (undo of `add` is `remove`; undo of `remove` is `add` with the whole
-  item, which the daemon holds in memory). The undo stack lives in the daemon's
+  item, which the daemon holds in memory; the model calls it `Restore`, and
+  `PageRestore` puts back a removed page with its items; undo of a `move` is a
+  `set` of the old shape, so it is exact). The undo stack lives in the daemon's
   memory, per canvas, and is empty after a restart. If a persisted undo stack is ever
   wanted, an optional `"undoes": n` field adds it with no version change.
 - **A drag writes once.** A client sends one `move` when the pen lifts, never one per
