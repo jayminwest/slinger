@@ -225,6 +225,86 @@ fn an_append_the_core_rejects_is_invalid_with_a_hint_and_stores_nothing() {
     daemon.stop();
 }
 
+/// Bytes that are not text and do not repeat: every byte value, in no order.
+fn noise(len: usize) -> Vec<u8> {
+    let mut x: u32 = 0x9e37_79b9;
+    (0..len)
+        .map(|_| {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            x.to_le_bytes()[0]
+        })
+        .collect()
+}
+
+#[test]
+fn a_blob_of_megabytes_comes_back_byte_for_byte_and_puts_once() {
+    let daemon = Daemon::start();
+    let client = daemon.client();
+    let dir = TempDir::new().unwrap();
+    let (input, output) = (dir.path().join("in"), dir.path().join("out"));
+    let bytes = noise(5 * 1024 * 1024);
+    std::fs::write(&input, &bytes).unwrap();
+    let id = client.blob_put(&input).unwrap();
+    assert_eq!(id, slinger_core::record::BlobId::of(&bytes).to_string());
+    assert_eq!(client.blob_put(&input).unwrap(), id);
+    std::fs::write(&output, b"old contents, longer than nothing").unwrap();
+    assert_eq!(client.blob_get(&id, &output).unwrap(), bytes.len() as u64);
+    assert!(std::fs::read(&output).unwrap().iter().eq(&bytes), "the bytes differ");
+    std::fs::write(&input, b"").unwrap();
+    let empty = client.blob_put(&input).unwrap();
+    assert_eq!(
+        (client.blob_get(&empty, &output).unwrap(), std::fs::read(&output).unwrap()),
+        (0, vec![])
+    );
+    daemon.stop();
+}
+
+#[test]
+fn a_blob_or_file_that_is_not_there_is_not_found() {
+    let daemon = Daemon::start();
+    let client = daemon.client();
+    let dir = TempDir::new().unwrap();
+    let out = dir.path().join("out");
+    let unknown = slinger_core::record::BlobId::of(b"never put").to_string();
+    let err = client.blob_get(&unknown, &out).unwrap_err();
+    assert_eq!(err.code(), "not_found");
+    assert!(err.to_string().contains(&unknown) && err.hint().is_some(), "{err}");
+    assert!(!out.exists());
+    let err = client.blob_put(&dir.path().join("nope")).unwrap_err();
+    assert_eq!(err.code(), "not_found");
+    assert!(err.hint().is_some());
+    daemon.stop();
+}
+
+#[test]
+fn a_bad_blob_id_or_path_is_invalid_with_a_hint() {
+    let daemon = Daemon::start();
+    let client = daemon.client();
+    let dir = TempDir::new().unwrap();
+    let id = client.blob_put(&std::env::current_exe().unwrap()).unwrap();
+    for err in [
+        client.blob_get("sha256:nope", &dir.path().join("out")).unwrap_err(),
+        client.blob_put(dir.path()).unwrap_err(),
+        client.blob_get(&id, &dir.path().join("no/such/dir")).unwrap_err(),
+    ] {
+        assert_eq!(err.code(), "invalid", "{err}");
+        assert!(err.hint().is_some());
+    }
+    for request in [
+        r#"{"v":1,"op":"blob_put","path":"relative"}"#,
+        &format!(r#"{{"v":1,"op":"blob_get","id":"{id}","path":"relative"}}"#),
+    ] {
+        let reply = daemon.raw(format!("{request}\n").as_bytes());
+        assert!(
+            reply.contains("\"code\":\"invalid\"") && reply.contains("not absolute"),
+            "{reply}"
+        );
+    }
+    daemon.stop();
+}
+
 fn daemon(args: &[&str]) -> (u8, String, String) {
     let (mut out, mut err) = (Vec::new(), Vec::new());
     let code = run(std::iter::once(DAEMON).chain(args.iter().copied()), &mut out, &mut err);

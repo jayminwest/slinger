@@ -71,6 +71,7 @@ impl From<&anyhow::Error> for Failure {
             "conflict" => exit::CONFLICT,
             "invalid" => exit::INVALID,
             "unavailable" => exit::UNAVAILABLE,
+            "usage" => exit::USAGE,
             _ => exit::ERROR,
         };
         Self {

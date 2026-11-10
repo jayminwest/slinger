@@ -2,13 +2,15 @@
 
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::{Appended, EventFilter, Events, Greeting, NewEvent, RemoteError, Request, wire};
+use crate::{
+    Appended, EventFilter, Events, Greeting, NewEvent, RemoteError, Request, Stored, Written, wire,
+};
 
 /// The daemon's program name, for messages.
 const DAEMON: &str = "slingerd";
@@ -58,6 +60,33 @@ impl Client {
         Ok(reply.events)
     }
 
+    /// Stores the bytes of the file at `file` and returns the blob's id.
+    /// Storing bytes already held returns the same id. A relative path is
+    /// taken from this process's working directory.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` when there is no such file, `invalid` when the daemon
+    /// cannot read it, and `unavailable` when the daemon does not answer.
+    pub fn blob_put(&self, file: &Path) -> Result<String, RemoteError> {
+        let reply: Stored = self.call(&Request::BlobPut { path: absolute(file)? })?;
+        Ok(reply.id)
+    }
+
+    /// Writes the bytes of the blob `id` to the file at `file`, replacing it,
+    /// and returns how many there were.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` when the record holds no such blob, `invalid` for an id
+    /// that is not one or a file the daemon cannot write, and `unavailable`
+    /// when the daemon does not answer.
+    pub fn blob_get(&self, id: &str, file: &Path) -> Result<u64, RemoteError> {
+        let request = Request::BlobGet { id: id.to_string(), path: absolute(file)? };
+        let reply: Written = self.call(&request)?;
+        Ok(reply.size)
+    }
+
     fn call<T: DeserializeOwned>(&self, request: &Request) -> Result<T, RemoteError> {
         let answer = self.exchange(request).map_err(|e| self.unavailable(&e.to_string()))?;
         let doc: Value = serde_json::from_str(&answer).map_err(internal)?;
@@ -89,6 +118,13 @@ impl Client {
             Some(format!("start it with '{DAEMON} --socket {socket}'")),
         )
     }
+}
+
+/// `path` from the root: the daemon runs in another directory.
+fn absolute(path: &Path) -> Result<PathBuf, RemoteError> {
+    std::path::absolute(path).map_err(|e| {
+        RemoteError::new("invalid", format!("cannot resolve {}: {e}", path.display()), None)
+    })
 }
 
 /// The daemon sent a reply this client cannot read: the two disagree on the protocol.

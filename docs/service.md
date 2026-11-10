@@ -93,6 +93,8 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `hello` | `name`: string | `greeting`: string |
 | `record_append` | `kind`: string, `source`: string, `tags`: object (optional), `payload`: object (default `{}`) | `event`: the event as stored |
 | `record_list` | `kind`, `machine`, `workspace`, `agent`, `canvas`: string (each optional); `after`: number (optional) | `events`: list of events, lowest number first |
+| `blob_put` | `path`: absolute path of a file | `id`: the blob id |
+| `blob_get` | `id`: blob id, `path`: absolute path of a file | `size`: number of bytes written |
 
 **`record_append`** appends one event to this machine's record. `tags`
 may set `workspace`, `agent` and `canvas`; the daemon sets `machine`, the
@@ -122,6 +124,44 @@ A blob id is `sha256:` and 64 lowercase hex digits.
 is an empty list, not an error. An event of a kind this daemon does not
 know is returned as it was stored, unknown fields included.
 
+**`blob_put`** stores the bytes of the file at `path` and returns their
+id. Putting bytes already stored stores nothing new and returns the same
+id. **`blob_get`** writes the bytes of the blob `id` to the file at `path`,
+creating or replacing it. A blob this record does not hold is `not_found`,
+and the file is not touched.
+
+```json
+{ "v": 1, "op": "blob_put", "path": "/tmp/packet.json" }
+{ "ok": true, "id": "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" }
+{ "v": 1, "op": "blob_get", "id": "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "path": "/tmp/copy.json" }
+{ "ok": true, "size": 3 }
+```
+
+A path that is not absolute is `invalid`: the daemon's working directory is
+not the client's. A file to put that does not exist is `not_found`; one the
+daemon cannot read or write is `invalid`. Both carry a hint.
+
+#### How a blob's bytes travel
+
+The bytes travel as a file on this machine, named in the line. They never
+travel in the line itself. The other choice was base64 in the line. Files
+won because:
+
+- **Size.** A request line is at most 65536 bytes, and blobs (packets with
+  images, UI code) run to megabytes. Base64 would need a far larger limit for
+  every verb, a limit that guards the daemon against a client that never
+  stops writing, and it adds a third to every blob.
+- **Small clients.** The control crate needs no encoder, and the app binary
+  that links it has a size budget.
+- **It costs nothing.** The socket is local and only its owner can connect
+  (mode `0600`), so the client and the daemon are the same user on the same
+  machine and see the same files with the same rights.
+
+A client that holds bytes in memory writes them to a file of its own first,
+and a client that wants them in memory reads the file the daemon wrote. The
+CLI does this for `blob put -` and for `blob get` without `--out`, in the
+temporary directory, and removes the file after.
+
 ### Error codes
 
 The core's codes pass through unchanged (`not_found`, `conflict`, `invalid`).
@@ -134,6 +174,9 @@ The protocol adds:
 | `unsupported_version` | `v` is not a version this daemon speaks |
 | `unavailable` | Made by the client, never sent: the daemon did not answer |
 | `internal` | The daemon could not read or write its record, or the client could not read the reply |
+
+`not_found` also covers a blob the record does not hold, and a file to put
+that is not there.
 
 ## Versioning
 

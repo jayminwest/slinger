@@ -23,12 +23,20 @@ a "did you mean" suggestion.
 | `hello [NAME]` | The greeting |
 | `record append <KIND> [PAYLOAD] [--source NAME] [--workspace NAME] [--agent NAME] [--canvas ID]` | The new event's number. `--json`: `event` |
 | `record list [--kind KIND] [--machine NAME] [--workspace NAME] [--agent NAME] [--canvas ID] [--after NUMBER]` | One line per event: number, kind, tags (`name=value`) and payload, separated by tabs. `--json`: `events` |
+| `blob put <FILE\|->` | The blob id (`sha256:<hex>`). `--json`: `id` |
+| `blob get <ID> [--out FILE]` | The blob's bytes, exactly, on stdout. With `--out`: nothing, and the file holds the bytes. `--json` (needs `--out`): `id`, `size` |
 
 `record append` takes the payload as a JSON object (default `{}`); the
 kinds and their payloads are in `docs/service.md`. A payload that is not
 JSON, an unknown kind or a payload that does not fit it exits 5 (`invalid`)
 with a hint. `--source` defaults to `slinger`. `record list` with no match
 prints nothing and exits 0.
+
+`blob put -` reads the bytes from stdin. Putting bytes already stored
+succeeds and prints the same id. `blob get` of an id the record does not
+hold exits 3 (`not_found`), and of a string that is not an id exits 5
+(`invalid`). `blob get --json` without `--out` exits 2 (`usage`): stdout
+cannot carry both the bytes and the envelope.
 
 ## Output
 

@@ -164,6 +164,21 @@ mod tests {
     }
 
     #[test]
+    fn blob_requests_name_a_file_not_its_bytes() {
+        let put = Request::BlobPut { path: "/tmp/a".into() };
+        let line = request_line(&put).unwrap();
+        assert_eq!(line, "{\"v\":1,\"op\":\"blob_put\",\"path\":\"/tmp/a\"}\n");
+        assert_eq!(read(line.as_bytes()).unwrap(), Some(put));
+        let get = Request::BlobGet { id: "sha256:00".into(), path: "/tmp/b".into() };
+        let line = request_line(&get).unwrap();
+        assert_eq!(
+            line,
+            "{\"v\":1,\"op\":\"blob_get\",\"id\":\"sha256:00\",\"path\":\"/tmp/b\"}\n"
+        );
+        assert_eq!(read(line.as_bytes()).unwrap(), Some(get));
+    }
+
+    #[test]
     fn end_of_input_is_not_a_request() {
         assert_eq!(read(b"").unwrap(), None);
     }
@@ -182,6 +197,7 @@ mod tests {
             br#"{"v":1,"op":"hello","name":7}"#,
             br#"{"v":1,"op":"record_append","source":"cli"}"#,
             br#"{"v":1,"op":"record_list","after":-1}"#,
+            br#"{"v":1,"op":"blob_get","path":"/tmp/b"}"#,
         ] {
             let err = read(line).unwrap_err();
             assert_eq!(err.code(), "bad_request", "{}", String::from_utf8_lossy(line));

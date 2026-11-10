@@ -12,8 +12,10 @@ use std::time::Duration;
 
 use slinger_control as control;
 
-use control::{Appended, EventFilter, Events, Greeting, NewEvent, RemoteError, Reply, Request};
-use slinger_core::record::{self, Body, Event, Tags};
+use control::{
+    Appended, EventFilter, Events, Greeting, NewEvent, RemoteError, Reply, Request, Stored, Written,
+};
+use slinger_core::record::{self, BlobId, Body, Event, Tags};
 
 use crate::store::{Query, Store, StoreError};
 
@@ -171,7 +173,49 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
             let events = store.events(&query(filter)).map_err(|e| stored(&e))?;
             Ok(Reply::RecordList(Events { events: events.iter().map(record::to_value).collect() }))
         }
+        Request::BlobPut { path } => {
+            let bytes = fs::read(absolute(&path)?).map_err(|e| unreadable(&path, &e))?;
+            let id = store.put_blob(&bytes).map_err(|e| stored(&e))?;
+            Ok(Reply::BlobPut(Stored { id: id.to_string() }))
+        }
+        Request::BlobGet { id, path } => {
+            let id: BlobId = id.parse().map_err(|e| remote(&e))?;
+            let bytes = store.blob(id).map_err(|e| stored(&e))?.ok_or_else(|| missing(id))?;
+            fs::write(absolute(&path)?, &bytes).map_err(|e| unusable(&path, &e))?;
+            Ok(Reply::BlobGet(Written { size: bytes.len() as u64 }))
+        }
     }
+}
+
+/// A client's path, which must not depend on the daemon's working directory.
+fn absolute(path: &Path) -> Result<&Path, RemoteError> {
+    if path.is_absolute() {
+        return Ok(path);
+    }
+    let what = format!("path {} is not absolute", path.display());
+    Err(RemoteError::new("invalid", what, Some("pass the full path from /".into())))
+}
+
+/// A file to put that the daemon could not read.
+fn unreadable(path: &Path, error: &io::Error) -> RemoteError {
+    if error.kind() == io::ErrorKind::NotFound {
+        let what = format!("file {} not found", path.display());
+        let hint = "check the path: slingerd reads it on this machine".into();
+        return RemoteError::new("not_found", what, Some(hint));
+    }
+    unusable(path, error)
+}
+
+/// A blob's file the daemon could not read or write.
+fn unusable(path: &Path, error: &io::Error) -> RemoteError {
+    let path = path.display();
+    let hint = "pass a file slingerd's user can read and write".into();
+    RemoteError::new("invalid", format!("cannot use file {path}: {error}"), Some(hint))
+}
+
+fn missing(id: BlobId) -> RemoteError {
+    let hint = "store it first with 'slinger blob put'".to_string();
+    remote(&slinger_core::Error::NotFound { what: format!("blob {id}"), hint: Some(hint) })
 }
 
 /// The event a writer asks for. The store sets its number, time and machine.
