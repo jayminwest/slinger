@@ -6,9 +6,15 @@
 //! log in memory has already moved on, so a caller whose write fails drops
 //! the log and opens the file again.
 //!
+//! The log also knows where each line ends, so a server can hand out the
+//! stored lines after a point ([`Log::after`], [`lines`]) as the file holds
+//! them, fields from newer writers included.
+//!
 //! Requests name things the way the file does: item ids `i<n>`, page ids
 //! `p<n>`, items as the file's item objects (positions and lengths in tenths
 //! of a unit). See "Canvas operations" in docs/service.md.
+
+use std::ops::Range;
 
 use serde_json::Value;
 
@@ -94,6 +100,15 @@ pub struct Shown {
     pub items: Vec<Value>,
 }
 
+/// Where some whole operation lines lie in a canvas file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Span {
+    /// The lines' bytes in the file. Empty when there are none.
+    pub bytes: Range<u64>,
+    /// The number of the first line after them.
+    pub next: u64,
+}
+
 /// A canvas file held open. See the module doc.
 #[derive(Debug, Clone)]
 pub struct Log {
@@ -104,6 +119,9 @@ pub struct Log {
     ops: Vec<Op>,
     /// The `n` of the line each op in `ops` came from.
     lines: Vec<u64>,
+    /// Where each whole line of the file ends: the header's, then each
+    /// operation line's, in order.
+    ends: Vec<u64>,
 }
 
 impl Log {
@@ -115,15 +133,16 @@ impl Log {
     pub fn create(id: &str) -> Result<(Self, String)> {
         check_id(id)?;
         let header = Header::new(id);
-        let next = header.first;
+        let (next, bytes) = (header.first, header.encode());
         let log = Self {
             canvas: Canvas::new(),
             history: History::new(),
             next,
             ops: Vec::new(),
             lines: Vec::new(),
+            ends: vec![bytes.len() as u64],
         };
-        Ok((log, header.encode()))
+        Ok((log, bytes))
     }
 
     /// A new canvas file holding `canvas` whole (an import, say), and its
@@ -154,7 +173,10 @@ impl Log {
             lines.push(n);
             ops.push(op);
         })?;
-        let log = Self { canvas, history: History::new(), next: file.next(), ops, lines };
+        let whole = &bytes[..bytes.len() - file.torn];
+        let ends = whole.iter().enumerate().filter(|(_, b)| **b == b'\n');
+        let ends = ends.map(|(i, _)| i as u64 + 1).collect();
+        let log = Self { canvas, history: History::new(), next: file.next(), ops, lines, ends };
         Ok((log, file.torn))
     }
 
@@ -168,6 +190,38 @@ impl Log {
     #[must_use]
     pub fn next(&self) -> u64 {
         self.next
+    }
+
+    /// Where the lines numbered above `after` lie in the file: whole lines,
+    /// no more than `max` bytes of them, but at least one when there is one.
+    /// `after` the newest number is an empty span.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Invalid`] when `after` is not below [`Log::next`]: the caller
+    /// holds a number this canvas never wrote.
+    pub fn after(&self, after: u64, max: u64) -> Result<Span> {
+        if after >= self.next {
+            return Err(invalid(
+                format!("the canvas has no operation {after}"),
+                &format!("pass a number below {}, the next one 'canvas show' gives", self.next),
+            ));
+        }
+        let written = self.ends.len() as u64 - 1;
+        let first = self.next - written;
+        // Line `first + k` starts where ends[k] says; `after < next` keeps
+        // `skip` within the lines written.
+        let from = (after + 1).max(first);
+        let skip = usize::try_from(from - first).unwrap_or(usize::MAX);
+        let (mut end, mut taken) = (self.ends.get(skip).copied().unwrap_or_default(), 0);
+        let start = end;
+        for &line_end in self.ends.iter().skip(skip + 1) {
+            if line_end - start > max && taken > 0 {
+                break;
+            }
+            (end, taken) = (line_end, taken + 1);
+        }
+        Ok(Span { bytes: start..end, next: from + taken })
     }
 
     /// Applies `ops` (one operation object or a list of them) as one undo
@@ -268,7 +322,10 @@ impl Log {
         if let Some(line) = Line::of(self.next, op, applied) {
             self.ops.push(op.clone());
             self.lines.push(self.next);
-            written.bytes.push_str(&line.encode());
+            let line = line.encode();
+            written.bytes.push_str(&line);
+            let end = self.ends.last().copied().unwrap_or_default();
+            self.ends.push(end + line.len() as u64);
             written.seq.push(self.next);
             self.next += 1;
         }
@@ -322,6 +379,25 @@ impl Log {
         }
         Ok(())
     }
+}
+
+/// The operation lines of a [`Span`] as read from the file, each as its
+/// JSON object with every field it has.
+///
+/// # Errors
+///
+/// [`Error::CanvasCorrupt`] for a line that is not a JSON object; `line` is
+/// then its place in `bytes`, from 1.
+pub fn lines(bytes: &[u8]) -> Result<Vec<Value>> {
+    let rows = bytes.strip_suffix(b"\n").unwrap_or(bytes);
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+    let read = |(i, row): (usize, &[u8])| match serde_json::from_slice(row) {
+        Ok(Value::Object(m)) => Ok(Value::Object(m)),
+        _ => Err(Error::CanvasCorrupt { line: i + 1, message: "not a JSON object".into() }),
+    };
+    rows.split(|&b| b == b'\n').enumerate().map(read).collect()
 }
 
 fn read_shape(m: &Fields) -> Result<Shape> {

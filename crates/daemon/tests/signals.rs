@@ -1,4 +1,5 @@
-//! The real binary: it serves, and SIGTERM ends it cleanly.
+//! The real binary: it serves, and SIGTERM ends it cleanly, even with a
+//! client waiting on a canvas feed.
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -30,11 +31,18 @@ fn sigterm_stops_the_daemon_cleanly() {
         }
     };
     assert_eq!(greeting, "hello, ada");
+    client.canvas_create("main").unwrap();
+    let waiter = client.clone();
+    let waiting =
+        std::thread::spawn(move || waiter.canvas_changes("main", 0, Duration::from_secs(30)));
+    std::thread::sleep(Duration::from_millis(100));
 
     let killed = Command::new("kill").arg("-TERM").arg(daemon.id().to_string()).status().unwrap();
     assert!(killed.success());
     let output = daemon.wait_with_output().unwrap();
     assert!(output.status.success(), "{:?}", output.status);
+    let feed = waiting.join().unwrap().unwrap();
+    assert_eq!((feed.ops.len(), feed.next), (0, 1));
     // Silence is golden: a clean run says nothing.
     assert_eq!((output.stdout.as_slice(), output.stderr.as_slice()), (&b""[..], &b""[..]));
     assert!(!socket.exists());

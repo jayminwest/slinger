@@ -40,6 +40,7 @@ a "did you mean" suggestion.
 | `workspace list` | One line per open workspace, by name: name, canvas and directory, separated by tabs. `--json`: `workspaces` |
 | `workspace show <WORKSPACE>` | One field per line, the name and the value separated by a tab: `name`, `tag`, `canvas`, `dir`, then `agent` (if any) and one `root` line per root, `machine:path`. `--json`: `workspace` |
 | `workspace close <WORKSPACE>` | Nothing. `--json`: `dir` |
+| `canvas changes <ID> [--after NUMBER] [--wait MS]` | One line per operation numbered above `--after` (default 0: all), lowest first, as the canvas file's JSON line. `--json`: `next`, `ops` |
 
 `record append` takes the payload as a JSON object (default `{}`); the
 kinds and their payloads are in `docs/service.md`. A payload that is not
@@ -95,6 +96,12 @@ A read changes nothing. The packet is stored as a blob (`packet` in
 `--json`), and so is each image (`images`), for `blob get`. A canvas or
 page that is not there exits 3 (`not_found`), an id that is not one exits
 5 (`invalid`).
+
+`canvas changes` prints nothing and exits 0 when nothing is newer. With
+`--wait`, it first waits up to that many milliseconds (at most 60000) for a
+change. A long backlog comes in parts: run it again with `--after` one below
+the `next` of `--json`. An `--after` the canvas has not reached exits 5
+(`invalid`).
 
 ## Output
 

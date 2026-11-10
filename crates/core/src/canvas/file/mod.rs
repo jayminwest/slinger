@@ -9,7 +9,8 @@
 //!   lines and how many bytes of a torn last line it cut. [`File::canvas`]
 //!   replays the lines into the canvas they build.
 //! - [`Log`] holds a file open for a server: each change returns the bytes
-//!   to append, numbered, and undo lives beside it.
+//!   to append, numbered, and undo lives beside it. [`Log::after`] finds the
+//!   stored lines after a point, and [`lines`] reads them as they are.
 //! - [`snap`] rounds an operation to what the file can hold. Apply the
 //!   snapped op, so the canvas in memory is the one the file rebuilds.
 //!
@@ -39,7 +40,7 @@ mod replay;
 mod time;
 mod whole;
 
-pub use log::{Log, Shown, Written, check_id, id_from_name, parse_author};
+pub use log::{Log, Shown, Span, Written, check_id, id_from_name, lines, parse_author};
 use serde_json::{Map, Value};
 
 use super::{Action, Applied, Author, Item, ItemId, Op, Page, PageId, Point, Shape, Time};

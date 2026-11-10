@@ -16,7 +16,8 @@ slingerd [--socket <PATH>] [--data-dir <PATH>]
   socket file left by a daemon that died is replaced.
 - **Clean stop.** On SIGTERM or SIGINT the daemon stops accepting, answers
   every request on a connection made before the signal, removes the socket
-  file and exits 0. The lock file stays. It is empty and safe to delete while
+  file and exits 0. A request waiting on a canvas feed gets its reply at
+  once, with what it has. The lock file stays. It is empty and safe to delete while
   no daemon runs.
 - **Errors** follow `docs/cli.md`: `✗ message` and an indented hint on
   stderr, and a typed exit code.
@@ -121,6 +122,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_apply` | `canvas`: canvas id, `by`: author (default `user`), `ops`: one operation or a list | `seq`: list of numbers, `made`: list of ids |
 | `canvas_undo`, `canvas_redo` | `canvas`: canvas id, `by`: author (default `user`) | `seq`, `made` (always empty) |
 | `canvas_import` | `path`: absolute path of a tldraw file, `canvas`: canvas id (optional, default made from the file's name) | `canvas`, `pages`: number, `items`: count by kind, `skipped`: count by tldraw shape type |
+| `canvas_changes` | `canvas`: canvas id, `after`: number (default 0), `wait`: milliseconds (default 0, at most 60000) | `next`: the number after the last op given, `ops`: list of operation lines |
 | `workspace_open` | `dir`: absolute path of a directory (optional), `name`: string (optional); one of them | `workspace`: the workspace, `new`: whether this open made its file |
 | `workspace_list` | none | `workspaces`: list of workspaces, sorted by name |
 | `workspace_show` | `workspace`: a name, or the absolute directory of its file | `workspace` |
@@ -327,6 +329,41 @@ sling whose packet it cannot read is `invalid`, with a hint.
 ```json
 { "v": 1, "op": "canvas_read", "canvas": "idea", "after": 41 }
 { "ok": true, "packet": "sha256:5e1f…", "dir": "/data/slinger/packets/5e1f…", "text": "slinger-packet 1 canvas=idea page=Page%201 from=42 to=58 scale=0.35 at=/data/slinger/packets/5e1f…\n# new\n…", "images": [{ "name": "c42.png", "id": "sha256:9a0c…" }] }
+```
+
+#### The change feed
+
+`canvas_changes` gives the operations numbered above `after`, lowest first,
+so a client that holds a canvas learns what changed without reading all of
+it again (SPEC section 5). Each op is the canvas file's line as stored, as a
+JSON object with every field it has, including fields and kinds this daemon
+does not know. `next` is the number of the first op not given: ask again
+with `after` one below it. `canvas_show`'s `next` minus 1 is the `after` that
+follows a page just read. `after` the newest number is an empty list and
+succeeds; an `after` at or above the canvas's next number is `invalid`, as
+the client holds a number this canvas never wrote (show it again).
+
+A reply holds at most 1 MiB of lines, and always at least one when there is
+one, so a long backlog comes in parts.
+
+**Waiting.** With `wait` above 0 and nothing newer, the daemon holds the
+reply until a change to that canvas, `wait` milliseconds pass, or the daemon
+stops, whichever is first; then it replies with what there is, which may be
+nothing. A `wait` above 60000 waits 60000. A client loops: ask, apply what
+came, ask again from `next`.
+
+The protocol stays one line each way, and that settles the design. The other
+choice was a stream: a request that subscribes and then many reply lines.
+A stream would need framing for many replies, a way to end them, and a client
+that reads lines as they arrive; every verb today is one exchange the client
+can time out. Holding one reply back (a long poll) keeps all of that. It
+costs one request per change burst, which is nothing on a local socket. The
+client's read timeout is its usual 5 seconds plus the wait. A waiting
+request holds one daemon thread, and a stop answers it at once.
+
+```json
+{ "v": 1, "op": "canvas_changes", "canvas": "main", "after": 6, "wait": 30000 }
+{ "ok": true, "next": 8, "ops": [{ "n": 7, "t": "2025-11-10T16:00:00.000Z", "by": "agent:scout", "op": "add", "item": { "id": "i5", "page": "p1", "kind": "text", … } }] }
 ```
 
 #### How a blob's bytes travel

@@ -3,6 +3,7 @@
 
 use std::io::Read;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use clap::Subcommand;
 use serde_json::{Value, json};
@@ -79,6 +80,16 @@ pub enum Canvas {
         #[arg(long, value_name = "DIR")]
         out: Option<PathBuf>,
     },
+    /// Print the operations after a number, one JSON line each, as the canvas file holds them
+    Changes {
+        canvas: String,
+        /// Only operations numbered above this ('canvas show --json' gives the next one)
+        #[arg(long, value_name = "NUMBER", default_value_t = 0)]
+        after: u64,
+        /// When there are none, wait up to this many milliseconds (at most 60000) for one
+        #[arg(long, value_name = "MS", default_value_t = 0)]
+        wait: u64,
+    },
 }
 
 impl Canvas {
@@ -92,6 +103,7 @@ impl Canvas {
             Self::Redo { .. } => "canvas redo",
             Self::Import { .. } => "canvas import",
             Self::Read { .. } => "canvas read",
+            Self::Changes { .. } => "canvas changes",
         }
     }
 }
@@ -155,6 +167,11 @@ pub fn execute(
             let packet = daemon.canvas_read(ask)?;
             let text = packet.text.trim_end().to_string();
             Ok(Output::new(serde_json::to_value(&packet)?, text))
+        }
+        Canvas::Changes { canvas, after, wait } => {
+            let feed = daemon.canvas_changes(canvas, *after, Duration::from_millis(*wait))?;
+            let human = feed.ops.iter().map(Value::to_string).collect::<Vec<_>>().join("\n");
+            Ok(Output::new(serde_json::to_value(feed)?, human))
         }
     }
 }

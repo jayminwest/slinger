@@ -62,6 +62,8 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              Log::packet builds a page's packet with the op range in the
              file's line numbers and takes item ids as the file or a packet
              writes them.
+             Log::after finds where the lines after a number lie in the file,
+             and `lines` reads them back whole, for the change feed.
 packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
              canvas page, the clusters of the user's ink and what changed, and gives
              the `new`, `made` and `page` lines in reading order, plus the render list:
@@ -130,6 +132,9 @@ canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,
              then reply. A failed write closes the canvas; the next request
              reads the file again. Cuts a torn last line. A new canvas's
              file (empty or imported) is written aside and renamed in whole.
+canvases/feed.rs  the change feed: the stored lines after a number, read back
+             from the file, and a wait on the canvas's condition variable that
+             a change or `Canvases::stop` (called when `serve` stops) ends.
 server/import.rs  `canvas_import`: reads the client's file, calls the tldraw
              importer, stores the canvas, replies with the counts.
 workspaces.rs the open workspaces: the list of directories that hold their
@@ -222,7 +227,8 @@ Each boundary has something that fails when it is broken:
 | `canvas read`: only ink after the marker is new; each packet and image is a blob; the stored text has no `at` | `crates/core/tests/canvas_packet.rs` and `crates/daemon/src/tests/read.rs`, through a real socket |
 | An imported canvas reads back with the importer's pages, ids and arrow ends | `crates/core/tests/canvas_import.rs` and `crates/daemon/src/tests/import.rs`, on the real board |
 | Open workspaces survive a restart; each has its canvas; one primary root per workspace | `crates/daemon/src/tests/workspace.rs`, through a real socket |
-| SIGTERM ends the daemon cleanly | `crates/daemon/tests/signals.rs`, against the real binary |
+| The change feed wakes a waiting client on another's change; a stop ends a wait | `crates/daemon/src/tests/feed.rs`, through a real socket |
+| SIGTERM ends the daemon cleanly, with a client waiting on a feed | `crates/daemon/tests/signals.rs`, against the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |
 | Layout is fully tested | the 100% floor on `crates/app/src/layout.rs` in `budgets/coverage-budgets.json` |
