@@ -2,13 +2,16 @@
 //! with its line out. Reading, finding and watching the files is `backend`'s.
 //!
 //! The format is a small subset of TOML: `# comments`, `[table]` headers and
-//! `key = "string"` lines. Every key is optional; a missing key keeps its
+//! `key = "string"` lines. In `[keys]`, each key is a command's name and its
+//! value is a chord (`commands`). Every key is optional; a missing key keeps its
 //! default. A machine's overlay file is parsed the same way and merged over
 //! the shared file key by key ([`Layer::over`]). `config.example.toml` at the
 //! repository root lists every key with its default.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
+
+use crate::commands::{Chord, Command, Keymap};
 
 /// A colour, written `"#rrggbb"` in the file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +52,7 @@ pub struct Config {
     /// The daemon's socket as written (`~/` allowed; see [`expand_home`]);
     /// `None` is the daemon's default socket.
     pub socket: Option<String>,
+    pub keys: Keymap,
 }
 
 /// What one file sets. Unset keys fall through to the layer below.
@@ -59,24 +63,49 @@ pub struct Layer {
     muted: Option<Rgb>,
     error: Option<Rgb>,
     socket: Option<String>,
+    /// By command: `Some(None)` unbinds it.
+    #[expect(
+        clippy::option_option,
+        reason = "unset (the layer below decides) and bound to no chord are different"
+    )]
+    keys: [Option<Option<Chord>>; Command::ALL.len()],
 }
 
 impl Layer {
-    /// `top` merged over `self`: each key `top` sets wins.
+    /// `top` merged over `self`: each key `top` sets wins, and a chord `top`
+    /// binds is taken from the command `self` had on it.
     #[must_use]
     pub fn over(self, top: Layer) -> Layer {
+        let mut keys = self.keys;
+        for chord in top.keys.iter().filter(|k| matches!(k, Some(Some(_)))) {
+            for key in &mut keys {
+                if key == chord {
+                    *key = Some(None);
+                }
+            }
+        }
+        for (key, top) in keys.iter_mut().zip(top.keys) {
+            *key = top.or(*key);
+        }
         Layer {
             background: top.background.or(self.background),
             text: top.text.or(self.text),
             muted: top.muted.or(self.muted),
             error: top.error.or(self.error),
             socket: top.socket.or(self.socket),
+            keys,
         }
     }
 
     /// The config: each key this layer sets, and the default for the rest.
     pub fn resolve(self) -> Config {
         let d = Theme::default();
+        let mut keys = Keymap::default();
+        for (&(command, _), chord) in Command::ALL.iter().zip(self.keys) {
+            if let Some(chord) = chord {
+                keys.bind(command, chord);
+            }
+        }
         Config {
             theme: Theme {
                 background: self.background.unwrap_or(d.background),
@@ -85,11 +114,15 @@ impl Layer {
                 error: self.error.unwrap_or(d.error),
             },
             socket: self.socket,
+            keys,
         }
     }
 
     /// Sets one key from its unquoted string value. A key already set is an error.
     fn set(&mut self, table: &str, key: &str, value: String) -> Result<(), ErrorKind> {
+        if table == "keys" {
+            return self.bind(key, &value);
+        }
         let slot = match (table, key) {
             ("daemon", "socket") => return put(&mut self.socket, value),
             ("theme", "background") => &mut self.background,
@@ -99,6 +132,20 @@ impl Layer {
             _ => return Err(ErrorKind::UnknownKey),
         };
         put(slot, parse_colour(&value).ok_or(ErrorKind::BadColour)?)
+    }
+
+    /// Binds the command `name` to `chord`; `""` binds it to none.
+    fn bind(&mut self, name: &str, chord: &str) -> Result<(), ErrorKind> {
+        let command = Command::named(name).ok_or(ErrorKind::UnknownCommand)?;
+        let chord = match chord {
+            "" => None,
+            text => Some(Chord::parse(text).ok_or(ErrorKind::BadChord)?),
+        };
+        let i = command as usize;
+        if self.keys[i].is_none() && chord.is_some() && self.keys.contains(&Some(chord)) {
+            return Err(ErrorKind::ChordTaken);
+        }
+        put(&mut self.keys[i], chord)
     }
 }
 
@@ -111,7 +158,7 @@ fn put<T>(slot: &mut Option<T>, value: T) -> Result<(), ErrorKind> {
     Ok(())
 }
 
-const TABLES: [&str; 2] = ["theme", "daemon"];
+const TABLES: [&str; 3] = ["theme", "daemon", "keys"];
 
 /// A line the parser rejects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -132,6 +179,11 @@ pub enum ErrorKind {
     /// The value is not one double-quoted string.
     NotAString,
     BadColour,
+    /// A key in `[keys]` that names no command.
+    UnknownCommand,
+    BadChord,
+    /// Two commands on one chord in one file.
+    ChordTaken,
 }
 
 impl ErrorKind {
@@ -152,6 +204,14 @@ impl ErrorKind {
                 ("the value is not a quoted string", "quote the value: key = \"value\"")
             }
             Self::BadColour => ("the value is not a colour", "write a colour as \"#rrggbb\""),
+            Self::UnknownCommand => ("unknown command", every),
+            Self::BadChord => (
+                "the value is not a key chord",
+                "write a chord as \"cmd+shift+k\", or \"\" for none",
+            ),
+            Self::ChordTaken => {
+                ("another command is on this chord", "bind each chord to one command")
+            }
         }
     }
 }

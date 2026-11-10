@@ -31,3 +31,18 @@
 # The control socket; a leading "~/" is the home folder. Unset by default: the daemon's
 # own default ($XDG_RUNTIME_DIR/slinger.sock, else in the temp folder). Example:
 #socket = "~/.local/state/slinger/slinger.sock"
+
+# --- keys: every action is a named command, bound to a key chord here.
+# A chord is lowercase modifiers (shift, ctrl, alt, cmd) joined by "+", then one character
+# or a key's name: space, tab, return, escape, delete, forward-delete, up, down, left,
+# right, f1 to f20. "cmd++" is the plus key. A letter matches in either case; with shift,
+# write the letter ("cmd+shift+k"). "" binds a command to no key. Two commands on one
+# chord in one file is an error. A chord set in a file moves from the command that had it
+# by default, or in the shared file when set in the overlay; that command has no key then.
+# A tablet button is a key: bind it to a chord in the tablet's own software. The final
+# keys are not decided yet.
+[keys]
+# Quit the app.
+#quit = "cmd+q"
+# Read the config files again now, without waiting for the change to be noticed.
+#reload-config = "cmd+r"

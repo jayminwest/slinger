@@ -105,10 +105,11 @@ impl Settings {
         settings
     }
 
-    /// Reads the files again if either changed since the last read; returns
-    /// whether it did. Call it every so often to follow edits.
-    pub fn refresh(&mut self) -> bool {
-        let changed = self.files.stamp() != self.seen;
+    /// Reads the files again if either changed since the last read, or if
+    /// `force` (the `reload-config` command); returns whether it did. Call it
+    /// every so often to follow edits.
+    pub fn refresh(&mut self, force: bool) -> bool {
+        let changed = force || self.files.stamp() != self.seen;
         if changed {
             self.reload();
         }
@@ -210,18 +211,19 @@ mod tests {
         let file = dir.join("config.toml");
         fs::write(&file, TEXT_1).unwrap();
         let mut settings = Settings::load(ConfigFiles::at(file.clone()));
-        assert!(!settings.refresh(), "nothing changed");
+        assert!(!settings.refresh(false), "nothing changed");
+        assert!(settings.refresh(true), "forced");
         let good = settings.config.clone();
 
         fs::write(&file, "[theme]\n\ntext = \"#12345\"\n").unwrap();
-        assert!(settings.refresh());
+        assert!(settings.refresh(false));
         assert_eq!(settings.config, good);
         let problem = settings.problem.clone().unwrap();
         assert!(problem.message.ends_with("config.toml: line 3: the value is not a colour"));
         assert_eq!(problem.hint.as_deref(), Some("write a colour as \"#rrggbb\""));
 
         fs::write(&file, "[theme]\ntext = \"#123456\"\n# fixed\n").unwrap();
-        assert!(settings.refresh());
+        assert!(settings.refresh(false));
         assert_eq!(settings.problem, None);
         assert_eq!(settings.config.theme.text, config::Rgb { r: 0x12, g: 0x34, b: 0x56 });
     }
@@ -232,10 +234,10 @@ mod tests {
         fs::write(dir.join("config.toml"), TEXT_1).unwrap();
         let mut settings = Settings::load(ConfigFiles::at(dir.join("config.toml")));
         fs::write(dir.join("config.local.toml"), "[daemon]\nsocket = \"/x.sock\"\n").unwrap();
-        assert!(settings.refresh());
+        assert!(settings.refresh(false));
         assert_eq!(settings.socket(), PathBuf::from("/x.sock"));
         fs::remove_file(dir.join("config.local.toml")).unwrap();
-        assert!(settings.refresh());
+        assert!(settings.refresh(false));
         assert_eq!(settings.socket(), control::default_socket());
     }
 
