@@ -29,6 +29,7 @@ use rusqlite::{
 use slinger_core::record::{self, BlobId, Event};
 
 use crate::canvases::Canvases;
+use crate::sessions::Sessions;
 use crate::workspaces::Workspaces;
 
 /// The store's file inside the data directory.
@@ -145,6 +146,7 @@ pub struct Store {
     canvases: Canvases,
     workspaces: Workspaces,
     packets: PathBuf,
+    sessions: Sessions,
 }
 
 impl Store {
@@ -181,7 +183,8 @@ impl Store {
         let canvases = Canvases::new(dir.join(CANVASES));
         let workspaces = Workspaces::new(dir.join(WORKSPACES), machine.clone());
         let packets = dir.join(PACKETS);
-        Ok(Self { db: Mutex::new(db), machine, canvases, workspaces, packets })
+        let sessions = Sessions::default();
+        Ok(Self { db: Mutex::new(db), machine, canvases, workspaces, packets, sessions })
     }
 
     /// Appends `event` to the log and returns it as stored: with the next
@@ -309,6 +312,12 @@ impl Store {
     pub fn packet_dir(&self, id: BlobId) -> PathBuf {
         let id = id.to_string();
         self.packets.join(id.strip_prefix("sha256:").unwrap_or(&id))
+    }
+
+    /// The statuses the agents set since the daemon started.
+    #[must_use]
+    pub fn sessions(&self) -> &Sessions {
+        &self.sessions
     }
 
     fn db(&self) -> std::sync::MutexGuard<'_, Connection> {

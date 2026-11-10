@@ -3,6 +3,7 @@
 
 mod import;
 mod read;
+mod session;
 
 use std::fs::{self, File, Permissions, TryLockError};
 use std::io::{self, BufReader};
@@ -268,6 +269,7 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
             let strokes = store.canvases().strokes(&canvas, &item).map_err(|e| drawn(&e))?;
             Ok(Reply::CanvasStrokes(CanvasStrokes { strokes }))
         }
+        Request::Session(ask) => session::answer(store, ask),
     }
 }
 

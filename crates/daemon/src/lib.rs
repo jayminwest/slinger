@@ -9,6 +9,7 @@
 
 mod canvases;
 mod server;
+mod sessions;
 mod store;
 #[cfg(test)]
 mod tests;
@@ -27,6 +28,7 @@ use slinger_control as control;
 
 pub use canvases::{CanvasError, Canvases};
 pub use server::{Server, StartError, Stopper};
+pub use sessions::{SessionError, Sessions};
 pub use store::{Query, Store, StoreError, default_data_dir, machine_name};
 pub use workspaces::{Opened, WorkspaceError, Workspaces};
 

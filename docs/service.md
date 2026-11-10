@@ -130,6 +130,9 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_read` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `after`: number (optional, default the last sling's), `select`: list of item ids (optional), `out`: absolute path of a directory (optional) | `packet`: blob id of the text, `dir`: the directory written, `text`: the packet with `at`, `images`: list of `{name, id}` |
 | `canvas_crop` | `canvas`: canvas id, `of`: an item id or a box, `path`: absolute path of a PNG file | `images`: list of `{path, x, y, width, height}` |
 | `canvas_strokes` | `canvas`: canvas id, `item`: an item id | `strokes`: list of stroke items with `points` |
+| `session_list` | none | `sessions`: list of sessions, sorted by agent |
+| `session_show` | `agent`: string | `session` |
+| `status_set` | `agent`: string, `status`: `working`, `blocked` or `done`, `note`: string (optional) | `agent`, `status`, `note` (absent when none), `event`: the number of the event appended (absent for `working`) |
 
 **`record_append`** appends one event to this machine's record. `tags`
 may set `workspace`, `agent` and `canvas`; the daemon sets `machine`, the
@@ -409,6 +412,35 @@ A client writes both verbs with its own type (`crates/control/src/look.rs`,
 "Adding a verb" below), so the app, which never sends them, carries no code
 for them.
 
+#### Sessions
+
+A session is an agent the daemon can reach (SPEC section 5): the agent of an
+open workspace, one session per agent name. A session is `{agent, home,
+deliver, status, note}`: `home` is the directory of its workspace's file (the
+first workspace by name, when several name the agent), `deliver` is how a
+message reaches it (`process`, a process the daemon holds, is the one kind in
+v1), and `status` and `note` are what the agent last set, absent until it sets
+one. **`session_show`** of an agent no open workspace names is `not_found`.
+
+**`status_set`** sets an agent's status. `blocked` appends `agent_blocked`
+with the note as its `reason` (empty without one) and `done` appends
+`agent_done` with the note as its `summary`; the event's source and `agent`
+tag are the agent, and its workspace tag follows the rule under "Data
+directory". `working` has no event in the record: the daemon holds it until
+it stops. A session shows the status set last since the daemon started, else
+the last `agent_blocked` or `agent_done` with its agent tag in the record, so
+`blocked` and `done` survive a restart. An agent no open workspace names may
+set a status too: the record keeps it, and the session shows it once a
+workspace with that agent opens. A blank agent or another status is
+`invalid`.
+
+```json
+{ "v": 1, "op": "status_set", "agent": "scout", "status": "blocked", "note": "need the API key" }
+{ "ok": true, "agent": "scout", "status": "blocked", "note": "need the API key", "event": 12 }
+{ "v": 1, "op": "session_list" }
+{ "ok": true, "sessions": [{ "agent": "scout", "home": "/Users/me/notes", "deliver": "process", "status": "blocked", "note": "need the API key" }] }
+```
+
 #### How a blob's bytes travel
 
 The bytes travel as a file on this machine, named in the line. They never
@@ -447,8 +479,8 @@ The protocol adds:
 
 `not_found` also covers a blob the record does not hold, a file to put
 that is not there, a UI with no such name or version, and a canvas, page or
-item that is not there, and a directory or workspace that is not there or
-not open.
+item that is not there, a directory or workspace that is not there or
+not open, and an agent with no session.
 
 ## Versioning
 
@@ -471,7 +503,10 @@ not open.
    be `#[serde(skip_serializing)]` there and written by a small type of its
    own, as `crates/control/src/workspace.rs` does, with a test that the two
    write the same line. `canvas_read` does the same in
-   `crates/control/src/packet.rs`.
+   `crates/control/src/packet.rs`. Even a skipped variant costs the app a
+   little; a group of such verbs costs one variant when they share it:
+   `#[serde(untagged, skip_serializing)]` over an enum of their own, tagged
+   by `op`, as `crates/control/src/session.rs` does.
 3. Add one arm to `answer` in `crates/daemon/src/server.rs`. It calls the
    core and nothing else.
 4. Add tests to `crates/daemon/src/tests.rs`. They go through a real socket.

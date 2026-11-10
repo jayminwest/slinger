@@ -107,6 +107,10 @@ workspace.rs workspaces (SPEC section 10): the definition file's format
              root, name and canvas each), what a new one gets (slug of its
              name) and which workspace an event's canvas or agent tags. No IO;
              callers read and write the bytes.
+session.rs   sessions (SPEC section 5, section 7 status set): a session per
+             agent of the open workspaces (agent, home, delivery, status), the
+             three statuses, and the record event each writes (blocked, done)
+             or none (working), and back. No IO.
 error.rs     the typed errors and their stable codes.
 ```
 
@@ -128,8 +132,8 @@ server.rs    the control socket and `answer`, one arm per verb. `serve` takes th
 store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
              the event log and the blobs. The only module that knows its
              layout. Stores each event as the line `record::encode` wrote.
-             Hands out the canvases and the workspaces, so `answer` reaches
-             all data one way.
+             Hands out the canvases, the workspaces and the sessions, so
+             `answer` reaches all data one way.
 canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,
              so changes are numbered in the order they apply; append, sync,
              then reply. A failed write closes the canvas; the next request
@@ -151,6 +155,10 @@ server/read.rs  `canvas_read`: the marker is the `to` of the packet the
              the record and survives a restart. Stores the text (no `at`)
              and each image as blobs, then writes them into `--out` or the
              store's `packets/<hex>/`.
+sessions.rs  the statuses agents set since the daemon started (`working`
+             lives only here); else each agent's last status event in the
+             record. `status_set` appends its event inside the same lock.
+server/session.rs  `session_list`, `session_show`, `status_set` on the wire.
 ```
 
 ### Inside the app
@@ -235,6 +243,8 @@ Each boundary has something that fails when it is broken:
 | The change feed wakes a waiting client on another's change; a stop ends a wait | `crates/daemon/src/tests/feed.rs`, through a real socket |
 | SIGTERM ends the daemon cleanly, with a client waiting on a feed | `crates/daemon/tests/signals.rs`, against the real binary |
 | A crop is limited in size; an empty box is a white image; an unknown id is `not_found` | `crates/core/tests/canvas_look.rs`, and `crates/daemon/src/tests/look.rs` through a real socket |
+| A status set shows in the session list and the record; blocked and done survive a restart | `crates/daemon/src/tests/session.rs`, through a real socket |
+| An agent verb takes its agent from `--agent` or `SLINGER_AGENT`, else exits 2 | `crates/cli/tests/agent_env.rs`, against the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |
 | Layout is fully tested | the 100% floor on `crates/app/src/layout.rs` in `budgets/coverage-budgets.json` |

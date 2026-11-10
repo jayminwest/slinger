@@ -16,6 +16,13 @@ bullet with the area in bold.
   note on how to answer on the canvas instead of in chat. The first sling of
   a session gets the whole note, later ones a single line. An empty prompt
   with a selection is a valid sling.
+- **CLI:** sessions and agent status. `slinger session list` shows each agent
+  of an open workspace with its status, home directory and note, and
+  `session show <agent>` prints one. An agent reports what it is doing with
+  `slinger status set <working|blocked|done> [--note <text>]`; `blocked` and
+  `done` also go into the record, tagged with the agent and its workspace, and
+  survive a restart. The agent's name comes from `--agent` or the
+  `SLINGER_AGENT` environment variable; with neither, the command exits 2.
 - **CLI:** workspaces. `slinger workspace open <dir>` opens a directory as a
   workspace: it writes `slinger-workspace.toml` in the directory if there is
   none, makes the workspace's canvas, and prints its name; opening it again

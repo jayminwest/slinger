@@ -19,6 +19,7 @@ mod feed;
 mod import;
 mod look;
 mod read;
+mod session;
 mod workspace;
 
 const DAEMON: &str = "slingerd";
