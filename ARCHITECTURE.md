@@ -74,6 +74,10 @@ record/      the record's formats (SPEC section 9): events as versioned JSON
              (encode, decode, to_value), the kinds a writer may append
              (Body::new checks a payload against its kind) and blob ids
              (SHA-256, `sha256:<hex>`). No IO; the daemon stores what it encodes.
+ui.rs        agent UIs (docs/design/live-items.md): the rules for a name and its
+             code, the versions rebuilt from `ui_put` events (Catalog), what a
+             put adds and what a reference (`name`, `name@3`, blob id) names.
+             No IO; the daemon hands it the events.
 workspace.rs workspaces (SPEC section 10): the definition file's format
              (docs/workspace.md) and the rules a set of them keeps. No IO;
              callers read and write the bytes.
@@ -91,8 +95,10 @@ adding fields, and the change bumps that kind's `version`.
 lib.rs       argv, startup and signals: `run`.
 server.rs    the control socket and `answer`, one arm per verb. `serve` takes the
              store, so a verb that reads or writes the record reaches it here.
-             Blob verbs read and write the file the client names: a blob's
-             bytes travel as a file, never in the line (docs/service.md).
+             Blob and UI verbs read and write the file the client names: a
+             blob's bytes travel as a file, never in the line (docs/service.md).
+             `ui_put` decides its version inside the store's write
+             (`Store::append_if`), so two puts cannot take one number.
 store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
              the event log and the blobs. The only module that knows its
              layout. Stores each event as the line `record::encode` wrote.
@@ -157,6 +163,7 @@ Each boundary has something that fails when it is broken:
 | The record on disk is append-only and keeps fields it does not know | `crates/daemon/src/store/tests.rs`, against a real file |
 | One daemon per socket; a stop loses no reply | `crates/daemon/src/tests.rs`, through a real socket |
 | A blob of megabytes comes back byte for byte; a put twice gives one id | `crates/daemon/src/tests.rs`, through a real socket |
+| Every UI version stays; the same bytes add none; an export is the bytes put | `crates/daemon/src/tests.rs`, through a real socket |
 | SIGTERM ends the daemon cleanly | `crates/daemon/tests/signals.rs`, against the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |

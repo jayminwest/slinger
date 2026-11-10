@@ -3,7 +3,7 @@
 use serde_json::{Value, json};
 use slinger_core::record::{
     AgentBlocked, AgentDone, BlobId, Body, Event, FileTouched, KINDS, PaneMoved, ReplyLanded,
-    SlingSent, Tags, VERSION, decode, encode, to_value,
+    SlingSent, Tags, UiPut, VERSION, decode, encode, to_value,
 };
 
 fn tags() -> Tags {
@@ -147,4 +147,19 @@ fn a_writer_cannot_use_an_unknown_kind_or_a_payload_that_does_not_fit() {
     }
     let err = Body::new("nope", json!({})).unwrap_err();
     assert!(err.hint().unwrap().contains("agent_done"));
+}
+
+#[test]
+fn ui_put_is_read_typed_but_only_its_verb_writes_it() {
+    let put = UiPut { name: "pick-slot".into(), version: 2, hash: BlobId::of(b"<p>"), bytes: 3 };
+    let event = Event::new(1, "scout", Tags::on("m"), Body::UiPut(put));
+    let doc = to_value(&event);
+    assert_eq!(doc["kind"], "ui_put");
+    assert_eq!(
+        doc["payload"],
+        json!({"name": "pick-slot", "version": 2, "hash": BlobId::of(b"<p>"), "bytes": 3})
+    );
+    assert_eq!(decode(&encode(&event)).unwrap(), event);
+    let err = Body::new("ui_put", doc["payload"].clone()).unwrap_err();
+    assert_eq!(err.code(), "invalid");
 }

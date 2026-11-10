@@ -95,6 +95,10 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `record_list` | `kind`, `machine`, `workspace`, `agent`, `canvas`: string (each optional); `after`: number (optional) | `events`: list of events, lowest number first |
 | `blob_put` | `path`: absolute path of a file | `id`: the blob id |
 | `blob_get` | `id`: blob id, `path`: absolute path of a file | `size`: number of bytes written |
+| `ui_put` | `name`: string, `path`: absolute path of an HTML file, `source`: string | `ui`: the version, `new`: whether this put made it |
+| `ui_list` | none | `uis`: the latest version of each UI, by name |
+| `ui_show` | `name`: string | `uis`: every version of that UI, oldest first |
+| `ui_export` | `ui`: a UI reference, `dir`: absolute path of a directory | `ui`: the version, `path`: the file written |
 
 **`record_append`** appends one event to this machine's record. `tags`
 may set `workspace`, `agent` and `canvas`; the daemon sets `machine`, the
@@ -119,6 +123,10 @@ is dropped.
 
 A blob id is `sha256:` and 64 lowercase hex digits.
 
+`record_list` also returns `ui_put` events (`name`, `version`, `hash`: blob
+id, `bytes`), but `record_append` refuses that kind: only `ui_put` writes
+it, so a name's versions stay 1, 2, 3 in log order.
+
 **`record_list`** returns the events that match every filter given:
 `kind`, each tag, and `after` (only events numbered above it). No match
 is an empty list, not an error. An event of a kind this daemon does not
@@ -141,6 +149,30 @@ A path that is not absolute is `invalid`: the daemon's working directory is
 not the client's. A file to put that does not exist is `not_found`; one the
 daemon cannot read or write is `invalid`. Both carry a hint.
 
+**`ui_put`** stores the file at `path` as a blob and, unless it holds the
+same bytes as the name's latest version, appends a `ui_put` event that
+makes the next version (1 for a new name). Every version stays. The bytes
+of an older version make a new version: a revert is a change like any
+other. The rules for the name and the code are in
+`docs/design/live-items.md`; a name or code they refuse is `invalid`.
+**`ui_export`** writes one version into `dir` (created if missing) as
+`<name>.v<version>.html`, replacing a file of that name. A reference is
+`<name>` (the latest version), `<name>@<version>` or a blob id (the latest
+version holding those bytes). A name with no versions, or a reference that
+matches none, is `not_found` with a hint.
+
+A version is `{name, version, hash, bytes, source, time}`: `hash` is the
+code's blob id, `source` who put it, `time` when (milliseconds since the
+Unix epoch, UTC). The versions are rebuilt from the `ui_put` events on each
+request; they are not stored anywhere else.
+
+```json
+{ "v": 1, "op": "ui_put", "name": "pick-slot", "path": "/tmp/pick-slot.html", "source": "scout" }
+{ "ok": true, "ui": { "name": "pick-slot", "version": 1, "hash": "sha256:9f2c…", "bytes": 1234, "source": "scout", "time": 1762790400000 }, "new": true }
+{ "v": 1, "op": "ui_export", "ui": "pick-slot@1", "dir": "/tmp/out" }
+{ "ok": true, "ui": { "name": "pick-slot", "version": 1, … }, "path": "/tmp/out/pick-slot.v1.html" }
+```
+
 #### How a blob's bytes travel
 
 The bytes travel as a file on this machine, named in the line. They never
@@ -159,7 +191,7 @@ won because:
 
 A client that holds bytes in memory writes them to a file of its own first,
 and a client that wants them in memory reads the file the daemon wrote. The
-CLI does this for `blob put -` and for `blob get` without `--out`, in the
+CLI does this for `blob put -`, `ui put -` and for `blob get` without `--out`, in the
 temporary directory, and removes the file after.
 
 ### Error codes
@@ -176,8 +208,8 @@ The protocol adds:
 | `unavailable` | Made by the client, never sent: the daemon did not answer |
 | `internal` | The daemon could not read or write its record, or the client could not read the reply |
 
-`not_found` also covers a blob the record does not hold, and a file to put
-that is not there.
+`not_found` also covers a blob the record does not hold, a file to put
+that is not there, and a UI with no such name or version.
 
 ## Versioning
 

@@ -297,6 +297,52 @@ fn a_closed_stdout_ends_a_blob_get_with_success() {
 }
 
 #[test]
+fn ui_put_list_show_and_export() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("a.html");
+    std::fs::write(&file, "<p>a</p>").unwrap();
+    let (file, out) = (file.to_str().unwrap(), dir.path().join("out"));
+    let runs = with_daemon(|socket| {
+        let mut runs = vec![
+            cli_on(socket, &["ui", "put", "pick", file]),
+            cli_raw(socket, &["ui", "put", "pick", "-"], b"<p>b</p>", &mut Vec::new()),
+            cli_on(socket, &["ui", "put", "pick", file, "--source", "scout", "--json"]),
+        ];
+        for args in [
+            &["ui", "list"][..],
+            &["ui", "show", "pick"],
+            &["ui", "export", "pick@1", "--out", out.to_str().unwrap()],
+            &["ui", "show", "nope"],
+        ] {
+            runs.push(cli_on(socket, args));
+        }
+        runs
+    });
+    let outs: Vec<(u8, &str)> = runs.iter().map(|r| (r.code, r.out.as_str())).collect();
+    assert_eq!(outs[..2], [(exit::OK, "pick@1\n"), (exit::OK, "pick@2\n")]);
+    let put = json(&runs[2]);
+    assert_eq!((put["command"].as_str(), put["new"].as_bool()), (Some("ui put"), Some(true)));
+    assert_eq!(
+        (put["ui"]["version"].as_u64(), put["ui"]["source"].as_str()),
+        (Some(3), Some("scout"))
+    );
+    let list: Vec<&str> = runs[3].out.lines().collect();
+    assert_eq!(list.len(), 1);
+    assert!(
+        list[0].starts_with("pick@3\tsha256:") && list[0].contains("\t8\tscout\t"),
+        "{}",
+        list[0]
+    );
+    let show: Vec<&str> = runs[4].out.lines().map(|l| l.split('\t').next().unwrap()).collect();
+    assert_eq!(show, ["pick@1", "pick@2", "pick@3"]);
+    let exported = out.join("pick.v1.html");
+    assert_eq!(runs[5].out, format!("{}\n", exported.display()));
+    assert_eq!(std::fs::read_to_string(exported).unwrap(), "<p>a</p>");
+    assert_eq!(runs[6].code, exit::NOT_FOUND);
+    assert!(runs[6].err.contains("\n  list them with"), "{}", runs[6].err);
+}
+
+#[test]
 fn version_and_help_need_no_daemon() {
     assert_eq!(cli_bare(&["--version"]).code, exit::OK);
     assert_eq!(cli_bare(&["hello", "--help"]).code, exit::OK);

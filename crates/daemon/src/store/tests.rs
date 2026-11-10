@@ -219,3 +219,20 @@ fn the_machine_is_the_host_name_up_to_its_first_dot() {
     assert_eq!(machine_from(".local"), "localhost");
     assert_ne!(super::machine_name(), "");
 }
+
+#[test]
+fn append_if_sees_what_it_selects_and_appends_only_on_ok() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path(), MACHINE).unwrap();
+    store.append(event("a", None)).unwrap();
+    store.append(event("b", None)).unwrap();
+    let only_a = Query { kind: Some("a".into()), ..Query::default() };
+    let refused = store.append_if(&only_a, |seen| Err(numbers(seen))).unwrap();
+    assert_eq!(refused, Err(vec![1]));
+    let added =
+        store.append_if(&only_a, |seen| Ok::<_, ()>(event("a", Some(&seen.len().to_string()))));
+    let added = added.unwrap().unwrap();
+    assert_eq!((added.number, added.tags.machine.as_str()), (Some(3), MACHINE));
+    assert_eq!(added.tags.workspace.as_deref(), Some("1"));
+    assert_eq!(numbers(&store.events(&Query::default()).unwrap()), [1, 2, 3]);
+}

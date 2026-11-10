@@ -24,6 +24,10 @@ a "did you mean" suggestion.
 | `record append <KIND> [PAYLOAD] [--source NAME] [--workspace NAME] [--agent NAME] [--canvas ID]` | The new event's number. `--json`: `event` |
 | `record list [--kind KIND] [--machine NAME] [--workspace NAME] [--agent NAME] [--canvas ID] [--after NUMBER]` | One line per event: number, kind, tags (`name=value`) and payload, separated by tabs. `--json`: `events` |
 | `blob put <FILE\|->` | The blob id (`sha256:<hex>`). `--json`: `id` |
+| `ui put <NAME> <FILE\|-> [--source NAME]` | `<name>@<version>`: the version that holds the bytes. `--json`: `ui`, `new` |
+| `ui list` | One line per UI, its latest version: `<name>@<version>`, hash, bytes, source and time, separated by tabs. `--json`: `uis` |
+| `ui show <NAME>` | One line per version of that UI, oldest first, as `ui list`. `--json`: `uis` |
+| `ui export <UI> [--out DIR]` | The path of the file written, `<DIR>/<name>.v<version>.html`. `--json`: `ui`, `path` |
 | `blob get <ID> [--out FILE]` | The blob's bytes, exactly, on stdout. With `--out`: nothing, and the file holds the bytes. `--json` (needs `--out`): `id`, `size` |
 
 `record append` takes the payload as a JSON object (default `{}`); the
@@ -37,6 +41,15 @@ succeeds and prints the same id. `blob get` of an id the record does not
 hold exits 3 (`not_found`), and of a string that is not an id exits 5
 (`invalid`). `blob get --json` without `--out` exits 2 (`usage`): stdout
 cannot carry both the bytes and the envelope.
+
+`ui put` stores one self-contained HTML file (`-` reads stdin) as the
+next version of a UI; putting the bytes of the latest version again adds
+none and prints that version. A name or file the rules in
+`docs/design/live-items.md` refuse exits 5 (`invalid`). `ui export` takes
+`<name>` (the latest version), `<name>@<version>` or a blob id, and writes
+into the current directory unless `--out` names another, which it makes
+if missing. An unknown UI exits 3 (`not_found`). `ui list` with no UIs
+prints nothing and exits 0.
 
 ## Output
 

@@ -13,9 +13,11 @@ use std::time::Duration;
 use slinger_control as control;
 
 use control::{
-    Appended, EventFilter, Events, Greeting, NewEvent, RemoteError, Reply, Request, Stored, Written,
+    Appended, EventFilter, Events, Exported, Greeting, NewEvent, RemoteError, Reply, Request,
+    Stored, Uis, Written,
 };
 use slinger_core::record::{self, BlobId, Body, Event, Tags};
+use slinger_core::ui;
 
 use crate::store::{Query, Store, StoreError};
 
@@ -184,6 +186,69 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
             fs::write(absolute(&path)?, &bytes).map_err(|e| unusable(&path, &e))?;
             Ok(Reply::BlobGet(Written { size: bytes.len() as u64 }))
         }
+        Request::UiPut { name, path, source } => ui_put(store, &name, &path, source),
+        Request::UiList => Ok(Reply::UiList(uis(catalog(store)?.latest()))),
+        Request::UiShow { name } => {
+            Ok(Reply::UiShow(uis(catalog(store)?.versions(&name).map_err(|e| remote(&e))?)))
+        }
+        Request::UiExport { ui, dir } => ui_export(store, &ui, &dir),
+    }
+}
+
+/// Stores the code as a blob, then appends the next version unless the
+/// name's latest already holds it. The append decides on the log as it is
+/// inside the write, so two puts at once cannot take one version number.
+fn ui_put(store: &Store, name: &str, path: &Path, source: String) -> Result<Reply, RemoteError> {
+    let bytes = fs::read(absolute(path)?).map_err(|e| unreadable(path, &e))?;
+    ui::check(name, &bytes).map_err(|e| remote(&e))?;
+    let hash = store.put_blob(&bytes).map_err(|e| stored(&e))?;
+    let size = bytes.len() as u64;
+    let put = store
+        .append_if(&ui_events(), |events| match ui::Catalog::new(events).put(name, hash, size) {
+            ui::Put::New(body) => Ok(Event::new(0, source, Tags::on(""), Body::UiPut(body))),
+            ui::Put::Same(version) => Err(version),
+        })
+        .map_err(|e| stored(&e))?;
+    let (version, new) = match put {
+        Ok(event) => (ui::Version::of(&event), true),
+        Err(version) => (Some(version), false),
+    };
+    let version = version.ok_or_else(|| RemoteError::new("internal", "ui_put not stored", None))?;
+    Ok(Reply::UiPut(control::UiPut { ui: wire_ui(&version), new }))
+}
+
+/// Writes the version `reference` names into `dir`, creating it.
+fn ui_export(store: &Store, reference: &str, dir: &Path) -> Result<Reply, RemoteError> {
+    let catalog = catalog(store)?;
+    let version = catalog.resolve(reference).map_err(|e| remote(&e))?;
+    let hash = version.hash;
+    let bytes = store.blob(hash).map_err(|e| stored(&e))?.ok_or_else(|| missing(hash))?;
+    fs::create_dir_all(absolute(dir)?).map_err(|e| unusable(dir, &e))?;
+    let path = dir.join(version.file_name());
+    fs::write(&path, &bytes).map_err(|e| unusable(&path, &e))?;
+    Ok(Reply::UiExport(Exported { ui: wire_ui(version), path }))
+}
+
+fn ui_events() -> Query {
+    Query { kind: Some("ui_put".into()), ..Query::default() }
+}
+
+fn catalog(store: &Store) -> Result<ui::Catalog, RemoteError> {
+    Ok(ui::Catalog::new(&store.events(&ui_events()).map_err(|e| stored(&e))?))
+}
+
+fn uis<'a>(versions: impl IntoIterator<Item = &'a ui::Version>) -> Uis {
+    Uis { uis: versions.into_iter().map(wire_ui).collect() }
+}
+
+fn wire_ui(v: &ui::Version) -> control::Ui {
+    control::Ui {
+        name: v.name.clone(),
+        version: v.version,
+        hash: v.hash.to_string(),
+        bytes: v.bytes,
+        source: v.source.clone(),
+        time: v.time,
     }
 }
 

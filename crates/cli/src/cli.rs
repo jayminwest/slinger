@@ -16,6 +16,7 @@ use serde_json::{Value, json};
 use slinger_control as control;
 
 use crate::output::{Ctx, Failure, Output, exit};
+use crate::ui::Ui;
 
 /// The binary's name, as the user types it.
 pub const NAME: &str = "slinger";
@@ -79,6 +80,9 @@ enum Command {
     /// Store and fetch blobs: bytes named by their hash
     #[command(subcommand)]
     Blob(Blob),
+    /// Store, list and export agent UIs: HTML, named and versioned
+    #[command(subcommand)]
+    Ui(Ui),
 }
 
 #[derive(Subcommand)]
@@ -151,6 +155,7 @@ impl Command {
             Self::Record(Record::List { .. }) => "record list",
             Self::Blob(Blob::Put { .. }) => "blob put",
             Self::Blob(Blob::Get { .. }) => "blob get",
+            Self::Ui(ui) => ui.name(),
         }
     }
 }
@@ -225,16 +230,17 @@ fn execute(
             io::copy(&mut File::open(&scratch.0)?, ctx.out)?;
             Ok(Output::new(json!({}), String::new()))
         }
+        Command::Ui(ui) => ui.execute(daemon, input),
     }
 }
 
 /// A file of this user's in the temporary directory that the daemon reads or
 /// writes in the CLI's place: bytes travel as files, not in the request line
 /// (docs/service.md). Removed on drop.
-struct Scratch(PathBuf);
+pub struct Scratch(pub PathBuf);
 
 impl Scratch {
-    fn new() -> io::Result<(Self, File)> {
+    pub fn new() -> io::Result<(Self, File)> {
         static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let nanos = std::time::SystemTime::now()

@@ -22,21 +22,30 @@ code through the same bridge, so this page covers both.
   HTML document: CSS and scripts inline, images and fonts as `data:` URLs.
   One file means one hash per version, no manifest, no path lookup, and an
   export that is one file. A bundle buys nothing that inlining does not.
-- Limits: at most **32000 bytes** of UTF-8, with no control characters but
-  tab, LF and CR. That fits one control request line (65536 bytes) even when
-  JSON escapes every byte to two. Anything else is `invalid` or `too_large`.
-- The blob is stored in the record's blob table, keyed by its SHA-256 as 64
-  lowercase hex characters (D19, section 9).
+- Limits: at most **1048576 bytes** (1 MiB) of UTF-8, with no control
+  characters but tab, LF and CR. Anything else is `invalid`, with a hint.
+  The first draft capped it at 32000 bytes so the code fit one control
+  request line. The code now travels as a file on the same machine, like
+  every blob (docs/service.md, "How a blob's bytes travel"), so the line
+  limit no longer applies. The cap stays to bound the record and to stop a
+  file put by mistake, and 1 MiB leaves room for images inlined as `data:`
+  URLs.
+- The blob is stored in the record's blob table, keyed by its blob id,
+  `sha256:` and 64 lowercase hex characters (D19, section 9).
 - **Name:** 1 to 64 characters of `a-z 0-9 -`, starting with a letter, such
   as `pick-slot`. Names are global to the machine's record.
 - **Version:** `ui put <name>` appends a `ui_put` event with payload
-  `{"name","version","hash","bytes"}`. The version is 1 for the first put of
+  `{"name","version","hash","bytes"}`, where `hash` is the blob id. Only the
+  `ui put` verb writes this kind (`record append` refuses it), and it picks
+  the version inside the record's write, so two puts at once cannot take
+  one number. The version is 1 for the first put of
   a name and one more than the last for each later put. Every version stays.
 - Putting the same bytes as the name's latest version adds no event and
   returns that version (`"new": false`). Putting the bytes of an older
   version makes a new version: a revert is a change like any other.
 - **A reference** to a UI is one of: `pick-slot` (the latest version),
-  `pick-slot@3` (that version), or the 64-character hash. `ui open` resolves
+  `pick-slot@3` (that version), or the blob id (the latest version holding
+  those bytes). `ui open` resolves
   the reference once. The pane or canvas item it makes stores the **hash**
   (D19), so it keeps showing exactly what was opened. To show a new version,
   the agent opens it again.
@@ -59,7 +68,7 @@ slinger.reply(value)    // Promise<void>: send one JSON value to the agent
 ```json
 {
   "v": 1,
-  "ui": { "name": "pick-slot", "version": 3, "hash": "9f2c…64 hex…" },
+  "ui": { "name": "pick-slot", "version": 3, "hash": "sha256:9f2c…" },
   "host": "canvas",
   "open": "o-12",
   "data": { "slots": ["Tue 10:00", "Wed 14:00"] }
@@ -91,7 +100,7 @@ The agent's session receives one JSON line per reply (how it gets there is
 the `ui open` seed's work):
 
 ```json
-{"v":1,"kind":"ui_reply","ui":"pick-slot","version":3,"hash":"9f2c…","open":"o-12","value":{"slot":"Wed 14:00"}}
+{"v":1,"kind":"ui_reply","ui":"pick-slot","version":3,"hash":"sha256:9f2c…","open":"o-12","value":{"slot":"Wed 14:00"}}
 ```
 
 **Versioning.** Within bridge v1 changes only add: a new context field, a
@@ -202,7 +211,7 @@ passes when the listener saw no connection and every attempt failed.
 
 ### What an agent must know
 
-That it writes one HTML file of at most 32000 bytes, with everything
+That it writes one HTML file of at most 1 MiB, with everything
 inline and no network. The two calls above. That the page is drawn at the
 box it was opened with (`ui open` gives the size), in CSS pixels. About
 twenty lines of instructions.

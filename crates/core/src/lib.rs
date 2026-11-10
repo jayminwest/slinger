@@ -10,6 +10,7 @@ pub mod packet;
 pub mod record;
 pub mod render;
 pub mod tldraw;
+pub mod ui;
 pub mod workspace;
 
 pub use error::{Error, Result};

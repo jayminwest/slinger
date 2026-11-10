@@ -5,6 +5,7 @@ mod cli;
 mod output;
 #[cfg(test)]
 mod tests;
+mod ui;
 
 use std::io::{self, IsTerminal};
 use std::process::ExitCode;

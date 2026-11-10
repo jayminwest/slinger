@@ -9,7 +9,8 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::{
-    Appended, EventFilter, Events, Greeting, NewEvent, RemoteError, Request, Stored, Written, wire,
+    Appended, EventFilter, Events, Exported, Greeting, NewEvent, RemoteError, Request, Stored, Ui,
+    UiPut, Uis, Written, wire,
 };
 
 /// The daemon's program name, for messages.
@@ -85,6 +86,43 @@ impl Client {
         let request = Request::BlobGet { id: id.to_string(), path: absolute(file)? };
         let reply: Written = self.call(&request)?;
         Ok(reply.size)
+    }
+
+    /// Stores the HTML file at `file` as the next version of the UI `name`,
+    /// put by `source`. Bytes equal to the latest version's add none.
+    ///
+    /// # Errors
+    ///
+    /// `invalid` for a name or code the rules refuse (docs/design/live-items.md),
+    /// `not_found` when there is no such file, and `unavailable` when the
+    /// daemon does not answer.
+    pub fn ui_put(&self, name: &str, file: &Path, source: &str) -> Result<UiPut, RemoteError> {
+        let path = absolute(file)?;
+        self.call(&Request::UiPut { name: name.into(), path, source: source.into() })
+    }
+
+    /// The latest version of every UI, by name. With `name`, every version of
+    /// that UI, oldest first.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a name with no versions, and `unavailable` when the
+    /// daemon does not answer.
+    pub fn ui_list(&self, name: Option<&str>) -> Result<Vec<Ui>, RemoteError> {
+        let request = name.map_or(Request::UiList, |name| Request::UiShow { name: name.into() });
+        let reply: Uis = self.call(&request)?;
+        Ok(reply.uis)
+    }
+
+    /// Writes the version `ui` names into the directory `dir`, creating it.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` when nothing matches `ui`, `invalid` for a reference of
+    /// no known form or a directory the daemon cannot write, and
+    /// `unavailable` when the daemon does not answer.
+    pub fn ui_export(&self, ui: &str, dir: &Path) -> Result<Exported, RemoteError> {
+        self.call(&Request::UiExport { ui: ui.into(), dir: absolute(dir)? })
     }
 
     fn call<T: DeserializeOwned>(&self, request: &Request) -> Result<T, RemoteError> {

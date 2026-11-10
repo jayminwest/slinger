@@ -164,6 +164,25 @@ mod tests {
     }
 
     #[test]
+    fn ui_requests_round_trip() {
+        for (request, line) in [
+            (
+                Request::UiPut { name: "a".into(), path: "/tmp/a.html".into(), source: "s".into() },
+                r#"{"v":1,"op":"ui_put","name":"a","path":"/tmp/a.html","source":"s"}"#,
+            ),
+            (Request::UiList, r#"{"v":1,"op":"ui_list"}"#),
+            (Request::UiShow { name: "a".into() }, r#"{"v":1,"op":"ui_show","name":"a"}"#),
+            (
+                Request::UiExport { ui: "a@2".into(), dir: "/tmp".into() },
+                r#"{"v":1,"op":"ui_export","ui":"a@2","dir":"/tmp"}"#,
+            ),
+        ] {
+            assert_eq!(request_line(&request).unwrap(), format!("{line}\n"));
+            assert_eq!(read(line.as_bytes()).unwrap(), Some(request));
+        }
+    }
+
+    #[test]
     fn blob_requests_name_a_file_not_its_bytes() {
         let put = Request::BlobPut { path: "/tmp/a".into() };
         let line = request_line(&put).unwrap();
