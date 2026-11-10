@@ -18,7 +18,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params, params_from_iter};
+use rusqlite::{
+    Connection, OptionalExtension, Transaction, TransactionBehavior, params, params_from_iter,
+};
 use slinger_core::record::{self, BlobId, Event};
 
 /// The store's file inside the data directory.
@@ -168,31 +170,37 @@ impl Store {
     /// # Errors
     ///
     /// [`StoreError::Sqlite`] when the write fails.
-    pub fn append(&self, mut event: Event) -> Result<Event> {
+    pub fn append(&self, event: Event) -> Result<Event> {
         let mut db = self.db();
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let last: i64 =
-            tx.query_row("SELECT COALESCE(MAX(number), 0) FROM events", [], |row| row.get(0))?;
-        let number = last + 1;
-        event.number = Some(to_u64(number));
-        event.time = now_ms();
-        event.tags.machine.clone_from(&self.machine);
-        tx.execute(
-            "INSERT INTO events (number, time, kind, machine, workspace, agent, canvas, event)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![
-                number,
-                to_i64(event.time),
-                event.body.kind(),
-                event.tags.machine,
-                event.tags.workspace,
-                event.tags.agent,
-                event.tags.canvas,
-                record::encode(&event),
-            ],
-        )?;
+        let event = self.insert(&tx, event)?;
         tx.commit()?;
         Ok(event)
+    }
+
+    /// Reads the events `query` selects and gives them to `decide`. When it
+    /// returns `Ok(event)`, appends that event as [`Store::append`] does and
+    /// returns it as stored; `Err(t)` appends nothing and comes back as it is.
+    /// No other append lands between the read and the write.
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError::Sqlite`] when the read or the write fails, and
+    /// [`StoreError::Unreadable`] when a stored event does not decode.
+    pub fn append_if<T>(
+        &self,
+        query: &Query,
+        decide: impl FnOnce(&[Event]) -> std::result::Result<Event, T>,
+    ) -> Result<std::result::Result<Event, T>> {
+        let mut db = self.db();
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let event = match decide(&select(&tx, query)?) {
+            Ok(event) => event,
+            Err(t) => return Ok(Err(t)),
+        };
+        let event = self.insert(&tx, event)?;
+        tx.commit()?;
+        Ok(Ok(event))
     }
 
     /// The events `query` selects, in log order.
@@ -202,42 +210,7 @@ impl Store {
     /// [`StoreError::Sqlite`] when the read fails, and
     /// [`StoreError::Unreadable`] when a stored event does not decode.
     pub fn events(&self, query: &Query) -> Result<Vec<Event>> {
-        use rusqlite::types::Value;
-        let mut args = vec![
-            Value::Integer(query.from.map_or(0, to_i64)),
-            Value::Integer(query.to.map_or(i64::MAX, to_i64)),
-        ];
-        let mut conditions = vec!["number >= ?1".to_owned(), "number <= ?2".to_owned()];
-        for (column, value) in [
-            ("kind", &query.kind),
-            ("machine", &query.machine),
-            ("workspace", &query.workspace),
-            ("agent", &query.agent),
-            ("canvas", &query.canvas),
-        ] {
-            if let Some(value) = value {
-                args.push(Value::Text(value.clone()));
-                conditions.push(format!("{column} = ?{}", args.len()));
-            }
-        }
-        args.push(Value::Integer(query.limit.map_or(-1, to_i64)));
-        let sql = format!(
-            "SELECT number, event FROM events WHERE {} ORDER BY number LIMIT ?{}",
-            conditions.join(" AND "),
-            args.len()
-        );
-
-        let db = self.db();
-        let mut statement = db.prepare(&sql)?;
-        let rows = statement.query_map(params_from_iter(args), |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-        })?;
-        rows.map(|row| {
-            let (number, json) = row?;
-            record::decode(&json)
-                .map_err(|source| StoreError::Unreadable { number: to_u64(number), source })
-        })
-        .collect()
+        select(&self.db(), query)
     }
 
     /// Stores `bytes` and returns their id. Putting the same bytes again
@@ -267,11 +240,74 @@ impl Store {
             .optional()?)
     }
 
+    /// Gives `event` the next number, the time and this machine, and writes it.
+    fn insert(&self, tx: &Transaction<'_>, mut event: Event) -> Result<Event> {
+        let last: i64 =
+            tx.query_row("SELECT COALESCE(MAX(number), 0) FROM events", [], |row| row.get(0))?;
+        let number = last + 1;
+        event.number = Some(to_u64(number));
+        event.time = now_ms();
+        event.tags.machine.clone_from(&self.machine);
+        tx.execute(
+            "INSERT INTO events (number, time, kind, machine, workspace, agent, canvas, event)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                number,
+                to_i64(event.time),
+                event.body.kind(),
+                event.tags.machine,
+                event.tags.workspace,
+                event.tags.agent,
+                event.tags.canvas,
+                record::encode(&event),
+            ],
+        )?;
+        Ok(event)
+    }
+
     /// The connection. A panic in another call cannot leave it mid-write:
     /// an unfinished transaction rolls back when it is dropped.
     fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.db.lock().unwrap_or_else(PoisonError::into_inner)
     }
+}
+
+/// The events `query` selects on `db`, in log order.
+fn select(db: &Connection, query: &Query) -> Result<Vec<Event>> {
+    use rusqlite::types::Value;
+    let mut args = vec![
+        Value::Integer(query.from.map_or(0, to_i64)),
+        Value::Integer(query.to.map_or(i64::MAX, to_i64)),
+    ];
+    let mut conditions = vec!["number >= ?1".to_owned(), "number <= ?2".to_owned()];
+    for (column, value) in [
+        ("kind", &query.kind),
+        ("machine", &query.machine),
+        ("workspace", &query.workspace),
+        ("agent", &query.agent),
+        ("canvas", &query.canvas),
+    ] {
+        if let Some(value) = value {
+            args.push(Value::Text(value.clone()));
+            conditions.push(format!("{column} = ?{}", args.len()));
+        }
+    }
+    args.push(Value::Integer(query.limit.map_or(-1, to_i64)));
+    let sql = format!(
+        "SELECT number, event FROM events WHERE {} ORDER BY number LIMIT ?{}",
+        conditions.join(" AND "),
+        args.len()
+    );
+    let mut statement = db.prepare(&sql)?;
+    let rows = statement.query_map(params_from_iter(args), |row| {
+        Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+    })?;
+    rows.map(|row| {
+        let (number, json) = row?;
+        record::decode(&json)
+            .map_err(|source| StoreError::Unreadable { number: to_u64(number), source })
+    })
+    .collect()
 }
 
 /// Where the record lives when `--data-dir` is not given:

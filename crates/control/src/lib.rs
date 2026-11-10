@@ -33,6 +33,15 @@ pub enum Request {
     BlobPut { path: PathBuf },
     /// Write the bytes of the blob `id` to the file at `path`.
     BlobGet { id: String, path: PathBuf },
+    /// Store the HTML file at `path` as the next version of the UI `name`.
+    UiPut { name: String, path: PathBuf, source: String },
+    /// The latest version of every UI.
+    UiList,
+    /// Every version of the UI `name`.
+    UiShow { name: String },
+    /// Write the version `ui` names (`name`, `name@3` or a blob id) into the
+    /// directory `dir`, as `<name>.v<version>.html`.
+    UiExport { ui: String, dir: PathBuf },
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -44,6 +53,10 @@ pub enum Reply {
     RecordList(Events),
     BlobPut(Stored),
     BlobGet(Written),
+    UiPut(UiPut),
+    UiList(Uis),
+    UiShow(Uis),
+    UiExport(Exported),
 }
 
 /// The reply to [`Request::Hello`].
@@ -117,6 +130,42 @@ pub struct Stored {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Written {
     pub size: u64,
+}
+
+/// One version of an agent UI, as the record holds it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Ui {
+    pub name: String,
+    pub version: u64,
+    /// The code's blob id.
+    pub hash: String,
+    /// The code's size.
+    pub bytes: u64,
+    /// Who put it.
+    pub source: String,
+    /// When, in milliseconds since the Unix epoch, UTC.
+    pub time: u64,
+}
+
+/// The reply to [`Request::UiPut`]: the version that holds the bytes, and
+/// whether this put made it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UiPut {
+    pub ui: Ui,
+    pub new: bool,
+}
+
+/// The reply to [`Request::UiList`] and [`Request::UiShow`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Uis {
+    pub uis: Vec<Ui>,
+}
+
+/// The reply to [`Request::UiExport`]: the version written and its file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Exported {
+    pub ui: Ui,
+    pub path: PathBuf,
 }
 
 fn empty_object() -> Value {

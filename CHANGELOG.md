@@ -11,6 +11,13 @@ bullet with the area in bold.
 
 ### Added
 
+- **CLI:** agent UIs are stored in the record, named and versioned.
+  `slinger ui put <name> <file|->` stores an HTML file as the UI's next
+  version and prints `<name>@<version>`; the same bytes again add no version.
+  `slinger ui list` shows each UI's latest version, `slinger ui show <name>`
+  every version with its hash, size, author and time, and
+  `slinger ui export <name>[@<version>] [--out <dir>]` writes one version
+  back as `<name>.v<version>.html`.
 - **CLI:** `slinger blob put <file|->` stores a file's bytes (or stdin's) in
   this machine's record and prints the blob id. `slinger blob get <id>`
   writes the bytes to stdout, or to a file with `--out`. Storing the same

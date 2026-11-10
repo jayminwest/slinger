@@ -6,7 +6,9 @@ use serde_json::Value;
 use super::BlobId;
 use crate::{Error, Result};
 
-/// The kinds this version writes, in the order the spec lists them.
+/// The kinds a writer may append with `record_append`, in the order the spec
+/// lists them. A kind that a verb of its own writes, such as `ui_put`, is not
+/// here: that verb keeps the rules its events follow.
 pub const KINDS: [&str; 6] =
     ["sling_sent", "reply_landed", "file_touched", "pane_moved", "agent_blocked", "agent_done"];
 
@@ -28,6 +30,8 @@ pub enum Body {
     AgentBlocked(AgentBlocked),
     /// `agent_done`: an agent finished its task.
     AgentDone(AgentDone),
+    /// `ui_put`: a version of an agent UI's code was stored.
+    UiPut(UiPut),
     /// A kind this reader does not know, with its payload as written.
     Other { kind: String, payload: Value },
 }
@@ -86,6 +90,20 @@ pub struct AgentDone {
     pub summary: Option<String>,
 }
 
+/// Payload of `ui_put` (docs/design/live-items.md). Only the `ui_put` verb
+/// writes it, so a name's versions run 1, 2, 3 in log order.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UiPut {
+    /// The UI's name, such as `pick-slot`.
+    pub name: String,
+    /// 1 for a name's first put, one more than the last for each later one.
+    pub version: u64,
+    /// The code, stored as a blob.
+    pub hash: BlobId,
+    /// The code's size.
+    pub bytes: u64,
+}
+
 impl Body {
     /// The kind's name as it is written in an event.
     #[must_use]
@@ -97,6 +115,7 @@ impl Body {
             Self::PaneMoved(_) => "pane_moved",
             Self::AgentBlocked(_) => "agent_blocked",
             Self::AgentDone(_) => "agent_done",
+            Self::UiPut(_) => "ui_put",
             Self::Other { kind, .. } => kind,
         }
     }
@@ -110,6 +129,7 @@ impl Body {
             Self::PaneMoved(p) => to_value(p),
             Self::AgentBlocked(p) => to_value(p),
             Self::AgentDone(p) => to_value(p),
+            Self::UiPut(p) => to_value(p),
             Self::Other { payload, .. } => payload.clone(),
         }
     }
@@ -123,7 +143,7 @@ impl Body {
     pub fn new(kind: &str, payload: Value) -> Result<Self> {
         if !KINDS.contains(&kind) {
             return Err(Error::Invalid {
-                message: format!("`{kind}` is not an event kind"),
+                message: format!("`{kind}` is not a kind a writer may append"),
                 hint: Some(format!("use one of: {}", KINDS.join(", "))),
             });
         }
@@ -146,6 +166,7 @@ impl Body {
             "pane_moved" => Self::PaneMoved(serde_json::from_value(payload)?),
             "agent_blocked" => Self::AgentBlocked(serde_json::from_value(payload)?),
             "agent_done" => Self::AgentDone(serde_json::from_value(payload)?),
+            "ui_put" => Self::UiPut(serde_json::from_value(payload)?),
             _ => Self::Other { kind, payload },
         })
     }

@@ -305,6 +305,72 @@ fn a_bad_blob_id_or_path_is_invalid_with_a_hint() {
     daemon.stop();
 }
 
+#[test]
+fn ui_put_keeps_every_version_and_export_writes_one_back() {
+    let daemon = Daemon::start();
+    let client = daemon.client();
+    let dir = TempDir::new().unwrap();
+    let (one, two) = (dir.path().join("one.html"), dir.path().join("two.html"));
+    std::fs::write(&one, "<p>one</p>\n").unwrap();
+    std::fs::write(&two, "<p>two</p>\n").unwrap();
+
+    let first = client.ui_put("pick-slot", &one, "scout").unwrap();
+    assert_eq!((first.ui.version, first.new, first.ui.bytes), (1, true, 11));
+    assert_eq!(first.ui.source, "scout");
+    assert_eq!(client.ui_put("pick-slot", &two, "scout").unwrap().ui.version, 2);
+    let again = client.ui_put("pick-slot", &two, "other").unwrap();
+    assert_eq!((again.ui.version, again.new, again.ui.source.as_str()), (2, false, "scout"));
+    client.ui_put("another", &one, "scout").unwrap();
+
+    let versions = client.ui_list(Some("pick-slot")).unwrap();
+    assert_eq!(versions.iter().map(|v| v.version).collect::<Vec<_>>(), [1, 2]);
+    assert_eq!(versions[0], first.ui);
+    let latest = client.ui_list(None).unwrap();
+    let names: Vec<_> = latest.iter().map(|v| (v.name.as_str(), v.version)).collect();
+    assert_eq!(names, [("another", 1), ("pick-slot", 2)]);
+
+    let out = dir.path().join("out/new");
+    let exported = client.ui_export("pick-slot@1", &out).unwrap();
+    assert_eq!(exported.path, out.join("pick-slot.v1.html"));
+    assert_eq!(std::fs::read(&exported.path).unwrap(), std::fs::read(&one).unwrap());
+    let by_hash = client.ui_export(&first.ui.hash, &out).unwrap();
+    assert_eq!(by_hash.ui.name, "another");
+
+    let events =
+        client.record_list(EventFilter { kind: Some("ui_put".into()), ..EventFilter::default() });
+    assert_eq!(events.unwrap().len(), 3);
+    daemon.stop();
+}
+
+#[test]
+fn ui_errors_keep_their_codes() {
+    let daemon = Daemon::start();
+    let client = daemon.client();
+    let dir = TempDir::new().unwrap();
+    let file = dir.path().join("ui.html");
+    std::fs::write(&file, "<p>\0</p>").unwrap();
+    for (err, code) in [
+        (client.ui_put("pick", &file, "s").unwrap_err(), "invalid"),
+        (client.ui_put("Pick", &dir.path().join("none"), "s").unwrap_err(), "not_found"),
+        (client.ui_list(Some("pick")).unwrap_err(), "not_found"),
+        (client.ui_export("pick@1", dir.path()).unwrap_err(), "not_found"),
+        (client.ui_export("pick@x", dir.path()).unwrap_err(), "invalid"),
+    ] {
+        assert_eq!(err.code(), code, "{err}");
+        assert!(err.hint().is_some(), "{err}");
+    }
+    std::fs::write(&file, "<p></p>").unwrap();
+    client.ui_put("pick", &file, "s").unwrap();
+    let err = client.ui_export("pick", &file.join("sub")).unwrap_err();
+    assert_eq!(err.code(), "invalid", "{err}");
+    let reply = daemon.raw(
+        br#"{"v":1,"op":"ui_export","ui":"pick","dir":"rel"}
+"#,
+    );
+    assert!(reply.contains("not absolute"), "{reply}");
+    daemon.stop();
+}
+
 fn daemon(args: &[&str]) -> (u8, String, String) {
     let (mut out, mut err) = (Vec::new(), Vec::new());
     let code = run(std::iter::once(DAEMON).chain(args.iter().copied()), &mut out, &mut err);
