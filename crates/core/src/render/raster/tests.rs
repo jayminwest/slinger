@@ -1,0 +1,138 @@
+use super::*;
+use crate::canvas::{Action, Applied, Author, Canvas, End, Op, Time};
+
+const WHITE: [u8; 3] = [255, 255, 255];
+const BLACK: [u8; 3] = [0, 0, 0];
+
+/// A 100 by 100 canvas-unit picture (35 by 35 pixels) with `shapes` drawn on it.
+fn drawn(shapes: Vec<Shape>) -> Raster {
+    let mut canvas = Canvas::new();
+    let page = canvas.pages().next().unwrap().id();
+    let mut raster = Raster::new(Rect::new(0.0, 0.0, 100.0, 100.0), 0, 0, 35, 35);
+    for shape in shapes {
+        let op = Op { by: Author::User, at: Time(0), action: Action::Add { page, shape } };
+        let Ok(Applied::Added(id)) = canvas.apply(op) else { panic!("not added") };
+        raster.item(canvas.item(id).unwrap());
+    }
+    raster
+}
+
+fn stroke(points: &[(f64, f64)], colour: Colour, width: f64) -> Shape {
+    let points = points.iter().map(|&(x, y)| Point::new(x, y)).collect();
+    Shape::Stroke { points, colour, width }
+}
+
+fn ink(raster: &Raster) -> usize {
+    (0..35)
+        .flat_map(|y| (0..35).map(move |x| (x, y)))
+        .filter(|&(x, y)| raster.pixel(x, y) != WHITE)
+        .count()
+}
+
+#[test]
+fn a_stroke_is_its_colour_along_its_line_and_white_away_from_it() {
+    let r = drawn(vec![stroke(&[(10.0, 50.0), (90.0, 50.0)], Colour::rgb(255, 0, 0), 6.0)]);
+    assert_eq!(r.pixel(17, 17), [255, 0, 0]);
+    assert_eq!(r.pixel(17, 5), WHITE);
+    assert_eq!(r.pixel(1, 17), WHITE, "nothing past the stroke's end");
+}
+
+#[test]
+fn a_hairline_still_draws_a_full_pixel() {
+    let r = drawn(vec![stroke(&[(10.0, 50.0), (90.0, 50.0)], Colour::BLACK, 0.1)]);
+    assert_eq!(r.pixel(17, 17), BLACK);
+}
+
+#[test]
+fn a_one_point_stroke_is_a_dot() {
+    let r = drawn(vec![stroke(&[(50.0, 50.0)], Colour::BLACK, 10.0)]);
+    assert_eq!(r.pixel(17, 17), BLACK);
+    assert!((9..30).contains(&ink(&r)), "{}", ink(&r));
+}
+
+#[test]
+fn translucent_ink_blends_with_what_is_under_it() {
+    let half = Colour { a: 128, ..Colour::BLACK };
+    let r = drawn(vec![stroke(&[(10.0, 50.0), (90.0, 50.0)], half, 6.0)]);
+    assert_eq!(r.pixel(17, 17), [127, 127, 127]);
+    let twice = drawn(vec![
+        stroke(&[(10.0, 50.0), (90.0, 50.0)], half, 6.0),
+        stroke(&[(10.0, 50.0), (90.0, 50.0)], half, 6.0),
+    ]);
+    assert_eq!(twice.pixel(17, 17), [63, 63, 63]);
+}
+
+#[test]
+fn a_stroke_that_turns_back_on_itself_is_laid_down_once() {
+    let half = Colour { a: 128, ..Colour::BLACK };
+    let r = drawn(vec![stroke(&[(10.0, 50.0), (90.0, 50.0), (10.0, 50.0)], half, 6.0)]);
+    assert_eq!(r.pixel(17, 17), [127, 127, 127]);
+}
+
+#[test]
+fn a_box_is_an_outline_with_a_white_inside() {
+    let r =
+        drawn(vec![Shape::Box { frame: Rect::new(20.0, 20.0, 60.0, 60.0), colour: Colour::BLACK }]);
+    // The edges fall on the line between two pixels, so each pixel is half covered.
+    assert_eq!(r.pixel(7, 17), [128, 128, 128], "left edge");
+    assert_eq!(r.pixel(6, 17), [128, 128, 128], "left edge");
+    assert_eq!(r.pixel(17, 7), [128, 128, 128], "top edge");
+    assert_eq!(r.pixel(17, 17), WHITE, "inside");
+    assert_eq!(r.pixel(2, 2), WHITE, "outside");
+}
+
+#[test]
+fn an_arrow_has_a_head_at_its_end() {
+    let (from, to) = (Point::new(10.0, 50.0), Point::new(90.0, 50.0));
+    let shape = Shape::Arrow { from: End::free(from), to: End::free(to), colour: Colour::BLACK };
+    let r = drawn(vec![shape]);
+    assert_eq!(r.pixel(17, 17), BLACK, "shaft");
+    // The head's sides reach about 8 units above and below the shaft, 14 back from the tip.
+    assert_ne!(r.pixel(27, 15), WHITE, "upper side of the head");
+    assert_ne!(r.pixel(27, 19), WHITE, "lower side of the head");
+    assert_eq!(r.pixel(5, 15), WHITE, "no head at the start");
+}
+
+#[test]
+fn an_arrow_with_no_length_is_a_dot() {
+    let at = End::free(Point::new(50.0, 50.0));
+    let r = drawn(vec![Shape::Arrow { from: at, to: at, colour: Colour::BLACK }]);
+    assert!((1..10).contains(&ink(&r)));
+}
+
+#[test]
+fn text_draws_glyphs_inside_its_frame() {
+    let frame = Rect::new(10.0, 10.0, 80.0, 30.0);
+    let r = drawn(vec![Shape::Text { text: "Hi".into(), frame, colour: Colour::BLACK }]);
+    assert!(ink(&r) > 10, "{}", ink(&r));
+    assert_eq!(r.pixel(30, 30), WHITE, "below the line");
+    let blank = drawn(vec![Shape::Text { text: "  ".into(), frame, colour: Colour::BLACK }]);
+    assert_eq!(ink(&blank), 0);
+}
+
+#[test]
+fn a_character_the_font_lacks_draws_as_a_question_mark() {
+    assert_eq!(glyph('\u{4e00}'), glyph('?'));
+    assert_ne!(glyph('é'), glyph('?'));
+    assert_ne!(glyph('λ'), glyph('?'));
+}
+
+#[test]
+fn a_shape_outside_the_tile_draws_nothing() {
+    let r = drawn(vec![stroke(&[(500.0, 500.0), (600.0, 600.0)], Colour::BLACK, 6.0)]);
+    assert_eq!(ink(&r), 0);
+}
+
+fn rows(text: &str, columns: usize) -> Vec<String> {
+    wrap(text, columns).into_iter().map(|r| r.into_iter().collect()).collect()
+}
+
+#[test]
+fn text_wraps_at_spaces_and_cuts_words_longer_than_a_line() {
+    assert_eq!(rows("one two three", 7), ["one two", "three"]);
+    assert_eq!(rows("abcdefghij", 4), ["abcd", "efgh", "ij"]);
+    assert_eq!(rows("a\nb c", 10), ["a", "b c"]);
+    assert_eq!(rows("  a", 10), ["  a"], "spaces are kept");
+    assert_eq!(rows("", 10), [""]);
+    assert_eq!(rows("no wrap at all", usize::MAX), ["no wrap at all"]);
+}

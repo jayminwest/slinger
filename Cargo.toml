@@ -15,7 +15,9 @@ slinger-control = { path = "crates/control", version = "0.0.0" }
 slingerd = { path = "crates/daemon", version = "0.0.0" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+font8x8 = { version = "0.3", default-features = false, features = ["unicode"] }
 gethostname = "1"
+miniz_oxide = "0.9"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSColor", "NSControl", "NSGraphics", "NSMenu", "NSMenuItem", "NSParagraphStyle", "NSResponder", "NSRunningApplication", "NSText", "NSTextField", "NSView", "NSWindow"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSGeometry", "NSString"] }
