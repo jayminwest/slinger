@@ -8,15 +8,19 @@
 //! text lines, never images (SPEC R2): [`Index::render`] lists only clusters of
 //! the user's ink.
 //!
-//! Clustering and what counts as changed are decided elsewhere and passed in;
-//! this module decides the ids, the lines and their order.
+//! [`cluster`] groups strokes into the clusters the index takes. What counts
+//! as changed is decided elsewhere and passed in; the index decides the ids,
+//! the lines and their order.
 
+mod cluster;
 mod line;
 
 use std::collections::BTreeMap;
 
 use crate::canvas::{Author, Canvas, Item, ItemId, PageId, Rect, Shape};
 use line::{Line, colour_name, reading_order};
+
+pub use cluster::cluster;
 
 /// A new cluster of the user's ink that needs an image.
 #[derive(Debug, Clone, PartialEq, Eq)]

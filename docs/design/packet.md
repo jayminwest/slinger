@@ -151,6 +151,13 @@ line that overlaps it that much joins the row.
 stroke an agent drew is never clustered and never an image (R2): it is an
 `ink` line of one stroke, with `by`.
 
+**Clusters** (slinger-3779, `packet::cluster`): two of the user's strokes
+join when they have the same colour, were made at most 5 minutes apart, and
+their boxes are at most 3 size units apart, where a size unit is the median
+long edge of the strokes drawn at that width. Joining chains. A stroke whose
+long edge is over 6 size units (a frame, an arrow, a divider) joins nothing
+and is a cluster of its own (Spike B findings 1 and 2).
+
 **Ids**: canvas items keep their canvas item number behind a letter for their
 kind (`t12`, `b9`, `a13`). A cluster's id is `c` plus the item number of its
 earliest stroke, so it stays the same across packets while that stroke does,
