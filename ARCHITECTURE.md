@@ -56,6 +56,8 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              Log holds a file open for the daemon: requests (ops as JSON, the
              author, the time) in, numbered lines to append out, with the
              History beside it. Canvas ids (check_id) never name a path.
+             Log::import stores a whole canvas (an import) as a new file
+             that replays to it, ids, makers and times included.
 packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
              canvas page, the clusters of the user's ink and what changed, and gives
              the `new`, `made` and `page` lines in reading order, plus the render list:
@@ -113,7 +115,10 @@ store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
 canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,
              so changes are numbered in the order they apply; append, sync,
              then reply. A failed write closes the canvas; the next request
-             reads the file again. Cuts a torn last line.
+             reads the file again. Cuts a torn last line. A new canvas's
+             file (empty or imported) is written aside and renamed in whole.
+server/import.rs  `canvas_import`: reads the client's file, calls the tldraw
+             importer, stores the canvas, replies with the counts.
 ```
 
 ### Inside the app
@@ -178,6 +183,7 @@ Each boundary has something that fails when it is broken:
 | A blob of megabytes comes back byte for byte; a put twice gives one id | `crates/daemon/src/tests.rs`, through a real socket |
 | Every UI version stays; the same bytes add none; an export is the bytes put | `crates/daemon/src/tests.rs`, through a real socket |
 | A canvas survives a restart; concurrent changes are numbered with no gap | `crates/daemon/src/tests/canvas.rs`, through a real socket |
+| An imported canvas reads back with the importer's pages, ids and arrow ends | `crates/core/tests/canvas_import.rs` and `crates/daemon/src/tests/import.rs`, on the real board |
 | SIGTERM ends the daemon cleanly | `crates/daemon/tests/signals.rs`, against the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |

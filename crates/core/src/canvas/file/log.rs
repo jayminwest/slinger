@@ -41,6 +41,24 @@ pub fn check_id(id: &str) -> Result<()> {
     ))
 }
 
+/// A canvas id made from a name, such as an imported file's: lowercased,
+/// each run of other characters made one `-`, trimmed of `-` and `.` at
+/// the ends and cut to 64 bytes. A name with nothing left gives `canvas`.
+#[must_use]
+pub fn id_from_name(name: &str) -> String {
+    let mut id = String::new();
+    for c in name.chars().flat_map(char::to_lowercase) {
+        let keep = c.is_ascii_lowercase() || c.is_ascii_digit() || "_.".contains(c);
+        let c = if keep { c } else { '-' };
+        if !(c == '-' && id.ends_with('-')) {
+            id.push(c);
+        }
+    }
+    id.truncate(MAX_ID);
+    let id = id.trim_matches(['-', '.']);
+    if id.is_empty() { "canvas".into() } else { id.into() }
+}
+
 /// Who asks: `user` or `agent:<name>`.
 ///
 /// # Errors
@@ -95,6 +113,21 @@ impl Log {
         let header = Header::new(id);
         let next = header.first;
         Ok((Self { canvas: Canvas::new(), history: History::new(), next }, header.encode()))
+    }
+
+    /// A new canvas file holding `canvas` whole (an import, say), and its
+    /// bytes. The log holds the canvas as the file rebuilds it, so what the
+    /// daemon serves is what it will read back. Page lines are the user's at
+    /// `at`; item lines keep each item's maker and time.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Invalid`] when `id` is not a canvas id ([`check_id`]).
+    pub fn import(id: &str, canvas: &Canvas, at: Time) -> Result<(Self, String)> {
+        check_id(id)?;
+        let bytes = super::whole::encode(id, canvas, at);
+        let (log, _) = Self::open(bytes.as_bytes())?;
+        Ok((log, bytes))
     }
 
     /// Opens a whole file. Also returns how many bytes of a torn last line

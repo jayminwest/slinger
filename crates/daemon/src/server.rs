@@ -1,6 +1,8 @@
 //! The control socket: one instance per path, one thread per connection, and a
 //! stop that lets every accepted request finish.
 
+mod import;
+
 use std::fs::{self, File, Permissions, TryLockError};
 use std::io::{self, BufReader};
 use std::os::unix::fs::PermissionsExt;
@@ -221,6 +223,7 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
             let lines = store.canvases().redo(&s.canvas, &s.by).map_err(|e| drawn(&e))?;
             Ok(Reply::CanvasRedo(change(lines)))
         }
+        Request::CanvasImport { path, canvas } => import::canvas(store, &path, canvas),
     }
 }
 

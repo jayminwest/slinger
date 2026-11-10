@@ -79,3 +79,45 @@ fn failures_map_to_their_exit_codes() {
     );
     assert!(runs[5].err.contains("agent ada may not change"), "{}", runs[5].err);
 }
+
+const BOARD: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../core/tests/fixtures/idea.tldraw");
+
+#[test]
+fn import_makes_a_canvas_whose_pages_show() {
+    let runs = cli_each(&[
+        &["canvas", "import", BOARD],
+        &["canvas", "show", "idea", "--json"],
+        &["canvas", "import", BOARD, "--name", "board", "--json"],
+    ]);
+    assert_eq!((runs[0].code, runs[0].err.as_str()), (exit::OK, ""));
+    assert_eq!(
+        runs[0].out,
+        "idea\npages\t5\narrow\t57\nbox\t80\nstroke\t7563\ntext\t125\n\
+         skipped\tgeo:diamond\t1\nskipped\tgeo:ellipse\t2\nskipped\tgroup\t8\nskipped\tline\t4\n"
+    );
+    let shown = json(&runs[1]);
+    let names: Vec<_> = shown["pages"].as_array().unwrap().iter().map(|p| &p["name"]).collect();
+    assert_eq!(names, ["inital-planning", "claude", "slinger-diagrams", "fable-5.2", "spec"]);
+    let imported = json(&runs[2]);
+    assert_eq!(
+        (&imported["command"], &imported["canvas"]),
+        (&"canvas import".into(), &"board".into())
+    );
+    assert_eq!((&imported["pages"], &imported["items"]["stroke"]), (&5.into(), &7563.into()));
+    assert_eq!(imported["skipped"]["group"], 8);
+}
+
+#[test]
+fn import_of_a_missing_or_wrong_file_fails_with_its_code() {
+    let dir = tempfile::TempDir::new().unwrap();
+    let wrong = dir.path().join("notes.tldraw");
+    std::fs::write(&wrong, "just some text").unwrap();
+    let missing = dir.path().join("gone.tldraw");
+    let runs = cli_each(&[
+        &["canvas", "import", missing.to_str().unwrap()],
+        &["canvas", "import", wrong.to_str().unwrap(), "--json"],
+    ]);
+    assert_eq!((runs[0].code, runs[0].out.as_str()), (exit::NOT_FOUND, ""));
+    assert_eq!(runs[1].code, exit::INVALID);
+    assert_eq!(json(&runs[1])["code"], "invalid");
+}

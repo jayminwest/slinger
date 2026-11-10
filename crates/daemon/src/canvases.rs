@@ -15,8 +15,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use serde_json::Value;
-use slinger_core::canvas::Time;
 use slinger_core::canvas::file::{Log, Shown, Written, check_id, parse_author};
+use slinger_core::canvas::{Canvas, Time};
 
 /// A canvas file's name ends in this.
 const EXTENSION: &str = "canvas";
@@ -85,6 +85,21 @@ impl Canvases {
     /// exists, and [`CanvasError::Io`] when its file cannot be written.
     pub fn create(&self, id: &str) -> Result<()> {
         let (log, header) = Log::create(id)?;
+        self.make(id, log, &header)
+    }
+
+    /// Makes a new canvas that holds `canvas` whole, in one write.
+    ///
+    /// # Errors
+    ///
+    /// As [`Canvases::create`].
+    pub fn import(&self, id: &str, canvas: &Canvas) -> Result<()> {
+        let (log, bytes) = Log::import(id, canvas, now())?;
+        self.make(id, log, &bytes)
+    }
+
+    /// Writes a new canvas's file whole and holds it open.
+    fn make(&self, id: &str, log: Log, bytes: &str) -> Result<()> {
         let slot = self.slot(id)?;
         let mut open = lock(&slot);
         let path = self.path(id);
@@ -97,10 +112,10 @@ impl Canvases {
         }
         let dir = &self.dir;
         DirBuilder::new().recursive(true).mode(0o700).create(dir).map_err(failed("make", dir))?;
-        // A whole header or no file: write it aside, then rename it into place.
+        // A whole file or none: write it aside, then rename it into place.
         // Ids never start with '.', so the temporary name is no canvas's.
         let temp = dir.join(format!(".{id}.{EXTENSION}.new"));
-        write_synced(&temp, header.as_bytes()).map_err(failed("write", &temp))?;
+        write_synced(&temp, bytes.as_bytes()).map_err(failed("write", &temp))?;
         fs::rename(&temp, &path).map_err(failed("write", &path))?;
         File::open(dir).and_then(|d| d.sync_all()).map_err(failed("sync", dir))?;
         let file = append(&path).map_err(failed("open", &path))?;
