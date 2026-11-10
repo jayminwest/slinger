@@ -64,6 +64,9 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              writes them.
              Log::after finds where the lines after a number lie in the file,
              and `lines` reads them back whole, for the change feed.
+             look.rs: what an agent asks beyond the packet (R5, R6): crop (an
+             item, a cluster c<n> or a box, as render images, at most MAX_CROP
+             units a side) and strokes (a stroke's or a cluster's points).
 packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
              canvas page, the clusters of the user's ink and what changed, and gives
              the `new`, `made` and `page` lines in reading order, plus the render list:
@@ -132,6 +135,8 @@ canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,
              then reply. A failed write closes the canvas; the next request
              reads the file again. Cuts a torn last line. A new canvas's
              file (empty or imported) is written aside and renamed in whole.
+             Crops render under the canvas's lock; `answer` writes their
+             images to the file the client names, tiles beside it.
 canvases/feed.rs  the change feed: the stored lines after a number, read back
              from the file, and a wait on the canvas's condition variable that
              a change or `Canvases::stop` (called when `serve` stops) ends.
@@ -229,6 +234,7 @@ Each boundary has something that fails when it is broken:
 | Open workspaces survive a restart; each has its canvas; one primary root per workspace | `crates/daemon/src/tests/workspace.rs`, through a real socket |
 | The change feed wakes a waiting client on another's change; a stop ends a wait | `crates/daemon/src/tests/feed.rs`, through a real socket |
 | SIGTERM ends the daemon cleanly, with a client waiting on a feed | `crates/daemon/tests/signals.rs`, against the real binary |
+| A crop is limited in size; an empty box is a white image; an unknown id is `not_found` | `crates/core/tests/canvas_look.rs`, and `crates/daemon/src/tests/look.rs` through a real socket |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |
 | Layout is fully tested | the 100% floor on `crates/app/src/layout.rs` in `budgets/coverage-budgets.json` |

@@ -22,6 +22,7 @@ use serde_json::Value;
 use slinger_core::canvas::file::{Log, Shown, Written, check_id, parse_author};
 use slinger_core::canvas::{Canvas, Time};
 use slinger_core::packet::Packet;
+use slinger_core::render::Image;
 
 /// A canvas file's name ends in this.
 const EXTENSION: &str = "canvas";
@@ -198,6 +199,25 @@ impl Canvases {
         select: &[String],
     ) -> Result<Packet> {
         self.with(id, |log| Ok(log.packet(id, page, after, select)?))
+    }
+
+    /// Images of what `of` names on a canvas, named after `name` (see
+    /// [`Log::crop`]).
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`Log::crop`] and of reading the file.
+    pub fn crop(&self, id: &str, of: &str, name: &str) -> Result<Vec<Image>> {
+        self.with(id, |log| Ok(log.crop(of, name)?))
+    }
+
+    /// The strokes `item` names on a canvas (see [`Log::strokes`]).
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`Log::strokes`] and of reading the file.
+    pub fn strokes(&self, id: &str, item: &str) -> Result<Vec<Value>> {
+        self.with(id, |log| Ok(log.strokes(item)?))
     }
 
     /// Applies `ops` as `by` (`user` or `agent:<name>`) and returns what it

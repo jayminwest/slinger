@@ -13,6 +13,7 @@ use crate::output::{Ctx, color_enabled, exit};
 
 mod canvas;
 mod canvas_feed;
+mod look;
 mod read;
 mod workspace;
 

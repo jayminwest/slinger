@@ -10,7 +10,9 @@
 //!   replays the lines into the canvas they build.
 //! - [`Log`] holds a file open for a server: each change returns the bytes
 //!   to append, numbered, and undo lives beside it. [`Log::after`] finds the
-//!   stored lines after a point, and [`lines`] reads them as they are.
+//!   stored lines after a point, and [`lines`] reads them as they are. It
+//!   also crops images of an item or a box and gives a stroke's points, for
+//!   an agent (`look`).
 //! - [`snap`] rounds an operation to what the file can hold. Apply the
 //!   snapped op, so the canvas in memory is the one the file rebuilds.
 //!
@@ -35,12 +37,14 @@
 
 mod json;
 mod log;
+mod look;
 mod packet;
 mod replay;
 mod time;
 mod whole;
 
 pub use log::{Log, Shown, Span, Written, check_id, id_from_name, lines, parse_author};
+pub use look::MAX_CROP;
 use serde_json::{Map, Value};
 
 use super::{Action, Applied, Author, Item, ItemId, Op, Page, PageId, Point, Shape, Time};

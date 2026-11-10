@@ -9,6 +9,7 @@
 mod client;
 mod feed;
 mod imported;
+mod look;
 mod packet;
 mod wire;
 mod workspace;
@@ -22,6 +23,7 @@ use serde_json::Value;
 pub use client::Client;
 pub use feed::{CanvasFeed, MAX_WAIT_MS};
 pub use imported::CanvasImported;
+pub use look::{CanvasImage, CanvasImages, CanvasStrokes};
 pub use packet::{CanvasPacket, PacketAsk, PacketImage};
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
 pub use workspace::{
@@ -112,6 +114,14 @@ pub enum Request {
         #[serde(default)]
         wait: u64,
     },
+    /// Images of what `of` names, an item id or a box (docs/service.md),
+    /// written as the PNG file at `path` or, for tiles, beside it. A client
+    /// writes it, and `CanvasStrokes`, with `look::Ask`.
+    #[serde(skip_serializing)]
+    CanvasCrop { canvas: String, of: String, path: PathBuf },
+    /// The raw points of a stroke, or of every stroke of a cluster.
+    #[serde(skip_serializing)]
+    CanvasStrokes { canvas: String, item: String },
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -140,6 +150,8 @@ pub enum Reply {
     WorkspaceClose(WorkspaceClosed),
     CanvasRead(CanvasPacket),
     CanvasChanges(CanvasFeed),
+    CanvasCrop(CanvasImages),
+    CanvasStrokes(CanvasStrokes),
 }
 
 /// The reply to [`Request::Hello`].
