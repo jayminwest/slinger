@@ -1,0 +1,90 @@
+{
+	"$comment": "check:layers. A rule forbids tokens in the .rs files under `paths` (minus `except`); all paths are under crates/. A token matches as a whole word, and a trailing * matches any word that starts with it. Comment lines do not count. An `allow` entry exempts one file from one rule: {rule, path, why}. A rule that scans no file fails. An allow entry that matches no violation fails.",
+	"rules": [
+		{
+			"name": "core-is-pure",
+			"why": "the core is plain logic that every front end and every test can run: no process, terminal, network or FFI",
+			"paths": [
+				"crates/core"
+			],
+			"except": [],
+			"forbid": [
+				"unsafe",
+				"extern \"C\"",
+				"objc2*",
+				"std::process",
+				"std::env",
+				"std::net",
+				"std::os",
+				"std::io::stdin",
+				"std::io::stdout",
+				"std::io::stderr"
+			]
+		},
+		{
+			"name": "control-is-transport-only",
+			"why": "the protocol crate carries requests and replies; a client links it without linking the core",
+			"paths": [
+				"crates/control"
+			],
+			"except": [],
+			"forbid": [
+				"slinger_core"
+			]
+		},
+		{
+			"name": "cli-uses-the-socket",
+			"why": "with a daemon, the CLI reaches the core only through the control socket, so each capability has one path",
+			"paths": [
+				"crates/cli"
+			],
+			"except": [],
+			"forbid": [
+				"slinger_core"
+			]
+		},
+		{
+			"name": "app-uses-the-socket",
+			"why": "with a daemon, the app reaches the core only through the control socket, so each capability has one path",
+			"paths": [
+				"crates/app"
+			],
+			"except": [],
+			"forbid": [
+				"slinger_core"
+			]
+		},
+		{
+			"name": "platform-owns-ffi",
+			"why": "only crates/app/src/platform may hold unsafe code or touch objc2 and AppKit; everything else calls its safe functions",
+			"paths": [
+				"crates"
+			],
+			"except": [
+				"crates/app/src/platform"
+			],
+			"forbid": [
+				"unsafe",
+				"extern \"C\"",
+				"objc2*",
+				"block2"
+			]
+		},
+		{
+			"name": "app-logic-is-pure",
+			"why": "only main.rs starts the platform, so the modules that decide what the window shows run in unit tests without AppKit",
+			"paths": [
+				"crates/app/src"
+			],
+			"except": [
+				"crates/app/src/platform",
+				"crates/app/src/main.rs"
+			],
+			"forbid": [
+				"crate::platform",
+				"super::platform"
+			]
+		}
+	],
+	"allow": []
+}

@@ -1,0 +1,5 @@
+{
+  "$comment": "check:size. .rs files over `limit` lines need an entry here and may not grow past it. Lower an entry when its file shrinks; delete it once the file is within the limit. Never raise one without a reviewed reason. Stale entries fail.",
+  "limit": 500,
+  "budgets": {}
+}

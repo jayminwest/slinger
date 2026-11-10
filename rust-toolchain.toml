@@ -1,0 +1,5 @@
+# Pinned so local runs and CI lint with the same clippy. Bump deliberately, together
+# with the dtolnay/rust-toolchain ref in .github/workflows/ci.yml.
+[toolchain]
+channel = "1.99.0"
+components = ["clippy", "rustfmt", "llvm-tools-preview"]

@@ -1,0 +1,4 @@
+{
+  "$comment": "check:debt. TODO/FIXME/HACK/XXX must cite a tracker id (slinger-xxxx), an issue (#N) or a URL on the same line. Markers that must stay uncited are listed as path:line with a why. Stale entries fail.",
+  "allow": []
+}

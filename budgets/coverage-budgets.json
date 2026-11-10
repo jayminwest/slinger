@@ -1,0 +1,7 @@
+{
+  "$comment": "check:coverage. Line-coverage floors (percent) from cargo llvm-cov. `total` covers the workspace; a `floors` key ending in / covers every .rs file under it. Floors only rise. A key that matches no file fails.",
+  "total": 86,
+  "floors": {
+    "crates/app/src/layout.rs": 100
+  }
+}

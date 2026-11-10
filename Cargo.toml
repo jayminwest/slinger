@@ -1,0 +1,50 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "xtask"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT"
+description = "One window onto your computers: think with a pen on a canvas, sling anything to an agent, and get things back instead of chat."
+repository = "https://github.com/jayminwest/slinger"
+[workspace.dependencies]
+slinger-core = { path = "crates/core", version = "0.0.0" }
+slinger-control = { path = "crates/control", version = "0.0.0" }
+slingerd = { path = "crates/daemon", version = "0.0.0" }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSColor", "NSControl", "NSGraphics", "NSMenu", "NSMenuItem", "NSParagraphStyle", "NSResponder", "NSRunningApplication", "NSText", "NSTextField", "NSView", "NSWindow"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSGeometry", "NSString"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+signal-hook = "0.4"
+thiserror = "2"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Restriction lints on top of pedantic. Make exceptions with
+# #[expect(lint, reason = "...")], never a bare allow.
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+todo = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+undocumented_unsafe_blocks = "warn"
+allow_attributes_without_reason = "warn"
+too_many_lines = "warn"
+cognitive_complexity = "warn"
+
+[profile.release]
+strip = true
+lto = "fat"
+codegen-units = 1

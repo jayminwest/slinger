@@ -1,0 +1,21 @@
+[package]
+name = "slingerd"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "The slinger daemon: serves the core over a local control socket."
+repository.workspace = true
+[[bin]]
+name = "slingerd"
+path = "src/main.rs"
+
+[dependencies]
+slinger-core.workspace = true
+slinger-control.workspace = true
+clap.workspace = true
+signal-hook.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

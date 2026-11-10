@@ -1,0 +1,26 @@
+[package]
+name = "slinger-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "The slinger macOS app."
+repository.workspace = true
+# A macOS app ships as a bundle (scripts/bundle.sh), not as a crate.
+publish = false
+
+[[bin]]
+name = "slinger-app"
+path = "src/main.rs"
+
+[dependencies]
+slinger-control.workspace = true
+objc2.workspace = true
+objc2-app-kit.workspace = true
+objc2-foundation.workspace = true
+
+[dev-dependencies]
+# Tests run the app's backend against a real daemon on a real socket.
+slingerd.workspace = true
+[lints]
+workspace = true

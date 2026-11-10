@@ -1,0 +1,17 @@
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Env and secrets
+.env
+.env.*
+!.env.example
+
+# Coverage and test output
+coverage/
+test-results/
+
+# Rust
+/target
