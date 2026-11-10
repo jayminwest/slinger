@@ -47,9 +47,9 @@ Both alternatives use these. They are part of the pick.
 - **Ids** are opaque strings to the codec, at most 64 bytes. The model seed decides how
   they are made.
 - **Undo is not in the file.** Undo and redo write the inverse change as ordinary
-  operations (undo of `add` is `remove`; undo of `remove` is `add` with the whole
-  item, which the daemon holds in memory; the model calls it `Restore`, and
-  `PageRestore` puts back a removed page with its items; undo of a `move` is a
+  operations (undo of `add` is `remove`; undo of `remove` is `restore` with the whole
+  item, which the daemon holds in memory, and
+  `page.restore` puts back a removed page with its items; undo of a `move` is a
   `set` of the old shape, so it is exact). The undo stack lives in the daemon's
   memory, per canvas, and is empty after a restart. If a persisted undo stack is ever
   wanted, an optional `"undoes": n` field adds it with no version change.
@@ -187,17 +187,44 @@ Operation kinds in v1 (their fields follow the envelope):
 | `remove` | `ids` (array of item ids). Ids already gone are fine (B4). |
 | `move` | `ids`, `dx`, `dy` (tenths) |
 | `set` | `id`, `fields` (object of item fields to replace whole, e.g. `{"text":"..."}`) |
+| `restore` | `item`: a removed item put back whole, under its own id. The item object adds `by` and `t` (its maker and time) after `page`. Undo and redo write it. |
+| `page.restore` | `page`, `name`, `index` (0-based position), `items` (whole items, as in `restore`). Undo writes it. |
 
 Item objects. Every item has `id`, `page`, `kind`, `color`; then by kind:
 
 | `kind` | fields (lengths and positions in tenths of a unit) |
 |---|---|
 | `stroke` | `width`, `pts` (delta array, above, at least one pair) |
-| `text` | `x`, `y` (top left), `text`; optional `w` (wrap width) |
+| `text` | `x`, `y`, `w`, `h` (the frame the text is laid out in; `w` and `h` read as 0 when missing), `text` |
 | `box` | `x`, `y`, `w`, `h` |
 | `arrow` | `pts` (delta array, two or more pairs); optional `from`, `to` (item ids it points at) |
 
-`color` is a string: a palette name the model defines, or `#rrggbb`.
+`color` is a string: a palette name the model defines, `#rrggbb`, or `#rrggbbaa` when
+the colour is not opaque. The model has no palette yet, so a reader reads any other
+string as black.
+
+### Ids, units and the first page
+
+- Item ids are `i<n>` and page ids `p<n>`, from the model's counters (slinger-5814).
+- A new canvas has one page, `p1`, named `Page 1`, before any line. The file does not
+  record it.
+- Ids rise. On replay the ids in the file are authoritative: before each `add` and
+  `page.add` the reader moves its counter up to the id the line names, so an `add` it
+  skips (an item kind it does not know) never shifts the ids after it. An id at or
+  below one already handed out is `canvas_corrupt`.
+- The model holds `f64` canvas units. A writer rounds each value to the nearest tenth,
+  halves away from zero; a reader gives `k / 10.0`. Stroke points are rounded one by
+  one before their deltas are taken, so error does not build up along a stroke. A
+  stroke's width is at least one tenth. The daemon applies the rounded operation
+  (`canvas::file::snap`), so the canvas in memory is the one the file rebuilds. One
+  exception: a `move` adds two grid values in `f64`, which can land a hair (about
+  1e-12 of a unit) off the grid in memory, while a later `restore` or `set` of that
+  item writes the grid value. The two agree at tenths, which is all the file keeps.
+- A `set` lays `fields` over the item's current fields. The writer sends every field
+  of the new shape, with a missing optional field (an arrow's `from` or `to`) as
+  `null`, which clears it. Keys inside `fields` are written sorted.
+- A v1 reader reads `page.move` as a line it does not know and skips it: the model
+  cannot reorder pages yet.
 
 ### Versions (B5)
 

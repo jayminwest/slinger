@@ -50,6 +50,9 @@ canvas/delta.rs  what is new after the last sling (R1): an op log and a
 canvas/geometry.rs  pure queries on a page: item at a point, items in a
              lasso (nonzero winding), strokes an eraser touches, items touching a
              box, bounds of a set. No errors: degenerate input finds nothing.
+canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-only
+             JSON Lines log of operations. Header and line encode, read (cuts a
+             torn last line), replay into a canvas, snap to the stored tenths. No IO.
 packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
              canvas page, the clusters of the user's ink and what changed, and gives
              the `new`, `made` and `page` lines in reading order, plus the render list:
@@ -123,6 +126,7 @@ Each boundary has something that fails when it is broken:
 | The CLI reaches the core only through the socket | `check:layers` rule `cli-uses-the-socket` |
 | The app reaches the core only through the socket | `check:layers` rule `app-uses-the-socket` |
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
+| The canvas file format is readable by older readers | `crates/core/tests/canvas_file.rs`, with a stored v1 fixture |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
 | The workspace file format and rules (docs/workspace.md) | the tests of `crates/core/src/workspace.rs` and its stored fixture |

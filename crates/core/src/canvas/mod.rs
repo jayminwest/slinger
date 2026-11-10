@@ -13,6 +13,7 @@
 //! - A canvas always has at least one page, and page names are unique.
 
 mod delta;
+pub mod file;
 mod geometry;
 mod history;
 mod item;
