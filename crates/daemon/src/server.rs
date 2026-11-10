@@ -17,8 +17,9 @@ use std::time::Duration;
 use slinger_control as control;
 
 use control::{
-    Appended, CanvasChange, CanvasFeed, CanvasInfo, CanvasPage, Canvases, EventFilter, Events,
-    Exported, Greeting, NewEvent, RemoteError, Reply, Request, Stored, Uis, Written,
+    Appended, CanvasChange, CanvasFeed, CanvasImage, CanvasImages, CanvasInfo, CanvasPage,
+    CanvasStrokes, Canvases, EventFilter, Events, Exported, Greeting, NewEvent, RemoteError, Reply,
+    Request, Stored, Uis, Written,
 };
 use slinger_core::canvas::file::Written as Lines;
 use slinger_core::record::{self, BlobId, Body, Event, Tags};
@@ -262,6 +263,11 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
             let dir = store.workspaces().close(&workspace).map_err(|e| kept(&e))?;
             Ok(Reply::WorkspaceClose(control::WorkspaceClosed { dir }))
         }
+        Request::CanvasCrop { canvas, of, path } => crop(store, &canvas, &of, &path),
+        Request::CanvasStrokes { canvas, item } => {
+            let strokes = store.canvases().strokes(&canvas, &item).map_err(|e| drawn(&e))?;
+            Ok(Reply::CanvasStrokes(CanvasStrokes { strokes }))
+        }
     }
 }
 
@@ -290,6 +296,27 @@ fn wire_ws(Opened { dir, workspace: ws }: Opened) -> control::Workspace {
 
 fn change(lines: Lines) -> CanvasChange {
     CanvasChange { seq: lines.seq, made: lines.made }
+}
+
+/// Writes a crop's images: `path` names the one image, and tiles go beside
+/// it as `<stem>-<n>.png`. Bytes travel as files, as a blob's do.
+fn crop(store: &Store, canvas: &str, of: &str, path: &Path) -> Result<Reply, RemoteError> {
+    let path = absolute(path)?;
+    let (Some(dir), Some(name)) = (path.parent(), path.file_stem().and_then(|s| s.to_str())) else {
+        return Err(unusable(path, &io::Error::other("it names no file")));
+    };
+    let images = store.canvases().crop(canvas, of, name).map_err(|e| drawn(&e))?;
+    fs::create_dir_all(dir).map_err(|e| unusable(dir, &e))?;
+    let images = images
+        .into_iter()
+        .map(|image| {
+            let path = dir.join(&image.name);
+            fs::write(&path, &image.png).map_err(|e| unusable(&path, &e))?;
+            let (x, y, width, height) = (image.x, image.y, image.width, image.height);
+            Ok(CanvasImage { path, x, y, width, height })
+        })
+        .collect::<Result<_, RemoteError>>()?;
+    Ok(Reply::CanvasCrop(CanvasImages { images }))
 }
 
 /// A canvas error as it crosses the socket.

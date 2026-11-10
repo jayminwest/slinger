@@ -90,6 +90,8 @@ pub enum Canvas {
         #[arg(long, value_name = "MS", default_value_t = 0)]
         wait: u64,
     },
+    Crop(crate::look::Crop),
+    Strokes(crate::look::Strokes),
 }
 
 impl Canvas {
@@ -104,6 +106,8 @@ impl Canvas {
             Self::Import { .. } => "canvas import",
             Self::Read { .. } => "canvas read",
             Self::Changes { .. } => "canvas changes",
+            Self::Crop(_) => "canvas crop",
+            Self::Strokes(_) => "canvas strokes",
         }
     }
 }
@@ -173,6 +177,8 @@ pub fn execute(
             let human = feed.ops.iter().map(Value::to_string).collect::<Vec<_>>().join("\n");
             Ok(Output::new(serde_json::to_value(feed)?, human))
         }
+        Canvas::Crop(args) => crate::look::crop(args, daemon),
+        Canvas::Strokes(args) => crate::look::strokes(args, daemon),
     }
 }
 

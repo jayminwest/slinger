@@ -17,6 +17,7 @@ use crate::{Server, StartError, Stopper, Store, run};
 mod canvas;
 mod feed;
 mod import;
+mod look;
 mod read;
 mod workspace;
 

@@ -31,6 +31,11 @@ bullet with the area in bold.
   `--page` picks the page, `--select c42,t12` narrows the outline and
   `--out <dir>` says where the images go. Every packet and image is stored
   in the record, so `blob get` fetches them later.
+- **CLI:** `slinger canvas crop <id> --item <item>` (or `--box x,y,w,h`
+  with `--page`) writes an image of one item, one ink cluster or one box at
+  the packet's scale, in tiles when it is large, and prints each file's
+  path. `slinger canvas strokes <id> --item <item>` prints the raw points of
+  a stroke or of every stroke of a cluster.
 - **CLI:** agent UIs are stored in the record, named and versioned.
   `slinger ui put <name> <file|->` stores an HTML file as the UI's next
   version and prints `<name>@<version>`; the same bytes again add no version.

@@ -128,6 +128,8 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `workspace_show` | `workspace`: a name, or the absolute directory of its file | `workspace` |
 | `workspace_close` | `workspace`: as `workspace_show` | `dir`: the directory of its file |
 | `canvas_read` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `after`: number (optional, default the last sling's), `select`: list of item ids (optional), `out`: absolute path of a directory (optional) | `packet`: blob id of the text, `dir`: the directory written, `text`: the packet with `at`, `images`: list of `{name, id}` |
+| `canvas_crop` | `canvas`: canvas id, `of`: an item id or a box, `path`: absolute path of a PNG file | `images`: list of `{path, x, y, width, height}` |
+| `canvas_strokes` | `canvas`: canvas id, `item`: an item id | `strokes`: list of stroke items with `points` |
 
 **`record_append`** appends one event to this machine's record. `tags`
 may set `workspace`, `agent` and `canvas`; the daemon sets `machine`, the
@@ -365,6 +367,47 @@ request holds one daemon thread, and a stop answers it at once.
 { "v": 1, "op": "canvas_changes", "canvas": "main", "after": 6, "wait": 30000 }
 { "ok": true, "next": 8, "ops": [{ "n": 7, "t": "2025-11-10T16:00:00.000Z", "by": "agent:scout", "op": "add", "item": { "id": "i5", "page": "p1", "kind": "text", … } }] }
 ```
+
+#### Crops and strokes
+
+What an agent asks a canvas for when the packet (`docs/design/packet.md`)
+is not enough: an image of one item or one box (R5), and the raw points of
+ink (R6).
+
+**Ids.** `of` and `item` take an item id as `canvas_show` gives it (`i12`)
+or as a packet gives it (`c12`, `t12`, `b12`, `a12`). The number is the
+item's. `c<n>` on a stroke of the user's names every stroke of the cluster
+it is in, clustered on the page as it is now; on anything else it names the
+item alone. An id that is not one is `invalid`; an item that is not there
+is `not_found`.
+
+**`canvas_crop`** draws by the packet's image rules: the scale `0.35`, ink
+in its colour on white, and tiles of at most 1568 pixels a side, overlapping
+by 64. An item is framed by a 16-unit margin. A box `of` is `x,y,w,h` in
+tenths of a unit on the first page, or `<page>:x,y,w,h` on the page with
+that id or name; it is cut at its edges, and a box with nothing in it is a
+white image. A crop is at most 16000 units a side (at most 4 by 4 tiles):
+a larger one, or a negative size, is `invalid` with a hint. The daemon
+writes one image to `path`, making its directory if missing; tiles go
+beside it as `<stem>-1.png`, `<stem>-2.png`, ... in reading order. Each image
+in the reply gives its file, its place in the whole picture (`x`, `y`) and
+its size in pixels. The bytes travel as files, as a blob's do (below).
+
+**`canvas_strokes`** gives the strokes `item` names, in drawing order, each
+as `canvas_show` gives an item, except that `points` (absolute `[x, y]`
+pairs in tenths) replaces the file's `pts`. An item that is not ink is
+`invalid`.
+
+```json
+{ "v": 1, "op": "canvas_crop", "canvas": "main", "of": "p1:0,0,4000,2000", "path": "/tmp/box.png" }
+{ "ok": true, "images": [{ "path": "/tmp/box.png", "x": 0, "y": 0, "width": 140, "height": 70 }] }
+{ "v": 1, "op": "canvas_strokes", "canvas": "main", "item": "c4" }
+{ "ok": true, "strokes": [{ "id": "i4", "page": "p1", "by": "user", "t": "…", "kind": "stroke", "color": "#000000", "width": 20, "points": [[0, 0], [100, 0]] }] }
+```
+
+A client writes both verbs with its own type (`crates/control/src/look.rs`,
+"Adding a verb" below), so the app, which never sends them, carries no code
+for them.
 
 #### How a blob's bytes travel
 

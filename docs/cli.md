@@ -41,6 +41,8 @@ a "did you mean" suggestion.
 | `workspace show <WORKSPACE>` | One field per line, the name and the value separated by a tab: `name`, `tag`, `canvas`, `dir`, then `agent` (if any) and one `root` line per root, `machine:path`. `--json`: `workspace` |
 | `workspace close <WORKSPACE>` | Nothing. `--json`: `dir` |
 | `canvas changes <ID> [--after NUMBER] [--wait MS]` | One line per operation numbered above `--after` (default 0: all), lowest first, as the canvas file's JSON line. `--json`: `next`, `ops` |
+| `canvas crop <ID> (--item ITEM \| --box X,Y,W,H [--page PAGE]) [--out FILE]` | The path of each image written, one per line, tiles in reading order. `--json`: `images` (`path`, `x`, `y`, `width`, `height`) |
+| `canvas strokes <ID> --item ITEM` | One stroke per line, as JSON with absolute `points` in tenths. `--json`: `strokes` |
 
 `record append` takes the payload as a JSON object (default `{}`); the
 kinds and their payloads are in `docs/service.md`. A payload that is not
@@ -102,6 +104,18 @@ page that is not there exits 3 (`not_found`), an id that is not one exits
 change. A long backlog comes in parts: run it again with `--after` one below
 the `next` of `--json`. An `--after` the canvas has not reached exits 5
 (`invalid`).
+
+`canvas crop` writes an image of one item or one box at the packet's scale
+(`docs/service.md`, "Crops and strokes"). `--item` takes an id from `canvas
+show` (`i12`) or from a packet (`c12` is the whole cluster). `--box` is in
+tenths of a unit, like every canvas command, on the first page unless
+`--page` names another. The image goes to `--out` (default `<ITEM>.png` or
+`crop.png` in the current directory); a crop too large for one image goes
+beside it in tiles, `<stem>-1.png` and on. Both or neither of `--item` and
+`--box` exit 2 (`usage`); a box too large, over 16000 units a side, exits
+5 (`invalid`). `canvas strokes` prints the raw points of a stroke or of every
+stroke of a cluster; an item that is not ink exits 5. An item that is not
+there exits 3 (`not_found`).
 
 ## Output
 

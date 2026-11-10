@@ -236,10 +236,13 @@ whole fixture board, all new, is about 63 000 by this estimate.
 - **The marker.** The last sling's marker is not stored on its own: it is
   the `to` of the packet that the canvas's latest `sling_sent` event names,
   so it lives in the record. A read never moves it.
-- **`slinger canvas crop <canvas> <id>`** or **`--box x,y,w,h`**: one image
-  (or tiles) at the same scale, by the same rules. A cluster id resolves
-  through the record's latest packet for that canvas.
-- **`slinger canvas strokes <canvas> <id>`**: raw points, the R6 escape hatch.
+- **`slinger canvas crop <canvas> --item <id>`** or **`--box x,y,w,h`**: one
+  image (or tiles) at the same scale, by the same rules, at most 16000 units
+  a side. A cluster id `c<n>` resolves against the page as it is now: the
+  cluster stroke `n` is in. (`--box` is in tenths, like the other canvas
+  commands.)
+- **`slinger canvas strokes <canvas> --item <id>`**: raw points, the R6
+  escape hatch.
 
 ## Versioning (B5)
 
