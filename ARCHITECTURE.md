@@ -33,9 +33,18 @@ dev-depend on the daemon's library, so they run against a real socket.
 ### Inside the core
 
 ```
+canvas/      pages of items, changed only by operations. Build (Canvas::new),
+             apply (Canvas::apply(Op)), query (pages, items, item). Ops are data,
+             so a log of them replays to the same canvas, ids included. The
+             storage layout is private. Keeps the author rule: an agent changes
+             only items it made; removing what is already gone succeeds.
 record/      the record's formats (SPEC section 9): events as versioned JSON
              (encode, decode) and blob ids (SHA-256, `sha256:<hex>`). No IO;
              the daemon stores what it encodes.
+workspace.rs workspaces (SPEC section 10): the definition file's format
+             (docs/workspace.md) and the rules a set of them keeps. No IO;
+             callers read and write the bytes.
+error.rs     the typed errors and their stable codes.
 ```
 
 **The record's formats are API (B5).** A reader keeps an event of a kind

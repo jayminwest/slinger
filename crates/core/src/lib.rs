@@ -4,6 +4,7 @@
 //! nothing about its front ends, so every consumer gets the same behavior and
 //! the same errors.
 
+pub mod canvas;
 mod error;
 pub mod record;
 pub mod workspace;
