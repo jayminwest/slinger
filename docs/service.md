@@ -164,7 +164,8 @@ temporary directory, and removes the file after.
 
 ### Error codes
 
-The core's codes pass through unchanged (`not_found`, `conflict`, `invalid`).
+The core's codes pass through unchanged (`not_found`, `conflict`, `invalid`, and for
+a damaged or newer canvas file `canvas_corrupt` and `canvas_too_new`).
 The protocol adds:
 
 | Code | Meaning |

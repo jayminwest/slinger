@@ -18,6 +18,13 @@ pub enum Error {
     /// The input was understood but rejected.
     #[error("{message}")]
     Invalid { message: String, hint: Option<String> },
+    /// A canvas file is damaged before its last line: it was changed outside
+    /// slinger. `line` counts from 1.
+    #[error("the canvas file is damaged at line {line}: {message}")]
+    CanvasCorrupt { line: usize, message: String },
+    /// A canvas file was written in a format version this reader does not know.
+    #[error("the canvas file is format version {version}, newer than this slinger reads")]
+    CanvasTooNew { version: u64 },
 }
 
 impl Error {
@@ -28,6 +35,8 @@ impl Error {
             Self::NotFound { .. } => "not_found",
             Self::Conflict { .. } => "conflict",
             Self::Invalid { .. } => "invalid",
+            Self::CanvasCorrupt { .. } => "canvas_corrupt",
+            Self::CanvasTooNew { .. } => "canvas_too_new",
         }
     }
 
@@ -38,6 +47,10 @@ impl Error {
             Self::NotFound { hint, .. }
             | Self::Conflict { hint, .. }
             | Self::Invalid { hint, .. } => hint.as_deref(),
+            Self::CanvasCorrupt { .. } => {
+                Some("the file was changed outside slinger; restore it from a backup")
+            }
+            Self::CanvasTooNew { .. } => Some("upgrade slinger to open this canvas"),
         }
     }
 }
