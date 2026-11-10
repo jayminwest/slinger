@@ -12,7 +12,10 @@ use std::time::Duration;
 
 use slinger_control as control;
 
-use control::{Greeting, RemoteError, Reply, Request};
+use control::{Appended, EventFilter, Events, Greeting, NewEvent, RemoteError, Reply, Request};
+use slinger_core::record::{self, Body, Event, Tags};
+
+use crate::store::{Query, Store, StoreError};
 
 /// How long one connection may take to send its request or take its reply. A
 /// stalled client costs one thread for this long and cannot hold up a stop.
@@ -115,20 +118,20 @@ impl Server {
         Stopper { socket: self.socket.clone(), stopping: Arc::clone(&self.stopping) }
     }
 
-    /// Serves until [`Stopper::stop`], then waits for the open connections and
-    /// removes the socket file.
+    /// Serves `store` until [`Stopper::stop`], then waits for the open
+    /// connections and removes the socket file.
     ///
     /// # Errors
     ///
     /// The error that ended the accept loop, or the socket file's removal.
-    pub fn serve(self) -> io::Result<()> {
+    pub fn serve(self, store: &Store) -> io::Result<()> {
         let accepted = std::thread::scope(|scope| {
             for stream in self.listener.incoming() {
                 // The first connection accepted after a stop is the last one
                 // served, so every connection queued before the stop is served.
                 let last = self.stopping.load(Ordering::SeqCst);
                 let stream = stream?;
-                scope.spawn(move || converse(&stream));
+                scope.spawn(move || converse(&stream, store));
                 if last {
                     break;
                 }
@@ -142,27 +145,65 @@ impl Server {
 
 /// One connection: one request, one reply. A failure here is the client's to
 /// notice (it gets no reply); the daemon has no one else to tell.
-fn converse(stream: &UnixStream) -> io::Result<()> {
+fn converse(stream: &UnixStream, store: &Store) -> io::Result<()> {
     stream.set_read_timeout(Some(IO_TIMEOUT))?;
     stream.set_write_timeout(Some(IO_TIMEOUT))?;
     let reply = match control::read_request(&mut BufReader::new(stream)) {
         Ok(None) => return Ok(()),
-        Ok(Some(request)) => answer(request),
+        Ok(Some(request)) => answer(request, store),
         Err(error) => Err(error),
     };
     control::write_reply(&mut &*stream, &reply)
 }
 
 /// Request in, core call, reply out. One arm per verb, and no logic of its own.
-fn answer(request: Request) -> Result<Reply, RemoteError> {
+fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
     match request {
         Request::Hello { name } => slinger_core::greet(&name)
             .map(|greeting| Reply::Hello(Greeting { greeting }))
             .map_err(|e| remote(&e)),
+        Request::RecordAppend(new) => {
+            let event =
+                store.append(event(new).map_err(|e| remote(&e))?).map_err(|e| stored(&e))?;
+            Ok(Reply::RecordAppend(Appended { event: record::to_value(&event) }))
+        }
+        Request::RecordList(filter) => {
+            let events = store.events(&query(filter)).map_err(|e| stored(&e))?;
+            Ok(Reply::RecordList(Events { events: events.iter().map(record::to_value).collect() }))
+        }
+    }
+}
+
+/// The event a writer asks for. The store sets its number, time and machine.
+fn event(new: NewEvent) -> slinger_core::Result<Event> {
+    let body = Body::new(&new.kind, new.payload)?;
+    let tags = Tags {
+        machine: String::new(),
+        workspace: new.tags.workspace,
+        agent: new.tags.agent,
+        canvas: new.tags.canvas,
+    };
+    Ok(Event::new(0, new.source, tags, body))
+}
+
+fn query(filter: EventFilter) -> Query {
+    Query {
+        from: filter.after.map(|n| n.saturating_add(1)),
+        kind: filter.kind,
+        machine: filter.machine,
+        workspace: filter.workspace,
+        agent: filter.agent,
+        canvas: filter.canvas,
+        ..Query::default()
     }
 }
 
 /// The core's error as it crosses the socket: same code, message and hint.
 fn remote(error: &slinger_core::Error) -> RemoteError {
     RemoteError::new(error.code(), error.to_string(), error.hint().map(str::to_string))
+}
+
+/// The store's error as it crosses the socket.
+fn stored(error: &StoreError) -> RemoteError {
+    RemoteError::new(error.code(), error.to_string(), error.hint())
 }

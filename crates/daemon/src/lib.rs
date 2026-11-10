@@ -113,7 +113,7 @@ fn serve(socket: &Path, data_dir: Option<PathBuf>) -> Result<(), Failure> {
     let server = Server::bind(socket).map_err(|e| (code(e.code()), e.to_string(), e.hint()))?;
     // Opened after the socket is ours, so a second daemon on the same socket
     // never touches the record. Held until the daemon stops.
-    let _store = data_dir
+    let store = data_dir
         .map_or_else(default_data_dir, Ok)
         .and_then(|dir| Store::open(&dir, machine_name()))
         .map_err(|e| (code(e.code()), e.to_string(), e.hint()))?;
@@ -124,5 +124,5 @@ fn serve(socket: &Path, data_dir: Option<PathBuf>) -> Result<(), Failure> {
             stopper.stop();
         }
     });
-    server.serve().map_err(internal)
+    server.serve(&store).map_err(internal)
 }

@@ -109,6 +109,8 @@ pub struct Query {
     pub to: Option<u64>,
     /// Only this kind.
     pub kind: Option<String>,
+    /// Only events with this machine tag.
+    pub machine: Option<String>,
     /// Only events with this workspace tag.
     pub workspace: Option<String>,
     /// Only events with this agent tag.
@@ -208,6 +210,7 @@ impl Store {
         let mut conditions = vec!["number >= ?1".to_owned(), "number <= ?2".to_owned()];
         for (column, value) in [
             ("kind", &query.kind),
+            ("machine", &query.machine),
             ("workspace", &query.workspace),
             ("agent", &query.agent),
             ("canvas", &query.canvas),

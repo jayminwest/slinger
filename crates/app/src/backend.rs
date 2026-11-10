@@ -28,9 +28,11 @@ mod tests {
         static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let socket = std::env::temp_dir().join(format!("a-{}-{n}.sock", std::process::id()));
+        let data = tempfile::tempdir().unwrap();
+        let store = daemon::Store::open(data.path(), "my-laptop").unwrap();
         let server = daemon::Server::bind(&socket).unwrap();
         let stopper = server.stopper();
-        let serving = std::thread::spawn(move || server.serve());
+        let serving = std::thread::spawn(move || server.serve(&store));
         let result = f(&Client::new(&socket));
         stopper.stop();
         serving.join().unwrap().unwrap();

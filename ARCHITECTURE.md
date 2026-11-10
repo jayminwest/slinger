@@ -52,8 +52,9 @@ packet/      what an agent reads from a page (docs/design/packet.md). Index::new
              the new clusters that need images. Agent-made items are lines, never in
              the render list (R2). Owns the line grammar, ids and reading order.
 record/      the record's formats (SPEC section 9): events as versioned JSON
-             (encode, decode) and blob ids (SHA-256, `sha256:<hex>`). No IO;
-             the daemon stores what it encodes.
+             (encode, decode, to_value), the kinds a writer may append
+             (Body::new checks a payload against its kind) and blob ids
+             (SHA-256, `sha256:<hex>`). No IO; the daemon stores what it encodes.
 workspace.rs workspaces (SPEC section 10): the definition file's format
              (docs/workspace.md) and the rules a set of them keeps. No IO;
              callers read and write the bytes.
@@ -69,7 +70,8 @@ adding fields, and the change bumps that kind's `version`.
 
 ```
 lib.rs       argv, startup and signals: `run`.
-server.rs    the control socket and `answer`, one arm per verb.
+server.rs    the control socket and `answer`, one arm per verb. `serve` takes the
+             store, so a verb that reads or writes the record reaches it here.
 store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
              the event log and the blobs. The only module that knows its
              layout. Stores each event as the line `record::encode` wrote.

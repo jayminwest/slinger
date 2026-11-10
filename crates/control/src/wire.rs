@@ -107,12 +107,16 @@ pub fn write_reply(writer: &mut impl Write, reply: &Result<Reply, RemoteError>) 
 
 /// The request line a client sends.
 pub(crate) fn request_line(request: &Request) -> io::Result<String> {
-    let mut doc = Map::new();
-    doc.insert("v".into(), json!(VERSION));
-    if let Value::Object(fields) = serde_json::to_value(request).map_err(io::Error::other)? {
-        doc.extend(fields);
+    #[derive(serde::Serialize)]
+    struct Line<'a> {
+        v: u64,
+        #[serde(flatten)]
+        request: &'a Request,
     }
-    Ok(format!("{}\n", Value::Object(doc)))
+    let mut line =
+        serde_json::to_string(&Line { v: VERSION, request }).map_err(io::Error::other)?;
+    line.push('\n');
+    Ok(line)
 }
 
 #[cfg(test)]
@@ -132,7 +136,7 @@ mod tests {
     fn reads_what_a_client_writes() {
         let request = Request::Hello { name: "ada".into() };
         let line = request_line(&request).unwrap();
-        assert_eq!(line, "{\"name\":\"ada\",\"op\":\"hello\",\"v\":1}\n");
+        assert_eq!(line, "{\"v\":1,\"op\":\"hello\",\"name\":\"ada\"}\n");
         assert_eq!(read(line.as_bytes()).unwrap(), Some(request));
     }
 
@@ -140,6 +144,23 @@ mod tests {
     fn ignores_unknown_fields_and_a_missing_newline() {
         let line = br#"{"v":1,"op":"hello","name":"ada","later":true}"#;
         assert_eq!(read(line).unwrap(), Some(Request::Hello { name: "ada".into() }));
+    }
+
+    #[test]
+    fn record_requests_carry_their_fields_flat_and_default_the_rest() {
+        let line = br#"{"v":1,"op":"record_append","kind":"agent_done","source":"cli"}"#;
+        let Some(Request::RecordAppend(event)) = read(line).unwrap() else { panic!() };
+        assert_eq!((event.tags, event.payload), (crate::NewTags::default(), json!({})));
+        let filter = crate::EventFilter {
+            kind: Some("agent_done".into()),
+            after: Some(3),
+            ..Default::default()
+        };
+        let line = request_line(&Request::RecordList(filter.clone())).unwrap();
+        assert_eq!(line, "{\"v\":1,\"op\":\"record_list\",\"kind\":\"agent_done\",\"after\":3}\n");
+        assert_eq!(read(line.as_bytes()).unwrap(), Some(Request::RecordList(filter)));
+        let line = br#"{"v":1,"op":"record_list"}"#;
+        assert_eq!(read(line).unwrap(), Some(Request::RecordList(crate::EventFilter::default())));
     }
 
     #[test]
@@ -159,6 +180,8 @@ mod tests {
             br#"{"v":1,"op":"nope"}"#,
             br#"{"v":1,"op":"hello"}"#,
             br#"{"v":1,"op":"hello","name":7}"#,
+            br#"{"v":1,"op":"record_append","source":"cli"}"#,
+            br#"{"v":1,"op":"record_list","after":-1}"#,
         ] {
             let err = read(line).unwrap_err();
             assert_eq!(err.code(), "bad_request", "{}", String::from_utf8_lossy(line));

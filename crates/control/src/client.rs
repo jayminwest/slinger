@@ -8,7 +8,7 @@ use std::time::Duration;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::{Greeting, RemoteError, Request, wire};
+use crate::{Appended, EventFilter, Events, Greeting, NewEvent, RemoteError, Request, wire};
 
 /// The daemon's program name, for messages.
 const DAEMON: &str = "slingerd";
@@ -35,6 +35,27 @@ impl Client {
     pub fn hello(&self, name: &str) -> Result<String, RemoteError> {
         let reply: Greeting = self.call(&Request::Hello { name: name.to_string() })?;
         Ok(reply.greeting)
+    }
+
+    /// Appends an event and returns it as stored.
+    ///
+    /// # Errors
+    ///
+    /// `invalid` for an unknown kind or a payload that does not fit it, and
+    /// `unavailable` when the daemon does not answer.
+    pub fn record_append(&self, event: NewEvent) -> Result<Value, RemoteError> {
+        let reply: Appended = self.call(&Request::RecordAppend(event))?;
+        Ok(reply.event)
+    }
+
+    /// The events `filter` selects, lowest number first. None is not an error.
+    ///
+    /// # Errors
+    ///
+    /// The daemon's error, or `unavailable` when it does not answer.
+    pub fn record_list(&self, filter: EventFilter) -> Result<Vec<Value>, RemoteError> {
+        let reply: Events = self.call(&Request::RecordList(filter))?;
+        Ok(reply.events)
     }
 
     fn call<T: DeserializeOwned>(&self, request: &Request) -> Result<T, RemoteError> {

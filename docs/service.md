@@ -91,6 +91,36 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `op` | Arguments | Result |
 |---|---|---|
 | `hello` | `name`: string | `greeting`: string |
+| `record_append` | `kind`: string, `source`: string, `tags`: object (optional), `payload`: object (default `{}`) | `event`: the event as stored |
+| `record_list` | `kind`, `machine`, `workspace`, `agent`, `canvas`: string (each optional); `after`: number (optional) | `events`: list of events, lowest number first |
+
+**`record_append`** appends one event to this machine's record. `tags`
+may set `workspace`, `agent` and `canvas`; the daemon sets `machine`, the
+event's `number` and its `time` (milliseconds since the Unix epoch, UTC).
+The kind must be one this daemon writes, and the payload must fit it, or
+the reply is `invalid` with a hint. A payload field the kind does not have
+is dropped.
+
+```json
+{ "v": 1, "op": "record_append", "kind": "agent_done", "source": "scout", "tags": { "agent": "scout" }, "payload": { "summary": "wrote the plan" } }
+{ "ok": true, "event": { "number": 1, "time": 1762790400000, "kind": "agent_done", "version": 1, "source": "scout", "tags": { "machine": "my-laptop", "agent": "scout" }, "payload": { "summary": "wrote the plan" } } }
+```
+
+| `kind` | `payload` |
+|---|---|
+| `sling_sent` | `prompt`: string, `packet`: blob id |
+| `reply_landed` | `sling`: number (the `sling_sent` event), `items`: list of item ids |
+| `file_touched` | `path`: string, `hash`: blob id (never the contents) |
+| `pane_moved` | `pane`: string, `x`, `y`, `width`, `height`: number (points) |
+| `agent_blocked` | `reason`: string |
+| `agent_done` | `summary`: string (optional) |
+
+A blob id is `sha256:` and 64 lowercase hex digits.
+
+**`record_list`** returns the events that match every filter given:
+`kind`, each tag, and `after` (only events numbered above it). No match
+is an empty list, not an error. An event of a kind this daemon does not
+know is returned as it was stored, unknown fields included.
 
 ### Error codes
 
@@ -103,7 +133,7 @@ The protocol adds:
 | `too_large` | The request line is over the limit |
 | `unsupported_version` | `v` is not a version this daemon speaks |
 | `unavailable` | Made by the client, never sent: the daemon did not answer |
-| `internal` | Made by the client, never sent: it could not read the reply |
+| `internal` | The daemon could not read or write its record, or the client could not read the reply |
 
 ## Versioning
 

@@ -4,13 +4,15 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::Shutdown;
 use std::os::unix::net::UnixStream;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::thread::JoinHandle;
 
-use slinger_control::{Client, MAX_LINE};
+use serde_json::json;
+use slinger_control::{Client, EventFilter, MAX_LINE, NewEvent, NewTags};
+use tempfile::TempDir;
 
-use crate::{Server, StartError, Stopper, run};
+use crate::{Server, StartError, Stopper, Store, run};
 
 const DAEMON: &str = "slingerd";
 
@@ -21,19 +23,38 @@ fn socket_path() -> PathBuf {
     std::env::temp_dir().join(format!("d-{}-{n}.sock", std::process::id()))
 }
 
+/// Serves `server` with the record in `data` on a new thread.
+fn serving(server: Server, data: &Path) -> JoinHandle<std::io::Result<()>> {
+    let store = Store::open(data, "test-machine").unwrap();
+    std::thread::spawn(move || server.serve(&store))
+}
+
 /// A daemon on its own socket for one test.
 struct Daemon {
     socket: PathBuf,
     stopper: Stopper,
     thread: JoinHandle<std::io::Result<()>>,
+    /// The record's directory when the daemon made it: removed on drop.
+    data: Option<TempDir>,
 }
 
 impl Daemon {
     fn start() -> Self {
+        let data = TempDir::new().unwrap();
+        let mut daemon = Self::start_in(data.path());
+        daemon.data = Some(data);
+        daemon
+    }
+
+    fn start_in(data: &Path) -> Self {
         let socket = socket_path();
         let server = Server::bind(&socket).unwrap();
         let stopper = server.stopper();
-        Self { socket, stopper, thread: std::thread::spawn(move || server.serve()) }
+        Self { socket, stopper, thread: serving(server, data), data: None }
+    }
+
+    fn client(&self) -> Client {
+        Client::new(&self.socket)
     }
 
     /// Stops it and checks that it left nothing but its lock file behind.
@@ -42,6 +63,7 @@ impl Daemon {
         self.thread.join().unwrap().unwrap();
         assert!(!self.socket.exists());
         std::fs::remove_file(format!("{}.lock", self.socket.display())).unwrap();
+        drop(self.data);
     }
 
     /// Sends raw bytes, closes the sending side and returns the reply line.
@@ -116,9 +138,10 @@ fn a_socket_file_left_by_a_dead_daemon_is_replaced() {
     assert!(socket.exists());
     let server = Server::bind(&socket).unwrap();
     let stopper = server.stopper();
-    let thread = std::thread::spawn(move || server.serve());
+    let data = TempDir::new().unwrap();
+    let thread = serving(server, data.path());
     assert_eq!(Client::new(&socket).hello("ada").unwrap(), "hello, ada");
-    Daemon { socket, stopper, thread }.stop();
+    Daemon { socket, stopper, thread, data: Some(data) }.stop();
 }
 
 #[test]
@@ -131,6 +154,74 @@ fn a_stop_does_not_lose_the_reply_to_a_request_in_flight() {
     let mut reply = String::new();
     BufReader::new(stream).read_line(&mut reply).unwrap();
     assert_eq!(reply, "{\"greeting\":\"hello, ada\",\"ok\":true}\n");
+    daemon.stop();
+}
+
+fn new_event(kind: &str, payload: serde_json::Value) -> NewEvent {
+    NewEvent { kind: kind.into(), source: "test".into(), tags: NewTags::default(), payload }
+}
+
+#[test]
+fn an_appended_event_comes_back_numbered_and_survives_a_restart() {
+    let data = TempDir::new().unwrap();
+    let daemon = Daemon::start_in(data.path());
+    let mut new = new_event("agent_done", json!({"summary": "wrote it"}));
+    new.tags.agent = Some("scout".into());
+    let event = daemon.client().record_append(new).unwrap();
+    assert_eq!((event["number"].clone(), event["kind"].clone()), (json!(1), json!("agent_done")));
+    assert_eq!(event["tags"], json!({"machine": "test-machine", "agent": "scout"}));
+    assert_eq!(event["payload"], json!({"summary": "wrote it"}));
+    assert_eq!(event["source"], "test");
+    daemon.stop();
+
+    let daemon = Daemon::start_in(data.path());
+    assert_eq!(daemon.client().record_list(EventFilter::default()).unwrap(), [event]);
+    daemon.stop();
+}
+
+#[test]
+fn record_list_filters_by_kind_tag_and_number() {
+    let daemon = Daemon::start();
+    let client = daemon.client();
+    for (kind, workspace) in [("agent_done", "a"), ("agent_blocked", "a"), ("agent_done", "b")] {
+        let payload = json!({"reason": "why?"});
+        let mut new = new_event(kind, payload);
+        new.tags.workspace = Some(workspace.into());
+        client.record_append(new).unwrap();
+    }
+    let numbers = |filter: EventFilter| -> Vec<u64> {
+        let events = client.record_list(filter).unwrap();
+        events.iter().map(|e| e["number"].as_u64().unwrap()).collect()
+    };
+    let kind = |k: &str| EventFilter { kind: Some(k.into()), ..EventFilter::default() };
+    assert_eq!(numbers(EventFilter::default()), [1, 2, 3]);
+    assert_eq!(numbers(kind("agent_done")), [1, 3]);
+    assert_eq!(numbers(EventFilter { workspace: Some("a".into()), ..kind("agent_done") }), [1]);
+    assert_eq!(numbers(EventFilter { after: Some(1), ..kind("agent_done") }), [3]);
+    assert_eq!(
+        numbers(EventFilter { machine: Some("test-machine".into()), ..Default::default() }),
+        [1, 2, 3]
+    );
+    assert_eq!(numbers(EventFilter { agent: Some("nobody".into()), ..Default::default() }), [0; 0]);
+    assert_eq!(numbers(EventFilter { canvas: Some("c".into()), ..Default::default() }), [0; 0]);
+    assert_eq!(numbers(EventFilter { after: Some(u64::MAX), ..Default::default() }), [0; 0]);
+    daemon.stop();
+}
+
+#[test]
+fn an_append_the_core_rejects_is_invalid_with_a_hint_and_stores_nothing() {
+    let daemon = Daemon::start();
+    let client = daemon.client();
+    for new in [
+        new_event("agent_blocked", json!({})),
+        new_event("no_such_kind", json!({})),
+        new_event("file_touched", json!({"path": "a", "hash": "nope"})),
+    ] {
+        let err = client.record_append(new).unwrap_err();
+        assert_eq!(err.code(), "invalid");
+        assert!(err.hint().is_some());
+    }
+    assert_eq!(client.record_list(EventFilter::default()).unwrap(), [serde_json::Value::Null; 0]);
     daemon.stop();
 }
 

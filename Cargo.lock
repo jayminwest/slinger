@@ -551,6 +551,7 @@ dependencies = [
  "serde_json",
  "slinger-control",
  "slingerd",
+ "tempfile",
 ]
 
 [[package]]
@@ -562,6 +563,7 @@ dependencies = [
  "objc2-foundation",
  "slinger-control",
  "slingerd",
+ "tempfile",
 ]
 
 [[package]]

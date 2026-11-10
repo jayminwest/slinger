@@ -2,8 +2,8 @@
 
 use serde_json::{Value, json};
 use slinger_core::record::{
-    AgentBlocked, AgentDone, BlobId, Body, Event, FileTouched, PaneMoved, ReplyLanded, SlingSent,
-    Tags, VERSION, decode, encode,
+    AgentBlocked, AgentDone, BlobId, Body, Event, FileTouched, KINDS, PaneMoved, ReplyLanded,
+    SlingSent, Tags, VERSION, decode, encode, to_value,
 };
 
 fn tags() -> Tags {
@@ -114,4 +114,37 @@ fn decode_rejects_what_is_not_an_event() {
         assert_eq!(err.code(), "invalid", "{bad}");
         assert!(err.hint().is_some());
     }
+}
+
+#[test]
+fn a_writer_gets_a_typed_body_for_every_kind() {
+    for body in every_kind() {
+        let doc = to_value(&Event::new(1, "cli", Tags::on("m"), body.clone()));
+        assert_eq!(Body::new(body.kind(), doc["payload"].clone()).unwrap(), body);
+        assert!(KINDS.contains(&body.kind()));
+    }
+}
+
+#[test]
+fn to_value_is_what_encode_writes() {
+    let event = decode(include_str!("fixtures/known-kind-with-extra-field.json").trim()).unwrap();
+    assert_eq!(to_value(&event).to_string(), encode(&event));
+}
+
+#[test]
+fn a_writer_cannot_use_an_unknown_kind_or_a_payload_that_does_not_fit() {
+    for (kind, payload) in [
+        ("canvas_shared", json!({})),
+        ("", json!({})),
+        ("agent_blocked", json!({})),
+        ("reply_landed", json!({"sling": "three", "items": []})),
+        ("file_touched", json!({"path": "a", "hash": "md5:00"})),
+        ("agent_done", json!("done")),
+    ] {
+        let err = Body::new(kind, payload).unwrap_err();
+        assert_eq!(err.code(), "invalid", "{kind}");
+        assert!(err.hint().is_some());
+    }
+    let err = Body::new("nope", json!({})).unwrap_err();
+    assert!(err.hint().unwrap().contains("agent_done"));
 }

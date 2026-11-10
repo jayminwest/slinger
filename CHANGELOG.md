@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **CLI:** `slinger record append <kind> [payload]` adds an event to this
+  machine's record and prints its number. `slinger record list` prints the
+  events, filtered by `--kind`, `--machine`, `--workspace`, `--agent`,
+  `--canvas` and `--after <number>`. A payload that does not fit its kind
+  is refused with a hint.
 - **Record:** events (sling sent, reply landed, file touched, pane moved,
   agent blocked, agent done) and blob ids have a versioned JSON format. A
   reader keeps events of kinds and fields it does not know, so records from
