@@ -6,6 +6,7 @@
 //! It does not link the core: a client stays small and cannot call around the
 //! daemon.
 
+mod agent;
 mod client;
 mod feed;
 mod imported;
@@ -21,6 +22,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub use agent::{AgentAsk, CanvasPlaced, CanvasPut, Put};
 pub use client::Client;
 pub use feed::{CanvasFeed, MAX_WAIT_MS};
 pub use imported::CanvasImported;
@@ -130,6 +132,10 @@ pub enum Request {
     /// sends none of them (its size budget is nearly full).
     #[serde(untagged, skip_serializing)]
     Session(SessionAsk),
+    /// The agent's canvas verbs (`canvas_put`), read by their own `op`s and
+    /// written only by clients that send them, as the session verbs are.
+    #[serde(untagged, skip_serializing)]
+    Agent(AgentAsk),
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -163,6 +169,7 @@ pub enum Reply {
     SessionList(Sessions),
     SessionShow(SessionInfo),
     StatusSet(StatusSet),
+    CanvasPut(CanvasPlaced),
 }
 
 /// The reply to [`Request::Hello`].

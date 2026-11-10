@@ -5,6 +5,7 @@ mod canvas;
 mod cli;
 mod look;
 mod output;
+mod put;
 mod session;
 #[cfg(test)]
 mod tests;

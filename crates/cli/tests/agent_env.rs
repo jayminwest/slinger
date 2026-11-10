@@ -10,7 +10,7 @@ use slinger_control::{Client, EventFilter};
 const USAGE: i32 = 2;
 
 #[test]
-fn status_set_takes_the_agent_from_the_flag_or_the_environment_or_fails_as_usage() {
+fn agent_verbs_take_the_agent_from_the_flag_or_the_environment_or_fail_as_usage() {
     let data = tempfile::tempdir().unwrap();
     let socket: PathBuf = std::env::temp_dir().join(format!("ae-{}.sock", std::process::id()));
     let store = slingerd::Store::open(data.path(), "my-laptop").unwrap();
@@ -39,6 +39,18 @@ fn status_set_takes_the_agent_from_the_flag_or_the_environment_or_fails_as_usage
     let events = Client::new(&socket).record_list(EventFilter::default()).unwrap();
     let agents: Vec<&str> = events.iter().filter_map(|e| e["tags"]["agent"].as_str()).collect();
     assert_eq!(agents, ["scout", "ada"]);
+
+    // `canvas put` names its agent the same way.
+    let client = Client::new(&socket);
+    client.canvas_create("main").unwrap();
+    let bx = serde_json::json!({ "op": "add", "item": { "page": "p1", "kind": "box", "x": 0, "y": 0, "w": 10, "h": 10 } });
+    let ops = slinger_control::CanvasOps { canvas: "main".into(), by: "user".into(), ops: bx };
+    client.canvas_apply(ops).unwrap();
+    let put = ["canvas", "put", "main", "--beside", "i1", "--text", "hi"];
+    assert_eq!(slinger(&socket, None, &put).status.code(), Some(USAGE));
+    assert_eq!(slinger(&socket, Some("scout"), &put).status.code(), Some(0));
+    let shown = client.canvas_show("main", None).unwrap();
+    assert_eq!(shown.items[1]["by"], "agent:scout");
     stopper.stop();
     serving.join().unwrap().unwrap();
     std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();

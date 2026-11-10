@@ -82,7 +82,7 @@ impl Log {
     }
 
     /// The items `id` names, in drawing order. See the module doc.
-    fn resolve(&self, id: &str) -> Result<Vec<ItemId>> {
+    pub(super) fn resolve(&self, id: &str) -> Result<Vec<ItemId>> {
         let canvas = self.canvas();
         let number = id
             .strip_prefix(['i', 'c', 't', 'b', 'a'])

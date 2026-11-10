@@ -133,6 +133,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_list` | none | `sessions`: list of sessions, sorted by agent |
 | `session_show` | `agent`: string | `session` |
 | `status_set` | `agent`: string, `status`: `working`, `blocked` or `done`, `note`: string (optional) | `agent`, `status`, `note` (absent when none), `event`: the number of the event appended (absent for `working`) |
+| `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `arrow`: `[from, to]` item ids | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
 
 **`record_append`** appends one event to this machine's record. `tags`
 may set `workspace`, `agent` and `canvas`; the daemon sets `machine`, the
@@ -441,6 +442,36 @@ workspace with that agent opens. A blank agent or another status is
 { "ok": true, "sessions": [{ "agent": "scout", "home": "/Users/me/notes", "deliver": "process", "status": "blocked", "note": "need the API key" }] }
 ```
 
+#### Agent canvas verbs
+
+An agent answers on the canvas, not in chat (SPEC section 7). Each answer
+is an item the agent makes, with its name and the time, as one undo step of
+its own.
+
+**`canvas_put`** adds text, a box or an arrow, placed beside the item
+`beside` names (ids as for crops, above: `c<n>` on the user's ink is its
+whole cluster) on that item's page. Text is black, wrapped at 40 characters
+a line, in a frame that holds it; a box is `w` by `h` tenths. Either goes in
+free space: 24 units right of the item, top-aligned; else below it, left of
+it or above it; else further right, past whatever is in the way. It never
+comes within 12 units of another item. An arrow joins `from` and `to`, two
+items on that page, from the edge of one to the edge of the other, and
+points at both. The reply gives the new item's id and its box. When a
+`sling_sent` tagged with the agent and the canvas is in the record, the put
+answers the latest such sling: the daemon appends `reply_landed` (`sling`,
+`items`: the new item) with the agent as source and tags it with the agent
+and the canvas. A canvas or item that is not there is `not_found`; a blank
+agent, an id that is not one, blank text, a negative size, or an arrow to an
+item on another page is `invalid`.
+
+```json
+{ "v": 1, "op": "canvas_put", "canvas": "idea", "agent": "scout", "beside": "c12", "text": "the date is wrong" }
+{ "ok": true, "item": "i31", "page": "p1", "x": 4810, "y": 1200, "w": 4080, "h": 240, "seq": 58, "event": 14 }
+```
+
+The agent canvas verbs are one variant of `Request` (`Request::Agent`),
+written by `crates/control/src/agent.rs`.
+
 #### How a blob's bytes travel
 
 The bytes travel as a file on this machine, named in the line. They never
@@ -503,10 +534,12 @@ not open, and an agent with no session.
    be `#[serde(skip_serializing)]` there and written by a small type of its
    own, as `crates/control/src/workspace.rs` does, with a test that the two
    write the same line. `canvas_read` does the same in
-   `crates/control/src/packet.rs`. Even a skipped variant costs the app a
-   little; a group of such verbs costs one variant when they share it:
-   `#[serde(untagged, skip_serializing)]` over an enum of their own, tagged
-   by `op`, as `crates/control/src/session.rs` does.
+   `crates/control/src/packet.rs`. A group of such verbs shares one
+   variant: `#[serde(untagged, skip_serializing)]` over an enum of their
+   own, tagged by `op`, as `crates/control/src/session.rs` and
+   `crates/control/src/agent.rs` do. The app sends only `hello`, which
+   `Client::hello` also writes with a type of its own, so the app builds
+   no `Request` at all; keep it that way.
 3. Add one arm to `answer` in `crates/daemon/src/server.rs`. It calls the
    core and nothing else.
 4. Add tests to `crates/daemon/src/tests.rs`. They go through a real socket.

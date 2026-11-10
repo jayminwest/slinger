@@ -139,6 +139,8 @@ mod tests {
         let line = request_line(&request).unwrap();
         assert_eq!(line, "{\"v\":1,\"op\":\"hello\",\"name\":\"ada\"}\n");
         assert_eq!(read(line.as_bytes()).unwrap(), Some(request));
+        let hello = crate::client::Hello { name: "ada" };
+        assert_eq!(request_line(&hello).unwrap(), line);
     }
 
     #[test]

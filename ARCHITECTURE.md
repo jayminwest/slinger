@@ -49,7 +49,9 @@ canvas/delta.rs  what is new after the last sling (R1): an op log and a
              canvases, so added-then-removed is nothing. No errors.
 canvas/geometry.rs  pure queries on a page: item at a point, items in a
              lasso (nonzero winding), strokes an eraser touches, items touching a
-             box, bounds of a set. No errors: degenerate input finds nothing.
+             box, bounds of a set, free space beside an item (free_beside: right,
+             below, left, above, then further right). No errors: degenerate input
+             finds nothing.
 canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-only
              JSON Lines log of operations. Header and line encode, read (cuts a
              torn last line), replay into a canvas, snap to the stored tenths. No IO.
@@ -67,6 +69,8 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              look.rs: what an agent asks beyond the packet (R5, R6): crop (an
              item, a cluster c<n> or a box, as render images, at most MAX_CROP
              units a side) and strokes (a stroke's or a cluster's points).
+             put.rs: an agent's answer (SPEC section 7): text, a box or an arrow
+             beside an item, placed by free_beside, as one undo step.
 packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
              canvas page, the clusters of the user's ink and what changed, and gives
              the `new`, `made` and `page` lines in reading order, plus the render list:
@@ -87,13 +91,16 @@ render/      images of items (docs/design/packet.md, Images): a set of items or 
              box of a page in, PNGs out, at a fixed scale, cut into overlapping
              tiles past the size limit (SCALE, MAX_EDGE, OVERLAP, MARGIN). Owns
              the rasterizer (raster.rs) and the PNG container (png.rs). Pure and
-             deterministic: the same input gives the same bytes.
+             deterministic: the same input gives the same bytes. text_size: the
+             frame text needs as drawn.
 sling.rs     the sling message (SPEC section 6, D10): a packet, the prompt, the
              selected packet ids, first-or-later and the verbs the caller serves in;
              text and image blocks out, each image after the packet line naming it.
              Line 1 is `slinger-sling <VERSION>`; then the packet, a `# reply` note
              (whole on a session's first sling, one line after) and the prompt last.
              The note names only the verbs passed in. No errors.
+             landed: the `reply_landed` an agent's answer adds, for its latest
+             sling on that canvas.
 record/      the record's formats (SPEC section 9): events as versioned JSON
              (encode, decode, to_value), the kinds a writer may append
              (Body::new checks a payload against its kind) and blob ids
@@ -159,6 +166,8 @@ sessions.rs  the statuses agents set since the daemon started (`working`
              lives only here); else each agent's last status event in the
              record. `status_set` appends its event inside the same lock.
 server/session.rs  `session_list`, `session_show`, `status_set` on the wire.
+server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
+             agent's latest sling on the canvas (`sling::landed`), if any.
 ```
 
 ### Inside the app
@@ -244,6 +253,8 @@ Each boundary has something that fails when it is broken:
 | SIGTERM ends the daemon cleanly, with a client waiting on a feed | `crates/daemon/tests/signals.rs`, against the real binary |
 | A crop is limited in size; an empty box is a white image; an unknown id is `not_found` | `crates/core/tests/canvas_look.rs`, and `crates/daemon/src/tests/look.rs` through a real socket |
 | A status set shows in the session list and the record; blocked and done survive a restart | `crates/daemon/src/tests/session.rs`, through a real socket |
+| A put covers nothing: right of the item, else below, left, above, else further right | `crates/core/tests/canvas_put.rs` |
+| A put shows with its author; after a sling it lands `reply_landed`; an unknown item is `not_found` | `crates/daemon/src/tests/put.rs`, through a real socket |
 | An agent verb takes its agent from `--agent` or `SLINGER_AGENT`, else exits 2 | `crates/cli/tests/agent_env.rs`, against the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |

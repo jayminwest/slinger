@@ -12,7 +12,7 @@
 //!   to append, numbered, and undo lives beside it. [`Log::after`] finds the
 //!   stored lines after a point, and [`lines`] reads them as they are. It
 //!   also crops images of an item or a box and gives a stroke's points, for
-//!   an agent (`look`).
+//!   an agent (`look`), and puts an agent's answer beside an item (`put`).
 //! - [`snap`] rounds an operation to what the file can hold. Apply the
 //!   snapped op, so the canvas in memory is the one the file rebuilds.
 //!
@@ -39,12 +39,14 @@ mod json;
 mod log;
 mod look;
 mod packet;
+mod put;
 mod replay;
 mod time;
 mod whole;
 
 pub use log::{Log, Shown, Span, Written, check_id, id_from_name, lines, parse_author};
 pub use look::MAX_CROP;
+pub use put::{Placed, Put, TEXT_COLUMNS};
 use serde_json::{Map, Value};
 
 use super::{Action, Applied, Author, Item, ItemId, Op, Page, PageId, Point, Shape, Time};

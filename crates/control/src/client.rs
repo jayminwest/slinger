@@ -21,6 +21,14 @@ const DAEMON: &str = "slingerd";
 /// How long a client waits for the daemon to answer.
 pub(crate) const TIMEOUT: Duration = Duration::from_secs(5);
 
+/// [`Request::Hello`] as a client writes it. The app sends only this verb,
+/// so with it the app builds no [`Request`] and carries none of its code.
+#[derive(Serialize)]
+#[serde(tag = "op", rename = "hello")]
+pub(crate) struct Hello<'a> {
+    pub(crate) name: &'a str,
+}
+
 /// A client of the daemon on one socket path. Making one does no IO.
 #[derive(Debug, Clone)]
 pub struct Client {
@@ -38,7 +46,7 @@ impl Client {
     ///
     /// The daemon's error, or `unavailable` when it does not answer.
     pub fn hello(&self, name: &str) -> Result<String, RemoteError> {
-        let reply: Greeting = self.call(&Request::Hello { name: name.to_string() })?;
+        let reply: Greeting = self.call(&Hello { name })?;
         Ok(reply.greeting)
     }
 

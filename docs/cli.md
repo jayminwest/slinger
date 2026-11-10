@@ -46,6 +46,7 @@ a "did you mean" suggestion.
 | `session list` | One line per session, by agent: agent, status (`-` for none) and home, then the note if there is one, separated by tabs. `--json`: `sessions` |
 | `session show <AGENT>` | One field per line, the name and the value separated by a tab: `agent`, `home`, `deliver`, `status`, then `note` (if any). `--json`: `session` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
+| `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --arrow FROM TO) [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
 
 `record append` takes the payload as a JSON object (default `{}`); the
 kinds and their payloads are in `docs/service.md`. A payload that is not
@@ -127,6 +128,14 @@ it exits 2 (`usage`) with a hint. Every agent verb added after it names the
 agent the same way. `status set blocked` and `status set done` append
 `agent_blocked` and `agent_done` to the record (the note is the reason or the
 summary); `working` is shown by `session list` only. Another status exits 2.
+`canvas put` is an agent verb too: the agent answers on the canvas with
+text, a box (`W,H` in tenths of a unit) or an arrow between two items, placed
+beside `--beside`, an id from `canvas show` (`i12`) or a packet (`c12` is the
+whole cluster), where it covers nothing (`docs/service.md`, "Agent canvas
+verbs"). After a sling to that agent on that canvas, the put also appends
+`reply_landed` to the record. An item that is not there exits 3
+(`not_found`); none or two of `--text`, `--box` and `--arrow`, or a `--box`
+that is not two integers, exits 2 (`usage`); blank text exits 5 (`invalid`).
 `session list` shows the agents of the open workspaces; with none it prints
 nothing and exits 0. `session show` of an agent with no session exits 3
 (`not_found`).

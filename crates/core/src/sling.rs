@@ -26,10 +26,14 @@
 //! tells an agent to run a command that does not exist. The first sling of a
 //! session gets the whole note; later slings, whose session remembers it
 //! (D10), get one line.
+//!
+//! [`landed`] is the other end: the record's `reply_landed` when the agent
+//! answers on the canvas.
 
 use std::fmt::Write as _;
 
 use crate::packet::Packet;
+use crate::record::{Body, Event, ReplyLanded};
 use crate::render::Image;
 
 /// The message format's version: the second word of line 1. Within it,
@@ -139,6 +143,16 @@ pub fn message(sling: &Sling<'_>) -> Message {
     out.text.push_str("# prompt\n");
     out.text.push_str(sling.prompt);
     out.finish()
+}
+
+/// What an agent's reply on a canvas adds to the record: `reply_landed`,
+/// naming `items`, for the last of `slings` (the `sling_sent` events sent to
+/// that agent on that canvas, oldest first). `None` before the first sling:
+/// the reply answers none.
+#[must_use]
+pub fn landed(slings: &[Event], items: Vec<String>) -> Option<Body> {
+    let sling = slings.iter().rev().find(|e| matches!(e.body, Body::SlingSent(_)))?.number?;
+    Some(Body::ReplyLanded(ReplyLanded { sling, items }))
 }
 
 /// Line 1: the message's version, the canvas and the selection.

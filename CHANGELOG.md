@@ -11,6 +11,13 @@ bullet with the area in bold.
 
 ### Added
 
+- **CLI:** agents answer on the canvas. `slinger canvas put <canvas> --beside
+  <id> --text <text>` puts text beside an item, where it covers nothing:
+  to the right first, else below, left or above. `--box w,h` puts a box and
+  `--arrow <from> <to>` an arrow between two items instead. The item carries
+  the agent's name (`--agent` or `SLINGER_AGENT`) and the time, and the
+  command prints its id and box. After a sling to that agent, the put also
+  records that the reply landed.
 - **Sling:** what an agent receives for one sling: your prompt, the page's
   packet with each image under its line, the items you selected, and a short
   note on how to answer on the canvas instead of in chat. The first sling of

@@ -1,6 +1,6 @@
 //! Geometry queries on a page: the item under a point, the items inside a
-//! lasso, the strokes an eraser touches, the items a box touches, and the box
-//! around a set of items. Pure: no drawing and no input. The app asks them as
+//! lasso, the strokes an eraser touches, the items a box touches, the box
+//! around a set of items, and free space beside an item. Pure: no drawing and no input. The app asks them as
 //! the pen moves; the packet asks them for what the user selected.
 //!
 //! Every query takes canvas units, answers in drawing order (first drawn
@@ -17,6 +17,9 @@
 use std::borrow::Cow;
 
 use super::{Canvas, Item, ItemId, PageId, Point, Rect, Shape};
+
+/// The space, in canvas units, between an item and one put beside it.
+pub const GAP: f64 = 24.0;
 
 impl Canvas {
     /// The topmost item on `page` (the last drawn) within `tolerance` canvas
@@ -79,6 +82,35 @@ impl Canvas {
             .filter(|i| Geometry::of(i.shape()).touches(area))
             .map(Item::id)
             .collect()
+    }
+
+    /// Where a new `w` by `h` item goes beside `near` on `page` so that it
+    /// covers nothing: [`GAP`] from `near`'s right side, top-aligned; else
+    /// below it, left of it or above it; else further right, past whatever
+    /// is in the way. There is always such a place: the canvas is endless.
+    /// An item counts as in the way when it comes within half a [`GAP`]. A
+    /// size below zero or not a finite number counts as zero.
+    #[must_use]
+    pub fn free_beside(&self, page: PageId, near: Rect, w: f64, h: f64) -> Rect {
+        let size = |v: f64| if v.is_finite() { v.max(0.0) } else { 0.0 };
+        let (w, h) = (size(w), size(h));
+        let right = Rect::new(near.x + near.w + GAP, near.y, w, h);
+        let sides = [
+            right,
+            Rect::new(near.x, near.y + near.h + GAP, w, h),
+            Rect::new(near.x - GAP - w, near.y, w, h),
+            Rect::new(near.x, near.y - GAP - h, w, h),
+        ];
+        let blockers = |r: Rect| self.items_in_box(page, grown(r, GAP / 2.0));
+        if let Some(free) = sides.into_iter().find(|&r| blockers(r).is_empty()) {
+            return free;
+        }
+        // Each step moves past at least one item, so this ends.
+        let mut at = right;
+        loop {
+            let Some(past) = self.bounds_of(blockers(at)) else { return at };
+            at.x = at.x.max(past.x + past.w + GAP);
+        }
     }
 
     /// The smallest rectangle that holds every one of `items` on the canvas,

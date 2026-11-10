@@ -158,3 +158,22 @@ fn a_packet_with_nothing_new_is_one_text_block() {
     let m = message(&sling(&p, &[], false));
     assert!(matches!(m.blocks.as_slice(), [Block::Text(_)]));
 }
+
+#[test]
+fn a_reply_lands_for_the_last_sling_and_for_none_before_the_first() {
+    use slinger_core::record::{BlobId, Body, Event, ReplyLanded, SlingSent, Tags};
+    use slinger_core::sling::landed;
+    let sent = |number| {
+        let packet = BlobId::of(b"packet");
+        let body = Body::SlingSent(SlingSent { prompt: String::new(), packet });
+        let mut event = Event::new(0, "slinger", Tags::on("my-laptop"), body);
+        event.number = Some(number);
+        event
+    };
+    let items = vec!["i12".to_string()];
+    assert_eq!(landed(&[], items.clone()), None);
+    assert_eq!(
+        landed(&[sent(3), sent(9)], items.clone()),
+        Some(Body::ReplyLanded(ReplyLanded { sling: 9, items }))
+    );
+}
