@@ -12,6 +12,7 @@
 //!   never changed by an agent (SPEC section 7).
 //! - A canvas always has at least one page, and page names are unique.
 
+mod geometry;
 mod item;
 
 use std::collections::BTreeMap;

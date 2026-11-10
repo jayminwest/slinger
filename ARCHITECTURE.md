@@ -39,6 +39,9 @@ canvas/      pages of items, changed only by operations. Build (Canvas::new),
              so a log of them replays to the same canvas, ids included. The
              storage layout is private. Keeps the author rule: an agent changes
              only items it made; removing what is already gone succeeds.
+canvas/geometry.rs  pure queries on a page: item at a point, items in a
+             lasso (nonzero winding), strokes an eraser touches, items touching a
+             box, bounds of a set. No errors: degenerate input finds nothing.
 record/      the record's formats (SPEC section 9): events as versioned JSON
              (encode, decode) and blob ids (SHA-256, `sha256:<hex>`). No IO;
              the daemon stores what it encodes.
