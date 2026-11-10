@@ -18,6 +18,10 @@ bullet with the area in bold.
   every version with its hash, size, author and time, and
   `slinger ui export <name>[@<version>] [--out <dir>]` writes one version
   back as `<name>.v<version>.html`.
+- **CLI:** `slinger canvas import <file.tldraw> [--name <id>]` makes a new
+  canvas from a tldraw board, with its pages, drawings, text, rectangles and
+  arrows, and prints its id and what it holds. Shapes slinger has no item for
+  (groups, lines, ellipses) are counted as skipped.
 - **CLI:** canvases. `slinger canvas create <id>` makes one, `canvas list`
   lists them, `canvas show <id> [--page]` prints a page's items, `canvas apply
   <id> <ops|->` adds, moves, edits and removes items and pages, and `canvas

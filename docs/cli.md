@@ -34,6 +34,7 @@ a "did you mean" suggestion.
 | `canvas show <ID> [--page PAGE]` | One line per item on the page, in drawing order: id, kind, maker and the item as JSON, separated by tabs. `--json`: `canvas`, `next`, `page`, `pages`, `items` |
 | `canvas apply <ID> <OPS\|-> [--agent NAME]` | The ids the operations made, one per line. `--json`: `seq`, `made` |
 | `canvas undo <ID> [--agent NAME]`, `canvas redo <ID> [--agent NAME]` | Nothing. `--json`: `seq`, `made` |
+| `canvas import <FILE> [--name ID]` | The new canvas's id, then one count per line, tab separated: `pages`, each item kind, and `skipped` with each tldraw shape type. `--json`: `canvas`, `pages`, `items`, `skipped` |
 
 `record append` takes the payload as a JSON object (default `{}`); the
 kinds and their payloads are in `docs/service.md`. A payload that is not
@@ -64,6 +65,11 @@ operations that are not JSON exit 5 (`invalid`). A canvas that exists exits
 4 (`conflict`) on create; one that does not exists exits 3 (`not_found`) on
 the other commands. A damaged canvas file (`canvas_corrupt`) or one from a
 newer slinger (`canvas_too_new`) exits 1.
+
+`canvas import` makes a new canvas from a tldraw file (`.tldraw` or `.tldr`),
+named by `--name` or after the file (lowercased, other characters made `-`).
+A file that is not there exits 3 (`not_found`), one that is not a tldraw file
+exits 5 (`invalid`), and a canvas of that id exits 4 (`conflict`).
 
 ## Output
 

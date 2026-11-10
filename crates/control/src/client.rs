@@ -9,9 +9,9 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::{
-    Appended, CanvasChange, CanvasInfo, CanvasOps, CanvasPage, CanvasStep, Canvases, EventFilter,
-    Events, Exported, Greeting, NewEvent, RemoteError, Request, Stored, Ui, UiPut, Uis, Written,
-    wire,
+    Appended, CanvasChange, CanvasImported, CanvasInfo, CanvasOps, CanvasPage, CanvasStep,
+    Canvases, EventFilter, Events, Exported, Greeting, NewEvent, RemoteError, Request, Stored, Ui,
+    UiPut, Uis, Written, wire,
 };
 
 /// The daemon's program name, for messages.
@@ -178,6 +178,23 @@ impl Client {
     /// daemon does not answer.
     pub fn canvas_undo(&self, step: CanvasStep) -> Result<CanvasChange, RemoteError> {
         self.call(&Request::CanvasUndo(step))
+    }
+
+    /// Makes a new canvas from the tldraw file `file`, named `canvas` or,
+    /// without one, after the file.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a file that is not there, `invalid` for one that is
+    /// not a tldraw file or a name that is not a canvas id, `conflict` when
+    /// the canvas exists, and `unavailable` when the daemon does not answer.
+    pub fn canvas_import(
+        &self,
+        file: &Path,
+        canvas: Option<&str>,
+    ) -> Result<CanvasImported, RemoteError> {
+        let (path, canvas) = (absolute(file)?, canvas.map(str::to_string));
+        self.call(&Request::CanvasImport { path, canvas })
     }
 
     /// Redoes the last step `step.by` undid on the canvas.

@@ -111,6 +111,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_show` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `canvas`, `next`: the next operation's number, `page`: the page's id, `pages`: list of `{id, name}`, `items`: list of items |
 | `canvas_apply` | `canvas`: canvas id, `by`: author (default `user`), `ops`: one operation or a list | `seq`: list of numbers, `made`: list of ids |
 | `canvas_undo`, `canvas_redo` | `canvas`: canvas id, `by`: author (default `user`) | `seq`, `made` (always empty) |
+| `canvas_import` | `path`: absolute path of a tldraw file, `canvas`: canvas id (optional, default made from the file's name) | `canvas`, `pages`: number, `items`: count by kind, `skipped`: count by tldraw shape type |
 
 **`record_append`** appends one event to this machine's record. `tags`
 may set `workspace`, `agent` and `canvas`; the daemon sets `machine`, the
@@ -235,6 +236,24 @@ whole item objects: `id`, `page`, `by`, `t` (when it was made), `kind`,
 ```json
 { "v": 1, "op": "canvas_apply", "canvas": "main", "by": "agent:scout", "ops": [{ "op": "add", "item": { "page": "p1", "kind": "text", "x": 0, "y": 0, "text": "plan" } }] }
 { "ok": true, "seq": [7], "made": ["i5"] }
+```
+
+**`canvas_import`** reads the tldraw file at `path` (a `.tldraw` file or an
+older `.tldr`; its bytes travel as a file, as a blob's do) and makes a new
+canvas that holds it: tldraw's pages with their names, and its drawings, text,
+rectangles and arrows as items, all made by `user`. The file is written whole
+before the reply, so a crash leaves the canvas complete or absent. Without
+`canvas`, the id is the file's name lowercased, with each run of other
+characters made one `-` (`My Board.tldraw` is `my-board`). `items` counts what
+it made by kind (`stroke`, `text`, `box`, `arrow`; a rectangle's label is a
+`text`), and `skipped` counts the shapes with no item by tldraw type
+(`group`, `line`, `geo:ellipse`, ...). A file that is not there is
+`not_found`; one that is not a tldraw file is `invalid`; a canvas that exists
+is `conflict`.
+
+```json
+{ "v": 1, "op": "canvas_import", "path": "/tmp/idea.tldraw" }
+{ "ok": true, "canvas": "idea", "pages": 5, "items": { "arrow": 57, "box": 80, "stroke": 7563, "text": 125 }, "skipped": { "group": 8, "line": 4 } }
 ```
 
 #### How a blob's bytes travel

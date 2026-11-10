@@ -36,8 +36,9 @@ mod json;
 mod log;
 mod replay;
 mod time;
+mod whole;
 
-pub use log::{Log, Shown, Written, check_id, parse_author};
+pub use log::{Log, Shown, Written, check_id, id_from_name, parse_author};
 use serde_json::{Map, Value};
 
 use super::{Action, Applied, Author, Item, ItemId, Op, Page, PageId, Point, Shape, Time};

@@ -7,6 +7,7 @@
 //! daemon.
 
 mod client;
+mod imported;
 mod wire;
 
 use std::fmt;
@@ -16,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub use client::Client;
+pub use imported::CanvasImported;
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
 
 /// A request to the daemon. One variant per verb; `op` on the wire names it.
@@ -58,6 +60,13 @@ pub enum Request {
     CanvasUndo(CanvasStep),
     /// Redo the last step `by` undid on a canvas.
     CanvasRedo(CanvasStep),
+    /// Make a new canvas from the tldraw file at `path`, named `canvas` or
+    /// after the file.
+    CanvasImport {
+        path: PathBuf,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        canvas: Option<String>,
+    },
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -79,6 +88,7 @@ pub enum Reply {
     CanvasApply(CanvasChange),
     CanvasUndo(CanvasChange),
     CanvasRedo(CanvasChange),
+    CanvasImport(CanvasImported),
 }
 
 /// The reply to [`Request::Hello`].

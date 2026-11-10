@@ -2,6 +2,7 @@
 //! one request; the daemon owns the files and every rule.
 
 use std::io::Read;
+use std::path::PathBuf;
 
 use clap::Subcommand;
 use serde_json::{Value, json};
@@ -54,6 +55,14 @@ pub enum Canvas {
         #[arg(long, value_name = "NAME")]
         agent: Option<String>,
     },
+    /// Make a new canvas from a tldraw file; prints its id and what it holds
+    Import {
+        /// A .tldraw or .tldr file
+        file: PathBuf,
+        /// The new canvas's id [default: made from the file's name]
+        #[arg(long)]
+        name: Option<String>,
+    },
 }
 
 impl Canvas {
@@ -65,6 +74,7 @@ impl Canvas {
             Self::Apply { .. } => "canvas apply",
             Self::Undo { .. } => "canvas undo",
             Self::Redo { .. } => "canvas redo",
+            Self::Import { .. } => "canvas import",
         }
     }
 }
@@ -113,6 +123,10 @@ pub fn execute(
         Canvas::Redo { canvas, agent } => {
             change(&daemon.canvas_redo(step(canvas, agent.as_deref()))?)
         }
+        Canvas::Import { file, name } => {
+            let imported = daemon.canvas_import(file, name.as_deref())?;
+            Ok(Output::new(serde_json::to_value(&imported)?, imported_lines(&imported)))
+        }
     }
 }
 
@@ -134,4 +148,13 @@ fn change(change: &control::CanvasChange) -> anyhow::Result<Output> {
 fn item_line(item: &Value) -> String {
     let field = |key: &str| item[key].as_str().unwrap_or_default().to_string();
     format!("{}\t{}\t{}\t{item}", field("id"), field("kind"), field("by"))
+}
+
+/// An import for people: the canvas id, then one count per line, tab
+/// separated: `pages`, each item kind, then `skipped` and each shape type.
+fn imported_lines(imported: &control::CanvasImported) -> String {
+    let mut lines = vec![imported.canvas.clone(), format!("pages\t{}", imported.pages)];
+    lines.extend(imported.items.iter().map(|(kind, n)| format!("{kind}\t{n}")));
+    lines.extend(imported.skipped.iter().map(|(kind, n)| format!("skipped\t{kind}\t{n}")));
+    lines.join("\n")
 }
