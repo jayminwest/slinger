@@ -5,6 +5,7 @@
 //! the same errors.
 
 mod error;
+pub mod record;
 
 pub use error::{Error, Result};
 
