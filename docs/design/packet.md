@@ -252,3 +252,60 @@ whole fixture board, all new, is about 63 000 by this estimate.
 - Removing or renaming anything, changing a field's meaning or the box
   syntax, or reordering sections is version 2. A program that reads a version
   it does not know fails with `unsupported_version`.
+
+## Result (slinger-d311)
+
+Spike B's reading test, repeated on 2026-11-10 against the real code. The
+fixture board (`crates/core/tests/fixtures/idea.tldraw`) went in through
+`slinger canvas import` into a private slingerd; `slinger canvas read idea
+--page <p> --out <dir>` gave one packet per page, all ink new (ops 1 to
+7878). A fresh subagent got only the three packet directories (`packet.txt`
+plus PNGs) and was asked to transcribe every image and flag unreadable and
+cut words. Ground truth: our own reading of the crops, checked against a
+render of every stroke on each page with no clustering. `canvas crop` was
+not needed: the packet images were the crops.
+
+| Page | Clusters | Images | Tokens (text + image) |
+|---|---|---|---|
+| `claude` | 4 | 11 (two clusters tiled, 3 and 6 tiles) | 12 724 (230 + 12 494) |
+| `slinger-diagrams` | 12 | 12 | 4 730 (1 702 + 3 028) |
+| `spec` | 16 | 16 | 2 142 (926 + 1 216) |
+| **Total** | 32 | 39 | **19 596** (2 858 + 16 738) |
+
+Tokens are `Packet::tokens`'s estimate (the `at=` field left out). The
+subagent's whole run, with its own reasoning and answer, was 78 042 tokens.
+
+| Count | Spike B (36 crops) | Now (39 images) |
+|---|---|---|
+| Unreadable words | 1 | 1 |
+| Cut words (lost) | 2 | 0 |
+
+Every prompt was read with the right meaning, including the long one,
+`c3539` ("CLAUDE: This is a new session. Please look at ALL the prompts…"),
+word for word. The failures, each with its crop:
+
+- **Unreadable: `c2547` (tile `c2547-5.png`, page `claude`).** "more than
+  text." was read as "more than [?tldr]". It is not on a tile edge; the
+  handwriting is the cause.
+- **Not counted: `c2547` (`c2547-2.png`).** "sys diagrams" was read as "svg
+  diagrams", with no flag. The ink fits both readings, so there is no ground
+  truth to score it against. "architechre" (the writer's own spelling) was
+  read right but flagged as unsure.
+- **Words split at tile edges: 11, none lost.** One in `c2477` ("we're",
+  tiles 1 and 2) and ten in `c2547` (re-think, #3., have, parse,
+  screenshots, in-tldraw, file, than, diagrams, draw). The subagent joined
+  every one across the 64 px overlap.
+- **One note in five clusters: `c7729`, `c7744`, `c7773`, `c7793`, `c7798`
+  (page `spec`).** "I have an agent working on the Scaffolding now. Lets do
+  the spikes while the other agent works." The words are whole, and the
+  subagent rebuilt the sentence from the boxes. Reading order gives "I have
+  an agent / Scaffolding now", then "working on the", then "Lets do the
+  spikes / agent works.", then "while", then "the other". The gaps between
+  the pieces are 124 to 152 canvas units, all one colour, so the likely
+  cause is the 3 size unit distance rule meeting wide word spacing.
+- **Noise images:** `c2799` (26 by 28 px) and `c7821` (12 by 12 px) are
+  single specks. Each cost a token and an image.
+
+Verdict: no worse than the spike. Unreadable words are the same (1), and no
+word was lost (2 before). The open defect is a note split into several
+clusters, which the reader has to put back together from the boxes.
