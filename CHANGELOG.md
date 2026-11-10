@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **Sling:** what an agent receives for one sling: your prompt, the page's
+  packet with each image under its line, the items you selected, and a short
+  note on how to answer on the canvas instead of in chat. The first sling of
+  a session gets the whole note, later ones a single line. An empty prompt
+  with a selection is a valid sling.
 - **CLI:** agent UIs are stored in the record, named and versioned.
   `slinger ui put <name> <file|->` stores an HTML file as the UI's next
   version and prints `<name>@<version>`; the same bytes again add no version.
