@@ -36,7 +36,10 @@ dev-depend on the daemon's library, so they run against a real socket.
 main.rs      wires the modules below. The only caller of platform.
 backend.rs   gets the data: the one module that talks to the daemon.
 scene.rs     decides what the window shows. Pure.
-layout.rs    geometry: sizes in, rectangles out. Pure. 100% coverage floor.
+scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport in,
+             the visible marks in screen points and the box to repaint out. Pure.
+layout.rs    geometry: sizes in, rectangles out, and the canvas viewport (pan, zoom
+             about a point, limits; the canvas has no edge). Pure. 100% coverage floor.
 platform/    draws a scene. All unsafe, objc2 and AppKit code. No decisions.
 ```
 

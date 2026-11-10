@@ -8,3 +8,7 @@ Entries are written for users: what changed for them, not how. Lead each
 bullet with the area in bold.
 
 ## [Unreleased]
+
+### Added
+
+- **App:** the groundwork for the canvas pane: an endless canvas you can pan and zoom (within limits) about any point, drawing only what is on screen and repainting only what changed. Not yet shown in the window.
