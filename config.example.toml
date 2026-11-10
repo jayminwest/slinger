@@ -1,0 +1,33 @@
+# slinger: every app config option, with its default.
+#
+# The app reads $SLINGER_CONFIG, else $XDG_CONFIG_HOME/slinger/config.toml, else
+# ~/.config/slinger/config.toml. A missing file means every default. Keep this file the
+# same on every machine.
+#
+# Machine overlay: config.local.toml next to config.toml (for a file named <name>.toml,
+# <name>.local.toml) is merged over it, key by key. Put values that differ by machine
+# there, and keep it out of whatever syncs config.toml.
+#
+# Edit either file in place: the running app reloads it within a second. A file with an
+# error keeps the last good config, and the window shows the file, the line and the error.
+#
+# Lines that start with "#" and a letter are settings: delete the "#" to use one. Lines
+# that start with "# " are notes. Every value is a double-quoted string; \" and \\ are the
+# only escapes. A test checks that this file lists every key the app reads.
+
+# --- theme: the one theme. Colours are "#rrggbb".
+[theme]
+# The window's background.
+#background = "#1e1e1e"
+# Text.
+#text = "#e6e6e6"
+# Secondary text, such as hints.
+#muted = "#8c8c8c"
+# Errors.
+#error = "#ff6b6b"
+
+# --- daemon: how the app reaches slingerd.
+[daemon]
+# The control socket; a leading "~/" is the home folder. Unset by default: the daemon's
+# own default ($XDG_RUNTIME_DIR/slinger.sock, else in the temp folder). Example:
+#socket = "~/.local/state/slinger/slinger.sock"

@@ -99,7 +99,10 @@ store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
 
 ```
 main.rs      wires the modules below. The only caller of platform.
-backend.rs   gets the data: the one module that talks to the daemon.
+backend.rs   the app's IO: the one module that talks to the daemon, and the
+             one that reads and watches the config files.
+config.rs    the config file's format: text in, a typed config or an error
+             with its line out; merges a machine's overlay over it. Pure.
 scene.rs     decides what the window shows. Pure.
 scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport in,
              the visible marks in screen points and the box to repaint out. Pure.
@@ -110,9 +113,20 @@ platform/    draws a scene. All unsafe, objc2 and AppKit code. No decisions.
 
 **Threading rule:** AppKit runs on the main thread only. Every `platform`
 function that touches AppKit takes a `MainThreadMarker`, which only the main
-thread can make, so the compiler holds the rule. Blocking work (files,
-sockets) runs before the run loop starts or on another thread, which hands
-its result to the main thread to draw. Never block inside an AppKit callback.
+thread can make, so the compiler holds the rule. Long blocking work runs
+before the run loop starts or on another thread, which hands its result to
+the main thread to draw. Never block for long inside an AppKit callback.
+
+**Config:** `config.example.toml` at the repository root lists every key.
+The app reads `config.toml` and merges `config.local.toml` (the machine's
+overlay) over it. A main-thread timer stats both files twice a second and,
+on a change, rereads them and draws a new scene; it asks the daemon again
+only when the socket changed. No worker thread: the app binary has a size
+budget, and the release profile builds the app at `opt-level = "z"`. A file
+with an error keeps the last good config, and the window shows the file,
+the line and what to fix.
+A new setting changes `config.rs` (the key, its default, its test) and the
+example file, which a test checks against the keys.
 ## Boundaries
 
 - Dependencies point inward. Front ends depend on the core. The core never
