@@ -145,8 +145,8 @@ operation; this section owns the bytes.
 
 ### File
 
-- One file per canvas, named `<canvas-id>.canvas`. Where it lives is the daemon's
-  choice (slinger-c9ee).
+- One file per canvas, named `<canvas-id>.canvas`, in `canvases/` in the daemon's
+  data directory (docs/service.md).
 - UTF-8 JSON Lines. Every line, including the last, ends in `\n`. No blank lines.
 - A writer writes keys in the order shown and no spaces outside strings, so the same
   operation is always the same bytes. A reader accepts any key order and whitespace.

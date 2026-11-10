@@ -29,6 +29,11 @@ a "did you mean" suggestion.
 | `ui show <NAME>` | One line per version of that UI, oldest first, as `ui list`. `--json`: `uis` |
 | `ui export <UI> [--out DIR]` | The path of the file written, `<DIR>/<name>.v<version>.html`. `--json`: `ui`, `path` |
 | `blob get <ID> [--out FILE]` | The blob's bytes, exactly, on stdout. With `--out`: nothing, and the file holds the bytes. `--json` (needs `--out`): `id`, `size` |
+| `canvas create <ID>` | Nothing. `--json`: `canvas` |
+| `canvas list` | One canvas id per line. `--json`: `canvases` (list of ids) |
+| `canvas show <ID> [--page PAGE]` | One line per item on the page, in drawing order: id, kind, maker and the item as JSON, separated by tabs. `--json`: `canvas`, `next`, `page`, `pages`, `items` |
+| `canvas apply <ID> <OPS\|-> [--agent NAME]` | The ids the operations made, one per line. `--json`: `seq`, `made` |
+| `canvas undo <ID> [--agent NAME]`, `canvas redo <ID> [--agent NAME]` | Nothing. `--json`: `seq`, `made` |
 
 `record append` takes the payload as a JSON object (default `{}`); the
 kinds and their payloads are in `docs/service.md`. A payload that is not
@@ -50,6 +55,15 @@ none and prints that version. A name or file the rules in
 into the current directory unless `--out` names another, which it makes
 if missing. An unknown UI exits 3 (`not_found`). `ui list` with no UIs
 prints nothing and exits 0.
+
+`canvas apply` takes one operation as a JSON object, or a list of them, as
+one undo step (the operations are in `docs/service.md`, "Canvas
+operations"); `-` reads them from stdin. Without `--agent` the user acts.
+An agent changing an item it did not make, an id that is not one, or
+operations that are not JSON exit 5 (`invalid`). A canvas that exists exits
+4 (`conflict`) on create; one that does not exists exits 3 (`not_found`) on
+the other commands. A damaged canvas file (`canvas_corrupt`) or one from a
+newer slinger (`canvas_too_new`) exits 1.
 
 ## Output
 

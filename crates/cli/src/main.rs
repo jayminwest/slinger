@@ -1,6 +1,7 @@
 //! The `slinger` CLI: a thin front end over `slingerd`. It turns argv into
 //! control-socket requests (docs/service.md) and replies into the output
 //! contract in docs/cli.md. It does not link the core.
+mod canvas;
 mod cli;
 mod output;
 #[cfg(test)]

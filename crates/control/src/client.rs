@@ -9,8 +9,9 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::{
-    Appended, EventFilter, Events, Exported, Greeting, NewEvent, RemoteError, Request, Stored, Ui,
-    UiPut, Uis, Written, wire,
+    Appended, CanvasChange, CanvasInfo, CanvasOps, CanvasPage, CanvasStep, Canvases, EventFilter,
+    Events, Exported, Greeting, NewEvent, RemoteError, Request, Stored, Ui, UiPut, Uis, Written,
+    wire,
 };
 
 /// The daemon's program name, for messages.
@@ -123,6 +124,69 @@ impl Client {
     /// `unavailable` when the daemon does not answer.
     pub fn ui_export(&self, ui: &str, dir: &Path) -> Result<Exported, RemoteError> {
         self.call(&Request::UiExport { ui: ui.into(), dir: absolute(dir)? })
+    }
+
+    /// Makes a new, empty canvas.
+    ///
+    /// # Errors
+    ///
+    /// `invalid` for an id that is not one, `conflict` when it exists, and
+    /// `unavailable` when the daemon does not answer.
+    pub fn canvas_create(&self, canvas: &str) -> Result<(), RemoteError> {
+        let _: CanvasInfo = self.call(&Request::CanvasCreate { canvas: canvas.to_string() })?;
+        Ok(())
+    }
+
+    /// The ids of the canvases, sorted.
+    ///
+    /// # Errors
+    ///
+    /// The daemon's error, or `unavailable` when it does not answer.
+    pub fn canvas_list(&self) -> Result<Vec<String>, RemoteError> {
+        let reply: Canvases = self.call(&Request::CanvasList)?;
+        Ok(reply.canvases.into_iter().map(|c| c.canvas).collect())
+    }
+
+    /// One page of a canvas: the first, or the one `page` names by id or name.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a canvas or page that is not there, and `unavailable`
+    /// when the daemon does not answer.
+    pub fn canvas_show(&self, canvas: &str, page: Option<&str>) -> Result<CanvasPage, RemoteError> {
+        let page = page.map(str::to_string);
+        self.call(&Request::CanvasShow { canvas: canvas.to_string(), page })
+    }
+
+    /// Applies operations to a canvas as one undo step, and returns what was
+    /// written. The operations are on disk when this returns.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a canvas or item that is not there, `invalid` for an
+    /// operation that is not one or that the canvas refuses, and
+    /// `unavailable` when the daemon does not answer.
+    pub fn canvas_apply(&self, ops: CanvasOps) -> Result<CanvasChange, RemoteError> {
+        self.call(&Request::CanvasApply(ops))
+    }
+
+    /// Undoes the last step of `step.by` on the canvas.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a canvas that is not there, and `unavailable` when the
+    /// daemon does not answer.
+    pub fn canvas_undo(&self, step: CanvasStep) -> Result<CanvasChange, RemoteError> {
+        self.call(&Request::CanvasUndo(step))
+    }
+
+    /// Redoes the last step `step.by` undid on the canvas.
+    ///
+    /// # Errors
+    ///
+    /// As [`Client::canvas_undo`].
+    pub fn canvas_redo(&self, step: CanvasStep) -> Result<CanvasChange, RemoteError> {
+        self.call(&Request::CanvasRedo(step))
     }
 
     fn call<T: DeserializeOwned>(&self, request: &Request) -> Result<T, RemoteError> {

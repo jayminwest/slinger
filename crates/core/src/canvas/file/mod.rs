@@ -8,6 +8,8 @@
 //! - [`read`] takes a whole file and returns its [`File`]: the header, the
 //!   lines and how many bytes of a torn last line it cut. [`File::canvas`]
 //!   replays the lines into the canvas they build.
+//! - [`Log`] holds a file open for a server: each change returns the bytes
+//!   to append, numbered, and undo lives beside it.
 //! - [`snap`] rounds an operation to what the file can hold. Apply the
 //!   snapped op, so the canvas in memory is the one the file rebuilds.
 //!
@@ -31,9 +33,11 @@
 //! and replay skips it. Fields this reader does not know are ignored.
 
 mod json;
+mod log;
 mod replay;
 mod time;
 
+pub use log::{Log, Shown, Written, check_id, parse_author};
 use serde_json::{Map, Value};
 
 use super::{Action, Applied, Author, Item, ItemId, Op, Page, PageId, Point, Shape, Time};

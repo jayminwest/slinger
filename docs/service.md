@@ -48,6 +48,13 @@ writer; other programs reach the record through the socket.
 - The file's layout has a version. A daemon refuses a file laid out by a
   newer one (exit 4).
 
+Canvases live beside the record, one file per canvas:
+`canvases/<id>.canvas`, in the format of `docs/design/canvas-file.md`. The
+daemon is their only writer (SPEC K5). It makes the directory (mode `0700`)
+with the first canvas, reads a canvas on first use and keeps it open. A torn
+last line (a crash in the middle of a write) is cut off the file, with a line
+on stderr; nothing acknowledged is lost.
+
 ## Socket
 
 - A Unix stream socket, mode `0600`: only the daemon's user can connect.
@@ -99,6 +106,11 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `ui_list` | none | `uis`: the latest version of each UI, by name |
 | `ui_show` | `name`: string | `uis`: every version of that UI, oldest first |
 | `ui_export` | `ui`: a UI reference, `dir`: absolute path of a directory | `ui`: the version, `path`: the file written |
+| `canvas_create` | `canvas`: canvas id | `canvas`: the id |
+| `canvas_list` | none | `canvases`: list of `{canvas}`, sorted by id |
+| `canvas_show` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `canvas`, `next`: the next operation's number, `page`: the page's id, `pages`: list of `{id, name}`, `items`: list of items |
+| `canvas_apply` | `canvas`: canvas id, `by`: author (default `user`), `ops`: one operation or a list | `seq`: list of numbers, `made`: list of ids |
+| `canvas_undo`, `canvas_redo` | `canvas`: canvas id, `by`: author (default `user`) | `seq`, `made` (always empty) |
 
 **`record_append`** appends one event to this machine's record. `tags`
 may set `workspace`, `agent` and `canvas`; the daemon sets `machine`, the
@@ -171,6 +183,58 @@ request; they are not stored anywhere else.
 { "ok": true, "ui": { "name": "pick-slot", "version": 1, "hash": "sha256:9f2c…", "bytes": 1234, "source": "scout", "time": 1762790400000 }, "new": true }
 { "v": 1, "op": "ui_export", "ui": "pick-slot@1", "dir": "/tmp/out" }
 { "ok": true, "ui": { "name": "pick-slot", "version": 1, … }, "path": "/tmp/out/pick-slot.v1.html" }
+
+#### Canvases
+
+A **canvas id** is 1 to 64 of `a-z`, `0-9`, `-`, `_` and `.`, not starting
+with `.`. It names the canvas's file, so anything else is `invalid`. A new
+canvas has one page, `p1`, named `Page 1`. Creating a canvas that exists is
+`conflict`; any other verb on a canvas that does not exist is `not_found`, with
+a hint that says how to create it. A canvas file that is damaged or written by
+a newer slinger is `canvas_corrupt` or `canvas_too_new`, and the daemon does
+not write to it.
+
+**One writer.** Every change to one canvas goes through one lock in the
+daemon. Each operation the canvas writes gets the next number of that canvas,
+`1, 2, 3, ...` with no gap, in the order the changes apply, and its line is
+synced to disk before the reply is sent. Changes from clients at the same time
+all succeed, one after another. `seq` in the reply lists the numbers this
+change wrote; a change that alters nothing (removing an item already gone, an
+undo with nothing to undo) writes nothing and succeeds.
+
+**Authors.** `by` is `user` or `agent:<name>`. The user may change anything.
+An agent may move, edit or remove only items it made, and gets `invalid` with a
+hint for anything else. That stays `invalid` rather than a code of its own:
+the caller does the same thing either way (make a new item instead), and a
+new code would need a new CLI exit code (docs/cli.md: add one only when a
+caller must tell the failure apart). Undo and redo are per author and live in
+the daemon's memory: a restart starts with nothing to undo.
+
+**Canvas operations.** `ops` of `canvas_apply` is one operation object or a
+list of them, applied in order as one undo step: all of them apply, or none
+do. Ids, items and units are as in the canvas file (`docs/design/canvas-file.md`):
+item ids `i<n>`, page ids `p<n>`, and positions and lengths as integers in
+tenths of a unit.
+
+| `op` | fields |
+|---|---|
+| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000` |
+| `remove` | `ids`: list of item ids. Ids already gone are fine |
+| `move` | `ids`, `dx`, `dy` |
+| `set` | `id`, `fields`: item fields to replace, laid over the item's current ones |
+| `page.add` | `name`. The page goes last |
+| `page.rename` | `page`, `name` |
+| `page.remove` | `page`. Its items go with it; the last page stays |
+
+`made` lists the ids the `add` and `page.add` operations made, in order. An
+operation of another kind, or one whose fields do not fit, is `invalid` with
+a hint. `canvas_show` gives a page's items in drawing order as the file's
+whole item objects: `id`, `page`, `by`, `t` (when it was made), `kind`,
+`color` and the kind's fields.
+
+```json
+{ "v": 1, "op": "canvas_apply", "canvas": "main", "by": "agent:scout", "ops": [{ "op": "add", "item": { "page": "p1", "kind": "text", "x": 0, "y": 0, "text": "plan" } }] }
+{ "ok": true, "seq": [7], "made": ["i5"] }
 ```
 
 #### How a blob's bytes travel
@@ -209,7 +273,8 @@ The protocol adds:
 | `internal` | The daemon could not read or write its record, or the client could not read the reply |
 
 `not_found` also covers a blob the record does not hold, a file to put
-that is not there, and a UI with no such name or version.
+that is not there, a UI with no such name or version, and a canvas, page or
+item that is not there.
 
 ## Versioning
 

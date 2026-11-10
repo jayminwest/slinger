@@ -15,6 +15,7 @@ use serde_json::{Value, json};
 
 use slinger_control as control;
 
+use crate::canvas::Canvas;
 use crate::output::{Ctx, Failure, Output, exit};
 use crate::ui::Ui;
 
@@ -83,6 +84,9 @@ enum Command {
     /// Store, list and export agent UIs: HTML, named and versioned
     #[command(subcommand)]
     Ui(Ui),
+    /// Make, read and change canvases: pages of strokes, text, boxes and arrows
+    #[command(subcommand)]
+    Canvas(Canvas),
 }
 
 #[derive(Subcommand)]
@@ -156,6 +160,7 @@ impl Command {
             Self::Blob(Blob::Put { .. }) => "blob put",
             Self::Blob(Blob::Get { .. }) => "blob get",
             Self::Ui(ui) => ui.name(),
+            Self::Canvas(canvas) => canvas.name(),
         }
     }
 }
@@ -231,6 +236,7 @@ fn execute(
             Ok(Output::new(json!({}), String::new()))
         }
         Command::Ui(ui) => ui.execute(daemon, input),
+        Command::Canvas(canvas) => crate::canvas::execute(canvas, daemon, input),
     }
 }
 

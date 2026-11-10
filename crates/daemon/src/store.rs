@@ -8,6 +8,10 @@
 //!
 //! The log is append-only: the store assigns each event its number and time
 //! and stamps its machine, and the file refuses updates and deletes.
+//!
+//! The data directory also holds the canvas files, in `canvases/`; the store
+//! hands them out ([`Store::canvases`]) so every verb reaches its data the
+//! same way.
 
 #[cfg(test)]
 mod tests;
@@ -23,8 +27,12 @@ use rusqlite::{
 };
 use slinger_core::record::{self, BlobId, Event};
 
+use crate::canvases::Canvases;
+
 /// The store's file inside the data directory.
 const FILE: &str = "record.sqlite";
+/// The directory of canvas files inside the data directory.
+const CANVASES: &str = "canvases";
 /// The layout this code writes, kept in SQLite's `user_version`.
 const SCHEMA_VERSION: i64 = 1;
 const SCHEMA: &str = "
@@ -123,11 +131,12 @@ pub struct Query {
     pub limit: Option<u64>,
 }
 
-/// One machine's record. Safe to share between threads: calls take turns.
+/// One machine's record and canvases. Safe to share between threads.
 #[derive(Debug)]
 pub struct Store {
     db: Mutex<Connection>,
     machine: String,
+    canvases: Canvases,
 }
 
 impl Store {
@@ -160,7 +169,8 @@ impl Store {
             _ => return Err(StoreError::Newer { path, found }),
         }
         tx.commit()?;
-        Ok(Self { db: Mutex::new(db), machine: machine.into() })
+        let canvases = Canvases::new(dir.join(CANVASES));
+        Ok(Self { db: Mutex::new(db), machine: machine.into(), canvases })
     }
 
     /// Appends `event` to the log and returns it as stored: with the next
@@ -267,6 +277,12 @@ impl Store {
 
     /// The connection. A panic in another call cannot leave it mid-write:
     /// an unfinished transaction rolls back when it is dropped.
+    /// The canvas files, in `canvases/` beside the record.
+    #[must_use]
+    pub fn canvases(&self) -> &Canvases {
+        &self.canvases
+    }
+
     fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.db.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -351,7 +367,7 @@ fn machine_from(host: &str) -> String {
     }
 }
 
-fn now_ms() -> u64 {
+pub(crate) fn now_ms() -> u64 {
     // A clock before 1970 is a broken clock; 0 keeps the event rather than losing it.
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
