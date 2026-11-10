@@ -8,6 +8,7 @@ pub mod canvas;
 mod error;
 pub mod packet;
 pub mod record;
+pub mod tldraw;
 pub mod workspace;
 
 pub use error::{Error, Result};

@@ -55,6 +55,10 @@ packet/      what an agent reads from a page (docs/design/packet.md). Index::new
              the `new`, `made` and `page` lines in reading order, plus the render list:
              the new clusters that need images. Agent-made items are lines, never in
              the render list (R2). Owns the line grammar, ids and reading order.
+tldraw/      the tldraw importer (SPEC D7): import(bytes, time) -> canvas and a
+             report of what it made and skipped. Reads the zip + SQLite file
+             and the older JSON one itself (no IO, no new dependencies); every
+             item goes through Canvas::apply. Import only, never export.
 record/      the record's formats (SPEC section 9): events as versioned JSON
              (encode, decode, to_value), the kinds a writer may append
              (Body::new checks a payload against its kind) and blob ids
