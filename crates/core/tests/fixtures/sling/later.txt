@@ -1,0 +1,19 @@
+slinger-sling 1 canvas=idea selected=c51
+slinger-packet 1 canvas=idea page=fable-5.2 from=41 to=58 scale=0.35
+# new
+c42 ink 120,80 520x140 colour=black strokes=23 img=c42.png
+<image c42.png>
+c51 ink 120,260 300x90 colour=red strokes=9 to=t12 img=c51.png
+<image c51.png>
+# made
+a13 arrow 420,280 60x20 by=claude from=c51 to=t12
+t12 text 480,240 360x120 by=claude "Packet: images of new ink plus a text index."
+# page
+c3 ink 40,1200 900x400 colour=black strokes=210
+b9 box 980,1200 620x300 by=claude
+c17 ink 1000,1240 560x220 colour=blue strokes=64 in=b9
+t8 text 40,1700 700x60 by=claude "Spike B: 44% of the screenshot cost."
+# reply
+Answer with `slinger canvas put idea --beside <id>`, not in chat; `slinger canvas crop idea --item <id>` for an image.
+# prompt
+What is missing here?

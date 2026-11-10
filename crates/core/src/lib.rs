@@ -9,6 +9,7 @@ mod error;
 pub mod packet;
 pub mod record;
 pub mod render;
+pub mod sling;
 pub mod tldraw;
 pub mod ui;
 pub mod workspace;

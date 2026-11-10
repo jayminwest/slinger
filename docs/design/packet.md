@@ -220,7 +220,9 @@ whole fixture board, all new, is about 63 000 by this estimate.
   with its hash. The stored text never has `at`, so the hash depends only on
   the page.
 - **Sling.** The server sends the text as content blocks, with each image
-  block placed after the line that names it.
+  block placed after the line that names it. `slinger_core::sling::message`
+  (slinger-8834) builds the whole message: a `slinger-sling 1` line, the
+  packet with its images, a `# reply` note and the prompt last.
 - **`slinger canvas read`.** The daemon writes the text and the images into
   one directory and adds `at=<that directory>` to the header, so `img=` names
   resolve as `<at>/<name>`. `--json` returns `{ "packet": <hash>, "dir":

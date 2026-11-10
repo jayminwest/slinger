@@ -79,6 +79,12 @@ render/      images of items (docs/design/packet.md, Images): a set of items or 
              tiles past the size limit (SCALE, MAX_EDGE, OVERLAP, MARGIN). Owns
              the rasterizer (raster.rs) and the PNG container (png.rs). Pure and
              deterministic: the same input gives the same bytes.
+sling.rs     the sling message (SPEC section 6, D10): a packet, the prompt, the
+             selected packet ids, first-or-later and the verbs the caller serves in;
+             text and image blocks out, each image after the packet line naming it.
+             Line 1 is `slinger-sling <VERSION>`; then the packet, a `# reply` note
+             (whole on a session's first sling, one line after) and the prompt last.
+             The note names only the verbs passed in. No errors.
 record/      the record's formats (SPEC section 9): events as versioned JSON
              (encode, decode, to_value), the kinds a writer may append
              (Body::new checks a payload against its kind) and blob ids
@@ -189,6 +195,7 @@ Each boundary has something that fails when it is broken:
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
 | The packet's image rules: scale, margin, tiles, same bytes for the same input | `crates/core/tests/render.rs`, with golden images |
 | The packet format reads back, an old packet keeps decoding, the board costs under half its screenshots | `crates/core/tests/packet_build.rs`, with a stored v1 packet, on the real board |
+| The sling message: first and later snapshots; the note names only the verbs given | `crates/core/tests/sling.rs`, with stored snapshots |
 | Clustering: colours never mix, long strokes join nothing, each fixture page's count | `crates/core/tests/packet_cluster.rs`, on the real board |
 | The workspace file format and rules (docs/workspace.md) | the tests of `crates/core/src/workspace.rs` and its stored fixture |
 | The record on disk is append-only and keeps fields it does not know | `crates/daemon/src/store/tests.rs`, against a real file |
