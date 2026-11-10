@@ -101,7 +101,7 @@ Rules:
 - The first live canvas item is the "send to agent" button. It is built in, not a script copied into each canvas.
 - An agent UI gets no network. It talks to Slinger through a bridge with two calls: read the context it was given, and reply with JSON.
 - The code is stored in the record as a blob (D19). Each UI has a name, and each change is a new blob, so every version stays. `ui export` writes one out as files when you want to read or keep it.
-- See O1 for what the code is.
+- See O1 for what the code is, and `docs/design/live-items.md` for the bridge.
 
 ## 9. The record
 
@@ -140,7 +140,7 @@ Rules:
 
 ## 13. Open items
 
-- O1. What code does a live canvas item run? First: HTML in a sandboxed web view, placed and scaled by the canvas. Later: restrict it. Flick's cards are the model: a closed set of blocks (text, key and value, list, progress, choice, field) and a closed set of actions, where anything unknown degrades to text. Open: when to restrict, and which blocks.
+- O1. What code does a live canvas item run? Decided 2026-11-10 (the owner chose "agent picks"): v1 runs one self-contained HTML file in a sandboxed web view, placed and scaled by the canvas, with the two-call bridge. Both alternatives, the bridge, the blob and the reasons are in `docs/design/live-items.md`. Later: restrict it to Flick's model, a closed set of blocks (text, key and value, list, progress, choice, field) and a closed set of actions, where anything unknown degrades to text, as a second blob kind. Open: when to restrict, and which blocks.
 - O2. Pen feel has no number yet. Lean: the test is "not worse than tldraw on the same tablet", judged by the owner, with the pen-to-screen delay logged for reference.
 - O3. What exactly the thinking record shows. Decide after the log has real events in it.
 - O4. The key commands themselves. Decide when there is a canvas to use them on.
