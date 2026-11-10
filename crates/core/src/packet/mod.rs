@@ -11,8 +11,14 @@
 //! [`cluster`] groups strokes into the clusters the index takes. What counts
 //! as changed is decided elsewhere and passed in; the index decides the ids,
 //! the lines and their order.
+//!
+//! [`build`] puts it all together: a canvas's log, a page, a marker and a
+//! selection in, a [`Packet`] out, with its header, version and images.
+//! [`Packet::text`] writes the format and [`Packet::read`] reads it back.
 
+mod build;
 mod cluster;
+mod format;
 mod line;
 
 use std::collections::BTreeMap;
@@ -20,7 +26,10 @@ use std::collections::BTreeMap;
 use crate::canvas::{Author, Canvas, Item, ItemId, PageId, Rect, Shape};
 use line::{Line, colour_name, reading_order};
 
+pub use build::{Ask, build};
 pub use cluster::cluster;
+pub use format::{Header, Packet, VERSION};
+pub use line::Entry;
 
 /// A new cluster of the user's ink that needs an image.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,6 +122,12 @@ impl Index {
             }
         }
         out
+    }
+
+    /// Keeps in the `page` section only the lines whose item number (a
+    /// cluster's is its earliest stroke's) passes `keep`.
+    fn narrow(&mut self, keep: impl Fn(u64) -> bool) {
+        self.page.retain(|l| keep(l.n));
     }
 }
 

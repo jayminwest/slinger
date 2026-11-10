@@ -30,29 +30,149 @@ impl Line {
     /// cut to its first 80 characters when `short`.
     pub fn write(&self, out: &mut String, images: &[String], short: bool) {
         let f = self.frame;
-        let _ = write!(
-            out,
-            "{} {} {},{} {}x{}",
-            self.id,
-            self.kind,
-            units(f.x),
-            units(f.y),
-            units(f.w),
-            units(f.h)
-        );
-        for (key, value) in &self.fields {
-            let _ = write!(out, " {key}={value}");
-        }
+        let img = images.join(",");
+        let mut fields: Vec<(&str, &str)> =
+            self.fields.iter().map(|(k, v)| (*k, v.as_str())).collect();
         if !images.is_empty() {
-            let _ = write!(out, " img={}", images.join(","));
+            fields.push(("img", &img));
         }
-        if let Some(text) = &self.text {
-            out.push_str(" \"");
-            quote(out, text, short);
-            out.push('"');
-        }
-        out.push('\n');
+        let frame = [units(f.x), units(f.y), units(f.w), units(f.h)];
+        write_line(out, (&self.id, self.kind), frame, &fields, self.text.as_deref(), short);
     }
+}
+
+/// One line of a packet as read back: an item, or a cluster of ink.
+///
+/// Kinds and fields are kept as read, known or not; a reader skips what it
+/// does not know (B5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Entry {
+    /// `c42`, `t12`, ...
+    pub id: String,
+    /// `ink`, `text`, `box` or `arrow`.
+    pub kind: String,
+    /// The box, in whole canvas units.
+    pub x: i64,
+    pub y: i64,
+    pub w: i64,
+    pub h: i64,
+    /// `key=value` pairs, in the order written.
+    pub fields: Vec<(String, String)>,
+    /// The quoted text of a `text` line.
+    pub text: Option<String>,
+}
+
+impl Entry {
+    /// The value of the first field named `key`.
+    #[must_use]
+    pub fn field(&self, key: &str) -> Option<&str> {
+        self.fields.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
+    }
+
+    pub(super) fn write(&self, out: &mut String) {
+        let fields: Vec<(&str, &str)> =
+            self.fields.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let frame = [self.x, self.y, self.w, self.h];
+        write_line(out, (&self.id, &self.kind), frame, &fields, self.text.as_deref(), false);
+    }
+
+    /// Reads one line, without its `\n`. `None` when it breaks the grammar.
+    pub(super) fn parse(line: &str) -> Option<Self> {
+        let (head, text) = match line.find('"') {
+            Some(at) => (line[..at].strip_suffix(' ')?, Some(unquote(&line[at..])?)),
+            None => (line, None),
+        };
+        let mut tokens = head.split(' ');
+        let mut next = || tokens.next().filter(|t| !t.is_empty());
+        let (id, kind) = (next()?.to_string(), next()?.to_string());
+        let (x, y) = next()?.split_once(',')?;
+        let (w, h) = next()?.split_once('x')?;
+        let (x, y, w, h) = (x.parse().ok()?, y.parse().ok()?, w.parse().ok()?, h.parse().ok()?);
+        let mut fields = Vec::new();
+        while let Some(token) = next() {
+            let (key, value) = token.split_once('=').filter(|(k, _)| !k.is_empty())?;
+            fields.push((key.to_string(), unvalue(value)?));
+        }
+        if tokens.next().is_some() {
+            return None;
+        }
+        Some(Self { id, kind, x, y, w, h, fields, text })
+    }
+}
+
+/// Writes `id kind x,y wxh key=value... "text"` and the line end.
+fn write_line(
+    out: &mut String,
+    (id, kind): (&str, &str),
+    [x, y, w, h]: [i64; 4],
+    fields: &[(&str, &str)],
+    text: Option<&str>,
+    short: bool,
+) {
+    let _ = write!(out, "{id} {kind} {x},{y} {w}x{h}");
+    for (key, value) in fields {
+        let _ = write!(out, " {key}=");
+        push_value(out, value);
+    }
+    if let Some(text) = text {
+        out.push_str(" \"");
+        quote(out, text, short);
+        out.push('"');
+    }
+    out.push('\n');
+}
+
+/// Appends a field value. A space, `"`, `%` or control character in it is
+/// written as `%XX` for each of its UTF-8 bytes, so a value is one token.
+pub(super) fn push_value(out: &mut String, value: &str) {
+    for c in value.chars() {
+        if c == ' ' || c == '"' || c == '%' || c.is_control() {
+            for byte in c.to_string().bytes() {
+                let _ = write!(out, "%{byte:02X}");
+            }
+        } else {
+            out.push(c);
+        }
+    }
+}
+
+/// A field value as written by [`push_value`], decoded. `None` when a `%` is
+/// not followed by two hex digits or the bytes are not UTF-8.
+pub(super) fn unvalue(value: &str) -> Option<String> {
+    let mut bytes = Vec::with_capacity(value.len());
+    let mut rest = value.as_bytes();
+    while let Some((&b, tail)) = rest.split_first() {
+        if b == b'%' {
+            let hex = std::str::from_utf8(tail.get(..2)?).ok()?;
+            bytes.push(u8::from_str_radix(hex, 16).ok()?);
+            rest = &tail[2..];
+        } else {
+            bytes.push(b);
+            rest = tail;
+        }
+    }
+    String::from_utf8(bytes).ok()
+}
+
+/// The text inside `"..."`, unescaped. `None` when the quotes are not whole
+/// or an escape is unknown.
+fn unquote(quoted: &str) -> Option<String> {
+    let inner = quoted.strip_prefix('"')?.strip_suffix('"')?;
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => out.push(match chars.next()? {
+                '"' => '"',
+                '\\' => '\\',
+                'n' => '\n',
+                _ => return None,
+            }),
+            '"' => return None,
+            c => out.push(c),
+        }
+    }
+    Some(out)
 }
 
 /// A coordinate as the format writes it: an integer, rounded to nearest.
