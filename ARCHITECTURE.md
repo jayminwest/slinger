@@ -30,6 +30,19 @@ Only the daemon links the core, so each capability has one implementation
 and one path to it. No binary crate depends on another. The clients' tests
 dev-depend on the daemon's library, so they run against a real socket.
 
+### Inside the core
+
+```
+record/      the record's formats (SPEC section 9): events as versioned JSON
+             (encode, decode) and blob ids (SHA-256, `sha256:<hex>`). No IO;
+             the daemon stores what it encodes.
+```
+
+**The record's formats are API (B5).** A reader keeps an event of a kind
+it does not know (`Body::Other`) and every field it does not know, at any
+depth, and `encode` writes them back unchanged. A payload changes only by
+adding fields, and the change bumps that kind's `version`.
+
 ### Inside the app
 
 ```
@@ -62,6 +75,7 @@ Each boundary has something that fails when it is broken:
 | The protocol crate does not link the core | `check:layers` rule `control-is-transport-only` |
 | The CLI reaches the core only through the socket | `check:layers` rule `cli-uses-the-socket` |
 | The app reaches the core only through the socket | `check:layers` rule `app-uses-the-socket` |
+| The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
 | One daemon per socket; a stop loses no reply | `crates/daemon/src/tests.rs`, through a real socket |
 | SIGTERM ends the daemon cleanly | `crates/daemon/tests/signals.rs`, against the real binary |

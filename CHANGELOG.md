@@ -8,3 +8,10 @@ Entries are written for users: what changed for them, not how. Lead each
 bullet with the area in bold.
 
 ## [Unreleased]
+
+### Added
+
+- **Record:** events (sling sent, reply landed, file touched, pane moved,
+  agent blocked, agent done) and blob ids have a versioned JSON format. A
+  reader keeps events of kinds and fields it does not know, so records from
+  newer versions stay readable.

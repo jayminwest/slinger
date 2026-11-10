@@ -1,0 +1,1 @@
+{"number":8,"time":1762790401000,"kind":"agent_done","version":2,"source":"slingerd 9.0","tags":{"machine":"my-laptop","agent":"scout"},"payload":{"summary":"wrote the plan","cost":{"tokens":1200}},"trace":"t-1"}
