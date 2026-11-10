@@ -59,6 +59,11 @@ tldraw/      the tldraw importer (SPEC D7): import(bytes, time) -> canvas and a
              report of what it made and skipped. Reads the zip + SQLite file
              and the older JSON one itself (no IO, no new dependencies); every
              item goes through Canvas::apply. Import only, never export.
+render/      images of items (docs/design/packet.md, Images): a set of items or a
+             box of a page in, PNGs out, at a fixed scale, cut into overlapping
+             tiles past the size limit (SCALE, MAX_EDGE, OVERLAP, MARGIN). Owns
+             the rasterizer (raster.rs) and the PNG container (png.rs). Pure and
+             deterministic: the same input gives the same bytes.
 record/      the record's formats (SPEC section 9): events as versioned JSON
              (encode, decode, to_value), the kinds a writer may append
              (Body::new checks a payload against its kind) and blob ids
@@ -125,6 +130,7 @@ Each boundary has something that fails when it is broken:
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
+| The packet's image rules: scale, margin, tiles, same bytes for the same input | `crates/core/tests/render.rs`, with golden images |
 | The workspace file format and rules (docs/workspace.md) | the tests of `crates/core/src/workspace.rs` and its stored fixture |
 | The record on disk is append-only and keeps fields it does not know | `crates/daemon/src/store/tests.rs`, against a real file |
 | One daemon per socket; a stop loses no reply | `crates/daemon/src/tests.rs`, through a real socket |

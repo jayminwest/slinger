@@ -176,7 +176,10 @@ The quoted text is last, only on `text` lines: the full text in `new` and
 up), ink in its own colour on white, with a 16 canvas unit margin. Names are
 `<id>.png`. A cluster whose image has a long edge over 1568 px is cut into
 tiles of at most 1568 px a side that overlap by 64 px, named `<id>-1.png`,
-`<id>-2.png`, ... in reading order.
+`<id>-2.png`, ... in reading order. `slinger_core::render` draws them and
+holds these numbers as constants. A line is never thinner than 1 px. A crop
+(below) draws every kind: boxes and arrows as 2-unit lines, text in an 8 by 8
+bitmap font at 24 canvas units a character, wrapped at spaces to its frame.
 
 **Nothing new** (B4): both `new` and `made` are empty and `from` is greater
 than `to`. It is a valid packet.
