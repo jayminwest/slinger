@@ -5,6 +5,7 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -206,7 +207,12 @@ impl Client {
         self.call(&Request::CanvasRedo(step))
     }
 
-    fn call<T: DeserializeOwned>(&self, request: &Request) -> Result<T, RemoteError> {
+    /// Sends `request` (a [`Request`], or a type that writes the same line)
+    /// and reads the reply.
+    pub(crate) fn call<R: Serialize, T: DeserializeOwned>(
+        &self,
+        request: &R,
+    ) -> Result<T, RemoteError> {
         let answer = self.exchange(request).map_err(|e| self.unavailable(&e.to_string()))?;
         let doc: Value = serde_json::from_str(&answer).map_err(internal)?;
         match doc.get("ok").and_then(Value::as_bool) {
@@ -217,7 +223,7 @@ impl Client {
     }
 
     /// Sends the request line and returns the reply line.
-    fn exchange(&self, request: &Request) -> std::io::Result<String> {
+    fn exchange<R: Serialize>(&self, request: &R) -> std::io::Result<String> {
         let mut stream = UnixStream::connect(&self.socket)?;
         stream.set_read_timeout(Some(TIMEOUT))?;
         stream.set_write_timeout(Some(TIMEOUT))?;
@@ -240,7 +246,7 @@ impl Client {
 }
 
 /// `path` from the root: the daemon runs in another directory.
-fn absolute(path: &Path) -> Result<PathBuf, RemoteError> {
+pub(crate) fn absolute(path: &Path) -> Result<PathBuf, RemoteError> {
     std::path::absolute(path).map_err(|e| {
         RemoteError::new("invalid", format!("cannot resolve {}: {e}", path.display()), None)
     })

@@ -24,6 +24,7 @@ use slinger_core::ui;
 
 use crate::canvases::CanvasError;
 use crate::store::{Query, Store, StoreError};
+use crate::workspaces::{Opened, WorkspaceError};
 
 /// How long one connection may take to send its request or take its reply. A
 /// stalled client costs one thread for this long and cannot hold up a stop.
@@ -224,6 +225,49 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
             Ok(Reply::CanvasRedo(change(lines)))
         }
         Request::CanvasImport { path, canvas } => import::canvas(store, &path, canvas),
+        Request::WorkspaceOpen { dir, name } => {
+            let workspaces = store.workspaces();
+            let (opened, new) = workspaces
+                .open(dir.as_deref(), name.as_deref(), store.canvases())
+                .map_err(|e| kept(&e))?;
+            Ok(Reply::WorkspaceOpen(control::WorkspaceOpened { workspace: wire_ws(opened), new }))
+        }
+        Request::WorkspaceList => {
+            let all = store.workspaces().list().map_err(|e| kept(&e))?;
+            let workspaces = all.into_iter().map(wire_ws).collect();
+            Ok(Reply::WorkspaceList(control::Workspaces { workspaces }))
+        }
+        Request::WorkspaceShow { workspace } => {
+            let opened = store.workspaces().show(&workspace).map_err(|e| kept(&e))?;
+            Ok(Reply::WorkspaceShow(control::WorkspaceInfo { workspace: wire_ws(opened) }))
+        }
+        Request::WorkspaceClose { workspace } => {
+            let dir = store.workspaces().close(&workspace).map_err(|e| kept(&e))?;
+            Ok(Reply::WorkspaceClose(control::WorkspaceClosed { dir }))
+        }
+    }
+}
+
+/// A workspace error as it crosses the socket.
+fn kept(error: &WorkspaceError) -> RemoteError {
+    RemoteError::new(error.code(), error.to_string(), error.hint())
+}
+
+fn wire_ws(Opened { dir, workspace: ws }: Opened) -> control::Workspace {
+    let agent = ws.agent.map(|a| control::WorkspaceAgent { name: a.name, durable: a.durable });
+    let roots = ws.roots.into_iter();
+    let roots = roots.map(|r| control::WorkspaceRoot {
+        machine: r.machine,
+        path: r.path,
+        primary: r.primary,
+    });
+    control::Workspace {
+        name: ws.name,
+        tag: ws.tag,
+        canvas: ws.canvas,
+        dir,
+        agent,
+        roots: roots.collect(),
     }
 }
 

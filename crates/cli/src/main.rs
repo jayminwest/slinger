@@ -7,6 +7,7 @@ mod output;
 #[cfg(test)]
 mod tests;
 mod ui;
+mod workspace;
 
 use std::io::{self, IsTerminal};
 use std::process::ExitCode;

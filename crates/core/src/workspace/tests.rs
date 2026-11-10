@@ -3,7 +3,7 @@ use super::*;
 const FIXTURE: &str = include_str!("../../fixtures/workspace/slinger-workspace.toml");
 
 fn with_primary(name: &str, machine: &str, path: &str) -> Workspace {
-    let mut ws = Workspace::new(name);
+    let mut ws = Workspace::named(name);
     ws.roots.push(Root::primary(machine, path));
     ws
 }
@@ -117,7 +117,7 @@ fn rule_a_workspace_has_at_most_one_primary_root() {
 
 #[test]
 fn a_workspace_without_an_agent_or_roots_keeps_the_rules() {
-    check(&[Workspace::new("loose"), Workspace::new("also loose")]).unwrap();
+    check(&[Workspace::named("loose"), Workspace::named("also loose")]).unwrap();
     let mut ws = Workspace::new("plain");
     ws.agent = Some(Agent::new("visitor", false));
     check(&[ws]).unwrap();
@@ -138,7 +138,7 @@ fn one_directory_may_be_a_plain_root_of_many_workspaces() {
     let first = with_primary("first", "my-laptop", "/shared");
     let mut second = with_primary("second", "my-laptop", "/other");
     second.roots.push(Root::new("my-laptop", "/shared"));
-    let mut third = Workspace::new("third");
+    let mut third = Workspace::named("third");
     third.roots.push(Root::new("my-laptop", "/shared"));
     check(&[first, second, third]).unwrap();
 }
@@ -150,4 +150,75 @@ fn the_same_path_on_another_machine_is_another_directory() {
     check(&[a, b]).unwrap();
     assert!(Root::new("m", "/").same_dir(&Root::new("m", "//")));
     assert!(!Root::new("m", "/a").same_dir(&Root::new("n", "/a")));
+}
+
+#[test]
+fn rule_a_name_and_a_default_canvas_belong_to_one_workspace() {
+    let err = check(&[Workspace::named("notes"), Workspace::named("notes")]).unwrap_err();
+    assert_eq!(err.code(), "conflict");
+    assert!(err.to_string().contains("\"notes\""), "{err}");
+    let err = check(&[Workspace::new("a"), Workspace::new("b")]).unwrap_err();
+    assert_eq!(err.code(), "conflict");
+    assert!(err.to_string().contains("canvas \"main\"") && err.to_string().contains("\"a\""));
+    assert!(err.hint().unwrap().contains("\"b\""));
+}
+
+#[test]
+fn a_named_workspace_opens_on_a_canvas_of_its_own() {
+    let ws = Workspace::named("My Notes!");
+    assert_eq!(
+        (ws.name.as_str(), ws.tag.as_str(), ws.canvas.as_str()),
+        ("My Notes!", "My Notes!", "my-notes")
+    );
+    assert_eq!(Workspace::parse(&ws.to_toml()).unwrap(), ws);
+}
+
+#[test]
+fn a_workspace_for_a_directory_is_its_primary_root() {
+    let ws = Workspace::for_dir("my-laptop", "/Users/me/Projects/slinger/", None);
+    assert_eq!((ws.name.as_str(), ws.canvas.as_str()), ("slinger", "slinger"));
+    let root = ws.primary_root().unwrap();
+    assert_eq!(
+        (root.machine.as_str(), root.path.as_str()),
+        ("my-laptop", "/Users/me/Projects/slinger")
+    );
+    assert_eq!(ws.roots.len(), 1);
+    let named = Workspace::for_dir("my-laptop", "/srv/x", Some("Work"));
+    assert_eq!((named.name.as_str(), named.canvas.as_str()), ("Work", "work"));
+    assert_eq!(Workspace::for_dir("m", "/", None).primary_root().unwrap().path, "/");
+    check(&[ws, named]).unwrap();
+}
+
+#[test]
+fn a_slug_is_a_short_safe_id() {
+    for (name, slug_) in [
+        ("slinger", "slinger"),
+        ("Two  Words", "two-words"),
+        ("--a.b--", "a-b"),
+        ("snake_case-9", "snake_case-9"),
+        ("日本", "workspace"),
+        ("", "workspace"),
+    ] {
+        assert_eq!(slug(name), slug_, "{name:?}");
+    }
+    assert_eq!(slug(&"x".repeat(100)).len(), 64);
+    assert!(!slug(&format!("{}!z", "x".repeat(63))).ends_with('-'));
+}
+
+#[test]
+fn an_event_takes_the_tag_of_its_canvas_or_agent() {
+    let mut a = Workspace::named("alpha");
+    a.tag = "a-tag".into();
+    a.agent = Some(Agent::new("scout", false));
+    let mut b = Workspace::named("beta");
+    b.agent = Some(Agent::new("shared", false));
+    let mut c = Workspace::named("gamma");
+    c.agent = Some(Agent::new("shared", false));
+    let all = [a, b, c];
+    assert_eq!(tag_for(&all, Some("alpha"), None), Some("a-tag"));
+    assert_eq!(tag_for(&all, Some("beta"), Some("scout")), Some("beta"));
+    assert_eq!(tag_for(&all, Some("nope"), Some("scout")), Some("a-tag"));
+    assert_eq!(tag_for(&all, None, Some("shared")), None);
+    assert_eq!(tag_for(&all, None, None), None);
+    assert_eq!(tag_for(&[], Some("alpha"), Some("scout")), None);
 }

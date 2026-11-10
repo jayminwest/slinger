@@ -5,7 +5,7 @@
 //! other module knows it is TOML. It does no file IO: callers read and write
 //! the bytes and hand the text here.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +19,9 @@ pub const VERSION: u32 = 1;
 
 /// The canvas a workspace opens on when its file names none.
 pub const DEFAULT_CANVAS: &str = "main";
+
+/// The longest id [`slug`] makes: a canvas id's limit.
+const SLUG_MAX: usize = 64;
 
 const HINT: &str = "see docs/workspace.md for the workspace file format";
 
@@ -157,6 +160,28 @@ impl Workspace {
         }
     }
 
+    /// A new workspace as Slinger makes one: like [`Workspace::new`], but its
+    /// default canvas is [`slug`] of its name, so two workspaces get two
+    /// canvases.
+    #[must_use]
+    pub fn named(name: impl Into<String>) -> Self {
+        let name = name.into();
+        Self { canvas: slug(&name), ..Self::new(name) }
+    }
+
+    /// A new workspace for the directory `path` on `machine`, its primary
+    /// root, as [`Workspace::named`]. Its name is `name`, or else the
+    /// directory's last part.
+    #[must_use]
+    pub fn for_dir(machine: &str, path: &str, name: Option<&str>) -> Self {
+        let trimmed = path.trim_end_matches('/');
+        let path = if trimmed.is_empty() { "/" } else { trimmed };
+        let last = path.rsplit('/').next().filter(|part| !part.is_empty()).unwrap_or(path);
+        let mut ws = Self::named(name.unwrap_or(last));
+        ws.roots.push(Root::primary(machine, path));
+        ws
+    }
+
     /// Reads a definition file's text. The result keeps the rules for one
     /// workspace (see [`check`]).
     ///
@@ -248,18 +273,37 @@ impl Workspace {
 
 /// Checks the rules over a set of workspaces: each one keeps its own rules
 /// (a durable agent has exactly one primary root, at most one root is
-/// primary), and one directory is the primary root of at most one workspace.
+/// primary); one directory is the primary root of at most one workspace; and
+/// one name, and one default canvas, belong to at most one workspace.
 ///
 /// To ask whether a new workspace may join, check the existing ones with it.
 ///
 /// # Errors
 ///
 /// [`Error::Invalid`] when one workspace breaks its own rules.
-/// [`Error::Conflict`] when two workspaces share a primary root.
+/// [`Error::Conflict`] when two workspaces share a primary root, a name or a
+/// default canvas.
 pub fn check(workspaces: &[Workspace]) -> Result<()> {
     let mut owners: HashMap<(&str, &str), &str> = HashMap::new();
+    let mut names: HashSet<&str> = HashSet::new();
+    let mut canvases: HashMap<&str, &str> = HashMap::new();
     for ws in workspaces {
         ws.check_one()?;
+        if !names.insert(&ws.name) {
+            return Err(Error::Conflict {
+                message: format!("two workspaces are named {:?}", ws.name),
+                hint: Some("give one another name: `name` in its file, or --name".into()),
+            });
+        }
+        if let Some(owner) = canvases.insert(&ws.canvas, &ws.name) {
+            return Err(Error::Conflict {
+                message: format!(
+                    "canvas {:?} is already the canvas of workspace {owner:?}",
+                    ws.canvas
+                ),
+                hint: Some(format!("set another `canvas` in the file of workspace {:?}", ws.name)),
+            });
+        }
         let Some(root) = ws.primary_root() else { continue };
         if let Some(owner) = owners.insert(root.key(), &ws.name) {
             return Err(Error::Conflict {
@@ -272,6 +316,53 @@ pub fn check(workspaces: &[Workspace]) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// The tag of the workspace an event belongs to: the workspace whose default
+/// canvas is `canvas`, else the one whose agent is `agent`. `None` when no
+/// workspace matches, or more than one does.
+#[must_use]
+pub fn tag_for<'a>(
+    workspaces: &'a [Workspace],
+    canvas: Option<&str>,
+    agent: Option<&str>,
+) -> Option<&'a str> {
+    let only = |mut found: Vec<&'a Workspace>| match (found.pop(), found.is_empty()) {
+        (Some(ws), true) => Some(ws.tag.as_str()),
+        _ => None,
+    };
+    let on_canvas =
+        canvas.and_then(|c| only(workspaces.iter().filter(|w| w.canvas == c).collect()));
+    on_canvas.or_else(|| {
+        let agent = agent?;
+        only(
+            workspaces
+                .iter()
+                .filter(|w| w.agent.as_ref().is_some_and(|a| a.name == agent))
+                .collect(),
+        )
+    })
+}
+
+/// An id made from a workspace's name, for its default canvas and for the
+/// directory of a workspace with no root: `a-z`, `0-9`, `-` and `_`, at most
+/// 64 long. A run of other characters becomes one `-`. A name with none of
+/// them gives `workspace`.
+#[must_use]
+pub fn slug(name: &str) -> String {
+    let mut out = String::new();
+    for c in name.chars().map(|c| c.to_ascii_lowercase()) {
+        if out.len() >= SLUG_MAX {
+            break;
+        }
+        if c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' {
+            out.push(c);
+        } else if !out.is_empty() && !out.ends_with('-') {
+            out.push('-');
+        }
+    }
+    let out = out.trim_end_matches('-');
+    if out.is_empty() { "workspace".into() } else { out.to_owned() }
 }
 
 fn invalid(message: &str) -> Error {

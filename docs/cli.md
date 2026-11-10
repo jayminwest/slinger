@@ -35,6 +35,10 @@ a "did you mean" suggestion.
 | `canvas apply <ID> <OPS\|-> [--agent NAME]` | The ids the operations made, one per line. `--json`: `seq`, `made` |
 | `canvas undo <ID> [--agent NAME]`, `canvas redo <ID> [--agent NAME]` | Nothing. `--json`: `seq`, `made` |
 | `canvas import <FILE> [--name ID]` | The new canvas's id, then one count per line, tab separated: `pages`, each item kind, and `skipped` with each tldraw shape type. `--json`: `canvas`, `pages`, `items`, `skipped` |
+| `workspace open [DIR] [--name NAME]` | The workspace's name. `--json`: `workspace`, `new` |
+| `workspace list` | One line per open workspace, by name: name, canvas and directory, separated by tabs. `--json`: `workspaces` |
+| `workspace show <WORKSPACE>` | One field per line, the name and the value separated by a tab: `name`, `tag`, `canvas`, `dir`, then `agent` (if any) and one `root` line per root, `machine:path`. `--json`: `workspace` |
+| `workspace close <WORKSPACE>` | Nothing. `--json`: `dir` |
 
 `record append` takes the payload as a JSON object (default `{}`); the
 kinds and their payloads are in `docs/service.md`. A payload that is not
@@ -70,6 +74,16 @@ newer slinger (`canvas_too_new`) exits 1.
 named by `--name` or after the file (lowercased, other characters made `-`).
 A file that is not there exits 3 (`not_found`), one that is not a tldraw file
 exits 5 (`invalid`), and a canvas of that id exits 4 (`conflict`).
+`workspace open <DIR>` opens a directory (relative to the current one) as a
+workspace, writing its `slinger-workspace.toml` and making its canvas when it
+has none; `--name` names a new one. `workspace open --name <NAME>` with no
+directory opens a workspace with no root. Opening an open workspace prints
+it again. `<WORKSPACE>` is a name, or a directory (`.`, `..` or anything with
+a `/`). A directory that is not there or a workspace that is not open exits
+3 (`not_found`); a second workspace on one primary root, name or canvas exits
+4 (`conflict`); `workspace open` with neither exits 5 (`invalid`). Closing
+keeps the file, the canvas and the agent. The rules are in
+`docs/workspace.md`; what the daemon does is in `docs/service.md`.
 
 ## Output
 

@@ -16,6 +16,15 @@ bullet with the area in bold.
   note on how to answer on the canvas instead of in chat. The first sling of
   a session gets the whole note, later ones a single line. An empty prompt
   with a selection is a valid sling.
+- **CLI:** workspaces. `slinger workspace open <dir>` opens a directory as a
+  workspace: it writes `slinger-workspace.toml` in the directory if there is
+  none, makes the workspace's canvas, and prints its name; opening it again
+  returns the same workspace. `workspace open --name <name>` opens one with no
+  directory, kept in slingerd's data directory. `workspace list`,
+  `workspace show <name|dir>` and `workspace close <name|dir>` list, print and
+  close them; closing keeps the file and the canvas. Open workspaces survive a
+  restart, and an event on a workspace's canvas or from its agent is tagged
+  with the workspace.
 - **CLI:** agent UIs are stored in the record, named and versioned.
   `slinger ui put <name> <file|->` stores an HTML file as the UI's next
   version and prints `<name>@<version>`; the same bytes again add no version.

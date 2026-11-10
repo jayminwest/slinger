@@ -105,13 +105,14 @@ pub fn write_reply(writer: &mut impl Write, reply: &Result<Reply, RemoteError>) 
     writer.flush()
 }
 
-/// The request line a client sends.
-pub(crate) fn request_line(request: &Request) -> io::Result<String> {
+/// The request line a client sends: a [`Request`], or a type that writes
+/// the same line for verbs [`Request`] does not serialize.
+pub(crate) fn request_line<R: serde::Serialize>(request: &R) -> io::Result<String> {
     #[derive(serde::Serialize)]
-    struct Line<'a> {
+    struct Line<'a, R> {
         v: u64,
         #[serde(flatten)]
-        request: &'a Request,
+        request: &'a R,
     }
     let mut line =
         serde_json::to_string(&Line { v: VERSION, request }).map_err(io::Error::other)?;

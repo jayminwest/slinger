@@ -28,11 +28,14 @@ use rusqlite::{
 use slinger_core::record::{self, BlobId, Event};
 
 use crate::canvases::Canvases;
+use crate::workspaces::Workspaces;
 
 /// The store's file inside the data directory.
 const FILE: &str = "record.sqlite";
 /// The directory of canvas files inside the data directory.
 const CANVASES: &str = "canvases";
+/// The directory of the open workspaces' list inside the data directory.
+const WORKSPACES: &str = "workspaces";
 /// The layout this code writes, kept in SQLite's `user_version`.
 const SCHEMA_VERSION: i64 = 1;
 const SCHEMA: &str = "
@@ -137,6 +140,7 @@ pub struct Store {
     db: Mutex<Connection>,
     machine: String,
     canvases: Canvases,
+    workspaces: Workspaces,
 }
 
 impl Store {
@@ -169,13 +173,16 @@ impl Store {
             _ => return Err(StoreError::Newer { path, found }),
         }
         tx.commit()?;
+        let machine = machine.into();
         let canvases = Canvases::new(dir.join(CANVASES));
-        Ok(Self { db: Mutex::new(db), machine: machine.into(), canvases })
+        let workspaces = Workspaces::new(dir.join(WORKSPACES), machine.clone());
+        Ok(Self { db: Mutex::new(db), machine, canvases, workspaces })
     }
 
     /// Appends `event` to the log and returns it as stored: with the next
     /// number, the current time and this store's machine tag, whatever the
-    /// caller set them to.
+    /// caller set them to, and the tag of the workspace its canvas or agent
+    /// belongs to when the caller set none.
     ///
     /// # Errors
     ///
@@ -258,6 +265,7 @@ impl Store {
         event.number = Some(to_u64(number));
         event.time = now_ms();
         event.tags.machine.clone_from(&self.machine);
+        self.workspaces.tag(&mut event.tags);
         tx.execute(
             "INSERT INTO events (number, time, kind, machine, workspace, agent, canvas, event)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -281,6 +289,12 @@ impl Store {
     #[must_use]
     pub fn canvases(&self) -> &Canvases {
         &self.canvases
+    }
+
+    /// The open workspaces, listed in `workspaces/` beside the record.
+    #[must_use]
+    pub fn workspaces(&self) -> &Workspaces {
+        &self.workspaces
     }
 
     fn db(&self) -> std::sync::MutexGuard<'_, Connection> {

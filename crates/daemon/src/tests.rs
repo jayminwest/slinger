@@ -16,6 +16,7 @@ use crate::{Server, StartError, Stopper, Store, run};
 
 mod canvas;
 mod import;
+mod workspace;
 
 const DAEMON: &str = "slingerd";
 
