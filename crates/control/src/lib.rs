@@ -28,6 +28,11 @@ pub enum Request {
     RecordAppend(NewEvent),
     /// Read events from this machine's record.
     RecordList(EventFilter),
+    /// Store the bytes of the file at `path` as a blob. Bytes travel as a
+    /// file on this machine, never in the line (docs/service.md).
+    BlobPut { path: PathBuf },
+    /// Write the bytes of the blob `id` to the file at `path`.
+    BlobGet { id: String, path: PathBuf },
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -37,6 +42,8 @@ pub enum Reply {
     Hello(Greeting),
     RecordAppend(Appended),
     RecordList(Events),
+    BlobPut(Stored),
+    BlobGet(Written),
 }
 
 /// The reply to [`Request::Hello`].
@@ -98,6 +105,18 @@ pub struct Appended {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Events {
     pub events: Vec<Value>,
+}
+
+/// The reply to [`Request::BlobPut`]: the blob's id, `sha256:<hex>`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Stored {
+    pub id: String,
+}
+
+/// The reply to [`Request::BlobGet`]: how many bytes were written.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Written {
+    pub size: u64,
 }
 
 fn empty_object() -> Value {

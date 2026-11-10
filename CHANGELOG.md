@@ -11,6 +11,10 @@ bullet with the area in bold.
 
 ### Added
 
+- **CLI:** `slinger blob put <file|->` stores a file's bytes (or stdin's) in
+  this machine's record and prints the blob id. `slinger blob get <id>`
+  writes the bytes to stdout, or to a file with `--out`. Storing the same
+  bytes twice gives the same id; an unknown id exits with `not_found`.
 - **CLI:** `slinger record append <kind> [payload]` adds an event to this
   machine's record and prints its number. `slinger record list` prints the
   events, filtered by `--kind`, `--machine`, `--workspace`, `--agent`,

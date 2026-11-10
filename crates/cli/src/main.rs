@@ -15,7 +15,8 @@ fn main() -> ExitCode {
         std::env::var("FORCE_COLOR").ok().as_deref(),
         io::stdout().is_terminal(),
     );
-    let code =
-        cli::run(std::env::args_os(), &mut io::stdout().lock(), &mut io::stderr().lock(), color);
+    let (mut input, mut out, mut err) =
+        (io::stdin().lock(), io::stdout().lock(), io::stderr().lock());
+    let code = cli::run(std::env::args_os(), &mut input, &mut out, &mut err, color);
     ExitCode::from(code)
 }

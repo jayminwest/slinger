@@ -80,6 +80,8 @@ adding fields, and the change bumps that kind's `version`.
 lib.rs       argv, startup and signals: `run`.
 server.rs    the control socket and `answer`, one arm per verb. `serve` takes the
              store, so a verb that reads or writes the record reaches it here.
+             Blob verbs read and write the file the client names: a blob's
+             bytes travel as a file, never in the line (docs/service.md).
 store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
              the event log and the blobs. The only module that knows its
              layout. Stores each event as the line `record::encode` wrote.
@@ -126,6 +128,7 @@ Each boundary has something that fails when it is broken:
 | The workspace file format and rules (docs/workspace.md) | the tests of `crates/core/src/workspace.rs` and its stored fixture |
 | The record on disk is append-only and keeps fields it does not know | `crates/daemon/src/store/tests.rs`, against a real file |
 | One daemon per socket; a stop loses no reply | `crates/daemon/src/tests.rs`, through a real socket |
+| A blob of megabytes comes back byte for byte; a put twice gives one id | `crates/daemon/src/tests.rs`, through a real socket |
 | SIGTERM ends the daemon cleanly | `crates/daemon/tests/signals.rs`, against the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |
