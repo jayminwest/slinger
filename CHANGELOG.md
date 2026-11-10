@@ -18,3 +18,7 @@ bullet with the area in bold.
 - **App:** the groundwork for the canvas pane: an endless canvas you can pan and zoom (within limits) about any point, drawing only what is on screen and repainting only what changed. Not yet shown in the window.
 - **Workspaces:** a workspace is defined by a `slinger-workspace.toml` file in its primary root: a name, its directories, an optional agent, its record tag and its default canvas. See `docs/workspace.md`.
 - **Canvas:** the canvas model: pages of strokes, text, boxes and arrows, each with its author and time. An agent can change only the items it made, never your ink, and removing something already gone is not an error.
+- **Daemon:** `slingerd` keeps this machine's record (events and blobs) in
+  one SQLite file in its data directory. The directory defaults to
+  `$XDG_DATA_HOME/slinger` (on macOS, `~/Library/Application Support/slinger`)
+  and `--data-dir` sets it.

@@ -159,6 +159,20 @@ fn a_socket_path_it_cannot_create_is_an_error() {
 }
 
 #[test]
+fn a_data_dir_it_cannot_create_is_an_error() {
+    let socket = socket_path();
+    let args = ["--socket", socket.to_str().unwrap(), "--data-dir", "/dev/null/slinger"];
+    let (code, out, err) = daemon(&args);
+    assert_eq!((code, out.as_str()), (1, ""));
+    assert!(err.starts_with("✗ cannot create data directory /dev/null/slinger"), "{err}");
+    assert!(err.contains("\n  pass another --data-dir"), "{err}");
+    // The lock is free again: a daemon with a good data dir can take the socket.
+    drop(Server::bind(&socket).unwrap());
+    std::fs::remove_file(&socket).unwrap();
+    std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();
+}
+
+#[test]
 fn bad_arguments_are_usage_errors() {
     let (code, out, err) = daemon(&["--bogus"]);
     assert_eq!((code, out.as_str()), (2, ""));
@@ -173,4 +187,5 @@ fn version_and_help_print_and_succeed() {
     let (code, out, _) = daemon(&["--help"]);
     assert_eq!(code, 0);
     assert!(out.contains("--socket <PATH>"), "{out}");
+    assert!(out.contains("--data-dir <PATH>"), "{out}");
 }

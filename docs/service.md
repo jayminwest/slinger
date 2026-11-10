@@ -6,7 +6,7 @@ and agents rely on this contract. Breaking it is a breaking change.
 ## The daemon
 
 ```
-slingerd [--socket <PATH>]
+slingerd [--socket <PATH>] [--data-dir <PATH>]
 ```
 
 - It says nothing on success and runs until SIGTERM or SIGINT.
@@ -24,9 +24,29 @@ slingerd [--socket <PATH>]
 | Code | Name | Meaning |
 |---|---|---|
 | 0 | ok | Stopped by a signal |
-| 1 | error | Unexpected failure, such as a socket path that cannot be created |
+| 1 | error | Unexpected failure, such as a socket path or data directory that cannot be created |
 | 2 | usage | Bad arguments |
-| 4 | conflict | Another daemon serves the socket |
+| 4 | conflict | Another daemon serves the socket, or the record was laid out by a newer slingerd |
+
+## Data directory
+
+The daemon keeps this machine's record (SPEC section 9) in one SQLite file,
+`record.sqlite`, in its data directory. It is the file's only reader and
+writer; other programs reach the record through the socket.
+
+- Default: `$XDG_DATA_HOME/slinger`. When `XDG_DATA_HOME` is not set:
+  `~/Library/Application Support/slinger` on macOS and
+  `~/.local/share/slinger` elsewhere. `--data-dir <PATH>` overrides it.
+- The daemon creates the directory (mode `0700`) and the file at startup,
+  after it takes the socket. A directory it cannot create stops it with
+  exit 1 and a hint.
+- The event log is append-only: the file refuses updates and deletes. The
+  daemon gives each event its number and time and tags it with this
+  machine's name, the host name up to its first dot.
+- Blobs are keyed by their id (`sha256:<hex>`). Storing the same bytes again
+  stores nothing new.
+- The file's layout has a version. A daemon refuses a file laid out by a
+  newer one (exit 4).
 
 ## Socket
 
@@ -111,7 +131,7 @@ The protocol adds:
 ## Running it as a system service
 
 The template ships no launchd or systemd unit. To add one, run
-`slingerd --socket <PATH>` as the user who owns the data, restart it on
+`slingerd --socket <PATH> --data-dir <PATH>` as the user who owns the data, restart it on
 failure, and stop it with SIGTERM. The daemon does not fork and does not
 write a pid file, so use the service manager's simple (foreground) type. Do
 not use socket activation: the daemon creates and locks its own socket.

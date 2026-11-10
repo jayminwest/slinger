@@ -10,8 +10,9 @@ crates/cli    slinger: argv -> control-socket requests -> output contract (docs/
               Does not link the core.
 crates/control  slinger-control: the control protocol (docs/service.md): requests, replies,
               the wire format and the socket client. Does not link the core.
-crates/daemon slingerd: owns the IO the core leaves out (socket, signals, startup) and serves
-              the core. A thin main over its library. No domain logic.
+crates/daemon slingerd: owns the IO the core leaves out (socket, signals, startup, the
+              record's SQLite file) and serves the core. A thin main over its library.
+              No domain logic.
 crates/app    slinger-app: the macOS app. Control-socket requests -> a scene -> one window.
               Does not link the core.
 xtask         quality gates. Not shipped.
@@ -52,6 +53,16 @@ it does not know (`Body::Other`) and every field it does not know, at any
 depth, and `encode` writes them back unchanged. A payload changes only by
 adding fields, and the change bumps that kind's `version`.
 
+### Inside the daemon
+
+```
+lib.rs       argv, startup and signals: `run`.
+server.rs    the control socket and `answer`, one arm per verb.
+store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
+             the event log and the blobs. The only module that knows its
+             layout. Stores each event as the line `record::encode` wrote.
+```
+
 ### Inside the app
 
 ```
@@ -90,6 +101,7 @@ Each boundary has something that fails when it is broken:
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
 | The workspace file format and rules (docs/workspace.md) | the tests of `crates/core/src/workspace.rs` and its stored fixture |
+| The record on disk is append-only and keeps fields it does not know | `crates/daemon/src/store/tests.rs`, against a real file |
 | One daemon per socket; a stop loses no reply | `crates/daemon/src/tests.rs`, through a real socket |
 | SIGTERM ends the daemon cleanly | `crates/daemon/tests/signals.rs`, against the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |

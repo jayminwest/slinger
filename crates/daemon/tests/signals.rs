@@ -9,9 +9,12 @@ use slinger_control::Client;
 #[test]
 fn sigterm_stops_the_daemon_cleanly() {
     let socket: PathBuf = std::env::temp_dir().join(format!("s-{}.sock", std::process::id()));
+    let data = tempfile::tempdir().unwrap();
     let daemon = Command::new(env!("CARGO_BIN_EXE_slingerd"))
         .arg("--socket")
         .arg(&socket)
+        .arg("--data-dir")
+        .arg(data.path())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -35,5 +38,6 @@ fn sigterm_stops_the_daemon_cleanly() {
     // Silence is golden: a clean run says nothing.
     assert_eq!((output.stdout.as_slice(), output.stderr.as_slice()), (&b""[..], &b""[..]));
     assert!(!socket.exists());
+    assert!(data.path().join("record.sqlite").exists());
     std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();
 }
