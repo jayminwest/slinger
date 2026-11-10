@@ -73,6 +73,17 @@ pub fn crop(canvas: &Canvas, page: PageId, area: Rect, id: &str) -> Vec<Image> {
     draw(&found, area, id)
 }
 
+/// The frame size, in canvas units, that holds `text` as it is drawn when
+/// wrapped to at most `columns` characters a line (at least one): one
+/// character cell per character, a line per row.
+#[must_use]
+pub fn text_size(text: &str, columns: usize) -> (f64, f64) {
+    let rows = raster::wrap(text, columns.max(1));
+    let longest = rows.iter().map(Vec::len).max().unwrap_or(0);
+    let cells = |n: usize| u32::try_from(n).map_or(f64::from(u32::MAX), f64::from);
+    (cells(longest) * raster::TEXT_SIZE, cells(rows.len()) * raster::TEXT_SIZE)
+}
+
 /// Draws `items` into the picture of `frame`, as one image or as tiles.
 fn draw(items: &[&Item], frame: Rect, id: &str) -> Vec<Image> {
     let (width, height) = (pixels(frame.w), pixels(frame.h));

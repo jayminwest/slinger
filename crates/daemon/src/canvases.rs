@@ -19,8 +19,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
 use serde_json::Value;
-use slinger_core::canvas::file::{Log, Shown, Written, check_id, parse_author};
-use slinger_core::canvas::{Canvas, Time};
+use slinger_core::canvas::file::{Log, Placed, Put, Shown, Written, check_id, parse_author};
+use slinger_core::canvas::{Author, Canvas, Time};
 use slinger_core::packet::Packet;
 use slinger_core::render::Image;
 
@@ -231,6 +231,17 @@ impl Canvases {
         self.change(id, |log| Ok(log.apply(&by, now(), ops)?))
     }
 
+    /// Puts `what` beside the item `beside` names, as `agent` (see
+    /// [`Log::put`]), after the line is on disk.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`Log::put`] and of reading and writing the file.
+    pub fn put(&self, id: &str, agent: &str, beside: &str, what: &Put) -> Result<Placed> {
+        let by = Author::Agent(agent.into());
+        self.change(id, |log| Ok(log.put(&by, now(), beside, what)?))
+    }
+
     /// Undoes the last step of `by` on the canvas.
     ///
     /// # Errors
@@ -253,22 +264,22 @@ impl Canvases {
 
     /// Runs `f` on the open canvas, then appends and syncs what it wrote. A
     /// failed write closes the canvas, so the next request reads the file.
-    fn change(&self, id: &str, f: impl FnOnce(&mut Log) -> Result<Written>) -> Result<Written> {
+    fn change<T: Wrote>(&self, id: &str, f: impl FnOnce(&mut Log) -> Result<T>) -> Result<T> {
         let slot = self.slot(id)?;
         let mut guard = lock(&slot);
         let open = self.load(id, &mut guard)?;
-        let written = f(&mut open.log)?;
-        if written.bytes.is_empty() {
-            return Ok(written);
+        let done = f(&mut open.log)?;
+        let bytes = done.written().bytes.as_bytes();
+        if bytes.is_empty() {
+            return Ok(done);
         }
-        let synced =
-            open.file.write_all(written.bytes.as_bytes()).and_then(|()| open.file.sync_data());
+        let synced = open.file.write_all(bytes).and_then(|()| open.file.sync_data());
         if let Err(source) = synced {
             *guard = None;
             return Err(failed("write", &self.path(id))(source));
         }
         slot.changed.notify_all();
-        Ok(written)
+        Ok(done)
     }
 
     fn with<T>(&self, id: &str, f: impl FnOnce(&Log) -> Result<T>) -> Result<T> {
@@ -312,6 +323,23 @@ impl Canvases {
 
     fn path(&self, id: &str) -> PathBuf {
         self.dir.join(format!("{id}.{EXTENSION}"))
+    }
+}
+
+/// What a change returns: the lines it wrote, and maybe more.
+trait Wrote {
+    fn written(&self) -> &Written;
+}
+
+impl Wrote for Written {
+    fn written(&self) -> &Written {
+        self
+    }
+}
+
+impl Wrote for Placed {
+    fn written(&self) -> &Written {
+        &self.written
     }
 }
 

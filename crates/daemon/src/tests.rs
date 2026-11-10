@@ -18,6 +18,7 @@ mod canvas;
 mod feed;
 mod import;
 mod look;
+mod put;
 mod read;
 mod session;
 mod workspace;

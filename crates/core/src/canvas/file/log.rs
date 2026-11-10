@@ -241,6 +241,12 @@ impl Log {
             let op = op.as_object().ok_or_else(|| bad("an operation is not an object".into()))?;
             self.read_op(op, &mut actions)?;
         }
+        self.step(by, at, actions)
+    }
+
+    /// Applies `actions` as one undo step of `by`, all or none, and writes
+    /// their lines.
+    pub(super) fn step(&mut self, by: &Author, at: Time, actions: Vec<Action>) -> Result<Written> {
         let ops: Vec<Op> =
             actions.into_iter().map(|action| snap(Op { by: by.clone(), at, action })).collect();
         let actions = ops.iter().map(|op| op.action.clone()).collect();

@@ -1,6 +1,7 @@
 //! The control socket: one instance per path, one thread per connection, and a
 //! stop that lets every accepted request finish.
 
+mod agent;
 mod import;
 mod read;
 mod session;
@@ -270,6 +271,7 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
             Ok(Reply::CanvasStrokes(CanvasStrokes { strokes }))
         }
         Request::Session(ask) => session::answer(store, ask),
+        Request::Agent(ask) => agent::answer(store, ask),
     }
 }
 

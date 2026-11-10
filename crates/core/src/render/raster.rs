@@ -20,7 +20,7 @@ const MIN_RADIUS: f64 = 0.5;
 const HEAD: f64 = 16.0;
 
 /// The size, in canvas units, of one character cell of text.
-const TEXT_SIZE: f64 = 24.0;
+pub(super) const TEXT_SIZE: f64 = 24.0;
 
 /// One tile of the picture of `frame`, white until drawn on.
 pub(super) struct Raster {
@@ -250,7 +250,7 @@ fn arrow(from: Point, to: Point) -> Vec<Vec<Point>> {
 
 /// Lines of characters: `text` cut at each `\n`, and wrapped at spaces to at
 /// most `columns` characters. A word longer than a line is cut.
-fn wrap(text: &str, columns: usize) -> Vec<Vec<char>> {
+pub(super) fn wrap(text: &str, columns: usize) -> Vec<Vec<char>> {
     let mut rows = Vec::new();
     for paragraph in text.split('\n') {
         let mut row: Vec<char> = Vec::new();

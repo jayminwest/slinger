@@ -14,7 +14,7 @@ use crate::output::Output;
 pub const AGENT_ENV: &str = "SLINGER_AGENT";
 
 /// Help for `--agent`: a string, because a doc comment may not hold `$SLINGER_AGENT` bare.
-const AGENT_HELP: &str = "The calling agent [default: $SLINGER_AGENT]";
+pub const AGENT_HELP: &str = "The calling agent [default: $SLINGER_AGENT]";
 
 #[derive(Subcommand)]
 pub enum Session {
@@ -82,7 +82,7 @@ pub fn set(command: &Status, daemon: &control::Client) -> anyhow::Result<Output>
 }
 
 /// The agent an agent verb acts as: `--agent`, else `$SLINGER_AGENT`.
-fn calling_agent(flag: Option<&str>) -> Result<String, control::RemoteError> {
+pub fn calling_agent(flag: Option<&str>) -> Result<String, control::RemoteError> {
     let agent = flag.map(str::to_string).or_else(|| std::env::var(AGENT_ENV).ok());
     agent.filter(|a| !a.trim().is_empty()).ok_or_else(|| {
         let hint = format!("pass --agent <NAME>, or set {AGENT_ENV}");
