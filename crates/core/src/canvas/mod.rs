@@ -13,10 +13,13 @@
 //! - A canvas always has at least one page, and page names are unique.
 
 mod geometry;
+mod history;
 mod item;
+mod restore;
 
 use std::collections::BTreeMap;
 
+pub use history::History;
 pub use item::{Author, Colour, End, Item, ItemId, Page, PageId, Point, Rect, Shape, Time};
 
 use crate::{Error, Result};
@@ -50,6 +53,12 @@ pub enum Action {
     PageRename { page: PageId, name: String },
     /// Take a page and every item on it off the canvas.
     PageRemove { page: PageId },
+    /// Put a removed item back exactly as given, under its own id. Undo and
+    /// redo write it; see [`History`].
+    Restore { item: Item },
+    /// Put a removed page back at `index` (clamped to the end), with its
+    /// items. Undo writes it.
+    PageRestore { page: Page, index: usize, items: Vec<Item> },
 }
 
 /// What applying an operation did.
@@ -99,9 +108,10 @@ impl Canvas {
     /// - [`Error::Invalid`] when an agent would change an item it did not make
     ///   or a page holding such items, an agent has a blank name, a page name
     ///   is blank, or a shape cannot be drawn (no points, a width not above
-    ///   zero, a size below zero, a value that is not a number).
-    /// - [`Error::Conflict`] when a page name is taken, or the op would remove
-    ///   the last page.
+    ///   zero, a size below zero, a value that is not a number), or a restore
+    ///   names an id the canvas never handed out.
+    /// - [`Error::Conflict`] when a page name is taken, the op would remove
+    ///   the last page, or a restore names a page or item still here.
     pub fn apply(&mut self, op: Op) -> Result<Applied> {
         let Op { by, at, action } = op;
         if matches!(&by, Author::Agent(name) if name.trim().is_empty()) {
@@ -110,14 +120,14 @@ impl Canvas {
         match action {
             Action::Add { page, shape } => {
                 self.page_index(page)?;
-                self.check_shape(&shape)?;
+                self.check_shape(&shape, None)?;
                 let id = ItemId::new(self.next_item);
                 self.next_item += 1;
                 self.items.insert(id, Item { id, page, author: by, time: at, shape });
                 Ok(Applied::Added(id))
             }
             Action::Edit { item, shape } => {
-                self.check_shape(&shape)?;
+                self.check_shape(&shape, Some(item))?;
                 let found = self.changeable(item, &by)?;
                 found.shape = shape;
                 Ok(Applied::Changed)
@@ -155,6 +165,10 @@ impl Canvas {
                 Ok(Applied::Changed)
             }
             Action::PageRemove { page } => self.remove_page(page, &by),
+            Action::Restore { item } => self.restore(item, &by),
+            Action::PageRestore { page, index, items } => {
+                self.restore_page(&page, index, items, &by)
+            }
         }
     }
 
@@ -194,9 +208,16 @@ impl Canvas {
         })
     }
 
-    fn check_shape(&self, shape: &Shape) -> Result<()> {
+    /// The shape can be drawn and every item it points at is here. An edit
+    /// may keep pointing at an item that is gone (an arrow outlives its
+    /// targets, and undo puts such an arrow back), but not point anew at one.
+    fn check_shape(&self, shape: &Shape, editing: Option<ItemId>) -> Result<()> {
         shape.check()?;
-        match shape.targets().find(|t| !self.items.contains_key(t)) {
+        let kept = editing.and_then(|id| self.items.get(&id)).map(|i| &i.shape);
+        let gone = |t: &ItemId| {
+            !self.items.contains_key(t) && !kept.is_some_and(|k| k.targets().any(|old| old == *t))
+        };
+        match shape.targets().find(gone) {
             Some(missing) => Err(Error::NotFound {
                 what: missing.to_string(),
                 hint: Some("point the arrow at an item on the canvas, or at none".into()),
