@@ -1,5 +1,9 @@
 //! What the window shows. Pure: every decision about content is made here, so
-//! `platform` only draws what a [`Scene`] says.
+//! `platform` only draws what a [`Scene`] says. [`canvas`] decides what a
+//! canvas pane shows.
+
+#[cfg_attr(not(test), expect(dead_code, reason = "the canvas pane draws it from slinger-c94c"))]
+pub mod canvas;
 
 use crate::backend::Problem;
 use crate::layout::{self, Rect, Size};

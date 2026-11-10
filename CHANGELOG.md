@@ -15,3 +15,4 @@ bullet with the area in bold.
   agent blocked, agent done) and blob ids have a versioned JSON format. A
   reader keeps events of kinds and fields it does not know, so records from
   newer versions stay readable.
+- **App:** the groundwork for the canvas pane: an endless canvas you can pan and zoom (within limits) about any point, drawing only what is on screen and repainting only what changed. Not yet shown in the window.
