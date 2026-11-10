@@ -64,6 +64,10 @@ packet/      what an agent reads from a page (docs/design/packet.md). Index::new
              cluster(canvas, strokes) groups strokes into notes by distance, colour
              and time, sized by each pen's median stroke; a long stroke (frame, arrow,
              divider) and an agent's stroke stay alone. Same strokes, same clusters.
+             build(log, ask) is the one entry: an op log, a page, the last sling's
+             marker and a selection in; a Packet (header, sections, images) out.
+             It hides the delta, clustering (whole page), rendering and the index.
+             Packet::text / Packet::read own the versioned format (VERSION, B5).
 tldraw/      the tldraw importer (SPEC D7): import(bytes, time) -> canvas and a
              report of what it made and skipped. Reads the zip + SQLite file
              and the older JSON one itself (no IO, no new dependencies); every
@@ -166,6 +170,7 @@ Each boundary has something that fails when it is broken:
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
 | The packet's image rules: scale, margin, tiles, same bytes for the same input | `crates/core/tests/render.rs`, with golden images |
+| The packet format reads back, an old packet keeps decoding, the board costs under half its screenshots | `crates/core/tests/packet_build.rs`, with a stored v1 packet, on the real board |
 | Clustering: colours never mix, long strokes join nothing, each fixture page's count | `crates/core/tests/packet_cluster.rs`, on the real board |
 | The workspace file format and rules (docs/workspace.md) | the tests of `crates/core/src/workspace.rs` and its stored fixture |
 | The record on disk is append-only and keeps fields it does not know | `crates/daemon/src/store/tests.rs`, against a real file |

@@ -128,6 +128,10 @@ field   = key "=" value        ; value has no space, no quote
 quoted  = '"' text '"'         ; escapes: \" \\ \n
 ```
 
+A field value (in the header too) that holds a space, `"`, `%` or a control
+character writes each UTF-8 byte of that character as `%XX` (upper-case hex),
+so `page=Page%201` is the page "Page 1". Every other character is itself.
+
 **Header fields**, in this order: `canvas` (canvas id), `page` (page name),
 `from`, `to` (the canvas op range this packet covers; `from` is the first op
 after the last sling's `to`, so R1 is "ops in from..=to"), `scale` (the
@@ -151,7 +155,12 @@ line that overlaps it that much joins the row.
 stroke an agent drew is never clustered and never an image (R2): it is an
 `ink` line of one stroke, with `by`.
 
-**Clusters** (slinger-3779, `packet::cluster`): two of the user's strokes
+**Clusters** (slinger-3779, `packet::cluster`): the packet clusters every
+stroke on the page in one pass, new and old together (slinger-6ebe). A size
+unit needs many strokes to measure (one new stroke would be its own unit and
+never long), the same ink then has the same cluster and id in `new` and
+`page`, and a stroke added to a note within 5 minutes joins it, so that
+note's image is whole. The rules: two of the user's strokes
 join when they have the same colour, were made at most 5 minutes apart, and
 their boxes are at most 3 size units apart, where a size unit is the median
 long edge of the strokes drawn at that width. Joining chains. A stroke whose
@@ -190,6 +199,19 @@ bitmap font at 24 canvas units a character, wrapped at spaces to its frame.
 
 **Nothing new** (B4): both `new` and `made` are empty and `from` is greater
 than `to`. It is a valid packet.
+
+**Selection.** When the user sends a selection, `page` keeps only the
+selected items and the clusters holding a selected stroke; `new` and `made`
+stay whole.
+
+**Building and reading** (slinger-6ebe): `packet::build(log, ask)` takes a
+canvas's op log and an `Ask` (canvas id, page, the last sling's marker,
+selection) and returns a `Packet`: header, three sections of entries and the
+images. `Packet::text` writes this format; `Packet::read` reads it back
+(keeping unknown kinds and fields on entries, skipping unknown header fields
+and sections). `Packet::tokens` estimates the cost: a token per 4 characters
+of text, a token per 750 pixels of each image, at most 1600 an image. The
+whole fixture board, all new, is about 63 000 by this estimate.
 
 ## Delivery and storage
 

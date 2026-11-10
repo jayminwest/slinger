@@ -260,8 +260,9 @@ temporary directory, and removes the file after.
 
 ### Error codes
 
-The core's codes pass through unchanged (`not_found`, `conflict`, `invalid`, and for
-a damaged or newer canvas file `canvas_corrupt` and `canvas_too_new`).
+The core's codes pass through unchanged (`not_found`, `conflict`, `invalid`, for
+a damaged or newer canvas file `canvas_corrupt` and `canvas_too_new`, and for a
+packet of a version the core does not read `unsupported_version`).
 The protocol adds:
 
 | Code | Meaning |

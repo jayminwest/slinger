@@ -25,6 +25,9 @@ pub enum Error {
     /// A canvas file was written in a format version this reader does not know.
     #[error("the canvas file is format version {version}, newer than this slinger reads")]
     CanvasTooNew { version: u64 },
+    /// A packet was written in a format version this reader does not know.
+    #[error("the packet is format version {version}, which this slinger does not read")]
+    UnsupportedVersion { version: String },
 }
 
 impl Error {
@@ -37,6 +40,7 @@ impl Error {
             Self::Invalid { .. } => "invalid",
             Self::CanvasCorrupt { .. } => "canvas_corrupt",
             Self::CanvasTooNew { .. } => "canvas_too_new",
+            Self::UnsupportedVersion { .. } => "unsupported_version",
         }
     }
 
@@ -51,6 +55,7 @@ impl Error {
                 Some("the file was changed outside slinger; restore it from a backup")
             }
             Self::CanvasTooNew { .. } => Some("upgrade slinger to open this canvas"),
+            Self::UnsupportedVersion { .. } => Some("read it with the slinger that wrote it"),
         }
     }
 }

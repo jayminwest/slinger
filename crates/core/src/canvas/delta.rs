@@ -68,7 +68,7 @@ pub fn changes_since(log: &[Op], marker: Marker) -> Changes {
 
 /// `canvas` with each op applied in order. An op the canvas refuses changes
 /// nothing, so it is skipped.
-fn replay(mut canvas: Canvas, ops: &[Op]) -> Canvas {
+pub(crate) fn replay(mut canvas: Canvas, ops: &[Op]) -> Canvas {
     for op in ops {
         // A refused op changed nothing when it was first applied either.
         let _ = canvas.apply(op.clone());
