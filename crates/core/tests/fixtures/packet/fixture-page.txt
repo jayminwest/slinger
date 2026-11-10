@@ -1,0 +1,15 @@
+# new
+c9 ink 119,119 63x22 colour=#0a141ec8 strokes=1 in=b2 img=c9.png
+c11 ink 19,699 72x62 colour=red strokes=1 img=c11.png
+c10 ink 609,699 92x62 colour=red strokes=1 to=b2 img=c10.png
+# made
+c12 ink 298,698 4x4 colour=blue strokes=1 by=claude to=c4
+a13 arrow 300,100 300x600 by=claude from=c12 to=c4
+# page
+b1 box 0,0 1000x600
+b2 box 50,50 400x300 by=claude in=b1
+t5 text 60,400 600x80 in=b1 "A note with \"quotes\", a back\\slash, a line\nbreak, and enough words to run past e…"
+c3 ink 99,99 202x62 colour=black strokes=1 in=b2
+a14 arrow 450,50 160x650 from=c10 to=b2
+c4 ink 599,89 202x52 colour=black strokes=1 in=b1
+a7 arrow 900,10 300x490
