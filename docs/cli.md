@@ -16,6 +16,20 @@ on it. Breaking it is a breaking change.
 No arguments prints help. Unknown commands and flags are usage errors with
 a "did you mean" suggestion.
 
+## Commands
+
+| Command | Prints |
+|---|---|
+| `hello [NAME]` | The greeting |
+| `record append <KIND> [PAYLOAD] [--source NAME] [--workspace NAME] [--agent NAME] [--canvas ID]` | The new event's number. `--json`: `event` |
+| `record list [--kind KIND] [--machine NAME] [--workspace NAME] [--agent NAME] [--canvas ID] [--after NUMBER]` | One line per event: number, kind, tags (`name=value`) and payload, separated by tabs. `--json`: `events` |
+
+`record append` takes the payload as a JSON object (default `{}`); the
+kinds and their payloads are in `docs/service.md`. A payload that is not
+JSON, an unknown kind or a payload that does not fit it exits 5 (`invalid`)
+with a hint. `--source` defaults to `slinger`. `record list` with no match
+prints nothing and exits 0.
+
 ## Output
 
 - **stdout** carries the result and nothing else, so it pipes cleanly.

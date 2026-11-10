@@ -13,6 +13,7 @@ use std::fmt;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 pub use client::Client;
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
@@ -23,6 +24,10 @@ pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
 pub enum Request {
     /// Ask for a greeting.
     Hello { name: String },
+    /// Append an event to this machine's record.
+    RecordAppend(NewEvent),
+    /// Read events from this machine's record.
+    RecordList(EventFilter),
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -30,12 +35,73 @@ pub enum Request {
 #[serde(untagged)]
 pub enum Reply {
     Hello(Greeting),
+    RecordAppend(Appended),
+    RecordList(Events),
 }
 
 /// The reply to [`Request::Hello`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Greeting {
     pub greeting: String,
+}
+
+/// An event to append. The daemon sets its number, time and machine tag,
+/// and checks `payload` against `kind`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewEvent {
+    pub kind: String,
+    /// The program or agent that writes it.
+    pub source: String,
+    #[serde(default)]
+    pub tags: NewTags,
+    #[serde(default = "empty_object")]
+    pub payload: Value,
+}
+
+/// The tags a writer sets. The daemon adds `machine`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewTags {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canvas: Option<String>,
+}
+
+/// Which events to read. Each field set narrows; none set reads them all.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventFilter {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub machine: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canvas: Option<String>,
+    /// Only events numbered above this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<u64>,
+}
+
+/// The reply to [`Request::RecordAppend`]: the event as stored, in the
+/// record's event format.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Appended {
+    pub event: Value,
+}
+
+/// The reply to [`Request::RecordList`]: the events, lowest number first.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Events {
+    pub events: Vec<Value>,
+}
+
+fn empty_object() -> Value {
+    Value::Object(serde_json::Map::new())
 }
 
 /// A failure as it crosses the socket: the core's error, or one of the

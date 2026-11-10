@@ -15,7 +15,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 pub use blob::BlobId;
-pub use body::{AgentBlocked, AgentDone, Body, FileTouched, PaneMoved, ReplyLanded, SlingSent};
+pub use body::{
+    AgentBlocked, AgentDone, Body, FileTouched, KINDS, PaneMoved, ReplyLanded, SlingSent,
+};
 
 use crate::{Error, Result};
 
@@ -97,9 +99,15 @@ struct Wire {
 /// Writes `event` as one line of JSON, with no newline.
 #[must_use]
 pub fn encode(event: &Event) -> String {
+    to_value(event).to_string()
+}
+
+/// The JSON document [`encode`] writes, as a value to embed in another document.
+#[must_use]
+pub fn to_value(event: &Event) -> Value {
     let mut doc = known(event);
     merge(&mut doc, &event.unknown);
-    Value::Object(doc).to_string()
+    Value::Object(doc)
 }
 
 /// Reads an event that [`encode`] wrote, by this or any other version.

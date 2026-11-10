@@ -25,15 +25,22 @@ fn socket_path() -> PathBuf {
 
 /// Runs the CLI against a daemon that lives for this one call.
 fn cli(args: &[&str]) -> Run {
+    cli_each(&[args]).remove(0)
+}
+
+/// Runs the CLI once per entry, in order, against one daemon with an empty record.
+fn cli_each(runs: &[&[&str]]) -> Vec<Run> {
     let socket = socket_path();
+    let data = tempfile::tempdir().unwrap();
+    let store = daemon::Store::open(data.path(), "my-laptop").unwrap();
     let server = daemon::Server::bind(&socket).unwrap();
     let stopper = server.stopper();
-    let serving = std::thread::spawn(move || server.serve());
-    let run = cli_on(&socket, args);
+    let serving = std::thread::spawn(move || server.serve(&store));
+    let ran = runs.iter().map(|args| cli_on(&socket, args)).collect();
     stopper.stop();
     serving.join().unwrap().unwrap();
     std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();
-    run
+    ran
 }
 
 fn cli_on(socket: &std::path::Path, args: &[&str]) -> Run {
@@ -99,6 +106,65 @@ fn no_daemon_is_unavailable_with_a_start_hint() {
     assert!(r.err.contains("\n  start it with '"), "{}", r.err);
     let doc = json(&cli_on(&socket, &["hello", "ada", "--json"]));
     assert_eq!(doc["code"], "unavailable");
+}
+
+#[test]
+fn record_append_prints_the_number_and_list_prints_one_line_per_event() {
+    let runs = cli_each(&[
+        &["record", "append", "agent_done", r#"{"summary":"wrote it"}"#, "--agent", "scout"],
+        &["record", "append", "agent_blocked", r#"{"reason":"which?"}"#, "--workspace", "notes"],
+        &["record", "list"],
+        &["record", "list", "--kind", "agent_blocked"],
+        &["record", "list", "--after", "1", "--workspace", "notes", "--machine", "my-laptop"],
+        &["record", "list", "--agent", "nobody", "--canvas", "c1"],
+    ]);
+    let outs: Vec<(u8, &str, &str)> =
+        runs.iter().map(|r| (r.code, r.out.as_str(), r.err.as_str())).collect();
+    let done = "1\tagent_done\tmachine=my-laptop agent=scout\t{\"summary\":\"wrote it\"}\n";
+    let blocked = "2\tagent_blocked\tmachine=my-laptop workspace=notes\t{\"reason\":\"which?\"}\n";
+    assert_eq!(outs[..2], [(exit::OK, "1\n", ""), (exit::OK, "2\n", "")]);
+    assert_eq!(outs[2], (exit::OK, format!("{done}{blocked}").as_str(), ""));
+    assert_eq!(outs[3..], [(exit::OK, blocked, ""), (exit::OK, blocked, ""), (exit::OK, "", "")]);
+}
+
+#[test]
+fn record_json_is_one_envelope_and_an_empty_list_succeeds() {
+    let runs = cli_each(&[
+        &["record", "list", "--json"],
+        &["record", "append", "agent_done", "--source", "scout", "--canvas", "c1", "--json"],
+        &["record", "list", "--json"],
+    ]);
+    let docs: Vec<Value> = runs.iter().map(json).collect();
+    assert_eq!(runs.iter().map(|r| r.code).collect::<Vec<_>>(), [exit::OK; 3]);
+    assert_eq!(docs[0]["command"], "record list");
+    assert_eq!(docs[0]["events"], serde_json::json!([]));
+    assert_eq!(docs[1]["command"], "record append");
+    let event = &docs[1]["event"];
+    assert_eq!((event["number"].as_u64(), event["source"].as_str()), (Some(1), Some("scout")));
+    assert_eq!(event["tags"], serde_json::json!({"machine": "my-laptop", "canvas": "c1"}));
+    assert_eq!(event["payload"], serde_json::json!({}));
+    assert_eq!(docs[2]["events"], serde_json::json!([event]));
+}
+
+#[test]
+fn an_invalid_payload_or_kind_is_invalid_with_a_hint() {
+    for args in [
+        &["record", "append", "agent_blocked", "{}"][..],
+        &["record", "append", "agent_done", "not json"],
+        &["record", "append", "no_such_kind"],
+    ] {
+        let r = cli(args);
+        assert_eq!((r.code, r.out.as_str()), (exit::INVALID, ""), "{args:?}");
+        assert!(r.err.starts_with("✗ ") && r.err.contains("\n  "), "{}", r.err);
+        let mut args = args.to_vec();
+        args.push("--json");
+        let doc = json(&cli(&args));
+        assert_eq!(
+            (doc["success"].as_bool(), doc["code"].as_str()),
+            (Some(false), Some("invalid"))
+        );
+        assert!(doc["hint"].is_string());
+    }
 }
 
 #[test]

@@ -4,6 +4,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::BlobId;
+use crate::{Error, Result};
+
+/// The kinds this version writes, in the order the spec lists them.
+pub const KINDS: [&str; 6] =
+    ["sling_sent", "reply_landed", "file_touched", "pane_moved", "agent_blocked", "agent_done"];
 
 /// The kind of an event and its typed payload. Each v1 kind has a variant.
 /// A kind this reader does not know is kept as [`Body::Other`], so a newer
@@ -107,6 +112,25 @@ impl Body {
             Self::AgentDone(p) => to_value(p),
             Self::Other { payload, .. } => payload.clone(),
         }
+    }
+
+    /// The body a writer asks for: `kind` must be one of [`KINDS`] and
+    /// `payload` must fit it. Fields the kind does not have are dropped.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Invalid`] for an unknown kind or a payload that does not fit.
+    pub fn new(kind: &str, payload: Value) -> Result<Self> {
+        if !KINDS.contains(&kind) {
+            return Err(Error::Invalid {
+                message: format!("`{kind}` is not an event kind"),
+                hint: Some(format!("use one of: {}", KINDS.join(", "))),
+            });
+        }
+        Self::from_parts(kind.to_owned(), payload).map_err(|e| Error::Invalid {
+            message: format!("not a `{kind}` payload: {e}"),
+            hint: Some(format!("see the `{kind}` payload in docs/service.md")),
+        })
     }
 
     /// The body for `kind`. An unknown kind keeps its payload as it is.

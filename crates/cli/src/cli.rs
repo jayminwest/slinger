@@ -8,8 +8,8 @@ use std::path::PathBuf;
 
 use clap::builder::styling::{AnsiColor, Styles};
 use clap::error::ErrorKind;
-use clap::{CommandFactory, Parser, Subcommand};
-use serde_json::json;
+use clap::{Args, CommandFactory, Parser, Subcommand};
+use serde_json::{Value, json};
 
 use slinger_control as control;
 
@@ -21,6 +21,10 @@ pub const NAME: &str = "slinger";
 /// Help for `--socket`: a string, because a doc comment may not hold `$XDG_RUNTIME_DIR` bare.
 const SOCKET_HELP: &str =
     "Daemon control socket [default: in $XDG_RUNTIME_DIR, else in the temporary directory]";
+
+/// Help for an event's kind: a string, because a doc comment wants the kind names in backticks.
+const KIND_HELP: &str = "The event's kind: sling_sent, reply_landed, file_touched, pane_moved, \
+     agent_blocked or agent_done";
 
 const STYLES: Styles = Styles::styled()
     .header(AnsiColor::White.on_default().bold())
@@ -67,12 +71,62 @@ enum Command {
         #[arg(default_value = "world")]
         name: String,
     },
+    /// Read and write this machine's record of events
+    #[command(subcommand)]
+    Record(Record),
+}
+
+#[derive(Subcommand)]
+enum Record {
+    /// Append an event; prints its number
+    Append {
+        #[arg(help = KIND_HELP)]
+        kind: String,
+        /// The payload, a JSON object that fits the kind
+        #[arg(default_value = "{}")]
+        payload: String,
+        /// The program or agent that writes the event
+        #[arg(long, value_name = "NAME", default_value = NAME)]
+        source: String,
+        #[command(flatten)]
+        tags: TagArgs,
+    },
+    /// List events, lowest number first: number, kind, tags and payload per line
+    List {
+        /// Only events of this kind
+        #[arg(long)]
+        kind: Option<String>,
+        /// Only events from this machine
+        #[arg(long, value_name = "NAME")]
+        machine: Option<String>,
+        #[command(flatten)]
+        tags: TagArgs,
+        /// Only events numbered above this
+        #[arg(long, value_name = "NUMBER")]
+        after: Option<u64>,
+    },
+}
+
+/// The tags a writer sets, and a reader filters by.
+#[derive(Args)]
+struct TagArgs {
+    /// The workspace tag
+    #[arg(long, value_name = "NAME")]
+    workspace: Option<String>,
+    /// The agent tag
+    #[arg(long, value_name = "NAME")]
+    agent: Option<String>,
+    /// The canvas tag
+    #[arg(long, value_name = "ID")]
+    canvas: Option<String>,
 }
 
 impl Command {
     fn name(&self) -> &'static str {
         match self {
             Self::Hello { .. } => "hello",
+            Self::Record(Record::Append { .. }) => "record append",
+            Self::Record(Record::List { .. }) => "record list",
         }
     }
 }
@@ -84,7 +138,50 @@ fn execute(command: &Command, daemon: &control::Client, ctx: &mut Ctx) -> anyhow
             let greeting = daemon.hello(name)?;
             Ok(Output::new(json!({ "greeting": greeting }), greeting))
         }
+        Command::Record(Record::Append { kind, payload, source, tags }) => {
+            let payload = serde_json::from_str(payload).map_err(|e| {
+                let hint = "pass a JSON object, such as '{\"summary\":\"done\"}'".to_string();
+                control::RemoteError::new(
+                    "invalid",
+                    format!("payload is not JSON: {e}"),
+                    Some(hint),
+                )
+            })?;
+            let tags = control::NewTags {
+                workspace: tags.workspace.clone(),
+                agent: tags.agent.clone(),
+                canvas: tags.canvas.clone(),
+            };
+            let new =
+                control::NewEvent { kind: kind.clone(), source: source.clone(), tags, payload };
+            let event = daemon.record_append(new)?;
+            let number = event["number"].to_string();
+            Ok(Output::new(json!({ "event": event }), number))
+        }
+        Command::Record(Record::List { kind, machine, tags, after }) => {
+            let filter = control::EventFilter {
+                kind: kind.clone(),
+                machine: machine.clone(),
+                workspace: tags.workspace.clone(),
+                agent: tags.agent.clone(),
+                canvas: tags.canvas.clone(),
+                after: *after,
+            };
+            let events = daemon.record_list(filter)?;
+            let human = events.iter().map(event_line).collect::<Vec<_>>().join("\n");
+            Ok(Output::new(json!({ "events": events }), human))
+        }
     }
+}
+
+/// One event for people: number, kind, tags and payload, separated by tabs.
+fn event_line(event: &Value) -> String {
+    let tags: Vec<String> = ["machine", "workspace", "agent", "canvas"]
+        .into_iter()
+        .filter_map(|tag| event["tags"][tag].as_str().map(|value| format!("{tag}={value}")))
+        .collect();
+    let kind = event["kind"].as_str().unwrap_or_default();
+    format!("{}\t{kind}\t{}\t{}", event["number"], tags.join(" "), event["payload"])
 }
 
 pub fn run<I, T>(args: I, out: &mut dyn Write, err: &mut dyn Write, color: bool) -> u8
