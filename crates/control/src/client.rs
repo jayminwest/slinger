@@ -19,7 +19,7 @@ use crate::{
 const DAEMON: &str = "slingerd";
 
 /// How long a client waits for the daemon to answer.
-const TIMEOUT: Duration = Duration::from_secs(5);
+pub(crate) const TIMEOUT: Duration = Duration::from_secs(5);
 
 /// A client of the daemon on one socket path. Making one does no IO.
 #[derive(Debug, Clone)]
@@ -213,7 +213,17 @@ impl Client {
         &self,
         request: &R,
     ) -> Result<T, RemoteError> {
-        let answer = self.exchange(request).map_err(|e| self.unavailable(&e.to_string()))?;
+        self.call_within(request, TIMEOUT)
+    }
+
+    /// [`Client::call`] for a request the daemon may take `timeout` to answer.
+    pub(crate) fn call_within<R: Serialize, T: DeserializeOwned>(
+        &self,
+        request: &R,
+        timeout: Duration,
+    ) -> Result<T, RemoteError> {
+        let answer =
+            self.exchange(request, timeout).map_err(|e| self.unavailable(&e.to_string()))?;
         let doc: Value = serde_json::from_str(&answer).map_err(internal)?;
         match doc.get("ok").and_then(Value::as_bool) {
             Some(true) => serde_json::from_value(doc).map_err(internal),
@@ -223,9 +233,9 @@ impl Client {
     }
 
     /// Sends the request line and returns the reply line.
-    fn exchange<R: Serialize>(&self, request: &R) -> std::io::Result<String> {
+    fn exchange<R: Serialize>(&self, request: &R, timeout: Duration) -> std::io::Result<String> {
         let mut stream = UnixStream::connect(&self.socket)?;
-        stream.set_read_timeout(Some(TIMEOUT))?;
+        stream.set_read_timeout(Some(timeout))?;
         stream.set_write_timeout(Some(TIMEOUT))?;
         stream.write_all(wire::request_line(request)?.as_bytes())?;
         let mut answer = String::new();

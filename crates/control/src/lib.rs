@@ -7,6 +7,7 @@
 //! daemon.
 
 mod client;
+mod feed;
 mod imported;
 mod packet;
 mod wire;
@@ -19,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub use client::Client;
+pub use feed::{CanvasFeed, MAX_WAIT_MS};
 pub use imported::CanvasImported;
 pub use packet::{CanvasPacket, PacketAsk, PacketImage};
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
@@ -99,6 +101,17 @@ pub enum Request {
     /// `packet::Read`, so the app, which never sends it, carries no code for it.
     #[serde(skip_serializing)]
     CanvasRead(PacketAsk),
+    /// The operations of a canvas numbered above `after`. With `wait`, the
+    /// reply waits up to that many milliseconds for one (docs/service.md).
+    /// A client writes it with its own type, as the workspace verbs.
+    #[serde(skip_serializing)]
+    CanvasChanges {
+        canvas: String,
+        #[serde(default)]
+        after: u64,
+        #[serde(default)]
+        wait: u64,
+    },
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -126,6 +139,7 @@ pub enum Reply {
     WorkspaceShow(WorkspaceInfo),
     WorkspaceClose(WorkspaceClosed),
     CanvasRead(CanvasPacket),
+    CanvasChanges(CanvasFeed),
 }
 
 /// The reply to [`Request::Hello`].

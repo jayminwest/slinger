@@ -11,13 +11,14 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread::Scope;
 use std::time::Duration;
 
 use slinger_control as control;
 
 use control::{
-    Appended, CanvasChange, CanvasInfo, CanvasPage, Canvases, EventFilter, Events, Exported,
-    Greeting, NewEvent, RemoteError, Reply, Request, Stored, Uis, Written,
+    Appended, CanvasChange, CanvasFeed, CanvasInfo, CanvasPage, Canvases, EventFilter, Events,
+    Exported, Greeting, NewEvent, RemoteError, Reply, Request, Stored, Uis, Written,
 };
 use slinger_core::canvas::file::Written as Lines;
 use slinger_core::record::{self, BlobId, Body, Event, Tags};
@@ -136,20 +137,28 @@ impl Server {
     /// The error that ended the accept loop, or the socket file's removal.
     pub fn serve(self, store: &Store) -> io::Result<()> {
         let accepted = std::thread::scope(|scope| {
-            for stream in self.listener.incoming() {
-                // The first connection accepted after a stop is the last one
-                // served, so every connection queued before the stop is served.
-                let last = self.stopping.load(Ordering::SeqCst);
-                let stream = stream?;
-                scope.spawn(move || converse(&stream, store));
-                if last {
-                    break;
-                }
-            }
-            Ok(())
+            let accepted = self.accept(scope, store);
+            // A request waiting on a canvas feed answers now, so the scope ends.
+            store.canvases().stop();
+            accepted
         });
         fs::remove_file(&self.socket)?;
         accepted
+    }
+
+    /// Serves each connection on a thread of `scope` until a stop.
+    fn accept<'s>(&'s self, scope: &'s Scope<'s, '_>, store: &'s Store) -> io::Result<()> {
+        for stream in self.listener.incoming() {
+            // The first connection accepted after a stop is the last one
+            // served, so every connection queued before the stop is served.
+            let last = self.stopping.load(Ordering::SeqCst);
+            let stream = stream?;
+            scope.spawn(move || converse(&stream, store));
+            if last {
+                break;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -227,6 +236,12 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
         }
         Request::CanvasImport { path, canvas } => import::canvas(store, &path, canvas),
         Request::CanvasRead(ask) => read::packet(store, ask),
+        Request::CanvasChanges { canvas, after, wait } => {
+            let wait = Duration::from_millis(wait.min(control::MAX_WAIT_MS));
+            let (ops, next) =
+                store.canvases().changes(&canvas, after, wait).map_err(|e| drawn(&e))?;
+            Ok(Reply::CanvasChanges(CanvasFeed { next, ops }))
+        }
         Request::WorkspaceOpen { dir, name } => {
             let workspaces = store.workspaces();
             let (opened, new) = workspaces

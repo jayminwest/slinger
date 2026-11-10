@@ -48,6 +48,10 @@ bullet with the area in bold.
   undo` / `canvas redo` step back and forth. `--agent <name>` acts as an agent,
   which may change only what it made. slingerd keeps each canvas in a file in
   its data directory and every change is on disk before the command returns.
+- **CLI:** `slinger canvas changes <id> --after <number>` prints the canvas's
+  operations after that number, one JSON line each. `--wait <ms>` waits for
+  the next change when there is none yet, so a client can follow a canvas
+  without polling it.
 - **CLI:** `slinger blob put <file|->` stores a file's bytes (or stdin's) in
   this machine's record and prints the blob id. `slinger blob get <id>`
   writes the bytes to stdout, or to a file with `--out`. Storing the same

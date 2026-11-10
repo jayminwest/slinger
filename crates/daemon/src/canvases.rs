@@ -5,14 +5,18 @@
 //! open. Every change to one canvas takes that canvas's lock, so changes are
 //! numbered and appended in the order they apply, and the lines are synced to
 //! disk before the caller answers. The core decides what each change writes
-//! ([`Log`]); this module only reads, appends and syncs.
+//! ([`Log`]); this module only reads, appends and syncs. A change wakes the
+//! clients that wait on that canvas's feed ([`Canvases::changes`]).
+
+mod feed;
 
 use std::collections::HashMap;
 use std::fs::{self, DirBuilder, File};
 use std::io::{self, Write};
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
 use serde_json::Value;
 use slinger_core::canvas::file::{Log, Shown, Written, check_id, parse_author};
@@ -54,9 +58,16 @@ impl CanvasError {
 type Result<T> = std::result::Result<T, CanvasError>;
 
 /// One canvas: empty until first used, and again after a failed write.
-type Slot = Arc<Mutex<Option<Open>>>;
+type Slot = Arc<Shared>;
 
-/// A canvas held open: its log, and its file opened for append.
+/// One canvas's lock, and the signal that it changed (or the daemon stops).
+#[derive(Debug, Default)]
+struct Shared {
+    open: Mutex<Option<Open>>,
+    changed: Condvar,
+}
+
+/// A canvas held open: its log, and its file opened to read and append.
 #[derive(Debug)]
 struct Open {
     log: Log,
@@ -68,6 +79,8 @@ struct Open {
 pub struct Canvases {
     dir: PathBuf,
     slots: Mutex<HashMap<String, Slot>>,
+    /// Set once the daemon stops: waits end at once.
+    stopping: AtomicBool,
 }
 
 impl Canvases {
@@ -75,7 +88,19 @@ impl Canvases {
     /// first canvas.
     #[must_use]
     pub fn new(dir: PathBuf) -> Self {
-        Self { dir, slots: Mutex::new(HashMap::new()) }
+        Self { dir, slots: Mutex::new(HashMap::new()), stopping: AtomicBool::new(false) }
+    }
+
+    /// Ends every wait on a feed, now and from now on: each gets its reply.
+    pub fn stop(&self) {
+        self.stopping.store(true, Ordering::SeqCst);
+        let slots: Vec<Slot> =
+            self.slots.lock().unwrap_or_else(PoisonError::into_inner).values().cloned().collect();
+        for slot in slots {
+            // Under the lock, so a request between its check and its wait still wakes.
+            let _open = lock(&slot);
+            slot.changed.notify_all();
+        }
     }
 
     /// Makes a new, empty canvas.
@@ -222,6 +247,7 @@ impl Canvases {
             *guard = None;
             return Err(failed("write", &self.path(id))(source));
         }
+        slot.changed.notify_all();
         Ok(written)
     }
 
@@ -276,11 +302,12 @@ fn failed(doing: &'static str, path: &Path) -> impl FnOnce(io::Error) -> CanvasE
 }
 
 fn lock(slot: &Slot) -> MutexGuard<'_, Option<Open>> {
-    slot.lock().unwrap_or_else(PoisonError::into_inner)
+    slot.open.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// The file to append to, and to read the feed from.
 fn append(path: &Path) -> io::Result<File> {
-    File::options().append(true).open(path)
+    File::options().read(true).append(true).open(path)
 }
 
 fn write_synced(path: &Path, bytes: &[u8]) -> io::Result<()> {
