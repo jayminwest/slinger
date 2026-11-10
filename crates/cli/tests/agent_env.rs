@@ -1,0 +1,45 @@
+//! The calling agent's name from `SLINGER_AGENT`, through the real `slinger`
+//! binary: each run gets an environment of its own, which in-process tests
+//! cannot have.
+
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+
+use slinger_control::{Client, EventFilter};
+
+const USAGE: i32 = 2;
+
+#[test]
+fn status_set_takes_the_agent_from_the_flag_or_the_environment_or_fails_as_usage() {
+    let data = tempfile::tempdir().unwrap();
+    let socket: PathBuf = std::env::temp_dir().join(format!("ae-{}.sock", std::process::id()));
+    let store = slingerd::Store::open(data.path(), "my-laptop").unwrap();
+    let server = slingerd::Server::bind(&socket).unwrap();
+    let stopper = server.stopper();
+    let serving = std::thread::spawn(move || server.serve(&store));
+    // Runs `slinger` on the socket with `SLINGER_AGENT` set to `agent`, or unset.
+    let slinger = |socket: &Path, agent: Option<&str>, args: &[&str]| -> Output {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_slinger"));
+        command.args(args).arg("--socket").arg(socket).env_remove("SLINGER_AGENT");
+        if let Some(agent) = agent {
+            command.env("SLINGER_AGENT", agent);
+        }
+        command.output().unwrap()
+    };
+
+    let none = slinger(&socket, None, &["status", "set", "done"]);
+    assert_eq!(none.status.code(), Some(USAGE));
+    let err = String::from_utf8_lossy(&none.stderr);
+    assert!(err.contains("--agent") && err.contains("SLINGER_AGENT"), "{err}");
+    let from_env = slinger(&socket, Some("scout"), &["status", "set", "done"]);
+    assert_eq!((from_env.status.code(), from_env.stdout.as_slice()), (Some(0), &b""[..]));
+    let flag_wins = slinger(&socket, Some("scout"), &["status", "set", "done", "--agent", "ada"]);
+    assert_eq!(flag_wins.status.code(), Some(0));
+
+    let events = Client::new(&socket).record_list(EventFilter::default()).unwrap();
+    let agents: Vec<&str> = events.iter().filter_map(|e| e["tags"]["agent"].as_str()).collect();
+    assert_eq!(agents, ["scout", "ada"]);
+    stopper.stop();
+    serving.join().unwrap().unwrap();
+    std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();
+}

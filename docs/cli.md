@@ -43,6 +43,9 @@ a "did you mean" suggestion.
 | `canvas changes <ID> [--after NUMBER] [--wait MS]` | One line per operation numbered above `--after` (default 0: all), lowest first, as the canvas file's JSON line. `--json`: `next`, `ops` |
 | `canvas crop <ID> (--item ITEM \| --box X,Y,W,H [--page PAGE]) [--out FILE]` | The path of each image written, one per line, tiles in reading order. `--json`: `images` (`path`, `x`, `y`, `width`, `height`) |
 | `canvas strokes <ID> --item ITEM` | One stroke per line, as JSON with absolute `points` in tenths. `--json`: `strokes` |
+| `session list` | One line per session, by agent: agent, status (`-` for none) and home, then the note if there is one, separated by tabs. `--json`: `sessions` |
+| `session show <AGENT>` | One field per line, the name and the value separated by a tab: `agent`, `home`, `deliver`, `status`, then `note` (if any). `--json`: `session` |
+| `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
 
 `record append` takes the payload as a JSON object (default `{}`); the
 kinds and their payloads are in `docs/service.md`. A payload that is not
@@ -116,6 +119,17 @@ beside it in tiles, `<stem>-1.png` and on. Both or neither of `--item` and
 5 (`invalid`). `canvas strokes` prints the raw points of a stroke or of every
 stroke of a cluster; an item that is not ink exits 5. An item that is not
 there exits 3 (`not_found`).
+
+`status set` is an agent verb: it acts as the calling agent, named by
+`--agent <NAME>` or else by the `SLINGER_AGENT` environment variable, so a
+harness sets the variable once for its agent. With neither (or a blank name)
+it exits 2 (`usage`) with a hint. Every agent verb added after it names the
+agent the same way. `status set blocked` and `status set done` append
+`agent_blocked` and `agent_done` to the record (the note is the reason or the
+summary); `working` is shown by `session list` only. Another status exits 2.
+`session list` shows the agents of the open workspaces; with none it prints
+nothing and exits 0. `session show` of an agent with no session exits 3
+(`not_found`).
 
 ## Output
 

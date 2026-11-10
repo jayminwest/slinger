@@ -11,6 +11,7 @@ mod feed;
 mod imported;
 mod look;
 mod packet;
+mod session;
 mod wire;
 mod workspace;
 
@@ -25,6 +26,7 @@ pub use feed::{CanvasFeed, MAX_WAIT_MS};
 pub use imported::CanvasImported;
 pub use look::{CanvasImage, CanvasImages, CanvasStrokes};
 pub use packet::{CanvasPacket, PacketAsk, PacketImage};
+pub use session::{Session, SessionAsk, SessionInfo, Sessions, StatusSet};
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
 pub use workspace::{
     Workspace, WorkspaceAgent, WorkspaceClosed, WorkspaceInfo, WorkspaceOpened, WorkspaceRoot,
@@ -122,6 +124,12 @@ pub enum Request {
     /// The raw points of a stroke, or of every stroke of a cluster.
     #[serde(skip_serializing)]
     CanvasStrokes { canvas: String, item: String },
+    /// The session verbs (`session_list`, `session_show`, `status_set`),
+    /// read by their own `op`s. One variant for the three, written only by
+    /// clients that send them: each variant here adds code to the app, which
+    /// sends none of them (its size budget is nearly full).
+    #[serde(untagged, skip_serializing)]
+    Session(SessionAsk),
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -152,6 +160,9 @@ pub enum Reply {
     CanvasChanges(CanvasFeed),
     CanvasCrop(CanvasImages),
     CanvasStrokes(CanvasStrokes),
+    SessionList(Sessions),
+    SessionShow(SessionInfo),
+    StatusSet(StatusSet),
 }
 
 /// The reply to [`Request::Hello`].

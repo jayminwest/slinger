@@ -15,6 +15,7 @@ mod canvas;
 mod canvas_feed;
 mod look;
 mod read;
+mod session;
 mod workspace;
 
 struct Run {
