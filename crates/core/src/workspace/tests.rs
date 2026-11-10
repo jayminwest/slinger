@@ -1,0 +1,153 @@
+use super::*;
+
+const FIXTURE: &str = include_str!("../../fixtures/workspace/slinger-workspace.toml");
+
+fn with_primary(name: &str, machine: &str, path: &str) -> Workspace {
+    let mut ws = Workspace::new(name);
+    ws.roots.push(Root::primary(machine, path));
+    ws
+}
+
+#[test]
+fn reads_the_stored_fixture() {
+    let ws = Workspace::parse(FIXTURE).unwrap();
+    assert_eq!(ws.version(), 1);
+    assert_eq!(ws.name, "slinger");
+    assert_eq!(ws.tag, "slinger");
+    assert_eq!(ws.canvas, "main");
+    assert_eq!(
+        ws.agent.as_ref().map(|a| (a.name.as_str(), a.durable)),
+        Some(("slinger-dev", true))
+    );
+    assert_eq!(ws.roots.len(), 2);
+    let primary = ws.primary_root().unwrap();
+    assert_eq!(
+        (primary.machine.as_str(), primary.path.as_str()),
+        ("my-laptop", "/Users/me/Projects/slinger")
+    );
+    assert!(!ws.roots[1].primary);
+    assert_eq!(ws.layout.version(), 1);
+}
+
+#[test]
+fn the_fixture_round_trips_with_its_unknown_fields() {
+    let ws = Workspace::parse(FIXTURE).unwrap();
+    let text = ws.to_toml();
+    assert_eq!(Workspace::parse(&text).unwrap(), ws);
+    for kept in ["colour = \"teal\"", "mount = \"ro\"", "split = \"columns\"", "panes = ["] {
+        assert!(text.contains(kept), "{kept} missing from:\n{text}");
+    }
+}
+
+#[test]
+fn a_new_workspace_round_trips() {
+    let mut ws = Workspace::new("notes");
+    ws.agent = Some(Agent::new("scribe", false));
+    ws.roots.push(Root::new("my-laptop", "/Users/me/notes"));
+    let text = ws.to_toml();
+    assert_eq!(Workspace::parse(&text).unwrap(), ws);
+    assert_eq!(ws.version(), VERSION);
+}
+
+#[test]
+fn a_minimal_file_gets_the_defaults() {
+    let ws = Workspace::parse("version = 1\nname = \"scratch\"\n").unwrap();
+    assert_eq!(ws, Workspace::new("scratch"));
+    assert_eq!(ws.tag, "scratch");
+    assert_eq!(ws.canvas, DEFAULT_CANVAS);
+    assert!(ws.roots.is_empty() && ws.agent.is_none());
+    assert_eq!(ws.layout.version(), 0);
+    assert_eq!(
+        ws.to_toml(),
+        "version = 1\nname = \"scratch\"\ntag = \"scratch\"\ncanvas = \"main\"\n"
+    );
+}
+
+#[test]
+fn a_newer_version_is_still_read_and_kept() {
+    let ws = Workspace::parse("version = 7\nname = \"later\"\nnew_thing = 3\n").unwrap();
+    assert_eq!(ws.version(), 7);
+    assert!(ws.to_toml().starts_with("version = 7\n"));
+    assert!(ws.to_toml().contains("new_thing = 3"));
+}
+
+#[test]
+fn rejects_files_that_are_not_workspaces() {
+    for text in [
+        "name = \"no version\"",
+        "version = 0\nname = \"zero\"",
+        "version = 1",
+        "version = 1\nname = \"  \"",
+        "version = 1\nname = \"x\"\ncanvas = \"\"",
+        "not toml at all",
+        "version = 1\nname = \"x\"\n[[root]]\nmachine = \"m\"\npath = \"relative/dir\"",
+        "version = 1\nname = \"x\"\n[[root]]\nmachine = \"\"\npath = \"/a\"",
+        "version = 1\nname = \"x\"\n[[root]]\npath = \"/a\"",
+        "version = 1\nname = \"x\"\n[agent]\nname = \"\"",
+        "version = 1\nname = \"x\"\n[layout]\nsplit = \"no version\"",
+    ] {
+        let err = Workspace::parse(text).unwrap_err();
+        assert_eq!(err.code(), "invalid", "{text}");
+        assert!(err.hint().is_some(), "{text}");
+    }
+}
+
+#[test]
+fn rule_a_durable_agent_needs_a_primary_root() {
+    let mut ws = Workspace::new("home");
+    ws.agent = Some(Agent::new("keeper", true));
+    ws.roots.push(Root::new("my-laptop", "/Users/me/home"));
+    let err = check(std::slice::from_ref(&ws)).unwrap_err();
+    assert_eq!(err.code(), "invalid");
+    assert!(err.to_string().contains("durable agent"), "{err}");
+    assert!(Workspace::parse(&ws.to_toml()).is_err());
+
+    ws.roots[0].primary = true;
+    check(&[ws]).unwrap();
+}
+
+#[test]
+fn rule_a_workspace_has_at_most_one_primary_root() {
+    let mut ws = with_primary("two", "my-laptop", "/a");
+    ws.roots.push(Root::primary("my-laptop", "/b"));
+    let err = check(&[ws]).unwrap_err();
+    assert_eq!(err.code(), "invalid");
+    assert!(err.to_string().contains("2 primary roots"), "{err}");
+}
+
+#[test]
+fn a_workspace_without_an_agent_or_roots_keeps_the_rules() {
+    check(&[Workspace::new("loose"), Workspace::new("also loose")]).unwrap();
+    let mut ws = Workspace::new("plain");
+    ws.agent = Some(Agent::new("visitor", false));
+    check(&[ws]).unwrap();
+}
+
+#[test]
+fn rule_a_second_workspace_on_one_primary_root_is_a_conflict() {
+    let first = with_primary("first", "my-laptop", "/Users/me/project");
+    let second = with_primary("second", "my-laptop", "/Users/me/project/");
+    let err = check(&[first, second]).unwrap_err();
+    assert_eq!(err.code(), "conflict");
+    assert!(err.to_string().contains("\"first\""), "{err}");
+    assert!(err.hint().unwrap().contains("\"first\""));
+}
+
+#[test]
+fn one_directory_may_be_a_plain_root_of_many_workspaces() {
+    let first = with_primary("first", "my-laptop", "/shared");
+    let mut second = with_primary("second", "my-laptop", "/other");
+    second.roots.push(Root::new("my-laptop", "/shared"));
+    let mut third = Workspace::new("third");
+    third.roots.push(Root::new("my-laptop", "/shared"));
+    check(&[first, second, third]).unwrap();
+}
+
+#[test]
+fn the_same_path_on_another_machine_is_another_directory() {
+    let a = with_primary("a", "my-laptop", "/srv/x");
+    let b = with_primary("b", "server", "/srv/x");
+    check(&[a, b]).unwrap();
+    assert!(Root::new("m", "/").same_dir(&Root::new("m", "//")));
+    assert!(!Root::new("m", "/a").same_dir(&Root::new("n", "/a")));
+}

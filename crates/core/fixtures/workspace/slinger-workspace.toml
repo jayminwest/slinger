@@ -1,0 +1,27 @@
+# A workspace definition file, as a user keeps it in the primary root.
+# The format is in docs/workspace.md.
+version = 1
+name = "slinger"
+tag = "slinger"
+canvas = "main"
+# A field this version does not know. A reader keeps it.
+colour = "teal"
+
+[agent]
+name = "slinger-dev"
+durable = true
+
+[[root]]
+machine = "my-laptop"
+path = "/Users/me/Projects/slinger"
+primary = true
+
+[[root]]
+machine = "server"
+path = "/srv/slinger-data"
+mount = "ro"
+
+[layout]
+version = 1
+split = "columns"
+panes = ["canvas", "agent-ui"]

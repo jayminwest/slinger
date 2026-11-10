@@ -6,6 +6,7 @@
 
 mod error;
 pub mod record;
+pub mod workspace;
 
 pub use error::{Error, Result};
 
