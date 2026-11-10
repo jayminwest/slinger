@@ -18,6 +18,7 @@ use slinger_control as control;
 use crate::canvas::Canvas;
 use crate::output::{Ctx, Failure, Output, exit};
 use crate::ui::Ui;
+use crate::workspace::Workspace;
 
 /// The binary's name, as the user types it.
 pub const NAME: &str = "slinger";
@@ -87,6 +88,9 @@ enum Command {
     /// Make, read and change canvases: pages of strokes, text, boxes and arrows
     #[command(subcommand)]
     Canvas(Canvas),
+    /// Open, list, show and close workspaces: a name, directories, an agent and a canvas
+    #[command(subcommand)]
+    Workspace(Workspace),
 }
 
 #[derive(Subcommand)]
@@ -161,6 +165,7 @@ impl Command {
             Self::Blob(Blob::Get { .. }) => "blob get",
             Self::Ui(ui) => ui.name(),
             Self::Canvas(canvas) => canvas.name(),
+            Self::Workspace(workspace) => workspace.name(),
         }
     }
 }
@@ -237,6 +242,7 @@ fn execute(
         }
         Command::Ui(ui) => ui.execute(daemon, input),
         Command::Canvas(canvas) => crate::canvas::execute(canvas, daemon, input),
+        Command::Workspace(workspace) => crate::workspace::execute(workspace, daemon),
     }
 }
 

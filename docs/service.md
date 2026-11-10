@@ -42,11 +42,17 @@ writer; other programs reach the record through the socket.
   exit 1 and a hint.
 - The event log is append-only: the file refuses updates and deletes. The
   daemon gives each event its number and time and tags it with this
-  machine's name, the host name up to its first dot.
+  machine's name, the host name up to its first dot. An event the writer
+  gave no workspace tag gets the tag of the open workspace whose canvas is
+  its `canvas` tag, else of the one whose agent is its `agent` tag; none
+  when no open workspace, or more than one, matches.
 - Blobs are keyed by their id (`sha256:<hex>`). Storing the same bytes again
   stores nothing new.
 - The file's layout has a version. A daemon refuses a file laid out by a
   newer one (exit 4).
+
+The open workspaces are listed in `workspaces/open.json`, and a workspace
+with no root keeps its file in `workspaces/<id>/` (see "Workspaces" below).
 
 Canvases live beside the record, one file per canvas:
 `canvases/<id>.canvas`, in the format of `docs/design/canvas-file.md`. The
@@ -112,6 +118,10 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_apply` | `canvas`: canvas id, `by`: author (default `user`), `ops`: one operation or a list | `seq`: list of numbers, `made`: list of ids |
 | `canvas_undo`, `canvas_redo` | `canvas`: canvas id, `by`: author (default `user`) | `seq`, `made` (always empty) |
 | `canvas_import` | `path`: absolute path of a tldraw file, `canvas`: canvas id (optional, default made from the file's name) | `canvas`, `pages`: number, `items`: count by kind, `skipped`: count by tldraw shape type |
+| `workspace_open` | `dir`: absolute path of a directory (optional), `name`: string (optional); one of them | `workspace`: the workspace, `new`: whether this open made its file |
+| `workspace_list` | none | `workspaces`: list of workspaces, sorted by name |
+| `workspace_show` | `workspace`: a name, or the absolute directory of its file | `workspace` |
+| `workspace_close` | `workspace`: as `workspace_show` | `dir`: the directory of its file |
 
 **`record_append`** appends one event to this machine's record. `tags`
 may set `workspace`, `agent` and `canvas`; the daemon sets `machine`, the
@@ -256,6 +266,46 @@ is `conflict`.
 { "ok": true, "canvas": "idea", "pages": 5, "items": { "arrow": 57, "box": 80, "stroke": 7563, "text": 125 }, "skipped": { "group": 8, "line": 4 } }
 ```
 
+#### Workspaces
+
+A workspace is defined by its file, `slinger-workspace.toml`
+(`docs/workspace.md`). The daemon keeps the list of open workspaces, the
+directories that hold their files, in `workspaces/open.json` in its data
+directory, so they stay open across a restart. It reads each file on every
+request: an edit to one shows at once.
+
+**`workspace_open`** with `dir` opens that directory (links resolved). With no
+file there, it writes one: the name is `name` or else the directory's last
+part, the directory is the primary root on this machine, and the canvas is
+the name made into an id (`My Notes` gives `my-notes`). With no `dir`, it
+opens the workspace with no root named `name`, whose file lives in
+`workspaces/<id>/` in the data directory. Either way the daemon then makes
+the workspace's canvas if it is missing. Opening an open workspace returns it
+with `new: false`, and so does opening one whose file exists. A `name` that
+differs from the name in an existing file is `conflict`.
+
+Every open workspace keeps the rules of `docs/workspace.md` with the others:
+a second workspace on one primary root, a second workspace of one name, or a
+second workspace on one canvas is `conflict`, with a hint. A refused open
+writes nothing. A `dir` that is not there is `not_found`; one that is not an
+absolute directory, or a request with neither `dir` nor `name`, is `invalid`.
+
+A workspace is `{name, tag, canvas, dir, agent, roots}`: `dir` is the
+directory of its file, `agent` (absent when it has none) is `{name, durable}`
+and `roots` is a list of `{machine, path, primary}`.
+
+**`workspace_show`** and **`workspace_close`** take the workspace's name, or
+the absolute directory of its file. One that is not open is `not_found`.
+**`workspace_list`** fails with the error of a file it cannot read, and a hint
+to close that workspace by its directory, which works whatever the file holds.
+Closing removes the workspace from the list only: its file, its canvas and
+its agent stay.
+
+```json
+{ "v": 1, "op": "workspace_open", "dir": "/Users/me/notes" }
+{ "ok": true, "workspace": { "name": "notes", "tag": "notes", "canvas": "notes", "dir": "/Users/me/notes", "roots": [{ "machine": "my-laptop", "path": "/Users/me/notes", "primary": true }] }, "new": true }
+```
+
 #### How a blob's bytes travel
 
 The bytes travel as a file on this machine, named in the line. They never
@@ -294,7 +344,8 @@ The protocol adds:
 
 `not_found` also covers a blob the record does not hold, a file to put
 that is not there, a UI with no such name or version, and a canvas, page or
-item that is not there.
+item that is not there, and a directory or workspace that is not there or
+not open.
 
 ## Versioning
 
@@ -312,7 +363,11 @@ item that is not there.
 1. Add the capability to `crates/core` with tests.
 2. In `crates/control/src/lib.rs`, add a `Request` variant, a reply type and
    its `Reply` variant. Add a typed method to `Client` in
-   `crates/control/src/client.rs`.
+   `crates/control/src/client.rs`. Every variant `Request` serializes adds
+   code to the app, which links the client: a verb the app never sends can
+   be `#[serde(skip_serializing)]` there and written by a small type of its
+   own, as `crates/control/src/workspace.rs` does, with a test that the two
+   write the same line.
 3. Add one arm to `answer` in `crates/daemon/src/server.rs`. It calls the
    core and nothing else.
 4. Add tests to `crates/daemon/src/tests.rs`. They go through a real socket.

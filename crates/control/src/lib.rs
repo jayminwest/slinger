@@ -9,6 +9,7 @@
 mod client;
 mod imported;
 mod wire;
+mod workspace;
 
 use std::fmt;
 use std::path::PathBuf;
@@ -19,6 +20,10 @@ use serde_json::Value;
 pub use client::Client;
 pub use imported::CanvasImported;
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
+pub use workspace::{
+    Workspace, WorkspaceAgent, WorkspaceClosed, WorkspaceInfo, WorkspaceOpened, WorkspaceRoot,
+    Workspaces,
+};
 
 /// A request to the daemon. One variant per verb; `op` on the wire names it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -67,6 +72,26 @@ pub enum Request {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         canvas: Option<String>,
     },
+    // The workspace verbs are read here, but a client writes them with
+    // `workspace::Ask`: serializing them here would grow every binary that
+    // sends any request, the app's included (its size budget is nearly full).
+    /// Open a workspace: the directory `dir`, or one with no root named `name`.
+    #[serde(skip_serializing)]
+    WorkspaceOpen {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        dir: Option<PathBuf>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
+    },
+    /// The open workspaces.
+    #[serde(skip_serializing)]
+    WorkspaceList,
+    /// One open workspace, by name or by the directory of its file.
+    #[serde(skip_serializing)]
+    WorkspaceShow { workspace: String },
+    /// Close a workspace, by name or by the directory of its file.
+    #[serde(skip_serializing)]
+    WorkspaceClose { workspace: String },
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -89,6 +114,10 @@ pub enum Reply {
     CanvasUndo(CanvasChange),
     CanvasRedo(CanvasChange),
     CanvasImport(CanvasImported),
+    WorkspaceOpen(WorkspaceOpened),
+    WorkspaceList(Workspaces),
+    WorkspaceShow(WorkspaceInfo),
+    WorkspaceClose(WorkspaceClosed),
 }
 
 /// The reply to [`Request::Hello`].

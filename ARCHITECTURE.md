@@ -94,7 +94,9 @@ ui.rs        agent UIs (docs/design/live-items.md): the rules for a name and its
              put adds and what a reference (`name`, `name@3`, blob id) names.
              No IO; the daemon hands it the events.
 workspace.rs workspaces (SPEC section 10): the definition file's format
-             (docs/workspace.md) and the rules a set of them keeps. No IO;
+             (docs/workspace.md), the rules a set of them keeps (one primary
+             root, name and canvas each), what a new one gets (slug of its
+             name) and which workspace an event's canvas or agent tags. No IO;
              callers read and write the bytes.
 error.rs     the typed errors and their stable codes.
 ```
@@ -117,7 +119,8 @@ server.rs    the control socket and `answer`, one arm per verb. `serve` takes th
 store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
              the event log and the blobs. The only module that knows its
              layout. Stores each event as the line `record::encode` wrote.
-             Hands out the canvases, so `answer` reaches all data one way.
+             Hands out the canvases and the workspaces, so `answer` reaches
+             all data one way.
 canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,
              so changes are numbered in the order they apply; append, sync,
              then reply. A failed write closes the canvas; the next request
@@ -125,6 +128,10 @@ canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,
              file (empty or imported) is written aside and renamed in whole.
 server/import.rs  `canvas_import`: reads the client's file, calls the tldraw
              importer, stores the canvas, replies with the counts.
+workspaces.rs the open workspaces: the list of directories that hold their
+             files (`workspaces/open.json`), written whole; the files are read
+             on every request and checked by the core's rules. The store asks
+             it for the workspace tag of each event it appends.
 ```
 
 ### Inside the app
@@ -204,6 +211,7 @@ Each boundary has something that fails when it is broken:
 | Every UI version stays; the same bytes add none; an export is the bytes put | `crates/daemon/src/tests.rs`, through a real socket |
 | A canvas survives a restart; concurrent changes are numbered with no gap | `crates/daemon/src/tests/canvas.rs`, through a real socket |
 | An imported canvas reads back with the importer's pages, ids and arrow ends | `crates/core/tests/canvas_import.rs` and `crates/daemon/src/tests/import.rs`, on the real board |
+| Open workspaces survive a restart; each has its canvas; one primary root per workspace | `crates/daemon/src/tests/workspace.rs`, through a real socket |
 | SIGTERM ends the daemon cleanly | `crates/daemon/tests/signals.rs`, against the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |

@@ -12,6 +12,7 @@ mod server;
 mod store;
 #[cfg(test)]
 mod tests;
+mod workspaces;
 
 use std::ffi::OsString;
 use std::io::{self, Write};
@@ -27,6 +28,7 @@ use slinger_control as control;
 pub use canvases::{CanvasError, Canvases};
 pub use server::{Server, StartError, Stopper};
 pub use store::{Query, Store, StoreError, default_data_dir, machine_name};
+pub use workspaces::{Opened, WorkspaceError, Workspaces};
 
 const HELP_HINT: &str = "run 'slingerd --help'";
 /// Help for `--socket`: a string, because a doc comment may not hold `$XDG_RUNTIME_DIR` bare.

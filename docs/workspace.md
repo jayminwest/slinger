@@ -75,6 +75,27 @@ Over the set of workspaces the server knows:
 - One directory (the same machine and path) is the primary root of at most
   one workspace. A second one is a `conflict` that names the first. The same
   directory can be a plain root of any number of workspaces.
+- One name, and one default canvas, belong to at most one workspace. A
+  second one is a `conflict`, so `show` and `close` can name a workspace and
+  a canvas belongs to one workspace.
+
+## Making one
+
+Slinger writes a new file when it opens a directory that has none, or a
+workspace with no root (slinger-c5d7). The name is the one given, or else the
+directory's last part. The canvas is the name made into an id (`slug`):
+`a-z`, `0-9`, `-` and `_`, with every other run of characters one `-`, at most
+64 long, and `workspace` when nothing is left. So `My Notes` opens on
+`my-notes`, and two workspaces get two canvases. An opened directory is the
+primary root, on the machine that opened it. A workspace with no root keeps
+its file in `workspaces/<slug>/` in slingerd's data directory.
+
+## The tag on events
+
+An event whose writer set no workspace tag takes the tag of the workspace
+whose default canvas is the event's canvas, else of the one whose agent is
+the event's agent. When no open workspace matches, or more than one does,
+the event has no workspace tag.
 
 ## Compatibility (B5)
 
