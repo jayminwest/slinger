@@ -22,3 +22,4 @@ bullet with the area in bold.
   one SQLite file in its data directory. The directory defaults to
   `$XDG_DATA_HOME/slinger` (on macOS, `~/Library/Application Support/slinger`)
   and `--data-dir` sets it.
+- **Canvas:** geometry queries on a page: the item under a point, the items inside a lasso (even one that crosses itself), the strokes an eraser touches, the items a box touches, and the box around a selection. Fast enough for pen input on a page of 7500 strokes.
