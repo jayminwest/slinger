@@ -17,6 +17,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use serde_json::Value;
 use slinger_core::canvas::file::{Log, Shown, Written, check_id, parse_author};
 use slinger_core::canvas::{Canvas, Time};
+use slinger_core::packet::Packet;
 
 /// A canvas file's name ends in this.
 const EXTENSION: &str = "canvas";
@@ -155,6 +156,23 @@ impl Canvases {
     /// reading the file.
     pub fn show(&self, id: &str, page: Option<&str>) -> Result<(Shown, u64)> {
         self.with(id, |log| Ok((log.show(page)?, log.next())))
+    }
+
+    /// The packet of one page (see [`Log::packet`]): the lines after
+    /// `after` are new.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a canvas or page that is not there, `invalid` for a
+    /// selected id that is not one, and the errors of reading the file.
+    pub fn packet(
+        &self,
+        id: &str,
+        page: Option<&str>,
+        after: u64,
+        select: &[String],
+    ) -> Result<Packet> {
+        self.with(id, |log| Ok(log.packet(id, page, after, select)?))
     }
 
     /// Applies `ops` as `by` (`user` or `agent:<name>`) and returns what it

@@ -58,6 +58,10 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              History beside it. Canvas ids (check_id) never name a path.
              Log::import stores a whole canvas (an import) as a new file
              that replays to it, ids, makers and times included.
+             Log keeps every op it applied with its line's number, so
+             Log::packet builds a page's packet with the op range in the
+             file's line numbers and takes item ids as the file or a packet
+             writes them.
 packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
              canvas page, the clusters of the user's ink and what changed, and gives
              the `new`, `made` and `page` lines in reading order, plus the render list:
@@ -132,6 +136,11 @@ workspaces.rs the open workspaces: the list of directories that hold their
              files (`workspaces/open.json`), written whole; the files are read
              on every request and checked by the core's rules. The store asks
              it for the workspace tag of each event it appends.
+server/read.rs  `canvas_read`: the marker is the `to` of the packet the
+             canvas's last `sling_sent` names (0 before one), so it lives in
+             the record and survives a restart. Stores the text (no `at`)
+             and each image as blobs, then writes them into `--out` or the
+             store's `packets/<hex>/`.
 ```
 
 ### Inside the app
@@ -210,6 +219,7 @@ Each boundary has something that fails when it is broken:
 | A blob of megabytes comes back byte for byte; a put twice gives one id | `crates/daemon/src/tests.rs`, through a real socket |
 | Every UI version stays; the same bytes add none; an export is the bytes put | `crates/daemon/src/tests.rs`, through a real socket |
 | A canvas survives a restart; concurrent changes are numbered with no gap | `crates/daemon/src/tests/canvas.rs`, through a real socket |
+| `canvas read`: only ink after the marker is new; each packet and image is a blob; the stored text has no `at` | `crates/core/tests/canvas_packet.rs` and `crates/daemon/src/tests/read.rs`, through a real socket |
 | An imported canvas reads back with the importer's pages, ids and arrow ends | `crates/core/tests/canvas_import.rs` and `crates/daemon/src/tests/import.rs`, on the real board |
 | Open workspaces survive a restart; each has its canvas; one primary root per workspace | `crates/daemon/src/tests/workspace.rs`, through a real socket |
 | SIGTERM ends the daemon cleanly | `crates/daemon/tests/signals.rs`, against the real binary |

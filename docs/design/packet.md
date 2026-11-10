@@ -223,10 +223,19 @@ whole fixture board, all new, is about 63 000 by this estimate.
   block placed after the line that names it. `slinger_core::sling::message`
   (slinger-8834) builds the whole message: a `slinger-sling 1` line, the
   packet with its images, a `# reply` note and the prompt last.
-- **`slinger canvas read`.** The daemon writes the text and the images into
-  one directory and adds `at=<that directory>` to the header, so `img=` names
-  resolve as `<at>/<name>`. `--json` returns `{ "packet": <hash>, "dir":
-  <path>, "text": <the text> }`.
+- **`slinger canvas read`.** The daemon writes the text (`packet.txt`) and
+  the images into one directory and adds `at=<that directory>` to the
+  header, so `img=` names resolve as `<at>/<name>`. `--json` returns `{
+  "packet": <hash>, "dir": <path>, "text": <the text>, "images": [{name,
+  id}] }`. The directory is `--out`, or `packets/<hex>/` in the daemon's
+  data directory, named by the stored text's hash (slinger-a318): the same
+  packet lands in the same place, any reader of the record can find it,
+  and it is derived, so deleting it loses nothing. A system cache directory
+  was the other choice; it would be a second location to configure and
+  test, for files the data directory already scopes to one record.
+- **The marker.** The last sling's marker is not stored on its own: it is
+  the `to` of the packet that the canvas's latest `sling_sent` event names,
+  so it lives in the record. A read never moves it.
 - **`slinger canvas crop <canvas> <id>`** or **`--box x,y,w,h`**: one image
   (or tiles) at the same scale, by the same rules. A cluster id resolves
   through the record's latest packet for that canvas.

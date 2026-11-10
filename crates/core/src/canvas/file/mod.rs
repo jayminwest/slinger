@@ -34,6 +34,7 @@
 
 mod json;
 mod log;
+mod packet;
 mod replay;
 mod time;
 mod whole;

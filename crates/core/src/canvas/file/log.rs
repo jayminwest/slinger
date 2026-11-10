@@ -14,7 +14,7 @@ use serde_json::Value;
 
 use super::json::{self, Fields};
 use super::{File, Header, Line, read, snap};
-use crate::canvas::{Action, Applied, Author, Canvas, History, Op, Point, Shape, Time};
+use crate::canvas::{Action, Applied, Author, Canvas, History, Op, Page, Point, Shape, Time};
 use crate::{Error, Result};
 
 /// The longest canvas id, in bytes.
@@ -100,6 +100,10 @@ pub struct Log {
     canvas: Canvas,
     history: History,
     next: u64,
+    /// Every op the canvas applied, in order: the log a packet is built from.
+    ops: Vec<Op>,
+    /// The `n` of the line each op in `ops` came from.
+    lines: Vec<u64>,
 }
 
 impl Log {
@@ -112,7 +116,14 @@ impl Log {
         check_id(id)?;
         let header = Header::new(id);
         let next = header.first;
-        Ok((Self { canvas: Canvas::new(), history: History::new(), next }, header.encode()))
+        let log = Self {
+            canvas: Canvas::new(),
+            history: History::new(),
+            next,
+            ops: Vec::new(),
+            lines: Vec::new(),
+        };
+        Ok((log, header.encode()))
     }
 
     /// A new canvas file holding `canvas` whole (an import, say), and its
@@ -138,7 +149,12 @@ impl Log {
     /// The errors of [`read`] and [`File::canvas`].
     pub fn open(bytes: &[u8]) -> Result<(Self, usize)> {
         let file: File = read(bytes)?;
-        let log = Self { canvas: file.canvas()?, history: History::new(), next: file.next() };
+        let (mut ops, mut lines) = (Vec::new(), Vec::new());
+        let canvas = file.replay(|n, op| {
+            lines.push(n);
+            ops.push(op);
+        })?;
+        let log = Self { canvas, history: History::new(), next: file.next(), ops, lines };
         Ok((log, file.torn))
     }
 
@@ -207,17 +223,7 @@ impl Log {
     /// [`Error::NotFound`] when no page has that id or name.
     pub fn show(&self, page: Option<&str>) -> Result<Shown> {
         let canvas = &self.canvas;
-        let found = match page {
-            None => canvas.pages().next(),
-            Some(p) => json::parse_page(p)
-                .ok()
-                .and_then(|id| canvas.page(id))
-                .or_else(|| canvas.page_named(p)),
-        };
-        let page = found.ok_or_else(|| Error::NotFound {
-            what: format!("page {:?}", page.unwrap_or_default()),
-            hint: Some("pass a page id (p1) or name from 'slinger canvas show'".into()),
-        })?;
+        let page = self.page(page)?;
         let pages = canvas
             .pages()
             .map(|p| serde_json::json!({ "id": json::page_id(p.id()), "name": p.name() }))
@@ -227,6 +233,27 @@ impl Log {
             .filter_map(|item| serde_json::from_str(&json::whole_item(item)).ok())
             .collect();
         Ok(Shown { page: json::page_id(page.id()), pages, items })
+    }
+
+    /// Every op the canvas applied, in order, and the `n` of each op's line.
+    pub(super) fn applied(&self) -> (&[Op], &[u64]) {
+        (&self.ops, &self.lines)
+    }
+
+    /// The page with this id (`p<n>`) or name, or the first.
+    pub(super) fn page(&self, page: Option<&str>) -> Result<&Page> {
+        let canvas = &self.canvas;
+        let found = match page {
+            None => canvas.pages().next(),
+            Some(p) => json::parse_page(p)
+                .ok()
+                .and_then(|id| canvas.page(id))
+                .or_else(|| canvas.page_named(p)),
+        };
+        found.ok_or_else(|| Error::NotFound {
+            what: format!("page {:?}", page.unwrap_or_default()),
+            hint: Some("pass a page id (p1) or name from 'slinger canvas show'".into()),
+        })
     }
 
     fn write_all(&mut self, ops: &[Op]) -> Written {
@@ -239,6 +266,8 @@ impl Log {
 
     fn write(&mut self, op: &Op, applied: Applied, written: &mut Written) {
         if let Some(line) = Line::of(self.next, op, applied) {
+            self.ops.push(op.clone());
+            self.lines.push(self.next);
             written.bytes.push_str(&line.encode());
             written.seq.push(self.next);
             self.next += 1;
