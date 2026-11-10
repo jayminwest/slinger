@@ -25,7 +25,7 @@ fn parses_every_key() {
         muted: rgb(1, 2, 3),
         error: rgb(255, 0, 0),
     };
-    assert_eq!(config, Config { theme, socket: Some("~/s.sock".into()) });
+    assert_eq!(config, Config { theme, socket: Some("~/s.sock".into()), keys: Keymap::default() });
 }
 
 #[test]
@@ -103,6 +103,9 @@ fn every_error_names_its_line_and_has_a_hint() {
         ErrorKind::DuplicateKey,
         ErrorKind::NotAString,
         ErrorKind::BadColour,
+        ErrorKind::UnknownCommand,
+        ErrorKind::BadChord,
+        ErrorKind::ChordTaken,
     ];
     let shown: Vec<String> = kinds
         .into_iter()
@@ -118,6 +121,9 @@ fn every_error_names_its_line_and_has_a_hint() {
             "line 7: the key is set twice / set each key once; put machine values in the overlay",
             "line 7: the value is not a quoted string / quote the value: key = \"value\"",
             "line 7: the value is not a colour / write a colour as \"#rrggbb\"",
+            "line 7: unknown command / config.example.toml lists every table and key",
+            "line 7: the value is not a key chord / write a chord as \"cmd+shift+k\", or \"\" for none",
+            "line 7: another command is on this chord / bind each chord to one command",
         ]
     );
 }
@@ -139,6 +145,8 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
         muted: Some(Theme::default().muted),
         error: Some(Theme::default().error),
         socket: all.socket.clone(),
+        // The defaults, each written out.
+        keys: [Some(Chord::parse("cmd+q")), Some(Chord::parse("cmd+r"))],
     };
     assert_eq!(all, every_key);
     assert!(all.socket.is_some());
@@ -150,4 +158,62 @@ fn expands_a_leading_tilde_only() {
     assert_eq!(expand_home("~/s.sock", Some(home)), PathBuf::from("/home/me/s.sock"));
     assert_eq!(expand_home("/a/~/b", Some(home)), PathBuf::from("/a/~/b"));
     assert_eq!(expand_home("~/s.sock", None), PathBuf::from("~/s.sock"));
+}
+
+fn command(config: &Config, chord: &str) -> Option<Command> {
+    config.keys.command(Chord::parse(chord).unwrap())
+}
+
+#[test]
+fn keys_binds_commands_to_chords() {
+    let config =
+        parse("[keys]\nquit = \"ctrl+alt+q\"\nreload-config = \"f5\"\n").unwrap().resolve();
+    assert_eq!(command(&config, "ctrl+alt+q"), Some(Command::Quit));
+    assert_eq!(command(&config, "f5"), Some(Command::ReloadConfig));
+    assert_eq!(command(&config, "cmd+q"), None);
+    assert_eq!(command(&config, "cmd+r"), None);
+}
+
+#[test]
+fn an_unbound_command_is_allowed() {
+    let config = parse("[keys]\nquit = \"\"\n").unwrap().resolve();
+    assert_eq!(command(&config, "cmd+q"), None);
+    assert_eq!(command(&config, "cmd+r"), Some(Command::ReloadConfig));
+}
+
+#[test]
+fn an_unknown_command_is_an_error_at_its_line() {
+    assert_eq!(kind("[keys]\n\nquit-now = \"cmd+q\"\n"), (3, ErrorKind::UnknownCommand));
+}
+
+#[test]
+fn a_chord_that_does_not_parse_is_an_error_at_its_line() {
+    assert_eq!(kind("[keys]\nquit = \"cmd+\"\n"), (2, ErrorKind::BadChord));
+    assert_eq!(kind("[keys]\nquit = \"hyper+q\"\n"), (2, ErrorKind::BadChord));
+}
+
+#[test]
+fn two_commands_on_one_chord_in_one_file_is_an_error_at_the_second() {
+    let text = "[keys]\nquit = \"cmd+k\"\nreload-config = \"cmd+K\"\n";
+    assert_eq!(kind(text), (3, ErrorKind::ChordTaken));
+    let text = "[keys]\nquit = \"\"\nreload-config = \"\"\n";
+    assert!(parse(text).is_ok(), "two unbound commands share no chord");
+    assert_eq!(kind("[keys]\nquit = \"cmd+k\"\nquit = \"cmd+k\"\n"), (3, ErrorKind::DuplicateKey));
+}
+
+#[test]
+fn a_chord_bound_in_a_file_is_taken_from_the_default_command_on_it() {
+    let config = parse("[keys]\nreload-config = \"cmd+q\"\n").unwrap().resolve();
+    assert_eq!(command(&config, "cmd+q"), Some(Command::ReloadConfig));
+    assert_eq!(command(&config, "cmd+r"), None);
+}
+
+#[test]
+fn the_overlay_takes_a_chord_from_the_shared_file() {
+    let base = parse("[keys]\nquit = \"cmd+k\"\nreload-config = \"cmd+j\"\n").unwrap();
+    let overlay = parse("[keys]\nreload-config = \"cmd+k\"\n").unwrap();
+    let config = base.over(overlay).resolve();
+    assert_eq!(command(&config, "cmd+k"), Some(Command::ReloadConfig));
+    assert_eq!(command(&config, "cmd+j"), None);
+    assert_eq!(command(&config, "cmd+q"), None, "the shared file moved quit off its default");
 }

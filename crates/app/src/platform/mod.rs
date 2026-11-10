@@ -1,7 +1,7 @@
 //! The macOS layer. Every `unsafe` block and every objc2 or `AppKit` call in the
 //! project is in this directory (gate check:layers, rule `platform-owns-ffi`).
-//! It exposes safe functions and makes no decisions: it draws what a
-//! [`Scene`] says, and draws again each time a new one arrives.
+//! It exposes safe functions and makes no decisions: it turns a key press
+//! into a [`Chord`] and hands it on, and it draws what a [`Scene`] says.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
 //! that touches `AppKit` takes a `MainThreadMarker`, which only the main thread
@@ -12,17 +12,15 @@
 use std::cell::{Cell, RefCell};
 
 use objc2::rc::Retained;
-use objc2::runtime::ProtocolObject;
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate, NSBackingStoreType,
-    NSColor, NSLineBreakMode, NSMenu, NSMenuItem, NSTextAlignment, NSTextField, NSWindow,
+    NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSColor, NSEvent,
+    NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment, NSTextField, NSWindow,
     NSWindowStyleMask,
 };
-use objc2_foundation::{
-    NSArray, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize, NSString, NSTimer,
-};
+use objc2_foundation::{NSArray, NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
+use crate::commands::Chord;
 use crate::config::Rgb;
 use crate::layout::Rect;
 use crate::scene::Scene;
@@ -40,10 +38,28 @@ impl std::fmt::Display for NotMainThread {
     }
 }
 
-/// The running app's state: the window, and where new scenes come from.
+/// What the app hears.
+pub enum Event {
+    /// The timer: twice a second.
+    Tick,
+    /// A key press.
+    Key(Chord),
+}
+
+/// What to do about an [`Event`].
+pub enum Step {
+    /// Nothing: the key is not a command, so the window handles it as usual.
+    Pass,
+    /// Nothing more.
+    Stay,
+    Draw(Scene),
+    Quit,
+}
+
+/// The running app's state: the window, and what answers its events.
 struct State {
     window: Retained<NSWindow>,
-    next: RefCell<Box<dyn FnMut() -> Option<Scene>>>,
+    answer: RefCell<Box<dyn FnMut(Event) -> Step>>,
 }
 
 thread_local! {
@@ -52,110 +68,126 @@ thread_local! {
 }
 
 define_class!(
-    // SAFETY: `NSObject` has no subclassing requirements, and `Delegate` has
+    // SAFETY: `NSWindow` may be subclassed, and `KeyWindow` has no ivars and
     // no `Drop` impl.
-    #[unsafe(super(NSObject))]
+    #[unsafe(super(NSWindow, NSResponder, NSObject))]
     #[thread_kind = MainThreadOnly]
-    #[name = "AppDelegate"]
-    struct Delegate;
+    #[name = "SlingerWindow"]
+    struct KeyWindow;
 
-    impl Delegate {
-        /// The timer's action: draws the next scene, if there is one.
-        #[unsafe(method(redraw:))]
-        fn redraw(&self, _timer: &NSTimer) {
-            let Some(state) = STATE.get() else { return };
-            if let Some(scene) = (state.next.borrow_mut())() {
-                draw(&state.window, &scene, self.mtm());
-            }
+    impl KeyWindow {
+        /// The timer's action.
+        #[unsafe(method(tick:))]
+        fn tick(&self, _timer: &NSTimer) {
+            dispatch(Event::Tick, self.mtm());
         }
-    }
 
-    // SAFETY: the protocol's methods are optional; this class implements none of them.
-    unsafe impl NSObjectProtocol for Delegate {}
+        /// The app quits with its window.
+        #[unsafe(method(close))]
+        fn close_and_quit(&self) {
+            // SAFETY: `NSWindow`'s own `close`.
+            let () = unsafe { msg_send![super(self), close] };
+            NSApplication::sharedApplication(self.mtm()).terminate(None);
+        }
 
-    // SAFETY: the method matches the protocol's signature; the rest are optional.
-    unsafe impl NSApplicationDelegate for Delegate {
-        #[unsafe(method(applicationShouldTerminateAfterLastWindowClosed:))]
-        fn quits_with_its_window(&self, _app: &NSApplication) -> bool {
-            true
+        /// Every event for the window comes through here first. A key press
+        /// that is a command stops here; everything else goes on as usual.
+        #[unsafe(method(sendEvent:))]
+        fn send_event(&self, event: &NSEvent) {
+            if event.r#type() == NSEventType::KeyDown
+                && let Some(chord) = chord(event)
+                && dispatch(Event::Key(chord), self.mtm())
+            {
+                return;
+            }
+            // SAFETY: `NSWindow`'s own `sendEvent:`, with the event it was given.
+            let () = unsafe { msg_send![super(self), sendEvent: event] };
         }
     }
 );
 
+/// The chord of a key press: the device-independent modifier flags, whose
+/// shift, control, option and command bits (17 to 20) are the [`Chord`]
+/// bits in order, and the key's character with no modifier but shift.
+fn chord(event: &NSEvent) -> Option<Chord> {
+    let chars = event.charactersIgnoringModifiers()?;
+    if chars.length() == 0 {
+        return None;
+    }
+    let key = char::from_u32(chars.characterAtIndex(0).into())?;
+    #[expect(clippy::cast_possible_truncation, reason = "masked to four bits")]
+    let mods = ((event.modifierFlags().0 >> 17) & 0xf) as u8;
+    Some(Chord::new(mods, key))
+}
+
+/// Hands `event` to the app's answer and does what it says. Returns false
+/// when the answer is [`Step::Pass`].
+fn dispatch(event: Event, mtm: MainThreadMarker) -> bool {
+    let Some(state) = STATE.get() else { return false };
+    let step = (state.answer.borrow_mut())(event);
+    match step {
+        Step::Pass => return false,
+        Step::Stay => {}
+        Step::Draw(scene) => draw(&state.window, &scene, mtm),
+        // The window quits the app as it closes.
+        Step::Quit => state.window.close(),
+    }
+    true
+}
+
 /// Shows `scene` in a window and runs the app until it quits (the window
-/// closes, or Quit from the menu). Twice a second it calls `next` on the
-/// main thread and draws the scene it returns, if any; `next` must return
-/// quickly. Call it from `main`.
+/// closes, or a [`Step::Quit`]). Each key press and twice a second a tick go
+/// to `answer` on the main thread, which must return quickly. Call it from
+/// `main`.
 ///
 /// # Errors
 ///
 /// [`NotMainThread`] when called from any other thread.
 pub fn run(
     scene: &Scene,
-    next: impl FnMut() -> Option<Scene> + 'static,
+    answer: impl FnMut(Event) -> Step + 'static,
 ) -> Result<(), NotMainThread> {
     let mtm = MainThreadMarker::new().ok_or(NotMainThread)?;
     let app = NSApplication::sharedApplication(mtm);
     app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
-    // SAFETY: `init` on a fresh allocation of a class with no ivars.
-    let delegate: Retained<Delegate> = unsafe { msg_send![Delegate::alloc(mtm), init] };
-    app.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
-    app.setMainMenu(Some(&menu(mtm, &scene.title)));
     let window = window(mtm, scene);
     draw(&window, scene, mtm);
     window.makeKeyAndOrderFront(None);
-    // The app ends in `exit`, so the state lives as long as it does.
-    let state = Box::leak(Box::new(State { window, next: RefCell::new(Box::new(next)) }));
-    STATE.set(Some(state));
-    // SAFETY: the target implements `redraw:`, which takes the timer. The run
+    // SAFETY: the target implements `tick:`, which takes the timer. The run
     // loop keeps the repeating timer, and the timer keeps its target.
     let _timer = unsafe {
         NSTimer::scheduledTimerWithTimeInterval_target_selector_userInfo_repeats(
             POLL_SECONDS,
-            &delegate,
-            sel!(redraw:),
+            &window,
+            sel!(tick:),
             None,
             true,
         )
     };
+    let window = Retained::into_super(window);
+    // The app ends in `exit`, so the state lives as long as it does.
+    let state = Box::leak(Box::new(State { window, answer: RefCell::new(Box::new(answer)) }));
+    STATE.set(Some(state));
     app.activate();
     app.run();
     Ok(())
 }
 
-/// The menu bar: the app menu with Quit (⌘Q).
-fn menu(mtm: MainThreadMarker, title: &str) -> Retained<NSMenu> {
-    let quit = NSString::from_str(&format!("Quit {title}"));
-    let app_menu = NSMenu::new(mtm);
-    // SAFETY: `terminate:` is `NSApplication`'s action; a nil target sends it
-    // up the responder chain to the app.
-    unsafe {
-        app_menu.addItemWithTitle_action_keyEquivalent(
-            &quit,
-            Some(sel!(terminate:)),
-            &NSString::from_str("q"),
-        );
-    }
-    let app_item = NSMenuItem::new(mtm);
-    app_item.setSubmenu(Some(&app_menu));
-    let bar = NSMenu::new(mtm);
-    bar.addItem(&app_item);
-    bar
-}
-
-fn window(mtm: MainThreadMarker, scene: &Scene) -> Retained<NSWindow> {
+fn window(mtm: MainThreadMarker, scene: &Scene) -> Retained<KeyWindow> {
     let size = NSSize::new(scene.size.width, scene.size.height);
     let style =
         NSWindowStyleMask::Titled | NSWindowStyleMask::Closable | NSWindowStyleMask::Miniaturizable;
-    // SAFETY: a fresh allocation, initialized once with valid arguments.
-    let window = unsafe {
-        NSWindow::initWithContentRect_styleMask_backing_defer(
-            NSWindow::alloc(mtm),
-            NSRect::new(NSPoint::new(0.0, 0.0), size),
-            style,
-            NSBackingStoreType::Buffered,
-            false,
-        )
+    let frame = NSRect::new(NSPoint::new(0.0, 0.0), size);
+    // SAFETY: `NSWindow`'s designated initializer on a fresh allocation of a
+    // subclass with no ivars, called once with valid arguments.
+    let window: Retained<KeyWindow> = unsafe {
+        msg_send![
+            KeyWindow::alloc(mtm),
+            initWithContentRect: frame,
+            styleMask: style,
+            backing: NSBackingStoreType::Buffered,
+            defer: false,
+        ]
     };
     // SAFETY: `Retained` owns the window, so `AppKit` must not also release it on close.
     unsafe { window.setReleasedWhenClosed(false) };

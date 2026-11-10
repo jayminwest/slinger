@@ -39,6 +39,14 @@ bullet with the area in bold.
   the running app within a second; a file with an error keeps the last good
   config and the window shows the file, the line and what to fix.
   `config.example.toml` lists every key.
+- **App:** every action is a key command, bound to a key chord in the
+  config's `[keys]` table (`quit = "cmd+q"`). `quit` (⌘Q) and
+  `reload-config` (⌘R, read the config files now) are the first commands;
+  `""` leaves a command without a key. An unknown command, a chord that does
+  not parse, or two commands on one chord is a config error with its line. A
+  tablet button works by sending a key chord from the tablet's own software.
+  The app no longer has a menu bar: quit with the `quit` key or by closing
+  the window.
 
 - **Record:** events (sling sent, reply landed, file touched, pane moved,
   agent blocked, agent done) and blob ids have a versioned JSON format. A
