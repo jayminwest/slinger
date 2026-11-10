@@ -80,6 +80,7 @@ Each boundary has something that fails when it is broken:
 | The app reaches the core only through the socket | `check:layers` rule `app-uses-the-socket` |
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
+| The workspace file format and rules (docs/workspace.md) | the tests of `crates/core/src/workspace.rs` and its stored fixture |
 | One daemon per socket; a stop loses no reply | `crates/daemon/src/tests.rs`, through a real socket |
 | SIGTERM ends the daemon cleanly | `crates/daemon/tests/signals.rs`, against the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |

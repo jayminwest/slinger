@@ -145,7 +145,7 @@ Rules:
 - O3. What exactly the thinking record shows. Decide after the log has real events in it.
 - O4. The key commands themselves. Decide when there is a canvas to use them on.
 - O5. Closed 2026-11-10: an append-only operation log per canvas. See `docs/design/canvas-file.md`.
-- O6. The workspace definition file: its name and fields.
+- O6. The workspace definition file: its name and fields. Decided 2026-11-10: `slinger-workspace.toml` in the primary root, versioned TOML that keeps unknown fields. The fields and rules are in `docs/workspace.md`.
 - O7. The scaffold has no GUI layer and no service layer yet. The brief for that work is `BRIEF-gui-service-layers.md` in the scaffold-project repository. It must be done before Slinger is scaffolded. The spikes do not wait for it.
 - O8. A UI's code is in one machine's record (D19). A canvas opened on a second machine needs that blob. This waits for the copy to the always-on machine (D15).
 
