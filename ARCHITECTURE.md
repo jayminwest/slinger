@@ -58,6 +58,9 @@ packet/      what an agent reads from a page (docs/design/packet.md). Index::new
              the `new`, `made` and `page` lines in reading order, plus the render list:
              the new clusters that need images. Agent-made items are lines, never in
              the render list (R2). Owns the line grammar, ids and reading order.
+             cluster(canvas, strokes) groups strokes into notes by distance, colour
+             and time, sized by each pen's median stroke; a long stroke (frame, arrow,
+             divider) and an agent's stroke stay alone. Same strokes, same clusters.
 tldraw/      the tldraw importer (SPEC D7): import(bytes, time) -> canvas and a
              report of what it made and skipped. Reads the zip + SQLite file
              and the older JSON one itself (no IO, no new dependencies); every
@@ -149,6 +152,7 @@ Each boundary has something that fails when it is broken:
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
 | The packet's image rules: scale, margin, tiles, same bytes for the same input | `crates/core/tests/render.rs`, with golden images |
+| Clustering: colours never mix, long strokes join nothing, each fixture page's count | `crates/core/tests/packet_cluster.rs`, on the real board |
 | The workspace file format and rules (docs/workspace.md) | the tests of `crates/core/src/workspace.rs` and its stored fixture |
 | The record on disk is append-only and keeps fields it does not know | `crates/daemon/src/store/tests.rs`, against a real file |
 | One daemon per socket; a stop loses no reply | `crates/daemon/src/tests.rs`, through a real socket |
