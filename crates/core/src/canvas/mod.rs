@@ -12,6 +12,7 @@
 //!   never changed by an agent (SPEC section 7).
 //! - A canvas always has at least one page, and page names are unique.
 
+mod delta;
 mod geometry;
 mod history;
 mod item;
@@ -19,6 +20,7 @@ mod restore;
 
 use std::collections::BTreeMap;
 
+pub use delta::{Changes, Marker, changes_since};
 pub use history::History;
 pub use item::{Author, Colour, End, Item, ItemId, Page, PageId, Point, Rect, Shape, Time};
 
