@@ -34,6 +34,7 @@ a "did you mean" suggestion.
 | `canvas show <ID> [--page PAGE]` | One line per item on the page, in drawing order: id, kind, maker and the item as JSON, separated by tabs. `--json`: `canvas`, `next`, `page`, `pages`, `items` |
 | `canvas apply <ID> <OPS\|-> [--agent NAME]` | The ids the operations made, one per line. `--json`: `seq`, `made` |
 | `canvas undo <ID> [--agent NAME]`, `canvas redo <ID> [--agent NAME]` | Nothing. `--json`: `seq`, `made` |
+| `canvas read <ID> [--page PAGE] [--after NUMBER] [--select IDS] [--out DIR]` | The packet's text (`docs/design/packet.md`), its header naming the directory that holds the images (`at=`). `--json`: `packet`, `dir`, `text`, `images` |
 | `canvas import <FILE> [--name ID]` | The new canvas's id, then one count per line, tab separated: `pages`, each item kind, and `skipped` with each tldraw shape type. `--json`: `canvas`, `pages`, `items`, `skipped` |
 | `workspace open [DIR] [--name NAME]` | The workspace's name. `--json`: `workspace`, `new` |
 | `workspace list` | One line per open workspace, by name: name, canvas and directory, separated by tabs. `--json`: `workspaces` |
@@ -84,6 +85,16 @@ a `/`). A directory that is not there or a workspace that is not open exits
 4 (`conflict`); `workspace open` with neither exits 5 (`invalid`). Closing
 keeps the file, the canvas and the agent. The rules are in
 `docs/workspace.md`; what the daemon does is in `docs/service.md`.
+
+`canvas read` prints what an agent reads instead of a screenshot: images
+of the ink drawn after operation `--after` (default: the canvas's last
+sling), an index of what is new, and an outline of the rest of the page.
+The images are in the directory the header's `at=` names: `--out`, or
+slingerd's own. `--select c42,t12` keeps only those items in the outline.
+A read changes nothing. The packet is stored as a blob (`packet` in
+`--json`), and so is each image (`images`), for `blob get`. A canvas or
+page that is not there exits 3 (`not_found`), an id that is not one exits
+5 (`invalid`).
 
 ## Output
 

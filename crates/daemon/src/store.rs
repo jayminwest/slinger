@@ -11,7 +11,8 @@
 //!
 //! The data directory also holds the canvas files, in `canvases/`; the store
 //! hands them out ([`Store::canvases`]) so every verb reaches its data the
-//! same way.
+//! same way. And it holds `packets/`, where `canvas read` writes each packet
+//! for agents to read ([`Store::packet_dir`]): derived files, safe to delete.
 
 #[cfg(test)]
 mod tests;
@@ -36,6 +37,8 @@ const FILE: &str = "record.sqlite";
 const CANVASES: &str = "canvases";
 /// The directory of the open workspaces' list inside the data directory.
 const WORKSPACES: &str = "workspaces";
+/// The directory of written packets inside the data directory.
+const PACKETS: &str = "packets";
 /// The layout this code writes, kept in SQLite's `user_version`.
 const SCHEMA_VERSION: i64 = 1;
 const SCHEMA: &str = "
@@ -141,6 +144,7 @@ pub struct Store {
     machine: String,
     canvases: Canvases,
     workspaces: Workspaces,
+    packets: PathBuf,
 }
 
 impl Store {
@@ -176,7 +180,8 @@ impl Store {
         let machine = machine.into();
         let canvases = Canvases::new(dir.join(CANVASES));
         let workspaces = Workspaces::new(dir.join(WORKSPACES), machine.clone());
-        Ok(Self { db: Mutex::new(db), machine, canvases, workspaces })
+        let packets = dir.join(PACKETS);
+        Ok(Self { db: Mutex::new(db), machine, canvases, workspaces, packets })
     }
 
     /// Appends `event` to the log and returns it as stored: with the next
@@ -295,6 +300,15 @@ impl Store {
     #[must_use]
     pub fn workspaces(&self) -> &Workspaces {
         &self.workspaces
+    }
+
+    /// Where `canvas read` writes the packet whose text is the blob `id`:
+    /// `packets/<hex>/`. One packet, one directory, so writing it again
+    /// writes the same files.
+    #[must_use]
+    pub fn packet_dir(&self, id: BlobId) -> PathBuf {
+        let id = id.to_string();
+        self.packets.join(id.strip_prefix("sha256:").unwrap_or(&id))
     }
 
     fn db(&self) -> std::sync::MutexGuard<'_, Connection> {

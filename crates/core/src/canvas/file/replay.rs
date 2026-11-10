@@ -24,47 +24,58 @@ impl File {
     /// [`Error::CanvasCorrupt`] when a line names an id at or below one the
     /// canvas already handed out: the file was changed outside slinger.
     pub fn canvas(&self) -> Result<Canvas> {
+        self.replay(|_, _| {})
+    }
+
+    /// As [`File::canvas`], and gives `kept` each op the canvas applied, in
+    /// order, with the `n` of its line. Applying those ops to a new canvas
+    /// builds the same canvas when the file's ids have no gaps, as every file
+    /// slinger writes.
+    pub(super) fn replay(&self, mut kept: impl FnMut(u64, Op)) -> Result<Canvas> {
         let mut canvas = Canvas::new();
         for (i, line) in self.lines.iter().enumerate() {
             let at_line = i + 2;
-            let Line::Op { by, at, change, .. } = line else {
+            let Line::Op { n, by, at, change } = line else {
                 if let Line::Unknown { text, .. } = line {
                     reserve_unknown(&mut canvas, text);
                 }
                 continue;
             };
-            let op = |action| Op { by: by.clone(), at: *at, action };
+            let mut apply = |canvas: &mut Canvas, action| {
+                let op = Op { by: by.clone(), at: *at, action };
+                if canvas.apply(op.clone()).is_ok() {
+                    kept(*n, op);
+                }
+            };
             match change {
                 Change::Add { item, page, shape } => {
                     claim(&mut canvas.next_item, item.get(), at_line)?;
-                    let action = Action::Add { page: *page, shape: shape.clone() };
-                    canvas.apply(op(action)).ok();
+                    apply(&mut canvas, Action::Add { page: *page, shape: shape.clone() });
                     canvas.next_item = item.get().saturating_add(1);
                 }
                 Change::PageAdd { page, name } => {
                     claim(&mut canvas.next_page, page.get(), at_line)?;
-                    canvas.apply(op(Action::PageAdd { name: name.clone() })).ok();
+                    apply(&mut canvas, Action::PageAdd { name: name.clone() });
                     canvas.next_page = page.get().saturating_add(1);
                 }
                 Change::PageRename { page, name } => {
-                    let action = Action::PageRename { page: *page, name: name.clone() };
-                    canvas.apply(op(action)).ok();
+                    apply(&mut canvas, Action::PageRename { page: *page, name: name.clone() });
                 }
                 Change::PageRemove { page } => {
-                    canvas.apply(op(Action::PageRemove { page: *page })).ok();
+                    apply(&mut canvas, Action::PageRemove { page: *page });
                 }
                 Change::Remove { items } => {
                     for item in items {
-                        canvas.apply(op(Action::Remove { item: *item })).ok();
+                        apply(&mut canvas, Action::Remove { item: *item });
                     }
                 }
                 Change::Move { items, by: offset } => {
                     for item in items {
-                        canvas.apply(op(Action::Move { item: *item, by: *offset })).ok();
+                        apply(&mut canvas, Action::Move { item: *item, by: *offset });
                     }
                 }
                 Change::Restore { item } => {
-                    canvas.apply(op(Action::Restore { item: item.clone() })).ok();
+                    apply(&mut canvas, Action::Restore { item: item.clone() });
                 }
                 Change::PageRestore { page, index, items } => {
                     let action = Action::PageRestore {
@@ -72,14 +83,14 @@ impl File {
                         index: *index,
                         items: items.clone(),
                     };
-                    canvas.apply(op(action)).ok();
+                    apply(&mut canvas, action);
                 }
                 Change::Set { item, fields } => {
                     let Some(current) = canvas.item(*item) else { continue };
                     let mut merged = json::fields(current.shape());
                     merged.extend(fields.iter().map(|(k, v)| (k.clone(), v.clone())));
                     if let Ok(Some(shape)) = json::read_shape(&merged) {
-                        canvas.apply(op(Action::Edit { item: *item, shape })).ok();
+                        apply(&mut canvas, Action::Edit { item: *item, shape });
                     }
                 }
             }

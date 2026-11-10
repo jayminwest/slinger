@@ -48,6 +48,9 @@ writer; other programs reach the record through the socket.
   when no open workspace, or more than one, matches.
 - Blobs are keyed by their id (`sha256:<hex>`). Storing the same bytes again
   stores nothing new.
+- `packets/<hex>/` holds each packet `canvas_read` wrote, named by the hex
+  of its text's blob id: `packet.txt` and its images. It is derived from
+  the record and safe to delete; the next read writes it again.
 - The file's layout has a version. A daemon refuses a file laid out by a
   newer one (exit 4).
 
@@ -122,6 +125,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `workspace_list` | none | `workspaces`: list of workspaces, sorted by name |
 | `workspace_show` | `workspace`: a name, or the absolute directory of its file | `workspace` |
 | `workspace_close` | `workspace`: as `workspace_show` | `dir`: the directory of its file |
+| `canvas_read` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `after`: number (optional, default the last sling's), `select`: list of item ids (optional), `out`: absolute path of a directory (optional) | `packet`: blob id of the text, `dir`: the directory written, `text`: the packet with `at`, `images`: list of `{name, id}` |
 
 **`record_append`** appends one event to this machine's record. `tags`
 may set `workspace`, `agent` and `canvas`; the daemon sets `machine`, the
@@ -304,6 +308,25 @@ its agent stay.
 ```json
 { "v": 1, "op": "workspace_open", "dir": "/Users/me/notes" }
 { "ok": true, "workspace": { "name": "notes", "tag": "notes", "canvas": "notes", "dir": "/Users/me/notes", "roots": [{ "machine": "my-laptop", "path": "/Users/me/notes", "primary": true }] }, "new": true }
+**`canvas_read`** builds the packet of one page (`docs/design/packet.md`):
+the user's ink drawn after operation `after` as images, an index of what
+is new and an outline of the rest. Without `after`, the marker is the
+canvas's last sling: the `to` of the packet that the latest `sling_sent`
+event tagged with the canvas names, and 0 (everything is new) before the
+first. A read never moves it; a sling does. `after` at or past the last
+operation is a valid packet with nothing new. `select` takes ids as the
+file (`i12`) or a packet (`c12`, `t12`) writes them, and keeps only those
+items in the `page` section. The text, without `at`, is stored as a blob,
+so the same page gives the same id; each image is a blob too. The daemon
+writes `packet.txt` and the images into `out` (made if missing), or into
+`packets/<hex>/` in its data directory, and `text` carries
+`at=<that directory>`. A canvas or page that is not there is `not_found`;
+a selected id that is not one, a directory it cannot write, or a last
+sling whose packet it cannot read is `invalid`, with a hint.
+
+```json
+{ "v": 1, "op": "canvas_read", "canvas": "idea", "after": 41 }
+{ "ok": true, "packet": "sha256:5e1f…", "dir": "/data/slinger/packets/5e1f…", "text": "slinger-packet 1 canvas=idea page=Page%201 from=42 to=58 scale=0.35 at=/data/slinger/packets/5e1f…\n# new\n…", "images": [{ "name": "c42.png", "id": "sha256:9a0c…" }] }
 ```
 
 #### How a blob's bytes travel
@@ -367,7 +390,8 @@ not open.
    code to the app, which links the client: a verb the app never sends can
    be `#[serde(skip_serializing)]` there and written by a small type of its
    own, as `crates/control/src/workspace.rs` does, with a test that the two
-   write the same line.
+   write the same line. `canvas_read` does the same in
+   `crates/control/src/packet.rs`.
 3. Add one arm to `answer` in `crates/daemon/src/server.rs`. It calls the
    core and nothing else.
 4. Add tests to `crates/daemon/src/tests.rs`. They go through a real socket.

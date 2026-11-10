@@ -2,6 +2,7 @@
 //! stop that lets every accepted request finish.
 
 mod import;
+mod read;
 
 use std::fs::{self, File, Permissions, TryLockError};
 use std::io::{self, BufReader};
@@ -225,6 +226,7 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
             Ok(Reply::CanvasRedo(change(lines)))
         }
         Request::CanvasImport { path, canvas } => import::canvas(store, &path, canvas),
+        Request::CanvasRead(ask) => read::packet(store, ask),
         Request::WorkspaceOpen { dir, name } => {
             let workspaces = store.workspaces();
             let (opened, new) = workspaces

@@ -12,6 +12,7 @@ use crate::cli::{NAME, run};
 use crate::output::{Ctx, color_enabled, exit};
 
 mod canvas;
+mod read;
 mod workspace;
 
 struct Run {

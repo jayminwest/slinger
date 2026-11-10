@@ -25,6 +25,12 @@ bullet with the area in bold.
   close them; closing keeps the file and the canvas. Open workspaces survive a
   restart, and an event on a workspace's canvas or from its agent is tagged
   with the workspace.
+- **CLI:** `slinger canvas read <id>` prints a page's packet: what an agent
+  reads instead of a screenshot. New ink since the last sling is images, the
+  rest of the page an outline. `--after <n>` reads from another point,
+  `--page` picks the page, `--select c42,t12` narrows the outline and
+  `--out <dir>` says where the images go. Every packet and image is stored
+  in the record, so `blob get` fetches them later.
 - **CLI:** agent UIs are stored in the record, named and versioned.
   `slinger ui put <name> <file|->` stores an HTML file as the UI's next
   version and prints `<name>@<version>`; the same bytes again add no version.

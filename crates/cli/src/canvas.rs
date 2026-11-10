@@ -63,6 +63,22 @@ pub enum Canvas {
         #[arg(long)]
         name: Option<String>,
     },
+    /// Print a page's packet: what an agent reads instead of a screenshot
+    Read {
+        canvas: String,
+        /// The page, by id (p1) or name [default: the first page]
+        #[arg(long)]
+        page: Option<String>,
+        /// Operations numbered above this are new [default: the canvas's last sling]
+        #[arg(long, value_name = "NUMBER")]
+        after: Option<u64>,
+        /// Keep only these items in the page outline: ids such as c42,t12
+        #[arg(long, value_name = "IDS", value_delimiter = ',')]
+        select: Vec<String>,
+        /// Write the packet and its images into this directory [default: the daemon's]
+        #[arg(long, value_name = "DIR")]
+        out: Option<PathBuf>,
+    },
 }
 
 impl Canvas {
@@ -75,6 +91,7 @@ impl Canvas {
             Self::Undo { .. } => "canvas undo",
             Self::Redo { .. } => "canvas redo",
             Self::Import { .. } => "canvas import",
+            Self::Read { .. } => "canvas read",
         }
     }
 }
@@ -126,6 +143,18 @@ pub fn execute(
         Canvas::Import { file, name } => {
             let imported = daemon.canvas_import(file, name.as_deref())?;
             Ok(Output::new(serde_json::to_value(&imported)?, imported_lines(&imported)))
+        }
+        Canvas::Read { canvas, page, after, select, out } => {
+            let ask = control::PacketAsk {
+                canvas: canvas.clone(),
+                page: page.clone(),
+                after: *after,
+                select: select.clone(),
+                out: out.clone(),
+            };
+            let packet = daemon.canvas_read(ask)?;
+            let text = packet.text.trim_end().to_string();
+            Ok(Output::new(serde_json::to_value(&packet)?, text))
         }
     }
 }

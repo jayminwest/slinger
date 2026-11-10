@@ -8,6 +8,7 @@
 
 mod client;
 mod imported;
+mod packet;
 mod wire;
 mod workspace;
 
@@ -19,6 +20,7 @@ use serde_json::Value;
 
 pub use client::Client;
 pub use imported::CanvasImported;
+pub use packet::{CanvasPacket, PacketAsk, PacketImage};
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
 pub use workspace::{
     Workspace, WorkspaceAgent, WorkspaceClosed, WorkspaceInfo, WorkspaceOpened, WorkspaceRoot,
@@ -92,6 +94,11 @@ pub enum Request {
     /// Close a workspace, by name or by the directory of its file.
     #[serde(skip_serializing)]
     WorkspaceClose { workspace: String },
+    /// The packet of a canvas page (docs/design/packet.md), stored as a blob
+    /// and written into a directory. A client writes it with
+    /// `packet::Read`, so the app, which never sends it, carries no code for it.
+    #[serde(skip_serializing)]
+    CanvasRead(PacketAsk),
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -118,6 +125,7 @@ pub enum Reply {
     WorkspaceList(Workspaces),
     WorkspaceShow(WorkspaceInfo),
     WorkspaceClose(WorkspaceClosed),
+    CanvasRead(CanvasPacket),
 }
 
 /// The reply to [`Request::Hello`].
