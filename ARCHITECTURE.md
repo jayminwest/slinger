@@ -42,6 +42,11 @@ canvas/      pages of items, changed only by operations. Build (Canvas::new),
 canvas/geometry.rs  pure queries on a page: item at a point, items in a
              lasso (nonzero winding), strokes an eraser touches, items touching a
              box, bounds of a set. No errors: degenerate input finds nothing.
+packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
+             canvas page, the clusters of the user's ink and what changed, and gives
+             the `new`, `made` and `page` lines in reading order, plus the render list:
+             the new clusters that need images. Agent-made items are lines, never in
+             the render list (R2). Owns the line grammar, ids and reading order.
 record/      the record's formats (SPEC section 9): events as versioned JSON
              (encode, decode) and blob ids (SHA-256, `sha256:<hex>`). No IO;
              the daemon stores what it encodes.
@@ -103,6 +108,7 @@ Each boundary has something that fails when it is broken:
 | The app reaches the core only through the socket | `check:layers` rule `app-uses-the-socket` |
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
+| The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
 | The workspace file format and rules (docs/workspace.md) | the tests of `crates/core/src/workspace.rs` and its stored fixture |
 | The record on disk is append-only and keeps fields it does not know | `crates/daemon/src/store/tests.rs`, against a real file |
 | One daemon per socket; a stop loses no reply | `crates/daemon/src/tests.rs`, through a real socket |

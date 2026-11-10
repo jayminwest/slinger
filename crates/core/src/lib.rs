@@ -6,6 +6,7 @@
 
 pub mod canvas;
 mod error;
+pub mod packet;
 pub mod record;
 pub mod workspace;
 

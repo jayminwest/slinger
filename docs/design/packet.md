@@ -83,12 +83,12 @@ slinger-packet 1 canvas=idea page=fable-5.2 from=41 to=58 scale=0.35
 c42 ink 120,80 520x140 colour=black strokes=23 img=c42.png
 c51 ink 120,260 300x90 colour=red strokes=9 to=t12 img=c51.png
 # made
-t12 text 480,240 360x120 by=claude "Packet: images of new ink plus a text index."
 a13 arrow 420,280 60x20 by=claude from=c51 to=t12
+t12 text 480,240 360x120 by=claude "Packet: images of new ink plus a text index."
 # page
 c3 ink 40,1200 900x400 colour=black strokes=210
-c17 ink 1000,1240 560x220 colour=blue strokes=64 in=b9
 b9 box 980,1200 620x300 by=claude
+c17 ink 1000,1240 560x220 colour=blue strokes=64 in=b9
 t8 text 40,1700 700x60 by=claude "Spike B: 44% of the screenshot cost."
 ```
 
@@ -142,25 +142,31 @@ render scale, `0.35`), then `at` (see Delivery). `version` is `1`.
 | `page` | every other item on the page, in reading order |
 
 Reading order: by row, then left to right. Two lines are in the same row when
-their boxes overlap vertically by at least half the shorter height.
+their boxes overlap vertically by at least half the shorter height. Rows are
+formed from the top: the topmost line not yet placed starts a row, and every
+line that overlaps it that much joins the row.
 
 **Kinds**: `ink` (a cluster of strokes), `text`, `box`, `arrow`. Ink in the
-`page` section is clustered the same way as new ink, and has no image.
+`page` section is clustered the same way as new ink, and has no image. A
+stroke an agent drew is never clustered and never an image (R2): it is an
+`ink` line of one stroke, with `by`.
 
-**Ids**: canvas items keep their canvas id (`t12`, `b9`, `a13`). A cluster's
-id is `c` plus the op number of its earliest stroke, so it stays the same
-across packets while its strokes do.
+**Ids**: canvas items keep their canvas item number behind a letter for their
+kind (`t12`, `b9`, `a13`). A cluster's id is `c` plus the item number of its
+earliest stroke, so it stays the same across packets while that stroke does,
+and no two lines in a packet share a number. An arrow end bound to a stroke
+names the stroke's cluster.
 
 **Fields** (order as listed; each only when it applies):
 
 | Field | On | Meaning |
 |---|---|---|
-| `colour` | ink | the cluster's stroke colour (clusters never mix colours) |
+| `colour` | ink | the cluster's stroke colour (clusters never mix colours): `black`, `white`, `red`, `green`, `blue`, `yellow`, `orange`, `purple` or `grey` for those exact CSS colours, else `#rrggbb`, or `#rrggbbaa` when not opaque |
 | `strokes` | ink | number of strokes |
 | `by` | made items | the agent's name |
 | `from`, `to` | arrow | ids at the arrow's ends, when bound |
-| `to` | ink | the id an arrow drawn in this cluster points at |
-| `in` | any | the id of the box that contains this item's box |
+| `to` | ink | the id an arrow drawn in this cluster points at: the first arrow whose start is bound to one of its strokes |
+| `in` | any | the id of the smallest other box that contains this item's box |
 | `img` | ink in `new` | image file names, comma-separated, tiles in reading order |
 
 The quoted text is last, only on `text` lines: the full text in `new` and
