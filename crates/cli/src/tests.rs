@@ -11,6 +11,8 @@ use slingerd as daemon;
 use crate::cli::{NAME, run};
 use crate::output::{Ctx, color_enabled, exit};
 
+mod canvas;
+
 struct Run {
     code: u8,
     out: String,

@@ -53,6 +53,9 @@ canvas/geometry.rs  pure queries on a page: item at a point, items in a
 canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-only
              JSON Lines log of operations. Header and line encode, read (cuts a
              torn last line), replay into a canvas, snap to the stored tenths. No IO.
+             Log holds a file open for the daemon: requests (ops as JSON, the
+             author, the time) in, numbered lines to append out, with the
+             History beside it. Canvas ids (check_id) never name a path.
 packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
              canvas page, the clusters of the user's ink and what changed, and gives
              the `new`, `made` and `page` lines in reading order, plus the render list:
@@ -102,6 +105,11 @@ server.rs    the control socket and `answer`, one arm per verb. `serve` takes th
 store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
              the event log and the blobs. The only module that knows its
              layout. Stores each event as the line `record::encode` wrote.
+             Hands out the canvases, so `answer` reaches all data one way.
+canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,
+             so changes are numbered in the order they apply; append, sync,
+             then reply. A failed write closes the canvas; the next request
+             reads the file again. Cuts a torn last line.
 ```
 
 ### Inside the app
@@ -164,6 +172,7 @@ Each boundary has something that fails when it is broken:
 | One daemon per socket; a stop loses no reply | `crates/daemon/src/tests.rs`, through a real socket |
 | A blob of megabytes comes back byte for byte; a put twice gives one id | `crates/daemon/src/tests.rs`, through a real socket |
 | Every UI version stays; the same bytes add none; an export is the bytes put | `crates/daemon/src/tests.rs`, through a real socket |
+| A canvas survives a restart; concurrent changes are numbered with no gap | `crates/daemon/src/tests/canvas.rs`, through a real socket |
 | SIGTERM ends the daemon cleanly | `crates/daemon/tests/signals.rs`, against the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |

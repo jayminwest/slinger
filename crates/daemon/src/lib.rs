@@ -7,6 +7,7 @@
 //! socket alone, for tests and for other hosts of the same protocol.
 //! [`Store`] is this machine's record on disk.
 
+mod canvases;
 mod server;
 mod store;
 #[cfg(test)]
@@ -23,6 +24,7 @@ use signal_hook::iterator::Signals;
 
 use slinger_control as control;
 
+pub use canvases::{CanvasError, Canvases};
 pub use server::{Server, StartError, Stopper};
 pub use store::{Query, Store, StoreError, default_data_dir, machine_name};
 

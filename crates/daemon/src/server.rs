@@ -13,12 +13,14 @@ use std::time::Duration;
 use slinger_control as control;
 
 use control::{
-    Appended, EventFilter, Events, Exported, Greeting, NewEvent, RemoteError, Reply, Request,
-    Stored, Uis, Written,
+    Appended, CanvasChange, CanvasInfo, CanvasPage, Canvases, EventFilter, Events, Exported,
+    Greeting, NewEvent, RemoteError, Reply, Request, Stored, Uis, Written,
 };
+use slinger_core::canvas::file::Written as Lines;
 use slinger_core::record::{self, BlobId, Body, Event, Tags};
 use slinger_core::ui;
 
+use crate::canvases::CanvasError;
 use crate::store::{Query, Store, StoreError};
 
 /// How long one connection may take to send its request or take its reply. A
@@ -192,7 +194,43 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
             Ok(Reply::UiShow(uis(catalog(store)?.versions(&name).map_err(|e| remote(&e))?)))
         }
         Request::UiExport { ui, dir } => ui_export(store, &ui, &dir),
+        Request::CanvasCreate { canvas } => {
+            store.canvases().create(&canvas).map_err(|e| drawn(&e))?;
+            Ok(Reply::CanvasCreate(CanvasInfo { canvas }))
+        }
+        Request::CanvasList => {
+            let ids = store.canvases().list().map_err(|e| drawn(&e))?;
+            let canvases = ids.into_iter().map(|canvas| CanvasInfo { canvas }).collect();
+            Ok(Reply::CanvasList(Canvases { canvases }))
+        }
+        Request::CanvasShow { canvas, page } => {
+            let (shown, next) =
+                store.canvases().show(&canvas, page.as_deref()).map_err(|e| drawn(&e))?;
+            let (page, pages, items) = (shown.page, shown.pages, shown.items);
+            Ok(Reply::CanvasShow(CanvasPage { canvas, next, page, pages, items }))
+        }
+        Request::CanvasApply(o) => {
+            let lines = store.canvases().apply(&o.canvas, &o.by, &o.ops).map_err(|e| drawn(&e))?;
+            Ok(Reply::CanvasApply(change(lines)))
+        }
+        Request::CanvasUndo(s) => {
+            let lines = store.canvases().undo(&s.canvas, &s.by).map_err(|e| drawn(&e))?;
+            Ok(Reply::CanvasUndo(change(lines)))
+        }
+        Request::CanvasRedo(s) => {
+            let lines = store.canvases().redo(&s.canvas, &s.by).map_err(|e| drawn(&e))?;
+            Ok(Reply::CanvasRedo(change(lines)))
+        }
     }
+}
+
+fn change(lines: Lines) -> CanvasChange {
+    CanvasChange { seq: lines.seq, made: lines.made }
+}
+
+/// A canvas error as it crosses the socket.
+fn drawn(error: &CanvasError) -> RemoteError {
+    RemoteError::new(error.code(), error.to_string(), error.hint())
 }
 
 /// Stores the code as a blob, then appends the next version unless the

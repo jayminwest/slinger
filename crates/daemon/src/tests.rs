@@ -14,6 +14,8 @@ use tempfile::TempDir;
 
 use crate::{Server, StartError, Stopper, Store, run};
 
+mod canvas;
+
 const DAEMON: &str = "slingerd";
 
 /// A socket path that no other test uses. Short: socket paths have a length limit.

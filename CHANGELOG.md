@@ -18,6 +18,12 @@ bullet with the area in bold.
   every version with its hash, size, author and time, and
   `slinger ui export <name>[@<version>] [--out <dir>]` writes one version
   back as `<name>.v<version>.html`.
+- **CLI:** canvases. `slinger canvas create <id>` makes one, `canvas list`
+  lists them, `canvas show <id> [--page]` prints a page's items, `canvas apply
+  <id> <ops|->` adds, moves, edits and removes items and pages, and `canvas
+  undo` / `canvas redo` step back and forth. `--agent <name>` acts as an agent,
+  which may change only what it made. slingerd keeps each canvas in a file in
+  its data directory and every change is on disk before the command returns.
 - **CLI:** `slinger blob put <file|->` stores a file's bytes (or stdin's) in
   this machine's record and prints the blob id. `slinger blob get <id>`
   writes the bytes to stdout, or to a file with `--out`. Storing the same

@@ -42,6 +42,22 @@ pub enum Request {
     /// Write the version `ui` names (`name`, `name@3` or a blob id) into the
     /// directory `dir`, as `<name>.v<version>.html`.
     UiExport { ui: String, dir: PathBuf },
+    /// Make a new, empty canvas.
+    CanvasCreate { canvas: String },
+    /// List the canvases.
+    CanvasList,
+    /// One page of a canvas: the first, or the one `page` names (id or name).
+    CanvasShow {
+        canvas: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        page: Option<String>,
+    },
+    /// Apply operations to a canvas, as one undo step.
+    CanvasApply(CanvasOps),
+    /// Undo the last step of `by` on a canvas.
+    CanvasUndo(CanvasStep),
+    /// Redo the last step `by` undid on a canvas.
+    CanvasRedo(CanvasStep),
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -57,6 +73,12 @@ pub enum Reply {
     UiList(Uis),
     UiShow(Uis),
     UiExport(Exported),
+    CanvasCreate(CanvasInfo),
+    CanvasList(Canvases),
+    CanvasShow(CanvasPage),
+    CanvasApply(CanvasChange),
+    CanvasUndo(CanvasChange),
+    CanvasRedo(CanvasChange),
 }
 
 /// The reply to [`Request::Hello`].
@@ -166,6 +188,65 @@ pub struct Uis {
 pub struct Exported {
     pub ui: Ui,
     pub path: PathBuf,
+}
+
+/// Operations to apply to a canvas (docs/service.md, "Canvas operations").
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CanvasOps {
+    pub canvas: String,
+    /// Who asks: `user` or `agent:<name>`.
+    #[serde(default = "user")]
+    pub by: String,
+    /// One operation object, or a list of them.
+    pub ops: Value,
+}
+
+/// Who takes an undo or redo step on which canvas.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CanvasStep {
+    pub canvas: String,
+    /// `user` or `agent:<name>`.
+    #[serde(default = "user")]
+    pub by: String,
+}
+
+/// One canvas, as listed. The reply to [`Request::CanvasCreate`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CanvasInfo {
+    pub canvas: String,
+}
+
+/// The reply to [`Request::CanvasList`]: the canvases, by id.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Canvases {
+    pub canvases: Vec<CanvasInfo>,
+}
+
+/// The reply to [`Request::CanvasShow`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CanvasPage {
+    pub canvas: String,
+    /// The sequence number the canvas's next operation gets.
+    pub next: u64,
+    /// The id of the page shown.
+    pub page: String,
+    /// Every page, in order: `{"id", "name"}`.
+    pub pages: Vec<Value>,
+    /// The page's items in drawing order, as the canvas file writes them.
+    pub items: Vec<Value>,
+}
+
+/// What a change to a canvas wrote: the reply to apply, undo and redo.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CanvasChange {
+    /// The sequence number of each operation written, in order.
+    pub seq: Vec<u64>,
+    /// The ids of the items and pages it made, in order.
+    pub made: Vec<String>,
+}
+
+fn user() -> String {
+    "user".into()
 }
 
 fn empty_object() -> Value {
