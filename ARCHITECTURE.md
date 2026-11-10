@@ -43,6 +43,10 @@ canvas/      pages of items, changed only by operations. Build (Canvas::new),
              (lasso move, erase gesture). Undo applies inverse ops (Restore,
              PageRestore put things back under their old ids) and returns
              them, so the op log stays append-only. Not persisted.
+canvas/delta.rs  what is new after the last sling (R1): an op log and a
+             marker (ops applied before it) in; the items new, changed or
+             removed against the canvas at the marker out. Compares the two
+             canvases, so added-then-removed is nothing. No errors.
 canvas/geometry.rs  pure queries on a page: item at a point, items in a
              lasso (nonzero winding), strokes an eraser touches, items touching a
              box, bounds of a set. No errors: degenerate input finds nothing.
