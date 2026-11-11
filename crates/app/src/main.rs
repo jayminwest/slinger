@@ -5,9 +5,13 @@
 //! keys into commands, `panes` keeps the window's panes and their focus,
 //! `canvases` keeps what each canvas pane shows (a `mirror` of a page and a
 //! viewport), `scene` decides what the window shows (the agents' statuses
-//! in `scene::sidebar`), `layout` does the geometry and `platform` draws.
+//! in `scene::sidebar`), `ui` holds an agent UI's page and its bridge,
+//! `layout` does the geometry and `platform` draws.
 //! Only `platform` touches `AppKit`, and only this file starts it (gate
 //! check:layers).
+//!
+//! `slinger-app --preview UI [--data JSON]` shows one agent UI alone in the
+//! window and writes each of its replies to stdout, one `ui_reply` line each.
 
 mod backend;
 mod canvases;
@@ -18,10 +22,12 @@ mod mirror;
 mod panes;
 mod platform;
 mod scene;
+mod ui;
 
 use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
+use std::sync::Arc;
 
 use slinger_control::{self as control, PaneLayout};
 
@@ -32,12 +38,70 @@ use crate::config::Shown;
 use crate::layout::{Axis, Direction, PaneId, Point, Rect};
 use crate::panes::{Pane, Panes};
 use crate::platform::{Event, Step};
-use crate::scene::Scene;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::tools::{Kind, Tools};
+use crate::scene::{Scene, Uis};
 
 fn main() -> ExitCode {
-    let mut settings = backend::Settings::load(backend::ConfigFiles::locate());
+    let settings = backend::Settings::load(backend::ConfigFiles::locate());
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
+        [] => window(settings),
+        ["--preview", reference] => preview(&settings, reference, None),
+        ["--preview", reference, "--data", data] => preview(&settings, reference, Some(data)),
+        _ => fail("usage: slinger-app [--preview UI [--data JSON]]", None),
+    }
+}
+
+/// Writes `message` and its `hint` to stderr; the exit code for a failure.
+fn fail(message: &str, hint: Option<&str>) -> ExitCode {
+    // Nothing can be done if stderr is closed too.
+    let _ = writeln!(io::stderr(), "✗ {message}");
+    if let Some(hint) = hint {
+        let _ = writeln!(io::stderr(), "  {hint}");
+    }
+    ExitCode::FAILURE
+}
+
+/// Shows the agent UI `reference` names alone, with `data` as its
+/// context's data, and writes each reply to stdout until the window closes.
+fn preview(settings: &Settings, reference: &str, data: Option<&str>) -> ExitCode {
+    let data = match data.map(ui::data).transpose() {
+        Ok(data) => data.unwrap_or_default(),
+        Err(why) => return fail(&why, None),
+    };
+    let daemon = control::Client::new(settings.socket());
+    let page = match backend::ui::fetch(&daemon, reference) {
+        Ok(code) => ui::Page::new(code, "pane", &data),
+        Err(problem) => return fail(&problem.message, problem.hint.as_deref()),
+    };
+    let page = match page {
+        Ok(page) => Arc::new(page),
+        Err(why) => return fail(&why, None),
+    };
+    let keys = settings.config.keys;
+    let answer = move |event| match event {
+        Event::Reply(line) => {
+            let mut out = io::stdout().lock();
+            match writeln!(out, "{line}").and_then(|()| out.flush()) {
+                Ok(()) => Step::Stay,
+                Err(e) => Step::Refuse(format!("stdout: {e}")),
+            }
+        }
+        Event::Key(chord) if keys.command(chord) == Some(Command::Quit) => Step::Quit,
+        Event::Key(_) | Event::Press(_) | Event::Scroll { .. } | Event::Zoom { .. } => Step::Pass,
+        Event::Tick | Event::Moved(_) => Step::Stay,
+    };
+    let scene = scene::preview(page, &settings.config.theme);
+    match platform::run(&scene, answer) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => fail(&e.to_string(), None),
+    }
+}
+
+/// The window onto the daemon: the panes of its workspace, the sidebar and
+/// the pen.
+fn window(mut settings: Settings) -> ExitCode {
     let mut socket = settings.socket();
     let watch = Watch::start(socket.clone(), settings.config.workspace.clone());
     let mut shown = settings.config.sidebar;
@@ -57,6 +121,8 @@ fn main() -> ExitCode {
     let answer = move |event| {
         let force = match event {
             Event::Tick => false,
+            // Replies reach the agent with `ui open` (slinger-6f8a).
+            Event::Reply(_) => return Step::Refuse("the agent cannot take replies yet".into()),
             Event::Moved(at) => {
                 tools.moved(at);
                 return Step::Stay;
@@ -109,9 +175,10 @@ fn main() -> ExitCode {
         };
         let heard = watch.latest().is_some_and(|now| sidebar.update(now));
         let moved = watch.layout().map(|news| shared.follow(news)).is_some();
+        let fetched = shared.fetched(watch.uis());
         let drawn = canvases.poll();
         let reloaded = settings.refresh(force);
-        if !reloaded && !heard && !moved && !drawn {
+        if !reloaded && !heard && !moved && !drawn && !fetched {
             return Step::Stay;
         }
         if reloaded {
@@ -132,11 +199,7 @@ fn main() -> ExitCode {
     };
     match platform::run(&first, answer) {
         Ok(()) => ExitCode::SUCCESS,
-        Err(e) => {
-            // Nothing can be done if stderr is closed too.
-            let _ = writeln!(io::stderr(), "✗ {e}");
-            ExitCode::FAILURE
-        }
+        Err(e) => fail(&e.to_string(), None),
     }
 }
 
@@ -145,6 +208,8 @@ fn main() -> ExitCode {
 #[derive(Debug)]
 struct Shared {
     panes: Panes,
+    /// The agent UIs the panes show, as last fetched.
+    uis: Uis,
     /// The workspace the panes are the server's for; `None` while the
     /// server cannot say, when the window changes its own panes.
     workspace: Option<String>,
@@ -155,7 +220,7 @@ struct Shared {
 impl Default for Shared {
     fn default() -> Self {
         let main = Pane { kind: panes::Kind::Canvas, name: "main".to_string() };
-        Self { panes: Panes::new(main), workspace: None, trouble: None }
+        Self { panes: Panes::new(main), uis: Uis::new(), workspace: None, trouble: None }
     }
 }
 
@@ -170,6 +235,20 @@ impl Shared {
             }
             Err(problem) => (self.workspace, self.trouble) = (None, Some(problem)),
         }
+    }
+
+    /// Takes the agent UIs' code the watch fetched, each as a page for a
+    /// pane or why it cannot show; whether there was any.
+    fn fetched(&mut self, codes: Vec<(String, Result<ui::Code, Problem>)>) -> bool {
+        let any = !codes.is_empty();
+        for (name, code) in codes {
+            let page = code.and_then(|code| {
+                let page = ui::Page::new(code, "pane", &serde_json::Value::Null);
+                page.map(Arc::new).map_err(|why| Problem { message: why, hint: None })
+            });
+            self.uis.insert(name, page);
+        }
+        any
     }
 
     /// Runs a pane command on the panes in `area`. Opening and closing go
@@ -274,11 +353,13 @@ fn gesture(canvases: &mut Canvases, panes: &Panes, area: Rect, event: &Event) ->
     true
 }
 
-/// The pane of `panes` laid in `area` under `at`, a point in the window,
-/// and its frame.
+/// The canvas pane of `panes` laid in `area` under `at`, a point in the
+/// window, and its frame. Over any other pane a gesture goes on to what it
+/// shows (an agent UI scrolls itself).
 fn pane_at(panes: &Panes, area: Rect, at: Point) -> Option<(PaneId, Rect)> {
     let placed = panes.place(area);
-    placed.into_iter().find(|(_, _, frame)| frame.contains(at)).map(|(id, _, frame)| (id, frame))
+    let found = placed.into_iter().find(|(_, _, frame)| frame.contains(at));
+    found.filter(|(_, pane, _)| pane.kind == panes::Kind::Canvas).map(|(id, _, frame)| (id, frame))
 }
 
 /// The frame of the focused pane of `panes` laid in `area`.
@@ -307,7 +388,7 @@ fn view(
             problems.push(problem);
         }
     }
-    let mut scene = scene::build(&shared.panes, theme, &problems, sidebar, drawn);
+    let mut scene = scene::build(&shared.panes, theme, &problems, sidebar, drawn, &shared.uis);
     scene.labels.extend(tools.labels(theme));
     scene
 }

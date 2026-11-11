@@ -219,16 +219,21 @@ server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
 ### Inside the app
 
 ```
-main.rs      wires the modules below. The only caller of platform.
+main.rs      wires the modules below. The only caller of platform. With
+             `--preview UI [--data JSON]` it shows one agent UI alone and
+             writes each reply's `ui_reply` line to stdout instead.
 backend.rs   the app's IO: the one module that talks to the daemon, and the
              one that reads and watches the config files. Its Watch asks the
              daemon for the workspaces and their agents' statuses
              (workspace_list, session_list) and for the window's workspace's
              panes (pane_list: the config's, else the first open one) every
              second on a thread of its own, and the window's timer takes the
-             news without blocking.
+             news without blocking. When the layout changes it fetches the
+             code of each agent UI the panes show first.
              Its Follower keeps one canvas page coming: `canvas_show`,
              then the change feed.
+backend/ui.rs  an agent UI's code by reference: ui_export into a directory
+             of the app's own, read, removed.
 backend/panes.rs  the server's panes: `layout` for the Watch, and `open` and
              `close`, which send the window's own splits and closes to the
              server as `pane_open` and `pane_close`.
@@ -245,9 +250,16 @@ panes.rs     the window's panes: what each shows (a canvas or an agent UI, by
              name), how they tile (a layout::Tree), the one focused pane and
              the pane commands. `follow` builds them from the server's pane
              tree, focus kept by number. Always one pane at least. Pure.
-scene.rs     decides what the window shows: each pane's placeholder, one focus
-             border, problems in the focused pane, and the sidebar and notice.
-             No other chrome. Pure.
+scene.rs     decides what the window shows: each pane's placeholder, an
+             agent UI pane's page (a Web) or its name and why it cannot
+             show, one focus border, problems in the focused pane, and the
+             sidebar and notice. No other chrome. Pure.
+ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
+             slinger-ui://<hex>/ with the policy), the sandbox's constants
+             (the policy and the shim in ui/policy.txt and ui/shim.js, the
+             rule list) and the Bridge, which decides every
+             load, navigation and bridge call (context, reply, their limits
+             and codes) for one showing. Pure.
 scene/sidebar.rs  the agents' statuses (SPEC D17, P6): the open workspaces and
              their agents in; the sidebar's lines (each workspace, its agent's
              mark: working, blocked, done), where the panes go beside it, and
@@ -269,6 +281,11 @@ platform/    draws a scene, turns a key press into a chord and a pen or mouse
              event into a point. One view per canvas pane repaints only the
              box its scene says changed. All unsafe, objc2 and AppKit code.
              No decisions.
+platform/web.rs  agent UIs in WKWebViews: the scheme handler, navigation and
+             UI delegate and message handler in one class that pipes each
+             call to its ui::Bridge, the rule list (compiled once; no view
+             loads before it is on), and a view kept across draws while its
+             page is shown. A reply goes to main as Event::Reply.
 ```
 
 **Threading rule:** AppKit runs on the main thread only. Every `platform`

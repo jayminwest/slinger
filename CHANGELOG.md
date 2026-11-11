@@ -11,6 +11,15 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** an agent UI pane shows the UI. `slinger pane open <workspace>
+  --type ui --target <name>` shows the latest version of that UI in a
+  sandbox: no network, no files, no way to navigate away or open a window.
+  The UI reads what it was given with `slinger.context()`; `slinger.reply()`
+  answers `unavailable` until replies reach the agent. A UI that cannot show
+  says its name and why, and the rest of the window keeps working.
+  `slinger-app --preview <UI> [--data JSON]` shows one UI alone, with that
+  data, and prints each reply as a `ui_reply` JSON line.
+
 - **App:** a sidebar lists the open workspaces and each agent's status with
   one mark: working, blocked or done. `toggle-sidebar` (cmd+b) opens or
   collapses it, and `[window] sidebar = "open"` or `"closed"` sets how the app

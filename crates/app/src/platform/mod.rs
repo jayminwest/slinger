@@ -5,6 +5,8 @@
 //! scroll or pinch into a pan or a zoom, and hands them on, and it draws what
 //! a [`Scene`] says. Each canvas pane is a view of its own (`canvas`) that
 //! lives as long as its pane, so a new scene repaints only what changed.
+//! `web` shows agent UIs in sandboxed web views, each kept as long as its
+//! page is shown.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
 //! that touches `AppKit` takes a `MainThreadMarker`, which only the main thread
@@ -13,6 +15,7 @@
 #![expect(unsafe_code, reason = "the FFI boundary: AppKit is reached through objc2")]
 
 mod canvas;
+mod web;
 
 use std::cell::{Cell, RefCell};
 
@@ -59,6 +62,9 @@ pub enum Event {
     Scroll { at: Point, dx: f64, dy: f64 },
     /// A pinch over a point in the window: zoom by `factor` about it.
     Zoom { at: Point, factor: f64 },
+    /// An agent UI replied: its `ui_reply` line. Answer [`Step::Refuse`]
+    /// when it cannot go on.
+    Reply(String),
 }
 
 /// What to do about an [`Event`].
@@ -69,6 +75,8 @@ pub enum Step {
     Stay,
     Draw(Scene),
     Quit,
+    /// The reply cannot go on, and why.
+    Refuse(String),
 }
 
 /// How far one line of a mouse wheel scrolls, in points. A trackpad gives points.
@@ -182,12 +190,29 @@ fn dispatch(event: Event, mtm: MainThreadMarker) -> bool {
     let step = (state.answer.borrow_mut())(event);
     match step {
         Step::Pass => return false,
-        Step::Stay => {}
+        Step::Stay | Step::Refuse(_) => {}
         Step::Draw(scene) => draw(state, &scene, mtm),
         // The window quits the app as it closes.
         Step::Quit => state.window.close(),
     }
     true
+}
+
+/// Hands an agent UI's reply `line` to the app's answer.
+///
+/// # Errors
+///
+/// Why the answer refused it.
+fn reply(line: String, mtm: MainThreadMarker) -> Result<(), String> {
+    let Some(state) = STATE.get() else { return Err("the app is not running".into()) };
+    let step = (state.answer.borrow_mut())(Event::Reply(line));
+    match step {
+        Step::Refuse(why) => return Err(why),
+        Step::Draw(scene) => draw(state, &scene, mtm),
+        Step::Quit => state.window.close(),
+        Step::Pass | Step::Stay => {}
+    }
+    Ok(())
 }
 
 /// Shows `scene` in a window and runs the app until it quits (the window
@@ -289,6 +314,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
         };
         canvas.show(frame, pane.scene.clone());
     }
+    web::place(&view, &scene.webs, height, mtm);
 
     let made_from = Some((scene.sidebar.clone(), scene.labels.clone(), scene.focus));
     if shown.made_from == made_from {

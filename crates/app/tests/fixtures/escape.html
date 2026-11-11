@@ -1,0 +1,86 @@
+<!doctype html>
+<meta name="slinger-bridge" content="1">
+<title>escape</title>
+<!-- The sandbox test's UI (crates/app/tests/sandbox.rs). It shows its
+     context, then tries every way out it knows against the test's listener
+     at 127.0.0.1:<data.port> and against /etc/hosts, and replies with what
+     each attempt saw: "reached ..." means it got out. -->
+<pre id="context">Loading…</pre>
+<pre id="log"></pre>
+<script>
+  const log = (line) => { document.getElementById("log").textContent += line + "\n"; };
+  const wait = (ms) => new Promise((done) => setTimeout(done, ms));
+  // An attempt that has not settled in time did not get out.
+  const settle = (attempt) => Promise.race([
+    Promise.resolve().then(attempt).catch((e) => "failed: " + ((e && e.name) || e)),
+    wait(3000).then(() => "no answer"),
+  ]);
+  const event = (target, ok, bad) => new Promise((done) => {
+    target.addEventListener(ok, () => done("reached: " + ok));
+    target.addEventListener(bad, () => done("failed: " + bad));
+  });
+  let violations = 0;
+  document.addEventListener("securitypolicyviolation", () => { violations += 1; });
+
+  slinger.context().then(async (context) => {
+    document.getElementById("context").textContent = JSON.stringify(context, null, 2);
+    const base = "http://127.0.0.1:" + context.data.port;
+    const frame = (src) => {
+      const f = document.createElement("iframe");
+      f.src = src;
+      document.body.append(f);
+      return wait(1500).then(() => {
+        let text = "";
+        try { text = f.contentDocument ? f.contentDocument.documentElement.textContent : ""; } catch (e) { text = ""; }
+        return text.includes("localhost") || text.includes("hello") ? "reached: " + text.slice(0, 40) : "failed: no content";
+      });
+    };
+    const attempts = {
+      fetch: () => fetch(base + "/fetch").then((r) => "reached: " + r.status),
+      xhr: () => {
+        const x = new XMLHttpRequest();
+        x.open("GET", base + "/xhr");
+        const seen = event(x, "load", "error");
+        x.send();
+        return seen;
+      },
+      websocket: () => event(new WebSocket("ws://127.0.0.1:" + context.data.port + "/ws"), "open", "error"),
+      eventsource: () => event(new EventSource(base + "/events"), "open", "error"),
+      beacon: () => (navigator.sendBeacon(base + "/beacon", "x") ? "queued" : "failed: refused"),
+      image: () => {
+        const img = new Image();
+        const seen = event(img, "load", "error");
+        img.src = base + "/image.png";
+        return seen;
+      },
+      iframe: () => frame(base + "/frame"),
+      file_iframe: () => frame("file:///etc/hosts"),
+      file_fetch: () => fetch("file:///etc/hosts").then((r) => r.text()).then((t) => "reached: " + t.length),
+      file_xhr: () => {
+        const x = new XMLHttpRequest();
+        x.open("GET", "file:///etc/hosts");
+        const seen = event(x, "load", "error");
+        x.send();
+        return seen;
+      },
+      window_open: () => (window.open(base + "/open") ? "reached: a window" : "failed: refused"),
+    };
+    const seen = {};
+    await Promise.all(Object.entries(attempts).map(async ([name, attempt]) => {
+      seen[name] = await settle(attempt);
+      log(name + ": " + seen[name]);
+    }));
+    // Navigations last: one that went through would end this page.
+    const form = document.createElement("form");
+    form.method = "post";
+    form.action = base + "/form";
+    document.body.append(form);
+    seen.form = await settle(() => { form.submit(); return wait(1000).then(() => "failed: still here"); });
+    seen.location = await settle(() => { location.href = base + "/location"; return wait(1000).then(() => "failed: still here"); });
+    seen.eval = (() => { try { eval("1"); return "reached: eval ran"; } catch (e) { return "failed: " + e.name; } })();
+    seen.violations = violations;
+    log("replying");
+    await slinger.reply({ context, seen });
+    log("replied");
+  });
+</script>
