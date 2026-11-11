@@ -19,6 +19,7 @@ mod edit;
 mod feed;
 mod import;
 mod look;
+mod pane;
 mod process;
 mod put;
 mod read;

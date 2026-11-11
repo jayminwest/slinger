@@ -239,3 +239,34 @@ fn an_event_takes_the_tag_of_its_canvas_or_agent() {
     assert_eq!(tag_for(&all, None, None), None);
     assert_eq!(tag_for(&[], Some("alpha"), Some("scout")), None);
 }
+
+#[test]
+fn panes_default_to_one_on_the_canvas_and_are_stored_as_text() {
+    let mut ws = Workspace::named("My Notes");
+    assert_eq!(ws.panes().encode(), "canvas:my-notes");
+    let mut layout = ws.panes();
+    let board = panes::Pane::new(panes::Kind::Ui, "board").unwrap();
+    layout.open(board, Some(1), panes::Axis::Row).unwrap();
+    ws.set_panes(&layout);
+    let text = ws.to_toml();
+    assert!(text.contains("[layout]\nversion = 1\npanes = \"row 0.5 canvas:my-notes ui:board\""));
+    assert_eq!(Workspace::parse(&text).unwrap().panes(), layout);
+}
+
+#[test]
+fn a_layout_this_version_cannot_read_opens_one_pane_and_a_change_replaces_it() {
+    // The fixture's layout is version 1, but its `panes` is not text.
+    let fixture = Workspace::parse(FIXTURE).unwrap();
+    assert_eq!(fixture.panes().encode(), "canvas:main");
+    let newer =
+        "version = 1\nname = \"x\"\n[layout]\nversion = 2\npanes = \"canvas:x\"\nzoom = 2\n";
+    let mut ws = Workspace::parse(newer).unwrap();
+    assert_eq!(ws.panes().encode(), "canvas:main");
+    ws.set_panes(&ws.panes());
+    let text = ws.to_toml();
+    assert!(text.contains("[layout]\nversion = 1\npanes = \"canvas:main\"\n"), "{text}");
+    assert!(!text.contains("zoom"));
+    let mut same = Workspace::parse(FIXTURE).unwrap();
+    same.set_panes(&same.panes());
+    assert!(same.to_toml().contains("split = \"columns\""), "a version 1 layout keeps its fields");
+}

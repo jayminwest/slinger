@@ -3,7 +3,9 @@
 //!
 //! This module owns the definition file's format (`docs/workspace.md`). No
 //! other module knows it is TOML. It does no file IO: callers read and write
-//! the bytes and hand the text here.
+//! the bytes and hand the text here. [`panes`] owns the layout's text.
+
+pub mod panes;
 
 use std::collections::{HashMap, HashSet};
 
@@ -47,7 +49,8 @@ pub struct Workspace {
     /// The directories, on any machine. At most one is primary.
     #[serde(default, rename = "root", skip_serializing_if = "Vec::is_empty")]
     pub roots: Vec<Root>,
-    /// How the panes are arranged. Opaque here.
+    /// How the panes are arranged: read and changed through
+    /// [`Workspace::panes`] and [`Workspace::set_panes`].
     #[serde(default, skip_serializing_if = "PaneLayout::is_unset")]
     pub layout: PaneLayout,
     #[serde(flatten)]
@@ -93,9 +96,10 @@ pub struct Root {
     extra: toml::Table,
 }
 
-/// The pane layout: a versioned value whose meaning the app shell owns. The
-/// core only stores it and writes it back. The default is "unset": version
-/// 0 and nothing in it, so the app picks a layout.
+/// The pane layout as the file stores it: a version and its fields. The
+/// default is "unset": version 0 and nothing in it. Version
+/// [`panes::VERSION`] holds the panes' text in `panes`; any other field, and
+/// any other version, is kept and written back unread.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct PaneLayout {
     version: u32,
@@ -239,6 +243,31 @@ impl Workspace {
     #[must_use]
     pub fn version(&self) -> u32 {
         self.version
+    }
+
+    /// The workspace's panes: the layout's, or one pane on its canvas when
+    /// the layout is unset or not one this version reads (another version,
+    /// or text that is not a layout).
+    #[must_use]
+    pub fn panes(&self) -> panes::Layout {
+        let text = self.layout.value.get("panes").and_then(toml::Value::as_str);
+        let read = text.filter(|_| self.layout.version == panes::VERSION);
+        read.and_then(panes::Layout::decode).unwrap_or_else(|| {
+            panes::Layout::new(panes::Pane {
+                kind: panes::Kind::Canvas,
+                target: self.canvas.clone(),
+            })
+        })
+    }
+
+    /// Stores `layout` as the workspace's panes. The layout's other fields
+    /// stay when it is the version this module writes; a layout of another
+    /// version is replaced whole.
+    pub fn set_panes(&mut self, layout: &panes::Layout) {
+        if self.layout.version != panes::VERSION {
+            self.layout = PaneLayout { version: panes::VERSION, value: toml::Table::new() };
+        }
+        self.layout.value.insert("panes".into(), layout.encode().into());
     }
 
     /// The primary root, if the workspace has one.

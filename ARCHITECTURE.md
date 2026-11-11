@@ -119,6 +119,13 @@ workspace.rs workspaces (SPEC section 10): the definition file's format
              root, name and canvas each), what a new one gets (slug of its
              name) and which workspace an event's canvas or agent tags. No IO;
              callers read and write the bytes.
+workspace/panes.rs  a workspace's panes (SPEC section 7): the tree of panes
+             (a canvas or a UI each) and splits, numbered in order; open
+             beside a pane or the window, close (the sibling takes the
+             space; a pane already gone or the last one changes nothing),
+             each with the `pane_moved` it records, and the `[layout]` text
+             (version 1, `panes`). Workspace::panes reads it (one pane on the
+             canvas when unset or unreadable), set_panes stores it.
 session.rs   sessions (SPEC section 5, section 7 status set): a session per
              agent of the open workspaces (agent, home, delivery, status), the
              three statuses, and the record event each writes (blocked, done)
@@ -171,7 +178,12 @@ server/import.rs  `canvas_import`: reads the client's file, calls the tldraw
 workspaces.rs the open workspaces: the list of directories that hold their
              files (`workspaces/open.json`), written whole; the files are read
              on every request and checked by the core's rules. The store asks
-             it for the workspace tag of each event it appends.
+             it for the workspace tag of each event it appends. `panes`
+             changes a workspace's layout under the list's lock and writes
+             the file whole when it changed.
+server/pane.rs  `pane_list`, `pane_open`, `pane_close`: the canvas or UI a
+             pane shows must exist; the core changes the layout; each change
+             appends its `pane_moved`, tagged with the workspace.
 server/read.rs  `canvas_read`: the marker is the `to` of the packet the
              canvas's last `sling_sent` names (0 before one), so it lives in
              the record and survives a restart. Stores the text (no `at`)
@@ -211,16 +223,21 @@ main.rs      wires the modules below. The only caller of platform.
 backend.rs   the app's IO: the one module that talks to the daemon, and the
              one that reads and watches the config files. Its Watch asks the
              daemon for the workspaces and their agents' statuses
-             (workspace_list, session_list) every second on a thread of its
-             own, and the window's timer takes the news without blocking.
+             (workspace_list, session_list) and for the window's workspace's
+             panes (pane_list: the config's, else the first open one) every
+             second on a thread of its own, and the window's timer takes the
+             news without blocking.
+backend/panes.rs  the server's panes: `layout` for the Watch, and `open` and
+             `close`, which send the window's own splits and closes to the
+             server as `pane_open` and `pane_close`.
 config.rs    the config file's format: text in, a typed config or an error
              with its line out; merges a machine's overlay over it. Pure.
 commands.rs  key commands: the closed list of commands, the chord parser and
              the keymap from a chord to a command. Pure.
 panes.rs     the window's panes: what each shows (a canvas or an agent UI, by
-             name), how they tile (a layout::Tree), the one focused pane, the
-             pane commands, and the text of the workspace's layout field
-             (version 1, `panes`; docs/workspace.md). Always one pane at least. Pure.
+             name), how they tile (a layout::Tree), the one focused pane and
+             the pane commands. `follow` builds them from the server's pane
+             tree, focus kept by number. Always one pane at least. Pure.
 scene.rs     decides what the window shows: each pane's placeholder, one focus
              border, problems in the focused pane, and the sidebar and notice.
              No other chrome. Pure.
@@ -239,8 +256,8 @@ layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
              opens (at the pen, kept inside the window). Pure. 100% coverage floor.
 layout/tree.rs  the pane tree: binary splits with ratios to rectangles (no
              negative or oversized one at any size), split, close (the sibling
-             takes the space), grow, next, the pane beside one in a direction,
-             and the tree's text. Pure.
+             takes the space), grow, next, and the pane beside one in a
+             direction. Pure.
 platform/    draws a scene, turns a key press into a chord and a pen or mouse
              event into a point. All unsafe, objc2 and AppKit code. No decisions.
 ```
@@ -254,11 +271,12 @@ the main thread to draw. Never block for long inside an AppKit callback.
 **Config:** `config.example.toml` at the repository root lists every key.
 The app reads `config.toml` and merges `config.local.toml` (the machine's
 overlay) over it. A main-thread timer stats both files twice a second and,
-on a change, rereads them and draws a new scene; it asks the daemon for the
-greeting again only when the socket changed. The agents' statuses come from
-`backend::Watch`'s one thread, so a daemon that is slow to answer never
-holds up the window; the timer takes its latest answer and draws only when
-the scene changed. The release profile builds the app at `opt-level = "z"`. A file
+on a change, rereads them and draws a new scene. The agents' statuses and
+the workspace's panes come from `backend::Watch`'s one thread, so a daemon
+that is slow to answer never holds up the window; the timer takes its
+latest answers and draws only when the scene changed. A pane opened from a
+terminal shows within a second, and a daemon that cannot be reached shows
+as the problem. The release profile builds the app at `opt-level = "z"`. A file
 with an error keeps the last good config, and the window shows the file,
 the line and what to fix.
 A new setting changes `config.rs` (the key, its default, its test) and the
@@ -326,7 +344,8 @@ Each boundary has something that fails when it is broken:
 | A turn's hooks move a session from working to done and record the file it wrote | `crates/cli/tests/hooks.rs`, with a stand-in for Claude Code and the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |
-| A layout reads back as written; a closed pane's space goes to its sibling | the tests of `crates/app/src/layout/tree.rs` and `crates/app/src/panes.rs` |
+| A layout reads back as written; a closed pane's space goes to its sibling | the tests of `crates/core/src/workspace/panes.rs`, `crates/app/src/layout/tree.rs` and `crates/app/src/panes.rs` |
+| Panes open, close and list through the socket, each change records `pane_moved`, closing a pane already gone succeeds, the layout survives a restart; the app follows another client's change | `crates/daemon/src/tests/pane.rs` through a real socket, and `crates/app/src/backend.rs` |
 | Layout is fully tested | the 100% floor on `crates/app/src/layout.rs` in `budgets/coverage-budgets.json` |
 | The app binary does not grow unnoticed | `check:binary-size` |
 

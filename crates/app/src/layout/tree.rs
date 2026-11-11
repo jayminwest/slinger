@@ -1,8 +1,6 @@
 //! The pane tree: panes that tile a rectangle, split by ratios. Pure, and
 //! every branch is unit-tested.
 
-use std::str::SplitAsciiWhitespace;
-
 use super::Rect;
 
 /// How a split divides its space.
@@ -81,13 +79,20 @@ impl Tree {
     /// side and a new pane takes the second. The new pane, or `None` when
     /// `at` is not in the tree or the tree is full.
     pub fn split(&mut self, at: PaneId, axis: Axis) -> Option<PaneId> {
+        self.split_by(at, axis, 0.5)
+    }
+
+    /// [`Tree::split`], with `ratio` of the space to `at`, held in the
+    /// ratio's limits.
+    pub fn split_by(&mut self, at: PaneId, axis: Axis, ratio: f64) -> Option<PaneId> {
         if self.panes().len() >= MAX_PANES {
             return None;
         }
         let new = PaneId(self.next);
         let leaf = self.root.leaf_mut(at)?;
         let (first, second) = (Box::new(Node::Pane(at)), Box::new(Node::Pane(new)));
-        *leaf = Node::Split { axis, ratio: 0.5, first, second };
+        let ratio = if ratio.is_finite() { ratio.clamp(MIN_RATIO, 1.0 - MIN_RATIO) } else { 0.5 };
+        *leaf = Node::Split { axis, ratio, first, second };
         self.next += 1;
         Some(new)
     }
@@ -128,32 +133,6 @@ impl Tree {
             }
         }
         best.map(|(_, _, id)| id)
-    }
-}
-
-/// The text a workspace keeps.
-#[cfg_attr(not(test), expect(dead_code, reason = "used from slinger-2241"))]
-impl Tree {
-    /// The tree as text: each pane is the word `leaf` writes for it (one
-    /// word, with no space in it), and each split is `row` or `column`, its
-    /// ratio, then its first side and its second. Words are joined by one
-    /// space: `row 0.5 a column 0.25 b c`.
-    pub fn encode(&self, leaf: impl Fn(PaneId) -> String) -> String {
-        let mut words = Vec::new();
-        self.root.write(&leaf, &mut words);
-        words.join(" ")
-    }
-
-    /// The tree [`encode`](Self::encode) wrote. Each pane's word goes to
-    /// `leaf` with the id the pane gets, in order; `leaf` returns false to
-    /// refuse it. A ratio past its limits is held in them. `None` for text
-    /// that is not exactly one tree, a ratio that is not a finite number,
-    /// more than [`MAX_PANES`] panes, or a word `leaf` refuses.
-    pub fn decode(text: &str, mut leaf: impl FnMut(PaneId, &str) -> bool) -> Option<Self> {
-        let mut words = text.split_ascii_whitespace();
-        let mut next = 0;
-        let root = Node::read(&mut words, 0, &mut next, &mut leaf)?;
-        words.next().is_none().then_some(Self { root, next })
     }
 }
 
@@ -207,64 +186,13 @@ impl Node {
                     None => (second.grow(id, by)?, -1.0),
                 };
                 if !done {
-                    // Thousandths, so the ratio reads back as written.
+                    // Thousandths, so steps add up to the share they name.
                     let wanted = ((*ratio + sign * by) * 1000.0).round() / 1000.0;
                     *ratio = wanted.clamp(MIN_RATIO, 1.0 - MIN_RATIO);
                 }
                 Some(true)
             }
         }
-    }
-}
-
-/// The text a workspace keeps.
-#[cfg_attr(not(test), expect(dead_code, reason = "used from slinger-2241"))]
-impl Node {
-    fn write(&self, leaf: &dyn Fn(PaneId) -> String, words: &mut Vec<String>) {
-        match self {
-            Self::Pane(id) => words.push(leaf(*id)),
-            Self::Split { axis, ratio, first, second } => {
-                let name = match axis {
-                    Axis::Row => "row",
-                    Axis::Column => "column",
-                };
-                words.push(name.to_string());
-                words.push(ratio.to_string());
-                first.write(leaf, words);
-                second.write(leaf, words);
-            }
-        }
-    }
-
-    /// One node from `words`, `depth` splits down. `next` counts the panes
-    /// read so far. A tree of at most `MAX_PANES` panes nests fewer splits
-    /// than that, so deeper text is refused before it can use up the stack.
-    fn read(
-        words: &mut SplitAsciiWhitespace<'_>,
-        depth: usize,
-        next: &mut u32,
-        leaf: &mut dyn FnMut(PaneId, &str) -> bool,
-    ) -> Option<Self> {
-        let word = words.next()?;
-        let axis = match word {
-            "row" => Axis::Row,
-            "column" => Axis::Column,
-            _ => {
-                let id = PaneId(*next);
-                *next += 1;
-                return (*next as usize <= MAX_PANES && leaf(id, word)).then_some(Self::Pane(id));
-            }
-        };
-        if depth + 1 >= MAX_PANES {
-            return None;
-        }
-        let ratio: f64 = words.next()?.parse().ok()?;
-        if !ratio.is_finite() {
-            return None;
-        }
-        let first = Box::new(Self::read(words, depth + 1, next, leaf)?);
-        let second = Box::new(Self::read(words, depth + 1, next, leaf)?);
-        Some(Self::Split { axis, ratio: ratio.clamp(MIN_RATIO, 1.0 - MIN_RATIO), first, second })
     }
 }
 

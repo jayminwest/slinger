@@ -15,6 +15,7 @@ mod canvas;
 mod canvas_feed;
 mod edit;
 mod look;
+mod pane;
 mod put;
 mod read;
 mod session;

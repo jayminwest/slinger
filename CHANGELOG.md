@@ -18,6 +18,17 @@ bullet with the area in bold.
   bottom of the window names it, with its note; nothing else interrupts.
   `dismiss-notice` (cmd+.) hides it, and it goes on its own once the agent's
   status moves on.
+- **Panes:** the server keeps each workspace's panes, so you, the app and
+  agents share them. `slinger pane list <workspace>` numbers them,
+  `slinger pane open <workspace> --type canvas|ui --target <id> [--beside
+  <pane>] [--below]` opens one, and `slinger pane close <workspace> <pane>`
+  closes one (one already gone is fine). The app shows the panes of
+  `[workspace] name` in its config, else the first open workspace; its
+  splits and closes go to the server, and a pane opened from a terminal shows
+  in the window within a second. The layout survives a restart. Each change
+  is recorded as `pane_moved`. Growing and shrinking a pane stays in the
+  window for now.
+
 - **App:** pop-ups at the pen. `pick-colour` (cmd+shift+c), `pick-shape`
   (cmd+shift+s) and `pick-tool` (cmd+shift+t) open a small pop-up where the
   pen or pointer last was, kept inside the window. Pick with the pen, with a

@@ -86,8 +86,7 @@ fn a_full_tree_splits_no_more() {
     }
     assert_eq!(tree.panes().len(), MAX_PANES);
     assert_eq!(tree.split(last, Axis::Row), None);
-    let text = tree.encode(|_| "p".into());
-    assert_eq!(Tree::decode(&text, |_, _| true).unwrap().panes().len(), MAX_PANES);
+    assert_eq!(tree.split_by(last, Axis::Row, 0.3), None);
 }
 
 #[test]
@@ -132,12 +131,15 @@ fn grow_changes_the_nearest_split_within_its_limits() {
 }
 
 #[test]
-fn a_ratio_grown_in_steps_reads_back_as_written() {
-    let mut tree = three();
+fn a_ratio_grown_in_steps_is_the_share_they_name() {
+    let mut grown = three();
     for _ in 0..3 {
-        tree.grow(id(0), 0.05);
+        grown.grow(id(0), 0.05);
     }
-    assert_eq!(tree.encode(|p| format!("p{}", p.0)), "row 0.65 p0 column 0.5 p1 p2");
+    let mut made = Tree::default();
+    let one = made.split_by(id(0), Axis::Row, 0.65).unwrap();
+    made.split(one, Axis::Column).unwrap();
+    assert_eq!(grown, made);
 }
 
 #[test]
@@ -200,55 +202,19 @@ fn panes_with_no_size_have_no_neighbours() {
 }
 
 #[test]
-fn a_tree_encodes_and_decodes_to_itself() {
-    let mut tree = three();
-    tree.grow(id(2), 0.125);
-    let text = tree.encode(|p| format!("p{}", p.0));
-    assert_eq!(text, "row 0.5 p0 column 0.375 p1 p2");
-    let mut seen = Vec::new();
-    let back = Tree::decode(&text, |p, word| {
-        seen.push((p, word.to_string()));
-        true
-    });
-    assert_eq!(back, Some(tree));
-    assert_eq!(seen, [(id(0), "p0".into()), (id(1), "p1".into()), (id(2), "p2".into())]);
-    assert_eq!(Tree::decode("  only \n", |_, _| true), Some(Tree::default()));
-}
-
-#[test]
-fn a_ratio_past_its_limits_is_held_in_them() {
-    let tree = Tree::decode("column 2 a row -1 b c", |_, _| true).unwrap();
-    assert_eq!(tree.encode(|_| "x".into()), "column 0.9 x row 0.1 x x");
-}
-
-#[test]
-fn text_that_is_not_one_tree_is_refused() {
-    for text in [
-        "",
-        "a b",
-        "row",
-        "row 0.5 a",
-        "row half a b",
-        "row NaN a b",
-        "column inf a b",
-        "row 0.5 a b c",
-    ] {
-        assert_eq!(Tree::decode(text, |_, _| true), None, "{text:?}");
-    }
-    assert_eq!(Tree::decode("row 0.5 a b", |_, word| word == "a"), None);
-}
-
-#[test]
-fn text_with_too_many_panes_or_splits_is_refused() {
-    fn balanced(depth: u32) -> String {
-        if depth == 0 {
-            "a".into()
-        } else {
-            format!("row 0.5 {} {}", balanced(depth - 1), balanced(depth - 1))
-        }
-    }
-    assert_eq!(Tree::decode(&balanced(6), |_, _| true).unwrap().panes().len(), MAX_PANES);
-    assert_eq!(Tree::decode(&balanced(7), |_, _| true), None);
-    let deep = "row 0.5 ".repeat(100_000);
-    assert_eq!(Tree::decode(&deep, |_, _| true), None);
+fn split_by_gives_the_first_side_its_share_held_in_the_limits() {
+    let mut tree = Tree::default();
+    let one = tree.split_by(id(0), Axis::Column, 2.0).unwrap();
+    tree.split_by(one, Axis::Row, -1.0).unwrap();
+    assert_eq!(
+        tree.rects(AREA),
+        [
+            (id(0), rect(0.0, 0.0, 800.0, 540.0)),
+            (id(1), rect(0.0, 540.0, 80.0, 60.0)),
+            (id(2), rect(80.0, 540.0, 720.0, 60.0)),
+        ]
+    );
+    let mut odd = Tree::default();
+    odd.split_by(id(0), Axis::Row, f64::NAN).unwrap();
+    assert_eq!(odd.rects(AREA)[0].1.width, 400.0, "no share is half");
 }
