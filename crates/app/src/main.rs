@@ -94,6 +94,7 @@ fn preview(settings: &Settings, reference: &str, data: Option<&str>) -> ExitCode
         }
         Event::Key(chord) if keys.command(chord) == Some(Command::Quit) => Step::Quit,
         Event::Key(_)
+        | Event::Text(_)
         | Event::Press(_)
         | Event::Drag(_)
         | Event::Lift(_)
@@ -140,22 +141,10 @@ fn window(mut settings: Settings) -> ExitCode {
                     Err(why) => Step::Refuse(why),
                 };
             }
-            Event::Moved(_)
-            | Event::Painted(_)
-            | Event::Press(_)
-            | Event::Drag(_)
-            | Event::Lift(_)
-            | Event::Scroll { .. }
-            | Event::Zoom { .. } => {
-                let area = sidebar.panes(window.rect());
-                if !pointer(&event, &mut tools, &mut canvases, &shared.panes, area) {
-                    return Step::Pass;
-                }
-                return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
-            }
             Event::Key(chord) if tools.key(chord) => {
                 return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
             }
+            Event::Key(chord) if canvases.editing() && chord.types() => return Step::Pass,
             Event::Key(chord) => {
                 let kind = match settings.config.keys.command(chord) {
                     None => return Step::Pass,
@@ -172,6 +161,7 @@ fn window(mut settings: Settings) -> ExitCode {
                             Command::ToggleSidebar => sidebar.set_open(!sidebar.is_open()),
                             Command::DismissNotice => sidebar.dismiss(),
                             _ if canvas_command(&mut canvases, &shared.panes, area, command) => {}
+                            _ if tools.command(command) => {}
                             _ => shared.command(command, area, &socket),
                         }
                         return Step::Draw(view(
@@ -188,6 +178,14 @@ fn window(mut settings: Settings) -> ExitCode {
                     return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
                 }
                 true
+            }
+            // The pen, the mouse, the trackpad and typed text.
+            _ => {
+                let area = sidebar.panes(window.rect());
+                if !pointer(&event, &mut tools, &mut canvases, &shared.panes, area) {
+                    return Step::Pass;
+                }
+                return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
             }
         };
         let heard = watch.latest().is_some_and(|now| sidebar.update(now));
@@ -336,7 +334,13 @@ fn own(panes: &mut Panes, command: Command, area: Rect) {
         | Command::ZoomOut
         | Command::NextPage
         | Command::DeleteSelection
-        | Command::ClearSelection => {}
+        | Command::ClearSelection
+        | Command::ToolPen
+        | Command::ToolEraser
+        | Command::ToolLasso
+        | Command::ToolText
+        | Command::ToolBox
+        | Command::ToolArrow => {}
         Command::SplitRight => panes.split(Axis::Row),
         Command::SplitDown => panes.split(Axis::Column),
         Command::ClosePane => panes.close(),
@@ -388,7 +392,8 @@ fn selection(canvases: &mut Canvases, panes: &Panes, command: Command) -> bool {
 
 /// Hands a pen or mouse press, drag or lift to the pop-up at the pen, then
 /// to the canvas pane of `panes` laid in `area` under it, where the tool
-/// draws, erases or selects; a scroll or a pinch pans or zooms. False when
+/// draws, erases, selects, places text or draws a shape; typed text to the
+/// text being typed; a scroll or a pinch pans or zooms. False when
 /// nothing used it, and for a move or a paint, which need no new scene. A lift writes the
 /// stroke's delay log.
 fn pointer(
@@ -407,6 +412,8 @@ fn pointer(
             canvases.painted(delay);
             false
         }
+        // A text being typed takes the keys that type, which come back as text.
+        Event::Text(ref text) => canvases.typed(text),
         Event::Press(pen) if tools.press(pen.at) => true,
         Event::Press(pen) => {
             let tool = (tools.tool(), tools.colour());

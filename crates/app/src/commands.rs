@@ -47,6 +47,14 @@ pub enum Command {
     DeleteSelection,
     /// Select nothing.
     ClearSelection,
+    /// Make the pen draw, erase, select, place text, draw boxes or draw
+    /// arrows, without a pop-up.
+    ToolPen,
+    ToolEraser,
+    ToolLasso,
+    ToolText,
+    ToolBox,
+    ToolArrow,
 }
 
 /// How many commands there are.
@@ -54,7 +62,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 26] = [
+    pub const ALL: [(Command, &str); 32] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -81,6 +89,12 @@ impl Command {
         (Command::NextPage, "next-page"),
         (Command::DeleteSelection, "delete-selection"),
         (Command::ClearSelection, "clear-selection"),
+        (Command::ToolPen, "tool-pen"),
+        (Command::ToolEraser, "tool-eraser"),
+        (Command::ToolLasso, "tool-lasso"),
+        (Command::ToolText, "tool-text"),
+        (Command::ToolBox, "tool-box"),
+        (Command::ToolArrow, "tool-arrow"),
     ];
 
     /// The command called `name` in the config file.
@@ -131,6 +145,11 @@ impl Chord {
     /// A letter matches in either case.
     pub const fn new(mods: u8, key: char) -> Chord {
         Chord { mods: mods & (SHIFT | CTRL | ALT | CMD), key: key.to_ascii_lowercase() }
+    }
+
+    /// Whether the key types text: neither command nor control is held.
+    pub const fn types(self) -> bool {
+        self.mods & (CTRL | CMD) == 0
     }
 
     /// Parses `"cmd+q"`: lowercase modifiers (`shift`, `ctrl`, `alt`, `cmd`)
@@ -216,6 +235,12 @@ impl Default for Keymap {
             on(CMD, ']'),
             on(0, '\u{7f}'),
             on(0, '\u{1b}'),
+            on(CMD, '1'),
+            on(CMD, '2'),
+            on(CMD, '3'),
+            on(CMD, '4'),
+            on(CMD, '5'),
+            on(CMD, '6'),
         ])
     }
 }

@@ -9,7 +9,7 @@
 //! move the highlight and return (or space) picks it. A pick, escape, a press
 //! outside the pop-up, or the same command again closes it.
 
-use crate::commands::Chord;
+use crate::commands::{Chord, Command};
 use crate::config::{Palette, Rgb, Theme};
 use crate::layout::{self, Point, Rect};
 use crate::scene::Label;
@@ -85,6 +85,25 @@ impl Tools {
     /// What the pen does.
     pub fn tool(&self) -> Tool {
         self.tool
+    }
+
+    /// Runs a tool command (`tool-pen` to `tool-arrow`): the tool it names
+    /// is what the pen does now. An open tool or shape pop-up closes, since
+    /// its lit cell no longer matches. False for any other command.
+    pub fn command(&mut self, command: Command) -> bool {
+        self.tool = match command {
+            Command::ToolPen => Tool::Pen,
+            Command::ToolEraser => Tool::Eraser,
+            Command::ToolLasso => Tool::Lasso,
+            Command::ToolText => Tool::Text,
+            Command::ToolBox => Tool::Box,
+            Command::ToolArrow => Tool::Arrow,
+            _ => return false,
+        };
+        if matches!(self.open_kind(), Some(Kind::Tool | Kind::Shape)) {
+            self.popup = None;
+        }
+        true
     }
 
     /// The pen's colour.

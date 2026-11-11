@@ -8,7 +8,8 @@
 //!   points at any zoom.
 //! - The lasso: the loop draws as the pen goes, and the lift selects the
 //!   items it holds whole. A press inside the selection's box drags the
-//!   selection instead, and the lift moves it in one `move`.
+//!   selection instead, and the lift moves it in one `move`, with the
+//!   arrows bound to it following ([`shapes::follow`]).
 //! - The selection: one page's items, with a plain box around them. It is
 //!   app state, read by what acts on it ([`Select::selection`]); delete
 //!   removes it in one `remove`.
@@ -28,6 +29,7 @@ use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::ink::{Change, Ink, on_server};
+use crate::scene::shapes;
 use crate::scene::tools::Tool;
 
 /// How far the eraser reaches from the pen, in screen points.
@@ -147,7 +149,9 @@ impl Select {
                 let by = Point { x: tenth(by.x), y: tenth(by.y) };
                 let moved = by.x != 0.0 || by.y != 0.0;
                 if let Some(selection) = self.selection.as_ref().filter(|_| moved) {
-                    ink.push(Change::Move { canvas, page, ids: selection.ids.clone(), by });
+                    let ids = selection.ids.clone();
+                    let follow = shapes::follow(items, &ids, by);
+                    ink.push(Change::Move { canvas, page, ids, by, follow });
                 }
             }
         }
@@ -204,10 +208,15 @@ impl Select {
         match (gesture, selection) {
             (Some(Gesture::Erase { ids, .. }), _) => items.retain(|i| !ids.contains(&i.id)),
             (Some(Gesture::Move { by, .. }), Some(selection)) => {
+                let follow = shapes::follow(&items, &selection.ids, *by);
                 let ids: HashSet<&ItemId> = selection.ids.iter().collect();
-                for item in items.iter_mut().filter(|i| ids.contains(&i.id)) {
-                    let (id, colour) = (item.id, item.colour);
-                    *item = Cow::Owned(Item { id, colour, shape: item.shape.moved(*by) });
+                for item in &mut items {
+                    if let Some(after) = follow.iter().find(|f| f.id == item.id) {
+                        *item = Cow::Owned(after.clone());
+                    } else if ids.contains(&item.id) {
+                        let (id, colour) = (item.id, item.colour);
+                        *item = Cow::Owned(Item { id, colour, shape: item.shape.moved(*by) });
+                    }
                 }
             }
             _ => {}

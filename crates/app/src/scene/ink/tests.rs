@@ -1,6 +1,8 @@
 use super::*;
 use std::borrow::Cow;
 
+use crate::layout::Rect;
+
 const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
 
 fn pt(x: f64, y: f64) -> Point {
@@ -187,7 +189,13 @@ fn a_removal_or_a_move_shows_over_the_page_at_once_and_goes_in_turn() {
     let remove = Change::Remove { canvas: "main".into(), page: "p1".into(), ids: vec![ItemId(1)] };
     ink.push(remove.clone());
     let by = pt(10.0, 5.0);
-    let moved = Change::Move { canvas: "main".into(), page: "p1".into(), ids: vec![ItemId(3)], by };
+    let moved = Change::Move {
+        canvas: "main".into(),
+        page: "p1".into(),
+        ids: vec![ItemId(3)],
+        by,
+        follow: vec![],
+    };
     ink.push(moved.clone());
     let shown = ink.shown("main", "p1", &page);
     let ids: Vec<u64> = shown.iter().map(|i| i.id.0).collect();
@@ -214,9 +222,46 @@ fn a_change_names_its_canvas_and_page() {
     draw(&mut ink, &[(1.0, 1.0)]);
     let (_, add) = ink.next().unwrap();
     let remove = Change::Remove { canvas: "c".into(), page: "p2".into(), ids: vec![] };
-    let moved =
-        Change::Move { canvas: "d".into(), page: "p3".into(), ids: vec![], by: pt(0.0, 0.0) };
+    let moved = Change::Move {
+        canvas: "d".into(),
+        page: "p3".into(),
+        ids: vec![],
+        by: pt(0.0, 0.0),
+        follow: vec![],
+    };
     let named: Vec<(&str, &str)> = [&add, &remove, &moved].map(|c| (c.canvas(), c.page())).into();
     assert_eq!(named, [("main", "p1"), ("c", "p2"), ("d", "p3")]);
     assert!(on_server(ItemId(LOCAL - 1)) && !on_server(ItemId(LOCAL)));
+}
+
+#[test]
+fn a_put_an_edit_and_a_move_with_its_arrows_show_at_once() {
+    let mut ink = Ink::default();
+    let here = || ("main".to_string(), "p1".to_string());
+    let frame = Rect { x: 0.0, y: 0.0, width: 10.0, height: 10.0 };
+    let (canvas, page) = here();
+    ink.push(Change::Put { canvas, page, colour: RED, shape: Shape::Box { frame, width: 2.0 } });
+    let text = |t: &str| Shape::Text { frame, text: t.into(), size: 24.0 };
+    let (canvas, page) = here();
+    ink.push(Change::Set { canvas, page, id: ItemId(1), shape: text("after") });
+    let arrow = |x| Shape::Arrow {
+        from: pt(x, 0.0),
+        to: pt(50.0, 0.0),
+        width: 2.0,
+        bound: [Some(ItemId(1)), None],
+    };
+    let follow = vec![Item { id: ItemId(2), colour: RED, shape: arrow(5.0) }];
+    let (canvas, page) = here();
+    ink.push(Change::Move { canvas, page, ids: vec![ItemId(1)], by: pt(5.0, 0.0), follow });
+
+    let server = [
+        Item { id: ItemId(1), colour: RED, shape: text("before") },
+        Item { id: ItemId(2), colour: RED, shape: arrow(0.0) },
+    ];
+    let shown = ink.shown("main", "p1", &server);
+    let shapes: Vec<&Shape> = shown.iter().map(|i| &i.shape).collect();
+    let box_at = Shape::Box { frame, width: 2.0 };
+    let moved = text("after").moved(pt(5.0, 0.0));
+    assert_eq!(shapes, [&moved, &arrow(5.0), &box_at]);
+    assert!(shown[2].id.0 >= LOCAL, "a put has no server id yet");
 }

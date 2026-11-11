@@ -4,8 +4,9 @@
 //! viewport, and keeps the last scene it drew, so the next one repaints only
 //! what changed. The pen draws on a canvas pane: its [`Ink`] shows over the
 //! page at once and goes to the daemon through an [`Outbox`]. The eraser and
-//! the lasso work on the page as shown ([`Select`]), and what they change
-//! goes the same way, in turn with the strokes. Runs on the main thread and
+//! the lasso work on the page as shown ([`Select`]), and so do the text, box
+//! and arrow tools ([`Shapes`]); what they change goes the same way, in turn
+//! with the strokes. Runs on the main thread and
 //! never waits: the followers and the outbox do.
 
 use std::borrow::Cow;
@@ -21,6 +22,7 @@ use crate::panes::{Kind, Panes};
 use crate::scene::canvas::Item;
 use crate::scene::ink::{Ink, Pen};
 use crate::scene::select::{Select, Selection};
+use crate::scene::shapes::{Press, Shapes};
 use crate::scene::tools::Tool;
 use crate::scene::{CanvasPane, canvas};
 
@@ -31,6 +33,7 @@ pub struct Canvases {
     views: Vec<(PaneId, View)>,
     ink: Ink,
     select: Select,
+    shapes: Shapes,
     outbox: Outbox,
     /// The pane the pen draws in, and its frame in the window, while down.
     pen: Option<(PaneId, Rect)>,
@@ -61,7 +64,8 @@ impl Canvases {
         let outbox = Outbox::start(daemon.clone());
         let (ink, select) = (Ink::default(), Select::default());
         let (open, views) = (Vec::new(), Vec::new());
-        Self { daemon, open, views, ink, select, outbox, pen: None, unshown: None }
+        let shapes = Shapes::default();
+        Self { daemon, open, views, ink, select, shapes, outbox, pen: None, unshown: None }
     }
 
     /// Follows every canvas, and sends ink not yet sent, through `daemon`
@@ -127,10 +131,12 @@ impl Canvases {
     }
 
     /// The pen went down in `pane` of `panes`, laid at `frame` in the
-    /// window, with `tool` and `colour`: the pen starts a stroke on the page
-    /// the pane shows, the eraser an erase, the lasso a loop or a drag of
-    /// the selection. Returns false, and nothing starts, for touch (a palm),
-    /// another tool, or a pane whose canvas page has not arrived.
+    /// window, with `tool` and `colour`: a press outside a text being typed
+    /// ends it; else the pen starts a stroke on the page the pane shows, the
+    /// eraser an erase, the lasso a loop or a drag of the selection, the
+    /// text tool a text, the box and arrow tools a drag. Returns false, and
+    /// nothing starts, for touch (a palm) or a pane whose canvas page has
+    /// not arrived.
     pub fn pen_down(
         &mut self,
         panes: &Panes,
@@ -145,13 +151,16 @@ impl Canvases {
         };
         let viewport = self.view(pane).viewport;
         let at = to_canvas(viewport, frame, pen.at);
-        if tool == Tool::Pen {
+        let items = pane_shown(&self.open, &self.ink, panes, pane);
+        let press = Press { at, when: pen.when, zoom: viewport.zoom() };
+        let here = (canvas, shown.as_str());
+        if self.shapes.down((tool, colour), here, press, &items, &mut self.ink) {
+            drop(items);
+            self.send();
+        } else if tool == Tool::Pen {
             self.ink.down(canvas, &shown, colour, at);
-        } else {
-            let items = pane_shown(&self.open, &self.ink, panes, pane);
-            if !self.select.down(tool, (canvas, &shown), at, viewport.zoom(), &items) {
-                return false;
-            }
+        } else if !self.select.down(tool, here, at, viewport.zoom(), &items) {
+            return false;
         }
         self.pen = Some((pane, frame));
         self.unshown = Some(pen.when);
@@ -164,26 +173,42 @@ impl Canvases {
         let Some((pane, frame)) = self.pen else { return false };
         let at = to_canvas(self.view(pane).viewport, frame, pen.at);
         self.unshown = Some(self.unshown.map_or(pen.when, |t| t.min(pen.when)));
-        if self.ink.drag(at) {
+        if self.ink.drag(at) || self.shapes.drag(at) {
             return true;
         }
         let items = pane_shown(&self.open, &self.ink, panes, pane);
         self.select.drag(at, &items)
     }
 
-    /// The pen lifted: the stroke, erase or move is finished and goes to the
-    /// daemon in its turn, or the loop selects. Returns false when nothing
-    /// was under the pen.
+    /// The pen lifted: the stroke, box, arrow, erase or move is finished
+    /// and goes to the daemon in its turn, or the loop selects. Returns
+    /// false when nothing was under the pen.
     pub fn pen_up(&mut self, panes: &Panes, pen: Pen) -> bool {
         let Some((pane, frame)) = self.pen.take() else { return false };
         let at = to_canvas(self.view(pane).viewport, frame, pen.at);
         let ended = self.ink.up(Some(at)) || {
             let items = pane_shown(&self.open, &self.ink, panes, pane);
-            self.select.up(Some(at), &items, &mut self.ink)
+            self.shapes.up(Some(at), &items, &mut self.ink)
+                || self.select.up(Some(at), &items, &mut self.ink)
         };
         self.unshown = None;
         self.send();
         ended
+    }
+
+    /// Whether a text is being typed: the keys that type go to it.
+    pub fn editing(&self) -> bool {
+        self.shapes.editing()
+    }
+
+    /// Typed `text` goes into the text being typed; escape ends it, and the
+    /// text goes to the daemon. Returns false when no text is being typed.
+    pub fn typed(&mut self, text: &str) -> bool {
+        let used = self.shapes.typed(text, &mut self.ink);
+        if used {
+            self.send();
+        }
+        used
     }
 
     /// The selection, if any: one page's items, by the server's ids.
@@ -301,6 +326,7 @@ impl Canvases {
             let items = self.ink.shown(here.0, here.1, mirror.items());
             self.select.keep(here, &items);
             let items = self.select.shown(here, items, view.viewport.zoom(), theme.muted);
+            let items = self.shapes.shown(here, items);
             let items = items.iter().map(AsRef::as_ref);
             let mut scene = canvas::build(items, view.viewport, screen, theme, last);
             if self.pen.is_some_and(|(p, _)| p == id) {

@@ -1,0 +1,339 @@
+//! The text, box and arrow tools (SPEC D6). Pure: `canvases` hands in pen
+//! presses, drags and lifts in canvas units, typed text, and the page as the
+//! user sees it ([`Ink::shown`]); each finished text or shape goes to the
+//! [`Ink`] as one [`Change`], so one `canvas_apply` and one undo step.
+//!
+//! - Text: a tap places it and the keyboard types it ([`Shapes::typed`]);
+//!   escape or a tap outside ends it. A tap with the text tool on a text,
+//!   or a double tap on one with any tool but the pen, edits it. The edit
+//!   is one change when it ends: an `add`, a `set`, or a `remove` when it
+//!   was emptied.
+//! - Box: a drag from corner to corner.
+//! - Arrow: a drag from start to end. An end that lands on an item binds to
+//!   it ([`target`]), and when that item moves the end follows ([`follow`]),
+//!   in the same change as the move.
+//!
+//! No snapping and no rotation (D6). A drag shorter than [`MIN_DRAG`] is a
+//! tap and makes nothing.
+
+use std::borrow::Cow;
+use std::collections::HashSet;
+
+use crate::config::Rgb;
+use crate::layout::{Point, Rect};
+use crate::mirror::{LINE_WIDTH, TEXT_SIZE, text_frame_at};
+use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::ink::{Change, Ink, on_server};
+use crate::scene::tools::Tool;
+
+/// Two presses this close in time, in seconds, are a double tap...
+pub const DOUBLE_TAP: f64 = 0.4;
+/// ...when this close in place, in screen points. An arrow's end binds to
+/// an item it lands this close to, and a press this close to the text
+/// being edited is inside it.
+pub const REACH: f64 = 8.0;
+/// The least drag, in screen points, that makes a box or an arrow.
+pub const MIN_DRAG: f64 = 4.0;
+/// Drawn after the text being edited, where the next character goes.
+const CARET: char = '|';
+/// The ids of the marks drawn over a page: above every server id and every
+/// id of local ink, and apart from the selection's marks.
+const PREVIEW: ItemId = ItemId(u64::MAX - 2);
+const EDITING: ItemId = ItemId(u64::MAX - 3);
+
+/// One press of the pen: where on the canvas, when (seconds, the pen's
+/// clock) and at what zoom.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Press {
+    pub at: Point,
+    pub when: f64,
+    pub zoom: f64,
+}
+
+/// A box or an arrow under the pen, from where it went down to where it is.
+#[derive(Debug, Clone, PartialEq)]
+struct Drag {
+    arrow: bool,
+    from: Point,
+    to: Point,
+    colour: Rgb,
+    /// The item the arrow's start landed on.
+    start: Option<ItemId>,
+    zoom: f64,
+}
+
+/// A text being typed.
+#[derive(Debug, Clone, PartialEq)]
+struct Editing {
+    canvas: String,
+    page: String,
+    /// The text's top left, in canvas units.
+    at: Point,
+    text: String,
+    colour: Rgb,
+    /// The text item edited and its text before; `None` for a new text.
+    item: Option<(ItemId, String)>,
+}
+
+impl Editing {
+    fn frame(&self) -> Rect {
+        text_frame_at(self.at, &self.text)
+    }
+}
+
+/// The box or arrow under the pen, the text being typed, and the last press.
+#[derive(Debug, Default)]
+pub struct Shapes {
+    drag: Option<(String, String, Drag)>,
+    editing: Option<Editing>,
+    last: Option<(String, String, Press)>,
+}
+
+impl Shapes {
+    /// The pen went down on `page` of `canvas`, over `items`, with `tool`
+    /// in `colour`. Returns whether the press was this module's: it ends a
+    /// text being typed (a press outside it, used up), edits a text, places
+    /// one, or starts a box or an arrow. A text ended goes to `ink`.
+    pub fn down(
+        &mut self,
+        (tool, colour): (Tool, Rgb),
+        (canvas, page): (&str, &str),
+        press: Press,
+        items: &[Cow<'_, Item>],
+        ink: &mut Ink,
+    ) -> bool {
+        let reach = REACH / press.zoom;
+        let last = self.last.replace((canvas.to_string(), page.to_string(), press));
+        let double = last.is_some_and(|(c, p, last)| {
+            c == canvas
+                && p == page
+                && press.when - last.when <= DOUBLE_TAP
+                && distance(press.at, last.at) <= reach
+        });
+        if let Some(editing) = &self.editing {
+            let here = editing.canvas == canvas && editing.page == page;
+            if here && editing.frame().outset(reach).contains(press.at) {
+                return true;
+            }
+            self.end(ink);
+            if !double {
+                return true;
+            }
+        }
+        let edits = tool == Tool::Text || (double && tool != Tool::Pen);
+        if let Some(item) = text_at(items, press.at, reach).filter(|_| edits) {
+            if let Shape::Text { frame, text, .. } = &item.shape {
+                self.editing = Some(Editing {
+                    canvas: canvas.to_string(),
+                    page: page.to_string(),
+                    at: Point { x: frame.x, y: frame.y },
+                    text: text.clone(),
+                    colour: item.colour,
+                    item: Some((item.id, text.clone())),
+                });
+            }
+            return true;
+        }
+        let arrow = match tool {
+            Tool::Text => {
+                // The tap is at the middle of the first line's left end.
+                let half = text_frame_at(press.at, "").height / 2.0;
+                self.editing = Some(Editing {
+                    canvas: canvas.to_string(),
+                    page: page.to_string(),
+                    at: snap(Point { x: press.at.x, y: press.at.y - half }),
+                    text: String::new(),
+                    colour,
+                    item: None,
+                });
+                return true;
+            }
+            Tool::Box => false,
+            Tool::Arrow => true,
+            Tool::Pen | Tool::Eraser | Tool::Lasso => return false,
+        };
+        let start = if arrow { target(items, press.at, reach) } else { None };
+        let (from, zoom) = (press.at, press.zoom);
+        let drag = Drag { arrow, from, to: from, colour, start, zoom };
+        self.drag = Some((canvas.to_string(), page.to_string(), drag));
+        true
+    }
+
+    /// The pen moved to `at` while down. Returns false when no box or arrow
+    /// is under it.
+    pub fn drag(&mut self, at: Point) -> bool {
+        let Some((_, _, drag)) = &mut self.drag else { return false };
+        drag.to = at;
+        true
+    }
+
+    /// The pen lifted, at `at` if it said where, over `items`: a box or an
+    /// arrow that went far enough goes to `ink` as one change, an arrow's
+    /// end bound to the item it landed on. Returns false when no box or
+    /// arrow was under the pen.
+    pub fn up(&mut self, at: Option<Point>, items: &[Cow<'_, Item>], ink: &mut Ink) -> bool {
+        if let Some(at) = at {
+            self.drag(at);
+        }
+        let Some((canvas, page, drag)) = self.drag.take() else { return false };
+        if distance(drag.from, drag.to) * drag.zoom < MIN_DRAG {
+            return true;
+        }
+        let shape = if drag.arrow {
+            let end = target(items, drag.to, REACH / drag.zoom);
+            arrow(snap(drag.from), snap(drag.to), [drag.start, end])
+        } else {
+            boxed(snap(drag.from), snap(drag.to))
+        };
+        ink.push(Change::Put { canvas, page, colour: drag.colour, shape });
+        true
+    }
+
+    /// Whether a text is being typed: keys go to it first.
+    pub fn editing(&self) -> bool {
+        self.editing.is_some()
+    }
+
+    /// Typed `text` goes into the text being edited: delete takes the last
+    /// character back, return starts a line, escape ends the text (to
+    /// `ink`). Other control and function keys do nothing. Returns false,
+    /// and nothing changes, when no text is being edited.
+    pub fn typed(&mut self, text: &str, ink: &mut Ink) -> bool {
+        let Some(editing) = &mut self.editing else { return false };
+        for c in text.chars() {
+            match c {
+                '\u{1b}' => {
+                    self.end(ink);
+                    return true;
+                }
+                '\u{7f}' | '\u{8}' => {
+                    editing.text.pop();
+                }
+                '\r' | '\n' => editing.text.push('\n'),
+                // The arrow and function keys are in this private range.
+                c if c.is_control() || ('\u{f700}'..='\u{f8ff}').contains(&c) => {}
+                c => editing.text.push(c),
+            }
+        }
+        true
+    }
+
+    /// Ends the text being edited, as one change to `ink`: a new text's
+    /// `add`, an edited text's `set`, or its `remove` when emptied. Blank
+    /// new text and an unchanged edit make none. Returns false when no text
+    /// was being edited.
+    pub fn end(&mut self, ink: &mut Ink) -> bool {
+        let Some(editing) = self.editing.take() else { return false };
+        let blank = editing.text.trim().is_empty();
+        let shape = Shape::Text { frame: editing.frame(), text: editing.text, size: TEXT_SIZE };
+        let (canvas, page) = (editing.canvas, editing.page);
+        match editing.item {
+            None if blank => {}
+            None => ink.push(Change::Put { canvas, page, colour: editing.colour, shape }),
+            Some((id, _)) if blank => ink.push(Change::Remove { canvas, page, ids: vec![id] }),
+            Some((_, before)) if matches!(&shape, Shape::Text { text, .. } if *text == before) => {}
+            Some((id, _)) => ink.push(Change::Set { canvas, page, id, shape }),
+        }
+        true
+    }
+
+    /// `items`, the page shown of `canvas`, with the box or arrow under the
+    /// pen laid over it, and the text being edited in place of its item,
+    /// with a caret.
+    pub fn shown<'a>(
+        &self,
+        (canvas, page): (&str, &str),
+        mut items: Vec<Cow<'a, Item>>,
+    ) -> Vec<Cow<'a, Item>> {
+        let here = |c: &str, p: &str| c == canvas && p == page;
+        if let Some((_, _, drag)) = self.drag.as_ref().filter(|(c, p, _)| here(c, p)) {
+            let shape = if drag.arrow {
+                arrow(drag.from, drag.to, [None; 2])
+            } else {
+                boxed(drag.from, drag.to)
+            };
+            items.push(Cow::Owned(Item { id: PREVIEW, colour: drag.colour, shape }));
+        }
+        if let Some(editing) = self.editing.as_ref().filter(|e| here(&e.canvas, &e.page)) {
+            if let Some((id, _)) = &editing.item {
+                items.retain(|i| i.id != *id);
+            }
+            let mut text = editing.text.clone();
+            text.push(CARET);
+            let shape = Shape::Text { frame: editing.frame(), text, size: TEXT_SIZE };
+            items.push(Cow::Owned(Item { id: EDITING, colour: editing.colour, shape }));
+        }
+        items
+    }
+}
+
+/// The topmost server item of `items` an arrow's end at `at` binds to: one
+/// whose box, `reach` canvas units bigger, holds the end. Arrows are not
+/// bound to.
+pub fn target(items: &[Cow<'_, Item>], at: Point, reach: f64) -> Option<ItemId> {
+    let bindable = items.iter().filter(|i| on_server(i.id));
+    let bindable = bindable.filter(|i| !matches!(i.shape, Shape::Arrow { .. }));
+    let mut found =
+        bindable.filter(|i| i.shape.bounds().is_some_and(|b| b.outset(reach).contains(at)));
+    found.next_back().map(|i| i.id)
+}
+
+/// The arrows of `items` that follow a move of the items `ids` by `by`, as
+/// they are after it: each arrow not moved itself with an end bound to a
+/// moved item, that end moved by `by`.
+pub fn follow(items: &[Cow<'_, Item>], ids: &[ItemId], by: Point) -> Vec<Item> {
+    let moved: HashSet<&ItemId> = ids.iter().collect();
+    let on = |end: Option<ItemId>| end.is_some_and(|id| moved.contains(&id));
+    let mut follows = Vec::new();
+    for item in items.iter().filter(|i| !moved.contains(&i.id)) {
+        let Shape::Arrow { from, to, width, bound } = &item.shape else { continue };
+        if !on(bound[0]) && !on(bound[1]) {
+            continue;
+        }
+        let shift =
+            |p: Point, end| if on(end) { Point { x: p.x + by.x, y: p.y + by.y } } else { p };
+        let (from, to) = (shift(*from, bound[0]), shift(*to, bound[1]));
+        let shape = Shape::Arrow { from, to, width: *width, bound: *bound };
+        follows.push(Item { id: item.id, colour: item.colour, shape });
+    }
+    follows
+}
+
+/// The topmost server text of `items` within `reach` of `at`.
+fn text_at<'b>(items: &'b [Cow<'_, Item>], at: Point, reach: f64) -> Option<&'b Item> {
+    let texts = items.iter().filter(|i| on_server(i.id));
+    let mut texts = texts.filter(|i| match &i.shape {
+        Shape::Text { frame, .. } => frame.outset(reach).contains(at),
+        _ => false,
+    });
+    texts.next_back().map(AsRef::as_ref)
+}
+
+fn arrow(from: Point, to: Point, bound: [Option<ItemId>; 2]) -> Shape {
+    Shape::Arrow { from, to, width: LINE_WIDTH, bound }
+}
+
+/// The box with corners `a` and `b`, whichever way the drag went.
+fn boxed(a: Point, b: Point) -> Shape {
+    let frame = Rect {
+        x: a.x.min(b.x),
+        y: a.y.min(b.y),
+        width: (a.x - b.x).abs(),
+        height: (a.y - b.y).abs(),
+    };
+    Shape::Box { frame, width: LINE_WIDTH }
+}
+
+fn distance(a: Point, b: Point) -> f64 {
+    (a.x - b.x).hypot(a.y - b.y)
+}
+
+/// A point on the whole tenths the canvas file stores, so the server's echo
+/// lands where the shape showed.
+fn snap(p: Point) -> Point {
+    let tenth = |v: f64| (v * 10.0).round() / 10.0;
+    Point { x: tenth(p.x), y: tenth(p.y) }
+}
+
+#[cfg(test)]
+mod tests;

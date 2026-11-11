@@ -74,8 +74,14 @@ pub enum Change {
     Add(Stroke),
     /// Items to remove: one erase gesture, or a deleted selection.
     Remove { canvas: String, page: String, ids: Vec<ItemId> },
-    /// Items to move by `by` canvas units: one drag of a selection.
-    Move { canvas: String, page: String, ids: Vec<ItemId>, by: Point },
+    /// Items to move by `by` canvas units: one drag of a selection. `follow`
+    /// holds the arrows bound to them, not moved themselves, as they are
+    /// after the move: their bound ends follow ([`crate::scene::shapes::follow`]).
+    Move { canvas: String, page: String, ids: Vec<ItemId>, by: Point, follow: Vec<Item> },
+    /// A text, a box or an arrow to add: one placed text or one drag.
+    Put { canvas: String, page: String, colour: Rgb, shape: Shape },
+    /// Item `id` drawn as `shape` from now on: one edit of a text.
+    Set { canvas: String, page: String, id: ItemId, shape: Shape },
 }
 
 impl Change {
@@ -83,7 +89,10 @@ impl Change {
     pub fn canvas(&self) -> &str {
         match self {
             Change::Add(stroke) => &stroke.canvas,
-            Change::Remove { canvas, .. } | Change::Move { canvas, .. } => canvas,
+            Change::Remove { canvas, .. }
+            | Change::Move { canvas, .. }
+            | Change::Put { canvas, .. }
+            | Change::Set { canvas, .. } => canvas,
         }
     }
 
@@ -91,7 +100,10 @@ impl Change {
     pub fn page(&self) -> &str {
         match self {
             Change::Add(stroke) => &stroke.page,
-            Change::Remove { page, .. } | Change::Move { page, .. } => page,
+            Change::Remove { page, .. }
+            | Change::Move { page, .. }
+            | Change::Put { page, .. }
+            | Change::Set { page, .. } => page,
         }
     }
 }
@@ -174,7 +186,7 @@ impl Ink {
         true
     }
 
-    /// A finished erase, delete or move: it shows at once and waits its
+    /// A finished erase, delete, move, put or edit: it shows at once and waits its
     /// turn to be sent, after every change made before it.
     pub fn push(&mut self, change: Change) {
         self.pending.push(Pending { key: self.next_key, change, state: State::Waiting });
@@ -222,7 +234,8 @@ impl Ink {
 
     /// `items`, the server's copy of `page` of `canvas`, as the user should
     /// see it: each change not yet heard laid over it in the order made
-    /// (removed items gone, moved ones moved, strokes on top), then the
+    /// (removed items gone, moved ones moved, edited ones edited, new
+    /// strokes, texts, boxes and arrows on top), then the
     /// stroke under the pen. Items no change touches are borrowed, not
     /// copied, so a big page costs little.
     pub fn shown<'a>(&self, canvas: &str, page: &str, items: &'a [Item]) -> Vec<Cow<'a, Item>> {
@@ -235,11 +248,25 @@ impl Ink {
                     let ids: HashSet<&ItemId> = ids.iter().collect();
                     shown.retain(|i| !ids.contains(&i.id));
                 }
-                Change::Move { ids, by, .. } => {
+                Change::Move { ids, by, follow, .. } => {
                     let ids: HashSet<&ItemId> = ids.iter().collect();
-                    for item in shown.iter_mut().filter(|i| ids.contains(&i.id)) {
-                        let (id, colour) = (item.id, item.colour);
-                        *item = Cow::Owned(Item { id, colour, shape: item.shape.moved(*by) });
+                    for item in &mut shown {
+                        if let Some(after) = follow.iter().find(|f| f.id == item.id) {
+                            *item = Cow::Owned(after.clone());
+                        } else if ids.contains(&item.id) {
+                            let (id, colour) = (item.id, item.colour);
+                            *item = Cow::Owned(Item { id, colour, shape: item.shape.moved(*by) });
+                        }
+                    }
+                }
+                Change::Put { colour, shape, .. } => {
+                    let id = ItemId(LOCAL + pending.key);
+                    shown.push(Cow::Owned(Item { id, colour: *colour, shape: shape.clone() }));
+                }
+                Change::Set { id, shape, .. } => {
+                    for item in shown.iter_mut().filter(|i| i.id == *id) {
+                        let colour = item.colour;
+                        *item = Cow::Owned(Item { id: *id, colour, shape: shape.clone() });
                     }
                 }
             }

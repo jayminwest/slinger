@@ -31,7 +31,10 @@ fn page() -> Vec<Item> {
             3,
             Shape::Text { frame: frame(40.0, -5.0, 10.0, 10.0), text: "hi".into(), size: 24.0 },
         ),
-        item(4, Shape::Arrow { from: pt(0.0, 50.0), to: pt(50.0, 50.0), width: 2.0 }),
+        item(
+            4,
+            Shape::Arrow { from: pt(0.0, 50.0), to: pt(50.0, 50.0), width: 2.0, bound: [None; 2] },
+        ),
         stroke(LOCAL_INK, &[(0.0, 20.0), (50.0, 20.0)]),
     ]
 }

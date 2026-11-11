@@ -45,7 +45,15 @@ fn page() -> Vec<Item> {
             Shape::Text { frame: rect(100.0, 100.0, 80.0, 20.0), text: "hi".into(), size: 16.0 },
         ),
         item(4, Shape::Box { frame: rect(-900.0, 0.0, 50.0, 50.0), width: 2.0 }),
-        item(5, Shape::Arrow { from: pt(200.0, 300.0), to: pt(300.0, 300.0), width: 2.0 }),
+        item(
+            5,
+            Shape::Arrow {
+                from: pt(200.0, 300.0),
+                to: pt(300.0, 300.0),
+                width: 2.0,
+                bound: [None; 2],
+            },
+        ),
     ]
 }
 

@@ -157,7 +157,16 @@ mod tests {
             let (canvas, page) = ("main".to_string(), "p1".to_string());
             let ids = vec![ItemId(1), ItemId(4)];
             let by = Point { x: 1.5, y: -2.0 };
-            outbox.send(5, Change::Move { canvas: canvas.clone(), page: page.clone(), ids, by });
+            outbox.send(
+                5,
+                Change::Move {
+                    canvas: canvas.clone(),
+                    page: page.clone(),
+                    ids,
+                    by,
+                    follow: vec![],
+                },
+            );
             outbox.send(6, Change::Remove { canvas, page, ids: vec![ItemId(2), ItemId(4)] });
             let answers = wait(&outbox, 2);
             // A line per item; the answer is the last, which the feed must pass.
@@ -171,6 +180,70 @@ mod tests {
             daemon.canvas_undo(step).unwrap();
             let back = daemon.canvas_show("main", None).unwrap();
             assert_eq!(back.items.len(), 4, "one undo puts both back: one step");
+        });
+    }
+
+    #[test]
+    fn a_text_a_box_and_a_bound_arrow_are_written_and_the_arrow_follows_in_one_step() {
+        use crate::layout::Rect;
+        use crate::scene::canvas::{Item, Shape};
+        with_daemon(|daemon| {
+            daemon.canvas_create("main").unwrap();
+            let outbox = Outbox::start(daemon.clone());
+            let colour = Rgb { r: 0, g: 0, b: 255 };
+            let here = || ("main".to_string(), "p1".to_string());
+            let frame = Rect { x: 0.0, y: 0.0, width: 10.0, height: 10.0 };
+            let at = |x, y| Point { x, y };
+            let shapes = [
+                Shape::Box { frame, width: 2.0 },
+                Shape::Text { frame: Rect { x: 50.0, ..frame }, text: "hi".into(), size: 24.0 },
+                Shape::Arrow {
+                    from: at(5.0, 5.0),
+                    to: at(55.0, 5.0),
+                    width: 2.0,
+                    bound: [Some(ItemId(1)), Some(ItemId(2))],
+                },
+            ];
+            for (key, shape) in (1..).zip(shapes) {
+                let (canvas, page) = here();
+                outbox.send(key, Change::Put { canvas, page, colour, shape });
+            }
+            let edited =
+                Shape::Text { frame: Rect { x: 50.0, ..frame }, text: "ho".into(), size: 24.0 };
+            let (canvas, page) = here();
+            outbox.send(4, Change::Set { canvas, page, id: ItemId(2), shape: edited });
+            let arrow = Shape::Arrow {
+                from: at(6.0, 4.0),
+                to: at(55.0, 5.0),
+                width: 2.0,
+                bound: [Some(ItemId(1)), Some(ItemId(2))],
+            };
+            let follow = vec![Item { id: ItemId(3), colour, shape: arrow }];
+            let (canvas, page) = here();
+            outbox.send(
+                5,
+                Change::Move { canvas, page, ids: vec![ItemId(1)], by: at(1.0, -1.0), follow },
+            );
+            let answers = wait(&outbox, 5);
+            assert!(answers.iter().all(|(_, a)| matches!(a, Answer::Applied(_))), "{answers:?}");
+            let shown = daemon.canvas_show("main", None).unwrap();
+            let [boxed, text, arrow] = &shown.items[..] else { panic!("{shown:?}") };
+            assert_eq!(
+                (&boxed["x"], &boxed["y"], &boxed["w"]),
+                (&10.into(), &(-10).into(), &100.into())
+            );
+            assert_eq!((&text["text"], &text["color"]), (&"ho".into(), &"#0000ff".into()));
+            assert_eq!(arrow["pts"], serde_json::json!([60, 40, 490, 10]), "its start followed");
+            assert_eq!((&arrow["from"], &arrow["to"]), (&"i1".into(), &"i2".into()));
+            let step = slinger_control::CanvasStep { canvas: "main".into(), by: "user".into() };
+            daemon.canvas_undo(step).unwrap();
+            let back = daemon.canvas_show("main", None).unwrap();
+            assert_eq!(back.items[0]["x"], 0, "one undo puts the box back...");
+            assert_eq!(
+                back.items[2]["pts"],
+                serde_json::json!([50, 50, 500, 0]),
+                "...and the arrow"
+            );
         });
     }
 }

@@ -240,9 +240,11 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
              code of each agent UI the panes show first.
              Its Follower keeps one canvas page coming: `canvas_show`,
              then the change feed. Its Outbox sends the pen's changes
-             (`canvas_apply`, one each: a stroke's `add`, an erase's or a
-             delete's `remove`, a drag's `move`) on a thread of its own, in
-             the order handed in, and hands back each answer.
+             (`canvas_apply`, one each: a stroke's, text's, box's or
+             arrow's `add`, an erase's or a delete's `remove`, a drag's
+             `move` with a `set` of each arrow that follows, a text edit's
+             `set`) on a thread of its own, in the order handed in, and
+             hands back each answer.
 backend/ui.rs  what a UI pane shows (`ui_shown`: the version, and a showing's
              id and data), its code by ui_export into a directory of the
              app's own, read, removed; and a showing's reply (`ui_reply`),
@@ -252,12 +254,13 @@ backend/panes.rs  the server's panes: `layout` for the Watch, and `open` and
              server as `pane_open` and `pane_close`.
 mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              feed reply applied in order; reads the canvas file's items
-             (tenths, delta points, `#rrggbb`) into scene items, and writes
-             the pen's changes as `canvas_apply` operations. Pure.
+             (tenths, delta points, `#rrggbb`, an arrow's bound ends) into
+             scene items, and writes the pen's changes as `canvas_apply`
+             operations, and the frame a typed text is stored with. Pure.
 canvases.rs  the canvas panes: one follower and mirror per canvas shown, each
              pane's viewport and last scene; pan, zoom and next page; the
-             pen's ink and the eraser's and lasso's work over each page, and
-             the outbox they share.
+             pen's ink, the eraser's and lasso's work and the text, box and
+             arrow tools' over each page, and the outbox they share.
 config.rs    the config file's format: text in, a typed config or an error
              with its line out; merges a machine's overlay over it. Pure.
 commands.rs  key commands: the closed list of commands, the chord parser and
@@ -296,12 +299,21 @@ scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
              the box moves them; delete removes them. Each is one change, so
              one undo step. The selection (canvas, page, server ids) is app
              state the sling and moves between panes read. Pure.
+scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
+             text and typed keys go into it until escape or a tap outside
+             (the text tool on a text, or a double tap with any tool but
+             the pen, edits it); a drag makes a box or an arrow, whose ends
+             bind to the items they land on. An arrow bound to a moved item
+             follows it (`follow`): the move's change carries the arrow's
+             new ends, so it is still one `canvas_apply`. Each text, shape
+             or edit is one change. Pure.
 scene/select/hit.rs  which strokes an eraser's path touches and which items a
              lasso holds: the core's geometry rules (canvas/geometry.rs), kept
              here too so they answer at every pen event without the socket
              (P7). Keep the two alike. Pure.
 scene/tools.rs  the pen's tool and colour, and the pop-up at the pen (colour, shape,
-             tool) that changes them: opens, picks by pen or key, closes. Pure.
+             tool) that changes them: opens, picks by pen or key, closes.
+             The tool commands pick a tool without it. Pure.
 layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
              about a point, limits; the canvas has no edge) and where a pop-up
              opens (at the pen, kept inside the window). Pure. 100% coverage floor.
@@ -309,7 +321,8 @@ layout/tree.rs  the pane tree: binary splits with ratios to rectangles (no
              negative or oversized one at any size), split, close (the sibling
              takes the space), grow, next, and the pane beside one in a
              direction. Pure.
-platform/    draws a scene, turns a key press into a chord and a pen or mouse
+platform/    draws a scene, turns a key press into a chord (and, when the app
+             passes the chord on, into the text it types) and a pen or mouse
              event into a point, a time and whether a finger made it (mouse
              coalescing off: every point). One view per canvas pane repaints
              only the box its scene says changed, and says how long after

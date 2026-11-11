@@ -113,3 +113,11 @@
 #delete-selection = "delete"
 # Select nothing. With nothing selected on the focused pane's canvas the key goes on.
 #clear-selection = "escape"
+# Pick a tool without a pop-up. While a text is being typed, keys without cmd or ctrl
+# type into it (escape ends it), so these keep a modifier.
+#tool-pen = "cmd+1"
+#tool-eraser = "cmd+2"
+#tool-lasso = "cmd+3"
+#tool-text = "cmd+4"
+#tool-box = "cmd+5"
+#tool-arrow = "cmd+6"

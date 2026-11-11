@@ -190,6 +190,12 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
             "cmd+]",
             "delete",
             "escape",
+            "cmd+1",
+            "cmd+2",
+            "cmd+3",
+            "cmd+4",
+            "cmd+5",
+            "cmd+6",
         ]
         .map(|c| Some(Chord::parse(c))),
     };

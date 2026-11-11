@@ -58,7 +58,12 @@ fn a_shown_page_reads_every_kind_in_units() {
     let frame = Rect { x: 0.0, y: 0.0, width: 200.0, height: 30.0 };
     assert_eq!(items[2].shape, Shape::Text { frame, text: "plan".into(), size: TEXT_SIZE });
     assert_eq!(items[2].colour, Rgb { r: 0, g: 0, b: 255 });
-    let arrow = Shape::Arrow { from: pt(0.0, 0.0), to: pt(10.0, 10.0), width: LINE_WIDTH };
+    let arrow = Shape::Arrow {
+        from: pt(0.0, 0.0),
+        to: pt(10.0, 10.0),
+        width: LINE_WIDTH,
+        bound: [Some(ItemId(2)), None],
+    };
     assert_eq!((&items[3].shape, items[3].colour), (&arrow, Rgb { r: 0, g: 0, b: 0 }));
 }
 
@@ -229,7 +234,7 @@ fn a_move_and_a_removal_are_written_as_the_feed_brings_them_back() {
     let here = || ("main".to_string(), "p1".to_string());
     let (canvas, page) = here();
     let by = pt(1.04, -0.5);
-    let moved = ops(&Change::Move { canvas, page, ids: vec![ItemId(1)], by });
+    let moved = ops(&Change::Move { canvas, page, ids: vec![ItemId(1)], by, follow: vec![] });
     assert_eq!(moved, json!({"op": "move", "ids": ["i1"], "dx": 10, "dy": -5}));
     let (canvas, page) = here();
     let removed = ops(&Change::Remove { canvas, page, ids: vec![ItemId(2), ItemId(9)] });
@@ -238,4 +243,89 @@ fn a_move_and_a_removal_are_written_as_the_feed_brings_them_back() {
     assert_eq!(ids(&m), [1]);
     let Shape::Stroke { points, .. } = &m.items()[0].shape else { panic!() };
     assert_eq!(points[0], pt(11.0, 19.5));
+}
+
+#[test]
+fn a_text_a_box_and_an_arrow_are_written_as_they_read_back() {
+    let put = |shape: Shape| Change::Put {
+        canvas: "main".into(),
+        page: "p1".into(),
+        colour: Rgb { r: 0, g: 0x80, b: 0xff },
+        shape,
+    };
+    let text = Shape::Text {
+        frame: Rect { x: 1.0, y: -2.5, width: 48.0, height: 31.2 },
+        text: "hi".into(),
+        size: TEXT_SIZE,
+    };
+    let boxed = Shape::Box {
+        frame: Rect { x: 0.0, y: 0.0, width: 30.0, height: 40.04 },
+        width: LINE_WIDTH,
+    };
+    let bound = [Some(ItemId(7)), None];
+    let arrow = Shape::Arrow { from: pt(1.0, 2.0), to: pt(-3.0, 4.5), width: LINE_WIDTH, bound };
+    let written: Vec<Value> = [&text, &boxed, &arrow].map(|s| ops(&put(s.clone()))).into();
+    assert_eq!(
+        written,
+        [
+            json!({"op": "add", "item": {"page": "p1", "kind": "text", "color": "#0080ff",
+                   "x": 10, "y": -25, "w": 480, "h": 312, "text": "hi"}}),
+            json!({"op": "add", "item": {"page": "p1", "kind": "box", "color": "#0080ff",
+                   "x": 0, "y": 0, "w": 300, "h": 400}}),
+            json!({"op": "add", "item": {"page": "p1", "kind": "arrow", "color": "#0080ff",
+                   "pts": [10, 20, -40, 25], "from": "i7"}}),
+        ]
+    );
+    let read: Vec<Value> = written
+        .into_iter()
+        .zip(1..)
+        .map(|(mut op, n)| {
+            op["item"]["id"] = json!(format!("i{n}"));
+            op["item"].take()
+        })
+        .collect();
+    let m = Mirror::new(&shown(read));
+    let boxed =
+        Shape::Box { frame: Rect { x: 0.0, y: 0.0, width: 30.0, height: 40.0 }, width: LINE_WIDTH };
+    let shapes: Vec<&Shape> = m.items().iter().map(|i| &i.shape).collect();
+    assert_eq!(shapes, [&text, &boxed, &arrow]);
+}
+
+#[test]
+fn an_edit_is_a_set_and_a_move_sets_each_arrow_that_follows() {
+    let (canvas, page) = ("main".to_string(), "p1".to_string());
+    let frame = Rect { x: 0.0, y: 0.0, width: 24.0, height: 31.2 };
+    let shape = Shape::Text { frame, text: "a".into(), size: TEXT_SIZE };
+    let edit = Change::Set { canvas: canvas.clone(), page: page.clone(), id: ItemId(3), shape };
+    assert_eq!(
+        ops(&edit),
+        json!({"op": "set", "id": "i3",
+               "fields": {"x": 0, "y": 0, "w": 240, "h": 312, "text": "a"}})
+    );
+    let shape = Shape::Arrow {
+        from: pt(1.0, 1.0),
+        to: pt(2.0, 2.0),
+        width: 2.0,
+        bound: [None, Some(ItemId(1))],
+    };
+    let follow = vec![Item { id: ItemId(4), colour: Rgb { r: 0, g: 0, b: 0 }, shape }];
+    let by = pt(1.0, 0.0);
+    let moved = Change::Move { canvas, page, ids: vec![ItemId(1)], by, follow };
+    assert_eq!(
+        ops(&moved),
+        json!([
+            {"op": "move", "ids": ["i1"], "dx": 10, "dy": 0},
+            {"op": "set", "id": "i4", "fields": {"pts": [10, 10, 10, 10], "from": null, "to": "i1"}},
+        ])
+    );
+
+    // The feed brings them back: the arrow keeps its binding, and the end moves.
+    let mut m = Mirror::new(&shown(vec![
+        json!({"id": "i1", "page": "p1", "kind": "box", "x": 0, "y": 0, "w": 10, "h": 10}),
+        json!({"id": "i4", "page": "p1", "kind": "arrow", "pts": [10, 10, 0, 0], "to": "i1"}),
+    ]));
+    let Value::Array(both) = ops(&moved) else { panic!() };
+    assert_eq!(m.apply(&feed(9, both)), Applied::Changed);
+    let Shape::Arrow { from, to, bound, .. } = &m.items()[1].shape else { panic!() };
+    assert_eq!((*from, *to, *bound), (pt(1.0, 1.0), pt(2.0, 2.0), [None, Some(ItemId(1))]));
 }

@@ -217,3 +217,26 @@ fn a_word_popup_names_each_tool_and_lights_the_current_one() {
     let words: Vec<String> = tools.labels(&T)[2..].iter().map(|l| l.text.clone()).collect();
     assert_eq!(words, ["box", "arrow"]);
 }
+
+#[test]
+fn a_tool_command_picks_its_tool_and_closes_a_tool_pop_up() {
+    let mut tools = tools();
+    tools.open(Kind::Tool, WITHIN);
+    for (command, tool) in [
+        (Command::ToolText, Tool::Text),
+        (Command::ToolBox, Tool::Box),
+        (Command::ToolArrow, Tool::Arrow),
+        (Command::ToolEraser, Tool::Eraser),
+        (Command::ToolLasso, Tool::Lasso),
+        (Command::ToolPen, Tool::Pen),
+    ] {
+        assert!(tools.command(command));
+        assert_eq!(tools.tool(), tool);
+    }
+    assert_eq!(tools.open_kind(), None);
+    tools.open(Kind::Colour, WITHIN);
+    assert!(tools.command(Command::ToolBox));
+    assert_eq!(tools.open_kind(), Some(Kind::Colour), "a colour pop-up stays");
+    assert!(!tools.command(Command::Quit));
+    assert_eq!(tools.tool(), Tool::Box);
+}
