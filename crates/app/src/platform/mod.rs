@@ -15,16 +15,16 @@ use std::cell::{Cell, RefCell};
 use objc2::rc::Retained;
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSColor, NSEvent,
-    NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment, NSTextField, NSWindow,
-    NSWindowStyleMask,
+    NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSBox, NSBoxType, NSColor,
+    NSEvent, NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment, NSTextField,
+    NSTitlePosition, NSWindow, NSWindowStyleMask,
 };
 use objc2_foundation::{NSArray, NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
 use crate::commands::Chord;
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
-use crate::scene::Scene;
+use crate::scene::{Border, Scene};
 
 /// How often the main thread looks for a new scene, in seconds.
 const POLL_SECONDS: f64 = 0.5;
@@ -220,12 +220,14 @@ fn window(mtm: MainThreadMarker, scene: &Scene) -> Retained<KeyWindow> {
     window
 }
 
-/// Makes `window` show `scene`: its title, background and labels.
+/// Makes `window` show `scene`: its title, background, labels and border.
 fn draw(window: &NSWindow, scene: &Scene, mtm: MainThreadMarker) {
     window.setTitle(&NSString::from_str(&scene.title));
     window.setBackgroundColor(Some(&color(scene.background)));
     let Some(view) = window.contentView() else { return };
     view.setSubviews(&NSArray::new());
+    // The border first, so a pop-up at the pen draws over it.
+    view.addSubview(&border(&scene.focus, scene.size.height, mtm));
     for label in &scene.labels {
         let field = NSTextField::labelWithString(&NSString::from_str(&label.text), mtm);
         field.setFrame(flipped(scene.size.height, label.frame));
@@ -239,6 +241,18 @@ fn draw(window: &NSWindow, scene: &Scene, mtm: MainThreadMarker) {
         }
         view.addSubview(&field);
     }
+}
+
+/// A box that draws only its edge: no title, no fill.
+fn border(border: &Border, height: f64, mtm: MainThreadMarker) -> Retained<NSBox> {
+    let edge = NSBox::new(mtm);
+    edge.setBoxType(NSBoxType::Custom);
+    edge.setTitlePosition(NSTitlePosition::NoTitle);
+    edge.setBorderWidth(border.width);
+    edge.setBorderColor(&color(border.colour));
+    edge.setFillColor(&NSColor::clearColor());
+    edge.setFrame(flipped(height, border.frame));
+    edge
 }
 
 /// `rect`, whose origin is the top left of a view `height` tall, in `AppKit`'s

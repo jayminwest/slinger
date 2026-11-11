@@ -28,6 +28,8 @@ pub struct Theme {
     pub text: Rgb,
     pub muted: Rgb,
     pub error: Rgb,
+    /// The focus border: the one line the window draws around a pane.
+    pub focus: Rgb,
 }
 
 impl Default for Theme {
@@ -37,6 +39,7 @@ impl Default for Theme {
             text: rgb(0xe6, 0xe6, 0xe6),
             muted: rgb(0x8c, 0x8c, 0x8c),
             error: rgb(0xff, 0x6b, 0x6b),
+            focus: rgb(0x4c, 0x9a, 0xff),
         }
     }
 }
@@ -104,6 +107,7 @@ pub struct Layer {
     text: Option<Rgb>,
     muted: Option<Rgb>,
     error: Option<Rgb>,
+    focus: Option<Rgb>,
     socket: Option<String>,
     palette: Option<Palette>,
     /// By command: `Some(None)` unbinds it.
@@ -135,6 +139,7 @@ impl Layer {
             text: top.text.or(self.text),
             muted: top.muted.or(self.muted),
             error: top.error.or(self.error),
+            focus: top.focus.or(self.focus),
             socket: top.socket.or(self.socket),
             palette: top.palette.or(self.palette),
             keys,
@@ -156,6 +161,7 @@ impl Layer {
                 text: self.text.unwrap_or(d.text),
                 muted: self.muted.unwrap_or(d.muted),
                 error: self.error.unwrap_or(d.error),
+                focus: self.focus.unwrap_or(d.focus),
             },
             socket: self.socket,
             keys,
@@ -178,6 +184,7 @@ impl Layer {
             ("theme", "text") => &mut self.text,
             ("theme", "muted") => &mut self.muted,
             ("theme", "error") => &mut self.error,
+            ("theme", "focus") => &mut self.focus,
             _ => return Err(ErrorKind::UnknownKey),
         };
         put(slot, parse_colour(&value).ok_or(ErrorKind::BadColour)?)

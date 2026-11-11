@@ -14,6 +14,20 @@ pub enum Command {
     PickShape,
     /// Open the tool pop-up (pen, eraser, lasso, text) at the pen.
     PickTool,
+    /// Split the focused pane; the new pane, on the right, shows the same.
+    SplitRight,
+    /// Split the focused pane; the new pane, below, shows the same.
+    SplitDown,
+    /// Close the focused pane. The last pane stays.
+    ClosePane,
+    FocusNext,
+    FocusLeft,
+    FocusRight,
+    FocusUp,
+    FocusDown,
+    /// Give the focused pane more of its split.
+    GrowPane,
+    ShrinkPane,
 }
 
 /// How many commands there are.
@@ -21,12 +35,22 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 5] = [
+    pub const ALL: [(Command, &str); 15] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
         (Command::PickShape, "pick-shape"),
         (Command::PickTool, "pick-tool"),
+        (Command::SplitRight, "split-right"),
+        (Command::SplitDown, "split-down"),
+        (Command::ClosePane, "close-pane"),
+        (Command::FocusNext, "focus-next"),
+        (Command::FocusLeft, "focus-left"),
+        (Command::FocusRight, "focus-right"),
+        (Command::FocusUp, "focus-up"),
+        (Command::FocusDown, "focus-down"),
+        (Command::GrowPane, "grow-pane"),
+        (Command::ShrinkPane, "shrink-pane"),
     ];
 
     /// The command called `name` in the config file.
@@ -56,12 +80,17 @@ const NAMED: [(&str, char); 10] = [
     ("return", '\r'),
     ("escape", '\u{1b}'),
     ("delete", '\u{7f}'),
-    ("up", '\u{f700}'),
-    ("down", '\u{f701}'),
-    ("left", '\u{f702}'),
-    ("right", '\u{f703}'),
+    ("up", UP),
+    ("down", DOWN),
+    ("left", LEFT),
+    ("right", RIGHT),
     ("forward-delete", '\u{f728}'),
 ];
+
+const UP: char = '\u{f700}';
+const DOWN: char = '\u{f701}';
+const LEFT: char = '\u{f702}';
+const RIGHT: char = '\u{f703}';
 
 /// `f1`'s code point; `f2` to `f20` follow it.
 const F1: u32 = 0xf704;
@@ -136,6 +165,16 @@ impl Default for Keymap {
             on(CMD | SHIFT, 'c'),
             on(CMD | SHIFT, 's'),
             on(CMD | SHIFT, 't'),
+            on(CMD, 'd'),
+            on(CMD | SHIFT, 'd'),
+            on(CMD, 'w'),
+            on(CTRL, '\t'),
+            on(CMD | ALT, LEFT),
+            on(CMD | ALT, RIGHT),
+            on(CMD | ALT, UP),
+            on(CMD | ALT, DOWN),
+            on(CMD, '='),
+            on(CMD, '-'),
         ])
     }
 }
