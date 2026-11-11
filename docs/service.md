@@ -454,14 +454,34 @@ workspace with that agent opens. A blank agent or another status is
 
 **The process.** The daemon holds one Claude Code process per session (SPEC
 D10): `<claude> --print --input-format stream-json --output-format
-stream-json --verbose`, in the agent's home, with `SLINGER_AGENT` set to the
-agent and `SLINGER_SOCKET` to the daemon's socket, so the agent's own
-`slinger` calls act as it and reach this daemon. Its stderr goes to the
+stream-json --verbose` and the session's limits (below), in the agent's home,
+with `SLINGER_AGENT` set to the agent and `SLINGER_SOCKET` to the daemon's
+socket, so the agent's own `slinger` calls act as it and reach this daemon. Its stderr goes to the
 daemon's. A session adds what the daemon knows of it: `process` (`running`,
 or `exited` when it ended without a stop; absent when there is none), and
 while it runs its `pid` and `pending`, the messages sent that it has not
 answered (a `result` line ends an answer). `answer` is the text of its last
 answer. `session_id` names its conversation.
+
+**Limits.** A session has stated limits, set by its workspace's file
+(`[agent]` in docs/workspace.md). By default it:
+
+- reads its home and the workspace's other roots on this machine, and
+  nothing else (`--add-dir` for each root that is not the home);
+- has the built-in tools that read and run commands (`--tools
+  Read,Glob,Grep,Bash`), and runs only the `slinger` CLI
+  (`--allowedTools 'Bash(slinger *)'`) and read-only commands inside those
+  directories. It cannot write. Whatever else would need a permission is
+  denied, since nobody is there to ask (`--permission-mode dontAsk`);
+- loads the settings and the instructions (`CLAUDE.md`) of its home, but not
+  the owner's own (`--setting-sources project,local`), and no MCP server
+  (`--strict-mcp-config`).
+
+The agent's `dirs` adds directories, its `tools` adds permission rules (and
+the built-in tool each rule names), and `user_config = true` loads the
+owner's settings and instructions too (`--setting-sources
+user,project,local`). The home's own `.claude/settings.json` belongs to the
+workspace and still applies, so the owner can widen a session there too.
 
 **`session_start`** starts the process of the workspace's agent. The first
 start gives it a new session id (`--session-id`); once its output names that

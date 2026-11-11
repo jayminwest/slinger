@@ -304,6 +304,13 @@ impl Store {
         &self.canvases
     }
 
+    /// This machine's name, as the `machine` tag and the workspaces' roots
+    /// give it.
+    #[must_use]
+    pub fn machine(&self) -> &str {
+        &self.machine
+    }
+
     /// The open workspaces, listed in `workspaces/` beside the record.
     #[must_use]
     pub fn workspaces(&self) -> &Workspaces {

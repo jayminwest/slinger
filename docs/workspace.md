@@ -52,6 +52,9 @@ version = 1
 | `[agent]` | no | The agent that works here. |
 | `agent.name` | yes, in `[agent]` | The agent's name, as the server's session list knows it. |
 | `agent.durable` | no | `true` when a harness keeps the agent alive (D20). Defaults to `false`. |
+| `agent.user_config` | no | `true` to load the owner's own Claude Code settings and instructions into the agent's session. Defaults to `false`. |
+| `agent.dirs` | no | More directories on slingerd's machine the session may read, beyond the roots. Absolute paths. |
+| `agent.tools` | no | More Claude Code permission rules the session may use without asking, beyond the `slinger` CLI: `"Edit"`, `"Bash(git *)"`. |
 | `[[root]]` | no | One table per directory. Zero or more. |
 | `root.machine` | yes, in a root | The machine the directory is on. |
 | `root.path` | yes, in a root | An absolute path on that machine. A trailing `/` does not count. |
@@ -62,11 +65,29 @@ version = 1
 Everything else in `[layout]` belongs to the app shell. The core stores it
 and writes it back without reading it.
 
+## The agent's limits
+
+A session runs within limits (slinger-a33c; docs/service.md, "Limits"). With
+no limit fields it reads only the workspace's roots on slingerd's machine,
+runs only the `slinger` CLI and read-only commands, writes nothing, and does
+not load the owner's own agent instructions. The three `agent` fields above
+widen it:
+
+```toml
+[agent]
+name = "scout"
+user_config = true
+dirs = ["/Users/me/reference"]
+tools = ["Edit", "Write", "Bash(git *)"]
+```
+
 ## Rules
 
 For one workspace (a file that breaks one is rejected as `invalid`):
 
 - At most one root is primary.
+- Each of the agent's `dirs` is an absolute path, and none of its `tools` is
+  blank.
 - A workspace with a durable agent has exactly one primary root. That
   directory is the agent's home.
 

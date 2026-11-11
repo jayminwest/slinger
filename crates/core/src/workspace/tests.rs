@@ -50,6 +50,21 @@ fn a_new_workspace_round_trips() {
 }
 
 #[test]
+fn an_agent_reads_its_limits_and_writes_back_only_the_ones_set() {
+    let text = "version = 1\nname = \"x\"\n[agent]\nname = \"a\"\nuser_config = true\n\
+                dirs = [\"/srv/docs\"]\ntools = [\"Edit\", \"Bash(git *)\"]\n";
+    let agent = Workspace::parse(text).unwrap().agent.unwrap();
+    assert!(agent.user_config);
+    assert_eq!(
+        (agent.dirs, agent.tools),
+        (vec!["/srv/docs".into()], vec!["Edit".into(), "Bash(git *)".into()])
+    );
+    let mut ws = Workspace::new("y");
+    ws.agent = Some(Agent::new("b", false));
+    assert!(ws.to_toml().ends_with("[agent]\nname = \"b\"\n"), "{}", ws.to_toml());
+}
+
+#[test]
 fn a_minimal_file_gets_the_defaults() {
     let ws = Workspace::parse("version = 1\nname = \"scratch\"\n").unwrap();
     assert_eq!(ws, Workspace::new("scratch"));
@@ -84,6 +99,8 @@ fn rejects_files_that_are_not_workspaces() {
         "version = 1\nname = \"x\"\n[[root]]\nmachine = \"\"\npath = \"/a\"",
         "version = 1\nname = \"x\"\n[[root]]\npath = \"/a\"",
         "version = 1\nname = \"x\"\n[agent]\nname = \"\"",
+        "version = 1\nname = \"x\"\n[agent]\nname = \"a\"\ndirs = [\"notes\"]",
+        "version = 1\nname = \"x\"\n[agent]\nname = \"a\"\ntools = [\" \"]",
         "version = 1\nname = \"x\"\n[layout]\nsplit = \"no version\"",
     ] {
         let err = Workspace::parse(text).unwrap_err();

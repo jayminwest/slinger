@@ -63,6 +63,18 @@ pub struct Agent {
     /// durable agent's home is the workspace's primary root.
     #[serde(default, skip_serializing_if = "is_false")]
     pub durable: bool,
+    /// Whether its session loads the owner's own Claude Code settings and
+    /// instructions (the user scope). Off by default.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub user_config: bool,
+    /// More directories on this machine its session may read, beyond the
+    /// workspace's roots. Absolute.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dirs: Vec<String>,
+    /// More Claude Code permission rules its session may use, beyond the
+    /// `slinger` CLI: `Edit`, `Bash(git *)`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tools: Vec<String>,
     #[serde(flatten)]
     extra: toml::Table,
 }
@@ -107,7 +119,14 @@ impl Agent {
     /// An agent with this name.
     #[must_use]
     pub fn new(name: impl Into<String>, durable: bool) -> Self {
-        Self { name: name.into(), durable, extra: toml::Table::new() }
+        Self {
+            name: name.into(),
+            durable,
+            user_config: false,
+            dirs: Vec::new(),
+            tools: Vec::new(),
+            extra: toml::Table::new(),
+        }
     }
 }
 
@@ -259,6 +278,14 @@ impl Workspace {
         if let Some(agent) = &self.agent {
             if agent.name.trim().is_empty() {
                 return Err(invalid(&format!("workspace {ws:?}: agent name is empty")));
+            }
+            if let Some(dir) = agent.dirs.iter().find(|d| !d.starts_with('/')) {
+                return Err(invalid(&format!(
+                    "workspace {ws:?}: agent dir {dir:?} is not an absolute path"
+                )));
+            }
+            if agent.tools.iter().any(|t| t.trim().is_empty()) {
+                return Err(invalid(&format!("workspace {ws:?}: an agent tool is empty")));
             }
             if agent.durable && primaries != 1 {
                 return Err(Error::Invalid {
