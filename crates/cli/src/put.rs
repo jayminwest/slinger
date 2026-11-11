@@ -44,7 +44,7 @@ pub fn put(args: &Put, daemon: &control::Client) -> anyhow::Result<Output> {
 }
 
 /// `w,h` as two integers.
-fn size(text: &str) -> Result<[i64; 2], String> {
+pub fn size(text: &str) -> Result<[i64; 2], String> {
     let parts: Vec<i64> = text.split(',').map_while(|n| n.trim().parse().ok()).collect();
     <[i64; 2]>::try_from(parts).map_err(|_| format!("{text:?} is not w,h in tenths of a unit"))
 }

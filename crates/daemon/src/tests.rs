@@ -15,6 +15,7 @@ use tempfile::TempDir;
 use crate::{Server, StartError, Stopper, Store, run};
 
 mod canvas;
+mod edit;
 mod feed;
 mod import;
 mod look;

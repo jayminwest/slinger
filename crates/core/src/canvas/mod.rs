@@ -231,16 +231,20 @@ impl Canvas {
         }
     }
 
-    /// The item, if it exists and `by` may change it.
-    fn changeable(&mut self, id: ItemId, by: &Author) -> Result<&mut Item> {
-        let item = self.items.get_mut(&id).ok_or_else(|| Error::NotFound {
-            what: id.to_string(),
-            hint: Some("it may have been removed; read the canvas again".into()),
-        })?;
+    /// The item, if it exists and `by` may change it: the author rule, in
+    /// one place.
+    fn may_change(&self, id: ItemId, by: &Author) -> Result<&Item> {
+        let item = self.items.get(&id).ok_or_else(|| gone(id))?;
         if !by.may_change(&item.author) {
             return Err(not_yours(by, &format!("{id}"), &item.author));
         }
         Ok(item)
+    }
+
+    /// [`Canvas::may_change`], to change.
+    fn changeable(&mut self, id: ItemId, by: &Author) -> Result<&mut Item> {
+        self.may_change(id, by)?;
+        self.items.get_mut(&id).ok_or_else(|| gone(id))
     }
 
     /// `name` trimmed, if it is not blank and no other page has it.
@@ -278,6 +282,13 @@ impl Canvas {
         self.pages.remove(i);
         self.items.retain(|_, item| item.page != page);
         Ok(Applied::Changed)
+    }
+}
+
+fn gone(id: ItemId) -> Error {
+    Error::NotFound {
+        what: id.to_string(),
+        hint: Some("it may have been removed; read the canvas again".into()),
     }
 }
 

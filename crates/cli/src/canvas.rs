@@ -93,6 +93,8 @@ pub enum Canvas {
     Crop(crate::look::Crop),
     Strokes(crate::look::Strokes),
     Put(crate::put::Put),
+    Edit(crate::edit::Edit),
+    Remove(crate::edit::Remove),
 }
 
 impl Canvas {
@@ -110,6 +112,8 @@ impl Canvas {
             Self::Crop(_) => "canvas crop",
             Self::Strokes(_) => "canvas strokes",
             Self::Put(_) => "canvas put",
+            Self::Edit(_) => "canvas edit",
+            Self::Remove(_) => "canvas remove",
         }
     }
 }
@@ -182,6 +186,8 @@ pub fn execute(
         Canvas::Crop(args) => crate::look::crop(args, daemon),
         Canvas::Strokes(args) => crate::look::strokes(args, daemon),
         Canvas::Put(args) => crate::put::put(args, daemon),
+        Canvas::Edit(args) => crate::edit::edit(args, daemon),
+        Canvas::Remove(args) => crate::edit::remove(args, daemon),
     }
 }
 

@@ -91,7 +91,7 @@ impl Log {
 
     /// The item an id names, the box around what it names (a whole cluster
     /// for `c<n>` on ink) and its page.
-    fn named(&self, id: &str) -> Result<(ItemId, Rect, PageId)> {
+    pub(super) fn named(&self, id: &str) -> Result<(ItemId, Rect, PageId)> {
         let items = self.resolve(id)?;
         let canvas = self.canvas();
         let number = id.get(1..).and_then(|n| n.parse().ok()).map(ItemId::new);

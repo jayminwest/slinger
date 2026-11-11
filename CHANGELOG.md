@@ -18,6 +18,11 @@ bullet with the area in bold.
   the agent's name (`--agent` or `SLINGER_AGENT`) and the time, and the
   command prints its id and box. After a sling to that agent, the put also
   records that the reply landed.
+- **CLI:** agents change or take back what they put. `slinger canvas edit
+  <canvas> --item <id>` gives a text new words (`--text`), a text or a box a
+  new size (`--box w,h`) or a new place (`--move x,y`), and `canvas remove
+  <canvas> --item <id>` removes it; removing it again succeeds. An agent can
+  change only items it made, never your ink.
 - **Sling:** what an agent receives for one sling: your prompt, the page's
   packet with each image under its line, the items you selected, and a short
   note on how to answer on the canvas instead of in chat. The first sling of

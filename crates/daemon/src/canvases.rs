@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
 use serde_json::Value;
-use slinger_core::canvas::file::{Log, Placed, Put, Shown, Written, check_id, parse_author};
+use slinger_core::canvas::file::{Edit, Log, Placed, Put, Shown, Written, check_id, parse_author};
 use slinger_core::canvas::{Author, Canvas, Time};
 use slinger_core::packet::Packet;
 use slinger_core::render::Image;
@@ -240,6 +240,26 @@ impl Canvases {
     pub fn put(&self, id: &str, agent: &str, beside: &str, what: &Put) -> Result<Placed> {
         let by = Author::Agent(agent.into());
         self.change(id, |log| Ok(log.put(&by, now(), beside, what)?))
+    }
+
+    /// Changes the item `item` names, as `agent` (see [`Log::edit`]).
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`Log::edit`] and of reading and writing the file.
+    pub fn edit(&self, id: &str, agent: &str, item: &str, edit: &Edit) -> Result<Placed> {
+        let by = Author::Agent(agent.into());
+        self.change(id, |log| Ok(log.edit(&by, now(), item, edit)?))
+    }
+
+    /// Removes the item `item` names, as `agent` (see [`Log::remove`]).
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`Log::remove`] and of reading and writing the file.
+    pub fn remove(&self, id: &str, agent: &str, item: &str) -> Result<Written> {
+        let by = Author::Agent(agent.into());
+        self.change(id, |log| Ok(log.remove(&by, now(), item)?))
     }
 
     /// Undoes the last step of `by` on the canvas.

@@ -12,7 +12,8 @@
 //!   to append, numbered, and undo lives beside it. [`Log::after`] finds the
 //!   stored lines after a point, and [`lines`] reads them as they are. It
 //!   also crops images of an item or a box and gives a stroke's points, for
-//!   an agent (`look`), and puts an agent's answer beside an item (`put`).
+//!   an agent (`look`), puts an agent's answer beside an item (`put`) and
+//!   lets the agent change or remove it (`edit`).
 //! - [`snap`] rounds an operation to what the file can hold. Apply the
 //!   snapped op, so the canvas in memory is the one the file rebuilds.
 //!
@@ -35,6 +36,7 @@
 //! author this reader does not know comes back as [`Line::Unknown`], whole,
 //! and replay skips it. Fields this reader does not know are ignored.
 
+mod edit;
 mod json;
 mod log;
 mod look;
@@ -44,6 +46,7 @@ mod replay;
 mod time;
 mod whole;
 
+pub use edit::Edit;
 pub use log::{Log, Shown, Span, Written, check_id, id_from_name, lines, parse_author};
 pub use look::MAX_CROP;
 pub use put::{Placed, Put, TEXT_COLUMNS};
