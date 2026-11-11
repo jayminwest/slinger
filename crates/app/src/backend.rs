@@ -6,7 +6,8 @@
 //! the workspace's panes, and the code of each agent UI they show
 //! ([`ui`]), on its own thread; the window sends only its own pane changes
 //! ([`panes`]). A canvas is followed on a thread of its own ([`Follower`]),
-//! and the pen's strokes are sent on another ([`Outbox`]).
+//! the pen's strokes are sent on another ([`Outbox`]), and slings on a
+//! third ([`Slinger`]).
 
 use std::fs;
 use std::io::ErrorKind;
@@ -24,10 +25,14 @@ use crate::ui::Shown;
 mod follow;
 mod outbox;
 pub mod panes;
+mod sling;
+#[cfg(test)]
+pub(crate) mod testing;
 pub mod ui;
 
 pub use follow::{Follower, News};
 pub use outbox::Outbox;
+pub use sling::Slinger;
 
 /// A failure as the window shows it: the message and what to do about it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -274,23 +279,33 @@ impl Settings {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use slingerd as daemon;
 
     use super::*;
 
     /// Runs `f` against a daemon that lives for this one call.
-    pub(super) fn with_daemon<T>(f: impl FnOnce(&Client) -> T) -> T {
+    pub(crate) fn with_daemon<T>(f: impl FnOnce(&Client) -> T) -> T {
         with_socket(|socket| f(&Client::new(socket)))
+    }
+
+    /// Runs `f` against a daemon that lives for this one call and starts
+    /// agents with `claude`, a stand-in for Claude Code (none: no program).
+    pub(crate) fn with_store<T>(claude: Option<&Path>, f: impl FnOnce(&Client) -> T) -> T {
+        serve(claude.unwrap_or(Path::new("/nonexistent/claude")), |socket| f(&Client::new(socket)))
     }
 
     /// Runs `f` with the socket of a daemon that lives for this one call.
     fn with_socket<T>(f: impl FnOnce(&Path) -> T) -> T {
+        serve(Path::new("/nonexistent/claude"), f)
+    }
+
+    fn serve<T>(claude: &Path, f: impl FnOnce(&Path) -> T) -> T {
         static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let socket = std::env::temp_dir().join(format!("a-{}-{n}.sock", std::process::id()));
         let data = tempfile::tempdir().unwrap();
-        let store = daemon::Store::open(data.path(), "my-laptop").unwrap();
+        let store = daemon::Store::open(data.path(), "my-laptop").unwrap().with_claude(claude);
         let server = daemon::Server::bind(&socket).unwrap();
         let stopper = server.stopper();
         let serving = std::thread::spawn(move || server.serve(&store));
@@ -302,7 +317,7 @@ mod tests {
     }
 
     /// Opens a workspace `notes` whose agent is `scout`, in a fresh directory.
-    pub(super) fn open_notes(daemon: &Client) -> tempfile::TempDir {
+    pub(crate) fn open_notes(daemon: &Client) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
         let file = "version = 1\nname = \"notes\"\ncanvas = \"notes\"\n[agent]\nname = \"scout\"\n";
         fs::write(dir.path().join("slinger-workspace.toml"), file).unwrap();

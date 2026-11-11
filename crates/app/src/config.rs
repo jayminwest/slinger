@@ -113,7 +113,7 @@ pub struct Config {
 }
 
 /// What one file sets. Unset keys fall through to the layer below.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Layer {
     background: Option<Rgb>,
     text: Option<Rgb>,
@@ -130,6 +130,25 @@ pub struct Layer {
         reason = "unset (the layer below decides) and bound to no chord are different"
     )]
     keys: [Option<Option<Chord>>; Command::ALL.len()],
+}
+
+impl Default for Layer {
+    /// Sets nothing. By hand: the standard library gives no `Default` for an
+    /// array of more than 32 keys.
+    fn default() -> Self {
+        Self {
+            background: None,
+            text: None,
+            muted: None,
+            error: None,
+            focus: None,
+            socket: None,
+            workspace: None,
+            palette: None,
+            sidebar: None,
+            keys: [None; Command::ALL.len()],
+        }
+    }
 }
 
 impl Layer {

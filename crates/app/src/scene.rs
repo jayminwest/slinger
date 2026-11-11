@@ -5,7 +5,8 @@
 //! changes until the server's page has them. [`select`] holds the eraser,
 //! the lasso and the selection. [`sidebar`] holds the agents'
 //! statuses, the optional sidebar that shows them and the notice when one
-//! becomes blocked or done.
+//! becomes blocked or done. [`sling`] holds the sling from the window: its
+//! one-line entry, and how it goes.
 //!
 //! No chrome (SPEC P6): the panes, each with what it shows, one focus
 //! border around the focused pane, and the sidebar when it is open. A
@@ -21,6 +22,7 @@ pub mod resize;
 pub mod select;
 pub mod shapes;
 pub mod sidebar;
+pub mod sling;
 pub mod tools;
 
 use std::collections::HashMap;
@@ -92,6 +94,8 @@ pub struct Scene {
     pub sidebar: Vec<Label>,
     /// Around the focused pane: the window's one border.
     pub focus: Border,
+    /// The sling's one-line entry, over everything, while it is open.
+    pub entry: Option<Box<sling::Entry>>,
 }
 
 /// The focus border's width, in points.
@@ -160,6 +164,7 @@ pub fn build(
         labels,
         sidebar: sidebar.rows(theme, size.rect()),
         focus,
+        entry: None,
     }
 }
 
@@ -176,6 +181,7 @@ pub fn preview(page: Arc<Page>, theme: &Theme) -> Scene {
         labels: Vec::new(),
         sidebar: Vec::new(),
         focus: Border { frame: size.rect(), width: 0.0, colour: theme.background },
+        entry: None,
     }
 }
 

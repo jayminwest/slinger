@@ -6,15 +6,16 @@
 //! page at once and goes to the daemon through an [`Outbox`]. The eraser and
 //! the lasso work on the page as shown ([`Select`]), and so do the text, box
 //! and arrow tools ([`Shapes`]); what they change goes the same way, in turn
-//! with the strokes. Runs on the main thread and
-//! never waits: the followers and the outbox do.
+//! with the strokes. The sling sends the selection ([`sling`]) once the ink
+//! before it is in. Runs on the main thread and never waits: the followers,
+//! the outbox and the slinger do.
 
 use std::borrow::Cow;
 use std::rc::Rc;
 
 use slinger_control::Client;
 
-use crate::backend::{Follower, News, Outbox, Problem};
+use crate::backend::{Follower, News, Outbox, Problem, Slinger};
 use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Point, Rect, Size, Viewport};
 use crate::mirror::{Applied, Mirror};
@@ -23,8 +24,11 @@ use crate::scene::canvas::{Item, ItemId};
 use crate::scene::ink::{Ink, Pen};
 use crate::scene::select::{Landing, Select, Selection};
 use crate::scene::shapes::{Press, Shapes};
+use crate::scene::sling::Sling;
 use crate::scene::tools::Tool;
 use crate::scene::{CanvasPane, canvas};
+
+mod sling;
 
 /// The canvases of a window's panes.
 pub struct Canvases {
@@ -35,6 +39,8 @@ pub struct Canvases {
     select: Select,
     shapes: Shapes,
     outbox: Outbox,
+    sling: Sling,
+    slinger: Slinger,
     /// The pane the pen draws in, and its frame in the window, while down.
     pen: Option<(PaneId, Rect)>,
     /// When the oldest pen event no scene has shown yet happened.
@@ -61,17 +67,18 @@ struct View {
 impl Canvases {
     /// None followed yet; [`Canvases::show`] starts following.
     pub fn new(daemon: Client) -> Self {
-        let outbox = Outbox::start(daemon.clone());
-        let (ink, select) = (Ink::default(), Select::default());
+        let (outbox, slinger) = (Outbox::start(daemon.clone()), Slinger::start(daemon.clone()));
+        let (ink, select, sling) = (Ink::default(), Select::default(), Sling::default());
         let (open, views) = (Vec::new(), Vec::new());
-        let shapes = Shapes::default();
-        Self { daemon, open, views, ink, select, shapes, outbox, pen: None, unshown: None }
+        let (shapes, pen, unshown) = (Shapes::default(), None, None);
+        Self { daemon, open, views, ink, select, shapes, outbox, sling, slinger, pen, unshown }
     }
 
     /// Follows every canvas, and sends ink not yet sent, through `daemon`
     /// instead, from the start.
     pub fn reconnect(&mut self, daemon: Client) {
         self.outbox.reconnect(daemon.clone());
+        self.slinger.reconnect(daemon.clone());
         self.daemon = daemon;
         self.open.clear();
     }
@@ -104,7 +111,8 @@ impl Canvases {
         for canvas in lost {
             self.turn(&canvas, None);
         }
-        self.send() || changed
+        let sent = self.send();
+        self.poll_sling() || sent || changed
     }
 
     /// Takes the daemon's answers to the ink, lets go of the changes the
@@ -223,7 +231,8 @@ impl Canvases {
     /// Typed `text` goes into the text being typed; escape ends it, and the
     /// text goes to the daemon. Returns false when no text is being typed.
     pub fn typed(&mut self, text: &str) -> bool {
-        let used = self.shapes.typed(text, &mut self.ink);
+        // The sling's open entry has the keys: its text is not the canvas's.
+        let used = !self.typing() && self.shapes.typed(text, &mut self.ink);
         if used {
             self.send();
         }

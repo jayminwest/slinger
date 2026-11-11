@@ -809,7 +809,8 @@ not open, and an agent with no session.
    `crates/control/src/agent.rs` do (`sling_send` is a session verb). The app sends
    `workspace_list` and the pane verbs, each written with such a type of its
    own (`crates/control/src/pane.rs`), as are the showing verbs it sends
-   (`crates/control/src/ui.rs`), so the app builds no `Request` at all;
+   (`crates/control/src/ui.rs`) and the session verbs (`session_list`,
+   `sling_send`, as `SessionAsk`), so the app builds no `Request` at all;
    keep it that way.
 3. Add one arm to `answer` in `crates/daemon/src/server.rs`. It calls the
    core and nothing else.

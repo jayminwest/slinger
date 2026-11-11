@@ -101,7 +101,7 @@ fn preview(settings: &Settings, reference: &str, data: Option<&str>) -> ExitCode
         | Event::Lift(_)
         | Event::Scroll { .. }
         | Event::Zoom { .. } => Step::Pass,
-        Event::Tick | Event::Moved(_) | Event::Painted(_) => Step::Stay,
+        Event::Tick | Event::Moved(_) | Event::Painted(_) | Event::Typed(_) => Step::Stay,
     };
     let scene = scene::preview(page, &settings.config.theme);
     match platform::run(&scene, answer) {
@@ -124,14 +124,15 @@ fn window(mut settings: Settings) -> ExitCode {
     let mut canvases = Canvases::new(control::Client::new(&socket));
     let first = view(&settings, &shared, &tools, &sidebar, &mut canvases);
     // Runs on the main thread for each key press, pen, mouse or trackpad
-    // event, paint of new ink, and tick of the window's timer. An open
-    // pop-up takes its keys and presses first; a press on a divider between
+    // event, paint of new ink, and tick of the window's timer. The sling's
+    // entry, then a pop-up, takes its keys first; a press on a divider between
     // panes drags it; the pen draws with the pen tool on a canvas pane. A
     // tick stats the two config files and takes the watch's news of the
     // agents and the panes and what the canvases' followers heard; the watch
     // and the followers follow an edit that moves the socket or the
     // workspace. Only a split, a close or a resize asks the daemon here.
     let answer = move |event| {
+        let area = sidebar.panes(window.rect());
         let force = match event {
             Event::Tick => false,
             Event::Reply(line) => {
@@ -143,10 +144,10 @@ fn window(mut settings: Settings) -> ExitCode {
                     Err(why) => Step::Refuse(why),
                 };
             }
-            Event::Key(chord) if tools.key(chord) => {
+            Event::Key(chord) if canvases.sling_key(chord) || tools.key(chord) => {
                 return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
             }
-            Event::Key(chord) if canvases.editing() && chord.types() => return Step::Pass,
+            Event::Key(chord) if canvases.takes(chord) => return Step::Pass,
             Event::Key(chord) => {
                 let kind = match settings.config.keys.command(chord) {
                     None => return Step::Pass,
@@ -156,9 +157,8 @@ fn window(mut settings: Settings) -> ExitCode {
                     Some(Command::PickShape) => Some(Kind::Shape),
                     Some(Command::PickTool) => Some(Kind::Tool),
                     // Nothing selected here: the key goes on (a delete in a UI's form).
-                    Some(c) if !selection(&mut canvases, &shared.panes, c) => return Step::Pass,
+                    Some(c) if !selection(&mut canvases, &shared, area, c) => return Step::Pass,
                     Some(command) => {
-                        let area = sidebar.panes(window.rect());
                         match command {
                             Command::ToggleSidebar => sidebar.set_open(!sidebar.is_open()),
                             Command::DismissNotice => sidebar.dismiss(),
@@ -176,14 +176,13 @@ fn window(mut settings: Settings) -> ExitCode {
                     }
                 };
                 if let Some(kind) = kind {
-                    tools.open(kind, focused(&shared.panes, sidebar.panes(window.rect())));
+                    tools.open(kind, focused(&shared.panes, area));
                     return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
                 }
                 true
             }
             // The pen, the mouse, the trackpad and typed text.
             _ => {
-                let area = sidebar.panes(window.rect());
                 if !pen(&event, &mut tools, &mut canvases, &mut shared, area, &socket) {
                     return Step::Pass;
                 }
@@ -359,13 +358,14 @@ fn canvas_command(canvases: &mut Canvases, panes: &Panes, area: Rect, command: C
     true
 }
 
-/// Runs a selection command when the focused pane of `panes` shows the
-/// selection's canvas; false when it does not, or there is none. Any other
-/// command is not the selection's, so it goes on (true).
-fn selection(canvases: &mut Canvases, panes: &Panes, command: Command) -> bool {
+/// Runs a selection command (`sling` opens its entry) when the focused pane of `shared`
+/// laid in `area` shows its canvas; false when it does not. Any other command goes on (true).
+fn selection(canvases: &mut Canvases, shared: &Shared, area: Rect, command: Command) -> bool {
+    let panes = &shared.panes;
     match command {
         Command::DeleteSelection => canvases.delete_selection(panes, panes.focus()),
         Command::ClearSelection => canvases.clear_selection(panes, panes.focus()),
+        Command::Sling => canvases.open_sling(panes, area),
         _ => true,
     }
 }
@@ -395,12 +395,12 @@ fn pen(
     }
 }
 
-/// Hands a pen or mouse press, drag or lift to the pop-up at the pen, then
-/// to the canvas pane of `panes` laid in `area` under it, where the tool
-/// draws, erases, selects, places text or draws a shape; typed text to the
-/// text being typed; a scroll or a pinch pans or zooms. False when
-/// nothing used it, and for a move or a paint, which need no new scene. A lift writes the
-/// stroke's delay log.
+/// Hands a pen or mouse press, drag or lift to the pop-up at the pen, then to
+/// the canvas pane of `panes` laid in `area` under it, where the tool draws,
+/// erases, selects, places text or draws a shape; typed text to the text being
+/// typed (the sling's open entry keeps its presses and keys); a scroll or a
+/// pinch pans or zooms. False when nothing used it, and for a move or a paint.
+/// A lift writes the stroke's delay log.
 fn pointer(
     event: &Event,
     tools: &mut Tools,
@@ -417,6 +417,8 @@ fn pointer(
             canvases.painted(delay);
             false
         }
+        Event::Press(pen) if canvases.sling_covers(pen.at) => false,
+        Event::Typed(ref text) => canvases.sling_typed(text),
         // A text being typed takes the keys that type, which come back as text.
         Event::Text(ref text) => canvases.typed(text),
         Event::Press(pen) if tools.press(pen.at) => true,
@@ -492,6 +494,7 @@ fn view(
     }
     let mut scene =
         scene::build(&shared.panes, theme, &problems, sidebar, drawn, &shared.uis, &shared.notes);
+    canvases.show_sling(&mut scene, theme);
     scene.labels.extend(tools.labels(theme));
     scene
 }

@@ -265,3 +265,15 @@ fn a_put_an_edit_and_a_move_with_its_arrows_show_at_once() {
     assert_eq!(shapes, [&moved, &arrow(5.0), &box_at]);
     assert!(shown[2].id.0 >= LOCAL, "a put has no server id yet");
 }
+
+#[test]
+fn a_canvas_is_settled_once_every_change_of_it_is_written() {
+    let mut ink = Ink::default();
+    assert!(ink.settled("main"));
+    draw(&mut ink, &[(0.0, 0.0), (1.0, 1.0)]);
+    assert!(!ink.settled("main") && ink.settled("other"), "waiting");
+    let (key, _) = next(&mut ink).unwrap();
+    assert!(!ink.settled("main"), "sending");
+    ink.answered(key, Answer::Applied(7));
+    assert!(ink.settled("main"), "written, though the feed has not echoed it");
+}
