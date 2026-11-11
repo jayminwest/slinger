@@ -44,7 +44,7 @@ pub use workspace::{
 };
 
 /// A request to the daemon. One variant per verb; `op` on the wire names it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Request {
     /// Ask for a greeting.

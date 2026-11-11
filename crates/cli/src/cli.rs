@@ -98,7 +98,7 @@ enum Command {
     /// Open, list, show and close workspaces: a name, directories, an agent and a canvas
     #[command(subcommand)]
     Workspace(Workspace),
-    /// List, open and close a workspace's panes: canvases and agent UIs
+    /// List, open, close and resize a workspace's panes: canvases and agent UIs
     #[command(subcommand)]
     Pane(Pane),
     /// List, start, stop and message the agents slingerd can reach

@@ -1,4 +1,4 @@
-//! The pane verbs through the real socket: open, close and list, the
+//! The pane verbs through the real socket: open, close, resize and list, the
 //! `pane_moved` each change appends, a close of a pane already gone, and
 //! the layout after a restart.
 
@@ -105,5 +105,37 @@ fn a_pane_shows_only_what_is_there() {
     let kept = client.pane_close("w", 1).unwrap();
     assert_eq!((kept.event, words(&kept)), (None, words(&last)), "the last pane stays");
     assert_eq!(moved(&client).len(), 2);
+    daemon.stop();
+}
+
+#[test]
+fn a_resize_moves_a_border_records_it_and_survives_a_restart() {
+    let data = TempDir::new().unwrap();
+    let daemon = Daemon::start_in(data.path());
+    let client = daemon.client();
+    client.workspace_open(None, Some("w")).unwrap();
+    client.pane_open("w", PaneKind::Canvas, "w", Some(1), false).unwrap();
+    let resized = client.pane_resize("w", 1, 0.3).unwrap();
+    let shape = serde_json::to_value(&resized.layout).unwrap();
+    assert_eq!((shape["split"].as_str(), shape["ratio"].as_f64()), (Some("row"), Some(0.3)));
+    assert!(resized.event.is_some());
+    let events = moved(&client);
+    assert_eq!(events.len(), 2);
+    assert_eq!(
+        events[1]["payload"],
+        json!({ "pane": "canvas:w", "x": 0.0, "y": 0.0, "width": 0.3, "height": 1.0 })
+    );
+
+    for (pane, ratio) in [(1, 0.3), (2, 0.6), (9, 0.6)] {
+        let same = client.pane_resize("w", pane, ratio).unwrap();
+        assert_eq!((same.event, &same.layout), (None, &resized.layout), "{pane} {ratio}");
+    }
+    let code = client.pane_resize("other", 1, 0.5).unwrap_err().code().to_string();
+    assert_eq!(code, "not_found");
+    assert_eq!(moved(&client).len(), 2, "nothing changed, nothing recorded");
+    daemon.stop();
+
+    let daemon = Daemon::start_in(data.path());
+    assert_eq!(daemon.client().pane_list("w").unwrap().layout, resized.layout);
     daemon.stop();
 }

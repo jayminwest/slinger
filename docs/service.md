@@ -140,6 +140,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `pane_list` | `workspace`: as `workspace_show` | `workspace`: its name, `layout`: the pane tree |
 | `pane_open` | `workspace`, `kind`: `canvas` or `ui`, `target`: canvas id or UI name, `beside`: a pane number (optional), `below`: bool (default `false`) | `workspace`, `layout`, `pane`: the new pane's number, `event`: the `pane_moved` appended |
 | `pane_close` | `workspace`, `pane`: a pane number | `workspace`, `layout`, `event`: the `pane_moved` appended (absent when nothing changed) |
+| `pane_resize` | `workspace`, `pane`: a pane number, `ratio`: number | `workspace`, `layout`, `event`: the `pane_moved` appended (absent when nothing changed) |
 | `canvas_read` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `after`: number (optional, default the last sling's), `select`: list of item ids (optional), `out`: absolute path of a directory (optional) | `packet`: blob id of the text, `dir`: the directory written, `text`: the packet with `at`, `images`: list of `{name, id}` |
 | `canvas_crop` | `canvas`: canvas id, `of`: an item id or a box, `path`: absolute path of a PNG file | `images`: list of `{path, x, y, width, height}` |
 | `canvas_strokes` | `canvas`: canvas id, `item`: an item id | `strokes`: list of stroke items with `points` |
@@ -415,13 +416,19 @@ Without `beside`, the whole window splits that way. The canvas or UI must be
 there (`not_found`, with a hint), and so must pane `beside` (`not_found`). A
 window holds at most 64 panes; one more is `invalid`. **`pane_close`** gives
 the pane's space to its sibling. A pane that is already gone, or the last
-pane, which stays, changes nothing and succeeds with no `event`. A workspace
-that is not open is `not_found`.
+pane, which stays, changes nothing and succeeds with no `event`.
+**`pane_resize`** moves the divider after pane `pane` (on its right, or
+below it): the split whose first side ends with that pane gives its first
+side `ratio`, held in 0.1 to 0.9. Every divider is after exactly one pane,
+so this names each one; the app sends it when the pen drags a divider or
+the grow and shrink keys run. A pane that is not there, the last pane (no
+divider comes after it), or a share the split already has changes nothing
+and succeeds with no `event`. A workspace that is not open is `not_found`.
 
 Each change is written to the workspace's file, whole, before the reply, and
 appends one `pane_moved` event tagged with the workspace, from `slingerd`:
-the pane it opened (`canvas:notes`) with its frame, or the pane it closed,
-with no size. The server has no window, so a frame there is the pane's share
+the pane it opened (`canvas:notes`) with its frame, the pane before the
+divider it moved with its new frame, or the pane it closed, with no size. The server has no window, so a frame there is the pane's share
 of the window: `x`, `y`, `width` and `height` from 0 to 1, origin at the top
 left.
 

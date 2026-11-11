@@ -1,4 +1,4 @@
-//! `pane_list`, `pane_open` and `pane_close`: a workspace's panes as they
+//! `pane_list`, `pane_open`, `pane_close` and `pane_resize`: a workspace's panes as they
 //! cross the socket. The core changes the layout; each change appends its
 //! `pane_moved` to the record, tagged with the workspace.
 
@@ -26,6 +26,13 @@ pub fn answer(store: &Store, ask: PaneAsk) -> Result<Reply, RemoteError> {
         PaneAsk::PaneClose { workspace, pane } => {
             let (opened, layout, moved) = workspaces
                 .panes(&workspace, |layout| Ok(layout.close(pane as usize)))
+                .map_err(|e| kept(&e))?;
+            let event = moved.map(|moved| record(store, &opened, moved)).transpose()?;
+            Ok(reply(&opened, &layout, None, event))
+        }
+        PaneAsk::PaneResize { workspace, pane, ratio } => {
+            let (opened, layout, moved) = workspaces
+                .panes(&workspace, |layout| Ok(layout.resize(pane as usize, ratio)))
                 .map_err(|e| kept(&e))?;
             let event = moved.map(|moved| record(store, &opened, moved)).transpose()?;
             Ok(reply(&opened, &layout, None, event))

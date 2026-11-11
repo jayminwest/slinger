@@ -44,6 +44,7 @@ a "did you mean" suggestion.
 | `pane list <WORKSPACE>` | One line per pane, in order (left to right, top to bottom): number, kind (`canvas` or `ui`) and target, separated by tabs. `--json`: `workspace`, `layout`, `panes` |
 | `pane open <WORKSPACE> --type <canvas\|ui> --target <ID> [--beside PANE] [--below]` | The new pane's number. `--json`: `workspace`, `layout`, `panes`, `pane`, `event` |
 | `pane close <WORKSPACE> <PANE>` | Nothing. `--json`: `workspace`, `layout`, `panes`, `event` (absent when nothing changed) |
+| `pane resize <WORKSPACE> <PANE> <RATIO>` | Nothing. `--json`: `workspace`, `layout`, `panes`, `event` (absent when nothing changed) |
 | `canvas changes <ID> [--after NUMBER] [--wait MS]` | One line per operation numbered above `--after` (default 0: all), lowest first, as the canvas file's JSON line. `--json`: `next`, `ops` |
 | `canvas crop <ID> (--item ITEM \| --box X,Y,W,H [--page PAGE]) [--out FILE]` | The path of each image written, one per line, tiles in reading order. `--json`: `images` (`path`, `x`, `y`, `width`, `height`) |
 | `canvas strokes <ID> --item ITEM` | One stroke per line, as JSON with absolute `points` in tenths. `--json`: `strokes` |
@@ -120,7 +121,11 @@ prints it. `pane open` shows a canvas or an agent UI that exists, beside pane
 `--beside` (to its right, or below it with `--below`), or beside the whole
 window; the new pane gets half the space. `pane close` gives the pane's space
 to the pane beside it. Closing a pane that is already gone, or the last pane,
-changes nothing and succeeds. A workspace that is not open, a canvas or UI
+changes nothing and succeeds. `pane resize` moves the divider after pane
+`PANE` (on its right, or below it) so its split gives its first side
+`RATIO`, held in 0.1 to 0.9; the app's pen does the same when it drags a
+divider. Resizing the last pane (no divider comes after it), one that is
+not there, or to the share it has changes nothing and succeeds. A workspace that is not open, a canvas or UI
 that is not there, or no pane `--beside` exits 3 (`not_found`); a window that
 holds 64 panes exits 5 (`invalid`) on `pane open`. Each change is recorded as
 a `pane_moved` event.

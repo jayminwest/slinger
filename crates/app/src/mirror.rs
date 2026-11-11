@@ -15,7 +15,7 @@ use slinger_control::{CanvasFeed, CanvasPage};
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Item, ItemId, Shape};
-use crate::scene::ink::{Change, Stroke};
+use crate::scene::ink::{Carried, Change, Stroke};
 
 /// The height of text, in canvas units: the packet's text size, so the pane
 /// and the images an agent reads agree.
@@ -78,6 +78,30 @@ impl Mirror {
         let at = self.pages.iter().position(|p| *p == self.page);
         let next = at.map_or(0, |i| (i + 1) % self.pages.len());
         self.pages.get(next).map_or(&self.page, |p| p)
+    }
+
+    /// Items `ids` of this page as they would be carried to `page` (of this
+    /// canvas or another) and moved by `by` canvas units: each item, and
+    /// its object for an `add` there, without what the server gives an item
+    /// (its id, maker and time) or what names items of this canvas (an
+    /// arrow's ends). Ids not on this page are left out.
+    pub fn carried(&self, ids: &[ItemId], page: &str, by: Point) -> Vec<Carried> {
+        let (dx, dy) = (Value::from(tenths(by.x)), Value::from(tenths(by.y)));
+        let found = self.items.iter().zip(&self.objects).filter(|(i, _)| ids.contains(&i.id));
+        let mut out = Vec::new();
+        for (_, object) in found {
+            let mut object = object.clone();
+            shift(&mut object, &dx, &dy);
+            object.remove("from");
+            object.remove("to");
+            let Some(item) = read(&object) else { continue };
+            for key in ["id", "by", "t"] {
+                object.remove(key);
+            }
+            object.insert("page".into(), page.into());
+            out.push(Carried { item, object: Value::Object(object) });
+        }
+        out
     }
 
     /// Applies the operations of one reply of the change feed, in order.
@@ -286,6 +310,10 @@ pub fn ops(change: &Change) -> Value {
             serde_json::json!({"op": "add", "item": item})
         }
         Change::Set { id, shape, .. } => set(*id, shape),
+        Change::Carry { items, .. } => {
+            let add = |c: &Carried| serde_json::json!({"op": "add", "item": c.object});
+            Value::Array(items.iter().map(add).collect())
+        }
     }
 }
 

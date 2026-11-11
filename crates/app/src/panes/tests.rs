@@ -132,3 +132,37 @@ fn a_tree_past_the_most_panes_shows_what_fits() {
     let panes = Panes::follow(&tree, 70);
     assert_eq!(panes.place(AREA).len(), crate::layout::tree::MAX_PANES);
 }
+
+#[test]
+fn grown_names_the_divider_by_the_number_of_the_pane_before_it() {
+    let mut panes = Panes::follow(&three(), 3);
+    assert_eq!(panes.grown(1.0), Some((2, 0.45)), "pane 3 grows up into pane 2");
+    assert_eq!(panes.place(AREA)[2].2.height, 300.0, "the panes do not change");
+    panes.command(Command::FocusLeft, AREA);
+    assert_eq!(panes.grown(-2.0), Some((1, 0.4)));
+    assert_eq!(Panes::new(canvas("main")).grown(1.0), None, "a lone pane");
+    assert_eq!(panes.number_of(panes.focus()), 1);
+}
+
+#[test]
+fn pane_commands_run_on_the_panes_and_others_do_nothing() {
+    let mut panes = Panes::new(canvas("main"));
+    panes.command(Command::SplitRight, AREA);
+    panes.command(Command::SplitDown, AREA);
+    assert_eq!(shown(&panes), (vec!["canvas:main".into(); 3], 2));
+    panes.command(Command::GrowPane, AREA);
+    assert_eq!(panes.place(AREA)[2].2.height, 330.0);
+    panes.command(Command::ShrinkPane, AREA);
+    panes.command(Command::FocusUp, AREA);
+    panes.command(Command::FocusLeft, AREA);
+    assert_eq!(shown(&panes).1, 0);
+    panes.command(Command::FocusRight, AREA);
+    panes.command(Command::FocusDown, AREA);
+    panes.command(Command::FocusNext, AREA);
+    assert_eq!(shown(&panes).1, 0);
+    let before = panes.clone();
+    panes.command(Command::ZoomIn, AREA);
+    assert_eq!(panes, before);
+    panes.command(Command::ClosePane, AREA);
+    assert_eq!(shown(&panes).0.len(), 2);
+}

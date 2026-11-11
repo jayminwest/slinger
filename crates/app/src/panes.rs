@@ -8,7 +8,8 @@
 
 use slinger_control::{PaneKind, PaneSplit, PaneTree};
 
-use crate::layout::{Axis, Direction, PaneId, Rect, Tree};
+use crate::commands::Command;
+use crate::layout::{Axis, Direction, Divider, PaneId, Point, Rect, Tree};
 
 /// How much of its split [`Panes::grow`] gives a pane with each step.
 pub const STEP: f64 = 0.05;
@@ -91,7 +92,13 @@ impl Panes {
 
     /// The focused pane's number: 1 for the first in order.
     pub fn number(&self) -> u32 {
-        let at = self.tree.panes().iter().position(|&p| p == self.focus).unwrap_or(0);
+        self.number_of(self.focus)
+    }
+
+    /// Pane `id`'s number: 1 for the first in order (the first's for one
+    /// not in the tree).
+    pub fn number_of(&self, id: PaneId) -> u32 {
+        let at = self.tree.panes().iter().position(|&p| p == id).unwrap_or(0);
         u32::try_from(at + 1).unwrap_or(u32::MAX)
     }
 
@@ -153,6 +160,64 @@ impl Panes {
     /// for a negative count).
     pub fn grow(&mut self, steps: f64) {
         self.tree.grow(self.focus, steps * STEP);
+    }
+
+    /// The divider [`Panes::grow`] would move, as the server names it: the
+    /// number of the pane before it, and its split's new share. `None`
+    /// when the grow changes nothing.
+    pub fn grown(&self, steps: f64) -> Option<(u32, f64)> {
+        let (before, ratio) = self.tree.grown(self.focus, steps * STEP)?;
+        Some((self.number_of(before), ratio))
+    }
+
+    /// The divider between two panes under `at` when the panes fill `area`.
+    pub fn divider_at(&self, area: Rect, at: Point) -> Option<Divider> {
+        self.tree.divider_at(area, at)
+    }
+
+    /// Gives the split of the divider after pane `before` the share `ratio`
+    /// (see [`Tree::set_ratio`]); whether there is such a divider.
+    pub fn set_ratio(&mut self, before: PaneId, ratio: f64) -> bool {
+        self.tree.set_ratio(before, ratio)
+    }
+
+    /// Runs a pane command on the panes laid in `area`. Commands that are
+    /// not about panes do nothing.
+    pub fn command(&mut self, command: Command, area: Rect) {
+        match command {
+            Command::Quit
+            | Command::ReloadConfig
+            | Command::PickColour
+            | Command::PickShape
+            | Command::PickTool
+            | Command::ToggleSidebar
+            | Command::DismissNotice
+            | Command::PanLeft
+            | Command::PanRight
+            | Command::PanUp
+            | Command::PanDown
+            | Command::ZoomIn
+            | Command::ZoomOut
+            | Command::NextPage
+            | Command::DeleteSelection
+            | Command::ClearSelection
+            | Command::ToolPen
+            | Command::ToolEraser
+            | Command::ToolLasso
+            | Command::ToolText
+            | Command::ToolBox
+            | Command::ToolArrow => {}
+            Command::SplitRight => self.split(Axis::Row),
+            Command::SplitDown => self.split(Axis::Column),
+            Command::ClosePane => self.close(),
+            Command::FocusNext => self.focus_next(),
+            Command::FocusLeft => self.focus_toward(Direction::Left, area),
+            Command::FocusRight => self.focus_toward(Direction::Right, area),
+            Command::FocusUp => self.focus_toward(Direction::Up, area),
+            Command::FocusDown => self.focus_toward(Direction::Down, area),
+            Command::GrowPane => self.grow(1.0),
+            Command::ShrinkPane => self.grow(-1.0),
+        }
     }
 }
 

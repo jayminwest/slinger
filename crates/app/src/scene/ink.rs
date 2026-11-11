@@ -82,6 +82,18 @@ pub enum Change {
     Put { canvas: String, page: String, colour: Rgb, shape: Shape },
     /// Item `id` drawn as `shape` from now on: one edit of a text.
     Set { canvas: String, page: String, id: ItemId, shape: Shape },
+    /// Items carried in from another page, one `add` each: a selection
+    /// dragged into this page's pane ([`Ink::carry`]).
+    Carry { canvas: String, page: String, items: Vec<Carried> },
+}
+
+/// An item carried to another page: as it will draw there (under its old
+/// id; the ink shows it under one of its own), and the canvas file's item
+/// object its `add` writes, already on that page and moved.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Carried {
+    pub item: Item,
+    pub object: serde_json::Value,
 }
 
 impl Change {
@@ -92,7 +104,8 @@ impl Change {
             Change::Remove { canvas, .. }
             | Change::Move { canvas, .. }
             | Change::Put { canvas, .. }
-            | Change::Set { canvas, .. } => canvas,
+            | Change::Set { canvas, .. }
+            | Change::Carry { canvas, .. } => canvas,
         }
     }
 
@@ -103,7 +116,8 @@ impl Change {
             Change::Remove { page, .. }
             | Change::Move { page, .. }
             | Change::Put { page, .. }
-            | Change::Set { page, .. } => page,
+            | Change::Set { page, .. }
+            | Change::Carry { page, .. } => page,
         }
     }
 }
@@ -133,6 +147,8 @@ struct Pending {
     key: u64,
     change: Change,
     state: State,
+    /// The change this one goes with: refused, it takes this one too.
+    after: Option<u64>,
 }
 
 /// The ink and changes not yet in the server's copy of their page.
@@ -182,15 +198,37 @@ impl Ink {
             self.drag(at);
         }
         let Some((key, stroke)) = self.drawing.take() else { return false };
-        self.pending.push(Pending { key, change: Change::Add(stroke), state: State::Waiting });
+        let change = Change::Add(stroke);
+        self.pending.push(Pending { key, change, state: State::Waiting, after: None });
         true
     }
 
     /// A finished erase, delete, move, put or edit: it shows at once and waits its
     /// turn to be sent, after every change made before it.
     pub fn push(&mut self, change: Change) {
-        self.pending.push(Pending { key: self.next_key, change, state: State::Waiting });
-        self.next_key += 1;
+        self.queue(change, None);
+    }
+
+    /// A selection carried to another page: the `add` of its items there,
+    /// then the `remove` of them here, each one step on its canvas. Both
+    /// show at once; the removal goes only once the add is written, and is
+    /// dropped with it if the add is refused, so no item is ever lost.
+    pub fn carry(&mut self, to: Change, from: Change) {
+        let key = self.queue(to, None);
+        self.queue(from, Some(key));
+    }
+
+    /// Queues `change` after every change before it; its key. A carry's
+    /// items each show under a key of their own.
+    fn queue(&mut self, change: Change, after: Option<u64>) -> u64 {
+        let key = self.next_key;
+        let keys = match &change {
+            Change::Carry { items, .. } => u64::try_from(items.len()).unwrap_or(1).max(1),
+            _ => 1,
+        };
+        self.pending.push(Pending { key, change, state: State::Waiting, after });
+        self.next_key += keys;
+        key
     }
 
     /// The next change to send, and its key, now marked as sending. `None`
@@ -219,6 +257,7 @@ impl Ink {
             }
             Answer::Refused(problem) => {
                 self.pending.remove(at);
+                self.pending.retain(|p| p.after != Some(key));
                 self.problem = Some(problem);
             }
         }
@@ -244,6 +283,11 @@ impl Ink {
         for pending in self.pending.iter().filter(|p| here(p.change.canvas(), p.change.page())) {
             match &pending.change {
                 Change::Add(stroke) => shown.push(Cow::Owned(local(pending.key, stroke))),
+                Change::Carry { items, .. } => {
+                    shown.extend(items.iter().zip(pending.key..).map(|(c, key)| {
+                        Cow::Owned(Item { id: ItemId(LOCAL + key), ..c.item.clone() })
+                    }));
+                }
                 Change::Remove { ids, .. } => {
                     let ids: HashSet<&ItemId> = ids.iter().collect();
                     shown.retain(|i| !ids.contains(&i.id));

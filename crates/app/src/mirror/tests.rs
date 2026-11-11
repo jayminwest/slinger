@@ -329,3 +329,34 @@ fn an_edit_is_a_set_and_a_move_sets_each_arrow_that_follows() {
     let Shape::Arrow { from, to, bound, .. } = &m.items()[1].shape else { panic!() };
     assert_eq!((*from, *to, *bound), (pt(1.0, 1.0), pt(2.0, 2.0), [None, Some(ItemId(1))]));
 }
+
+#[test]
+fn carried_items_are_add_objects_on_the_other_page_moved_and_without_this_canvas_s_names() {
+    let m = Mirror::new(&shown(vec![
+        stroke("i1", "p1"),
+        json!({"id": "i2", "page": "p1", "by": "agent:scout", "t": "2026-11-10T00:00:00Z",
+               "kind": "arrow", "color": "#0000ff", "pts": [0, 0, 100, 0], "from": "i1", "to": "i9"}),
+        json!({"id": "i3", "page": "p1", "kind": "box", "x": 0, "y": 0, "w": 10, "h": 10}),
+    ]));
+    let carried = m.carried(&[ItemId(2), ItemId(1), ItemId(7)], "p4", pt(1.0, -0.5));
+    assert_eq!(carried.len(), 2, "in drawing order; i7 is not here");
+    assert_eq!(carried[0].item.id, ItemId(1));
+    assert_eq!(
+        carried[0].object,
+        json!({"page": "p4", "kind": "stroke", "color": "#ff0000", "width": 20,
+               "pts": [110, 195, 10, -20, 5, 5]})
+    );
+    assert_eq!(
+        carried[1].object,
+        json!({"page": "p4", "kind": "arrow", "color": "#0000ff", "pts": [10, -5, 100, 0]})
+    );
+    let Shape::Arrow { from, to, bound, .. } = carried[1].item.shape else { panic!() };
+    assert_eq!((from, to), (pt(1.0, -0.5), pt(11.0, -0.5)), "drawn where it will land");
+    assert_eq!(bound, [None, None], "bound to nothing there");
+
+    let change = Change::Carry { canvas: "board".into(), page: "p4".into(), items: carried };
+    let written = ops(&change);
+    assert_eq!(written.as_array().map(Vec::len), Some(2), "one canvas_apply, one add each");
+    assert_eq!(written[1]["op"], "add");
+    assert_eq!(written[1]["item"]["kind"], "arrow");
+}

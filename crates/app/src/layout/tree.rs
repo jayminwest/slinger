@@ -3,6 +3,10 @@
 
 use super::Rect;
 
+mod divider;
+
+pub use divider::Divider;
+
 /// How a split divides its space.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Axis {

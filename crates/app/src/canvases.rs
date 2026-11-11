@@ -19,9 +19,9 @@ use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Point, Rect, Size, Viewport};
 use crate::mirror::{Applied, Mirror};
 use crate::panes::{Kind, Panes};
-use crate::scene::canvas::Item;
+use crate::scene::canvas::{Item, ItemId};
 use crate::scene::ink::{Ink, Pen};
-use crate::scene::select::{Select, Selection};
+use crate::scene::select::{Landing, Select, Selection};
 use crate::scene::shapes::{Press, Shapes};
 use crate::scene::tools::Tool;
 use crate::scene::{CanvasPane, canvas};
@@ -180,16 +180,35 @@ impl Canvases {
         self.select.drag(at, &items)
     }
 
-    /// The pen lifted: the stroke, box, arrow, erase or move is finished
-    /// and goes to the daemon in its turn, or the loop selects. Returns
-    /// false when nothing was under the pen.
-    pub fn pen_up(&mut self, panes: &Panes, pen: Pen) -> bool {
+    /// The pen lifted over `under`, the canvas pane of `panes` there and its
+    /// frame, if any: the stroke, box, arrow, erase or move is finished and
+    /// goes to the daemon in its turn, or the loop selects. A drag of the
+    /// selection that lifts over a pane on another page carries the items
+    /// there; one that lifts outside every canvas pane moves nothing.
+    /// Returns false when nothing was under the pen.
+    pub fn pen_up(&mut self, panes: &Panes, pen: Pen, under: Option<(PaneId, Rect)>) -> bool {
         let Some((pane, frame)) = self.pen.take() else { return false };
         let at = to_canvas(self.view(pane).viewport, frame, pen.at);
+        let landing = under.and_then(|(to, frame)| {
+            let canvas = canvas_of(panes, to)?;
+            let open = self.open.iter().find(|o| o.canvas == canvas)?;
+            let shown = open.mirror.as_ref()?.page().to_string();
+            Some((canvas, shown, to_canvas(self.view(to).viewport, frame, pen.at)))
+        });
         let ended = self.ink.up(Some(at)) || {
             let items = pane_shown(&self.open, &self.ink, panes, pane);
-            self.shapes.up(Some(at), &items, &mut self.ink)
-                || self.select.up(Some(at), &items, &mut self.ink)
+            self.shapes.up(Some(at), &items, &mut self.ink) || {
+                let landing =
+                    landing.as_ref().map(|(canvas, page, at)| Landing { canvas, page, at: *at });
+                let source =
+                    canvas_of(panes, pane).and_then(|c| self.open.iter().find(|o| o.canvas == c));
+                let source = source.and_then(|o| o.mirror.as_ref());
+                let carry = |ids: &[ItemId], by| match (source, landing) {
+                    (Some(mirror), Some(to)) => mirror.carried(ids, to.page, by),
+                    _ => Vec::new(),
+                };
+                self.select.lift(at, landing, &items, &mut self.ink, carry)
+            }
         };
         self.unshown = None;
         self.send();

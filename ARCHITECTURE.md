@@ -126,7 +126,8 @@ workspace/panes.rs  a workspace's panes (SPEC section 7): the tree of panes
              (a canvas or a UI each) and splits, numbered in order; open
              beside a pane or the window, close (the sibling takes the
              space; a pane already gone or the last one changes nothing),
-             each with the `pane_moved` it records, and the `[layout]` text
+             resize (the divider after a pane; none after the last), each
+             with the `pane_moved` it records, and the `[layout]` text
              (version 1, `panes`). Workspace::panes reads it (one pane on the
              canvas when unset or unreadable), set_panes stores it.
 session.rs   sessions (SPEC section 5, section 7 status set): a session per
@@ -184,7 +185,7 @@ workspaces.rs the open workspaces: the list of directories that hold their
              it for the workspace tag of each event it appends. `panes`
              changes a workspace's layout under the list's lock and writes
              the file whole when it changed.
-server/pane.rs  `pane_list`, `pane_open`, `pane_close`: the canvas or UI a
+server/pane.rs  `pane_list`, `pane_open`, `pane_close`, `pane_resize`: the canvas or UI a
              pane shows must exist; the core changes the layout; each change
              appends its `pane_moved`, tagged with the workspace. `open` is
              shared with `ui_open`.
@@ -249,9 +250,10 @@ backend/ui.rs  what a UI pane shows (`ui_shown`: the version, and a showing's
              id and data), its code by ui_export into a directory of the
              app's own, read, removed; and a showing's reply (`ui_reply`),
              with a note when its agent did not take it.
-backend/panes.rs  the server's panes: `layout` for the Watch, and `open` and
-             `close`, which send the window's own splits and closes to the
-             server as `pane_open` and `pane_close`.
+backend/panes.rs  the server's panes: `layout` for the Watch, and `open`,
+             `close` and `resize`, which send the window's own splits,
+             closes and moved dividers to the server as `pane_open`,
+             `pane_close` and `pane_resize`.
 mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              feed reply applied in order; reads the canvas file's items
              (tenths, delta points, `#rrggbb`, an arrow's bound ends) into
@@ -268,7 +270,8 @@ commands.rs  key commands: the closed list of commands, the chord parser and
 panes.rs     the window's panes: what each shows (a canvas or an agent UI, by
              name), how they tile (a layout::Tree), the one focused pane and
              the pane commands. `follow` builds them from the server's pane
-             tree, focus kept by number. Always one pane at least. Pure.
+             tree, focus kept by number; the pane commands' one dispatch
+             (`command`). Always one pane at least. Pure.
 scene.rs     decides what the window shows: each pane's placeholder, an
              agent UI pane's page (a Web) or its name and why it cannot
              show, a note over a UI pane whose agent did not take its reply,
@@ -311,6 +314,15 @@ scene/select/hit.rs  which strokes an eraser's path touches and which items a
              lasso holds: the core's geometry rules (canvas/geometry.rs), kept
              here too so they answer at every pen event without the socket
              (P7). Keep the two alike. Pure.
+scene/select/carry.rs  a drag of the selection that lifts over another
+             pane: on the same page it moves; on another page its items go
+             there (an `add` there, then a `remove` here, one undo step on
+             each canvas; a refused add takes the remove with it); outside
+             every canvas pane nothing moves. Pure.
+scene/resize.rs  the pen on a divider between panes: the press grabs it,
+             each drag resizes the panes at once, the lift names it (the
+             number of the pane before it, and its share) for
+             `pane_resize`. Pure.
 scene/tools.rs  the pen's tool and colour, and the pop-up at the pen (colour, shape,
              tool) that changes them: opens, picks by pen or key, closes.
              The tool commands pick a tool without it. Pure.
@@ -321,6 +333,9 @@ layout/tree.rs  the pane tree: binary splits with ratios to rectangles (no
              negative or oversized one at any size), split, close (the sibling
              takes the space), grow, next, and the pane beside one in a
              direction. Pure.
+layout/tree/divider.rs  the dividers between panes: each named by the pane
+             before it, the band either side a pen grabs (8 points), the
+             share a drag to a point gives its split. Pure.
 platform/    draws a scene, turns a key press into a chord (and, when the app
              passes the chord on, into the text it types) and a pen or mouse
              event into a point, a time and whether a finger made it (mouse
@@ -392,6 +407,15 @@ the feed brings it. The user may erase, move and delete any item, an
 agent's too. Delete and clear act only when the focused pane shows the
 selection's canvas; otherwise their keys go on (a delete in an agent UI).
 
+**Between panes (SPEC section 11):** a press within 8 points of the divider
+between two panes grabs it (before any tool sees the press), each drag
+resizes the panes at once, and the lift sends `pane_resize` once, so the
+workspace keeps the size; the grow and shrink keys send the same. A drag of
+the selection that lifts over a pane on another canvas carries its items
+there: the mirror gives their canvas-file objects, moved and on that page
+(an arrow's ends, which name items here, dropped), and the ink queues an
+`add` there and then a `remove` here, in turn with the strokes.
+
 **Keys:** every action is a named command (SPEC P4), bound to a chord in the
 config's `[keys]` table. The window's `sendEvent:` turns each key press into
 a chord and hands it to `main`, which looks it up in the keymap: a command
@@ -455,13 +479,15 @@ Each boundary has something that fails when it is broken:
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |
 | A layout reads back as written; a closed pane's space goes to its sibling | the tests of `crates/core/src/workspace/panes.rs`, `crates/app/src/layout/tree.rs` and `crates/app/src/panes.rs` |
-| Panes open, close and list through the socket, each change records `pane_moved`, closing a pane already gone succeeds, the layout survives a restart; the app follows another client's change | `crates/daemon/src/tests/pane.rs` through a real socket, and `crates/app/src/backend.rs` |
+| Panes open, close, resize and list through the socket, each change records `pane_moved`, closing a pane already gone succeeds, the layout survives a restart; the app follows another client's change | `crates/daemon/src/tests/pane.rs` through a real socket, and `crates/app/src/backend.rs` |
 | An agent opens a UI with data; each reply is recorded and reaches its running session as one JSON line, in order; a reply for a stopped session stays in the record; a refused open records nothing; replies are bounded | `crates/daemon/src/tests/showing.rs`, with a stand-in for Claude Code, and `crates/core/src/ui/showing.rs` |
 | A canvas page reads every kind from the canvas file and follows each feed operation | `crates/app/src/mirror/tests.rs` |
 | A follower shows the page, hands on each change, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
 | A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |
 | Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |
 | An erase, a move and a delete are one change each and show at once; a lasso selects what it holds whole; the selection clears | `crates/app/src/scene/select/tests.rs` |
+| A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
+| A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items | `crates/app/src/backend/outbox.rs`, against a real daemon |
 | Layout is fully tested | the 100% floor on `crates/app/src/layout.rs` in `budgets/coverage-budgets.json` |
 | The app binary does not grow unnoticed | `check:binary-size` |

@@ -2,7 +2,8 @@
 //! the window holds no durable state). Every change goes to the server, and
 //! the window follows the server's layout, whoever changed it: a
 //! [`super::Watch`] asks for [`layout`] on its thread, and the window sends
-//! its own splits and closes with [`open`] and [`close`]. Each blocks until
+//! its own splits, closes and resizes with [`open`], [`close`] and
+//! [`resize`]. Each blocks until
 //! the daemon answers or its client gives up.
 
 use slinger_control::{Client, PaneKind, PaneLayout, PaneTree};
@@ -61,6 +62,21 @@ pub fn close(daemon: &Client, workspace: &str, number: u32) -> Result<PaneTree, 
     Ok(daemon.pane_close(workspace, number)?.layout)
 }
 
+/// Moves the divider after pane number `number` of `workspace` so its
+/// split gives its first side `ratio`; the new layout.
+///
+/// # Errors
+///
+/// The daemon's.
+pub fn resize(
+    daemon: &Client,
+    workspace: &str,
+    number: u32,
+    ratio: f64,
+) -> Result<PaneTree, Problem> {
+    Ok(daemon.pane_resize(workspace, number, ratio)?.layout)
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::tests::with_daemon;
@@ -90,6 +106,10 @@ mod tests {
             assert_eq!(layout(d, None).unwrap().layout, tree, "the server keeps it");
             assert_eq!(words(&close(d, "notes", 2).unwrap()).len(), 2);
             assert_eq!(words(&close(d, "notes", 9).unwrap()).len(), 2, "already gone");
+            let resized = resize(d, "notes", 1, 0.3).unwrap();
+            let PaneTree::Split { ratio, .. } = resized else { panic!("{resized:?}") };
+            assert_eq!(ratio, 0.3);
+            assert_eq!(layout(d, None).unwrap().layout, resized, "the server keeps it");
         });
     }
 
