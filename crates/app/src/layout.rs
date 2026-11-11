@@ -75,6 +75,10 @@ pub const MIN_ZOOM: f64 = 0.1;
 /// The closest a canvas can zoom in: one canvas point fills eight screen points.
 pub const MAX_ZOOM: f64 = 8.0;
 
+/// The space, in screen points, between a new view's canvas origin and its
+/// pane's top left edge.
+pub const CANVAS_MARGIN: f64 = 16.0;
+
 /// Where the screen looks onto an endless canvas: the canvas point at the
 /// screen's top left, and the zoom (screen points per canvas point, always in
 /// `MIN_ZOOM..=MAX_ZOOM`). The canvas has no edge, so any finite origin is
@@ -94,6 +98,14 @@ impl Default for Viewport {
 }
 
 impl Viewport {
+    /// Where a pane's view starts: the canvas origin [`CANVAS_MARGIN`] points in
+    /// from the pane's top left, at 100%, so an item at the origin does not
+    /// touch the pane's edge.
+    pub fn start() -> Self {
+        let origin = Point { x: -CANVAS_MARGIN, y: -CANVAS_MARGIN };
+        Self { origin, ..Self::default() }
+    }
+
     /// Screen points per canvas point.
     pub fn zoom(self) -> f64 {
         self.zoom

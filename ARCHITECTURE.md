@@ -238,6 +238,9 @@ server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
 main.rs      wires the modules below. The only caller of platform. With
              `--preview UI [--data JSON]` it shows one agent UI alone and
              writes each reply's `ui_reply` line to stdout instead.
+shared.rs    the window's panes as the server keeps them for its workspace,
+             the window's size, the agent UIs the panes show and their notes:
+             it follows the server's layout and sends the pane commands.
 backend.rs   the app's IO: the one module that talks to the daemon, and the
              one that reads and watches the config files. Its Watch asks the
              daemon for the workspaces and their agents' statuses
@@ -321,17 +324,21 @@ panes.rs     the window's panes: what each shows (a canvas or an agent UI, by
 scene.rs     decides what the window shows: each pane's placeholder, an
              agent UI pane's page (a Web) or its name and why it cannot
              show, a note over a UI pane whose agent did not take its reply,
-             one focus border, problems in the focused pane, and the
-             sidebar and notice. No other chrome (SPEC P6). Pure.
+             one focus border (only with two panes or more), problems in the
+             focused pane, and the sidebar's rows (each with its font) and
+             notice. No other chrome (SPEC P6). Pure.
 ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
              slinger-ui://<hex>/ with the policy), the sandbox's constants
              (the policy and the shim in ui/policy.txt and ui/shim.js, the
              rule list) and the Bridge, which decides every
              load, navigation and bridge call (context, reply, their limits
              and codes) for one showing. Pure.
-scene/sidebar.rs  the agents' statuses (SPEC D17, P6): the open workspaces and
-             their agents in; the sidebar's lines (each workspace, its agent's
-             mark: working, blocked, done), where the panes go beside it, and
+scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
+             their agents in; the sidebar's rows (a `WORKSPACES` heading; each
+             workspace, the shown one bold on a lighter row; its agent's mark,
+             round working, round green done, square red blocked, with
+             `<agent> · <status>` or `no agent`; a blocked agent's note),
+             where the panes go beside it, and
              the one notice when an agent becomes blocked or done out. The
              first list is the baseline; a status that moves on clears its
              notice. `statuses`: each workspace canvas's agent status. Pure.
@@ -394,7 +401,8 @@ scene/tools.rs  the pen's tool and colour, and the pop-up at the pen (colour, sh
              tool) that changes them: opens, picks by pen or key, closes.
              The tool commands pick a tool without it. Pure.
 layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
-             about a point, limits; the canvas has no edge) and where a pop-up
+             about a point, limits; the canvas has no edge; a pane's view
+             starts with the origin in by a margin) and where a pop-up
              opens (at the pen, kept inside the window). Pure. 100% coverage floor.
 layout/tree.rs  the pane tree: binary splits with ratios to rectangles (no
              negative or oversized one at any size), split, close (the sibling

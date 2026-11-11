@@ -9,7 +9,8 @@
 //! one-line entry, and how it goes.
 //!
 //! No chrome (SPEC P6): the panes, each with what it shows, one focus
-//! border around the focused pane, and the sidebar when it is open. A
+//! border around the focused pane when there are two or more, and the
+//! sidebar when it is open. A
 //! canvas pane whose page has arrived draws it; an agent UI pane shows its
 //! page ([`Web`]), or its name and why it cannot; any other pane shows its
 //! kind and name. A problem (no daemon, a bad config file) shows in the
@@ -97,8 +98,9 @@ pub struct Scene {
     pub webs: Vec<Web>,
     pub labels: Vec<Label>,
     /// The sidebar's lines: labels read from their left edge, not centred.
-    pub sidebar: Vec<Label>,
-    /// Around the focused pane: the window's one border.
+    pub sidebar: Vec<sidebar::Row>,
+    /// Around the focused pane: the window's one border; none, zero wide,
+    /// when one pane fills the area.
     pub focus: Border,
     /// The sling's one-line entry, over everything, while it is open.
     pub entry: Option<Box<sling::Entry>>,
@@ -114,7 +116,8 @@ pub const BORDER: f64 = 2.0;
 /// that cannot show says its name and why. Every other pane shows its kind
 /// and name. `problems` show in the focused pane, each with its hint under it:
 /// the window keeps working on the last good config and says what is wrong.
-/// The notice, if any, is the last label, over the panes.
+/// The notice, if any, is the last label, over the panes. One pane alone
+/// has no focus border: there is no other pane it could be told from.
 #[expect(clippy::too_many_arguments, reason = "each is one input the window shows")]
 pub fn build(
     size: Size,
@@ -128,8 +131,12 @@ pub fn build(
 ) -> Scene {
     let area = sidebar.panes(size.rect());
     let (mut labels, mut webs) = (Vec::new(), Vec::new());
-    let mut focus = Border { frame: area, width: BORDER, colour: theme.focus };
-    for (id, pane, frame) in panes.place(area) {
+    let placed = panes.place(area);
+    let mut focus = match placed.len() {
+        1 => Border { frame: area, width: 0.0, colour: theme.background },
+        _ => Border { frame: area, width: BORDER, colour: theme.focus },
+    };
+    for (id, pane, frame) in placed {
         let mut texts = Vec::new();
         match (pane.kind, uis.get(&pane.name)) {
             _ if canvases.iter().any(|c| c.pane == id) => {}
@@ -242,7 +249,7 @@ mod tests {
     }
 
     #[test]
-    fn one_pane_shows_its_kind_and_name_inside_the_focus_border() {
+    fn one_pane_shows_its_kind_and_name_with_no_focus_border() {
         let scene = build(&main(), &T, &[], &Sidebar::new(false), Vec::new());
         assert_eq!(scene.title, "slinger");
         assert_eq!(scene.sidebar, []);
@@ -250,7 +257,7 @@ mod tests {
         assert_eq!(shown(&scene), [("canvas main", T.text)]);
         assert_eq!(
             scene.focus,
-            Border { frame: layout::WINDOW.rect(), width: BORDER, colour: T.focus }
+            Border { frame: layout::WINDOW.rect(), width: 0.0, colour: T.background }
         );
     }
 
@@ -263,8 +270,12 @@ mod tests {
         let half = layout::WINDOW.width / 2.0;
         assert!(scene.labels[0].frame.x < half && scene.labels[1].frame.x > half);
         assert_eq!(
-            scene.focus.frame,
-            Rect { x: half, y: 0.0, width: half, height: layout::WINDOW.height }
+            scene.focus,
+            Border {
+                frame: Rect { x: half, y: 0.0, width: half, height: layout::WINDOW.height },
+                width: BORDER,
+                colour: T.focus,
+            }
         );
     }
 

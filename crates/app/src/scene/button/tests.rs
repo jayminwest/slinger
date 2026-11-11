@@ -24,8 +24,8 @@ fn each_status_has_its_mark_and_colour_and_no_status_a_muted_ring() {
     let states = [
         (None, "○", theme.muted),
         (Some(Status::Working), "●", theme.focus),
-        (Some(Status::Blocked), "●", theme.error),
-        (Some(Status::Done), "✓", theme.text),
+        (Some(Status::Blocked), "■", theme.error),
+        (Some(Status::Done), "●", super::sidebar::colour(Some(Status::Done), &theme)),
     ];
     for (status, glyph, colour) in states {
         let draw = drawn(status);

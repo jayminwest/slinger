@@ -82,11 +82,17 @@ struct Open {
 
 /// One canvas pane: where it looks, the page it shows (by canvas and page
 /// id; the first page without one), and what it last drew.
-#[derive(Default)]
 struct View {
     viewport: Viewport,
     page: Option<(String, String)>,
     last: Option<Rc<canvas::Scene>>,
+}
+
+impl Default for View {
+    /// A new pane's view: at the start, on the first page, nothing drawn.
+    fn default() -> Self {
+        Self { viewport: Viewport::start(), page: None, last: None }
+    }
 }
 
 impl Canvases {

@@ -24,21 +24,26 @@ mod web;
 use std::cell::{Cell, RefCell};
 
 use objc2::rc::Retained;
-use objc2::runtime::{NSObjectProtocol, ProtocolObject};
-use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
+use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
+use objc2::{AnyThread, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSBox, NSBoxType, NSColor,
-    NSEvent, NSEventSubtype, NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment,
-    NSTextField, NSTitlePosition, NSView, NSWindow, NSWindowDelegate, NSWindowOrderingMode,
-    NSWindowStyleMask,
+    NSEvent, NSEventSubtype, NSEventType, NSFont, NSFontAttributeName,
+    NSForegroundColorAttributeName, NSKernAttributeName, NSLineBreakMode, NSResponder,
+    NSTextAlignment, NSTextField, NSTitlePosition, NSView, NSWindow, NSWindowDelegate,
+    NSWindowOrderingMode, NSWindowStyleMask,
 };
-use objc2_foundation::{NSNotification, NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
+use objc2_foundation::{
+    NSAttributedString, NSAttributedStringKey, NSDictionary, NSNotification, NSNumber, NSObject,
+    NSPoint, NSRect, NSSize, NSString, NSTimer,
+};
 
 use self::canvas::CanvasView;
 use crate::commands::Chord;
 use crate::config::Rgb;
 use crate::layout::{self, PaneId, Point, Rect, Size};
 use crate::scene::ink::Pen;
+use crate::scene::sidebar::Row;
 use crate::scene::{Border, Label, Scene};
 
 /// How often the main thread looks for a new scene, in seconds.
@@ -121,7 +126,7 @@ struct Shown {
     canvases: Vec<(PaneId, Retained<CanvasView>)>,
     chrome: Vec<Retained<NSView>>,
     entry: Option<Retained<entry::EntryField>>,
-    made_from: Option<(Vec<Label>, Vec<Label>, Border)>,
+    made_from: Option<(Vec<Row>, Vec<Label>, Border)>,
 }
 
 thread_local! {
@@ -393,8 +398,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
         old.removeFromSuperview();
     }
     for row in &scene.sidebar {
-        let field = label(row, height, NSTextAlignment::Left, mtm);
-        field.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
+        let field = sidebar_row(row, height, mtm);
         shown.chrome.push(Retained::into_super(Retained::into_super(field)));
     }
     // The border first, so a pop-up at the pen draws over it.
@@ -436,6 +440,36 @@ fn label(
         field.setDrawsBackground(true);
         field.setBackgroundColor(Some(&color(fill)));
     }
+    field
+}
+
+/// A text field that shows a sidebar `row`, read from its left edge, in
+/// its font.
+fn sidebar_row(row: &Row, height: f64, mtm: MainThreadMarker) -> Retained<NSTextField> {
+    let field = label(&row.label, height, NSTextAlignment::Left, mtm);
+    let size = row.font.size.unwrap_or_else(NSFont::systemFontSize);
+    let font = if row.font.bold {
+        NSFont::boldSystemFontOfSize(size)
+    } else {
+        NSFont::systemFontOfSize(size)
+    };
+    let (ink, kern) = (color(row.label.colour), NSNumber::new_f64(row.font.spacing));
+    // SAFETY: the three keys are AppKit's own statics.
+    let keys: [&NSAttributedStringKey; 3] =
+        unsafe { [NSFontAttributeName, NSForegroundColorAttributeName, NSKernAttributeName] };
+    let values: [&AnyObject; 3] = [&font, &ink, &kern];
+    let attributes = NSDictionary::from_slices(&keys, &values);
+    // SAFETY: each value is the type its key takes: an `NSFont`, an `NSColor`
+    // and an `NSNumber`.
+    let styled = unsafe {
+        NSAttributedString::initWithString_attributes(
+            NSAttributedString::alloc(),
+            &NSString::from_str(&row.label.text),
+            Some(&attributes),
+        )
+    };
+    field.setAttributedStringValue(&styled);
+    field.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
     field
 }
 

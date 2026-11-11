@@ -3,6 +3,7 @@
 //!
 //! `backend` gets the data, `config` reads the config file, `commands` turns
 //! keys into commands, `panes` keeps the window's panes and their focus,
+//! `shared` keeps them as the server does,
 //! `canvases` keeps what each canvas pane shows (a `mirror` of a page, a
 //! viewport and the pen's ink), `scene` decides what the window shows (the
 //! agents' statuses in `scene::sidebar`), `ui` holds an agent UI's page and
@@ -25,6 +26,7 @@ mod mirror;
 mod panes;
 mod platform;
 mod scene;
+mod shared;
 mod ui;
 
 use std::io::{self, Write};
@@ -32,19 +34,19 @@ use std::path::Path;
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use slinger_control::{self as control, PaneLayout};
+use slinger_control as control;
 
 use crate::backend::{Problem, Settings, Watch};
 use crate::canvases::Canvases;
 use crate::commands::Command;
 use crate::config::Shown;
-use crate::layout::{PaneId, Point, Rect, Size};
-use crate::panes::{Pane, Panes};
+use crate::layout::{PaneId, Point, Rect};
+use crate::panes::Panes;
 use crate::platform::{Event, Step};
-use crate::scene::resize::Dividers;
+use crate::scene::Scene;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::tools::{Kind, Tools};
-use crate::scene::{Notes, Scene, Uis};
+use crate::shared::Shared;
 
 fn main() -> ExitCode {
     let settings = backend::Settings::load(backend::ConfigFiles::locate());
@@ -125,6 +127,7 @@ fn window(mut settings: Settings) -> ExitCode {
     let watch = Watch::start(socket.clone(), settings.config.workspace.clone());
     let mut shown = settings.config.sidebar;
     let mut sidebar = Sidebar::new(shown == Shown::Open);
+    sidebar.show(settings.config.workspace.clone());
     let centre = Point { x: layout::WINDOW.width / 2.0, y: layout::WINDOW.height / 2.0 };
     let mut tools = Tools::new(settings.config.palette.clone(), centre);
     let mut shared = Shared::default();
@@ -215,6 +218,7 @@ fn window(mut settings: Settings) -> ExitCode {
                 sidebar.set_open(shown == Shown::Open);
             }
             watch.want(settings.config.workspace.clone());
+            sidebar.show(settings.config.workspace.clone());
             let now = settings.socket();
             if now != socket {
                 watch.follow(now.clone());
@@ -227,124 +231,6 @@ fn window(mut settings: Settings) -> ExitCode {
     match platform::run(&first, answer) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => fail(&e.to_string(), None),
-    }
-}
-
-/// The window's panes as the server keeps them for its workspace: one pane
-/// until the server's layout comes, or without a daemon.
-#[derive(Debug)]
-struct Shared {
-    /// The window's content size: the panes share what the sidebar leaves.
-    size: Size,
-    panes: Panes,
-    /// The agent UIs the panes show, as last fetched.
-    uis: Uis,
-    /// The workspace the panes are the server's for; `None` while the
-    /// server cannot say, when the window changes its own panes.
-    workspace: Option<String>,
-    /// The problem asking the server, if any.
-    trouble: Option<Problem>,
-    /// Why an agent UI's last reply did not reach its agent, by showing.
-    notes: Notes,
-    /// The divider between panes under the pen, if any.
-    dividers: Dividers,
-}
-
-impl Default for Shared {
-    fn default() -> Self {
-        let main = Pane { kind: panes::Kind::Canvas, name: "main".to_string() };
-        let (uis, notes) = (Uis::new(), Notes::new());
-        let (size, workspace, trouble, dividers) =
-            (layout::WINDOW, None, None, Dividers::default());
-        Self { size, panes: Panes::new(main), uis, workspace, trouble, notes, dividers }
-    }
-}
-
-impl Shared {
-    /// Takes the server's newest layout, or the problem asking for it: the
-    /// panes follow it, focus kept on the same number.
-    fn follow(&mut self, news: Result<PaneLayout, Problem>) {
-        match news {
-            Ok(layout) => {
-                self.panes = Panes::follow(&layout.layout, self.panes.number());
-                (self.workspace, self.trouble) = (Some(layout.workspace), None);
-            }
-            Err(problem) => (self.workspace, self.trouble) = (None, Some(problem)),
-        }
-    }
-
-    /// Takes the agent UIs' code the watch fetched, each as a page for a
-    /// pane or why it cannot show; whether there was any.
-    fn fetched(&mut self, codes: Vec<(String, Result<ui::Shown, Problem>)>) -> bool {
-        let any = !codes.is_empty();
-        for (name, shown) in codes {
-            let page = shown.and_then(|shown| {
-                let page = ui::Page::new(shown, "pane");
-                page.map(Arc::new).map_err(|why| Problem { message: why, hint: None })
-            });
-            self.uis.insert(name, page);
-        }
-        any
-    }
-
-    /// Sends an agent UI's reply `line` to the daemon on `socket`, which
-    /// records it and hands it to the agent that opened the showing. The
-    /// showing's pane notes an agent that did not take it, until one does;
-    /// whether that changed what the window shows, or why the reply cannot
-    /// go on, for the page's promise.
-    fn reply(&mut self, line: &str, socket: &Path) -> Result<bool, String> {
-        Ok(match backend::ui::reply(&control::Client::new(socket), line)? {
-            (open, Some(unreachable)) => {
-                self.notes.insert(open, unreachable);
-                true
-            }
-            (open, None) => self.notes.remove(&open).is_some(),
-        })
-    }
-
-    /// Runs a pane command on the panes in `area`. Opening, closing and
-    /// resizing go to the daemon on `socket`, which keeps the layout (to the
-    /// window's own panes without a workspace). Commands that are not about
-    /// panes do nothing.
-    fn command(&mut self, command: Command, area: Rect, socket: &Path) {
-        if matches!(command, Command::GrowPane | Command::ShrinkPane) && self.workspace.is_some() {
-            let steps = if command == Command::GrowPane { 1.0 } else { -1.0 };
-            return self.resized(self.panes.grown(steps), socket);
-        }
-        let panes = &mut self.panes;
-        let server = self.workspace.as_deref().map(|w| (control::Client::new(socket), w));
-        let asked = match (command, server) {
-            (Command::SplitRight | Command::SplitDown, Some((daemon, workspace))) => {
-                let below = command == Command::SplitDown;
-                backend::panes::open(&daemon, workspace, panes.focused(), panes.number(), below)
-                    .map(|(layout, number)| Panes::follow(&layout, number))
-            }
-            (Command::ClosePane, Some((daemon, workspace))) => {
-                // Focus goes to the pane before it; the first's to the next.
-                let number = panes.number();
-                backend::panes::close(&daemon, workspace, number)
-                    .map(|layout| Panes::follow(&layout, number.saturating_sub(1)))
-            }
-            _ => return panes.command(command, area),
-        };
-        match asked {
-            Ok(now) => *panes = now,
-            Err(problem) => self.trouble = Some(problem),
-        }
-    }
-
-    /// Sends a moved divider (the number of the pane before it, and its
-    /// split's share) to the daemon on `socket`, which keeps the layout.
-    /// Without a workspace the window's own panes are the layout.
-    fn resized(&mut self, moved: Option<(u32, f64)>, socket: &Path) {
-        let (Some((number, ratio)), Some(workspace)) = (moved, self.workspace.as_deref()) else {
-            return;
-        };
-        let daemon = control::Client::new(socket);
-        match backend::panes::resize(&daemon, workspace, number, ratio) {
-            Ok(layout) => self.panes = Panes::follow(&layout, self.panes.number()),
-            Err(problem) => self.trouble = Some(problem),
-        }
     }
 }
 

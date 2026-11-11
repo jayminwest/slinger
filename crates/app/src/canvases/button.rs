@@ -62,7 +62,7 @@ impl Canvases {
         let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
         let button = crate::scene::button::first(&items)?;
         let view = self.views.iter().find(|(p, _)| *p == pane);
-        let viewport = view.map(|(_, v)| v.viewport).unwrap_or_default();
+        let viewport = view.map_or_else(Viewport::start, |(_, v)| v.viewport);
         let selection = Selection { canvas: canvas.into(), page: shown, ids: Vec::new() };
         Some((selection, in_window(viewport, frame, button), frame))
     }

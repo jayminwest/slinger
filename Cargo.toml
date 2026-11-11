@@ -21,7 +21,7 @@ miniz_oxide = "0.9"
 block2 = "0.6"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "objc2-core-foundation", "NSAffineTransform", "NSApplication", "NSAttributedString", "NSBezierPath", "NSBox", "NSColor", "NSControl", "NSEvent", "NSFont", "NSGraphics", "NSGraphicsContext", "NSLayoutManager", "NSParagraphStyle", "NSResponder", "NSRunningApplication", "NSText", "NSTextContainer", "NSTextField", "NSTextStorage", "NSView", "NSWindow"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSAffineTransform", "NSArray", "NSAttributedString", "NSData", "NSDate", "NSDictionary", "NSError", "NSGeometry", "NSNotification", "NSObject", "NSProcessInfo", "NSString", "NSTimer", "NSURL", "NSURLRequest", "NSURLResponse"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSAffineTransform", "NSArray", "NSAttributedString", "NSData", "NSDate", "NSDictionary", "NSError", "NSGeometry", "NSNotification", "NSObject", "NSProcessInfo", "NSString", "NSTimer", "NSURL", "NSURLRequest", "NSURLResponse", "NSValue"] }
 objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-app-kit", "objc2-core-foundation", "WKContentRuleList", "WKContentRuleListStore", "WKContentWorld", "WKFrameInfo", "WKNavigation", "WKNavigationAction", "WKNavigationDelegate", "WKPreferences", "WKScriptMessage", "WKScriptMessageHandlerWithReply", "WKUIDelegate", "WKURLSchemeHandler", "WKURLSchemeTask", "WKUserContentController", "WKUserScript", "WKWebView", "WKWebViewConfiguration", "WKWebsiteDataStore", "WKWindowFeatures"] }
 rusqlite = { version = "0.41", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }

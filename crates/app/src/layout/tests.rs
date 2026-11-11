@@ -85,6 +85,15 @@ fn the_default_viewport_is_the_identity() {
 }
 
 #[test]
+fn a_new_view_starts_with_the_canvas_origin_in_from_the_panes_corner() {
+    let view = Viewport::start();
+    assert_eq!(view.zoom(), 1.0);
+    const { assert!(CANVAS_MARGIN > 0.0) };
+    assert_eq!(view.to_screen(pt(0.0, 0.0)), pt(CANVAS_MARGIN, CANVAS_MARGIN));
+    assert_eq!(view.to_screen(pt(12.0, -7.0)), pt(12.0 + CANVAS_MARGIN, -7.0 + CANVAS_MARGIN));
+}
+
+#[test]
 fn screen_to_canvas_and_back_is_the_identity() {
     for view in [Viewport::default(), moved(), moved().zoom_about(pt(0.0, 0.0), 0.01)] {
         for p in [pt(0.0, 0.0), pt(799.0, 1.0), pt(-50.5, 1234.25)] {
