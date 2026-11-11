@@ -110,6 +110,7 @@ fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
         }
         Event::Key(chord) if keys.command(chord) == Some(Command::Quit) => Step::Quit,
         Event::Key(_)
+        | Event::Command(_)
         | Event::Text(_)
         | Event::Press(_)
         | Event::Drag(_)
@@ -137,13 +138,13 @@ fn window(mut settings: Settings) -> ExitCode {
     let mut shared = Shared::default();
     let mut canvases = Canvases::new(control::Client::new(&socket));
     let first = view(&settings, &shared, &tools, &sidebar, &mut canvases);
-    // Runs on the main thread for each key press, pen, mouse or trackpad
-    // event, paint of new ink, and tick of the window's timer. The open command
-    // palette, then the open key overlay, takes every key and press (the
-    // palette's run goes as a key's); then the sling's entry, then a
-    // pop-up, takes its keys first; a press on a divider between
-    // panes drags it; the pen draws with the pen tool on a canvas pane. A
-    // tick stats the two config files and takes the watch's news of the
+    // Runs on the main thread for each key press, menu item, pen, mouse or
+    // trackpad event, paint of new ink, and tick of the window's timer. The
+    // open command palette, then the open key overlay, takes every key and
+    // press (the palette's run and a menu item's go as a key's); then the
+    // sling's entry, then a pop-up, takes its keys first; a press on a
+    // divider between panes drags it; the pen draws with the pen tool on a
+    // canvas pane. A tick stats the two config files and takes the watch's news of the
     // agents and the panes and what the canvases' followers heard; the watch
     // and the followers follow an edit that moves the socket or the
     // workspace. Only a split, a close or a resize asks the daemon here.
@@ -249,14 +250,15 @@ enum Ask {
     Draw,
     /// Let it go on to the focused view.
     Pass,
-    /// It is not a key, nor a press the palette took.
+    /// It is not a key or a menu item, nor a press the palette took.
     Not,
 }
 
-/// What `event` asks: the open command palette in `shared` takes every key
-/// and press, and runs a command as its key would; then a key goes to what
-/// takes keys first ([`taken`]), to the canvases (a text being typed), and
-/// to the keymap.
+/// What `event` asks: a menu item chosen with the pointer runs its command;
+/// the open command palette in `shared` takes every key and press, and runs
+/// a command as its key would; then a key goes to what takes keys first
+/// ([`taken`]), to the canvases (a text being typed), and to the keymap. A
+/// menu item's key comes as that key.
 fn asked(
     event: &Event,
     shared: &mut Shared,
@@ -268,6 +270,7 @@ fn asked(
     let palette = match *event {
         Event::Key(chord) => shared.palette.key(chord, keys),
         Event::Press(pen) => shared.palette.press(pen.at, shared.size),
+        Event::Command(command) => return Ask::Run(command),
         _ => return Ask::Not,
     };
     match (palette, event) {
@@ -465,5 +468,6 @@ fn view(
     let now = Instant::now();
     tools.flash().follow(tools.tool(), keys, now);
     scene.flash = tools.flash().pill(focused(&shared.panes, area), theme, now).map(Box::new);
+    scene.menus = commands::menu::bar(keys, status::command(tools.tool()));
     Box::new(scene)
 }

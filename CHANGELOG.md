@@ -19,6 +19,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a menu bar. slinger, File, Edit, Tools, Canvas, Pane, Window and
+  Help list every command with its key from `[keys]`, and Tools checks the
+  pen's tool. A rebound key shows after the config reloads. Edit's cut, copy,
+  paste and select all work in the sling prompt.
+
 - **App:** the sling prompt is a labelled field. Above it, "Sling to" and
   the agent of the canvas's workspace ("Sling" when it has none); beneath
   it, the keys that send, cancel and dictate.

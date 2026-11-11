@@ -148,7 +148,7 @@ pub fn footer(frame: Rect, theme: &Theme, keys: &Keymap, pen: Option<Pen>, centr
 
 /// The command that picks `tool`: its title names the tool, its chord is
 /// the tool's key.
-fn command(tool: Tool) -> Command {
+pub fn command(tool: Tool) -> Command {
     match tool {
         Tool::Pen => Command::ToolPen,
         Tool::Eraser => Command::ToolEraser,
