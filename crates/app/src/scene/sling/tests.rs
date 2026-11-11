@@ -168,3 +168,22 @@ fn send_now_skips_the_entry() {
     sling.answered(Err(no_session()));
     assert_eq!(sling.entry().unwrap().text, "from a button", "a failure opens the entry");
 }
+
+#[test]
+fn dictation_s_lines_stand_under_the_entry_after_its_own() {
+    let said = || vec![("✗ Flick is not running".to_string(), T.error), ("start".into(), T.muted)];
+    assert!(Sling::default().under(&T, said()).is_empty(), "no entry: nowhere to show");
+    let mut sling = typed("hi");
+    let entry = sling.entry().unwrap().frame;
+    let ys = |sling: &Sling| -> Vec<f64> {
+        sling.under(&T, said()).iter().map(|l| l.frame.y - entry.y).collect()
+    };
+    assert_eq!(ys(&sling), [HEIGHT, HEIGHT + LINE]);
+    let lines = sling.under(&T, said());
+    assert_eq!((lines[0].text.as_str(), lines[0].colour), ("✗ Flick is not running", T.error));
+    assert!(sling.send());
+    assert!(sling.under(&T, said()).is_empty(), "sent: the entry is gone");
+    sling.ready(|_| true);
+    sling.answered(Err(no_session()));
+    assert_eq!(ys(&sling), [HEIGHT + 2.0 * LINE, HEIGHT + 3.0 * LINE], "after its failure");
+}

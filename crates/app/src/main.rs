@@ -147,7 +147,7 @@ fn window(mut settings: Settings) -> ExitCode {
             Event::Key(chord) if canvases.sling_key(chord) || tools.key(chord) => {
                 return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
             }
-            Event::Key(chord) if canvases.takes(chord) => return Step::Pass,
+            Event::Key(chord) if canvases.takes(chord, &settings.config.keys) => return Step::Pass,
             Event::Key(chord) => {
                 let kind = match settings.config.keys.command(chord) {
                     None => return Step::Pass,
@@ -338,14 +338,14 @@ impl Shared {
     }
 }
 
-/// Runs a selection command (`sling` opens its entry) when the focused pane of `shared`
+/// Runs a selection command (`sling`, `dictate`: the entry) when the focused pane of `shared`
 /// laid in `area` shows its canvas; false when it does not. Any other command goes on (true).
 fn selection(canvases: &mut Canvases, shared: &Shared, area: Rect, command: Command) -> bool {
     let panes = &shared.panes;
     match command {
         Command::DeleteSelection => canvases.delete_selection(panes, panes.focus()),
         Command::ClearSelection => canvases.clear_selection(panes, panes.focus()),
-        Command::Sling => canvases.open_sling(panes, area),
+        Command::Sling | Command::Dictate => canvases.sling_command(command, panes, area),
         _ => true,
     }
 }

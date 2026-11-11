@@ -7,7 +7,8 @@
 //! ([`ui`]), on its own thread; the window sends only its own pane changes
 //! ([`panes`]). A canvas is followed on a thread of its own ([`Follower`]),
 //! the pen's strokes are sent on another ([`Outbox`]), and slings on a
-//! third ([`Slinger`]).
+//! third ([`Slinger`]). It also asks Flick to dictate ([`Flick`]), on a
+//! fourth.
 
 use std::fs;
 use std::io::ErrorKind;
@@ -22,6 +23,7 @@ use crate::config::{self, Config, Layer};
 use crate::scene::sidebar::{Agent, Status, Workspace};
 use crate::ui::Shown;
 
+mod flick;
 mod follow;
 mod outbox;
 pub mod panes;
@@ -30,6 +32,7 @@ mod sling;
 pub(crate) mod testing;
 pub mod ui;
 
+pub use flick::Flick;
 pub use follow::{Follower, News};
 pub use outbox::Outbox;
 pub use sling::Slinger;

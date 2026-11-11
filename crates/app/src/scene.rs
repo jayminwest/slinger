@@ -17,6 +17,7 @@
 //! nothing more, except the one notice that an agent is blocked or done.
 
 pub mod canvas;
+pub mod dictation;
 pub mod ink;
 pub mod pages;
 pub mod resize;

@@ -23,7 +23,7 @@
 
 use crate::backend::Problem;
 use crate::commands::Chord;
-use crate::config::Theme;
+use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect};
 use crate::scene::Label;
 use crate::scene::canvas::ItemId;
@@ -200,12 +200,7 @@ impl Sling {
     /// and under the open entry why the last try failed.
     pub fn labels(&self, theme: &Theme) -> Vec<Label> {
         let Some((ask, frame, stage)) = &self.open else { return Vec::new() };
-        let line = |n: f64, text: String, colour| Label {
-            text,
-            colour,
-            fill: Some(theme.background),
-            frame: Rect { y: frame.y + n * LINE + (HEIGHT - LINE), height: LINE, ..*frame },
-        };
+        let line = |n: f64, text: String, colour| line(*frame, n, text, colour, theme);
         match stage {
             Stage::Typing(None) => Vec::new(),
             Stage::Typing(Some(problem)) => {
@@ -222,6 +217,21 @@ impl Sling {
             }
         }
     }
+
+    /// `lines` (text and colour) under the open entry, after its own: what
+    /// dictation says.
+    pub fn under(&self, theme: &Theme, lines: Vec<(String, Rgb)>) -> Vec<Label> {
+        let Some((_, frame, Stage::Typing(problem))) = &self.open else { return Vec::new() };
+        let first = problem.as_ref().map_or(1, |p| 2 + u32::from(p.hint.is_some()));
+        let placed = lines.into_iter().zip(first..);
+        placed.map(|((text, colour), n)| line(*frame, f64::from(n), text, colour, theme)).collect()
+    }
+}
+
+/// Line `n` (0 is the entry's own) of the lines under the entry at `frame`.
+fn line(frame: Rect, n: f64, text: String, colour: Rgb, theme: &Theme) -> Label {
+    let frame = Rect { y: frame.y + n * LINE + (HEIGHT - LINE), height: LINE, ..frame };
+    Label { text, colour, fill: Some(theme.background), frame }
 }
 
 /// What a sling of `selection` with `prompt` sends.

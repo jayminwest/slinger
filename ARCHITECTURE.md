@@ -251,6 +251,11 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
 backend/sling.rs  the Slinger: each sling as one `sling_send` (canvas, page,
              the selected ids, the prompt) on a thread of its own, and the
              daemon's answer back. The daemon picks the agent.
+backend/flick.rs  Flick's dictation (SPEC D2, K6): `dictation start`,
+             `stop` and `cancel` as Flick's own control requests (one JSON
+             array line to `$FLICK_SOCKET`, else Flick's default socket; one
+             `{"ok"}` or `{"error"}` line back) on a thread of its own. No
+             speech code: Flick records, transcribes and types the text.
 backend/ui.rs  what a UI pane shows (`ui_shown`: the version, and a showing's
              id and data), its code by ui_export into a directory of the
              app's own, read, removed; and a showing's reply (`ui_reply`),
@@ -276,8 +281,12 @@ canvases/paging.rs  the canvas commands on a pane: pan, zoom, the page
 canvases/sling.rs  the sling from the window: opens the entry at the
              focused pane's selection, sends it once the ink of its canvas
              is written (`Ink::settled`), takes the answer. `sling_now` is
-             the one entry point for a sling with no typing (dictation, a
-             live item's button).
+             the one entry point for a sling with no typing (a live
+             item's button).
+canvases/dictation.rs  the `dictate` command: opens the entry when it is
+             closed, then starts or stops Flick's dictation into it; the
+             entry closing cancels one going. Flick types the text into the
+             focused entry, so it reaches the sling as typing does.
 config.rs    the config file's format: text in, a typed config or an error
              with its line out; merges a machine's overlay over it. Pure.
 commands.rs  key commands: the closed list of commands, the chord parser and
@@ -346,6 +355,11 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              selection's box (inside its pane), return sends and escape
              cancels, the wait for the ink, the line while it goes, and a
              failure's message and hint under the entry opened again. Pure.
+scene/dictation.rs  the dictation into the entry: start, then stop, one
+             request to Flick at a time; that Flick listens, or why it
+             failed (Flick not running, or its refusal) and what to do, under
+             the entry; an answer overtaken by the entry closing is ignored.
+             Pure.
 scene/tools.rs  the pen's tool and colour, and the pop-up at the pen (colour, shape,
              tool) that changes them: opens, picks by pen or key, closes.
              The tool commands pick a tool without it. Pure.
@@ -368,7 +382,9 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              No decisions.
 platform/entry.rs  the sling's entry: a native text field kept while the
              scene has one, over every view; it takes the keyboard when it
-             appears, and each edit goes to main as Event::Typed.
+             appears, and each edit goes to main as Event::Typed. It takes
+             cmd+X, C, V and A itself (no menu bar sends them): Flick's
+             dictation pastes with cmd+V.
 platform/web.rs  agent UIs in WKWebViews: the scheme handler, navigation and
              UI delegate and message handler in one class that pipes each
              call to its ui::Bridge, the rule list (compiled once; no view
@@ -461,6 +477,9 @@ gives it to the `Slinger` thread as one `sling_send`. The main thread never
 waits on the socket. No chat view: the answer comes on the canvas through
 the change feed and the agent's status in the sidebar. A failure opens the
 entry again with its prompt, and the error's message and hint under it.
+The `dictate` command speaks the prompt (SPEC D2): Flick's dictation starts,
+the next press stops it, and Flick types the text into the entry; slinger has
+no speech code. A Flick not running, or refusing, shows once under the entry.
 
 **Keys:** every action is a named command (SPEC P4), bound to a chord in the
 config's `[keys]` table. The window's `sendEvent:` turns each key press into
@@ -469,9 +488,9 @@ runs and the press stops there; any other key goes on to the window as
 usual. The app has no menu bar, so no key reaches AppKit's menus first, and
 no action has a second path outside the keymap (the window's close button
 quits too).
-The sling's open entry takes every key before the keymap: return and
-escape are its, and any other key goes on to the text field (delete
-deletes a character there, not the selection).
+The sling's open entry takes every key before the keymap but the `dictate`
+chord: return and escape are its, and any other key goes on to the text
+field (delete deletes a character there, not the selection).
 An open pop-up at the pen takes its own keys first (escape, return, space,
 the arrows, 1 to 9); any other key goes to the keymap. These keys act only
 inside a pop-up a command opened, so they are not commands themselves.

@@ -140,3 +140,8 @@
 # takes them back.
 #undo = "cmd+z"
 #redo = "cmd+shift+z"
+# Speak the sling's prompt through Flick's dictation (Flick must be running, with
+# [dictation] set up): opens the prompt at the selection if it is closed, and Flick starts
+# listening; press again to stop, and Flick types what it heard into the prompt. Escape or
+# return cancels a dictation still going. Slinger has no speech code of its own.
+#dictate = "cmd+shift+return"

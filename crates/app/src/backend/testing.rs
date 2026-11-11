@@ -1,8 +1,11 @@
-//! What the app's tests share: a stand-in for Claude Code, a wait, and a
-//! user's stroke on a canvas.
+//! What the app's tests share: a stand-in for Claude Code, one for Flick, a
+//! wait, and a user's stroke on a canvas.
 
 use std::fs;
+use std::io::{BufRead, BufReader, Write};
+use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use slinger_control::{self as control, Client};
@@ -42,4 +45,35 @@ pub(crate) fn user_stroke(daemon: &Client, canvas: &str) {
         "color": "#000000", "width": 20, "pts": [1000, 1000, 100, 100]}});
     let by = "user".to_string();
     daemon.canvas_apply(control::CanvasOps { canvas: canvas.into(), by, ops }).unwrap();
+}
+
+/// A stand-in Flick on a socket in `dir`: it answers each request line with
+/// `answer(line)`, then records the line. Returns the socket and the
+/// requests heard so far.
+pub(crate) fn fake_flick(
+    dir: &Path,
+    answer: fn(&str) -> String,
+) -> (PathBuf, Arc<Mutex<Vec<String>>>) {
+    let socket = dir.join("flick.sock");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let heard = Arc::new(Mutex::new(Vec::new()));
+    let theirs = Arc::clone(&heard);
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { return };
+            let mut line = String::new();
+            if BufReader::new(&stream).read_line(&mut line).is_err() {
+                continue;
+            }
+            let line = line.trim_end().to_string();
+            let _ = writeln!(stream, "{}", answer(&line));
+            theirs.lock().unwrap().push(line);
+        }
+    });
+    (socket, heard)
+}
+
+/// A Flick with dictation set up: every verb is ok.
+pub(crate) fn ready(_line: &str) -> String {
+    r#"{"ok":"dictation: recording"}"#.to_string()
 }

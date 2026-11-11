@@ -4,7 +4,7 @@
 //! Runs on the main thread and never waits.
 
 use super::{Canvases, pane_shown};
-use crate::commands::Chord;
+use crate::commands::{Chord, Command, Keymap};
 use crate::config::Theme;
 use crate::layout::{Point, Rect};
 use crate::panes::Panes;
@@ -28,7 +28,7 @@ impl Canvases {
     /// shows, with `prompt`, without the entry: for a prompt that comes
     /// some other way (dictation, a button on a live item). False when that
     /// pane shows no selection, or a sling is on its way.
-    #[cfg_attr(not(test), expect(dead_code, reason = "dictation calls it (slinger-6c99)"))]
+    #[cfg_attr(not(test), expect(dead_code, reason = "a live item's button calls it"))]
     pub fn sling_now(&mut self, panes: &Panes, area: Rect, prompt: &str) -> bool {
         let Some((selection, around, within)) = self.selection_in(panes, area) else {
             return false;
@@ -45,24 +45,29 @@ impl Canvases {
     }
 
     /// Whether a key no command took is a text's: every key while the entry
-    /// is open, and a key that types while a text is being typed.
-    pub fn takes(&self, chord: Chord) -> bool {
-        self.typing() || self.editing() && chord.types()
+    /// is open but `keys`' `dictate` chord, and a key that types while a
+    /// text is being typed.
+    pub fn takes(&self, chord: Chord, keys: &Keymap) -> bool {
+        let dictate = keys.command(chord) == Some(Command::Dictate);
+        self.typing() && !dictate || self.editing() && chord.types()
     }
 
     /// A key press while the entry is open: return sends and escape
-    /// cancels (true: draw). False for any other key, which is the
-    /// entry's own and goes on to it, and for every key while it is closed.
+    /// cancels (true: draw), and either cancels a dictation going. False
+    /// for any other key, which is the entry's own and goes on to it, and
+    /// for every key while it is closed.
     pub fn sling_key(&mut self, chord: Chord) -> bool {
-        match self.sling.key(chord) {
+        let closed = match self.sling.key(chord) {
             Some(Key::Send) => {
                 self.sling.send();
                 self.poll_sling();
                 true
             }
             Some(Key::Cancel) => self.sling.cancel(),
-            Some(Key::Type) | None => false,
-        }
+            Some(Key::Type) | None => return false,
+        };
+        self.entry_closed();
+        closed
     }
 
     /// The entry's text is now `text`. Nothing more to draw (false): the
@@ -79,10 +84,11 @@ impl Canvases {
     }
 
     /// Lays the sling over `scene` in `theme`'s colours: its entry, or its
-    /// line while it goes, or why it failed.
+    /// line while it goes, or why it failed; and what dictation says.
     pub fn show_sling(&self, scene: &mut Scene, theme: &Theme) {
         scene.entry = self.sling.entry().map(Box::new);
         scene.labels.extend(self.sling.labels(theme));
+        scene.labels.extend(self.dictation_labels(theme));
     }
 
     /// Takes the daemon's answer to the sling, and sends a waiting one once
@@ -121,7 +127,7 @@ mod tests {
     use slinger_control::Client;
 
     use super::*;
-    use crate::backend::testing::{fake_claude, user_stroke, wait_until};
+    use crate::backend::testing::{fake_claude, fake_flick, ready, user_stroke, wait_until};
     use crate::backend::tests::{open_notes, with_store};
     use crate::config::{Config, Rgb};
     use crate::layout::WINDOW;
@@ -233,6 +239,98 @@ mod tests {
             assert!(!canvases.typing());
             assert!(canvases.sling_now(&panes, WINDOW.rect(), "and now?"));
             wait_until(|| canvases.poll());
+            daemon.session_stop("notes").unwrap();
+        });
+    }
+
+    /// The keymap's `dictate` chord: while the entry is open it is the one
+    /// key that goes on to the keymap.
+    fn dictate_key() -> Chord {
+        let keys = Keymap::default();
+        let chord = Chord::new(crate::commands::CMD | crate::commands::SHIFT, '\r');
+        assert_eq!(keys.command(chord), Some(Command::Dictate));
+        chord
+    }
+
+    /// Dictates into an entry that opens at the selection: Flick starts,
+    /// then stops.
+    fn dictate_and_stop(canvases: &mut Canvases, panes: &Panes) {
+        let (keys, area) = (Keymap::default(), WINDOW.rect());
+        assert!(canvases.sling_command(Command::Dictate, panes, area));
+        assert!(canvases.typing(), "the entry opened");
+        assert!(!canvases.takes(dictate_key(), &keys), "the dictate key reaches the keymap");
+        assert!(canvases.takes(Chord::new(0, 'w'), &keys));
+        let listening = ["● Flick is listening: dictate again when done"];
+        assert_eq!(texts(&shown(canvases, panes)), listening);
+        wait_until(|| canvases.poll_dictation());
+        assert!(canvases.sling_command(Command::Dictate, panes, area), "again: stop");
+        assert_eq!(texts(&shown(canvases, panes)), ["Flick is writing it down…"]);
+        wait_until(|| canvases.poll_dictation());
+        assert_eq!(shown(canvases, panes).labels.len(), 0);
+    }
+
+    #[test]
+    fn dictate_opens_the_entry_starts_and_stops_flick_and_the_spoken_text_slings() {
+        let (bin, flick) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let (socket, heard) = fake_flick(flick.path(), ready);
+        with_store(Some(&fake_claude(bin.path())), |daemon| {
+            let home = open_notes(daemon);
+            user_stroke(daemon, "notes");
+            daemon.session_start("notes").unwrap();
+            let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+            canvases.listen_to(socket.clone());
+            let area = WINDOW.rect();
+            assert!(!canvases.sling_command(Command::Dictate, &panes, area), "nothing selected");
+            select_the_stroke(&mut canvases, &panes);
+
+            dictate_and_stop(&mut canvases, &panes);
+            let said = heard.lock().unwrap().clone();
+            assert_eq!(said, [r#"["dictation","start"]"#, r#"["dictation","stop"]"#]);
+
+            // Flick types what it heard into the focused entry.
+            assert!(!canvases.sling_typed("what is this drawing?"));
+            assert!(canvases.sling_key(Chord::new(0, '\r')));
+            wait_until(|| canvases.poll() && !canvases.typing());
+            assert!(delivered(home.path()).contains("what is this drawing?"));
+
+            // Escape while Flick listens cancels the dictation.
+            canvases.clear_selection(&panes, panes.focus());
+            select_the_stroke(&mut canvases, &panes);
+            assert!(canvases.sling_command(Command::Dictate, &panes, area));
+            assert!(canvases.sling_key(Chord::new(0, '\u{1b}')));
+            wait_until(|| heard.lock().unwrap().len() == 4);
+            assert_eq!(heard.lock().unwrap()[3], r#"["dictation","cancel"]"#);
+            assert_eq!(shown(&canvases, &panes).labels.len(), 0, "its late answer shows nothing");
+            daemon.session_stop("notes").unwrap();
+        });
+    }
+
+    #[test]
+    fn with_flick_not_running_dictate_says_so_once_and_typing_still_slings() {
+        let (bin, flick) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        with_store(Some(&fake_claude(bin.path())), |daemon| {
+            let home = open_notes(daemon);
+            user_stroke(daemon, "notes");
+            daemon.session_start("notes").unwrap();
+            let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+            canvases.listen_to(flick.path().join("flick.sock"));
+            select_the_stroke(&mut canvases, &panes);
+
+            assert!(canvases.sling_command(Command::Dictate, &panes, WINDOW.rect()));
+            wait_until(|| canvases.poll_dictation());
+            let failed = shown(&canvases, &panes);
+            assert!(failed.entry.is_some(), "the entry stays open");
+            let lines = texts(&failed);
+            assert_eq!(
+                lines,
+                ["✗ Flick is not running", "start Flick to dictate, or type the prompt"]
+            );
+            assert!(!canvases.poll_dictation(), "said once");
+
+            assert!(!canvases.sling_typed("typed instead"));
+            assert!(canvases.sling_key(Chord::new(0, '\r')));
+            wait_until(|| canvases.poll() && !canvases.typing());
+            assert!(delivered(home.path()).contains("typed instead"));
             daemon.session_stop("notes").unwrap();
         });
     }
