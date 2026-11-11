@@ -3,10 +3,10 @@
 //!
 //! `backend` gets the data, `config` reads the config file, `commands` turns
 //! keys into commands, `panes` keeps the window's panes and their focus,
-//! `canvases` keeps what each canvas pane shows (a `mirror` of a page and a
-//! viewport), `scene` decides what the window shows (the agents' statuses
-//! in `scene::sidebar`), `ui` holds an agent UI's page and its bridge,
-//! `layout` does the geometry and `platform` draws.
+//! `canvases` keeps what each canvas pane shows (a `mirror` of a page, a
+//! viewport and the pen's ink), `scene` decides what the window shows (the
+//! agents' statuses in `scene::sidebar`), `ui` holds an agent UI's page and
+//! its bridge, `layout` does the geometry and `platform` draws.
 //! Only `platform` touches `AppKit`, and only this file starts it (gate
 //! check:layers).
 //!
@@ -42,7 +42,7 @@ use crate::layout::{Axis, Direction, PaneId, Point, Rect};
 use crate::panes::{Pane, Panes};
 use crate::platform::{Event, Step};
 use crate::scene::sidebar::Sidebar;
-use crate::scene::tools::{Kind, Tools};
+use crate::scene::tools::{Kind, Tool, Tools};
 use crate::scene::{Notes, Scene, Uis};
 
 fn main() -> ExitCode {
@@ -93,8 +93,13 @@ fn preview(settings: &Settings, reference: &str, data: Option<&str>) -> ExitCode
             }
         }
         Event::Key(chord) if keys.command(chord) == Some(Command::Quit) => Step::Quit,
-        Event::Key(_) | Event::Press(_) | Event::Scroll { .. } | Event::Zoom { .. } => Step::Pass,
-        Event::Tick | Event::Moved(_) => Step::Stay,
+        Event::Key(_)
+        | Event::Press(_)
+        | Event::Drag(_)
+        | Event::Lift(_)
+        | Event::Scroll { .. }
+        | Event::Zoom { .. } => Step::Pass,
+        Event::Tick | Event::Moved(_) | Event::Painted(_) => Step::Stay,
     };
     let scene = scene::preview(page, &settings.config.theme);
     match platform::run(&scene, answer) {
@@ -117,8 +122,9 @@ fn window(mut settings: Settings) -> ExitCode {
     let mut canvases = Canvases::new(control::Client::new(&socket));
     let first = view(&settings, &shared, &tools, &sidebar, &mut canvases);
     // Runs on the main thread for each key press, pen, mouse or trackpad
-    // event, and tick of the window's timer. An open pop-up takes its keys
-    // before the keymap. A tick stats the two config files and takes the
+    // event, paint of new ink, and tick of the window's timer. An open
+    // pop-up takes its keys and presses first; the pen draws with the pen
+    // tool on a canvas pane. A tick stats the two config files and takes the
     // watch's news of the agents and the panes and what the canvases'
     // followers heard; the watch and the followers follow an edit that moves
     // the socket or the workspace. Only a split or a close asks the daemon here.
@@ -134,17 +140,15 @@ fn window(mut settings: Settings) -> ExitCode {
                     Err(why) => Step::Refuse(why),
                 };
             }
-            Event::Moved(at) => {
-                tools.moved(at);
-                return Step::Stay;
-            }
-            Event::Press(at) if tools.press(at) => {
-                return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
-            }
-            Event::Press(_) => return Step::Pass,
-            Event::Scroll { .. } | Event::Zoom { .. } => {
+            Event::Moved(_)
+            | Event::Painted(_)
+            | Event::Press(_)
+            | Event::Drag(_)
+            | Event::Lift(_)
+            | Event::Scroll { .. }
+            | Event::Zoom { .. } => {
                 let area = sidebar.panes(window.rect());
-                if !gesture(&mut canvases, &shared.panes, area, &event) {
+                if !pointer(&event, &mut tools, &mut canvases, &shared.panes, area) {
                     return Step::Pass;
                 }
                 return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
@@ -365,6 +369,49 @@ fn canvas_command(canvases: &mut Canvases, panes: &Panes, area: Rect, command: C
         _ => return false,
     }
     true
+}
+
+/// Hands a pen or mouse press, drag or lift to the pop-up at the pen, then
+/// to the canvas pane of `panes` laid in `area` under it, where the pen tool
+/// draws; a scroll or a pinch pans or zooms. False when nothing used it, and
+/// for a move or a paint, which need no new scene. A lift writes the
+/// stroke's delay log.
+fn pointer(
+    event: &Event,
+    tools: &mut Tools,
+    canvases: &mut Canvases,
+    panes: &Panes,
+    area: Rect,
+) -> bool {
+    match *event {
+        Event::Moved(at) => {
+            tools.moved(at);
+            false
+        }
+        Event::Painted(delay) => {
+            canvases.painted(delay);
+            false
+        }
+        Event::Press(pen) if tools.press(pen.at) => true,
+        Event::Press(pen) => {
+            let under = pane_at(panes, area, pen.at);
+            let drawing = tools.tool() == Tool::Pen;
+            drawing && under.is_some_and(|u| canvases.pen_down(panes, u, pen, tools.colour()))
+        }
+        Event::Drag(pen) => {
+            tools.moved(pen.at);
+            canvases.pen_drag(pen)
+        }
+        Event::Lift(pen) => {
+            let ended = canvases.pen_up(pen);
+            if let Some(line) = canvases.delay_log() {
+                // Nothing can be done if stderr is closed.
+                let _ = writeln!(io::stderr(), "{line}");
+            }
+            ended
+        }
+        _ => gesture(canvases, panes, area, event),
+    }
 }
 
 /// Pans or zooms the canvas of the pane of `panes` laid in `area` under a

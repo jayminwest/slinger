@@ -239,7 +239,9 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
              news without blocking. When the layout changes it fetches the
              code of each agent UI the panes show first.
              Its Follower keeps one canvas page coming: `canvas_show`,
-             then the change feed.
+             then the change feed. Its Outbox sends the pen's strokes
+             (`canvas_apply`, one `add` each) on a thread of its own, in the
+             order handed in, and hands back each answer.
 backend/ui.rs  what a UI pane shows (`ui_shown`: the version, and a showing's
              id and data), its code by ui_export into a directory of the
              app's own, read, removed; and a showing's reply (`ui_reply`),
@@ -249,9 +251,11 @@ backend/panes.rs  the server's panes: `layout` for the Watch, and `open` and
              server as `pane_open` and `pane_close`.
 mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              feed reply applied in order; reads the canvas file's items
-             (tenths, delta points, `#rrggbb`) into scene items. Pure.
+             (tenths, delta points, `#rrggbb`) into scene items, and writes
+             a pen stroke as one. Pure.
 canvases.rs  the canvas panes: one follower and mirror per canvas shown, each
-             pane's viewport and last scene; pan, zoom and next page.
+             pane's viewport and last scene; pan, zoom and next page; the
+             pen's ink over each page, and its outbox.
 config.rs    the config file's format: text in, a typed config or an error
              with its line out; merges a machine's overlay over it. Pure.
 commands.rs  key commands: the closed list of commands, the chord parser and
@@ -279,6 +283,10 @@ scene/sidebar.rs  the agents' statuses (SPEC D17, P6): the open workspaces and
              notice. Pure.
 scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport in,
              the visible marks in screen points and the box to repaint out. Pure.
+scene/ink.rs  the pen's ink: the stroke under the pen and the finished strokes
+             the server's page does not hold yet, drawn over it; which stroke
+             goes next (one at a time, oldest first, a failed one again
+             first); the pen-to-paint delay log (O2). Pure.
 scene/tools.rs  the pen's tool and colour, and the pop-up at the pen (colour, shape,
              tool) that changes them: opens, picks by pen or key, closes. Pure.
 layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
@@ -289,8 +297,10 @@ layout/tree.rs  the pane tree: binary splits with ratios to rectangles (no
              takes the space), grow, next, and the pane beside one in a
              direction. Pure.
 platform/    draws a scene, turns a key press into a chord and a pen or mouse
-             event into a point. One view per canvas pane repaints only the
-             box its scene says changed. All unsafe, objc2 and AppKit code.
+             event into a point, a time and whether a finger made it (mouse
+             coalescing off: every point). One view per canvas pane repaints
+             only the box its scene says changed, and says how long after
+             the pen event it painted. All unsafe, objc2 and AppKit code.
              No decisions.
 platform/web.rs  agent UIs in WKWebViews: the scheme handler, navigation and
              UI delegate and message handler in one class that pipes each
@@ -326,7 +336,23 @@ requests) and sends what it hears down a channel. The main thread drains
 the channels on its half-second timer, applies the operations to the page's
 mirror and builds a new scene: a change shows within about half a second.
 A lost daemon or canvas is a problem in the pane, and the follower tries
-again each second. The app binary has a size budget, and the release
+again each second.
+
+**Ink (P7):** the pen draws from local state, never from the server. A
+press with the pen tool on a canvas pane starts a stroke in `scene::ink`,
+each drag adds a point and draws a scene at once (a stroke that only grew
+repaints only its new end), and the lift finishes it. Finished strokes go
+to the `Outbox` thread one at a time, oldest first, each as one `add` (one
+undo step); the main thread never waits on the socket. A stroke the daemon
+did not get stays on screen and goes again before any after it; one it
+refuses (its canvas is gone) is dropped and shown as the problem. Local
+ink and the server's echo: a stroke draws from the ink until its canvas's
+feed has passed the line its `add` was written under; from then on the
+mirror holds it. So it never blinks out between the reply and the echo,
+and for that moment both draw it in the same place. Touch (a palm on a
+tablet display) never draws. Each stroke's pen-to-paint delays go to
+stderr as one `ink:` line (SPEC O2). Ink not yet sent is lost if the app
+quits. The app binary has a size budget, and the release
 profile builds it at `opt-level = "z"`, so it adds no async runtime.
 
 **Keys:** every action is a named command (SPEC P4), bound to a chord in the
@@ -397,6 +423,8 @@ Each boundary has something that fails when it is broken:
 | A canvas page reads every kind from the canvas file and follows each feed operation | `crates/app/src/mirror/tests.rs` |
 | A follower shows the page, hands on each change, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
 | A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |
+| Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |
+| The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused | `crates/app/src/backend/outbox.rs`, against a real daemon |
 | Layout is fully tested | the 100% floor on `crates/app/src/layout.rs` in `budgets/coverage-budgets.json` |
 | The app binary does not grow unnoticed | `check:binary-size` |
 

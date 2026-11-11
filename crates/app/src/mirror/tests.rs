@@ -194,3 +194,31 @@ fn colours_read_as_rgb_or_not_at_all() {
         assert_eq!(colour(bad), None, "{bad}");
     }
 }
+
+#[test]
+fn a_pen_stroke_is_written_as_it_reads_back() {
+    let stroke = Stroke {
+        canvas: "main".into(),
+        page: "p1".into(),
+        colour: Rgb { r: 255, g: 0, b: 0x7f },
+        width: 2.0,
+        points: vec![pt(10.04, 20.0), pt(11.06, 18.0), pt(11.5, 18.5)],
+    };
+    let object = stroke_object(&stroke);
+    assert_eq!(
+        object,
+        json!({"page": "p1", "kind": "stroke", "color": "#ff007f", "width": 20,
+               "pts": [100, 200, 11, -20, 4, 5]})
+    );
+    let mut added = object;
+    added["id"] = json!("i1");
+    let m = Mirror::new(&shown(vec![added]));
+    let Shape::Stroke { points, width } = &m.items()[0].shape else { panic!() };
+    assert_eq!(
+        (points.as_slice(), *width),
+        ([pt(10.0, 20.0), pt(11.1, 18.0), pt(11.5, 18.5)].as_slice(), 2.0)
+    );
+    let thin = Stroke { width: 0.01, points: vec![pt(-0.05, 0.0)], ..stroke };
+    assert_eq!(stroke_object(&thin)["width"], 1);
+    assert_eq!(stroke_object(&thin)["pts"], json!([-1, 0]));
+}
