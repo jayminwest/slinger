@@ -55,6 +55,8 @@ pub enum Command {
     ToolText,
     ToolBox,
     ToolArrow,
+    /// Sling the selection: a one-line prompt opens at it.
+    Sling,
 }
 
 /// How many commands there are.
@@ -62,7 +64,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 32] = [
+    pub const ALL: [(Command, &str); 33] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -95,6 +97,7 @@ impl Command {
         (Command::ToolText, "tool-text"),
         (Command::ToolBox, "tool-box"),
         (Command::ToolArrow, "tool-arrow"),
+        (Command::Sling, "sling"),
     ];
 
     /// The command called `name` in the config file.
@@ -241,6 +244,7 @@ impl Default for Keymap {
             on(CMD, '4'),
             on(CMD, '5'),
             on(CMD, '6'),
+            on(CMD, '\r'),
         ])
     }
 }

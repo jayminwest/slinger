@@ -213,6 +213,11 @@ fn ids(op: &Value) -> impl Iterator<Item = ItemId> + '_ {
     ids.into_iter().flatten().filter_map(|id| item_id(id.as_str()?))
 }
 
+/// Item 12 is `i12`, as the canvas file and the daemon's verbs write it.
+pub fn item_ref(id: ItemId) -> String {
+    format!("i{}", id.0)
+}
+
 /// `i12` is item 12.
 fn item_id(text: &str) -> Option<ItemId> {
     text.strip_prefix('i')?.parse().ok().map(ItemId)
@@ -288,7 +293,7 @@ fn points(pts: &Value) -> Option<Vec<Point>> {
 /// (a stroke, a text, a box or an arrow), a `remove`, a `move` by whole
 /// tenths with a `set` of each arrow that follows it, or the `set` of an edit.
 pub fn ops(change: &Change) -> Value {
-    let ids = |ids: &[ItemId]| ids.iter().map(|id| format!("i{}", id.0)).collect::<Vec<_>>();
+    let ids = |ids: &[ItemId]| ids.iter().copied().map(item_ref).collect::<Vec<_>>();
     match change {
         Change::Add(stroke) => serde_json::json!({"op": "add", "item": stroke_object(stroke)}),
         Change::Remove { ids: gone, .. } => serde_json::json!({"op": "remove", "ids": ids(gone)}),

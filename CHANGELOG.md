@@ -11,6 +11,15 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** sling from the window. With items selected on the focused
+  canvas, the `sling` command (`cmd+return`) opens a one-line prompt at the
+  selection. Return sends the selection and the prompt (an empty one too) to
+  the agent of the canvas's workspace; escape cancels. The sling waits until
+  the ink you drew before it has reached the daemon, so the agent sees what
+  you saw. The answer arrives on the canvas, and the agent's status shows
+  working, then done. If the sling fails (for example, the agent is not
+  running), the prompt stays open with the error and what to do; return
+  tries again.
 - **Agent UIs:** `slinger ui open <UI> --workspace <W> [--data JSON]` lets an
   agent show a UI in a new pane, with data, and get the user's answer back.
   It prints the showing's id (`pick-slot#12`) and the pane. Each

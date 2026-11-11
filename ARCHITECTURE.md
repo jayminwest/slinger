@@ -246,6 +246,9 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
              `move` with a `set` of each arrow that follows, a text edit's
              `set`) on a thread of its own, in the order handed in, and
              hands back each answer.
+backend/sling.rs  the Slinger: each sling as one `sling_send` (canvas, page,
+             the selected ids, the prompt) on a thread of its own, and the
+             daemon's answer back. The daemon picks the agent.
 backend/ui.rs  what a UI pane shows (`ui_shown`: the version, and a showing's
              id and data), its code by ui_export into a directory of the
              app's own, read, removed; and a showing's reply (`ui_reply`),
@@ -263,6 +266,11 @@ canvases.rs  the canvas panes: one follower and mirror per canvas shown, each
              pane's viewport and last scene; pan, zoom and next page; the
              pen's ink, the eraser's and lasso's work and the text, box and
              arrow tools' over each page, and the outbox they share.
+canvases/sling.rs  the sling from the window: opens the entry at the
+             focused pane's selection, sends it once the ink of its canvas
+             is written (`Ink::settled`), takes the answer. `sling_now` is
+             the one entry point for a sling with no typing (dictation, a
+             live item's button).
 config.rs    the config file's format: text in, a typed config or an error
              with its line out; merges a machine's overlay over it. Pure.
 commands.rs  key commands: the closed list of commands, the chord parser and
@@ -323,6 +331,10 @@ scene/resize.rs  the pen on a divider between panes: the press grabs it,
              each drag resizes the panes at once, the lift names it (the
              number of the pane before it, and its share) for
              `pane_resize`. Pure.
+scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
+             selection's box (inside its pane), return sends and escape
+             cancels, the wait for the ink, the line while it goes, and a
+             failure's message and hint under the entry opened again. Pure.
 scene/tools.rs  the pen's tool and colour, and the pop-up at the pen (colour, shape,
              tool) that changes them: opens, picks by pen or key, closes.
              The tool commands pick a tool without it. Pure.
@@ -343,6 +355,9 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              only the box its scene says changed, and says how long after
              the pen event it painted. All unsafe, objc2 and AppKit code.
              No decisions.
+platform/entry.rs  the sling's entry: a native text field kept while the
+             scene has one, over every view; it takes the keyboard when it
+             appears, and each edit goes to main as Event::Typed.
 platform/web.rs  agent UIs in WKWebViews: the scheme handler, navigation and
              UI delegate and message handler in one class that pipes each
              call to its ui::Bridge, the rule list (compiled once; no view
@@ -416,6 +431,16 @@ there: the mirror gives their canvas-file objects, moved and on that page
 (an arrow's ends, which name items here, dropped), and the ink queues an
 `add` there and then a `remove` here, in turn with the strokes.
 
+**Sling:** the `sling` command opens a one-line entry at the focused
+pane's selection; return hands the selection (server ids only, so ink still
+on its way is never in it) and the prompt to `canvases`, which holds it
+until every change of that canvas made before it is written
+(`Ink::settled`; a daemon that cannot be reached does not hold it), then
+gives it to the `Slinger` thread as one `sling_send`. The main thread never
+waits on the socket. No chat view: the answer comes on the canvas through
+the change feed and the agent's status in the sidebar. A failure opens the
+entry again with its prompt, and the error's message and hint under it.
+
 **Keys:** every action is a named command (SPEC P4), bound to a chord in the
 config's `[keys]` table. The window's `sendEvent:` turns each key press into
 a chord and hands it to `main`, which looks it up in the keymap: a command
@@ -423,6 +448,9 @@ runs and the press stops there; any other key goes on to the window as
 usual. The app has no menu bar, so no key reaches AppKit's menus first, and
 no action has a second path outside the keymap (the window's close button
 quits too).
+The sling's open entry takes every key before the keymap: return and
+escape are its, and any other key goes on to the text field (delete
+deletes a character there, not the selection).
 An open pop-up at the pen takes its own keys first (escape, return, space,
 the arrows, 1 to 9); any other key goes to the keymap. These keys act only
 inside a pop-up a command opened, so they are not commands themselves.

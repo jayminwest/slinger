@@ -206,7 +206,8 @@ impl Panes {
             | Command::ToolLasso
             | Command::ToolText
             | Command::ToolBox
-            | Command::ToolArrow => {}
+            | Command::ToolArrow
+            | Command::Sling => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),

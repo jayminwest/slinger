@@ -166,6 +166,12 @@ impl Select {
         self.selection.as_ref()
     }
 
+    /// The selection's items' box in canvas units, over `items` (its page
+    /// as shown); `None` without a selection or when none of it is there.
+    pub fn bounds(&self, items: &[Cow<'_, Item>]) -> Option<Rect> {
+        bounds(items, &self.selection.as_ref()?.ids)
+    }
+
     /// Clears the selection. Returns false when there was none.
     pub fn clear(&mut self) -> bool {
         self.selection.take().is_some()

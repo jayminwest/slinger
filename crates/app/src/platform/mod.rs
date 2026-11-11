@@ -8,7 +8,7 @@
 //! canvas pane is a view of its own (`canvas`) that lives as long as its
 //! pane, so a new scene repaints only what changed.
 //! `web` shows agent UIs in sandboxed web views, each kept as long as its
-//! page is shown.
+//! page is shown. `entry` is the sling's one-line text field.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
 //! that touches `AppKit` takes a `MainThreadMarker`, which only the main thread
@@ -17,6 +17,7 @@
 #![expect(unsafe_code, reason = "the FFI boundary: AppKit is reached through objc2")]
 
 mod canvas;
+mod entry;
 mod web;
 
 use std::cell::{Cell, RefCell};
@@ -80,6 +81,8 @@ pub enum Event {
     /// A canvas pane painted, this many seconds after the pen event its
     /// scene was the first to show.
     Painted(f64),
+    /// The user edited the text of the sling's entry: all of it now.
+    Typed(String),
 }
 
 /// What to do about an [`Event`].
@@ -112,6 +115,7 @@ struct State {
 struct Shown {
     canvases: Vec<(PaneId, Retained<CanvasView>)>,
     chrome: Vec<Retained<NSView>>,
+    entry: Option<Retained<entry::EntryField>>,
     made_from: Option<(Vec<Label>, Vec<Label>, Border)>,
 }
 
@@ -352,6 +356,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
         canvas.show(frame, pane.scene.clone());
     }
     web::place(&view, &scene.webs, height, mtm);
+    entry::place(window, &view, &mut shown.entry, scene.entry.as_deref(), height, mtm);
 
     let made_from = Some((scene.sidebar.clone(), scene.labels.clone(), scene.focus));
     if shown.made_from == made_from {
@@ -374,7 +379,17 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
         shown.chrome.push(Retained::into_super(Retained::into_super(field)));
     }
     for chrome in &shown.chrome {
-        view.addSubview(chrome);
+        // Under the sling's entry, if it is up: it stays on top.
+        match &shown.entry {
+            Some(entry) => {
+                view.addSubview_positioned_relativeTo(
+                    chrome,
+                    NSWindowOrderingMode::Below,
+                    Some(entry),
+                );
+            }
+            None => view.addSubview(chrome),
+        }
     }
     shown.made_from = made_from;
 }

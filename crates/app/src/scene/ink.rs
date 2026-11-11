@@ -320,6 +320,13 @@ impl Ink {
         shown
     }
 
+    /// Whether every finished change of `canvas` is written: none waits or
+    /// is sending. A sling waits for it, so its packet holds them.
+    pub fn settled(&self, canvas: &str) -> bool {
+        let busy = |p: &Pending| matches!(p.state, State::Waiting | State::Sending);
+        !self.pending.iter().any(|p| p.change.canvas() == canvas && busy(p))
+    }
+
     /// Why the last change sent did not go, until one goes.
     pub fn problem(&self) -> Option<&Problem> {
         self.problem.as_ref()
