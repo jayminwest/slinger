@@ -558,7 +558,8 @@ kill $daemon               # the process ends with the daemon
 
 Start `slingerd` again on the same `--data-dir`, `session start check` and
 ask once more: `session show checker` has the same `session_id`, and the
-answer is still the word.
+answer is still the word. `scripts/e2e-sling.sh` does the same for three
+slings and checks what they leave on the canvas and in the record.
 
 #### Slings
 

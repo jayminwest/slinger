@@ -33,6 +33,8 @@ cargo test --workspace
 
 `CHECK_ALL_VERBOSE=1` streams the full gate output. On failure the runner prints each failing gate's error lines and how to re-run that gate.
 
+`scripts/e2e-sling.sh` sends three slings to the real Claude Code on a scratch daemon and checks the Spike C pass line (SPEC section 14). It is not part of `check-all`: it needs a logged-in Claude Code, spends tokens (`--model`, default `haiku`) and adds transcripts to Claude Code's session store. Run it by hand after a change to the session, the sling or the agent verbs.
+
 ## Conventions
 
 - Run verify before every commit. Warnings fail.
