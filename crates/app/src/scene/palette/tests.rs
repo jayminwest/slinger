@@ -68,6 +68,18 @@ fn delete_takes_back_a_character_and_held_command_keys_type_nothing() {
 }
 
 #[test]
+fn a_paste_goes_into_the_search_lowercase_on_one_line_and_closed_it_does_nothing() {
+    let mut closed = Palette::default();
+    assert!(!closed.pasted("split"));
+    assert_eq!(closed.query, "");
+    let mut palette = open();
+    type_in(&mut palette, "s");
+    assert!(palette.pasted("PLIT\r\nright"));
+    assert_eq!(palette.query, "split right");
+    assert_eq!(palette.matches(), [Command::SplitRight]);
+}
+
+#[test]
 fn up_and_down_move_the_selection_round_the_matches() {
     let keys = Keymap::default();
     let mut palette = open();

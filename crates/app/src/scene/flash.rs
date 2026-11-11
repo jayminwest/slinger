@@ -2,7 +2,9 @@
 //! change the window shows nowhere else (SPEC P6: every state is visible).
 //! A new tool, from its command or a pick in a pop-up, flashes its name and
 //! its key ("Pen ⌘1"); so does a command with no other visible effect
-//! (`reload-config`). It shows for [`SHOWN`], then goes.
+//! (`reload-config`), and a page command says what it did ("Page 2 · 2/3",
+//! "Renamed: plan"; the words are `scene::pages`'s). It shows for
+//! [`SHOWN`], then goes.
 //!
 //! Pure: `main` hands in the time and reads back the [`Pill`] to draw. The
 //! pill carries when it goes, so the platform sets one timer for then and
@@ -74,6 +76,12 @@ impl Flash {
             text.push(' ');
             text.push_str(&chord.glyphs());
         }
+        self.say(text, now);
+    }
+
+    /// `text` flashes from `now`, in place of any flash showing: what a
+    /// command did, when its title alone says too little ("Page 2 · 2/3").
+    pub fn say(&self, text: String, now: Instant) {
         self.shown.replace(Some((text, now + SHOWN)));
     }
 

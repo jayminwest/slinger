@@ -4,7 +4,8 @@
 //! [`Ink`] as one [`Change`], so one `canvas_apply` and one undo step.
 //!
 //! - Text: a tap places it and the keyboard types it ([`Shapes::typed`]);
-//!   escape or a press outside ends it. While it is typed it shows a caret
+//!   a paste goes in at its end ([`Shapes::pasted`]); escape or a press
+//!   outside ends it. While it is typed it shows a caret
 //!   after its last character, a dashed frame around it, and under that how
 //!   to end it. A press outside with any other tool
 //!   also starts that tool's gesture: the first gesture after a text is
@@ -28,6 +29,7 @@ use crate::layout::{Point, Rect};
 use crate::mirror::{LINE_WIDTH, TEXT_SIZE, text_frame_at};
 use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::ink::{Change, Ink, on_server};
+use crate::scene::paste;
 use crate::scene::tools::Tool;
 
 /// Two presses this close in time, in seconds, are a double tap...
@@ -242,6 +244,15 @@ impl Shapes {
                 c => editing.text.push(c),
             }
         }
+        true
+    }
+
+    /// Pasted `text` goes into the text being edited at its end, each line
+    /// end starting a line ([`paste::plain`]). Returns false, and nothing
+    /// changes, when no text is being edited.
+    pub fn pasted(&mut self, text: &str) -> bool {
+        let Some(editing) = &mut self.editing else { return false };
+        editing.text.push_str(&paste::plain(text));
         true
     }
 

@@ -330,6 +330,12 @@ impl Canvases {
         used
     }
 
+    /// Pasted `text` goes where typed text goes, as text, not keys. False
+    /// when nothing takes it (the sling's entry pastes for itself).
+    pub fn pasted(&mut self, text: &str) -> bool {
+        !self.typing() && (self.asks.pasted(text) || self.shapes.pasted(text))
+    }
+
     /// The selection, if any: one page's items, by the server's ids.
     pub fn selection(&self) -> Option<&Selection> {
         self.select.selection()

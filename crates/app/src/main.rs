@@ -117,7 +117,9 @@ fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
         | Event::Lift(_)
         | Event::Scroll { .. }
         | Event::Zoom { .. } => Step::Pass,
-        Event::Tick | Event::Moved(_) | Event::Painted(_) | Event::Typed(_) => Step::Stay,
+        Event::Tick | Event::Moved(_) | Event::Painted(_) | Event::Typed(_) | Event::Paste(_) => {
+            Step::Stay
+        }
     };
     match platform::run(&scene, answer) {
         Ok(()) => ExitCode::SUCCESS,
@@ -166,41 +168,17 @@ fn window(mut settings: Settings) -> ExitCode {
                     Err(why) => Step::Refuse(why),
                 };
             }
-            (Ask::Run(command), _) => {
-                let kind = match command {
-                    Command::Quit => return Step::Quit,
-                    Command::ReloadConfig => None,
-                    Command::PickColour => Some(Kind::Colour),
-                    Command::PickShape => Some(Kind::Shape),
-                    Command::PickTool => Some(Kind::Tool),
-                    // Nothing selected here: the key goes on (a delete in a UI's form).
-                    c if !selection(&mut canvases, &shared, area, c) => return Step::Pass,
-                    command => {
-                        match command {
-                            Command::ToggleSidebar => sidebar.set_open(!sidebar.is_open()),
-                            Command::DismissNotice => sidebar.dismiss(),
-                            _ if canvases.command(
-                                &shared.panes,
-                                focus(&shared.panes, area),
-                                command,
-                            ) => {}
-                            _ if tools.command(command) => {}
-                            _ => shared.command(command, area, &socket),
-                        }
-                        return Step::Draw(view(
-                            &settings,
-                            &shared,
-                            &tools,
-                            &sidebar,
-                            &mut canvases,
-                        ));
-                    }
-                };
-                if let Some(kind) = kind {
-                    tools.open(kind, focused(&shared.panes, area));
-                    return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
-                }
+            (Ask::Run(Command::Quit), _) => return Step::Quit,
+            // It flashes, and the window is drawn whether or not the files changed.
+            (Ask::Run(Command::ReloadConfig), _) => {
+                tools.flash().command(Command::ReloadConfig, &settings.config.keys, Instant::now());
                 true
+            }
+            (Ask::Run(command), _) => {
+                if !run(command, &mut tools, &mut canvases, &mut sidebar, &mut shared, &socket) {
+                    return Step::Pass;
+                }
+                return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
             }
             // The pen, the mouse, the trackpad, typed text and a resize.
             (Ask::Not, event) => {
@@ -216,7 +194,7 @@ fn window(mut settings: Settings) -> ExitCode {
         let drawn = canvases.poll();
         let reloaded = settings.refresh(force);
         let faded = tools.flash().fade(Instant::now());
-        if !reloaded && !heard && !moved && !drawn && !fetched && !faded {
+        if !force && !reloaded && !heard && !moved && !drawn && !fetched && !faded {
             return Step::Stay;
         }
         if reloaded {
@@ -298,6 +276,33 @@ fn taken(
         || tools.key(chord)
 }
 
+/// Runs `command` (not `quit` or `reload-config`) on the focused pane of
+/// `shared`: a picker opens its pop-up there; a pane command goes to the
+/// daemon on `socket`. False for a selection command with nothing selected:
+/// the key goes on (a delete in a UI's form).
+fn run(
+    command: Command,
+    tools: &mut Tools,
+    canvases: &mut Canvases,
+    sidebar: &mut Sidebar,
+    shared: &mut Shared,
+    socket: &Path,
+) -> bool {
+    let area = sidebar.panes(shared.size.rect());
+    match command {
+        Command::PickColour => tools.open(Kind::Colour, focused(&shared.panes, area)),
+        Command::PickShape => tools.open(Kind::Shape, focused(&shared.panes, area)),
+        Command::PickTool => tools.open(Kind::Tool, focused(&shared.panes, area)),
+        c if !selection(canvases, shared, area, c) => return false,
+        Command::ToggleSidebar => sidebar.set_open(!sidebar.is_open()),
+        Command::DismissNotice => sidebar.dismiss(),
+        c if canvases.command(&shared.panes, focus(&shared.panes, area), c) || tools.command(c) => {
+        }
+        c => shared.command(c, area, socket),
+    }
+    true
+}
+
 /// Runs a selection command (`sling`, `dictate`: the entry) when the focused pane of `shared`
 /// laid in `area` shows its canvas; false when it does not. Any other command goes on (true).
 fn selection(canvases: &mut Canvases, shared: &Shared, area: Rect, command: Command) -> bool {
@@ -313,7 +318,9 @@ fn selection(canvases: &mut Canvases, shared: &Shared, area: Rect, command: Comm
 /// Hands a press on a divider between panes (with no pop-up open), and the
 /// drag and lift after it, to the panes of `shared` laid in `area`, which
 /// resize; a moved divider goes to the daemon on `socket`. A resized window
-/// lays its panes out again. The open key overlay takes every press (one
+/// lays its panes out again. A paste goes to the open palette's search,
+/// else to the text being typed or the page name asked; under the key
+/// overlay, or with neither open, it does nothing. The open key overlay takes every press (one
 /// outside it closes it) and every other pen, mouse or trackpad event and
 /// typed text. Any other event goes on to [`pointer`]. False when nothing
 /// used it.
@@ -328,6 +335,9 @@ fn pen(
     let free = tools.open_kind().is_none();
     match *event {
         Event::Resized(size) => std::mem::replace(&mut shared.size, size) != size,
+        Event::Paste(ref text) => {
+            !shared.overlay.is_open() && (shared.palette.pasted(text) || canvases.pasted(text))
+        }
         Event::Press(pen) if shared.overlay.press(pen.at, shared.size) => true,
         Event::Drag(_)
         | Event::Lift(_)
@@ -434,7 +444,7 @@ fn focus(panes: &Panes, area: Rect) -> (PaneId, Rect) {
 
 /// The window: the sidebar, the panes and their footers, any problem with the
 /// daemon, a canvas or the config (each said once), the notice, the pop-up
-/// at the pen and the flash of a new tool, the key overlay on top, and the
+/// at the pen and the flash of a new tool or a page command, the key overlay on top, and the
 /// tool's cursor.
 fn view(
     settings: &Settings,
@@ -467,6 +477,9 @@ fn view(
     scene.cursor = cursor::over_canvas(tools, theme);
     let now = Instant::now();
     tools.flash().follow(tools.tool(), keys, now);
+    if let Some(said) = canvases.said() {
+        tools.flash().say(said, now);
+    }
     scene.flash = tools.flash().pill(focused(&shared.panes, area), theme, now).map(Box::new);
     scene.menus = commands::menu::bar(keys, status::command(tools.tool()));
     Box::new(scene)

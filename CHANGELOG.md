@@ -11,6 +11,18 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** paste (cmd+V or Edit > Paste) now works in a canvas text being
+  typed, in a page's new name and in the command palette's search, so
+  Flick dictation lands there too. Each line of the pasted text starts a
+  line in a canvas text. A command key such as cmd+C no longer types its
+  letter into a canvas text.
+
+- **App:** page commands confirm themselves at the top of the pane: next and
+  previous flash the page and where it is ("Page 2 · 2/3"), and new page,
+  rename and remove say what they did ("New page: Page 3 · 3/3", "Renamed:
+  plan", "Removed: ideas", "The last page stays"). Reload config flashes
+  too, even when the files did not change.
+
 - **Canvas:** text added with `canvas apply` and no size now gets a box that
   fits its words, so `canvas put --beside` it no longer lands on top of it.
   Text already on a canvas with no box gets one when the canvas is read. A

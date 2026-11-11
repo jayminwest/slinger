@@ -7,8 +7,9 @@
 //! statuses, the optional sidebar that shows them and the notice when one
 //! becomes blocked or done. [`sling`] holds the sling from the window: its
 //! one-line entry, and how it goes. [`overlay`] holds the key overlay and
-//! [`palette`] the command palette. [`flash`] holds the flash that names a
-//! new tool; [`cursor`] the pointer over a canvas pane.
+//! [`palette`] the command palette. [`paste`] makes pasted text fit to type.
+//! [`flash`] holds the flash that names a new tool or what a page command
+//! did; [`cursor`] the pointer over a canvas pane.
 //!
 //! No chrome, but every state is visible (SPEC P6): the panes, each with
 //! what it shows above its footer ([`status`]), one focus border around the
@@ -30,6 +31,7 @@ pub mod live;
 pub mod overlay;
 pub mod pages;
 pub mod palette;
+pub mod paste;
 pub mod resize;
 pub mod select;
 pub mod shapes;

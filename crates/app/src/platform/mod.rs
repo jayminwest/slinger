@@ -8,7 +8,8 @@
 //! canvas pane is a view of its own (`canvas`) that lives as long as its
 //! pane, so a new scene repaints only what changed.
 //! `web` shows agent UIs in sandboxed web views, each kept as long as its
-//! page is shown. `menu` is the menu bar. `entry` is the sling's one-line
+//! page is shown. `menu` is the menu bar. `keys` reads a key press and the
+//! clipboard, which a paste with no text field focused hands on as text. `entry` is the sling's one-line
 //! text field; `overlay` dims the window under the key overlay; `chrome`
 //! the focus border and the flash's pill. `text` sets styled text: the
 //! sidebar's rows and the panes' footers. The window
@@ -23,6 +24,7 @@
 mod canvas;
 mod chrome;
 mod entry;
+mod keys;
 mod menu;
 mod overlay;
 mod text;
@@ -31,7 +33,7 @@ mod web;
 use std::cell::{Cell, RefCell};
 
 use objc2::rc::Retained;
-use objc2::runtime::{NSObjectProtocol, ProtocolObject};
+use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSColor, NSEvent,
@@ -41,6 +43,7 @@ use objc2_app_kit::{
 use objc2_foundation::{NSNotification, NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
 use self::canvas::CanvasView;
+use self::keys::{chord, typed};
 use crate::commands::{Chord, Command};
 use crate::config::Rgb;
 use crate::layout::{self, PaneId, Point, Rect, Size};
@@ -99,6 +102,9 @@ pub enum Event {
     Resized(Size),
     /// A menu item was chosen with the pointer: its command.
     Command(Command),
+    /// Paste (cmd+V, or Edit > Paste) with no text field taking it: the
+    /// clipboard's plain text. Flick's dictation comes this way.
+    Paste(String),
 }
 
 /// What to do about an [`Event`].
@@ -172,6 +178,15 @@ define_class!(
             dispatch(Event::Tick, self.mtm());
         }
 
+        /// Edit > Paste (or cmd+V) when no text field has the focus: the
+        /// clipboard's text to the app, which may take it or not.
+        #[unsafe(method(paste:))]
+        fn paste(&self, _sender: Option<&AnyObject>) {
+            if let Some(text) = keys::pasted(self.mtm()) {
+                dispatch(Event::Paste(text), self.mtm());
+            }
+        }
+
         /// The app quits with its window.
         #[unsafe(method(close))]
         fn close_and_quit(&self) {
@@ -230,26 +245,6 @@ impl KeyWindow {
         let touch = event.subtype() == NSEventSubtype::Touch;
         Pen { at: self.point(event), when: event.timestamp(), touch }
     }
-}
-
-/// The chord of a key press: the device-independent modifier flags, whose
-/// shift, control, option and command bits (17 to 20) are the [`Chord`]
-/// bits in order, and the key's character with no modifier but shift.
-fn chord(event: &NSEvent) -> Option<Chord> {
-    let chars = event.charactersIgnoringModifiers()?;
-    if chars.length() == 0 {
-        return None;
-    }
-    let key = char::from_u32(chars.characterAtIndex(0).into())?;
-    #[expect(clippy::cast_possible_truncation, reason = "masked to four bits")]
-    let mods = ((event.modifierFlags().0 >> 17) & 0xf) as u8;
-    Some(Chord::new(mods, key))
-}
-
-/// The characters a key press types, if any.
-fn typed(event: &NSEvent) -> Option<String> {
-    let chars = event.characters()?;
-    (chars.length() > 0).then(|| chars.to_string())
 }
 
 /// Hands `event` to the app's answer and does what it says. Returns false

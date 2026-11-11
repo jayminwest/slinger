@@ -7,15 +7,17 @@
 //! [`Command::group`]) and the chips from the live [`Keymap`]. Typing is
 //! drawn by the scene, not an `AppKit` field: the palette reads each typed
 //! character from its key's [`Chord`], which has no case, so the search is
-//! lowercase and matches any case. While open the palette takes every key
-//! and every press: escape or the `show-commands` key closes it, return or
-//! a press on a row runs that row's command, a press outside closes it.
+//! lowercase and matches any case; a paste goes in lowercase too. While
+//! open the palette takes every key and every press: escape or the
+//! `show-commands` key closes it, return or a press on a row runs that
+//! row's command, a press outside closes it.
 
 use crate::commands::{Chord, Command, Keymap};
 use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect, Size};
 use crate::scene::Label;
 use crate::scene::overlay::{Align, Line, Overlay};
+use crate::scene::paste;
 
 /// How much of the window shows through the dim.
 const OPACITY: f64 = 0.7;
@@ -109,6 +111,16 @@ impl Palette {
             self.at = 0;
         }
         Taken::Yes
+    }
+
+    /// Pasted `text` while open goes into the search, on one line and
+    /// lowercase. False, and nothing changes, while closed.
+    pub fn pasted(&mut self, text: &str) -> bool {
+        if self.open {
+            self.query.extend(paste::one_line(text).chars().flat_map(char::to_lowercase));
+            self.at = 0;
+        }
+        self.open
     }
 
     /// A press at `at` in a window of `size` while open: one on a row runs

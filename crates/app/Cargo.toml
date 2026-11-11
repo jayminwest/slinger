@@ -17,7 +17,7 @@ path = "src/main.rs"
 slinger-control.workspace = true
 block2.workspace = true
 objc2.workspace = true
-objc2-app-kit = { workspace = true, features = ["NSCell", "NSMenu", "NSMenuItem"] }
+objc2-app-kit = { workspace = true, features = ["NSCell", "NSMenu", "NSMenuItem", "NSPasteboard"] }
 objc2-foundation.workspace = true
 objc2-web-kit.workspace = true
 serde_json.workspace = true
