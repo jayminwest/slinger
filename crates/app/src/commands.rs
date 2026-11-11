@@ -3,8 +3,9 @@
 //! is a key, set in the tablet's own software. Pure: `platform` turns a key
 //! event into a chord, and a [`Keymap`] turns the chord into a command.
 //! `registry` gives each command a title and a group for the surfaces that
-//! list them.
+//! list them; `menu` lays them out as the menu bar.
 
+pub mod menu;
 mod registry;
 
 pub use registry::Group;

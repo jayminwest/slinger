@@ -8,10 +8,10 @@
 //! canvas pane is a view of its own (`canvas`) that lives as long as its
 //! pane, so a new scene repaints only what changed.
 //! `web` shows agent UIs in sandboxed web views, each kept as long as its
-//! page is shown. `entry` is the sling's one-line text field; `overlay`
-//! dims the window under the key overlay; `chrome` the focus border and the
-//! flash's pill. `text` sets styled text: the sidebar's rows and the panes'
-//! footers. The window
+//! page is shown. `menu` is the menu bar. `entry` is the sling's one-line
+//! text field; `overlay` dims the window under the key overlay; `chrome`
+//! the focus border and the flash's pill. `text` sets styled text: the
+//! sidebar's rows and the panes' footers. The window
 //! resizes, down to [`layout::SMALLEST`], and says its new size.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
@@ -23,6 +23,7 @@
 mod canvas;
 mod chrome;
 mod entry;
+mod menu;
 mod overlay;
 mod text;
 mod web;
@@ -40,7 +41,7 @@ use objc2_app_kit::{
 use objc2_foundation::{NSNotification, NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
 use self::canvas::CanvasView;
-use crate::commands::Chord;
+use crate::commands::{Chord, Command};
 use crate::config::Rgb;
 use crate::layout::{self, PaneId, Point, Rect, Size};
 use crate::scene::flash::Pill;
@@ -96,6 +97,8 @@ pub enum Event {
     Typed(String),
     /// The window's content is this size now: draw a scene of it.
     Resized(Size),
+    /// A menu item was chosen with the pointer: its command.
+    Command(Command),
 }
 
 /// What to do about an [`Event`].
@@ -365,6 +368,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
         window.setTitle(&title);
     }
     window.setBackgroundColor(Some(&color(scene.background)));
+    menu::show(&scene.menus, mtm);
     let Some(view) = window.contentView() else { return };
     let mut shown = state.shown.borrow_mut();
     let height = scene.size.height;

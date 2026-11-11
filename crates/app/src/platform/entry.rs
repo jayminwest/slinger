@@ -5,22 +5,21 @@
 //! appears. Each edit goes to the app as [`Event::Typed`] with the
 //! whole text. Return and escape never reach it: the window's
 //! `sendEvent:` hands every key to the app first, which keeps those two.
-//! The app has no menu bar, so the field takes cmd+X, C, V and A itself:
-//! Flick's dictation pastes what it heard with cmd+V.
+//! The Edit menu's cut, copy, paste and select all reach the field along
+//! the responder chain: Flick's dictation pastes what it heard with cmd+V.
 
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
-use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
+use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send};
 use objc2_app_kit::{
-    NSApplication, NSControl, NSEvent, NSFocusRingType, NSResponder, NSTextAlignment, NSTextField,
-    NSView, NSWindow, NSWindowOrderingMode,
+    NSControl, NSFocusRingType, NSResponder, NSTextAlignment, NSTextField, NSView, NSWindow,
+    NSWindowOrderingMode,
 };
 use objc2_foundation::{NSObject, NSString};
 
 use super::chrome::border;
 use super::text::sidebar_row;
-use super::{Event, chord, color, dispatch, flipped};
-use crate::commands::{CMD, Chord};
+use super::{Event, color, dispatch, flipped};
 use crate::scene::sling::Entry;
 
 define_class!(
@@ -39,26 +38,6 @@ define_class!(
             // SAFETY: `NSTextField`'s own `textDidChange:`, with its notification.
             let () = unsafe { msg_send![super(self), textDidChange: note] };
             dispatch(Event::Typed(self.stringValue().to_string()), self.mtm());
-        }
-
-        /// Cut, copy, paste and select all in the field while it is being
-        /// edited (true: done): there is no Edit menu to send them.
-        #[unsafe(method(performKeyEquivalent:))]
-        fn perform_key_equivalent(&self, event: &NSEvent) -> bool {
-            let edit = |key| chord(event) == Some(Chord::new(CMD, key));
-            let actions = [sel!(cut:), sel!(copy:), sel!(paste:), sel!(selectAll:)];
-            let mut found = ['x', 'c', 'v', 'a'].into_iter().zip(actions);
-            let action = found.find_map(|(key, action)| edit(key).then_some(action));
-            match (action, self.currentEditor()) {
-                (Some(action), Some(editor)) => {
-                    let app = NSApplication::sharedApplication(self.mtm());
-                    // SAFETY: the field editor is an `NSText`, which answers
-                    // each of these actions; the sender may be nil.
-                    unsafe { app.sendAction_to_from(action, Some(&editor), None) }
-                }
-                // SAFETY: `NSView`'s own `performKeyEquivalent:`, with its event.
-                _ => unsafe { msg_send![super(self), performKeyEquivalent: event] },
-            }
         }
     }
 );

@@ -316,7 +316,9 @@ commands.rs  key commands: the closed list of commands, the chord parser and
              the keymap from a chord to a command (and a command to its
              live chord). `registry` gives each command a title and a
              group and prints a chord in macOS glyphs: the key overlay,
-             the palette and the menu bar read it (SPEC D21). Pure.
+             the palette and the menu bar read it (SPEC D21). `menu` lays
+             the menu bar out: each menu's items, the key each shows and
+             the check mark on the pen's tool. Pure.
 panes.rs     the window's panes: what each shows (a canvas or an agent UI, by
              name), how they tile (a layout::Tree), the one focused pane and
              the pane commands. `follow` builds them from the server's pane
@@ -466,6 +468,11 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              layout::SMALLEST) and says its new size as Event::Resized; main
              lays the scene out again at it. All unsafe, objc2 and AppKit
              code. No decisions.
+platform/menu.rs  makes the menu bar a scene's menus say, again when they
+             change. A command item chosen by its key goes to main as that
+             key press, so the keymap runs it once; chosen with the pointer,
+             as Event::Command. Cut, copy, paste, select all, minimise and
+             about go along the responder chain.
 platform/overlay.rs  draws a scene's Overlay over the chrome: a box that
              dims the window, then a text field per line.
 platform/chrome.rs  the focus border, and the flash's pill (a rounded box
@@ -474,9 +481,9 @@ platform/chrome.rs  the focus border, and the flash's pill (a rounded box
              drawn once).
 platform/entry.rs  the sling's entry: a native text field in its box, with
              its label and keys, kept while the scene has one, over every view; it takes the keyboard when it
-             appears, and each edit goes to main as Event::Typed. It takes
-             cmd+X, C, V and A itself (no menu bar sends them): Flick's
-             dictation pastes with cmd+V.
+             appears, and each edit goes to main as Event::Typed. The Edit
+             menu's cut, copy, paste and select all reach it along the
+             responder chain: Flick's dictation pastes with cmd+V.
 platform/web.rs  agent UIs in WKWebViews: the scheme handler, navigation and
              UI delegate and message handler in one class that pipes each
              call to its ui::Bridge, the rule list (compiled once; no view
@@ -579,9 +586,13 @@ no speech code. A Flick not running, or refusing, shows once under the entry.
 config's `[keys]` table. The window's `sendEvent:` turns each key press into
 a chord and hands it to `main`, which looks it up in the keymap: a command
 runs and the press stops there; any other key goes on to the window as
-usual. The app has no menu bar, so no key reaches AppKit's menus first, and
-no action has a second path outside the keymap (the window's close button
-quits too).
+usual. The menu bar (commands/menu.rs) shows each command's live key, but
+a command's key still runs through the keymap: a menu item that AppKit
+fires for a key hands main that key press, so a command never runs twice
+and the entry, the overlay and a pop-up still take their keys first. A key
+that types (no cmd or ctrl) stays off the menus, which would take it from a
+text field. Cut, copy, paste and select all keep their usual keys unless the
+keymap binds them (the window's close button quits too).
 The sling's open entry takes every key before the keymap but the `dictate`
 chord: return and escape are its, and any other key goes on to the text
 field (delete deletes a character there, not the selection).
@@ -589,7 +600,8 @@ An open pop-up at the pen takes its own keys first (escape, return, space,
 the arrows, 1 to 9); any other key goes to the keymap. These keys act only
 inside a pop-up a command opened, so they are not commands themselves.
 A new command adds a variant and a name to `Command::ALL` in
-`commands.rs`, a title and a group in `commands/registry.rs`, an arm in
+`commands.rs`, a title and a group in `commands/registry.rs`, an item in
+one menu of `commands/menu.rs` (a test holds it), an arm in
 `main`'s match, and a line in the example file (with its default chord, if
 it has one).
 ## Boundaries

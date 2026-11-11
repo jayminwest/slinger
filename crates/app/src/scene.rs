@@ -43,6 +43,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::backend::Problem;
+use crate::commands::menu::Menu;
 use crate::config::{Rgb, Theme};
 use crate::layout::{self, PaneId, Rect, Size};
 use crate::panes::{Kind, Pane, Panes};
@@ -98,6 +99,8 @@ pub type Notes = HashMap<String, Problem>;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scene {
     pub title: String,
+    /// The menu bar; none leaves the bar as it is.
+    pub menus: Vec<Menu>,
     pub size: Size,
     pub background: Rgb,
     /// Under the labels and the border.
@@ -189,6 +192,7 @@ pub fn build(
     labels.extend(sidebar.notice(theme, area));
     Scene {
         title: "slinger".to_string(),
+        menus: Vec::new(),
         size,
         background: theme.background,
         canvases,
@@ -216,6 +220,7 @@ pub fn preview(page: Arc<Page>, theme: &Theme, item: bool, size: Size) -> Scene 
     };
     Scene {
         title,
+        menus: Vec::new(),
         size,
         background: theme.background,
         canvases: Vec::new(),
