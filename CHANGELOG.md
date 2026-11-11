@@ -11,6 +11,13 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a sidebar lists the open workspaces and each agent's status with
+  one mark: working, blocked or done. `toggle-sidebar` (cmd+b) opens or
+  collapses it, and `[window] sidebar = "open"` or `"closed"` sets how the app
+  starts. When an agent becomes blocked or done, one small notice at the
+  bottom of the window names it, with its note; nothing else interrupts.
+  `dismiss-notice` (cmd+.) hides it, and it goes on its own once the agent's
+  status moves on.
 - **App:** pop-ups at the pen. `pick-colour` (cmd+shift+c), `pick-shape`
   (cmd+shift+s) and `pick-tool` (cmd+shift+t) open a small pop-up where the
   pen or pointer last was, kept inside the window. Pick with the pen, with a

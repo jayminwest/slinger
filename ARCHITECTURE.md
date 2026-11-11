@@ -209,7 +209,10 @@ server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
 ```
 main.rs      wires the modules below. The only caller of platform.
 backend.rs   the app's IO: the one module that talks to the daemon, and the
-             one that reads and watches the config files.
+             one that reads and watches the config files. Its Watch asks the
+             daemon for the workspaces and their agents' statuses
+             (workspace_list, session_list) every second on a thread of its
+             own, and the window's timer takes the news without blocking.
 config.rs    the config file's format: text in, a typed config or an error
              with its line out; merges a machine's overlay over it. Pure.
 commands.rs  key commands: the closed list of commands, the chord parser and
@@ -219,7 +222,14 @@ panes.rs     the window's panes: what each shows (a canvas or an agent UI, by
              pane commands, and the text of the workspace's layout field
              (version 1, `panes`; docs/workspace.md). Always one pane at least. Pure.
 scene.rs     decides what the window shows: each pane's placeholder, one focus
-             border, and problems in the focused pane. No other chrome. Pure.
+             border, problems in the focused pane, and the sidebar and notice.
+             No other chrome. Pure.
+scene/sidebar.rs  the agents' statuses (SPEC D17, P6): the open workspaces and
+             their agents in; the sidebar's lines (each workspace, its agent's
+             mark: working, blocked, done), where the panes go beside it, and
+             the one notice when an agent becomes blocked or done out. The
+             first list is the baseline; a status that moves on clears its
+             notice. Pure.
 scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport in,
              the visible marks in screen points and the box to repaint out. Pure.
 scene/tools.rs  the pen's tool and colour, and the pop-up at the pen (colour, shape,
@@ -244,9 +254,11 @@ the main thread to draw. Never block for long inside an AppKit callback.
 **Config:** `config.example.toml` at the repository root lists every key.
 The app reads `config.toml` and merges `config.local.toml` (the machine's
 overlay) over it. A main-thread timer stats both files twice a second and,
-on a change, rereads them and draws a new scene; it asks the daemon again
-only when the socket changed. No worker thread: the app binary has a size
-budget, and the release profile builds the app at `opt-level = "z"`. A file
+on a change, rereads them and draws a new scene; it asks the daemon for the
+greeting again only when the socket changed. The agents' statuses come from
+`backend::Watch`'s one thread, so a daemon that is slow to answer never
+holds up the window; the timer takes its latest answer and draws only when
+the scene changed. The release profile builds the app at `opt-level = "z"`. A file
 with an error keeps the last good config, and the window shows the file,
 the line and what to fix.
 A new setting changes `config.rs` (the key, its default, its test) and the

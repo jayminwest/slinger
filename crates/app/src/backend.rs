@@ -1,17 +1,21 @@
 //! The app's IO: the one module that talks to the daemon (docs/service.md)
 //! and reads the config files. It turns their errors into what the window can
-//! show. Everything here blocks. [`Settings::refresh`] is cheap when nothing
-//! changed (two `stat` calls), so the window's timer calls it; a daemon round
-//! trip waits up to the client's timeout, so the app asks only at start and
-//! when the socket changes.
+//! show. [`Settings::refresh`] is cheap when nothing changed (two `stat`
+//! calls), so the window's timer calls it. A daemon round trip waits up to
+//! the client's timeout, so the window asks for the greeting only at start
+//! and when the socket changes, and a [`Watch`] asks for the agents'
+//! statuses on its own thread.
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::sync::mpsc::{self, Receiver};
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::{Duration, SystemTime};
 
-use slinger_control::{self as control, Client};
+use slinger_control::{self as control, Client, RemoteError};
 
 use crate::config::{self, Config, Layer};
+use crate::scene::sidebar::{Agent, Status, Workspace};
 
 /// A failure as the window shows it: the message and what to do about it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,9 +30,81 @@ impl Problem {
     }
 }
 
+impl From<RemoteError> for Problem {
+    fn from(e: RemoteError) -> Self {
+        Problem::new(e.to_string(), e.hint())
+    }
+}
+
 /// Blocks until the daemon answers or its client gives up.
 pub fn greeting(daemon: &Client, name: &str) -> Result<String, Problem> {
-    daemon.hello(name).map_err(|e| Problem::new(e.to_string(), e.hint()))
+    Ok(daemon.hello(name)?)
+}
+
+/// The open workspaces, by name, each with its agent's status from the
+/// daemon's sessions. Blocks until the daemon answers or its client gives up.
+pub fn workspaces(daemon: &Client) -> Result<Vec<Workspace>, Problem> {
+    let sessions = daemon.session_list()?;
+    let open = daemon.workspace_list()?;
+    let agent = |name: String| {
+        let session = sessions.iter().find(|s| s.agent == name);
+        Agent {
+            status: session.and_then(|s| Status::parse(s.status.as_deref()?)),
+            note: session.and_then(|s| s.note.clone()),
+            name,
+        }
+    };
+    Ok(open
+        .into_iter()
+        .map(|w| Workspace { name: w.name, agent: w.agent.map(|a| agent(a.name)) })
+        .collect())
+}
+
+/// How often a [`Watch`] asks the daemon.
+const EVERY: Duration = Duration::from_secs(1);
+
+/// Asks the daemon for [`workspaces`] every second on a thread of its own,
+/// so a slow daemon never holds up the window. The window takes the
+/// answers with [`Watch::latest`].
+#[derive(Debug)]
+pub struct Watch {
+    socket: Arc<Mutex<PathBuf>>,
+    news: Receiver<Result<Vec<Workspace>, Problem>>,
+}
+
+impl Watch {
+    /// Starts asking the daemon on `socket`. The thread ends after the
+    /// watch is dropped, at its next answer that differs from the last.
+    pub fn start(socket: PathBuf) -> Self {
+        let socket = Arc::new(Mutex::new(socket));
+        let (tell, news) = mpsc::channel();
+        let theirs = Arc::clone(&socket);
+        std::thread::spawn(move || {
+            let mut last = None;
+            loop {
+                let now = theirs.lock().unwrap_or_else(PoisonError::into_inner).clone();
+                let now = workspaces(&Client::new(now));
+                if last.as_ref() != Some(&now) {
+                    if tell.send(now.clone()).is_err() {
+                        return;
+                    }
+                    last = Some(now);
+                }
+                std::thread::sleep(EVERY);
+            }
+        });
+        Self { socket, news }
+    }
+
+    /// Asks the daemon on `socket` from the next time on.
+    pub fn follow(&self, socket: PathBuf) {
+        *self.socket.lock().unwrap_or_else(PoisonError::into_inner) = socket;
+    }
+
+    /// The newest answer since the last call, if it changed. Never blocks.
+    pub fn latest(&self) -> Option<Result<Vec<Workspace>, Problem>> {
+        self.news.try_iter().last()
+    }
 }
 
 /// Where the config lives: the file shared by every machine, and the
@@ -142,6 +218,11 @@ mod tests {
 
     /// Runs `f` against a daemon that lives for this one call.
     fn with_daemon<T>(f: impl FnOnce(&Client) -> T) -> T {
+        with_socket(|socket| f(&Client::new(socket)))
+    }
+
+    /// Runs `f` with the socket of a daemon that lives for this one call.
+    fn with_socket<T>(f: impl FnOnce(&Path) -> T) -> T {
         static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
         let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let socket = std::env::temp_dir().join(format!("a-{}-{n}.sock", std::process::id()));
@@ -150,7 +231,7 @@ mod tests {
         let server = daemon::Server::bind(&socket).unwrap();
         let stopper = server.stopper();
         let serving = std::thread::spawn(move || server.serve(&store));
-        let result = f(&Client::new(&socket));
+        let result = f(&socket);
         stopper.stop();
         serving.join().unwrap().unwrap();
         std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();
@@ -167,6 +248,62 @@ mod tests {
         let problem = with_daemon(|d| greeting(d, " ")).unwrap_err();
         assert_eq!(problem.message, "name is empty");
         assert!(problem.hint.is_some());
+    }
+
+    /// Opens a workspace `notes` whose agent is `scout`, in a fresh directory.
+    fn open_notes(daemon: &Client) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        let file = "version = 1\nname = \"notes\"\ncanvas = \"notes\"\n[agent]\nname = \"scout\"\n";
+        fs::write(dir.path().join("slinger-workspace.toml"), file).unwrap();
+        daemon.workspace_open(Some(dir.path()), None).unwrap();
+        dir
+    }
+
+    fn notes(status: Option<Status>, note: Option<&str>) -> Vec<Workspace> {
+        let agent = Agent { name: "scout".into(), status, note: note.map(str::to_string) };
+        vec![Workspace { name: "notes".into(), agent: Some(agent) }]
+    }
+
+    #[test]
+    fn lists_the_workspaces_with_their_agents_status() {
+        with_daemon(|d| {
+            assert_eq!(workspaces(d), Ok(vec![]));
+            let _dir = open_notes(d);
+            assert_eq!(workspaces(d), Ok(notes(None, None)));
+            d.status_set("scout", "blocked", Some("which key?")).unwrap();
+            assert_eq!(workspaces(d), Ok(notes(Some(Status::Blocked), Some("which key?"))));
+        });
+    }
+
+    /// The watch's answers until one is `want`, or a failure after 10 s.
+    fn until(watch: &Watch, want: &Result<Vec<Workspace>, Problem>) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while watch.latest().as_ref() != Some(want) {
+            assert!(std::time::Instant::now() < deadline, "timed out waiting for {want:?}");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    #[test]
+    fn a_watch_hears_a_status_change_and_follows_a_new_socket() {
+        let watch = Watch::start(PathBuf::from("/nonexistent/x.sock"));
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        let lost = loop {
+            if let Some(answer) = watch.latest() {
+                break answer;
+            }
+            assert!(std::time::Instant::now() < deadline, "timed out");
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        assert!(lost.unwrap_err().hint.unwrap().starts_with("start it with '"));
+        with_socket(|socket| {
+            let d = &Client::new(socket);
+            let _dir = open_notes(d);
+            watch.follow(socket.to_path_buf());
+            until(&watch, &Ok(notes(None, None)));
+            d.status_set("scout", "done", None).unwrap();
+            until(&watch, &Ok(notes(Some(Status::Done), None)));
+        });
     }
 
     #[test]

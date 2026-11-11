@@ -28,6 +28,10 @@ pub enum Command {
     /// Give the focused pane more of its split.
     GrowPane,
     ShrinkPane,
+    /// Open the sidebar, or collapse it.
+    ToggleSidebar,
+    /// Hide the notice that an agent is blocked or done.
+    DismissNotice,
 }
 
 /// How many commands there are.
@@ -35,7 +39,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 15] = [
+    pub const ALL: [(Command, &str); 17] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -51,6 +55,8 @@ impl Command {
         (Command::FocusDown, "focus-down"),
         (Command::GrowPane, "grow-pane"),
         (Command::ShrinkPane, "shrink-pane"),
+        (Command::ToggleSidebar, "toggle-sidebar"),
+        (Command::DismissNotice, "dismiss-notice"),
     ];
 
     /// The command called `name` in the config file.
@@ -175,6 +181,8 @@ impl Default for Keymap {
             on(CMD | ALT, DOWN),
             on(CMD, '='),
             on(CMD, '-'),
+            on(CMD, 'b'),
+            on(CMD, '.'),
         ])
     }
 }

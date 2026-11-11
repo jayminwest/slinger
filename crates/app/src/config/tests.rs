@@ -31,6 +31,7 @@ fn parses_every_key() {
         socket: Some("~/s.sock".into()),
         keys: Keymap::default(),
         palette: Palette::default(),
+        sidebar: Shown::Open,
     };
     assert_eq!(config, expected);
 }
@@ -111,6 +112,7 @@ fn every_error_names_its_line_and_has_a_hint() {
         ErrorKind::NotAString,
         ErrorKind::BadColour,
         ErrorKind::BadPalette,
+        ErrorKind::BadSidebar,
         ErrorKind::UnknownCommand,
         ErrorKind::BadChord,
         ErrorKind::ChordTaken,
@@ -130,6 +132,7 @@ fn every_error_names_its_line_and_has_a_hint() {
             "line 7: the value is not a quoted string / quote the value: key = \"value\"",
             "line 7: the value is not a colour / write a colour as \"#rrggbb\"",
             "line 7: the value is not one to nine colours / write the colours as \"#rrggbb #rrggbb\", split by spaces or commas",
+            "line 7: the value is not open or closed / write \"open\" or \"closed\"",
             "line 7: unknown command / config.example.toml lists every table and key",
             "line 7: the value is not a key chord / write a chord as \"cmd+shift+k\", or \"\" for none",
             "line 7: another command is on this chord / bind each chord to one command",
@@ -156,6 +159,7 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
         focus: Some(Theme::default().focus),
         socket: all.socket.clone(),
         palette: Some(Palette::default()),
+        sidebar: Some(Shown::Open),
         // The defaults, each written out.
         keys: [
             "cmd+q",
@@ -173,6 +177,8 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
             "cmd+alt+down",
             "cmd+=",
             "cmd+-",
+            "cmd+b",
+            "cmd+.",
         ]
         .map(|c| Some(Chord::parse(c))),
     };
@@ -291,4 +297,15 @@ fn the_overlay_replaces_the_whole_palette() {
     let overlay = parse("[pen]\ncolours = \"#333333\"\n").unwrap();
     assert_eq!(base.clone().over(Layer::default()).resolve().palette.colours().len(), 2);
     assert_eq!(base.over(overlay).resolve().palette.colours(), [rgb(0x33, 0x33, 0x33)]);
+}
+
+#[test]
+fn the_sidebar_is_open_or_closed_at_start() {
+    let sidebar = |text: &str| parse(text).map(|l| l.resolve().sidebar).map_err(|e| e.kind);
+    assert_eq!(sidebar(""), Ok(Shown::Open));
+    assert_eq!(sidebar("[window]\nsidebar = \"closed\"\n"), Ok(Shown::Closed));
+    assert_eq!(sidebar("[window]\nsidebar = \"open\"\n"), Ok(Shown::Open));
+    assert_eq!(sidebar("[window]\nsidebar = \"no\"\n"), Err(ErrorKind::BadSidebar));
+    let base = parse("[window]\nsidebar = \"closed\"\n").unwrap();
+    assert_eq!(base.over(Layer::default()).resolve().sidebar, Shown::Closed);
 }
