@@ -325,11 +325,12 @@ scene.rs     decides what the window shows: each pane's placeholder, an
              agent UI pane's page (a Web) or its name and why it cannot
              show, a note over a UI pane whose agent did not take its reply,
              one focus border (only with two panes or more), problems in the
-             focused pane, and the sidebar's rows (each with its font) and
-             notice. A canvas pane's chrome is decided with its gestures: the
-             selection's box, handles and count (`select`), a text being
-             typed's caret, frame and hint (`shapes`). Every state shows,
-             nothing else (SPEC P6). Pure.
+             focused pane, the sidebar's rows (each with its font) and
+             notice, and the sling's labelled entry (scene/sling.rs). A canvas
+             pane's chrome is decided with its gestures: the selection's box,
+             handles and count (`select`), a text being typed's caret, frame
+             and hint (`shapes`). Every state shows, nothing else (SPEC P6).
+             Pure.
 ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
              slinger-ui://<hex>/ with the policy), the sandbox's constants
              (the policy and the shim in ui/policy.txt and ui/shim.js, the
@@ -398,9 +399,12 @@ scene/resize.rs  the pen on a divider between panes: the press grabs it,
              number of the pane before it, and its share) for
              `pane_resize`. Pure.
 scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
-             selection's box (inside its pane), return sends and escape
-             cancels, the wait for the ink, the line while it goes, and a
-             failure's message and hint under the entry opened again. Pure.
+             selection's box (inside its pane), a labelled field: "Sling to
+             <agent>" above a 44 pt box with a focus-coloured border, and
+             beneath it "↩ sends · esc cancels" and the live dictate key.
+             Return sends and escape cancels, the wait for the ink, the line
+             while it goes, and a failure's message and hint under the entry
+             opened again. Pure.
 scene/dictation.rs  the dictation into the entry: start, then stop, one
              request to Flick at a time; that Flick listens, or why it
              failed (Flick not running, or its refusal) and what to do, under
@@ -429,8 +433,8 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              layout::SMALLEST) and says its new size as Event::Resized; main
              lays the scene out again at it. All unsafe, objc2 and AppKit
              code. No decisions.
-platform/entry.rs  the sling's entry: a native text field kept while the
-             scene has one, over every view; it takes the keyboard when it
+platform/entry.rs  the sling's entry: a native text field in its box, with
+             its label and keys, kept while the scene has one, over every view; it takes the keyboard when it
              appears, and each edit goes to main as Event::Typed. It takes
              cmd+X, C, V and A itself (no menu bar sends them): Flick's
              dictation pastes with cmd+V.

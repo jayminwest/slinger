@@ -4,9 +4,11 @@
 //! and reads back the one-line entry and the labels to draw.
 //!
 //! The `sling` command opens a one-line entry under the selection's box
-//! (above it when there is no room below), inside the focused pane. The
-//! entry takes every key but two: return sends, escape cancels. An empty
-//! prompt sends too: the selection is the question.
+//! (above it when there is no room below), inside the focused pane: a
+//! labelled field, "Sling to <agent>" above it ("Sling" when the workspace
+//! has no agent), its keys beneath, from the live keymap. The entry takes
+//! every key but two: return sends, escape cancels. An empty prompt sends
+//! too: the selection is the question.
 //!
 //! A sling goes once the ink of its canvas is in the daemon: every stroke,
 //! erase and move made before it is applied first, so the packet holds what
@@ -26,18 +28,30 @@ use crate::backend::Problem;
 use crate::commands::Chord;
 use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect};
-use crate::scene::Label;
 use crate::scene::canvas::ItemId;
 use crate::scene::select::Selection;
+use crate::scene::sidebar::{Font, Row};
+use crate::scene::{Border, Label};
 
-/// The entry's size, in points.
+/// The entry's box, in points.
 const WIDTH: f64 = 360.0;
-const HEIGHT: f64 = 24.0;
-/// The space between the selection's box and the entry, and the closest
-/// the entry comes to an edge of its pane.
+const HEIGHT: f64 = 44.0;
+/// The space between the selection's box and the field, and the closest
+/// the field comes to an edge of its pane.
 const GAP: f64 = 8.0;
 /// The height of a line under the entry.
 const LINE: f64 = 22.0;
+/// The height of the label above the box and of the keys beneath it.
+const SMALL: f64 = 16.0;
+/// The label's and the keys' text size, in points.
+const SMALL_TEXT: Font = Font { size: Some(11.0), bold: false, spacing: 0.0 };
+/// The text inside the box: its height, and its space from the box's side.
+const TEXT: f64 = 20.0;
+const PAD: f64 = 10.0;
+/// The box's border width.
+const EDGE: f64 = 1.0;
+/// The key that sends.
+const SEND: Chord = Chord::new(0, '\r');
 
 /// What a sling sends: a page's selected items, by the server's ids, and
 /// the prompt.
@@ -49,13 +63,26 @@ pub struct Ask {
     pub prompt: String,
 }
 
-/// The one-line entry the window shows: where, and the text it starts with.
+/// The one-line entry the window shows: the box and the text it starts
+/// with, the label above it and the keys beneath.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Entry {
+    /// The box: filled with `fill`, inside `border`.
     pub frame: Rect,
+    pub fill: Rgb,
+    pub border: Border,
+    /// Where the text is typed, inside the box, and its colour.
+    pub field: Rect,
+    pub colour: Rgb,
     pub text: String,
     /// Shown while the text is empty.
     pub placeholder: String,
+    /// "Sling to scout", above the box.
+    pub title: Row,
+    /// Beneath the box: how to send and cancel, from its left edge; how to
+    /// dictate, from its right edge, when a key does.
+    pub keys: Row,
+    pub dictate: Option<Row>,
 }
 
 /// What a key does while the entry is open.
@@ -135,7 +162,7 @@ impl Sling {
         if !self.is_typing() {
             return None;
         }
-        Some(if chord == Chord::new(0, '\r') {
+        Some(if chord == SEND {
             Key::Send
         } else if chord == Chord::new(0, '\u{1b}') {
             Key::Cancel
@@ -184,17 +211,61 @@ impl Sling {
         true
     }
 
-    /// The entry, while it is open.
-    pub fn entry(&self) -> Option<Entry> {
-        let Some((ask, frame, Stage::Typing(_))) = &self.open else { return None };
-        let placeholder = format!("sling {} to the agent: what to ask (or nothing)", count(ask));
-        Some(Entry { frame: *frame, text: ask.prompt.clone(), placeholder })
+    /// The canvas the sling is from, while one is open or on its way.
+    pub fn canvas(&self) -> Option<&str> {
+        self.open.as_ref().map(|(ask, ..)| ask.canvas.as_str())
     }
 
-    /// Whether `at`, a point in the window, is on the open entry: a press
-    /// there is the entry's, not the canvas's.
+    /// The entry, while it is open, in `theme`'s colours: to `agent`, the
+    /// agent of its canvas's workspace, if it has one; `dictate` is the
+    /// key that dictates, if any.
+    pub fn entry(
+        &self,
+        theme: &Theme,
+        agent: Option<&str>,
+        dictate: Option<Chord>,
+    ) -> Option<Entry> {
+        let Some((ask, frame, Stage::Typing(_))) = &self.open else { return None };
+        let frame = *frame;
+        let small = |text, y, fill| Row {
+            label: Label {
+                text,
+                colour: theme.muted,
+                fill,
+                frame: Rect { y, height: SMALL, ..frame },
+            },
+            font: SMALL_TEXT,
+        };
+        let title = match agent {
+            Some(agent) => format!("Sling to {agent}"),
+            None => "Sling".to_string(),
+        };
+        let under = frame.y + HEIGHT;
+        let keys = format!("{} sends · esc cancels", SEND.glyphs());
+        let field = Rect {
+            x: frame.x + PAD,
+            y: frame.y + (HEIGHT - TEXT) / 2.0,
+            width: frame.width - 2.0 * PAD,
+            height: TEXT,
+        };
+        Some(Entry {
+            frame,
+            fill: theme.background,
+            border: Border { frame, width: EDGE, colour: theme.focus },
+            field,
+            colour: theme.text,
+            text: ask.prompt.clone(),
+            placeholder: format!("what to ask about {} (or nothing)", count(ask)),
+            title: small(title, frame.y - SMALL, Some(theme.background)),
+            keys: small(keys, under, Some(theme.background)),
+            dictate: dictate.map(|chord| small(format!("{} dictate", chord.glyphs()), under, None)),
+        })
+    }
+
+    /// Whether `at`, a point in the window, is on the open entry's box: a
+    /// press there is the entry's, not the canvas's.
     pub fn covers(&self, at: Point) -> bool {
-        self.entry().is_some_and(|e| e.frame.contains(at))
+        matches!(&self.open, Some((_, frame, Stage::Typing(_))) if frame.contains(at))
     }
 
     /// The lines drawn for the sling: where the entry was while it goes,
@@ -229,9 +300,15 @@ impl Sling {
     }
 }
 
-/// Line `n` (0 is the entry's own) of the lines under the entry at `frame`.
+/// Line `n` of the lines under the entry's box at `frame`, after its keys;
+/// line 0 stands in the box's place.
 fn line(frame: Rect, n: f64, text: String, colour: Rgb, theme: &Theme) -> Label {
-    let frame = Rect { y: frame.y + n * LINE + (HEIGHT - LINE), height: LINE, ..frame };
+    let y = if n == 0.0 {
+        frame.y + (HEIGHT - LINE) / 2.0
+    } else {
+        frame.y + HEIGHT + SMALL + (n - 1.0) * LINE
+    };
+    let frame = Rect { y, height: LINE, ..frame };
     Label { text, colour, fill: Some(theme.background), frame }
 }
 
@@ -250,15 +327,16 @@ fn count(ask: &Ask) -> String {
     }
 }
 
-/// The entry's frame for a selection whose box is `around`, in `within`:
-/// under the box, left-aligned with it; above it when there is no room
-/// below; moved inside `within` when it would cross an edge.
+/// The entry's box for a selection whose box is `around`, in `within`:
+/// the field (the label, the box, the keys) under the selection,
+/// left-aligned with it; above it when there is no room below; moved inside
+/// `within` when it would cross an edge.
 fn place(around: Rect, within: Rect) -> Rect {
-    let below = around.y + around.height + GAP;
-    let y = if below + HEIGHT + GAP <= within.y + within.height {
+    let below = around.y + around.height + GAP + SMALL;
+    let y = if below + HEIGHT + SMALL + GAP <= within.y + within.height {
         below
     } else {
-        (around.y - GAP - HEIGHT).max(within.y + GAP)
+        (around.y - GAP - SMALL - HEIGHT).max(within.y + GAP + SMALL)
     };
     let x = around.x.min(within.x + within.width - WIDTH - GAP).max(within.x + GAP);
     Rect { x, y, width: WIDTH, height: HEIGHT }

@@ -188,6 +188,14 @@ impl Sidebar {
         list.map(|w| (w.canvas.clone(), w.agent.as_ref().and_then(|a| a.status))).collect()
     }
 
+    /// The agent of the open workspace whose canvas is `canvas`, as last
+    /// heard: where a sling from it goes. `None` without one.
+    pub fn agent(&self, canvas: &str) -> Option<&str> {
+        let mut list = self.workspaces.iter().flatten();
+        let workspace = list.find(|w| w.canvas == canvas)?;
+        workspace.agent.as_ref().map(|a| a.name.as_str())
+    }
+
     /// Where the panes go in `window`: all of it, less the sidebar when open.
     pub fn panes(&self, window: Rect) -> Rect {
         let width = if self.open { WIDTH.min(window.width) } else { 0.0 };

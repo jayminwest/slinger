@@ -125,7 +125,7 @@ struct State {
 struct Shown {
     canvases: Vec<(PaneId, Retained<CanvasView>)>,
     chrome: Vec<Retained<NSView>>,
-    entry: Option<Retained<entry::EntryField>>,
+    entry: Option<entry::Kept>,
     made_from: Option<(Vec<Row>, Vec<Label>, Border)>,
 }
 
@@ -416,7 +416,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
                 view.addSubview_positioned_relativeTo(
                     chrome,
                     NSWindowOrderingMode::Below,
-                    Some(entry),
+                    Some(entry.bottom()),
                 );
             }
             None => view.addSubview(chrome),

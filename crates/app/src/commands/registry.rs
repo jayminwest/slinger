@@ -161,10 +161,6 @@ pub(super) const KEY_GLYPHS: [(char, &str); 10] = [
     (RIGHT, "→"),
 ];
 
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the key overlay, the palette and the menu bar print chords")
-)]
 impl Chord {
     /// The chord as macOS prints it: `cmd+shift+d` is "⇧⌘D", `cmd+return`
     /// is "⌘↩", `f5` is "F5".
