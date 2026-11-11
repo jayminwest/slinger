@@ -40,6 +40,11 @@ const CANVASES: &str = "canvases";
 const WORKSPACES: &str = "workspaces";
 /// The directory of written packets inside the data directory.
 const PACKETS: &str = "packets";
+/// The file that keeps each agent's session id, to resume after a restart.
+const SESSION_IDS: &str = "sessions.json";
+/// The program each agent's process runs unless the daemon is told another:
+/// Claude Code, on `PATH`.
+pub const CLAUDE: &str = "claude";
 /// The layout this code writes, kept in SQLite's `user_version`.
 const SCHEMA_VERSION: i64 = 1;
 const SCHEMA: &str = "
@@ -183,7 +188,7 @@ impl Store {
         let canvases = Canvases::new(dir.join(CANVASES));
         let workspaces = Workspaces::new(dir.join(WORKSPACES), machine.clone());
         let packets = dir.join(PACKETS);
-        let sessions = Sessions::default();
+        let sessions = Sessions::new(CLAUDE.into(), dir.join(SESSION_IDS));
         Ok(Self { db: Mutex::new(db), machine, canvases, workspaces, packets, sessions })
     }
 
@@ -314,10 +319,18 @@ impl Store {
         self.packets.join(id.strip_prefix("sha256:").unwrap_or(&id))
     }
 
-    /// The statuses the agents set since the daemon started.
+    /// The sessions: the statuses the agents set since the daemon started,
+    /// and the agents' processes.
     #[must_use]
     pub fn sessions(&self) -> &Sessions {
         &self.sessions
+    }
+
+    /// Runs `program` as each agent's process, in place of `claude` on `PATH`.
+    #[must_use]
+    pub fn with_claude(mut self, program: impl Into<PathBuf>) -> Self {
+        self.sessions.processes_mut().set_program(program.into());
+        self
     }
 
     fn db(&self) -> std::sync::MutexGuard<'_, Connection> {

@@ -11,7 +11,12 @@ use super::Daemon;
 
 /// Opens a workspace in a new directory of `parent` whose agent is `agent`,
 /// and returns the directory.
-fn open_with_agent(client: &Client, parent: &TempDir, name: &str, agent: &str) -> PathBuf {
+pub(super) fn open_with_agent(
+    client: &Client,
+    parent: &TempDir,
+    name: &str,
+    agent: &str,
+) -> PathBuf {
     let dir = parent.path().join(name);
     std::fs::create_dir_all(&dir).unwrap();
     let dir = dir.canonicalize().unwrap();

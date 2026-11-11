@@ -43,11 +43,18 @@ fn cli_each(runs: &[&[&str]]) -> Vec<Run> {
     with_daemon(|socket| runs.iter().map(|args| cli_on(socket, args)).collect())
 }
 
-/// Runs `f` against a daemon with an empty record that lives for this one call.
+/// Runs `f` against a daemon with an empty record that lives for this one
+/// call. An agent's process cannot start: its program is not there, so no
+/// test runs the real Claude Code by accident.
 fn with_daemon<T>(f: impl FnOnce(&Path) -> T) -> T {
+    with_daemon_running(Path::new("/nonexistent/claude"), f)
+}
+
+/// [`with_daemon`], with each agent's process running `claude`.
+fn with_daemon_running<T>(claude: &Path, f: impl FnOnce(&Path) -> T) -> T {
     let socket = socket_path();
     let data = tempfile::tempdir().unwrap();
-    let store = daemon::Store::open(data.path(), "my-laptop").unwrap();
+    let store = daemon::Store::open(data.path(), "my-laptop").unwrap().with_claude(claude);
     let server = daemon::Server::bind(&socket).unwrap();
     let stopper = server.stopper();
     let serving = std::thread::spawn(move || server.serve(&store));

@@ -133,18 +133,21 @@ impl Server {
     }
 
     /// Serves `store` until [`Stopper::stop`], then waits for the open
-    /// connections and removes the socket file.
+    /// connections, ends the agents' processes and removes the socket file.
     ///
     /// # Errors
     ///
     /// The error that ended the accept loop, or the socket file's removal.
     pub fn serve(self, store: &Store) -> io::Result<()> {
+        store.sessions().processes().serve_on(&self.socket);
         let accepted = std::thread::scope(|scope| {
             let accepted = self.accept(scope, store);
             // A request waiting on a canvas feed answers now, so the scope ends.
             store.canvases().stop();
             accepted
         });
+        // The agents' processes end with the daemon.
+        store.sessions().processes().stop_all();
         fs::remove_file(&self.socket)?;
         accepted
     }

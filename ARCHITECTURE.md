@@ -120,6 +120,9 @@ session.rs   sessions (SPEC section 5, section 7 status set): a session per
              agent of the open workspaces (agent, home, delivery, status), the
              three statuses, and the record event each writes (blocked, done)
              or none (working), and back. No IO.
+session/stream.rs  Claude Code's stream format (D10): the arguments that start
+             or resume a session's process, a message as one input line, and
+             what an output line says (its session id, the end of a turn).
 error.rs     the typed errors and their stable codes.
 ```
 
@@ -167,7 +170,14 @@ server/read.rs  `canvas_read`: the marker is the `to` of the packet the
 sessions.rs  the statuses agents set since the daemon started (`working`
              lives only here); else each agent's last status event in the
              record. `status_set` appends its event inside the same lock.
-server/session.rs  `session_list`, `session_show`, `status_set` on the wire.
+             Start, stop and send find the agent by its workspace.
+processes.rs the agents' processes, one per agent: spawned in the agent's
+             home with `SLINGER_AGENT` and `SLINGER_SOCKET`, written to under
+             one lock, read by a thread each so a pipe never fills. Keeps each
+             session id in `sessions.json` once the output names it. Dropping
+             one closes its input, waits a grace period, then kills it; `serve`
+             ends them all when it stops. No restart on death (D20).
+server/session.rs  the session verbs on the wire, each session with its process.
 server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
              agent's latest sling on the canvas (`sling::landed`), if any;
              `canvas_edit` and `canvas_remove`, which pass the agent's name
@@ -260,6 +270,7 @@ Each boundary has something that fails when it is broken:
 | A put covers nothing: right of the item, else below, left, above, else further right | `crates/core/tests/canvas_put.rs` |
 | A put shows with its author; after a sling it lands `reply_landed`; an unknown item is `not_found` | `crates/daemon/src/tests/put.rs`, through a real socket |
 | An agent edits and removes only its own items; removing twice succeeds twice | `crates/core/tests/canvas_edit.rs`, and `crates/daemon/src/tests/edit.rs` through a real socket |
+| Three sends reach one process under one session id and their answers are read; a restart resumes it; a dead process makes a send `unavailable`; a daemon stop ends it | `crates/daemon/src/tests/process.rs`, with a stand-in for Claude Code |
 | An agent verb takes its agent from `--agent` or `SLINGER_AGENT`, else exits 2 | `crates/cli/tests/agent_env.rs`, against the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |

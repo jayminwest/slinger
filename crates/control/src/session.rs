@@ -26,6 +26,12 @@ pub enum SessionAsk {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         note: Option<String>,
     },
+    /// Start the process of a workspace's agent, or resume its session.
+    SessionStart { workspace: String },
+    /// End the process of a workspace's agent.
+    SessionStop { workspace: String },
+    /// Deliver one message to the running process of a workspace's agent.
+    SessionSend { workspace: String, text: String },
 }
 
 /// One agent the daemon can reach.
@@ -42,6 +48,22 @@ pub struct Session {
     /// What the agent said with its status.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// The agent's process: `running`, or `exited` when it ended without a
+    /// `session_stop`. Absent when the daemon holds none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub process: Option<String>,
+    /// The process id of a running process.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pid: Option<u32>,
+    /// Messages sent to the running process that it has not answered yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending: Option<u32>,
+    /// The text of the process's last answer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answer: Option<String>,
+    /// The conversation the process holds, which the next start resumes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
 }
 
 /// The reply to [`SessionAsk::SessionList`]: the sessions, by agent.
@@ -50,7 +72,8 @@ pub struct Sessions {
     pub sessions: Vec<Session>,
 }
 
-/// The reply to [`SessionAsk::SessionShow`].
+/// The reply to [`SessionAsk::SessionShow`], and to a start, stop or send:
+/// the session after it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionInfo {
     pub session: Session,
@@ -107,6 +130,44 @@ impl Client {
         let (agent, status, note) = (agent.into(), status.into(), note.map(str::to_string));
         self.call(&SessionAsk::StatusSet { agent, status, note })
     }
+
+    /// Starts the process of `workspace`'s agent in its home, resuming the
+    /// session it last held. A running one is left as it is.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a workspace that is not open or a program the daemon
+    /// cannot find, `invalid` for a workspace with no agent, and
+    /// `unavailable` when the daemon does not answer.
+    pub fn session_start(&self, workspace: &str) -> Result<Session, RemoteError> {
+        let ask = SessionAsk::SessionStart { workspace: workspace.into() };
+        Ok(self.call::<_, SessionInfo>(&ask)?.session)
+    }
+
+    /// Ends the process of `workspace`'s agent. Stopping one that is not
+    /// running succeeds.
+    ///
+    /// # Errors
+    ///
+    /// As [`Client::session_start`].
+    pub fn session_stop(&self, workspace: &str) -> Result<Session, RemoteError> {
+        let ask = SessionAsk::SessionStop { workspace: workspace.into() };
+        Ok(self.call::<_, SessionInfo>(&ask)?.session)
+    }
+
+    /// Delivers `text` to the running process of `workspace`'s agent as one
+    /// message. It returns once the message is written; the answer is the
+    /// agent's to deliver.
+    ///
+    /// # Errors
+    ///
+    /// `unavailable` when the process is not running (never started, or it
+    /// exited) or the daemon does not answer, `invalid` for blank text, and
+    /// the errors of [`Client::session_start`].
+    pub fn session_send(&self, workspace: &str, text: &str) -> Result<Session, RemoteError> {
+        let ask = SessionAsk::SessionSend { workspace: workspace.into(), text: text.into() };
+        Ok(self.call::<_, SessionInfo>(&ask)?.session)
+    }
 }
 
 #[cfg(test)]
@@ -130,6 +191,18 @@ mod tests {
             ),
             (set(None), r#"{"v":1,"op":"status_set","agent":"a","status":"done"}"#),
             (set(Some("n")), r#"{"v":1,"op":"status_set","agent":"a","status":"done","note":"n"}"#),
+            (
+                SessionAsk::SessionStart { workspace: "w".into() },
+                r#"{"v":1,"op":"session_start","workspace":"w"}"#,
+            ),
+            (
+                SessionAsk::SessionStop { workspace: "w".into() },
+                r#"{"v":1,"op":"session_stop","workspace":"w"}"#,
+            ),
+            (
+                SessionAsk::SessionSend { workspace: "w".into(), text: "hi".into() },
+                r#"{"v":1,"op":"session_send","workspace":"w","text":"hi"}"#,
+            ),
         ] {
             assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
@@ -142,6 +215,7 @@ mod tests {
         for line in [
             r#"{"v":1,"op":"session_show"}"#,
             r#"{"v":1,"op":"status_set","agent":"a"}"#,
+            r#"{"v":1,"op":"session_send","workspace":"w"}"#,
             r#"{"v":1,"op":"session_nope"}"#,
         ] {
             let err = crate::read_request(&mut line.as_bytes()).unwrap_err();

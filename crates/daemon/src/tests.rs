@@ -19,6 +19,7 @@ mod edit;
 mod feed;
 mod import;
 mod look;
+mod process;
 mod put;
 mod read;
 mod session;
@@ -33,9 +34,11 @@ fn socket_path() -> PathBuf {
     std::env::temp_dir().join(format!("d-{}-{n}.sock", std::process::id()))
 }
 
-/// Serves `server` with the record in `data` on a new thread.
+/// Serves `server` with the record in `data` on a new thread. An agent's
+/// process cannot start: its program is not there, so no test runs the real
+/// Claude Code by accident.
 fn serving(server: Server, data: &Path) -> JoinHandle<std::io::Result<()>> {
-    let store = Store::open(data, "test-machine").unwrap();
+    let store = Store::open(data, "test-machine").unwrap().with_claude("/nonexistent/claude");
     std::thread::spawn(move || server.serve(&store))
 }
 
@@ -61,6 +64,16 @@ impl Daemon {
         let server = Server::bind(&socket).unwrap();
         let stopper = server.stopper();
         Self { socket, stopper, thread: serving(server, data), data: None }
+    }
+
+    /// A daemon on the record in `data` whose agents' processes run `claude`.
+    fn start_with_claude(data: &Path, claude: &Path) -> Self {
+        let socket = socket_path();
+        let server = Server::bind(&socket).unwrap();
+        let stopper = server.stopper();
+        let store = Store::open(data, "test-machine").unwrap().with_claude(claude);
+        let thread = std::thread::spawn(move || server.serve(&store));
+        Self { socket, stopper, thread, data: None }
     }
 
     fn client(&self) -> Client {

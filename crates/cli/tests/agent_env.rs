@@ -1,6 +1,6 @@
-//! The calling agent's name from `SLINGER_AGENT`, through the real `slinger`
-//! binary: each run gets an environment of its own, which in-process tests
-//! cannot have.
+//! The calling agent's name from `SLINGER_AGENT` and the socket from
+//! `SLINGER_SOCKET`, through the real `slinger` binary: each run gets an
+//! environment of its own, which in-process tests cannot have.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -51,6 +51,17 @@ fn agent_verbs_take_the_agent_from_the_flag_or_the_environment_or_fail_as_usage(
     assert_eq!(slinger(&socket, Some("scout"), &put).status.code(), Some(0));
     let shown = client.canvas_show("main", None).unwrap();
     assert_eq!(shown.items[1]["by"], "agent:scout");
+
+    // An agent's process finds the daemon that started it by SLINGER_SOCKET.
+    let mut hello = Command::new(env!("CARGO_BIN_EXE_slinger"));
+    let hello = hello.arg("hello").env("SLINGER_SOCKET", &socket).output().unwrap();
+    assert_eq!((hello.status.code(), hello.stdout.as_slice()), (Some(0), &b"hello, world\n"[..]));
+    let mut elsewhere = Command::new(env!("CARGO_BIN_EXE_slinger"));
+    elsewhere
+        .args(["hello", "--socket", "/nonexistent/slinger.sock"])
+        .env("SLINGER_SOCKET", &socket);
+    let elsewhere = elsewhere.output().unwrap();
+    assert_eq!(elsewhere.status.code(), Some(6), "--socket wins over SLINGER_SOCKET");
     stopper.stop();
     serving.join().unwrap().unwrap();
     std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();
