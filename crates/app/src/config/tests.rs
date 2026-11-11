@@ -25,7 +25,13 @@ fn parses_every_key() {
         muted: rgb(1, 2, 3),
         error: rgb(255, 0, 0),
     };
-    assert_eq!(config, Config { theme, socket: Some("~/s.sock".into()), keys: Keymap::default() });
+    let expected = Config {
+        theme,
+        socket: Some("~/s.sock".into()),
+        keys: Keymap::default(),
+        palette: Palette::default(),
+    };
+    assert_eq!(config, expected);
 }
 
 #[test]
@@ -103,6 +109,7 @@ fn every_error_names_its_line_and_has_a_hint() {
         ErrorKind::DuplicateKey,
         ErrorKind::NotAString,
         ErrorKind::BadColour,
+        ErrorKind::BadPalette,
         ErrorKind::UnknownCommand,
         ErrorKind::BadChord,
         ErrorKind::ChordTaken,
@@ -121,6 +128,7 @@ fn every_error_names_its_line_and_has_a_hint() {
             "line 7: the key is set twice / set each key once; put machine values in the overlay",
             "line 7: the value is not a quoted string / quote the value: key = \"value\"",
             "line 7: the value is not a colour / write a colour as \"#rrggbb\"",
+            "line 7: the value is not one to nine colours / write the colours as \"#rrggbb #rrggbb\", split by spaces or commas",
             "line 7: unknown command / config.example.toml lists every table and key",
             "line 7: the value is not a key chord / write a chord as \"cmd+shift+k\", or \"\" for none",
             "line 7: another command is on this chord / bind each chord to one command",
@@ -145,8 +153,15 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
         muted: Some(Theme::default().muted),
         error: Some(Theme::default().error),
         socket: all.socket.clone(),
+        palette: Some(Palette::default()),
         // The defaults, each written out.
-        keys: [Some(Chord::parse("cmd+q")), Some(Chord::parse("cmd+r"))],
+        keys: [
+            Some(Chord::parse("cmd+q")),
+            Some(Chord::parse("cmd+r")),
+            Some(Chord::parse("cmd+shift+c")),
+            Some(Chord::parse("cmd+shift+s")),
+            Some(Chord::parse("cmd+shift+t")),
+        ],
     };
     assert_eq!(all, every_key);
     assert!(all.socket.is_some());
@@ -216,4 +231,46 @@ fn the_overlay_takes_a_chord_from_the_shared_file() {
     assert_eq!(command(&config, "cmd+k"), Some(Command::ReloadConfig));
     assert_eq!(command(&config, "cmd+j"), None);
     assert_eq!(command(&config, "cmd+q"), None, "the shared file moved quit off its default");
+}
+
+fn palette(value: &str) -> Result<Vec<Rgb>, (usize, ErrorKind)> {
+    let text = format!("[pen]\ncolours = \"{value}\"\n");
+    match parse(&text) {
+        Ok(layer) => Ok(layer.resolve().palette.colours().to_vec()),
+        Err(e) => Err((e.line, e.kind)),
+    }
+}
+
+#[test]
+fn the_pen_colours_are_a_list_split_by_spaces_or_commas() {
+    let two = vec![rgb(0, 0, 0), rgb(0xff, 0xff, 0xff)];
+    assert_eq!(palette("#000000 #ffffff"), Ok(two.clone()));
+    assert_eq!(palette(" #000000,#FFFFFF, "), Ok(two));
+    assert_eq!(palette("#010203"), Ok(vec![rgb(1, 2, 3)]));
+    let nine = ["#000000"; Palette::MAX].join(" ");
+    assert_eq!(palette(&nine).map(|c| c.len()), Ok(Palette::MAX));
+}
+
+#[test]
+fn the_pen_colours_are_one_to_nine_good_colours() {
+    let ten = ["#000000"; Palette::MAX + 1].join(" ");
+    for value in ["", " , ", "#000000 red", "#000000;#ffffff", ten.as_str()] {
+        assert_eq!(palette(value), Err((2, ErrorKind::BadPalette)), "{value}");
+    }
+}
+
+#[test]
+fn the_default_palette_starts_with_the_text_colour() {
+    let palette = Palette::default();
+    assert_eq!(palette.colours()[0], Theme::default().text);
+    assert!((1..=Palette::MAX).contains(&palette.colours().len()));
+    assert_eq!(parse("").unwrap().resolve().palette, palette);
+}
+
+#[test]
+fn the_overlay_replaces_the_whole_palette() {
+    let base = parse("[pen]\ncolours = \"#111111 #222222\"\n").unwrap();
+    let overlay = parse("[pen]\ncolours = \"#333333\"\n").unwrap();
+    assert_eq!(base.clone().over(Layer::default()).resolve().palette.colours().len(), 2);
+    assert_eq!(base.over(overlay).resolve().palette.colours(), [rgb(0x33, 0x33, 0x33)]);
 }

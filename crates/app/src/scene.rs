@@ -1,19 +1,23 @@
 //! What the window shows. Pure: every decision about content is made here, so
 //! `platform` only draws what a [`Scene`] says. [`canvas`] decides what a
-//! canvas pane shows.
+//! canvas pane shows. [`tools`] holds the pen's tool and colour and the
+//! pop-up at the pen that changes them.
 
 #[cfg_attr(not(test), expect(dead_code, reason = "the canvas pane draws it from slinger-c94c"))]
 pub mod canvas;
+pub mod tools;
 
 use crate::backend::Problem;
 use crate::config::{Rgb, Theme};
 use crate::layout::{self, Rect, Size};
 
-/// One line of text at a fixed place.
+/// One line of text at a fixed place, on `fill` when it has one. A label
+/// with no text and a fill is a filled rectangle.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Label {
     pub text: String,
     pub colour: Rgb,
+    pub fill: Option<Rgb>,
     pub frame: Rect,
 }
 
@@ -49,7 +53,7 @@ pub fn build(greeting: &Result<String, Problem>, theme: &Theme, config: Option<&
     let labels = texts
         .into_iter()
         .zip(frames)
-        .map(|((text, colour), frame)| Label { text, colour, frame })
+        .map(|((text, colour), frame)| Label { text, colour, fill: None, frame })
         .collect();
     Scene { title: "slinger".to_string(), size, background: theme.background, labels }
 }

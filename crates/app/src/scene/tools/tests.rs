@@ -1,0 +1,218 @@
+use super::*;
+
+const WITHIN: Size = Size { width: 440.0, height: 160.0 };
+const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
+const GREEN: Rgb = Rgb { r: 0, g: 255, b: 0 };
+const BLUE: Rgb = Rgb { r: 0, g: 0, b: 255 };
+
+const T: Theme = Theme {
+    background: Rgb { r: 0, g: 0, b: 0 },
+    text: Rgb { r: 1, g: 1, b: 1 },
+    muted: Rgb { r: 2, g: 2, b: 2 },
+    error: Rgb { r: 3, g: 3, b: 3 },
+};
+
+fn rgb_palette() -> Palette {
+    crate::config::parse("[pen]\ncolours = \"#ff0000 #00ff00 #0000ff\"\n")
+        .unwrap()
+        .resolve()
+        .palette
+}
+
+fn tools() -> Tools {
+    Tools::new(rgb_palette(), Point { x: 220.0, y: 80.0 })
+}
+
+fn key(text: &str) -> Chord {
+    Chord::parse(text).unwrap()
+}
+
+/// The centre of the open pop-up's cell `i`.
+fn cell(tools: &Tools, i: usize) -> Point {
+    let c = tools.popup.as_ref().unwrap().place.cells[i];
+    Point { x: c.x + c.width / 2.0, y: c.y + c.height / 2.0 }
+}
+
+fn lit(tools: &Tools) -> usize {
+    tools.popup.as_ref().unwrap().lit
+}
+
+#[test]
+fn starts_with_the_pen_in_the_first_colour_and_no_popup() {
+    let tools = tools();
+    assert_eq!((tools.tool(), tools.colour(), tools.open_kind()), (Tool::Pen, RED, None));
+    assert_eq!(tools.labels(&T), []);
+}
+
+#[test]
+fn opens_where_the_pen_last_was() {
+    let mut tools = tools();
+    tools.moved(Point { x: 200.0, y: 70.0 });
+    tools.open(Kind::Tool, WITHIN);
+    let panel = tools.popup.as_ref().unwrap().place.panel;
+    assert_eq!(panel.x + panel.width / 2.0, 200.0);
+    assert_eq!(panel.y + panel.height / 2.0, 70.0);
+    assert_eq!(tools.open_kind(), Some(Kind::Tool));
+}
+
+#[test]
+fn opens_inside_the_window_near_its_edge() {
+    let mut tools = tools();
+    tools.moved(Point { x: 439.0, y: 159.0 });
+    tools.open(Kind::Tool, WITHIN);
+    let panel = tools.popup.as_ref().unwrap().place.panel;
+    assert!(panel.x + panel.width <= WITHIN.width && panel.y + panel.height <= WITHIN.height);
+}
+
+#[test]
+fn the_pen_picks_a_cell_and_the_popup_closes() {
+    let mut tools = tools();
+    tools.open(Kind::Colour, WITHIN);
+    assert!(tools.press(cell(&tools, 2)));
+    assert_eq!((tools.colour(), tools.open_kind()), (BLUE, None));
+    tools.open(Kind::Shape, WITHIN);
+    assert!(tools.press(cell(&tools, 1)));
+    assert_eq!((tools.tool(), tools.open_kind()), (Tool::Arrow, None));
+    tools.open(Kind::Tool, WITHIN);
+    assert!(tools.press(cell(&tools, 2)));
+    assert_eq!((tools.tool(), tools.open_kind()), (Tool::Lasso, None));
+    assert_eq!(tools.colour(), BLUE, "a tool keeps the colour");
+}
+
+#[test]
+fn a_press_between_cells_does_nothing_and_one_outside_closes() {
+    let mut tools = tools();
+    tools.open(Kind::Tool, WITHIN);
+    let panel = tools.popup.as_ref().unwrap().place.panel;
+    assert!(tools.press(Point { x: panel.x + 1.0, y: panel.y + 1.0 }));
+    assert_eq!(tools.open_kind(), Some(Kind::Tool));
+    assert!(tools.press(Point { x: 1.0, y: 1.0 }));
+    assert_eq!((tools.tool(), tools.open_kind()), (Tool::Pen, None));
+    assert!(!tools.press(Point { x: 1.0, y: 1.0 }), "with none open, a press is not the pop-up's");
+}
+
+#[test]
+fn a_digit_picks_its_cell() {
+    let mut tools = tools();
+    tools.open(Kind::Colour, WITHIN);
+    assert!(tools.key(key("2")));
+    assert_eq!((tools.colour(), tools.open_kind()), (GREEN, None));
+    tools.open(Kind::Tool, WITHIN);
+    assert!(tools.key(key("9")), "a digit past the cells is used up");
+    assert_eq!(tools.open_kind(), Some(Kind::Tool));
+    assert!(tools.key(key("4")));
+    assert_eq!(tools.tool(), Tool::Text);
+}
+
+#[test]
+fn the_arrows_move_the_light_around_and_return_picks_it() {
+    let mut tools = tools();
+    tools.open(Kind::Colour, WITHIN);
+    assert_eq!(lit(&tools), 0, "the current colour is lit");
+    assert!(tools.key(key("left")));
+    assert_eq!(lit(&tools), 2);
+    assert!(tools.key(key("right")) && tools.key(key("down")));
+    assert_eq!(lit(&tools), 1);
+    assert!(tools.key(key("up")));
+    assert_eq!(lit(&tools), 0);
+    assert!(tools.key(key("right")) && tools.key(key("return")));
+    assert_eq!((tools.colour(), tools.open_kind()), (GREEN, None));
+    tools.open(Kind::Shape, WITHIN);
+    assert!(tools.key(key("space")));
+    assert_eq!(tools.tool(), Tool::Box);
+}
+
+#[test]
+fn the_current_choice_is_lit_when_a_popup_opens() {
+    let mut tools = tools();
+    tools.open(Kind::Tool, WITHIN);
+    tools.key(key("3"));
+    tools.open(Kind::Tool, WITHIN);
+    assert_eq!(lit(&tools), 2);
+    tools.key(key("escape"));
+    tools.open(Kind::Shape, WITHIN);
+    assert_eq!(lit(&tools), 0, "a tool that is no shape lights the first");
+}
+
+#[test]
+fn escape_closes_and_changes_nothing() {
+    let mut tools = tools();
+    tools.open(Kind::Shape, WITHIN);
+    assert!(tools.key(key("escape")));
+    assert_eq!((tools.tool(), tools.open_kind()), (Tool::Pen, None));
+    assert!(!tools.key(key("escape")), "with none open, a key is not the pop-up's");
+}
+
+#[test]
+fn other_keys_pass_and_leave_the_popup_open() {
+    let mut tools = tools();
+    tools.open(Kind::Tool, WITHIN);
+    assert!(!tools.key(key("cmd+q")));
+    assert!(!tools.key(key("a")));
+    assert!(!tools.key(key("shift+1")));
+    assert_eq!(tools.open_kind(), Some(Kind::Tool));
+}
+
+#[test]
+fn the_same_command_again_closes_and_another_replaces() {
+    let mut tools = tools();
+    tools.open(Kind::Tool, WITHIN);
+    tools.open(Kind::Shape, WITHIN);
+    assert_eq!(tools.open_kind(), Some(Kind::Shape));
+    tools.open(Kind::Shape, WITHIN);
+    assert_eq!(tools.open_kind(), None);
+}
+
+#[test]
+fn a_new_palette_keeps_the_colour_and_closes_a_colour_popup() {
+    let mut tools = tools();
+    tools.open(Kind::Colour, WITHIN);
+    tools.set_palette(rgb_palette());
+    assert_eq!(tools.open_kind(), Some(Kind::Colour), "the same palette changes nothing");
+    tools.set_palette(Palette::default());
+    assert_eq!((tools.colour(), tools.open_kind()), (RED, None));
+    tools.open(Kind::Tool, WITHIN);
+    tools.set_palette(rgb_palette());
+    assert_eq!(tools.open_kind(), Some(Kind::Tool));
+    tools.key(key("escape"));
+    tools.open(Kind::Colour, WITHIN);
+    assert_eq!(tools.popup.as_ref().unwrap().place.cells.len(), 3);
+}
+
+#[test]
+fn a_colour_popup_draws_a_bordered_panel_and_a_ring_round_the_lit_swatch() {
+    let mut tools = tools();
+    tools.open(Kind::Colour, WITHIN);
+    let labels = tools.labels(&T);
+    let fills: Vec<Option<Rgb>> = labels.iter().map(|l| l.fill).collect();
+    assert_eq!(
+        fills,
+        [Some(T.muted), Some(T.background), Some(T.text), Some(RED), Some(GREEN), Some(BLUE)]
+    );
+    assert!(labels.iter().all(|l| l.text.is_empty()));
+    let place = &tools.popup.as_ref().unwrap().place;
+    assert_eq!(labels[0].frame, place.panel);
+    assert_eq!(labels[2].frame, place.cells[0].outset(2.0));
+    assert_eq!(labels[3].frame, place.cells[0]);
+}
+
+#[test]
+fn a_word_popup_names_each_tool_and_lights_the_current_one() {
+    let mut tools = tools();
+    tools.open(Kind::Tool, WITHIN);
+    let labels = tools.labels(&T);
+    let shown: Vec<(&str, Rgb, Option<Rgb>)> =
+        labels[2..].iter().map(|l| (l.text.as_str(), l.colour, l.fill)).collect();
+    assert_eq!(
+        shown,
+        [
+            ("pen", T.background, Some(T.text)),
+            ("eraser", T.text, None),
+            ("lasso", T.text, None),
+            ("text", T.text, None),
+        ]
+    );
+    tools.open(Kind::Shape, WITHIN);
+    let words: Vec<String> = tools.labels(&T)[2..].iter().map(|l| l.text.clone()).collect();
+    assert_eq!(words, ["box", "arrow"]);
+}

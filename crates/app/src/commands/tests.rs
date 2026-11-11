@@ -84,10 +84,13 @@ fn rejects_what_is_not_a_chord() {
 }
 
 #[test]
-fn the_defaults_bind_quit_and_reload_config() {
+fn the_defaults_bind_every_command() {
     let keys = Keymap::default();
     assert_eq!(keys.command(chord("cmd+q")), Some(Command::Quit));
     assert_eq!(keys.command(chord("cmd+r")), Some(Command::ReloadConfig));
+    assert_eq!(keys.command(chord("cmd+shift+c")), Some(Command::PickColour));
+    assert_eq!(keys.command(chord("cmd+shift+s")), Some(Command::PickShape));
+    assert_eq!(keys.command(chord("cmd+shift+t")), Some(Command::PickTool));
 }
 
 #[test]

@@ -197,10 +197,13 @@ commands.rs  key commands: the closed list of commands, the chord parser and
 scene.rs     decides what the window shows. Pure.
 scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport in,
              the visible marks in screen points and the box to repaint out. Pure.
-layout.rs    geometry: sizes in, rectangles out, and the canvas viewport (pan, zoom
-             about a point, limits; the canvas has no edge). Pure. 100% coverage floor.
-platform/    draws a scene and turns a key press into a chord. All unsafe, objc2
-             and AppKit code. No decisions.
+scene/tools.rs  the pen's tool and colour, and the pop-up at the pen (colour, shape,
+             tool) that changes them: opens, picks by pen or key, closes. Pure.
+layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
+             about a point, limits; the canvas has no edge) and where a pop-up
+             opens (at the pen, kept inside the window). Pure. 100% coverage floor.
+platform/    draws a scene, turns a key press into a chord and a pen or mouse
+             event into a point. All unsafe, objc2 and AppKit code. No decisions.
 ```
 
 **Threading rule:** AppKit runs on the main thread only. Every `platform`
@@ -226,7 +229,11 @@ a chord and hands it to `main`, which looks it up in the keymap: a command
 runs and the press stops there; any other key goes on to the window as
 usual. The app has no menu bar, so no key reaches AppKit's menus first, and
 no action has a second path outside the keymap (the window's close button
-quits too). A new command adds a variant and a name to `Command::ALL` in
+quits too).
+An open pop-up at the pen takes its own keys first (escape, return, space,
+the arrows, 1 to 9); any other key goes to the keymap. These keys act only
+inside a pop-up a command opened, so they are not commands themselves.
+A new command adds a variant and a name to `Command::ALL` in
 `commands.rs`, an arm in `main`'s match, and a line in the example file
 (with its default chord, if it has one).
 ## Boundaries

@@ -21,7 +21,6 @@ pub struct Rect {
 }
 
 /// A point. On the canvas or on the screen, as the name of the value says.
-#[cfg_attr(not(test), expect(dead_code, reason = "the canvas pane uses it from slinger-c94c"))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Point {
     pub x: f64,
@@ -155,6 +154,63 @@ impl Viewport {
         let fixed = self.to_canvas(about);
         let origin = Point { x: fixed.x - about.x / zoom, y: fixed.y - about.y / zoom };
         Self { origin, zoom }
+    }
+}
+
+/// A pop-up at the pen: its panel, and one cell per option, left to right.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Popup {
+    pub panel: Rect,
+    pub cells: Vec<Rect>,
+}
+
+/// A colour's cell in a pop-up.
+pub const SWATCH: Size = Size { width: 24.0, height: 24.0 };
+/// A word's cell in a pop-up.
+pub const WORD: Size = Size { width: 64.0, height: 24.0 };
+
+/// The space between a pop-up's panel and its cells, and between cells.
+const POPUP_PAD: f64 = 6.0;
+/// The closest a pop-up comes to an edge of the space it opens in.
+const POPUP_EDGE: f64 = 8.0;
+
+/// A pop-up of `count` cells of `cell` size in a row, centred on `at` (the
+/// pen) so the shortest move picks, and moved inside `within` when it would
+/// cross an edge. A pop-up too big for `within` keeps its top left corner in.
+pub fn popup(at: Point, count: usize, cell: Size, within: Size) -> Popup {
+    #[expect(clippy::cast_precision_loss, reason = "a handful of cells")]
+    let n = count as f64;
+    let width = n * cell.width + (n + 1.0) * POPUP_PAD;
+    let height = cell.height + 2.0 * POPUP_PAD;
+    let place = |at: f64, size: f64, room: f64| {
+        (at - size / 2.0).min(room - size - POPUP_EDGE).max(POPUP_EDGE)
+    };
+    let panel = Rect {
+        x: place(at.x, width, within.width),
+        y: place(at.y, height, within.height),
+        width,
+        height,
+    };
+    let cells = (0..count)
+        .map(|i| {
+            #[expect(clippy::cast_precision_loss, reason = "a handful of cells")]
+            let i = i as f64;
+            Rect {
+                x: panel.x + POPUP_PAD + i * (cell.width + POPUP_PAD),
+                y: panel.y + POPUP_PAD,
+                width: cell.width,
+                height: cell.height,
+            }
+        })
+        .collect();
+    Popup { panel, cells }
+}
+
+impl Rect {
+    /// Whether `p` is inside, edges included.
+    pub fn contains(self, p: Point) -> bool {
+        (self.x..=self.x + self.width).contains(&p.x)
+            && (self.y..=self.y + self.height).contains(&p.y)
     }
 }
 
@@ -345,6 +401,57 @@ mod tests {
         assert_eq!(view.zoom_about(pt(10.0, 10.0), f64::NAN), view);
         assert_eq!(view.zoom_about(pt(f64::NAN, 10.0), 2.0), view);
         assert_eq!(view.zoom_about(pt(10.0, f64::NEG_INFINITY), 2.0), view);
+    }
+
+    #[test]
+    fn a_popup_is_centred_on_the_pen_with_its_cells_in_a_row() {
+        let pop = popup(pt(200.0, 100.0), 3, SWATCH, SCREEN);
+        // 3 cells of 24 and 4 pads of 6 wide; 24 and 2 pads high.
+        assert_eq!(pop.panel, rect(200.0 - 48.0, 100.0 - 18.0, 96.0, 36.0));
+        let xs: Vec<f64> = pop.cells.iter().map(|c| c.x).collect();
+        assert_eq!(xs, [158.0, 188.0, 218.0]);
+        for cell in &pop.cells {
+            assert_eq!((cell.y, cell.width, cell.height), (88.0, 24.0, 24.0));
+            assert!(pop.panel.contains(pt(cell.x, cell.y)));
+            assert!(pop.panel.contains(pt(cell.x + cell.width, cell.y + cell.height)));
+        }
+    }
+
+    #[test]
+    fn a_popup_near_an_edge_moves_inside_it() {
+        let size = |p: &Popup| (p.panel.width, p.panel.height);
+        let top_left = popup(pt(3.0, 2.0), 4, WORD, SCREEN);
+        assert_eq!((top_left.panel.x, top_left.panel.y), (8.0, 8.0));
+        let bottom_right = popup(pt(799.0, 599.0), 4, WORD, SCREEN);
+        let (w, h) = size(&bottom_right);
+        assert_eq!(
+            (bottom_right.panel.x, bottom_right.panel.y),
+            (800.0 - 8.0 - w, 600.0 - 8.0 - h)
+        );
+        let off_screen = popup(pt(-500.0, 9000.0), 4, WORD, SCREEN);
+        assert_eq!((off_screen.panel.x, off_screen.panel.y), (8.0, 600.0 - 8.0 - h));
+        assert_eq!(off_screen.cells[0].x, 8.0 + 6.0);
+    }
+
+    #[test]
+    fn a_popup_too_big_for_its_space_keeps_its_top_left_in() {
+        let pop = popup(pt(20.0, 20.0), 9, WORD, Size { width: 100.0, height: 30.0 });
+        assert_eq!((pop.panel.x, pop.panel.y), (8.0, 8.0));
+        assert!(pop.panel.width > 100.0);
+    }
+
+    #[test]
+    fn a_popup_of_no_cells_is_an_empty_panel() {
+        let pop = popup(pt(100.0, 100.0), 0, SWATCH, SCREEN);
+        assert_eq!(pop.cells, []);
+        assert_eq!(pop.panel, rect(97.0, 82.0, 6.0, 36.0));
+    }
+
+    #[test]
+    fn contains_includes_the_edges() {
+        let r = rect(10.0, 10.0, 5.0, 5.0);
+        assert!(r.contains(pt(10.0, 10.0)) && r.contains(pt(15.0, 15.0)));
+        assert!(!r.contains(pt(9.9, 12.0)) && !r.contains(pt(12.0, 15.1)));
     }
 
     #[test]
