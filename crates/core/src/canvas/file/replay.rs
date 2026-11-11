@@ -87,6 +87,9 @@ impl File {
                 }
                 Change::Set { item, fields } => {
                     let Some(current) = canvas.item(*item) else { continue };
+                    // A line lays its fields over whole; only a request's
+                    // new text gets a new box (`json::laid_over`), and the
+                    // line it writes carries that box.
                     let mut merged = json::fields(current.shape());
                     merged.extend(fields.iter().map(|(k, v)| (k.clone(), v.clone())));
                     if let Ok(Some(shape)) = json::read_shape(&merged) {

@@ -371,8 +371,7 @@ impl Log {
                     what: item.to_string(),
                     hint: Some("it may have been removed; show the canvas again".into()),
                 })?;
-                let mut merged = json::fields(current.shape());
-                merged.extend(fields.iter().map(|(k, v)| (k.clone(), v.clone())));
+                let merged = json::laid_over(current.shape(), fields);
                 out.push(Action::Edit { item, shape: read_shape(&merged)? });
             }
             "page.add" => out.push(Action::PageAdd { name: name().map_err(bad)? }),

@@ -187,3 +187,68 @@ fn a_put_beside_nothing_or_of_nothing_fails_and_changes_nothing() {
     assert_eq!(blank.code(), "invalid");
     assert_eq!(log.next(), next);
 }
+
+fn text(x: i64, y: i64, words: &str) -> Value {
+    json!({ "op": "add", "item": { "page": "p1", "kind": "text", "x": x, "y": y, "text": words } })
+}
+
+/// An item's frame as `canvas show` gives it, in tenths.
+fn frame_of(log: &Log, id: &str) -> [i64; 4] {
+    let shown = log.show(None).unwrap();
+    let item = shown.items.iter().find(|i| i["id"] == id).unwrap();
+    ["x", "y", "w", "h"].map(|k| item[k].as_i64().unwrap())
+}
+
+#[test]
+fn text_applied_without_a_size_gets_one_so_a_put_beside_it_does_not_cover_it() {
+    // slinger-981b5c: the user's text had no box, and the put landed on it.
+    let (mut log, mut file) = Log::create("main").unwrap();
+    file += &log.apply(&Author::User, AT, &text(0, 0, "plan")).unwrap().bytes;
+    assert_eq!(frame_of(&log, "i1"), [0, 0, 960, 240]);
+    let placed = log.put(&scout(), AT, "i1", &Put::Text("agent reply".into())).unwrap();
+    assert_eq!(placed.frame, [960 + 240, 0, 2640, 240]);
+    let page = log.canvas().pages().next().unwrap().id();
+    let plan = log.canvas().item(ItemId::new(1)).unwrap().bounds();
+    let reply = log.canvas().item(ItemId::new(2)).unwrap().bounds();
+    assert!(plan.x + plan.w < reply.x, "{plan:?} {reply:?}");
+    assert_eq!(log.canvas().items_in_box(page, reply), [ItemId::new(2)]);
+    // The line holds the box, so the file reads back to the same canvas.
+    assert!(file.contains(r#""w":960,"h":240"#), "{file}");
+    let (reopened, _) = Log::open(file.as_bytes()).unwrap();
+    assert_eq!(frame_of(&reopened, "i1"), [0, 0, 960, 240]);
+}
+
+#[test]
+fn a_text_with_a_size_keeps_it_and_one_with_no_height_gets_its_lines() {
+    let sized = json!({ "op": "add", "item": { "page": "p1", "kind": "text", "x": 0, "y": 0, "w": 480, "h": 312, "text": "hi" } });
+    let no_height = json!({ "op": "add", "item": { "page": "p1", "kind": "text", "x": 0, "y": 0, "w": 1200, "text": "one two three" } });
+    let log = log_of(&json!([sized, no_height, text(0, 0, "a\nlonger line")]));
+    assert_eq!(frame_of(&log, "i1"), [0, 0, 480, 312]);
+    // Five characters a line: "one", "two" and "three", a line each.
+    assert_eq!(frame_of(&log, "i2"), [0, 0, 1200, 3 * 240]);
+    assert_eq!(frame_of(&log, "i3"), [0, 0, 11 * 240, 2 * 240]);
+}
+
+#[test]
+fn old_text_with_no_box_reads_back_with_one() {
+    let file = concat!(
+        r#"{"slinger":"canvas","v":1,"id":"main","first":1}"#,
+        "\n",
+        r##"{"n":1,"t":"2026-11-10T16:42:10.400Z","by":"user","op":"add","item":{"id":"i1","page":"p1","kind":"text","color":"#000000","x":0,"y":0,"w":0,"h":0,"text":"plan"}}"##,
+        "\n",
+    );
+    let (log, _) = Log::open(file.as_bytes()).unwrap();
+    assert_eq!(frame_of(&log, "i1"), [0, 0, 960, 240]);
+}
+
+#[test]
+fn a_set_of_new_text_without_a_size_refits_the_box() {
+    let mut log = log_of(&text(0, 0, "plan"));
+    let set = |fields: Value| json!({ "op": "set", "id": "i1", "fields": fields });
+    log.apply(&Author::User, AT, &set(json!({ "text": "a longer plan" }))).unwrap();
+    assert_eq!(frame_of(&log, "i1"), [0, 0, 13 * 240, 240]);
+    log.apply(&Author::User, AT, &set(json!({ "text": "ab", "w": 5000, "h": 900 }))).unwrap();
+    assert_eq!(frame_of(&log, "i1"), [0, 0, 5000, 900]);
+    log.apply(&Author::User, AT, &set(json!({ "x": 100 }))).unwrap();
+    assert_eq!(frame_of(&log, "i1"), [100, 0, 5000, 900]);
+}

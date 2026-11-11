@@ -66,6 +66,26 @@ pub enum Action {
     PageRestore { page: Page, index: usize, items: Vec<Item> },
 }
 
+impl Action {
+    /// The same action, with every text it carries [`Shape::fitted`]: the
+    /// one rule for a text frame, kept by the canvas on every change and by
+    /// the file on every line, so old lines with no frame replay to one.
+    #[must_use]
+    pub fn fitted(self) -> Self {
+        match self {
+            Action::Add { page, shape } => Action::Add { page, shape: shape.fitted() },
+            Action::Edit { item, shape } => Action::Edit { item, shape: shape.fitted() },
+            Action::Restore { item } => Action::Restore { item: item.fitted() },
+            Action::PageRestore { page, index, items } => Action::PageRestore {
+                page,
+                index,
+                items: items.into_iter().map(Item::fitted).collect(),
+            },
+            other => other,
+        }
+    }
+}
+
 /// What applying an operation did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Applied {
@@ -119,6 +139,7 @@ impl Canvas {
     ///   the last page, or a restore names a page or item still here.
     pub fn apply(&mut self, op: Op) -> Result<Applied> {
         let Op { by, at, action } = op;
+        let action = action.fitted();
         if matches!(&by, Author::Agent(name) if name.trim().is_empty()) {
             return Err(invalid("the agent has no name", "name the agent that asks"));
         }

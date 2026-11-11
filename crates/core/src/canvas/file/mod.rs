@@ -292,11 +292,13 @@ pub fn read(bytes: &[u8]) -> Result<File> {
     Ok(File { header, lines, torn })
 }
 
-/// `op` rounded to what the file holds (see the module doc). An op with a
-/// value that is not a number is left alone, so the canvas still rejects it.
+/// `op` rounded to what the file holds (see the module doc), with each text
+/// frame [`Action::fitted`], so the line holds the box the canvas keeps. An
+/// op with a value that is not a number is left alone, so the canvas still
+/// rejects it.
 #[must_use]
 pub fn snap(op: Op) -> Op {
-    let action = match op.action {
+    let action = match op.action.fitted() {
         Action::Add { page, shape } => Action::Add { page, shape: snap_shape(&shape) },
         Action::Edit { item, shape } => Action::Edit { item, shape: snap_shape(&shape) },
         Action::Move { item, by } => Action::Move { item, by: snap_point(by) },

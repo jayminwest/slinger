@@ -9,6 +9,14 @@ bullet with the area in bold.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Canvas:** text added with `canvas apply` and no size now gets a box that
+  fits its words, so `canvas put --beside` it no longer lands on top of it.
+  Text already on a canvas with no box gets one when the canvas is read. A
+  `set` that changes the words and gives no `w` or `h` fits the box to the
+  new words.
+
 ### Added
 
 - **App:** the "send to agent" button. The `place-button` command

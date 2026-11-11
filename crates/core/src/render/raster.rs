@@ -104,14 +104,7 @@ impl Raster {
     /// character, wrapped at spaces to the frame's width when at least one
     /// cell fits, and at each `\n`.
     fn text(&mut self, text: &str, frame: Rect, colour: Colour) {
-        #[expect(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "floored, >= 1"
-        )]
-        let columns =
-            if frame.w >= TEXT_SIZE { (frame.w / TEXT_SIZE) as usize } else { usize::MAX };
-        let rows = wrap(text, columns);
+        let rows = wrap(text, columns(frame.w));
         let longest = rows.iter().map(Vec::len).max().unwrap_or(0);
         let cell = TEXT_SIZE * SCALE;
         let origin = self.at(Point::new(frame.x, frame.y));
@@ -264,6 +257,13 @@ fn arrow(from: Point, to: Point) -> Vec<Vec<Point>> {
         Point::new(to.x - rx * HEAD, to.y - ry * HEAD)
     };
     vec![vec![from, to], vec![side(1.0), to, side(-1.0)]]
+}
+
+/// How many characters a line of text holds in a frame `w` wide: as many
+/// cells as fit, or no limit when not one does (the text is drawn unwrapped).
+#[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "floored, >= 1")]
+pub(super) fn columns(w: f64) -> usize {
+    if w >= TEXT_SIZE { (w / TEXT_SIZE) as usize } else { usize::MAX }
 }
 
 /// Lines of characters: `text` cut at each `\n`, and wrapped at spaces to at

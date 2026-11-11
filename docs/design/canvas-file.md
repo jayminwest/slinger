@@ -196,7 +196,7 @@ kind:
 | `kind` | fields (lengths and positions in tenths of a unit) |
 |---|---|
 | `stroke` | `width`, `pts` (delta array, above, at least one pair) |
-| `text` | `x`, `y`, `w`, `h` (the frame the text is laid out in; `w` and `h` read as 0 when missing), `text` |
+| `text` | `x`, `y`, `w`, `h` (the frame the text is laid out in; `w` and `h` read as 0 when missing), `text`. A frame narrower than one character cell (24 units) gets the size of the text unwrapped; one with no height keeps its width and gets the height of the text wrapped to it. Readers and writers apply this rule, so a line written without a size replays to the same frame. |
 | `box` | `x`, `y`, `w`, `h` |
 | `arrow` | `pts` (delta array, two or more pairs); optional `from`, `to` (item ids it points at) |
 | `live` | `x`, `y`, `w`, `h` (both above 0), `ui` (the UI's name), `hash` (the blob id of the version shown), `open` (the showing, `pick-slot#12`) |
