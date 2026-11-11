@@ -24,8 +24,8 @@ pub const MAX_REPLY: usize = 16384;
 /// The most replies one showing sends.
 pub const MAX_REPLIES: usize = 100;
 
-/// Where a UI shows. A canvas item comes with live items (slinger-125a).
-const HOSTS: [&str; 1] = ["pane"];
+/// Where a UI shows: a pane of its own, or a live item on a canvas.
+pub const HOSTS: [&str; 2] = ["pane", "canvas"];
 
 /// One showing of a UI, as its `ui_opened` event records it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,13 +107,13 @@ impl Showing {
 ///
 /// # Errors
 ///
-/// [`Error::Invalid`] for a host that is not `pane`, or data over
+/// [`Error::Invalid`] for a host not in [`HOSTS`], or data over
 /// [`MAX_DATA`] bytes serialized.
 pub fn open(version: &Version, host: &str, data: Value) -> Result<UiOpened> {
     if !HOSTS.contains(&host) {
         return Err(invalid(
             format!("a UI cannot show as {host:?}"),
-            "open it as a pane: --as pane",
+            "open it as a pane (--as pane) or a canvas item (--as item)",
         ));
     }
     let size = data.to_string().len();
@@ -251,7 +251,8 @@ mod tests {
         assert_eq!(open(&version(), "pane", big).unwrap_err().code(), "invalid");
         let fits = json!("x".repeat(MAX_DATA - 2));
         assert!(open(&version(), "pane", fits).is_ok());
-        let err = open(&version(), "canvas", Value::Null).unwrap_err();
+        assert_eq!(open(&version(), "canvas", Value::Null).unwrap().host, "canvas");
+        let err = open(&version(), "window", Value::Null).unwrap_err();
         assert_eq!(err.code(), "invalid");
         assert!(err.hint().is_some());
     }

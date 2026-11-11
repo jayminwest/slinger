@@ -277,6 +277,10 @@ fn read(o: &Map<String, Value>) -> Option<Item> {
             Shape::Text { frame: text_frame(frame()?, &text), text, size: TEXT_SIZE }
         }
         "box" => Shape::Box { frame: frame()?, width: LINE_WIDTH },
+        "live" => {
+            let text = |key: &str| o.get(key).and_then(Value::as_str).map(str::to_string);
+            Shape::Live { frame: frame()?, name: text("ui")?, open: text("open")? }
+        }
         "arrow" => {
             let points = points(o.get("pts")?)?;
             let (&from, &to) = (points.first()?, points.last()?);
@@ -391,7 +395,8 @@ fn fields(shape: &Shape) -> Map<String, Value> {
                 }
             }
         }
-        Shape::Stroke { .. } => {}
+        // Only an agent makes or changes a live item.
+        Shape::Stroke { .. } | Shape::Live { .. } => {}
     }
     o
 }

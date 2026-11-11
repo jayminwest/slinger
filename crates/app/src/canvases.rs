@@ -11,9 +11,10 @@
 //! main thread and never waits: the followers, the outbox, the slinger and
 //! Flick's thread do.
 //!
-//! Each pane keeps its own page: a page followed once however many panes
-//! show it. The page commands, undo and redo are in [`paging`].
+//! Each pane keeps its own page, followed once however many panes show it:
+//! page commands, undo and redo are in [`paging`], live items' pages in [`live`].
 
+mod live;
 mod paging;
 
 use std::borrow::Cow;
@@ -59,6 +60,7 @@ pub struct Canvases {
     asks: Pages,
     /// The panes waiting for a new page, by the key of its `page.add`.
     turning: Vec<(u64, PaneId, String)>,
+    lives: live::Lives,
 }
 
 /// One canvas page followed: the page asked for (`None`: the first), as
@@ -89,7 +91,7 @@ impl Canvases {
         let (ink, select, sling) = (Ink::default(), Select::default(), Sling::default());
         let (open, views) = (Vec::new(), Vec::new());
         let (shapes, asks, turning) = (Shapes::default(), Pages::default(), Vec::new());
-        let (pen, unshown) = (None, None);
+        let (pen, unshown, lives) = (None, None, live::Lives::start(daemon.clone()));
         let voice = dictation::Voice::new(Flick::socket());
         Self {
             daemon,
@@ -106,6 +108,7 @@ impl Canvases {
             unshown,
             asks,
             turning,
+            lives,
         }
     }
 
@@ -114,6 +117,7 @@ impl Canvases {
     pub fn reconnect(&mut self, daemon: Client) {
         self.outbox.reconnect(daemon.clone());
         self.slinger.reconnect(daemon.clone());
+        self.lives = live::Lives::start(daemon.clone());
         self.daemon = daemon;
         self.open.clear();
     }
@@ -148,8 +152,8 @@ impl Canvases {
         for (canvas, page, next) in lost {
             self.gone(&canvas, &page, next.as_deref());
         }
-        let (sent, dictated) = (self.send(), self.poll_dictation());
-        self.poll_sling() || sent || changed || dictated
+        let (sent, dictated, came) = (self.send(), self.poll_dictation(), self.lives.poll());
+        self.poll_sling() || sent || changed || dictated || came
     }
 
     /// Takes the daemon's answers to the ink (a pane that asked for a new
@@ -197,8 +201,8 @@ impl Canvases {
     /// ends it; else the pen starts a stroke on the page the pane shows, the
     /// eraser an erase, the lasso a loop or a drag of the selection, the
     /// text tool a text, the box and arrow tools a drag. Returns false, and
-    /// nothing starts, for touch (a palm) or a pane whose canvas page has
-    /// not arrived.
+    /// nothing starts, for touch (a palm), a pane whose canvas page has
+    /// not arrived, or a press on a live item's page outside the selection.
     pub fn pen_down(
         &mut self,
         panes: &Panes,
@@ -217,7 +221,9 @@ impl Canvases {
         let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
         let press = Press { at, when: pen.when, zoom: viewport.zoom() };
         let here = (canvas, shown.as_str());
-        if self.shapes.down((tool, colour), here, press, &items, &mut self.ink) {
+        if self.lives.under(&items, at) && !self.select.grabs(here, at, viewport.zoom(), &items) {
+            return false;
+        } else if self.shapes.down((tool, colour), here, press, &items, &mut self.ink) {
             drop(items);
             self.send();
         } else if tool == Tool::Pen {

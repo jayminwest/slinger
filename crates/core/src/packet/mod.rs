@@ -182,6 +182,7 @@ impl<'a> Page<'a> {
             Shape::Text { .. } => "t",
             Shape::Box { .. } => "b",
             Shape::Arrow { .. } => "a",
+            Shape::Live { .. } => "l",
         };
         Some(format!("{prefix}{}", item.get()))
     }
@@ -235,6 +236,11 @@ impl<'a> Page<'a> {
                 ("arrow", None)
             }
             Shape::Stroke { .. } => ("ink", None),
+            // An agent UI goes as text (R2): its name and its showing.
+            Shape::Live { ui, open, .. } => {
+                fields.extend([("ui", ui.clone()), ("open", open.clone())]);
+                ("live", None)
+            }
         };
         let frame = item.bounds();
         fields.extend(self.container(n, frame).map(|b| ("in", b)));

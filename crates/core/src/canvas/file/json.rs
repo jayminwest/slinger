@@ -145,6 +145,7 @@ fn rect(o: Obj, r: Rect) -> Obj {
 
 /// Writes a shape's fields into `o`: `kind`, `color`, then the kind's own.
 /// A stroke's width is at least one tenth, so a thin stroke stays drawable.
+/// A live item has no colour: its page draws itself.
 pub(super) fn shape(o: Obj, s: &Shape) -> Obj {
     match s {
         Shape::Stroke { points, colour: c, width } => o
@@ -168,6 +169,9 @@ pub(super) fn shape(o: Obj, s: &Shape) -> Obj {
                 o = o.str("to", &item_id(i));
             }
             o
+        }
+        Shape::Live { frame, ui, hash, open } => {
+            rect(o.str("kind", "live"), *frame).str("ui", ui).str("hash", hash).str("open", open)
         }
     }
 }
@@ -233,11 +237,16 @@ pub(super) fn fields(s: &Shape) -> Fields {
 /// kind this reader does not know.
 pub(super) fn read_shape(m: &Fields) -> Result<Option<Shape>, Bad> {
     let kind = text(m, "kind")?;
+    let at = |key| int(m, key).map(units);
+    if kind == "live" {
+        let frame = Rect::new(at("x")?, at("y")?, at("w")?, at("h")?);
+        let [ui, hash, open] = ["ui", "hash", "open"].map(|k| text(m, k).map(str::to_owned));
+        return Ok(Some(Shape::Live { frame, ui: ui?, hash: hash?, open: open? }));
+    }
     if !matches!(kind, "stroke" | "text" | "box" | "arrow") {
         return Ok(None);
     }
     let colour = parse_colour(text(m, "color")?);
-    let at = |key| int(m, key).map(units);
     let shape = match kind {
         "stroke" => Shape::Stroke { points: parse_pts(m)?, colour, width: units(int(m, "width")?) },
         "text" => {

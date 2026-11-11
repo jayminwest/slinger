@@ -1,16 +1,17 @@
 //! `ui_open`, `ui_shown` and `ui_reply`: showings of agent UIs as they
 //! cross the socket. The core decides what a showing is and what a reply
 //! sends; a showing lives in the record as its `ui_opened` event, and its
-//! pane names it by id.
+//! pane or live item names it by id.
 
 use serde_json::Value;
 use slinger_control::{self as control, RemoteError, Reply, UiAsk, UiOpen};
-use slinger_core::record::{Body, Event, Tags};
+use slinger_core::canvas::file::{Placed, Put};
+use slinger_core::record::{Body, Event, Tags, UiOpened};
 use slinger_core::session::{self, stream};
 use slinger_core::ui::showing::{self, Showing};
 use slinger_core::workspace::panes::{Axis, Kind, Pane};
 
-use super::{catalog, kept, pane, remote, stored, wire_ui};
+use super::{catalog, drawn, kept, pane, remote, stored, wire_ui};
 use crate::store::{Query, Store};
 
 pub fn answer(store: &Store, ask: UiAsk) -> Result<Reply, RemoteError> {
@@ -21,12 +22,17 @@ pub fn answer(store: &Store, ask: UiAsk) -> Result<Reply, RemoteError> {
     }
 }
 
-/// Records the showing, then opens its pane. Everything that could refuse
-/// the pane is checked first, so a refused open records nothing.
-fn open(store: &Store, ask: UiOpen) -> Result<Reply, RemoteError> {
+/// Records the showing, then opens its pane or puts its live item.
+/// Everything that could refuse the pane is checked first, so a refused
+/// open records nothing.
+fn open(store: &Store, mut ask: UiOpen) -> Result<Reply, RemoteError> {
     session::check_agent(&ask.agent).map_err(|e| remote(&e))?;
     let version = catalog(store)?.resolve(&ask.ui).map_err(|e| remote(&e))?.clone();
-    let body = showing::open(&version, &ask.host, ask.data).map_err(|e| remote(&e))?;
+    let data = std::mem::take(&mut ask.data);
+    let body = showing::open(&version, &ask.host, data).map_err(|e| remote(&e))?;
+    if ask.host == "canvas" {
+        return live(store, &ask, &version, body);
+    }
     let (opened, mut layout, ()) =
         store.workspaces().panes(&ask.workspace, |_| Ok(())).map_err(|e| kept(&e))?;
     let axis = if ask.below { Axis::Column } else { Axis::Row };
@@ -46,7 +52,63 @@ fn open(store: &Store, ask: UiOpen) -> Result<Reply, RemoteError> {
         open: showing.open,
         ui: wire_ui(&version),
         workspace: opened.workspace.name,
-        pane,
+        pane: Some(pane),
+        item: None,
+        event: event.number.unwrap_or_default(),
+    }))
+}
+
+/// Records the showing and puts its live item beside `ask.item` on
+/// `ask.canvas`. The record's append runs under the canvas's lock once the
+/// put is known to go, so a refused open records nothing.
+fn live(
+    store: &Store,
+    ask: &UiOpen,
+    version: &slinger_core::ui::Version,
+    body: UiOpened,
+) -> Result<Reply, RemoteError> {
+    let (Some(canvas), Some(beside)) = (ask.canvas.as_deref(), ask.item.as_deref()) else {
+        let hint = "name the canvas and the item it goes beside: --canvas C --beside ITEM";
+        return Err(RemoteError::new(
+            "invalid",
+            "a live item needs a canvas and an item",
+            Some(hint.into()),
+        ));
+    };
+    let [w, h] = ask.size.unwrap_or(control::LIVE_SIZE);
+    let (ui, hash, open) = (version.name.clone(), version.hash.to_string(), String::new());
+    let what = Put::Live { ui, hash, open, w, h };
+    let tags =
+        Tags { agent: Some(ask.agent.clone()), canvas: Some(canvas.to_string()), ..Tags::on("") };
+    let event = Event::new(0, ask.agent.clone(), tags, Body::UiOpened(body));
+    let mut recorded = Err(internal("ui_opened not recorded"));
+    let placed = store
+        .canvases()
+        .put_when(canvas, &ask.agent, beside, what, |what| {
+            recorded = store.append(event).map_err(|e| stored(&e));
+            let showing = recorded.as_ref().ok().and_then(Showing::of);
+            match (showing, what) {
+                (Some(showing), Put::Live { open, .. }) => {
+                    *open = showing.open;
+                    true
+                }
+                _ => false,
+            }
+        })
+        .map_err(|e| drawn(&e))?;
+    let event = recorded?;
+    let showing = Showing::of(&event).ok_or_else(|| internal("ui_opened not numbered"))?;
+    let Some(Placed { written, item, page, frame: [x, y, w, h] }) = placed else {
+        return Err(internal("ui_opened not numbered"));
+    };
+    let seq = written.seq.first().copied().unwrap_or_default();
+    let canvas = canvas.to_string();
+    Ok(Reply::UiOpen(control::UiOpened {
+        open: showing.open,
+        ui: wire_ui(version),
+        workspace: showing.workspace.unwrap_or_default(),
+        pane: None,
+        item: Some(control::LiveItem { canvas, item, page, x, y, w, h, seq }),
         event: event.number.unwrap_or_default(),
     }))
 }

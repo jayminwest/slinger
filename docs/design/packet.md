@@ -150,7 +150,8 @@ their boxes overlap vertically by at least half the shorter height. Rows are
 formed from the top: the topmost line not yet placed starts a row, and every
 line that overlaps it that much joins the row.
 
-**Kinds**: `ink` (a cluster of strokes), `text`, `box`, `arrow`. Ink in the
+**Kinds**: `ink` (a cluster of strokes), `text`, `box`, `arrow`, `live` (an
+agent UI on the canvas: always text, never an image). Ink in the
 `page` section is clustered the same way as new ink, and has no image. A
 stroke an agent drew is never clustered and never an image (R2): it is an
 `ink` line of one stroke, with `by`.
@@ -168,7 +169,7 @@ long edge is over 6 size units (a frame, an arrow, a divider) joins nothing
 and is a cluster of its own (Spike B findings 1 and 2).
 
 **Ids**: canvas items keep their canvas item number behind a letter for their
-kind (`t12`, `b9`, `a13`). A cluster's id is `c` plus the item number of its
+kind (`t12`, `b9`, `a13`, `l14`). A cluster's id is `c` plus the item number of its
 earliest stroke, so it stays the same across packets while that stroke does,
 and no two lines in a packet share a number. An arrow end bound to a stroke
 names the stroke's cluster.
@@ -182,6 +183,7 @@ names the stroke's cluster.
 | `by` | made items | the agent's name |
 | `from`, `to` | arrow | ids at the arrow's ends, when bound |
 | `to` | ink | the id an arrow drawn in this cluster points at: the first arrow whose start is bound to one of its strokes |
+| `ui`, `open` | live | the UI's name and the showing's id (`pick-slot#12`) |
 | `in` | any | the id of the smallest other box that contains this item's box |
 | `img` | ink in `new` | image file names, comma-separated, tiles in reading order |
 
@@ -194,7 +196,8 @@ up), ink in its own colour on white, with a 16 canvas unit margin. Names are
 tiles of at most 1568 px a side that overlap by 64 px, named `<id>-1.png`,
 `<id>-2.png`, ... in reading order. `slinger_core::render` draws them and
 holds these numbers as constants. A line is never thinner than 1 px. A crop
-(below) draws every kind: boxes and arrows as 2-unit lines, text in an 8 by 8
+(below) draws every kind: boxes, arrows and live items' boxes as 2-unit lines (a
+live item with its UI's name inside), text in an 8 by 8
 bitmap font at 24 canvas units a character, wrapped at spaces to its frame.
 
 **Nothing new** (B4): both `new` and `made` are empty and `from` is greater

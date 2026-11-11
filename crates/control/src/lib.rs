@@ -36,7 +36,7 @@ pub use packet::{CanvasPacket, PacketAsk, PacketImage};
 pub use pane::{Pane, PaneAsk, PaneKind, PaneLayout, PaneSplit, PaneTree};
 pub use session::{FileTouched, Session, SessionAsk, SessionInfo, Sessions, StatusSet, Touched};
 pub use sling::{SlingAsk, Slung};
-pub use ui::{UiAsk, UiOpen, UiOpened, UiReplied, UiShown};
+pub use ui::{LIVE_SIZE, LiveItem, UiAsk, UiOpen, UiOpened, UiReplied, UiShown};
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
 pub use workspace::{
     Workspace, WorkspaceAgent, WorkspaceClosed, WorkspaceInfo, WorkspaceOpened, WorkspaceRoot,

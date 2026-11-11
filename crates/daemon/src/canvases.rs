@@ -242,6 +242,33 @@ impl Canvases {
         self.change(id, |log| Ok(log.put(&by, now(), beside, what)?))
     }
 
+    /// Puts `what` as [`Canvases::put`] does, once [`Log::check_put`] says it
+    /// would go: `ready` runs then, under the canvas's lock, and fills in
+    /// what the put needs made first (a live item's showing). `None`, and
+    /// nothing put, when `ready` says no; so what `ready` records is never
+    /// left without its item by a check that fails.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`Log::put`] and of reading and writing the file.
+    pub fn put_when(
+        &self,
+        id: &str,
+        agent: &str,
+        beside: &str,
+        mut what: Put,
+        ready: impl FnOnce(&mut Put) -> bool,
+    ) -> Result<Option<Placed>> {
+        let by = Author::Agent(agent.into());
+        self.change(id, |log| {
+            log.check_put(beside, &what)?;
+            if !ready(&mut what) {
+                return Ok(None);
+            }
+            Ok(Some(log.put(&by, now(), beside, &what)?))
+        })
+    }
+
     /// Changes the item `item` names, as `agent` (see [`Log::edit`]).
     ///
     /// # Errors
@@ -360,6 +387,14 @@ impl Wrote for Written {
 impl Wrote for Placed {
     fn written(&self) -> &Written {
         &self.written
+    }
+}
+
+impl Wrote for Option<Placed> {
+    fn written(&self) -> &Written {
+        const NOTHING: &Written =
+            &Written { bytes: String::new(), seq: Vec::new(), made: Vec::new() };
+        self.as_ref().map_or(NOTHING, |placed| &placed.written)
     }
 }
 

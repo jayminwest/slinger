@@ -55,7 +55,7 @@ fn shape(rng: &mut Rng, items: &[ItemId]) -> Shape {
         let size = rng.point();
         Rect::new(rng.coord(), rng.coord(), size.x.abs(), size.y.abs())
     };
-    match rng.below(4) {
+    match rng.below(5) {
         0 => Shape::Stroke {
             points: (0..=rng.below(30)).map(|_| rng.point()).collect(),
             colour: colour(rng),
@@ -67,6 +67,12 @@ fn shape(rng: &mut Rng, items: &[ItemId]) -> Shape {
             colour: colour(rng),
         },
         2 => Shape::Box { frame: frame(rng), colour: colour(rng) },
+        3 => Shape::Live {
+            frame: frame(rng),
+            ui: rng.pick(&["pick-slot", "a"]).to_string(),
+            hash: format!("sha256:{:064x}", rng.next()),
+            open: format!("pick-slot#{}", rng.below(99)),
+        },
         _ => {
             let end = |rng: &mut Rng| {
                 let item = (!items.is_empty() && rng.below(2) == 0).then(|| rng.pick(items));

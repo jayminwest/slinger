@@ -204,6 +204,11 @@ pub enum Shape {
     Box { frame: Rect, colour: Colour },
     /// A straight arrow from one end to the other.
     Arrow { from: End, to: End, colour: Colour },
+    /// A live item (docs/design/live-items.md): an agent UI drawn in
+    /// `frame`, one CSS pixel a canvas unit. `ui` is the UI's name, `hash`
+    /// the blob id of the exact code it shows (D19) and `open` the showing
+    /// it belongs to (`<name>#<n>`), whose data and agent its context gives.
+    Live { frame: Rect, ui: String, hash: String, open: String },
 }
 
 impl Shape {
@@ -215,7 +220,9 @@ impl Shape {
             Shape::Stroke { points, width, .. } => {
                 Rect::around(points.iter().copied()).unwrap_or_default().grown(width / 2.0)
             }
-            Shape::Text { frame, .. } | Shape::Box { frame, .. } => *frame,
+            Shape::Text { frame, .. } | Shape::Box { frame, .. } | Shape::Live { frame, .. } => {
+                *frame
+            }
             Shape::Arrow { from, to, .. } => Rect::around([from.at, to.at]).unwrap_or_default(),
         }
     }
@@ -234,7 +241,9 @@ impl Shape {
         let mut s = self.clone();
         match &mut s {
             Shape::Stroke { points, .. } => points.iter_mut().for_each(|p| *p = p.shifted(by)),
-            Shape::Text { frame, .. } | Shape::Box { frame, .. } => *frame = frame.shifted(by),
+            Shape::Text { frame, .. } | Shape::Box { frame, .. } | Shape::Live { frame, .. } => {
+                *frame = frame.shifted(by);
+            }
             Shape::Arrow { from, to, .. } => {
                 from.at = from.at.shifted(by);
                 to.at = to.at.shifted(by);
@@ -263,6 +272,18 @@ impl Shape {
             }
             Shape::Text { frame, .. } => frame.check("the text frame"),
             Shape::Box { frame, .. } => frame.check("the box"),
+            Shape::Live { frame, ui, hash, open } => {
+                frame.check("the live item")?;
+                crate::ui::check_name(ui)?;
+                hash.parse::<crate::record::BlobId>()?;
+                if crate::ui::showing::number(open).is_none() {
+                    return Err(invalid(
+                        format!("`{open}` is not a showing's id"),
+                        "a showing's id is <name>#<number>, as 'slinger ui open' prints it",
+                    ));
+                }
+                Ok(())
+            }
             Shape::Arrow { from, to, .. } => {
                 if from.at.is_finite() && to.at.is_finite() {
                     Ok(())

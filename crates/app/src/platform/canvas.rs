@@ -34,7 +34,7 @@ use objc2_foundation::{
 use super::{Event, color, dispatch};
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
-use crate::scene::canvas::{ItemId, Mark, Scene};
+use crate::scene::canvas::{Draw, ItemId, Mark, Scene};
 
 /// How tall a text column may grow, in canvas points: text is never cut.
 const TALL: f64 = 1e7;
@@ -116,7 +116,8 @@ impl CanvasView {
             unpainted.set(Some(unpainted.get().map_or(when, |t| t.min(when))));
         }
         self.ivars().texts.borrow_mut().retain(|id, _| {
-            scene.draws.iter().any(|d| d.id == *id && matches!(d.mark, Mark::Text { .. }))
+            let laid = |d: &Draw| matches!(d.mark, Mark::Text { .. } | Mark::Live { .. });
+            scene.draws.iter().any(|d| d.id == *id && laid(d))
         });
         let first = self.ivars().scene.replace(Some(scene)).is_none();
         if moved || first {
@@ -172,14 +173,24 @@ fn paint(scene: &Scene, dirty: NSRect, texts: &mut HashMap<ItemId, Laid>) {
             }
             Mark::Text { at, width, text, size, zoom } => {
                 let from = (text.clone(), *width, *size, draw.colour);
-                let laid = match texts.get(&draw.id) {
-                    Some(laid) if laid.from == from => laid,
-                    _ => texts.entry(draw.id).insert_entry(lay_out(from)).into_mut(),
-                };
-                draw_text(laid, *at, *zoom);
+                draw_text(laid(texts, draw.id, from), *at, *zoom);
+            }
+            Mark::Live { frame, name, at, size, zoom, .. } => {
+                NSBezierPath::bezierPathWithRect(ns_rect(*frame)).stroke();
+                let from = (name.clone(), frame.width / zoom, *size, draw.colour);
+                draw_text(laid(texts, draw.id, from), *at, *zoom);
             }
         }
     }
+}
+
+/// The text `from` laid out, kept for item `id`: laid out again only when
+/// it changed.
+fn laid(texts: &mut HashMap<ItemId, Laid>, id: ItemId, from: TextOf) -> &Laid {
+    if texts.get(&id).is_none_or(|laid| laid.from != from) {
+        texts.insert(id, lay_out(from));
+    }
+    &texts[&id]
 }
 
 /// An empty path for a line `width` points wide, with round ends and corners.

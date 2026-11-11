@@ -1,5 +1,6 @@
-//! How an agent answers on a canvas (SPEC section 7): text, a box or an
-//! arrow, put beside an item it names, where it covers nothing.
+//! How an agent answers on a canvas (SPEC section 7): text, a box, an
+//! arrow or a live item (an agent UI), put beside an item it names, where
+//! it covers nothing.
 //!
 //! The item named takes ids as `crop` does (`i12`, or a packet's `c12`,
 //! `t12`): `c<n>` on the user's ink is the whole cluster. The new item goes
@@ -28,6 +29,9 @@ pub enum Put {
     Box { w: i64, h: i64 },
     /// An arrow from one item to another.
     Arrow { from: String, to: String },
+    /// A live item: the showing `open` of the UI `ui`, whose code is the blob
+    /// `hash`, drawn in a box `w` by `h` tenths of a unit.
+    Live { ui: String, hash: String, open: String, w: i64, h: i64 },
 }
 
 /// What a put made.
@@ -45,30 +49,32 @@ pub struct Placed {
 
 impl Log {
     /// Puts `what` beside the item `beside` names, as `by` at `at`.
+    /// [`Log::check_put`] says first whether it would go.
     ///
     /// # Errors
     ///
     /// `not_found` for an item that is not on the canvas, and `invalid` for
-    /// an id that is not one, blank text, a box of a negative size, an arrow
-    /// to an item on another page, or an author that may not add.
+    /// an id that is not one, blank text, a box of a negative size, a live
+    /// item of no area, an arrow to an item on another page, a live item
+    /// that is not one, or an author that may not add.
     pub fn put(&mut self, by: &Author, at: Time, beside: &str, what: &Put) -> Result<Placed> {
+        self.check_put(beside, what)?;
         let (_, near, page) = self.named(beside)?;
         let shape = match what {
             Put::Text(text) => {
-                if text.trim().is_empty() {
-                    return Err(invalid("the text is blank", "pass the words to put"));
-                }
                 let (w, h) = render::text_size(text, TEXT_COLUMNS);
                 let frame = self.canvas().free_beside(page, near, w, h);
                 Shape::Text { text: text.clone(), frame, colour: Colour::BLACK }
             }
             Put::Box { w, h } => {
                 let (w, h) = (json::units(*w), json::units(*h));
-                if w < 0.0 || h < 0.0 {
-                    return Err(invalid("the box has a size below zero", "give w,h of 0 or more"));
-                }
                 let frame = self.canvas().free_beside(page, near, w, h);
                 Shape::Box { frame, colour: Colour::BLACK }
+            }
+            Put::Live { ui, hash, open, w, h } => {
+                let (w, h) = (json::units(*w), json::units(*h));
+                let frame = self.canvas().free_beside(page, near, w, h);
+                Shape::Live { frame, ui: ui.clone(), hash: hash.clone(), open: open.clone() }
             }
             Put::Arrow { from, to } => {
                 let ((from, a, on_a), (to, b, on_b)) = (self.named(from)?, self.named(to)?);
@@ -87,6 +93,31 @@ impl Log {
         let frame = made.map(Item::bounds).unwrap_or_default();
         let frame = [frame.x, frame.y, frame.w, frame.h].map(json::tenths);
         Ok(Placed { written, item, page: json::page_id(page), frame })
+    }
+
+    /// Whether a put of `what` beside the item `beside` names would go, as
+    /// far as can be told before what it needs is made (the showing a live
+    /// item names): the item is there, the text is not blank, a box's size
+    /// is not below zero and a live item has an area.
+    ///
+    /// # Errors
+    ///
+    /// As [`Log::put`]'s for those.
+    pub fn check_put(&self, beside: &str, what: &Put) -> Result<()> {
+        self.named(beside)?;
+        match what {
+            Put::Text(text) if text.trim().is_empty() => {
+                Err(invalid("the text is blank", "pass the words to put"))
+            }
+            Put::Box { w, h } if *w < 0 || *h < 0 => {
+                Err(invalid("the box has a size below zero", "give w,h of 0 or more"))
+            }
+            Put::Live { w, h, .. } if *w <= 0 || *h <= 0 => Err(invalid(
+                "a live item has no area",
+                "give a size above 0, such as --size 3200,2400",
+            )),
+            _ => Ok(()),
+        }
     }
 
     /// The item an id names, the box around what it names (a whole cluster

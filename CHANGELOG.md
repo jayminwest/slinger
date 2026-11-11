@@ -11,6 +11,17 @@ bullet with the area in bold.
 
 ### Added
 
+- **Agent UIs:** live items. `slinger ui open <UI> --as item --canvas <C>
+  --beside <ITEM> [--size W,H] [--data JSON]` puts an agent's UI on a canvas,
+  beside an item, instead of in a pane. It prints the showing's id and the
+  item's id. In the app the UI moves and scales with the canvas as you pan
+  and zoom, and it is cut off at its pane's edge. Click into it to use it;
+  lasso it to select it, then drag it or delete it like any item, and undo
+  either. Until its page has loaded, the item shows its box and the UI's
+  name. A packet lists it as a `live` line, never an image. Older versions
+  of slinger skip a live item when they read the canvas.
+- **App:** `slinger-app --preview <UI> --as item` shows a UI as a live item
+  would show it.
 - **App:** sling from the window. With items selected on the focused
   canvas, the `sling` command (`cmd+return`) opens a one-line prompt at the
   selection. Return sends the selection and the prompt (an empty one too) to

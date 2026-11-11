@@ -101,7 +101,7 @@ pub fn check(name: &str, code: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn check_name(name: &str) -> Result<()> {
+pub(crate) fn check_name(name: &str) -> Result<()> {
     let ok = name.len() <= MAX_NAME
         && name.starts_with(|c: char| c.is_ascii_lowercase())
         && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');

@@ -7,7 +7,9 @@
 //! against a TCP listener this test owns and against `/etc/hosts`, then
 //! replies with what each attempt saw. The test passes when the reply came,
 //! no attempt got out, the policy on the response was in force, and the
-//! listener saw no connection.
+//! listener saw no connection. It runs twice: as a pane, and as a live
+//! item on a canvas (`--as item`), whose view sits in a clip, zoomed.
+#![cfg(test)]
 
 use std::io::{BufRead, BufReader};
 use std::net::TcpListener;
@@ -22,6 +24,13 @@ use slinger_control::Client;
 
 #[test]
 fn a_ui_reaches_neither_the_network_nor_a_file() {
+    escapes_nothing(&[], "pane");
+    escapes_nothing(&["--as", "item"], "canvas");
+}
+
+/// Runs the escape UI with `more` arguments and checks it got nowhere, and
+/// that its context says it is in `host`.
+fn escapes_nothing(more: &[&str], host: &str) {
     // Counts every connection to a listener on a free local port.
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -34,7 +43,7 @@ fn a_ui_reaches_neither_the_network_nor_a_file() {
         }
     });
     // A daemon of the test's own.
-    let socket = std::env::temp_dir().join(format!("sb-{}.sock", std::process::id()));
+    let socket = std::env::temp_dir().join(format!("sb-{}-{host}.sock", std::process::id()));
     let data = tempfile::tempdir().unwrap();
     let store = slingerd::Store::open(data.path(), "my-laptop").unwrap();
     let server = slingerd::Server::bind(&socket).unwrap();
@@ -48,6 +57,7 @@ fn a_ui_reaches_neither_the_network_nor_a_file() {
         std::fs::write(&file, format!("[daemon]\nsocket = \"{}\"\n", socket.display())).unwrap();
         let mut app = Command::new(env!("CARGO_BIN_EXE_slinger-app"))
             .args(["--preview", "escape", "--data", &json!({"port": port}).to_string()])
+            .args(more)
             .env("SLINGER_CONFIG", &file)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -83,6 +93,7 @@ fn a_ui_reaches_neither_the_network_nor_a_file() {
     let value = &reply["value"];
     assert_eq!(value["context"]["data"], json!({"port": port}), "the UI read its context");
     assert_eq!(value["context"]["ui"]["hash"], reply["hash"]);
+    assert_eq!(value["context"]["host"], json!(host));
     let seen = value["seen"].as_object().unwrap();
     for (attempt, outcome) in seen {
         let outcome = outcome.to_string();
