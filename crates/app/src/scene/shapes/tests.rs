@@ -1,9 +1,17 @@
 use super::*;
+use crate::scene::canvas::Mark;
 use crate::scene::select::Select;
 
 const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
 const BLUE: Rgb = Rgb { r: 0, g: 0, b: 255 };
 const HERE: (&str, &str) = ("main", "p1");
+const THEME: Theme = Theme {
+    background: Rgb { r: 0, g: 0, b: 0 },
+    text: Rgb { r: 1, g: 1, b: 1 },
+    muted: Rgb { r: 2, g: 2, b: 2 },
+    error: Rgb { r: 3, g: 3, b: 3 },
+    focus: Rgb { r: 4, g: 4, b: 4 },
+};
 
 fn pt(x: f64, y: f64) -> Point {
     Point { x, y }
@@ -100,15 +108,15 @@ fn a_tap_places_a_text_the_keyboard_types_and_escape_ends_as_one_add() {
     assert!(shapes.typed("\u{f700}\t", &mut ink), "an arrow key and a tab type nothing");
     assert!(shapes.typed("x\u{7f}", &mut ink), "delete takes the last back");
     assert!(shapes.typed("\ryou", &mut ink));
-    let showing = shapes.shown(HERE, Vec::new());
-    let [Cow::Owned(Item { colour: RED, shape: Shape::Text { text, frame: at, .. }, .. })] =
+    let showing = shapes.shown(HERE, Vec::new(), 1.0, &THEME);
+    let [Cow::Owned(Item { colour: RED, shape: Shape::Text { text, frame: at, .. }, .. }), ..] =
         showing.as_slice()
     else {
         panic!("{showing:?}")
     };
-    assert_eq!(text, "Hi\nyou|", "the caret follows the text");
+    assert_eq!(text, "Hi\nyou");
     assert_eq!((at.x, at.y), (10.0, 200.0), "the tap is the middle of the first line");
-    assert!(shapes.shown(("main", "p2"), Vec::new()).is_empty(), "only on its page");
+    assert!(shapes.shown(("main", "p2"), Vec::new(), 1.0, &THEME).is_empty(), "only on its page");
     assert!(changes(&mut ink).is_empty(), "nothing is sent while typing");
 
     assert!(shapes.typed("\u{1b}", &mut ink));
@@ -197,11 +205,11 @@ fn the_text_tool_on_a_text_edits_it_as_one_set_or_a_remove_when_emptied() {
     let items = page();
     let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
     assert!(down(&mut shapes, &mut ink, Tool::Text, (310.0, 10.0), 0.0, &items));
-    let showing = shapes.shown(HERE, shown(&items));
+    let showing = shapes.shown(HERE, shown(&items), 1.0, &THEME);
     assert!(!showing.iter().any(|i| i.id == ItemId(2)), "the text shows only as edited");
-    let edited = showing.last().unwrap();
+    let edited = showing.iter().find(|i| i.id == EDITING).unwrap();
     assert_eq!(edited.colour, BLUE, "it keeps its colour");
-    assert!(matches!(&edited.shape, Shape::Text { text, .. } if text == "plan|"));
+    assert!(matches!(&edited.shape, Shape::Text { text, .. } if text == "plan"));
     shapes.typed("s", &mut ink);
     shapes.typed("\u{1b}", &mut ink);
     let text = "plans".to_string();
@@ -269,12 +277,12 @@ fn a_box_is_a_drag_from_corner_to_corner_either_way() {
     let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
     assert!(down(&mut shapes, &mut ink, Tool::Box, (50.0, 60.0), 0.0, &[]));
     assert!(shapes.drag(pt(10.04, 20.0)));
-    let showing = shapes.shown(HERE, Vec::new());
+    let showing = shapes.shown(HERE, Vec::new(), 1.0, &THEME);
     assert!(matches!(&showing[..], [i] if i.colour == RED && matches!(i.shape, Shape::Box { .. })));
     assert!(shapes.up(None, &[], &mut ink));
     let frame = frame(10.0, 20.0, 40.0, 40.0);
     assert_eq!(changes(&mut ink), vec![put(Shape::Box { frame, width: LINE_WIDTH })]);
-    assert!(shapes.shown(HERE, Vec::new()).is_empty(), "the lift took it off");
+    assert!(shapes.shown(HERE, Vec::new(), 1.0, &THEME).is_empty(), "the lift took it off");
     assert!(!shapes.up(None, &[], &mut ink), "nothing under the pen");
 
     // A tap, or a drag shorter than the least, makes nothing.
@@ -344,9 +352,9 @@ fn an_arrow_bound_to_a_moved_item_follows_it() {
     }
     select.up(None, &view, &mut ink);
     assert!(select.down(Tool::Lasso, HERE, pt(50.0, 50.0), 1.0, &view));
-    let dragging = select.shown(HERE, shown(&items), 1.0, RED);
+    let dragging = select.shown(HERE, shown(&items), 1.0, &THEME);
     select.drag(pt(60.0, 45.0), &view);
-    let dragging2 = select.shown(HERE, shown(&items), 1.0, RED);
+    let dragging2 = select.shown(HERE, shown(&items), 1.0, &THEME);
     assert_ne!(dragging, dragging2);
     let arrow = dragging2.iter().find(|i| i.id == ItemId(4)).unwrap();
     assert!(
@@ -357,4 +365,37 @@ fn an_arrow_bound_to_a_moved_item_follows_it() {
     let [Change::Move { ids, follow: follows, .. }] = &changes(&mut ink)[..] else { panic!() };
     assert_eq!(ids, &vec![ItemId(1)]);
     assert_eq!(follows.iter().map(|i| i.id.0).collect::<Vec<_>>(), [4, 5]);
+}
+
+#[test]
+fn a_text_being_typed_shows_its_caret_frame_and_hint_sized_for_the_screen() {
+    let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
+    assert!(down(&mut shapes, &mut ink, Tool::Text, (10.0, 215.6), 0.0, &[]));
+    shapes.typed("Hi", &mut ink);
+    let showing = shapes.shown(HERE, Vec::new(), 2.0, &THEME);
+    let ids: Vec<ItemId> = showing.iter().map(|i| i.id).collect();
+    assert_eq!(ids, [EDITING, CARET_ID, FRAME_ID, HINT_ID], "the chrome draws over the text");
+    let text = frame(10.0, 200.0, 48.0, 31.2);
+    let caret = Shape::Caret { frame: text, text: "Hi".into(), size: TEXT_SIZE, width: 1.0 };
+    assert_eq!((showing[1].colour, &showing[1].shape), (THEME.focus, &caret), "2 points at zoom 2");
+    let around = text.outset(2.0);
+    let dashed = Shape::Panel { frame: around, fill: None, width: 0.5, dashed: true };
+    assert_eq!((showing[2].colour, &showing[2].shape), (THEME.muted, &dashed));
+    let Shape::Text { frame: under, text, size } = &showing[3].shape else { panic!() };
+    assert_eq!((text.as_str(), *size), ("esc or a tap outside ends the text", 5.5));
+    assert_eq!(showing[3].colour, THEME.muted);
+    assert_eq!((under.x, under.y), (around.x, around.y + around.height + 2.0), "under the frame");
+
+    // At zoom 2 the canvas draws them at screen size: the caret is 2 points wide.
+    let items = showing.iter().map(AsRef::as_ref);
+    let view = crate::layout::Viewport::default().zoom_about(pt(0.0, 0.0), 2.0);
+    let screen = crate::layout::Size { width: 800.0, height: 600.0 };
+    let drawn = crate::scene::canvas::build(items, view, screen, &THEME, None);
+    let marks: Vec<&Mark> = drawn.draws.iter().map(|d| &d.mark).collect();
+    let two = |w: f64| (w - 2.0).abs() < 1e-9;
+    assert!(marks.iter().any(|m| matches!(m, Mark::Caret { width, .. } if two(*width))));
+    assert!(marks.iter().any(|m| matches!(m, Mark::Panel { dashed: true, .. })));
+
+    shapes.typed("\u{1b}", &mut ink);
+    assert!(shapes.shown(HERE, Vec::new(), 2.0, &THEME).is_empty(), "ending takes it all off");
 }

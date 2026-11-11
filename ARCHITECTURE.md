@@ -326,7 +326,10 @@ scene.rs     decides what the window shows: each pane's placeholder, an
              show, a note over a UI pane whose agent did not take its reply,
              one focus border (only with two panes or more), problems in the
              focused pane, and the sidebar's rows (each with its font) and
-             notice. No other chrome (SPEC P6). Pure.
+             notice. A canvas pane's chrome is decided with its gestures: the
+             selection's box, handles and count (`select`), a text being
+             typed's caret, frame and hint (`shapes`). Every state shows,
+             nothing else (SPEC P6). Pure.
 ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
              slinger-ui://<hex>/ with the policy), the sandbox's constants
              (the policy and the shim in ui/policy.txt and ui/shim.js, the
@@ -348,7 +351,9 @@ scene/button.rs  the "send to agent" button: an item of kind `button`, drawn
              Pure.
 scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport in,
              the visible marks in screen points and the box to repaint out;
-             paint is cut off at the pane's edges (`clip`). Pure.
+             paint is cut off at the pane's edges (`clip`). Chrome over a page
+             is two more shapes no server item has: a panel (a box with a
+             fill, dashed or not) and a text's caret. Pure.
 scene/live.rs  where each live item's page shows: over its item's visible
              mark in each canvas pane, cut off at the pane, at its zoom. Pure.
 scene/ink.rs  the pen's ink: the stroke under the pen and the finished changes
@@ -362,12 +367,16 @@ scene/pages.rs  pages (SPEC D6): the next and previous page, a new page's
              typed name; a removal of a page with items, asked once). Pure.
 scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
              hides what it touches at once and removes it on the lift; a loop
-             selects the items it holds whole, with a plain box; a drag inside
+             selects the items it holds whole, drawn as a tinted box with four
+             corner handles (marks only, no resize) and its item count above
+             it, all in the focus colour, at screen size; a drag inside
              the box moves them; delete removes them. Each is one change, so
              one undo step. The selection (canvas, page, server ids) is app
              state the sling and moves between panes read. Pure.
 scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
-             text and typed keys go into it until escape or a press outside,
+             text and typed keys go into it until escape or a press outside
+             (while typed it shows a focus-colour caret, a dashed muted frame
+             and a hint under it: `label`, chrome's 11 pt line),
              which with any tool but the text tool also starts that tool's
              gesture (the text tool on a text, or a double tap with any tool but
              the pen, edits it); a drag makes a box or an arrow, whose ends

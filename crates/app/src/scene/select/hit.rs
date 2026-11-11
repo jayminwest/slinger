@@ -43,7 +43,9 @@ pub fn holds(lasso: &[Point], shape: &Shape) -> bool {
         Shape::Text { frame, .. }
         | Shape::Box { frame, .. }
         | Shape::Live { frame, .. }
-        | Shape::Button { frame, .. } => corners(frame),
+        | Shape::Button { frame, .. }
+        | Shape::Panel { frame, .. }
+        | Shape::Caret { frame, .. } => corners(frame),
     };
     !vertices.is_empty() && vertices.into_iter().all(|p| winding(lasso, p) != 0)
 }

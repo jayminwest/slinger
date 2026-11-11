@@ -1,6 +1,7 @@
 //! One `AppKit` view per canvas pane. It keeps the pane's last
 //! [`canvas::Scene`] and paints it: smoothed pen lines at a constant width,
-//! text, boxes and arrows, each in its colour, on the pane's background.
+//! text, boxes and arrows, each in its colour, on the pane's background,
+//! and the chrome over them: panels and a text's caret.
 //! A new scene repaints only the box the scene says changed; `AppKit` then
 //! asks for that box alone, and only the marks that touch it are painted.
 //! The view is flipped, so its points are the scene's: top-left origin.
@@ -28,7 +29,7 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{
     NSAffineTransform, NSAttributedString, NSAttributedStringKey, NSDictionary,
-    NSMutableAttributedString, NSObject, NSPoint, NSProcessInfo, NSRect, NSSize, NSString,
+    NSMutableAttributedString, NSObject, NSPoint, NSProcessInfo, NSRange, NSRect, NSSize, NSString,
 };
 
 use super::{Event, color, dispatch};
@@ -38,6 +39,8 @@ use crate::scene::canvas::{Draw, ItemId, Mark, Scene};
 
 /// How tall a text column may grow, in canvas points: text is never cut.
 const TALL: f64 = 1e7;
+/// A dashed panel's dashes and gaps, in screen points.
+const DASH: [f64; 2] = [4.0, 3.0];
 
 /// The scene a view shows, its texts laid out, and the time of the oldest
 /// pen event shown but not yet painted.
@@ -117,7 +120,13 @@ impl CanvasView {
         }
         self.ivars().texts.borrow_mut().retain(|id, _| {
             let laid = |d: &Draw| {
-                matches!(d.mark, Mark::Text { .. } | Mark::Live { .. } | Mark::Button { .. })
+                matches!(
+                    d.mark,
+                    Mark::Text { .. }
+                        | Mark::Live { .. }
+                        | Mark::Button { .. }
+                        | Mark::Caret { .. }
+                )
             };
             scene.draws.iter().any(|d| d.id == *id && laid(d))
         });
@@ -197,8 +206,54 @@ fn paint(scene: &Scene, dirty: NSRect, texts: &mut HashMap<ItemId, Laid>) {
                 let from = (label.clone(), frame.width / zoom, *size, draw.colour);
                 draw_text(laid(texts, draw.id, from), *at, *zoom);
             }
+            Mark::Panel { frame, fill, width, dashed } => {
+                let path = NSBezierPath::bezierPathWithRect(ns_rect(*frame));
+                if let Some(fill) = fill {
+                    color(fill.colour).colorWithAlphaComponent(fill.alpha).setFill();
+                    path.fill();
+                    color(draw.colour).setFill();
+                }
+                if *width > 0.0 {
+                    path.setLineWidth(*width);
+                    if *dashed {
+                        let count = DASH.len().cast_signed();
+                        // SAFETY: the pattern is `count` floats that outlive the call.
+                        unsafe { path.setLineDash_count_phase(DASH.as_ptr(), count, 0.0) };
+                    }
+                    path.stroke();
+                }
+            }
+            Mark::Caret { at, column, text, size, zoom, width } => {
+                let from = (text.clone(), *column, *size, draw.colour);
+                let end = end_of(laid(texts, draw.id, from));
+                let bar = Rect {
+                    x: at.x + end.origin.x * zoom,
+                    y: at.y + end.origin.y * zoom,
+                    width: *width,
+                    height: end.size.height * zoom,
+                };
+                NSBezierPath::bezierPathWithRect(ns_rect(bar)).fill();
+            }
         }
     }
+}
+
+/// Where the next character of a laid-out text goes, in its own points: a
+/// line's top left, as tall as the line. After a line break, or in an empty
+/// text, that is the start of the line the layout keeps for it; otherwise
+/// the right edge of the last character.
+fn end_of(laid: &Laid) -> NSRect {
+    let glyphs = laid.manager.glyphRangeForTextContainer(&laid.container);
+    let extra = laid.manager.extraLineFragmentRect();
+    if extra.size.height > 0.0 || glyphs.length == 0 {
+        return NSRect::new(extra.origin, NSSize::new(0.0, extra.size.height));
+    }
+    let last = NSRange::new(glyphs.end() - 1, 1);
+    let r = laid.manager.boundingRectForGlyphRange_inTextContainer(last, &laid.container);
+    NSRect::new(
+        NSPoint::new(r.origin.x + r.size.width, r.origin.y),
+        NSSize::new(0.0, r.size.height),
+    )
 }
 
 /// The text `from` laid out, kept for item `id`: laid out again only when

@@ -1,7 +1,14 @@
 use super::*;
+use crate::config::Rgb;
 
 const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
-const GREY: Rgb = Rgb { r: 128, g: 128, b: 128 };
+const THEME: Theme = Theme {
+    background: Rgb { r: 0, g: 0, b: 0 },
+    text: Rgb { r: 1, g: 1, b: 1 },
+    muted: Rgb { r: 2, g: 2, b: 2 },
+    error: Rgb { r: 3, g: 3, b: 3 },
+    focus: Rgb { r: 4, g: 4, b: 4 },
+};
 const HERE: (&str, &str) = ("main", "p1");
 
 fn pt(x: f64, y: f64) -> Point {
@@ -72,10 +79,10 @@ fn the_eraser_hides_what_it_touches_at_once_and_removes_it_in_one_change() {
         select.drag(pt(5.0, 5.0), &items),
         "within reach of i1: 5 from its line, 1 its half width"
     );
-    let over = select.shown(HERE, shown(&page), 1.0, GREY);
+    let over = select.shown(HERE, shown(&page), 1.0, &THEME);
     assert_eq!(ids(&over), [2, 3, 4, LOCAL_INK], "i1 hides at once; ink is not erased");
     assert_eq!(
-        ids(&select.shown(("main", "p2"), shown(&page), 1.0, GREY)),
+        ids(&select.shown(("main", "p2"), shown(&page), 1.0, &THEME)),
         [1, 2, 3, 4, LOCAL_INK]
     );
     assert!(select.drag(pt(25.0, 0.0), &items), "over the box: only strokes are erased");
@@ -104,7 +111,7 @@ fn a_lasso_selects_the_items_it_holds_whole_and_draws_a_box_around_them() {
     assert!(select.down(Tool::Lasso, HERE, pt(-5.0, -10.0), 1.0, &items));
     assert!(select.drag(pt(55.0, -10.0), &items));
     assert!(select.drag(pt(55.0, -10.0), &items), "the same point again");
-    let over = select.shown(HERE, shown(&page), 1.0, GREY);
+    let over = select.shown(HERE, shown(&page), 1.0, &THEME);
     let Shape::Stroke { points, .. } = &over.last().unwrap().shape else { panic!() };
     assert_eq!(points, &[pt(-5.0, -10.0), pt(55.0, -10.0), pt(-5.0, -10.0)], "the loop, closed");
     assert!(select.drag(pt(55.0, 10.0), &items));
@@ -113,13 +120,33 @@ fn a_lasso_selects_the_items_it_holds_whole_and_draws_a_box_around_them() {
     assert_eq!(selection.ids, [ItemId(1), ItemId(2), ItemId(3)], "not the arrow, not the ink");
     assert_eq!((selection.canvas.as_str(), selection.page.as_str()), HERE);
     assert_eq!(ink.next(), None, "selecting changes nothing on the server");
-    let over = select.shown(HERE, shown(&page), 2.0, GREY);
-    let last = over.last().unwrap();
-    assert_eq!((last.id, last.colour), (BOX, GREY));
-    let Shape::Box { frame: b, width } = last.shape else { panic!() };
-    assert_eq!(width, 0.5, "one screen point at zoom 2");
+    assert_eq!(select.shown(("main", "p2"), shown(&page), 1.0, &THEME).len(), page.len());
+}
+
+#[test]
+fn a_selection_shows_a_tinted_box_four_handles_and_its_count_at_screen_size() {
+    let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
+    gesture(&mut select, &mut ink, Tool::Lasso, &AROUND, &page);
+    let over = select.shown(HERE, shown(&page), 2.0, &THEME);
+    let chrome = &over[page.len()..];
+    assert_eq!(chrome.len(), 6, "the box, four handles and the count");
+    assert!(chrome.iter().all(|i| i.colour == THEME.focus));
+    let Shape::Panel { frame: b, fill, width, dashed } = chrome[0].shape else { panic!() };
+    assert_eq!((chrome[0].id, width, dashed), (BOX, 0.5, false), "one screen point at zoom 2");
+    assert_eq!(fill, Some(Fill { colour: THEME.focus, alpha: TINT }), "a faint tint");
     assert_eq!(b, frame(-1.0 - 3.0, -6.0 - 3.0, 51.0 + 6.0, 12.0 + 6.0));
-    assert_eq!(select.shown(("main", "p2"), shown(&page), 1.0, GREY).len(), page.len());
+    let (right, bottom) = (b.x + b.width, b.y + b.height);
+    for (handle, (x, y)) in
+        chrome[1..5].iter().zip([(b.x, b.y), (right, b.y), (right, bottom), (b.x, bottom)])
+    {
+        let Shape::Panel { frame: h, fill, width, .. } = handle.shape else { panic!() };
+        assert_eq!(h, frame(x - 2.25, y - 2.25, 4.5, 4.5), "9 screen points, on the corner");
+        assert_eq!((fill, width), (Some(Fill { colour: THEME.background, alpha: 1.0 }), 0.75));
+    }
+    let Shape::Text { frame: label, text, size } = &chrome[5].shape else { panic!() };
+    assert_eq!((text.as_str(), *size), ("3 items", 5.5), "11 screen points");
+    assert_eq!(label.x, b.x);
+    assert!(label.y + label.height < b.y - 2.25, "above the handles");
 }
 
 #[test]
@@ -143,7 +170,7 @@ fn a_drag_inside_the_box_moves_the_selection_in_one_change() {
     let items = shown(&page);
     assert!(select.down(Tool::Lasso, HERE, pt(52.0, 0.0), 1.0, &items), "inside the box's margin");
     assert!(select.drag(pt(62.04, 4.96), &items));
-    let over = select.shown(HERE, shown(&page), 1.0, GREY);
+    let over = select.shown(HERE, shown(&page), 1.0, &THEME);
     let Shape::Stroke { points, .. } = &over[0].shape else { panic!() };
     assert!((points[0].x - 10.04).abs() < 1e-9, "the selection follows the pen");
     assert!(matches!(over[3], Cow::Borrowed(_)), "what is not selected stays put");
@@ -213,4 +240,13 @@ fn an_eraser_crossing_a_stroke_between_its_points_touches_it() {
     assert!(!hit::erases(&line, pt(0.0, 20.0), pt(20.0, 20.0), 0.0));
     assert!(hit::erases(&line, pt(0.0, 20.0), pt(20.0, 20.0), 9.0), "the end is 10 away, width 2");
     assert!(hit::erases(&line, pt(5.0, 5.0), pt(5.0, 5.0), -1.0), "a dab on it; no reach is none");
+}
+
+#[test]
+fn one_selected_item_is_counted_as_one() {
+    let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
+    let around_stroke = [(-5.0, -5.0), (15.0, -5.0), (15.0, 5.0), (-5.0, 5.0)];
+    gesture(&mut select, &mut ink, Tool::Lasso, &around_stroke, &page);
+    let over = select.shown(HERE, shown(&page), 1.0, &THEME);
+    assert!(matches!(&over.last().unwrap().shape, Shape::Text { text, .. } if text == "1 item"));
 }

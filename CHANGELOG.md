@@ -35,6 +35,10 @@ bullet with the area in bold.
 - **App:** the focus border shows only when there are two panes or more.
 - **App:** a canvas pane's view starts with a margin, so an item at the
   canvas's origin no longer touches the pane's edge.
+- **App:** a selection shows as a tinted box with a handle at each corner
+  and its number of items above it. A text being typed shows a caret after
+  its last character, a dashed frame around it and, under it, how to end it.
+
 - **App:** the "send to agent" button. The `place-button` command
   (`cmd+shift+b`) puts one in the middle of the focused canvas pane. Tap it
   to sling what is new on the page since the last sling to the agent of the

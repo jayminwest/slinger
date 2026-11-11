@@ -10,8 +10,10 @@
 //!   items it holds whole. A press inside the selection's box drags the
 //!   selection instead, and the lift moves it in one `move`, with the
 //!   arrows bound to it following ([`shapes::follow`]).
-//! - The selection: one page's items, with a plain box around them. It is
-//!   app state, read by what acts on it ([`Select::selection`]); delete
+//! - The selection: one page's items, in a box with a faint fill of the
+//!   focus colour, a square handle at each corner (only a mark for now: a
+//!   drag on one moves the selection) and the number of items above it. It
+//!   is app state, read by what acts on it ([`Select::selection`]); delete
 //!   removes it in one `remove`.
 //!
 //! Which items a path touches or a loop holds is [`hit`]'s, the core's rules
@@ -28,9 +30,9 @@ pub use carry::Landing;
 use std::borrow::Cow;
 use std::collections::HashSet;
 
-use crate::config::Rgb;
+use crate::config::Theme;
 use crate::layout::{Point, Rect};
-use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::canvas::{Fill, Item, ItemId, Shape};
 use crate::scene::ink::{Change, Ink, on_server};
 use crate::scene::shapes;
 use crate::scene::tools::Tool;
@@ -42,10 +44,20 @@ pub const ERASER: f64 = 6.0;
 const MARGIN: f64 = 6.0;
 /// The width of the lasso's loop and the selection's box, in screen points.
 const THIN: f64 = 1.0;
-/// The ids of the two marks drawn over a page: above every server id and
-/// every id of local ink, so neither is ever hit.
+/// How much of the focus colour fills the selection's box.
+const TINT: f64 = 0.07;
+/// The side of a corner handle and the width of its outline, in screen points.
+const HANDLE: f64 = 9.0;
+const HANDLE_LINE: f64 = 1.5;
+/// How far above the handles the item count sits, in screen points.
+const COUNT_GAP: f64 = 2.0;
+/// The ids of the marks drawn over a page: above every server id and every
+/// id of local ink, so none is ever hit, and apart from `shapes`' marks.
 const LOOP: ItemId = ItemId(u64::MAX);
 const BOX: ItemId = ItemId(u64::MAX - 1);
+const COUNT: ItemId = ItemId(u64::MAX - 4);
+/// The four handles: this id and the three below it.
+const HANDLES: u64 = u64::MAX - 5;
 
 /// Items selected on one page, by the server's ids, in drawing order.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -201,15 +213,15 @@ impl Select {
     }
 
     /// `items`, the page shown of `canvas`, with the gesture laid over it at
-    /// `zoom`: the strokes being erased hidden, the selection where it is
-    /// being dragged, then the selection's box and the lasso's loop, thin,
-    /// in `colour`.
+    /// `zoom` in `theme`'s colours: the strokes being erased hidden, the
+    /// selection where it is being dragged, then the selection's box, its
+    /// handles and its count, and the lasso's loop, thin and muted.
     pub fn shown<'a>(
         &self,
         (canvas, page): (&str, &str),
         mut items: Vec<Cow<'a, Item>>,
         zoom: f64,
-        colour: Rgb,
+        theme: &Theme,
     ) -> Vec<Cow<'a, Item>> {
         let here = |c: &str, p: &str| c == canvas && p == page;
         let gesture = self.gesture.as_ref().filter(|(c, p, _)| here(c, p)).map(|(_, _, g)| g);
@@ -231,16 +243,16 @@ impl Select {
             _ => {}
         }
         let width = THIN / zoom;
-        if let Some(frame) = selection.and_then(|s| bounds(&items, &s.ids)) {
-            let shape = Shape::Box { frame: frame.outset(MARGIN / zoom), width };
-            items.push(Cow::Owned(Item { id: BOX, colour, shape }));
+        let boxed = selection.and_then(|s| Some((bounds(&items, &s.ids)?, s.ids.len())));
+        if let Some((frame, count)) = boxed {
+            items.extend(chrome(frame.outset(MARGIN / zoom), count, zoom, theme));
         }
         if let Some(Gesture::Lasso { points }) = gesture {
             let mut points = points.clone();
             points.extend(points.first().copied());
             items.push(Cow::Owned(Item {
                 id: LOOP,
-                colour,
+                colour: theme.muted,
                 shape: Shape::Stroke { points, width },
             }));
         }
@@ -260,6 +272,30 @@ impl Select {
         let here = selection.canvas == canvas && selection.page == page;
         here && bounds(items, &selection.ids).is_some_and(|b| b.outset(MARGIN / zoom).contains(at))
     }
+}
+
+/// The marks of a selection of `count` items whose box is `frame`, at
+/// `zoom`: the box, tinted, its four corner handles, and the count above
+/// its top left.
+fn chrome(frame: Rect, count: usize, zoom: f64, theme: &Theme) -> Vec<Cow<'static, Item>> {
+    let focus = theme.focus;
+    let tint = Fill { colour: focus, alpha: TINT };
+    let shape = Shape::Panel { frame, fill: Some(tint), width: THIN / zoom, dashed: false };
+    let mut marks = vec![Item { id: BOX, colour: focus, shape }];
+    let side = HANDLE / zoom;
+    let (right, bottom) = (frame.x + frame.width, frame.y + frame.height);
+    let corners = [(frame.x, frame.y), (right, frame.y), (right, bottom), (frame.x, bottom)];
+    for ((x, y), id) in corners.into_iter().zip((0..4).map(|n| HANDLES - n)) {
+        let square = Rect { x: x - side / 2.0, y: y - side / 2.0, width: side, height: side };
+        let paper = Fill { colour: theme.background, alpha: 1.0 };
+        let width = HANDLE_LINE / zoom;
+        let shape = Shape::Panel { frame: square, fill: Some(paper), width, dashed: false };
+        marks.push(Item { id: ItemId(id), colour: focus, shape });
+    }
+    let text = if count == 1 { "1 item".to_string() } else { format!("{count} items") };
+    let top = frame.y - side / 2.0 - COUNT_GAP / zoom - shapes::label_height(zoom);
+    marks.push(shapes::label(COUNT, text, focus, Point { x: frame.x, y: top }, zoom));
+    marks.into_iter().map(Cow::Owned).collect()
 }
 
 /// The box around the items of `items` whose ids are `ids`; `None` when

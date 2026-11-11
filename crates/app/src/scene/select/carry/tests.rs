@@ -108,7 +108,7 @@ fn a_drag_that_ends_outside_every_pane_moves_nothing() {
     assert!(select.lift(pt(900.0, 5.0), None, &items, &mut ink, carry));
     assert_eq!(ink.next(), None);
     assert_eq!(select.selection().map(|s| s.ids.clone()), Some(vec![ItemId(1)]), "still selected");
-    let over = select.shown(HERE, shown(&page), 1.0, Rgb { r: 0, g: 0, b: 0 });
+    let over = select.shown(HERE, shown(&page), 1.0, &crate::config::Theme::default());
     let boxed = over.iter().find(|i| i.id == ItemId(1)).unwrap();
     assert_eq!(boxed.shape, page[0].shape, "drawn where it was");
 }

@@ -441,8 +441,9 @@ impl Canvases {
             let here = (pane.name.as_str(), mirror.page());
             let items = self.ink.shown(here.0, here.1, mirror.items());
             self.select.keep(here, &items);
-            let items = self.select.shown(here, items, view.viewport.zoom(), theme.muted);
-            let items = self.shapes.shown(here, items);
+            let zoom = view.viewport.zoom();
+            let items = self.select.shown(here, items, zoom, theme);
+            let items = self.shapes.shown(here, items, zoom, theme);
             let items = button::shown(items, button::status(&self.statuses, here.0));
             let items = items.iter().map(AsRef::as_ref);
             let mut scene = canvas::build(items, view.viewport, screen, theme, last);

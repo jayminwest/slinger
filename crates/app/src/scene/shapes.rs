@@ -4,7 +4,9 @@
 //! [`Ink`] as one [`Change`], so one `canvas_apply` and one undo step.
 //!
 //! - Text: a tap places it and the keyboard types it ([`Shapes::typed`]);
-//!   escape or a press outside ends it. A press outside with any other tool
+//!   escape or a press outside ends it. While it is typed it shows a caret
+//!   after its last character, a dashed frame around it, and under that how
+//!   to end it. A press outside with any other tool
 //!   also starts that tool's gesture: the first gesture after a text is
 //!   never lost. A tap with the text tool on a text,
 //!   or a double tap on one with any tool but the pen, edits it. The edit
@@ -21,7 +23,7 @@
 use std::borrow::Cow;
 use std::collections::HashSet;
 
-use crate::config::Rgb;
+use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect};
 use crate::mirror::{LINE_WIDTH, TEXT_SIZE, text_frame_at};
 use crate::scene::canvas::{Item, ItemId, Shape};
@@ -36,12 +38,25 @@ pub const DOUBLE_TAP: f64 = 0.4;
 pub const REACH: f64 = 8.0;
 /// The least drag, in screen points, that makes a box or an arrow.
 pub const MIN_DRAG: f64 = 4.0;
-/// Drawn after the text being edited, where the next character goes.
-const CARET: char = '|';
+/// The width of the caret after the text being edited, of the dashed frame
+/// around it, and how far out the frame lies, in screen points.
+const CARET: f64 = 2.0;
+const FRAME_LINE: f64 = 1.0;
+const FRAME_PAD: f64 = 4.0;
+/// Under the text being edited, this far below its frame, in screen points.
+const HINT: &str = "esc or a tap outside ends the text";
+const HINT_GAP: f64 = 4.0;
+/// How high chrome's labels are set (the selection's count, the hint), and
+/// how tall their line is, in screen points.
+const LABEL_SIZE: f64 = 11.0;
+const LABEL_LINE: f64 = 1.3;
 /// The ids of the marks drawn over a page: above every server id and every
 /// id of local ink, and apart from the selection's marks.
 const PREVIEW: ItemId = ItemId(u64::MAX - 2);
 const EDITING: ItemId = ItemId(u64::MAX - 3);
+const CARET_ID: ItemId = ItemId(u64::MAX - 9);
+const FRAME_ID: ItemId = ItemId(u64::MAX - 10);
+const HINT_ID: ItemId = ItemId(u64::MAX - 11);
 
 /// One press of the pen: where on the canvas, when (seconds, the pen's
 /// clock) and at what zoom.
@@ -246,11 +261,14 @@ impl Shapes {
 
     /// `items`, the page shown of `canvas`, with the box or arrow under the
     /// pen laid over it, and the text being edited in place of its item,
-    /// with a caret.
+    /// with its caret in the focus colour, its dashed muted frame and the
+    /// hint under it, sized for `zoom` in `theme`'s colours.
     pub fn shown<'a>(
         &self,
         (canvas, page): (&str, &str),
         mut items: Vec<Cow<'a, Item>>,
+        zoom: f64,
+        theme: &Theme,
     ) -> Vec<Cow<'a, Item>> {
         let here = |c: &str, p: &str| c == canvas && p == page;
         if let Some((_, _, drag)) = self.drag.as_ref().filter(|(c, p, _)| here(c, p)) {
@@ -265,13 +283,37 @@ impl Shapes {
             if let Some((id, _)) = &editing.item {
                 items.retain(|i| i.id != *id);
             }
-            let mut text = editing.text.clone();
-            text.push(CARET);
-            let shape = Shape::Text { frame: editing.frame(), text, size: TEXT_SIZE };
+            let (frame, text) = (editing.frame(), editing.text.clone());
+            let shape = Shape::Text { frame, text: text.clone(), size: TEXT_SIZE };
             items.push(Cow::Owned(Item { id: EDITING, colour: editing.colour, shape }));
+            let width = CARET / zoom;
+            let shape = Shape::Caret { frame, text, size: TEXT_SIZE, width };
+            items.push(Cow::Owned(Item { id: CARET_ID, colour: theme.focus, shape }));
+            let around = frame.outset(FRAME_PAD / zoom);
+            let shape =
+                Shape::Panel { frame: around, fill: None, width: FRAME_LINE / zoom, dashed: true };
+            items.push(Cow::Owned(Item { id: FRAME_ID, colour: theme.muted, shape }));
+            let under = Point { x: around.x, y: around.y + around.height + HINT_GAP / zoom };
+            let hint = label(HINT_ID, HINT.to_string(), theme.muted, under, zoom);
+            items.push(Cow::Owned(hint));
         }
         items
     }
+}
+
+/// A line of chrome's text, `id`, from `at` (its top left), set
+/// [`LABEL_SIZE`] screen points high at `zoom`, in `colour`.
+pub fn label(id: ItemId, text: String, colour: Rgb, at: Point, zoom: f64) -> Item {
+    let size = LABEL_SIZE / zoom;
+    let count = u32::try_from(text.chars().count()).map_or(f64::from(u32::MAX), f64::from);
+    // A cell of the full size a character: the line never wraps.
+    let frame = Rect { x: at.x, y: at.y, width: count.max(1.0) * size, height: label_height(zoom) };
+    Item { id, colour, shape: Shape::Text { frame, text, size } }
+}
+
+/// How tall a [`label`] is at `zoom`, in canvas units.
+pub fn label_height(zoom: f64) -> f64 {
+    LABEL_SIZE * LABEL_LINE / zoom
 }
 
 /// The topmost server item of `items` an arrow's end at `at` binds to: one
