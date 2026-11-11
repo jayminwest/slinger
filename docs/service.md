@@ -6,10 +6,12 @@ and agents rely on this contract. Breaking it is a breaking change.
 ## The daemon
 
 ```
-slingerd [--socket <PATH>] [--data-dir <PATH>]
+slingerd [--socket <PATH>] [--data-dir <PATH>] [--claude <PATH>]
 ```
 
 - It says nothing on success and runs until SIGTERM or SIGINT.
+- `--claude` is the program an agent's process runs (see "Sessions"):
+  Claude Code, `claude` on `PATH` by default.
 - **One instance per socket path.** The daemon holds a lock on
   `<socket>.lock` for its whole life. A second daemon on the same path exits
   4 with `✗ socket <path> is in use by another slingerd` and a hint. A
@@ -17,7 +19,7 @@ slingerd [--socket <PATH>] [--data-dir <PATH>]
 - **Clean stop.** On SIGTERM or SIGINT the daemon stops accepting, answers
   every request on a connection made before the signal, removes the socket
   file and exits 0. A request waiting on a canvas feed gets its reply at
-  once, with what it has. The lock file stays. It is empty and safe to delete while
+  once, with what it has. The agents' processes end with it. The lock file stays. It is empty and safe to delete while
   no daemon runs.
 - **Errors** follow `docs/cli.md`: `✗ message` and an indented hint on
   stderr, and a typed exit code.
@@ -54,6 +56,9 @@ writer; other programs reach the record through the socket.
   the record and safe to delete; the next read writes it again.
 - The file's layout has a version. A daemon refuses a file laid out by a
   newer one (exit 4).
+
+`sessions.json` keeps each agent's session id, `{agent: id}`, so a start
+after a restart resumes the conversation (see "Sessions").
 
 The open workspaces are listed in `workspaces/open.json`, and a workspace
 with no root keeps its file in `workspaces/<id>/` (see "Workspaces" below).
@@ -136,6 +141,9 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `arrow`: `[from, to]` item ids | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
 | `canvas_edit` | `canvas`: canvas id, `agent`: string, `item`: an item id, then any of `text`: string, `box`: `[w, h]` in tenths, `move`: `[x, y]` in tenths | `item`, `page`, `x`, `y`, `w`, `h`: its box now, `seq`: the numbers written (empty when nothing changed) |
 | `canvas_remove` | `canvas`: canvas id, `agent`: string, `item`: an item id | `seq`: the numbers written (empty when it was already gone) |
+| `session_start` | `workspace`: string, its name or the directory of its file | `session` |
+| `session_stop` | `workspace`: string | `session` |
+| `session_send` | `workspace`: string, `text`: string | `session` |
 
 **`record_append`** appends one event to this machine's record. `tags`
 may set `workspace`, `agent` and `canvas`; the daemon sets `machine`, the
@@ -444,6 +452,57 @@ workspace with that agent opens. A blank agent or another status is
 { "ok": true, "sessions": [{ "agent": "scout", "home": "/Users/me/notes", "deliver": "process", "status": "blocked", "note": "need the API key" }] }
 ```
 
+**The process.** The daemon holds one Claude Code process per session (SPEC
+D10): `<claude> --print --input-format stream-json --output-format
+stream-json --verbose`, in the agent's home, with `SLINGER_AGENT` set to the
+agent and `SLINGER_SOCKET` to the daemon's socket, so the agent's own
+`slinger` calls act as it and reach this daemon. Its stderr goes to the
+daemon's. A session adds what the daemon knows of it: `process` (`running`,
+or `exited` when it ended without a stop; absent when there is none), and
+while it runs its `pid` and `pending`, the messages sent that it has not
+answered (a `result` line ends an answer). `answer` is the text of its last
+answer. `session_id` names its conversation.
+
+**`session_start`** starts the process of the workspace's agent. The first
+start gives it a new session id (`--session-id`); once its output names that
+id, the daemon keeps it in `sessions.json`, and every later start, after a
+restart too, resumes it (`--resume`). Starting one that runs changes nothing;
+one that exited is started again. **`session_stop`** closes the process's
+input, waits up to 3 seconds and then kills it; stopping one that is not
+running succeeds. **`session_send`** writes `text` to the process as one user
+message and returns: the answer is the agent's to deliver, through the CLI.
+Blank text is `invalid`. A send to a process that was never started, or that
+exited, is `unavailable` with a hint to start it: the daemon does not restart
+an agent on its own (D20). A workspace that is not open is `not_found`, one
+with no agent is `invalid`, and a program that is not there is `not_found`.
+
+```json
+{ "v": 1, "op": "session_start", "workspace": "notes" }
+{ "ok": true, "session": { "agent": "scout", "home": "/Users/me/notes", "deliver": "process", "process": "running", "pid": 4242, "pending": 0, "session_id": "6f1c0d52-8a3e-4b7d-9c1e-2f4a5b6c7d8e" } }
+{ "v": 1, "op": "session_send", "workspace": "notes", "text": "what is in this directory?" }
+```
+
+**A check against the real Claude Code.** The tests run a stand-in that
+speaks the same format. To see the real one keep a conversation, use a
+private daemon and a scratch directory. It spends a few tokens, and the
+conversation lands in Claude Code's own session store like any other.
+
+```bash
+tmp=$(mktemp -d) && mkdir "$tmp/ws"
+printf 'version = 1\nname = "check"\n[agent]\nname = "checker"\n' > "$tmp/ws/slinger-workspace.toml"
+slingerd --socket "$tmp/s.sock" --data-dir "$tmp/data" & daemon=$!
+s="slinger --socket $tmp/s.sock"
+$s workspace open "$tmp/ws" && $s session start check
+$s session send check 'Remember the word plum. Reply with only: ok'
+$s session send check 'What word did I ask you to remember? Reply with only the word.'
+$s session show checker    # once pending is 0: answer plum, and a session_id
+kill $daemon               # the process ends with the daemon
+```
+
+Start `slingerd` again on the same `--data-dir`, `session start check` and
+ask once more: `session show checker` has the same `session_id`, and the
+answer is still the word.
+
 #### Agent canvas verbs
 
 An agent answers on the canvas, not in chat (SPEC section 7). Each answer
@@ -528,7 +587,7 @@ The protocol adds:
 | `bad_request` | The line is not JSON, has no `v`, names no known `op`, or has wrong arguments |
 | `too_large` | The request line is over the limit |
 | `unsupported_version` | `v` is not a version this daemon speaks |
-| `unavailable` | Made by the client, never sent: the daemon did not answer |
+| `unavailable` | The agent's process is not running (`session_send`); made by the client when the daemon did not answer |
 | `internal` | The daemon could not read or write its record, or the client could not read the reply |
 
 `not_found` also covers a blob the record does not hold, a file to put

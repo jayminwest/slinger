@@ -5,14 +5,17 @@
 //! ([`slinger_core::session`]). This module keeps the statuses set since the
 //! daemon started, so `working` (which the record does not hold) shows; an
 //! agent with none here gets its last `agent_blocked` or `agent_done` from
-//! the record, so `blocked` and `done` survive a restart.
+//! the record, so `blocked` and `done` survive a restart. It reaches each
+//! agent through the process [`Processes`] holds for it.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{Mutex, PoisonError};
 
 use slinger_core::record::{Event, Tags};
-use slinger_core::session::{self, Report, Session, Status};
+use slinger_core::session::{self, Report, Session, Status, stream};
 
+use crate::processes::{ProcessError, Processes};
 use crate::store::{Query, Store, StoreError};
 use crate::workspaces::WorkspaceError;
 
@@ -25,6 +28,8 @@ pub enum SessionError {
     Workspace(#[from] WorkspaceError),
     #[error(transparent)]
     Store(#[from] StoreError),
+    #[error(transparent)]
+    Process(#[from] ProcessError),
 }
 
 impl SessionError {
@@ -35,6 +40,7 @@ impl SessionError {
             Self::Core(e) => e.code(),
             Self::Workspace(e) => e.code(),
             Self::Store(e) => e.code(),
+            Self::Process(e) => e.code(),
         }
     }
 
@@ -45,20 +51,87 @@ impl SessionError {
             Self::Core(e) => e.hint().map(str::to_string),
             Self::Workspace(e) => e.hint(),
             Self::Store(e) => e.hint(),
+            Self::Process(e) => e.hint(),
         }
     }
 }
 
 type Result<T> = std::result::Result<T, SessionError>;
 
-/// The statuses set since the daemon started, by agent. Safe to share
-/// between threads.
-#[derive(Debug, Default)]
+/// The statuses set since the daemon started, by agent, and the agents'
+/// processes. Safe to share between threads.
+#[derive(Debug)]
 pub struct Sessions {
     set: Mutex<HashMap<String, Report>>,
+    processes: Processes,
 }
 
 impl Sessions {
+    /// No statuses set and no processes held. Each process runs `program`
+    /// (Claude Code); `ids` is the file that keeps the session ids.
+    #[must_use]
+    pub fn new(program: PathBuf, ids: PathBuf) -> Self {
+        Self { set: Mutex::default(), processes: Processes::new(program, ids) }
+    }
+
+    /// The agents' processes.
+    #[must_use]
+    pub fn processes(&self) -> &Processes {
+        &self.processes
+    }
+
+    /// The agents' processes, to configure before the daemon serves.
+    pub fn processes_mut(&mut self) -> &mut Processes {
+        &mut self.processes
+    }
+
+    /// Starts the process of the agent of the open workspace `which` names,
+    /// in the agent's home, and returns its session. A running one is left
+    /// as it is.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a workspace that is not open, `invalid` for one with
+    /// no agent, and the process's error.
+    pub fn start(&self, store: &Store, which: &str) -> Result<Session> {
+        let session = self.of_workspace(store, which)?;
+        self.processes.start(&session.agent, &session.home)?;
+        Ok(session)
+    }
+
+    /// Ends the process of the agent of the workspace `which` names, if it
+    /// has one, and returns its session.
+    ///
+    /// # Errors
+    ///
+    /// As [`Sessions::start`], less the process's.
+    pub fn stop(&self, store: &Store, which: &str) -> Result<Session> {
+        let session = self.of_workspace(store, which)?;
+        self.processes.stop(&session.agent);
+        Ok(session)
+    }
+
+    /// Delivers `text` as one message to the running process of the agent
+    /// of the workspace `which` names, and returns its session.
+    ///
+    /// # Errors
+    ///
+    /// `invalid` for blank text, `unavailable` when the process is not
+    /// running, and the errors of [`Sessions::stop`].
+    pub fn send(&self, store: &Store, which: &str, text: &str) -> Result<Session> {
+        let line = stream::message(text)?;
+        let session = self.of_workspace(store, which)?;
+        self.processes.send(&session.agent, &line)?;
+        Ok(session)
+    }
+
+    /// The session of the agent of the open workspace `which` names.
+    fn of_workspace(&self, store: &Store, which: &str) -> Result<Session> {
+        let opened = store.workspaces().show(which)?;
+        let agent = session::agent_of(&opened.workspace)?;
+        self.show(store, agent)
+    }
+
     /// The sessions of the open workspaces, by agent.
     ///
     /// # Errors

@@ -2,6 +2,8 @@
 //! reach and the status each reports. One request per command; the daemon
 //! owns the sessions and the record.
 
+use std::io::Read;
+
 use clap::Subcommand;
 use serde_json::json;
 
@@ -25,6 +27,23 @@ pub enum Session {
         /// The agent's name
         agent: String,
     },
+    /// Start a workspace's agent: a Claude Code process in its home, resuming its last session
+    Start {
+        /// The open workspace: its name, or the directory of its file
+        workspace: String,
+    },
+    /// Stop a workspace's agent: end its process
+    Stop {
+        /// The open workspace: its name, or the directory of its file
+        workspace: String,
+    },
+    /// Send one message to a workspace's running agent
+    Send {
+        /// The open workspace: its name, or the directory of its file
+        workspace: String,
+        /// The message, or - to read standard input
+        text: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -47,6 +66,9 @@ impl Session {
         match self {
             Self::List => "session list",
             Self::Show { .. } => "session show",
+            Self::Start { .. } => "session start",
+            Self::Stop { .. } => "session stop",
+            Self::Send { .. } => "session send",
         }
     }
 }
@@ -59,7 +81,11 @@ impl Status {
     }
 }
 
-pub fn execute(command: &Session, daemon: &control::Client) -> anyhow::Result<Output> {
+pub fn execute(
+    command: &Session,
+    daemon: &control::Client,
+    input: &mut dyn Read,
+) -> anyhow::Result<Output> {
     match command {
         Session::List => {
             let sessions = daemon.session_list()?;
@@ -71,7 +97,24 @@ pub fn execute(command: &Session, daemon: &control::Client) -> anyhow::Result<Ou
             let human = fields(&session);
             Ok(Output::new(json!({ "session": session }), human))
         }
+        Session::Start { workspace } => Ok(quiet(&daemon.session_start(workspace)?)),
+        Session::Stop { workspace } => Ok(quiet(&daemon.session_stop(workspace)?)),
+        Session::Send { workspace, text } => {
+            let mut read = String::new();
+            let text = if text == "-" {
+                input.read_to_string(&mut read)?;
+                &read
+            } else {
+                text
+            };
+            Ok(quiet(&daemon.session_send(workspace, text)?))
+        }
     }
+}
+
+/// A verb that prints nothing on success; `--json` gets the session after it.
+fn quiet(session: &control::Session) -> Output {
+    Output::new(json!({ "session": session }), String::new())
 }
 
 pub fn set(command: &Status, daemon: &control::Client) -> anyhow::Result<Output> {
@@ -113,5 +156,14 @@ fn fields(s: &control::Session) -> String {
     if let Some(note) = &s.note {
         lines.push(format!("note\t{note}"));
     }
+    let process = [
+        ("process", s.process.clone()),
+        ("pid", s.pid.map(|p| p.to_string())),
+        ("pending", s.pending.map(|p| p.to_string())),
+        ("session_id", s.session_id.clone()),
+        // One line per field: an answer's own line breaks are escaped.
+        ("answer", s.answer.as_ref().map(|a| a.replace('\n', "\\n"))),
+    ];
+    lines.extend(process.into_iter().filter_map(|(k, v)| Some(format!("{k}\t{}", v?))));
     lines.join("\n")
 }

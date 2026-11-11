@@ -23,6 +23,17 @@ bullet with the area in bold.
   new size (`--box w,h`) or a new place (`--move x,y`), and `canvas remove
   <canvas> --item <id>` removes it; removing it again succeeds. An agent can
   change only items it made, never your ink.
+- **CLI:** run a workspace's agent. `slinger session start <workspace>`
+  starts Claude Code in the agent's home and keeps it running; `session send
+  <workspace> <text|->` delivers one message to it, and every message goes to
+  the same conversation. `session show` has the process's state, its session
+  id and its last answer. After slingerd restarts, `session start` resumes
+  the same conversation. If the process dies, the session shows `exited` and
+  a send exits 6 until you start it again; `session stop` ends it, and so
+  does stopping slingerd. The agent's own `slinger` calls find it through
+  `SLINGER_AGENT` and the new `SLINGER_SOCKET`, which `--socket` overrides.
+  `slingerd --claude <path>` runs another Claude Code program.
+
 - **Sling:** what an agent receives for one sling: your prompt, the page's
   packet with each image under its line, the items you selected, and a short
   note on how to answer on the canvas instead of in chat. The first sling of

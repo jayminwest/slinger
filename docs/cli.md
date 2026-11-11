@@ -12,7 +12,7 @@ on it. Breaking it is a breaking change.
 | `--json` | Exactly one JSON document on stdout, errors included |
 | `-q, --quiet` | Silence progress and confirmations. Never silences errors or a command's main output |
 | `--verbose` | Extra diagnostics on stderr |
-| `--socket <PATH>` | The control socket of `slingerd`. Default: see `docs/service.md` |
+| `--socket <PATH>` | The control socket of `slingerd`. Default: `$SLINGER_SOCKET`, else see `docs/service.md` |
 No arguments prints help. Unknown commands and flags are usage errors with
 a "did you mean" suggestion.
 
@@ -44,7 +44,9 @@ a "did you mean" suggestion.
 | `canvas crop <ID> (--item ITEM \| --box X,Y,W,H [--page PAGE]) [--out FILE]` | The path of each image written, one per line, tiles in reading order. `--json`: `images` (`path`, `x`, `y`, `width`, `height`) |
 | `canvas strokes <ID> --item ITEM` | One stroke per line, as JSON with absolute `points` in tenths. `--json`: `strokes` |
 | `session list` | One line per session, by agent: agent, status (`-` for none) and home, then the note if there is one, separated by tabs. `--json`: `sessions` |
-| `session show <AGENT>` | One field per line, the name and the value separated by a tab: `agent`, `home`, `deliver`, `status`, then `note` (if any). `--json`: `session` |
+| `session show <AGENT>` | One field per line, the name and the value separated by a tab: `agent`, `home`, `deliver`, `status`, then those it has of `note`, `process`, `pid`, `pending`, `session_id` and `answer` (its line breaks as `\n`). `--json`: `session` |
+| `session start <WORKSPACE>`, `session stop <WORKSPACE>` | Nothing. `--json`: `session` |
+| `session send <WORKSPACE> <TEXT\|->` | Nothing. `--json`: `session` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
 | `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --arrow FROM TO) [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
 | `canvas edit <ID> --item ITEM [--text TEXT] [--box W,H] [--move X,Y] [--agent NAME]` | The item's id and its box `x,y,w,h` in tenths now, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq` |
@@ -150,6 +152,18 @@ integers, exits 2 (`usage`); an item to edit that is not there exits 3
 nothing and exits 0. `session show` of an agent with no session exits 3
 (`not_found`).
 
+`session start` starts the workspace's agent: a Claude Code process in its
+home that `slingerd` holds open, resuming the conversation it last had, even
+after a restart. `session send` delivers one message to it (`-` reads it from
+stdin) and returns once it is delivered; `session show` has the process's
+state and its last answer. A send to an agent that was never started, or
+whose process exited, exits 6 (`unavailable`) with a hint to start it.
+`session stop` ends the process; stopping one that is not running succeeds.
+A workspace that is not open exits 3, one with no agent exits 5. The process
+gets `SLINGER_AGENT` and `SLINGER_SOCKET`, so its `slinger` calls act as its
+agent on the daemon that started it (see "The process" in
+`docs/service.md`).
+
 ## Output
 
 - **stdout** carries the result and nothing else, so it pipes cleanly.
@@ -181,7 +195,7 @@ never on `error`.
 | 3 | not_found | A named thing does not exist |
 | 4 | conflict | The thing exists or is in the wrong state |
 | 5 | invalid | Input was understood but rejected |
-| 6 | unavailable | `slingerd` does not answer. The hint says how to start it |
+| 6 | unavailable | `slingerd` does not answer, or the agent's process is not running. The hint says how to start it |
 Add a code only when a caller needs to tell the failure apart from the
 others. Never renumber.
 

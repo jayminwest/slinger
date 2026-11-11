@@ -25,8 +25,12 @@ use crate::workspace::Workspace;
 pub const NAME: &str = "slinger";
 
 /// Help for `--socket`: a string, because a doc comment may not hold `$XDG_RUNTIME_DIR` bare.
-const SOCKET_HELP: &str =
-    "Daemon control socket [default: in $XDG_RUNTIME_DIR, else in the temporary directory]";
+const SOCKET_HELP: &str = "Daemon control socket [default: $SLINGER_SOCKET, else in \
+     $XDG_RUNTIME_DIR, else in the temporary directory]";
+
+/// Where the CLI finds the socket when `--socket` is not given: slingerd sets
+/// it for the agents' processes it starts (docs/cli.md).
+const SOCKET_ENV: &str = "SLINGER_SOCKET";
 
 /// Help for an event's kind: a string, because a doc comment wants the kind names in backticks.
 const KIND_HELP: &str = "The event's kind: sling_sent, reply_landed, file_touched, pane_moved, \
@@ -92,7 +96,7 @@ enum Command {
     /// Open, list, show and close workspaces: a name, directories, an agent and a canvas
     #[command(subcommand)]
     Workspace(Workspace),
-    /// List the agents slingerd can reach, and the status each reports
+    /// List, start, stop and message the agents slingerd can reach
     #[command(subcommand)]
     Session(Session),
     /// Report the calling agent's status: working, blocked or done
@@ -252,7 +256,7 @@ fn execute(
         Command::Ui(ui) => ui.execute(daemon, input),
         Command::Canvas(canvas) => crate::canvas::execute(canvas, daemon, input),
         Command::Workspace(workspace) => crate::workspace::execute(workspace, daemon),
-        Command::Session(session) => crate::session::execute(session, daemon),
+        Command::Session(session) => crate::session::execute(session, daemon, input),
         Command::Status(status) => crate::session::set(status, daemon),
     }
 }
@@ -338,7 +342,9 @@ fn dispatch(
         return Ok(exit::OK);
     };
     ctx.command = command.name();
-    let socket = cli.socket.clone().unwrap_or_else(control::default_socket);
+    let socket = cli.socket.clone();
+    let socket = socket.or_else(|| std::env::var_os(SOCKET_ENV).map(PathBuf::from));
+    let socket = socket.unwrap_or_else(control::default_socket);
     let daemon = control::Client::new(socket);
     match execute(command, &daemon, input, &mut ctx) {
         Ok(output) => ctx.emit(&output),

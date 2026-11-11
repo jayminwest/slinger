@@ -7,6 +7,8 @@
 //! and lives only as long as the server that was told. No IO: callers hand in
 //! the workspaces and the events.
 
+pub mod stream;
+
 use std::path::PathBuf;
 
 use crate::record::{AgentBlocked, AgentDone, Body};
@@ -157,6 +159,19 @@ pub fn check_agent(name: &str) -> Result<()> {
     Ok(())
 }
 
+/// The name of `workspace`'s agent: the session a start, stop or send names
+/// by its workspace.
+///
+/// # Errors
+///
+/// [`Error::Invalid`] for a workspace with no agent.
+pub fn agent_of(workspace: &Workspace) -> Result<&str> {
+    workspace.agent.as_ref().map(|a| a.name.as_str()).ok_or_else(|| Error::Invalid {
+        message: format!("workspace {:?} has no agent", workspace.name),
+        hint: Some("name one under [agent] in its slinger-workspace.toml".into()),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -216,6 +231,14 @@ mod tests {
         assert_eq!(got, [("ada", "/c"), ("scout", "/a")]);
         assert_eq!(sessions[0].status, Some(done));
         assert_eq!((sessions[1].status.as_ref(), sessions[1].deliver.name()), (None, "process"));
+    }
+
+    #[test]
+    fn a_workspace_names_its_agent_and_one_with_none_is_invalid() {
+        assert_eq!(agent_of(&with_agent("a", Some("scout"))).unwrap(), "scout");
+        let err = agent_of(&with_agent("a", None)).unwrap_err();
+        assert_eq!(err.code(), "invalid");
+        assert!(err.hint().unwrap().contains("[agent]"));
     }
 
     #[test]

@@ -128,8 +128,9 @@ pub enum Request {
     /// The raw points of a stroke, or of every stroke of a cluster.
     #[serde(skip_serializing)]
     CanvasStrokes { canvas: String, item: String },
-    /// The session verbs (`session_list`, `session_show`, `status_set`),
-    /// read by their own `op`s. One variant for the three, written only by
+    /// The session verbs (`session_list`, `session_show`, `status_set`,
+    /// `session_start`, `session_stop`, `session_send`), read by their own
+    /// `op`s. One variant for them all, written only by
     /// clients that send them: each variant here adds code to the app, which
     /// sends none of them (its size budget is nearly full).
     #[serde(untagged, skip_serializing)]
@@ -171,6 +172,9 @@ pub enum Reply {
     CanvasStrokes(CanvasStrokes),
     SessionList(Sessions),
     SessionShow(SessionInfo),
+    SessionStart(SessionInfo),
+    SessionStop(SessionInfo),
+    SessionSend(SessionInfo),
     StatusSet(StatusSet),
     CanvasPut(CanvasPlaced),
     CanvasEdit(CanvasEdited),
