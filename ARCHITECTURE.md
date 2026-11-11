@@ -238,6 +238,9 @@ server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
 main.rs      wires the modules below. The only caller of platform. With
              `--preview UI [--data JSON]` it shows one agent UI alone and
              writes each reply's `ui_reply` line to stdout instead.
+shared.rs    the window's panes as the server keeps them for its workspace,
+             the window's size, the agent UIs the panes show and their notes:
+             it follows the server's layout and sends the pane commands.
 backend.rs   the app's IO: the one module that talks to the daemon, and the
              one that reads and watches the config files. Its Watch asks the
              daemon for the workspaces and their agents' statuses
