@@ -214,7 +214,12 @@ config.rs    the config file's format: text in, a typed config or an error
              with its line out; merges a machine's overlay over it. Pure.
 commands.rs  key commands: the closed list of commands, the chord parser and
              the keymap from a chord to a command. Pure.
-scene.rs     decides what the window shows. Pure.
+panes.rs     the window's panes: what each shows (a canvas or an agent UI, by
+             name), how they tile (a layout::Tree), the one focused pane, the
+             pane commands, and the text of the workspace's layout field
+             (version 1, `panes`; docs/workspace.md). Always one pane at least. Pure.
+scene.rs     decides what the window shows: each pane's placeholder, one focus
+             border, and problems in the focused pane. No other chrome. Pure.
 scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport in,
              the visible marks in screen points and the box to repaint out. Pure.
 scene/tools.rs  the pen's tool and colour, and the pop-up at the pen (colour, shape,
@@ -222,6 +227,10 @@ scene/tools.rs  the pen's tool and colour, and the pop-up at the pen (colour, sh
 layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
              about a point, limits; the canvas has no edge) and where a pop-up
              opens (at the pen, kept inside the window). Pure. 100% coverage floor.
+layout/tree.rs  the pane tree: binary splits with ratios to rectangles (no
+             negative or oversized one at any size), split, close (the sibling
+             takes the space), grow, next, the pane beside one in a direction,
+             and the tree's text. Pure.
 platform/    draws a scene, turns a key press into a chord and a pen or mouse
              event into a point. All unsafe, objc2 and AppKit code. No decisions.
 ```
@@ -305,6 +314,7 @@ Each boundary has something that fails when it is broken:
 | A turn's hooks move a session from working to done and record the file it wrote | `crates/cli/tests/hooks.rs`, with a stand-in for Claude Code and the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |
+| A layout reads back as written; a closed pane's space goes to its sibling | the tests of `crates/app/src/layout/tree.rs` and `crates/app/src/panes.rs` |
 | Layout is fully tested | the 100% floor on `crates/app/src/layout.rs` in `budgets/coverage-budgets.json` |
 | The app binary does not grow unnoticed | `check:binary-size` |
 

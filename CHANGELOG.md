@@ -42,6 +42,16 @@ bullet with the area in bold.
   no ink twice. Each sling is in the record with its packet. If the agent is
   not running, it exits 6 and tells you to `session start` it: slinger never
   starts an agent for you.
+- **App:** the window holds panes. Split the focused pane right
+  (`cmd+d`) or down (`cmd+shift+d`), close it (`cmd+w`; its space goes to
+  the pane beside it), move focus to the next pane (`ctrl+tab`) or the one
+  beside it (`cmd+alt+arrow`), and grow or shrink it (`cmd+=`, `cmd+-`).
+  One border, in the theme's new `focus` colour, marks the focused pane;
+  there is no other chrome: the daemon's greeting is gone, and a problem
+  with the daemon or the config file shows in the focused pane. Each pane
+  shows its kind and name for now. The keys are in `[keys]`, and
+  `config.example.toml` lists them.
+
 - **CLI:** agents answer on the canvas. `slinger canvas put <canvas> --beside
   <id> --text <text>` puts text beside an item, where it covers nothing:
   to the right first, else below, left or above. `--box w,h` puts a box and

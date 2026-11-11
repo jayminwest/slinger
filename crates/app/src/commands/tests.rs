@@ -98,7 +98,18 @@ fn a_chord_with_no_command_runs_nothing() {
     let keys = Keymap::default();
     assert_eq!(keys.command(chord("q")), None);
     assert_eq!(keys.command(chord("cmd+shift+q")), None);
-    assert_eq!(keys.command(Chord::new(CMD, 'w')), None);
+    assert_eq!(keys.command(Chord::new(CMD, 'k')), None);
+}
+
+#[test]
+fn every_command_has_its_own_default_chord() {
+    let keys = Keymap::default();
+    for (command, _) in Command::ALL {
+        let chord = keys.0[command as usize].unwrap_or_else(|| panic!("{command:?} has no chord"));
+        assert_eq!(keys.command(chord), Some(command));
+    }
+    assert_eq!(keys.command(chord("cmd+alt+left")), Some(Command::FocusLeft));
+    assert_eq!(keys.command(chord("ctrl+tab")), Some(Command::FocusNext));
 }
 
 #[test]

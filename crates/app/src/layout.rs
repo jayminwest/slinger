@@ -2,7 +2,12 @@
 //! unit-tested (this file has a 100% coverage floor). Units are points. The
 //! origin is the top left; `platform` converts to `AppKit`'s bottom left.
 //! [`Viewport`] maps the endless canvas onto the screen: pan, zoom about a
-//! point, and the canvas box that is visible.
+//! point, and the canvas box that is visible. [`Tree`] tiles the window with
+//! panes (`tree`).
+
+pub mod tree;
+
+pub use tree::{Axis, Direction, PaneId, Tree};
 
 /// A width and a height.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -215,249 +220,32 @@ impl Rect {
 }
 
 /// The content size of the window.
-pub const WINDOW: Size = Size { width: 440.0, height: 160.0 };
+pub const WINDOW: Size = Size { width: 960.0, height: 600.0 };
+
+impl Size {
+    /// A rectangle of this size at the origin.
+    pub fn rect(self) -> Rect {
+        Rect { x: 0.0, y: 0.0, width: self.width, height: self.height }
+    }
+}
 
 const MARGIN: f64 = 24.0;
 const LINE_HEIGHT: f64 = 22.0;
 const LINE_GAP: f64 = 6.0;
 
-/// One rectangle per text line: full width inside the margins, stacked, and
-/// centered vertically in `window`. A stack taller than the window starts at
-/// the top margin and runs off the bottom.
-pub fn lines(window: Size, count: usize) -> Vec<Rect> {
-    let width = (window.width - 2.0 * MARGIN).max(0.0);
+/// One rectangle per text line: full width inside the margins of `area`,
+/// stacked, and centered vertically in it. A stack taller than the area
+/// starts at its top margin and runs off the bottom.
+pub fn lines(area: Rect, count: usize) -> Vec<Rect> {
+    let width = (area.width - 2.0 * MARGIN).max(0.0);
     let step = LINE_HEIGHT + LINE_GAP;
     let offsets: Vec<f64> =
         std::iter::successors(Some(0.0), |y| Some(y + step)).take(count).collect();
     let stack = offsets.last().map_or(0.0, |last| last + LINE_HEIGHT);
-    let top = ((window.height - stack) / 2.0).max(MARGIN);
-    offsets.iter().map(|y| Rect { x: MARGIN, y: top + y, width, height: LINE_HEIGHT }).collect()
+    let top = area.y + ((area.height - stack) / 2.0).max(MARGIN);
+    let x = area.x + MARGIN;
+    offsets.iter().map(|y| Rect { x, y: top + y, width, height: LINE_HEIGHT }).collect()
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    const WIDE: Size = Size { width: 400.0, height: 200.0 };
-
-    #[test]
-    fn centers_one_line() {
-        let expected = Rect { x: 24.0, y: 89.0, width: 352.0, height: 22.0 };
-        assert_eq!(lines(WIDE, 1), [expected]);
-    }
-
-    #[test]
-    fn stacks_lines_with_a_gap_and_centers_the_stack() {
-        let at = |y| Rect { x: 24.0, y, width: 352.0, height: 22.0 };
-        assert_eq!(lines(WIDE, 2), [at(75.0), at(103.0)]);
-    }
-
-    #[test]
-    fn no_lines_is_no_rectangles() {
-        assert_eq!(lines(WIDE, 0), []);
-    }
-
-    #[test]
-    fn a_window_too_small_keeps_the_top_margin_and_a_zero_width() {
-        let rects = lines(Size { width: 30.0, height: 40.0 }, 2);
-        assert_eq!(rects[0], Rect { x: 24.0, y: 24.0, width: 0.0, height: 22.0 });
-        assert_eq!(rects[1].y, 52.0);
-    }
-
-    const SCREEN: Size = Size { width: 800.0, height: 600.0 };
-
-    fn pt(x: f64, y: f64) -> Point {
-        Point { x, y }
-    }
-
-    fn rect(x: f64, y: f64, width: f64, height: f64) -> Rect {
-        Rect { x, y, width, height }
-    }
-
-    fn near(a: Point, b: Point) -> bool {
-        let scale = 1.0_f64.max(a.x.abs()).max(a.y.abs());
-        (a.x - b.x).abs() <= 1e-9 * scale && (a.y - b.y).abs() <= 1e-9 * scale
-    }
-
-    /// A viewport that is neither at the origin nor at 100%.
-    fn moved() -> Viewport {
-        Viewport::default().pan(-130.0, 45.0).zoom_about(pt(300.0, 200.0), 2.5)
-    }
-
-    #[test]
-    fn around_no_points_is_none_and_around_points_is_their_box() {
-        assert_eq!(Rect::around([]), None);
-        assert_eq!(Rect::around([pt(3.0, 4.0)]), Some(rect(3.0, 4.0, 0.0, 0.0)));
-        assert_eq!(
-            Rect::around([pt(3.0, 4.0), pt(-1.0, 9.0), pt(5.0, 0.0)]),
-            Some(rect(-1.0, 0.0, 6.0, 9.0))
-        );
-    }
-
-    #[test]
-    fn union_holds_both_rectangles() {
-        let union = rect(0.0, 0.0, 10.0, 10.0).union(rect(20.0, -5.0, 5.0, 5.0));
-        assert_eq!(union, rect(0.0, -5.0, 25.0, 15.0));
-    }
-
-    #[test]
-    fn intersection_is_the_shared_part_or_none() {
-        let a = rect(0.0, 0.0, 10.0, 10.0);
-        assert_eq!(a.intersection(rect(5.0, 5.0, 10.0, 10.0)), Some(rect(5.0, 5.0, 5.0, 5.0)));
-        assert_eq!(a.intersection(rect(10.0, 0.0, 5.0, 5.0)), Some(rect(10.0, 0.0, 0.0, 5.0)));
-        assert_eq!(a.intersection(rect(11.0, 0.0, 5.0, 5.0)), None);
-        assert_eq!(a.intersection(rect(0.0, 11.0, 5.0, 5.0)), None);
-    }
-
-    #[test]
-    fn outset_grows_every_side() {
-        assert_eq!(rect(0.0, 0.0, 10.0, 4.0).outset(2.0), rect(-2.0, -2.0, 14.0, 8.0));
-    }
-
-    #[test]
-    fn the_default_viewport_is_the_identity() {
-        let view = Viewport::default();
-        assert_eq!(view.zoom(), 1.0);
-        assert_eq!(view.to_screen(pt(12.0, -7.0)), pt(12.0, -7.0));
-        assert_eq!(view.visible(SCREEN), rect(0.0, 0.0, 800.0, 600.0));
-    }
-
-    #[test]
-    fn screen_to_canvas_and_back_is_the_identity() {
-        for view in [Viewport::default(), moved(), moved().zoom_about(pt(0.0, 0.0), 0.01)] {
-            for p in [pt(0.0, 0.0), pt(799.0, 1.0), pt(-50.5, 1234.25)] {
-                assert!(near(view.to_screen(view.to_canvas(p)), p), "{view:?} {p:?}");
-                assert!(near(view.to_canvas(view.to_screen(p)), p), "{view:?} {p:?}");
-            }
-        }
-    }
-
-    #[test]
-    fn a_canvas_rectangle_on_screen_has_its_corners_where_the_points_go() {
-        let view = moved();
-        let canvas = rect(10.0, 20.0, 30.0, 40.0);
-        let screen = view.rect_to_screen(canvas);
-        assert!(near(pt(screen.x, screen.y), view.to_screen(pt(10.0, 20.0))));
-        let far = view.to_screen(pt(40.0, 60.0));
-        assert!(near(pt(screen.x + screen.width, screen.y + screen.height), far));
-    }
-
-    #[test]
-    fn pan_moves_the_canvas_with_the_pointer() {
-        let view = moved();
-        let under = view.to_canvas(pt(100.0, 100.0));
-        let panned = view.pan(30.0, -20.0);
-        assert!(near(panned.to_screen(under), pt(130.0, 80.0)));
-        assert_eq!(panned.zoom(), view.zoom());
-    }
-
-    #[test]
-    fn a_pan_that_is_not_finite_moves_nothing() {
-        let view = moved();
-        assert_eq!(view.pan(f64::NAN, 0.0), view);
-        assert_eq!(view.pan(0.0, f64::INFINITY), view);
-    }
-
-    #[test]
-    fn the_canvas_has_no_edge() {
-        let far = Viewport::default().pan(-1e12, 1e12);
-        assert_eq!(far.visible(SCREEN), rect(1e12, -1e12, 800.0, 600.0));
-        let p = pt(1e12 + 5.0, -1e12 + 7.0);
-        assert!(near(far.to_canvas(far.to_screen(p)), p));
-    }
-
-    #[test]
-    fn zoom_about_a_point_keeps_that_point_still() {
-        let view = moved();
-        for (about, factor) in [(pt(250.0, 125.0), 1.7), (pt(0.0, 600.0), 0.4), (pt(9.0, 9.0), 1e9)]
-        {
-            let under = view.to_canvas(about);
-            let zoomed = view.zoom_about(about, factor);
-            assert!(near(zoomed.to_screen(under), about), "{about:?} x{factor}");
-        }
-    }
-
-    #[test]
-    fn zoom_changes_what_is_visible() {
-        let view = Viewport::default().zoom_about(pt(0.0, 0.0), 2.0);
-        assert_eq!(view.zoom(), 2.0);
-        assert_eq!(view.visible(SCREEN), rect(0.0, 0.0, 400.0, 300.0));
-    }
-
-    #[test]
-    fn zoom_has_limits() {
-        let view = moved();
-        let about = pt(10.0, 10.0);
-        assert_eq!(view.zoom_about(about, 1e9).zoom(), MAX_ZOOM);
-        assert_eq!(view.zoom_about(about, 1e-9).zoom(), MIN_ZOOM);
-        assert_eq!(view.zoom_about(about, 0.0).zoom(), MIN_ZOOM);
-        assert_eq!(view.zoom_about(about, -3.0).zoom(), MIN_ZOOM);
-        assert_eq!(view.zoom_about(about, f64::INFINITY).zoom(), MAX_ZOOM);
-    }
-
-    #[test]
-    fn a_zoom_that_is_not_a_number_or_about_no_point_changes_nothing() {
-        let view = moved();
-        assert_eq!(view.zoom_about(pt(10.0, 10.0), f64::NAN), view);
-        assert_eq!(view.zoom_about(pt(f64::NAN, 10.0), 2.0), view);
-        assert_eq!(view.zoom_about(pt(10.0, f64::NEG_INFINITY), 2.0), view);
-    }
-
-    #[test]
-    fn a_popup_is_centred_on_the_pen_with_its_cells_in_a_row() {
-        let pop = popup(pt(200.0, 100.0), 3, SWATCH, SCREEN);
-        // 3 cells of 24 and 4 pads of 6 wide; 24 and 2 pads high.
-        assert_eq!(pop.panel, rect(200.0 - 48.0, 100.0 - 18.0, 96.0, 36.0));
-        let xs: Vec<f64> = pop.cells.iter().map(|c| c.x).collect();
-        assert_eq!(xs, [158.0, 188.0, 218.0]);
-        for cell in &pop.cells {
-            assert_eq!((cell.y, cell.width, cell.height), (88.0, 24.0, 24.0));
-            assert!(pop.panel.contains(pt(cell.x, cell.y)));
-            assert!(pop.panel.contains(pt(cell.x + cell.width, cell.y + cell.height)));
-        }
-    }
-
-    #[test]
-    fn a_popup_near_an_edge_moves_inside_it() {
-        let size = |p: &Popup| (p.panel.width, p.panel.height);
-        let top_left = popup(pt(3.0, 2.0), 4, WORD, SCREEN);
-        assert_eq!((top_left.panel.x, top_left.panel.y), (8.0, 8.0));
-        let bottom_right = popup(pt(799.0, 599.0), 4, WORD, SCREEN);
-        let (w, h) = size(&bottom_right);
-        assert_eq!(
-            (bottom_right.panel.x, bottom_right.panel.y),
-            (800.0 - 8.0 - w, 600.0 - 8.0 - h)
-        );
-        let off_screen = popup(pt(-500.0, 9000.0), 4, WORD, SCREEN);
-        assert_eq!((off_screen.panel.x, off_screen.panel.y), (8.0, 600.0 - 8.0 - h));
-        assert_eq!(off_screen.cells[0].x, 8.0 + 6.0);
-    }
-
-    #[test]
-    fn a_popup_too_big_for_its_space_keeps_its_top_left_in() {
-        let pop = popup(pt(20.0, 20.0), 9, WORD, Size { width: 100.0, height: 30.0 });
-        assert_eq!((pop.panel.x, pop.panel.y), (8.0, 8.0));
-        assert!(pop.panel.width > 100.0);
-    }
-
-    #[test]
-    fn a_popup_of_no_cells_is_an_empty_panel() {
-        let pop = popup(pt(100.0, 100.0), 0, SWATCH, SCREEN);
-        assert_eq!(pop.cells, []);
-        assert_eq!(pop.panel, rect(97.0, 82.0, 6.0, 36.0));
-    }
-
-    #[test]
-    fn contains_includes_the_edges() {
-        let r = rect(10.0, 10.0, 5.0, 5.0);
-        assert!(r.contains(pt(10.0, 10.0)) && r.contains(pt(15.0, 15.0)));
-        assert!(!r.contains(pt(9.9, 12.0)) && !r.contains(pt(12.0, 15.1)));
-    }
-
-    #[test]
-    fn the_window_fits_two_lines_inside_its_margins() {
-        let rects = lines(WINDOW, 2);
-        assert!(rects[0].y >= MARGIN);
-        assert!(rects[1].y + rects[1].height <= WINDOW.height - MARGIN);
-    }
-}
+mod tests;

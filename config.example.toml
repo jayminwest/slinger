@@ -25,6 +25,8 @@
 #muted = "#8c8c8c"
 # Errors.
 #error = "#ff6b6b"
+# The focus border around the focused pane: the one line the window draws.
+#focus = "#4c9aff"
 
 # --- daemon: how the app reaches slingerd.
 [daemon]
@@ -61,3 +63,19 @@
 #pick-shape = "cmd+shift+s"
 # A tool: pen, eraser, lasso or text.
 #pick-tool = "cmd+shift+t"
+# Split the focused pane in two, side by side; the new pane, on the right, shows the same.
+#split-right = "cmd+d"
+# Split the focused pane in two, one over the other; the new pane, below, shows the same.
+#split-down = "cmd+shift+d"
+# Close the focused pane; the pane beside it takes its space. The last pane stays.
+#close-pane = "cmd+w"
+# Focus the next pane: left to right, top to bottom, then back to the first.
+#focus-next = "ctrl+tab"
+# Focus the pane beside the focused one.
+#focus-left = "cmd+alt+left"
+#focus-right = "cmd+alt+right"
+#focus-up = "cmd+alt+up"
+#focus-down = "cmd+alt+down"
+# Give the focused pane more, or less, of the space it shares with the pane beside it.
+#grow-pane = "cmd+="
+#shrink-pane = "cmd+-"

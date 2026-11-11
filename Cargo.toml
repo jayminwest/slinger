@@ -19,7 +19,7 @@ font8x8 = { version = "0.3", default-features = false, features = ["unicode"] }
 gethostname = "1"
 miniz_oxide = "0.9"
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "objc2-core-foundation", "NSApplication", "NSColor", "NSControl", "NSEvent", "NSGraphics", "NSParagraphStyle", "NSResponder", "NSRunningApplication", "NSText", "NSTextField", "NSView", "NSWindow"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "objc2-core-foundation", "NSApplication", "NSBox", "NSColor", "NSControl", "NSEvent", "NSGraphics", "NSParagraphStyle", "NSResponder", "NSRunningApplication", "NSText", "NSTextField", "NSView", "NSWindow"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSDate", "NSGeometry", "NSString", "NSTimer"] }
 rusqlite = { version = "0.41", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }

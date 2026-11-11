@@ -16,7 +16,7 @@ fn an_empty_file_is_every_default() {
 #[test]
 fn parses_every_key() {
     let text = "[theme]\nbackground = \"#000000\"\ntext = \"#FFFFFF\"\n\
-                muted=\"#010203\"   # a note\nerror = \"#ff0000\"\n\
+                muted=\"#010203\"   # a note\nerror = \"#ff0000\"\nfocus = \"#00ff00\"\n\
                 [daemon]  # the daemon\nsocket = \"~/s.sock\"\n";
     let config = parse(text).unwrap().resolve();
     let theme = Theme {
@@ -24,6 +24,7 @@ fn parses_every_key() {
         text: rgb(255, 255, 255),
         muted: rgb(1, 2, 3),
         error: rgb(255, 0, 0),
+        focus: rgb(0, 255, 0),
     };
     let expected = Config {
         theme,
@@ -152,18 +153,35 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
         text: Some(Theme::default().text),
         muted: Some(Theme::default().muted),
         error: Some(Theme::default().error),
+        focus: Some(Theme::default().focus),
         socket: all.socket.clone(),
         palette: Some(Palette::default()),
         // The defaults, each written out.
         keys: [
-            Some(Chord::parse("cmd+q")),
-            Some(Chord::parse("cmd+r")),
-            Some(Chord::parse("cmd+shift+c")),
-            Some(Chord::parse("cmd+shift+s")),
-            Some(Chord::parse("cmd+shift+t")),
-        ],
+            "cmd+q",
+            "cmd+r",
+            "cmd+shift+c",
+            "cmd+shift+s",
+            "cmd+shift+t",
+            "cmd+d",
+            "cmd+shift+d",
+            "cmd+w",
+            "ctrl+tab",
+            "cmd+alt+left",
+            "cmd+alt+right",
+            "cmd+alt+up",
+            "cmd+alt+down",
+            "cmd+=",
+            "cmd+-",
+        ]
+        .map(|c| Some(Chord::parse(c))),
     };
     assert_eq!(all, every_key);
+    assert_eq!(
+        all.clone().resolve().keys,
+        Keymap::default(),
+        "the example's chords are the defaults"
+    );
     assert!(all.socket.is_some());
 }
 
