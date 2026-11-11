@@ -121,8 +121,10 @@ session.rs   sessions (SPEC section 5, section 7 status set): a session per
              three statuses, and the record event each writes (blocked, done)
              or none (working), and back. No IO.
 session/stream.rs  Claude Code's stream format (D10): the arguments that start
-             or resume a session's process, a message as one input line, and
-             what an output line says (its session id, the end of a turn).
+             or resume a session's process, with its limits (what it reads,
+             runs and loads, from its workspace's agent), a message as one
+             input line, and what an output line says (its session id, the
+             end of a turn).
 error.rs     the typed errors and their stable codes.
 ```
 
@@ -172,7 +174,7 @@ sessions.rs  the statuses agents set since the daemon started (`working`
              record. `status_set` appends its event inside the same lock.
              Start, stop and send find the agent by its workspace.
 processes.rs the agents' processes, one per agent: spawned in the agent's
-             home with `SLINGER_AGENT` and `SLINGER_SOCKET`, written to under
+             home within its limits, with `SLINGER_AGENT` and `SLINGER_SOCKET`, written to under
              one lock, read by a thread each so a pipe never fills. Keeps each
              session id in `sessions.json` once the output names it. Dropping
              one closes its input, waits a grace period, then kills it; `serve`
@@ -278,6 +280,7 @@ Each boundary has something that fails when it is broken:
 | A put shows with its author; after a sling it lands `reply_landed`; an unknown item is `not_found` | `crates/daemon/src/tests/put.rs`, through a real socket |
 | An agent edits and removes only its own items; removing twice succeeds twice | `crates/core/tests/canvas_edit.rs`, and `crates/daemon/src/tests/edit.rs` through a real socket |
 | Three sends reach one process under one session id and their answers are read; a restart resumes it; a dead process makes a send `unavailable`; a daemon stop ends it | `crates/daemon/src/tests/process.rs`, with a stand-in for Claude Code |
+| A session starts with the exact limits its workspace sets: by default its roots, the `slinger` CLI and no user config; wider with the agent's `dirs`, `tools` and `user_config` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
 | An agent verb takes its agent from `--agent` or `SLINGER_AGENT`, else exits 2 | `crates/cli/tests/agent_env.rs`, against the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |

@@ -19,6 +19,12 @@ bullet with the area in bold.
   nine, `"#rrggbb"`, split by spaces or commas). The canvas that uses the
   chosen tool and colour comes later.
 
+- **Daemon:** a session runs within stated limits. By default the agent
+  reads only its workspace's roots, runs only the `slinger` CLI and read-only
+  commands, and does not load your own Claude Code settings and
+  instructions; anything else it would ask for is denied. The workspace's
+  `[agent]` widens it with `dirs`, `tools` (Claude Code permission rules,
+  such as `"Edit"` or `"Bash(git *)"`) and `user_config = true`.
 - **CLI:** agents answer on the canvas. `slinger canvas put <canvas> --beside
   <id> --text <text>` puts text beside an item, where it covers nothing:
   to the right first, else below, left or above. `--box w,h` puts a box and

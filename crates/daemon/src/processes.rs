@@ -17,7 +17,7 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
-use slinger_core::session::stream::{self, Start};
+use slinger_core::session::stream::{self, Limits, Start};
 
 /// How long a stop waits for a process to end after its input closes, before
 /// it kills the process.
@@ -110,14 +110,14 @@ impl Processes {
         let _ = self.socket.set(socket.to_owned());
     }
 
-    /// Starts `agent`'s process in `home`, resuming its last session. A
-    /// running one is left as it is; one that exited is replaced.
+    /// Starts `agent`'s process in `home` within `limits`, resuming its last
+    /// session. A running one is left as it is; one that exited is replaced.
     ///
     /// # Errors
     ///
     /// [`ProcessError::Spawn`] when the program cannot run, and
     /// [`ProcessError::Ids`] when the file of ids cannot be read.
-    pub fn start(&self, agent: &str, home: &Path) -> Result<()> {
+    pub fn start(&self, agent: &str, home: &Path, limits: &Limits) -> Result<()> {
         let mut held = self.lock();
         if held.get_mut(agent).is_some_and(Held::running) {
             return Ok(());
@@ -131,7 +131,7 @@ impl Processes {
         };
         let start = if resume { Start::Resume(&id) } else { Start::Fresh(&id) };
         let mut command = Command::new(&self.program);
-        command.args(stream::args(start)).current_dir(home).env(AGENT_ENV, agent);
+        command.args(stream::args(start, limits)).current_dir(home).env(AGENT_ENV, agent);
         if let Some(socket) = self.socket.get() {
             command.env(SOCKET_ENV, socket);
         }

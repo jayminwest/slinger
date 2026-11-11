@@ -86,16 +86,18 @@ impl Sessions {
     }
 
     /// Starts the process of the agent of the open workspace `which` names,
-    /// in the agent's home, and returns its session. A running one is left
-    /// as it is.
+    /// in the agent's home and within the workspace's limits on this machine,
+    /// and returns its session. A running one is left as it is.
     ///
     /// # Errors
     ///
     /// `not_found` for a workspace that is not open, `invalid` for one with
     /// no agent, and the process's error.
     pub fn start(&self, store: &Store, which: &str) -> Result<Session> {
-        let session = self.of_workspace(store, which)?;
-        self.processes.start(&session.agent, &session.home)?;
+        let opened = store.workspaces().show(which)?;
+        let session = self.show(store, session::agent_of(&opened.workspace)?)?;
+        let limits = stream::Limits::of(&opened.workspace, store.machine());
+        self.processes.start(&session.agent, &session.home, &limits)?;
         Ok(session)
     }
 

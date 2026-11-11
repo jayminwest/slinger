@@ -168,3 +168,51 @@ fn a_start_needs_an_open_workspace_with_an_agent_and_a_program_to_run() {
     assert_eq!(client.session_send("notes", " ").unwrap_err().code(), "invalid");
     daemon.stop();
 }
+
+#[test]
+fn a_session_starts_within_its_workspaces_limits() {
+    let (data, projects, bin) =
+        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude(bin.path()));
+    let client = daemon.client();
+    let fixed = "--print --input-format stream-json --output-format stream-json";
+    let denied = "--permission-mode dontAsk --tools";
+
+    let plain = open_with_agent(&client, &projects, "plain", "scout");
+    client.session_start("plain").unwrap();
+    let id = client.session_show("scout").unwrap().session_id.unwrap();
+    assert_eq!(
+        wait_lines(&plain.join("args.txt"), 1),
+        [format!(
+            "{fixed} --setting-sources project,local --strict-mcp-config {denied} \
+         Read,Glob,Grep,Bash --allowedTools Bash(slinger *) --verbose --session-id {id}"
+        )]
+    );
+
+    std::fs::create_dir(projects.path().join("wide")).unwrap();
+    let wide = projects.path().join("wide").canonicalize().unwrap();
+    let file = format!(
+        "version = 1\nname = \"wide\"\ncanvas = \"wide\"\n\
+         [agent]\nname = \"ada\"\nuser_config = true\n\
+         dirs = [\"/srv/docs\"]\ntools = [\"Edit\", \"Bash(git *)\"]\n\
+         [[root]]\nmachine = \"test-machine\"\npath = \"{}\"\nprimary = true\n\
+         [[root]]\nmachine = \"test-machine\"\npath = \"/srv/data\"\n\
+         [[root]]\nmachine = \"elsewhere\"\npath = \"/srv/far\"\n",
+        wide.display()
+    );
+    std::fs::write(wide.join("slinger-workspace.toml"), file).unwrap();
+    client.workspace_open(Some(&wide), None).unwrap();
+    client.session_start("wide").unwrap();
+    let id = client.session_show("ada").unwrap().session_id.unwrap();
+    assert_eq!(
+        wait_lines(&wide.join("args.txt"), 1),
+        [format!(
+            "{fixed} --setting-sources user,project,local --strict-mcp-config {denied} \
+         Read,Glob,Grep,Bash,Edit --allowedTools Bash(slinger *) Edit Bash(git *) \
+         --add-dir /srv/data /srv/docs --verbose --session-id {id}"
+        )]
+    );
+    let env = wait_lines(&wide.join("env.txt"), 1);
+    assert_eq!(env, [format!("ada {}", daemon.socket.display())]);
+    daemon.stop();
+}
