@@ -11,7 +11,7 @@
 
 use crate::commands::Chord;
 use crate::config::{Palette, Rgb, Theme};
-use crate::layout::{self, Point, Rect, Size};
+use crate::layout::{self, Point, Rect};
 use crate::scene::Label;
 
 /// What the pen does on the canvas.
@@ -113,10 +113,10 @@ impl Tools {
         self.pen = at;
     }
 
-    /// Opens the `kind` pop-up where the pen last was, inside `within`, with
-    /// the current choice lit. The same kind open already closes instead;
-    /// another kind is replaced.
-    pub fn open(&mut self, kind: Kind, within: Size) {
+    /// Opens the `kind` pop-up where the pen last was, inside `within` (the
+    /// focused pane, in the window's points), with the current choice lit.
+    /// The same kind open already closes instead; another kind is replaced.
+    pub fn open(&mut self, kind: Kind, within: Rect) {
         if self.open_kind() == Some(kind) {
             self.popup = None;
             return;

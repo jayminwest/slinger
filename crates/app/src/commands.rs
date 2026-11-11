@@ -32,6 +32,17 @@ pub enum Command {
     ToggleSidebar,
     /// Hide the notice that an agent is blocked or done.
     DismissNotice,
+    /// Move the focused pane's canvas: the view goes left (the ink right).
+    PanLeft,
+    PanRight,
+    PanUp,
+    PanDown,
+    /// Zoom the focused pane's canvas in or out about the pane's centre.
+    ZoomIn,
+    ZoomOut,
+    /// Show the next page of the focused pane's canvas. For now: pages get
+    /// their own commands with slinger-e91c.
+    NextPage,
 }
 
 /// How many commands there are.
@@ -39,7 +50,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 17] = [
+    pub const ALL: [(Command, &str); 24] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -57,6 +68,13 @@ impl Command {
         (Command::ShrinkPane, "shrink-pane"),
         (Command::ToggleSidebar, "toggle-sidebar"),
         (Command::DismissNotice, "dismiss-notice"),
+        (Command::PanLeft, "pan-left"),
+        (Command::PanRight, "pan-right"),
+        (Command::PanUp, "pan-up"),
+        (Command::PanDown, "pan-down"),
+        (Command::ZoomIn, "zoom-in"),
+        (Command::ZoomOut, "zoom-out"),
+        (Command::NextPage, "next-page"),
     ];
 
     /// The command called `name` in the config file.
@@ -183,6 +201,13 @@ impl Default for Keymap {
             on(CMD, '-'),
             on(CMD, 'b'),
             on(CMD, '.'),
+            on(ALT, LEFT),
+            on(ALT, RIGHT),
+            on(ALT, UP),
+            on(ALT, DOWN),
+            on(ALT, '='),
+            on(ALT, '-'),
+            on(CMD, ']'),
         ])
     }
 }

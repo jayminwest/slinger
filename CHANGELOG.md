@@ -29,6 +29,12 @@ bullet with the area in bold.
   is recorded as `pane_moved`. Growing and shrinking a pane stays in the
   window for now.
 
+- **App:** a canvas pane draws its canvas from the server and follows it:
+  pen lines, text, boxes and arrows in their colours, and a change made
+  anywhere (`slinger canvas put`, another client) shows within about half a
+  second. Scroll or alt+arrows pan, pinch or alt+= and alt+- zoom, and
+  `next-page` (cmd+]) steps through the pages. Ink too dark to see on the
+  theme's background draws in the theme's text colour.
 - **App:** pop-ups at the pen. `pick-colour` (cmd+shift+c), `pick-shape`
   (cmd+shift+s) and `pick-tool` (cmd+shift+t) open a small pop-up where the
   pen or pointer last was, kept inside the window. Pick with the pen, with a

@@ -98,3 +98,13 @@
 # Hide the notice that an agent became blocked or done. It also goes once the agent's
 # status moves on.
 #dismiss-notice = "cmd+."
+# Move the focused pane's canvas a step: the view goes that way. The trackpad pans too.
+#pan-left = "alt+left"
+#pan-right = "alt+right"
+#pan-up = "alt+up"
+#pan-down = "alt+down"
+# Zoom the focused pane's canvas in or out about its centre. The trackpad pinches too.
+#zoom-in = "alt+="
+#zoom-out = "alt+-"
+# Show the next page of the focused pane's canvas, back to the first after the last.
+#next-page = "cmd+]"

@@ -4,7 +4,9 @@
 //! calls), so the window's timer calls it. A daemon round trip waits up to
 //! the client's timeout, so a [`Watch`] asks for the agents' statuses and
 //! the workspace's panes on its own thread; the window sends only its own
-//! pane changes ([`panes`]).
+//! pane changes ([`panes`]). A canvas is followed on a thread of its own
+//! ([`Follower`]).
+
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -17,7 +19,10 @@ use slinger_control::{self as control, Client, PaneLayout, RemoteError};
 use crate::config::{self, Config, Layer};
 use crate::scene::sidebar::{Agent, Status, Workspace};
 
+mod follow;
 pub mod panes;
+
+pub use follow::{Follower, News};
 
 /// A failure as the window shows it: the message and what to do about it.
 #[derive(Debug, Clone, PartialEq, Eq)]

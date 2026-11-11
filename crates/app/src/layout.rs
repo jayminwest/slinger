@@ -32,7 +32,6 @@ pub struct Point {
     pub y: f64,
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "the canvas pane uses it from slinger-c94c"))]
 impl Rect {
     /// The smallest rectangle that holds every point; `None` for no points.
     pub fn around(points: impl IntoIterator<Item = Point>) -> Option<Self> {
@@ -81,7 +80,6 @@ pub const MAX_ZOOM: f64 = 8.0;
 /// `MIN_ZOOM..=MAX_ZOOM`). The canvas has no edge, so any finite origin is
 /// valid. A value is the whole state, so a view keeps the last one and asks
 /// for the next.
-#[cfg_attr(not(test), expect(dead_code, reason = "the canvas pane uses it from slinger-c94c"))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Viewport {
     origin: Point,
@@ -95,7 +93,6 @@ impl Default for Viewport {
     }
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "the canvas pane uses it from slinger-c94c"))]
 impl Viewport {
     /// Screen points per canvas point.
     pub fn zoom(self) -> f64 {
@@ -180,19 +177,20 @@ const POPUP_PAD: f64 = 6.0;
 const POPUP_EDGE: f64 = 8.0;
 
 /// A pop-up of `count` cells of `cell` size in a row, centred on `at` (the
-/// pen) so the shortest move picks, and moved inside `within` when it would
-/// cross an edge. A pop-up too big for `within` keeps its top left corner in.
-pub fn popup(at: Point, count: usize, cell: Size, within: Size) -> Popup {
+/// pen) so the shortest move picks, and moved inside `within` (the focused
+/// pane) when it would cross an edge. A pop-up too big for `within` keeps
+/// its top left corner in.
+pub fn popup(at: Point, count: usize, cell: Size, within: Rect) -> Popup {
     #[expect(clippy::cast_precision_loss, reason = "a handful of cells")]
     let n = count as f64;
     let width = n * cell.width + (n + 1.0) * POPUP_PAD;
     let height = cell.height + 2.0 * POPUP_PAD;
-    let place = |at: f64, size: f64, room: f64| {
-        (at - size / 2.0).min(room - size - POPUP_EDGE).max(POPUP_EDGE)
+    let place = |at: f64, size: f64, start: f64, room: f64| {
+        (at - size / 2.0).min(start + room - size - POPUP_EDGE).max(start + POPUP_EDGE)
     };
     let panel = Rect {
-        x: place(at.x, width, within.width),
-        y: place(at.y, height, within.height),
+        x: place(at.x, width, within.x, within.width),
+        y: place(at.y, height, within.y, within.height),
         width,
         height,
     };
