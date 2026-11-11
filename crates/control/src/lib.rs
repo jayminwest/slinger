@@ -13,6 +13,7 @@ mod imported;
 mod look;
 mod packet;
 mod session;
+mod sling;
 mod wire;
 mod workspace;
 
@@ -31,6 +32,7 @@ pub use imported::CanvasImported;
 pub use look::{CanvasImage, CanvasImages, CanvasStrokes};
 pub use packet::{CanvasPacket, PacketAsk, PacketImage};
 pub use session::{Session, SessionAsk, SessionInfo, Sessions, StatusSet};
+pub use sling::{SlingAsk, Slung};
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
 pub use workspace::{
     Workspace, WorkspaceAgent, WorkspaceClosed, WorkspaceInfo, WorkspaceOpened, WorkspaceRoot,
@@ -129,7 +131,7 @@ pub enum Request {
     #[serde(skip_serializing)]
     CanvasStrokes { canvas: String, item: String },
     /// The session verbs (`session_list`, `session_show`, `status_set`,
-    /// `session_start`, `session_stop`, `session_send`), read by their own
+    /// `session_start`, `session_stop`, `session_send`, `sling_send`), read by their own
     /// `op`s. One variant for them all, written only by
     /// clients that send them: each variant here adds code to the app, which
     /// sends none of them (its size budget is nearly full).
@@ -176,6 +178,7 @@ pub enum Reply {
     SessionStop(SessionInfo),
     SessionSend(SessionInfo),
     StatusSet(StatusSet),
+    SlingSend(Slung),
     CanvasPut(CanvasPlaced),
     CanvasEdit(CanvasEdited),
     CanvasRemove(CanvasRemoved),

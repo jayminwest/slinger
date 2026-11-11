@@ -172,6 +172,24 @@ pub fn agent_of(workspace: &Workspace) -> Result<&str> {
     })
 }
 
+/// The open workspace whose canvas is `canvas`: the one a sling on that
+/// canvas goes to. A canvas has at most one (docs/workspace.md).
+///
+/// # Errors
+///
+/// [`Error::NotFound`] when no open workspace has that canvas.
+pub fn on_canvas<'a>(
+    workspaces: impl IntoIterator<Item = &'a Workspace>,
+    canvas: &str,
+) -> Result<&'a Workspace> {
+    workspaces.into_iter().find(|ws| ws.canvas == canvas).ok_or_else(|| Error::NotFound {
+        what: format!("an open workspace with canvas {canvas:?}"),
+        hint: Some(format!(
+            "a sling goes to the agent of the canvas's workspace: open one with canvas = \"{canvas}\""
+        )),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -239,6 +257,15 @@ mod tests {
         let err = agent_of(&with_agent("a", None)).unwrap_err();
         assert_eq!(err.code(), "invalid");
         assert!(err.hint().unwrap().contains("[agent]"));
+    }
+
+    #[test]
+    fn a_canvas_leads_to_its_workspace_and_one_with_none_is_not_found() {
+        let wss = [with_agent("a", Some("scout")), with_agent("b", None)];
+        assert_eq!(on_canvas(&wss, &wss[1].canvas).unwrap().name, "b");
+        let err = on_canvas(&wss, "nowhere").unwrap_err();
+        assert_eq!(err.code(), "not_found");
+        assert!(err.hint().unwrap().contains("canvas = \"nowhere\""));
     }
 
     #[test]

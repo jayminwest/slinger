@@ -26,6 +26,7 @@ pub struct Ask<'a> {
     pub since: Marker,
     /// When not empty, the `page` section keeps only the selected items and
     /// the clusters holding a selected stroke. `new` and `made` are whole.
+    /// [`Packet::selected`] names the selection by packet id.
     pub selection: &'a [ItemId],
 }
 
@@ -47,11 +48,18 @@ pub fn build(log: &[Op], ask: &Ask<'_>) -> Result<Packet> {
     let changed: BTreeSet<ItemId> = delta.new.iter().chain(&delta.changed).copied().collect();
     let clusters = cluster(&canvas, canvas.items(ask.page).map(Item::id));
     let mut index = Index::new(&canvas, ask.page, &clusters, |id| changed.contains(&id));
-    if !ask.selection.is_empty() {
-        let first: BTreeMap<ItemId, u64> =
-            clusters.iter().flat_map(|c| c.iter().map(|s| (*s, c[0].get()))).collect();
-        let keep: BTreeSet<u64> =
-            ask.selection.iter().map(|id| first.get(id).copied().unwrap_or(id.get())).collect();
+    // A selected stroke stands for its cluster, whose number is its first stroke's.
+    let first: BTreeMap<ItemId, u64> =
+        clusters.iter().flat_map(|c| c.iter().map(|s| (*s, c[0].get()))).collect();
+    let mut selected: Vec<u64> = Vec::new();
+    for id in ask.selection {
+        let n = first.get(id).copied().unwrap_or(id.get());
+        if !selected.contains(&n) {
+            selected.push(n);
+        }
+    }
+    if !selected.is_empty() {
+        let keep: BTreeSet<u64> = selected.iter().copied().collect();
         index.narrow(|n| keep.contains(&n));
     }
     let mut images = Vec::new();
@@ -72,5 +80,12 @@ pub fn build(log: &[Op], ask: &Ask<'_>) -> Result<Packet> {
     let body = index.text(|id| names.get(id).cloned().unwrap_or_default());
     let mut packet = Packet::read(&format!("{}{body}", Packet::header_line(&header)))?;
     packet.images = images;
+    // Every number in a packet is on one line, so a number names its line's id.
+    let lines = || packet.new.iter().chain(&packet.made).chain(&packet.page);
+    let number = |id: &str| id.trim_start_matches(|c: char| c.is_ascii_alphabetic()).parse().ok();
+    packet.selected = selected
+        .iter()
+        .filter_map(|n| lines().find(|e| number(&e.id) == Some(*n)).map(|e| e.id.clone()))
+        .collect();
     Ok(packet)
 }

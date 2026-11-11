@@ -2,8 +2,8 @@
 
 use serde_json::{Value, json};
 use slinger_core::record::{
-    AgentBlocked, AgentDone, BlobId, Body, Event, FileTouched, KINDS, PaneMoved, ReplyLanded,
-    SlingSent, Tags, UiPut, VERSION, decode, encode, to_value,
+    AgentBlocked, AgentDone, BlobId, Body, Event, FileTouched, KINDS, NamedBlob, PaneMoved,
+    ReplyLanded, SlingSent, Tags, UiPut, VERSION, decode, encode, to_value,
 };
 
 fn tags() -> Tags {
@@ -20,6 +20,14 @@ fn every_kind() -> Vec<Body> {
         Body::SlingSent(SlingSent {
             prompt: "what is this?".into(),
             packet: BlobId::of(b"packet"),
+            images: Vec::new(),
+            session: None,
+        }),
+        Body::SlingSent(SlingSent {
+            prompt: String::new(),
+            packet: BlobId::of(b"packet"),
+            images: vec![NamedBlob { name: "c4.png".into(), hash: BlobId::of(b"png") }],
+            session: Some("6f1c0d52-8a3e-4b7d-9c1e-2f4a5b6c7d8e".into()),
         }),
         Body::ReplyLanded(ReplyLanded { sling: 3, items: vec!["i1".into(), "i2".into()] }),
         Body::FileTouched(FileTouched {

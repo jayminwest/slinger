@@ -25,6 +25,14 @@ bullet with the area in bold.
   instructions; anything else it would ask for is denied. The workspace's
   `[agent]` widens it with `dirs`, `tools` (Claude Code permission rules,
   such as `"Edit"` or `"Bash(git *)"`) and `user_config = true`.
+- **CLI:** sling. `slinger sling send <canvas> --select <ids> --prompt
+  <text|->` sends the ink you drew since the canvas's last sling, your
+  selection and your prompt to the agent of the canvas's workspace, and
+  returns as soon as it is delivered; the answer lands on the canvas. Every
+  sling goes into the same conversation, and selecting old ink again sends
+  no ink twice. Each sling is in the record with its packet. If the agent is
+  not running, it exits 6 and tells you to `session start` it: slinger never
+  starts an agent for you.
 - **CLI:** agents answer on the canvas. `slinger canvas put <canvas> --beside
   <id> --text <text>` puts text beside an item, where it covers nothing:
   to the right first, else below, left or above. `--box w,h` puts a box and

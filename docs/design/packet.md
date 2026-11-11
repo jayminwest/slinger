@@ -217,12 +217,15 @@ whole fixture board, all new, is about 63 000 by this estimate.
 
 - **Record (R7).** The packet text is one blob, each image is one blob, and
   the `sling sent` event's payload lists the text hash and each image name
-  with its hash. The stored text never has `at`, so the hash depends only on
-  the page.
+  with its hash (`images`), and the session id it went into (`session`).
+  The stored text never has `at`, so the hash depends only on the page.
 - **Sling.** The server sends the text as content blocks, with each image
   block placed after the line that names it. `slinger_core::sling::message`
   (slinger-8834) builds the whole message: a `slinger-sling 1` line, the
   packet with its images, a `# reply` note and the prompt last.
+  `session::stream::sling` writes it as one stream-json user message to
+  Claude Code: a text block for each run of text and a base64 PNG image
+  block for each image (`sling_send`, docs/service.md).
 - **`slinger canvas read`.** The daemon writes the text (`packet.txt`) and
   the images into one directory and adds `at=<that directory>` to the
   header, so `img=` names resolve as `<at>/<name>`. `--json` returns `{

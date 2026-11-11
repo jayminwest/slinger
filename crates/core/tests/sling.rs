@@ -165,7 +165,12 @@ fn a_reply_lands_for_the_last_sling_and_for_none_before_the_first() {
     use slinger_core::sling::landed;
     let sent = |number| {
         let packet = BlobId::of(b"packet");
-        let body = Body::SlingSent(SlingSent { prompt: String::new(), packet });
+        let body = Body::SlingSent(SlingSent {
+            prompt: String::new(),
+            packet,
+            images: Vec::new(),
+            session: None,
+        });
         let mut event = Event::new(0, "slinger", Tags::on("my-laptop"), body);
         event.number = Some(number);
         event
@@ -176,4 +181,22 @@ fn a_reply_lands_for_the_last_sling_and_for_none_before_the_first() {
         landed(&[sent(3), sent(9)], items.clone()),
         Some(Body::ReplyLanded(ReplyLanded { sling: 9, items }))
     );
+}
+
+#[test]
+fn a_sling_is_first_in_a_conversation_none_of_the_agents_slings_went_into() {
+    use slinger_core::record::{BlobId, Body, Event, SlingSent, Tags};
+    use slinger_core::sling::first;
+    let sent = |session: Option<&str>| {
+        let body = Body::SlingSent(SlingSent {
+            prompt: String::new(),
+            packet: BlobId::of(b"packet"),
+            images: Vec::new(),
+            session: session.map(str::to_string),
+        });
+        Event::new(0, "slingerd", Tags::on("my-laptop"), body)
+    };
+    assert!(first(&[], "s1"));
+    assert!(first(&[sent(None), sent(Some("s0"))], "s1"), "another conversation, or none named");
+    assert!(!first(&[sent(Some("s0")), sent(Some("s1"))], "s1"));
 }

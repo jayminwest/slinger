@@ -15,6 +15,7 @@ use std::fmt::Write;
 
 use serde_json::{Value, json};
 
+use crate::sling::{Block, Message};
 use crate::workspace::Workspace;
 use crate::{Error, Result};
 
@@ -142,6 +143,45 @@ pub fn message(text: &str) -> Result<String> {
     Ok(format!("{line}\n"))
 }
 
+/// The line that delivers a sling's message to the process as one user
+/// message, newline included: its blocks in order, text as text blocks and
+/// each image as a base64 PNG image block, as the model's API takes them.
+/// A sling message is never blank, so there is nothing to reject.
+#[must_use]
+pub fn sling(message: &Message) -> String {
+    let content: Vec<Value> = message
+        .blocks
+        .iter()
+        .map(|block| match block {
+            Block::Text(text) => json!({ "type": "text", "text": text }),
+            Block::Image(image) => json!({
+                "type": "image",
+                "source": { "type": "base64", "media_type": "image/png", "data": base64(&image.png) },
+            }),
+        })
+        .collect();
+    let line = json!({ "type": "user", "message": { "role": "user", "content": content } });
+    format!("{line}\n")
+}
+
+/// Standard base64, with padding.
+fn base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let n = chunk.iter().enumerate().fold(0u32, |n, (i, b)| n | u32::from(*b) << (16 - 8 * i));
+        for i in 0..4 {
+            let pad = i > chunk.len();
+            out.push(if pad {
+                '='
+            } else {
+                char::from(ALPHABET[(n >> (18 - 6 * i) & 63) as usize])
+            });
+        }
+    }
+    out
+}
+
 /// What one line of the process's output says, as far as the server cares.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Said {
@@ -243,6 +283,47 @@ mod tests {
         assert_eq!(value["type"], "user");
         assert_eq!(value["message"], json!({ "role": "user", "content": "say \"hi\"\nthen stop" }));
         assert_eq!(message(" \n").unwrap_err().code(), "invalid");
+    }
+
+    #[test]
+    fn base64_matches_the_standard_vectors() {
+        let cases =
+            [("", ""), ("f", "Zg=="), ("fo", "Zm8="), ("foo", "Zm9v"), ("foobar", "Zm9vYmFy")];
+        for (plain, coded) in cases {
+            assert_eq!(base64(plain.as_bytes()), coded, "{plain}");
+        }
+        assert_eq!(base64(&[0xfb, 0xff, 0xbf]), "+/+/");
+    }
+
+    #[test]
+    fn a_sling_is_one_user_line_of_text_and_image_blocks_in_order() {
+        let image = crate::render::Image {
+            name: "c1.png".into(),
+            x: 0,
+            y: 0,
+            width: 1,
+            height: 1,
+            png: b"png".to_vec(),
+        };
+        let message = Message {
+            blocks: vec![
+                Block::Text("c1 ink\n".into()),
+                Block::Image(image),
+                Block::Text("# prompt\nwhy?".into()),
+            ],
+        };
+        let line = sling(&message);
+        assert_eq!(line.matches('\n').count(), 1);
+        let value: Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(value["type"], "user");
+        assert_eq!(
+            value["message"]["content"],
+            json!([
+                { "type": "text", "text": "c1 ink\n" },
+                { "type": "image", "source": { "type": "base64", "media_type": "image/png", "data": "cG5n" } },
+                { "type": "text", "text": "# prompt\nwhy?" },
+            ])
+        );
     }
 
     #[test]

@@ -18,6 +18,7 @@ mod look;
 mod put;
 mod read;
 mod session;
+mod sling;
 mod workspace;
 
 struct Run {

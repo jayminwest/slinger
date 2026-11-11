@@ -55,7 +55,7 @@ fn write(dir: &Path, packet: &Packet, text: &str) -> Result<(), RemoteError> {
 
 /// Where the canvas's last sling ended: the `to` of the packet its
 /// `sling_sent` event names. 0 (everything is new) before the first sling.
-fn last_sling(store: &Store, canvas: &str) -> Result<u64, RemoteError> {
+pub(super) fn last_sling(store: &Store, canvas: &str) -> Result<u64, RemoteError> {
     let query =
         Query { kind: Some("sling_sent".into()), canvas: Some(canvas.into()), ..Query::default() };
     let events = store.events(&query).map_err(|e| stored(&e))?;

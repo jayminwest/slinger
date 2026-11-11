@@ -43,6 +43,22 @@ pub struct SlingSent {
     pub prompt: String,
     /// The packet the agent got, stored as a blob (R7).
     pub packet: BlobId,
+    /// Each image of the packet, stored as a blob, in the order the packet
+    /// names them. Empty when it had none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<NamedBlob>,
+    /// The conversation the sling went into: the session id of the agent's
+    /// process. Absent when the writer did not know it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session: Option<String>,
+}
+
+/// A file of a stored whole, such as a packet's image: its name there and
+/// its blob.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NamedBlob {
+    pub name: String,
+    pub hash: BlobId,
 }
 
 /// Payload of `reply_landed`.

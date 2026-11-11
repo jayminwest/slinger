@@ -52,6 +52,10 @@ pub struct Packet {
     /// The images the `img` fields in `new` name, in the order named. Not
     /// part of [`Packet::text`]; a packet read back has none.
     pub images: Vec<Image>,
+    /// The packet ids of the selection it was built with (`c42` for any
+    /// stroke of that cluster), in the order selected, each once. Not part
+    /// of [`Packet::text`]; a packet read back has none.
+    pub selected: Vec<String>,
 }
 
 impl Packet {
@@ -129,7 +133,16 @@ impl Packet {
             made: made.ok_or_else(|| missing("made"))?,
             page: page.ok_or_else(|| missing("page"))?,
             images: Vec::new(),
+            selected: Vec::new(),
         })
+    }
+
+    /// How many strokes of the user's ink are new: the `strokes` of each
+    /// `new` line.
+    #[must_use]
+    pub fn new_strokes(&self) -> u64 {
+        let strokes = self.new.iter().filter_map(|e| e.field("strokes")?.parse::<u64>().ok());
+        strokes.sum()
     }
 
     /// About how many tokens a model spends reading the packet: a token per

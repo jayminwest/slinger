@@ -10,7 +10,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use slinger_core::record::{Event, Tags};
 use slinger_core::session::{self, Report, Session, Status, stream};
@@ -64,6 +64,7 @@ type Result<T> = std::result::Result<T, SessionError>;
 pub struct Sessions {
     set: Mutex<HashMap<String, Report>>,
     processes: Processes,
+    slinging: Mutex<()>,
 }
 
 impl Sessions {
@@ -71,7 +72,8 @@ impl Sessions {
     /// (Claude Code); `ids` is the file that keeps the session ids.
     #[must_use]
     pub fn new(program: PathBuf, ids: PathBuf) -> Self {
-        Self { set: Mutex::default(), processes: Processes::new(program, ids) }
+        let processes = Processes::new(program, ids);
+        Self { set: Mutex::default(), processes, slinging: Mutex::default() }
     }
 
     /// The agents' processes.
@@ -121,10 +123,40 @@ impl Sessions {
     /// `invalid` for blank text, `unavailable` when the process is not
     /// running, and the errors of [`Sessions::stop`].
     pub fn send(&self, store: &Store, which: &str, text: &str) -> Result<Session> {
-        let line = stream::message(text)?;
+        self.deliver(store, which, &stream::message(text)?)
+    }
+
+    /// Delivers `line`, one message as the stream format writes it, as
+    /// [`Sessions::send`] does.
+    ///
+    /// # Errors
+    ///
+    /// As [`Sessions::send`], less blank text.
+    pub fn deliver(&self, store: &Store, which: &str, line: &str) -> Result<Session> {
         let session = self.of_workspace(store, which)?;
-        self.processes.send(&session.agent, &line)?;
+        self.processes.send(&session.agent, line)?;
         Ok(session)
+    }
+
+    /// The name of the open workspace whose canvas is `canvas`, and its
+    /// agent: where a sling on that canvas goes.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` when no open workspace has that canvas, `invalid` when
+    /// it has no agent, and the error of a workspace file.
+    pub fn on_canvas(&self, store: &Store, canvas: &str) -> Result<(String, String)> {
+        let open = store.workspaces().list()?;
+        let ws = session::on_canvas(open.iter().map(|o| &o.workspace), canvas)?;
+        Ok((ws.name.clone(), session::agent_of(ws)?.to_string()))
+    }
+
+    /// Held by a sling from its marker to its `sling_sent`, and by a put
+    /// while it looks for the sling it answers: slings on a canvas go one
+    /// after another, so their packets never overlap, and a reply that comes
+    /// back fast still finds the sling it answers.
+    pub fn slinging(&self) -> MutexGuard<'_, ()> {
+        self.slinging.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// The session of the agent of the open workspace `which` names.

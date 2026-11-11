@@ -25,6 +25,7 @@ pub fn answer(store: &Store, ask: SessionAsk) -> Result<Reply, RemoteError> {
             let session = store.sessions().send(store, &workspace, &text);
             Ok(Reply::SessionSend(info(store, session)?))
         }
+        SessionAsk::SlingSend(ask) => super::sling::send(store, ask),
     }
 }
 
