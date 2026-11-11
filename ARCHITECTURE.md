@@ -240,7 +240,7 @@ main.rs      wires the modules below. The only caller of platform. With
              writes each reply's `ui_reply` line to stdout instead.
 shared.rs    the window's panes as the server keeps them for its workspace,
              the window's size, the agent UIs the panes show and their notes,
-             and the key overlay over them:
+             and the key overlay and the command palette over them:
              it follows the server's layout and sends the pane commands.
 backend.rs   the app's IO: the one module that talks to the daemon, and the
              one that reads and watches the config files. Its Watch asks the
@@ -423,6 +423,14 @@ scene/overlay.rs  the key overlay (`show-keys`): open or closed; while
              and every press (one outside the panel closes it). Its panel
              lists Command::ALL by Group in three columns, each row a title
              and a chip of the live key from the Keymap. Pure.
+scene/palette.rs  the command palette (`show-commands`): open or closed,
+             what is typed and the selected row. Typing is scene-drawn: it
+             reads each character from the key's Chord (no NSTextField).
+             Rows are Command::ALL whose title and group hold the typing as
+             a subsequence, 44 pt high, each with the group and the live
+             key's chip. While open it takes every key and press; return or
+             a press on a row gives back the command, which main runs as
+             its key would. It draws as the key overlay's Overlay. Pure.
 scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              selection's box (inside its pane), a labelled field: "Sling to
              <agent>" above a 44 pt box with a focus-coloured border, and

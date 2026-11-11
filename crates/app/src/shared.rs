@@ -1,6 +1,7 @@
 //! The window's panes as the server keeps them for its workspace, and what
 //! goes with them: the window's size, the agent UIs, the notes, the
-//! divider under the pen and the key overlay over them.
+//! divider under the pen and the key overlay and the command palette over
+//! them.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -12,6 +13,7 @@ use crate::commands::Command;
 use crate::layout::{self, Rect, Size};
 use crate::panes::{self, Pane, Panes};
 use crate::scene::overlay::KeyOverlay;
+use crate::scene::palette::Palette;
 use crate::scene::resize::Dividers;
 use crate::scene::{Notes, Uis};
 use crate::ui;
@@ -36,6 +38,8 @@ pub struct Shared {
     pub dividers: Dividers,
     /// The key overlay (`show-keys`), when it is open.
     pub overlay: KeyOverlay,
+    /// The command palette (`show-commands`), when it is open.
+    pub palette: Palette,
 }
 
 impl Default for Shared {
@@ -44,8 +48,9 @@ impl Default for Shared {
         let (uis, notes) = (Uis::new(), Notes::new());
         let (size, workspace, trouble, dividers) =
             (layout::WINDOW, None, None, Dividers::default());
-        let overlay = KeyOverlay::default();
-        Self { size, panes: Panes::new(main), uis, workspace, trouble, notes, dividers, overlay }
+        let (overlay, palette) = (KeyOverlay::default(), Palette::default());
+        let panes = Panes::new(main);
+        Self { size, panes, uis, workspace, trouble, notes, dividers, overlay, palette }
     }
 }
 
@@ -94,10 +99,14 @@ impl Shared {
     /// Runs a pane command on the panes in `area`. Opening, closing and
     /// resizing go to the daemon on `socket`, which keeps the layout (to the
     /// window's own panes without a workspace). `show-keys` opens or closes
-    /// the key overlay. Other commands that are not about panes do nothing.
+    /// the key overlay, `show-commands` the command palette. Other commands
+    /// that are not about panes do nothing.
     pub fn command(&mut self, command: Command, area: Rect, socket: &Path) {
         if command == Command::ShowKeys {
             return self.overlay.toggle();
+        }
+        if command == Command::ShowCommands {
+            return self.palette.toggle();
         }
         if matches!(command, Command::GrowPane | Command::ShrinkPane) && self.workspace.is_some() {
             let steps = if command == Command::GrowPane { 1.0 } else { -1.0 };
