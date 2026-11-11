@@ -89,6 +89,14 @@ impl Default for Palette {
     }
 }
 
+/// Whether the sidebar is open when the app starts (`[window] sidebar`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Shown {
+    #[default]
+    Open,
+    Closed,
+}
+
 /// Every setting, resolved: what the file says, else the default.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Config {
@@ -98,6 +106,7 @@ pub struct Config {
     pub socket: Option<String>,
     pub keys: Keymap,
     pub palette: Palette,
+    pub sidebar: Shown,
 }
 
 /// What one file sets. Unset keys fall through to the layer below.
@@ -110,6 +119,7 @@ pub struct Layer {
     focus: Option<Rgb>,
     socket: Option<String>,
     palette: Option<Palette>,
+    sidebar: Option<Shown>,
     /// By command: `Some(None)` unbinds it.
     #[expect(
         clippy::option_option,
@@ -142,6 +152,7 @@ impl Layer {
             focus: top.focus.or(self.focus),
             socket: top.socket.or(self.socket),
             palette: top.palette.or(self.palette),
+            sidebar: top.sidebar.or(self.sidebar),
             keys,
         }
     }
@@ -166,6 +177,7 @@ impl Layer {
             socket: self.socket,
             keys,
             palette: self.palette.unwrap_or_default(),
+            sidebar: self.sidebar.unwrap_or_default(),
         }
     }
 
@@ -179,6 +191,14 @@ impl Layer {
             ("pen", "colours") => {
                 let palette = Palette::parse(&value).ok_or(ErrorKind::BadPalette)?;
                 return put(&mut self.palette, palette);
+            }
+            ("window", "sidebar") => {
+                let shown = match value.as_str() {
+                    "open" => Shown::Open,
+                    "closed" => Shown::Closed,
+                    _ => return Err(ErrorKind::BadSidebar),
+                };
+                return put(&mut self.sidebar, shown);
             }
             ("theme", "background") => &mut self.background,
             ("theme", "text") => &mut self.text,
@@ -214,7 +234,7 @@ fn put<T>(slot: &mut Option<T>, value: T) -> Result<(), ErrorKind> {
     Ok(())
 }
 
-const TABLES: [&str; 4] = ["theme", "daemon", "pen", "keys"];
+const TABLES: [&str; 5] = ["theme", "daemon", "pen", "window", "keys"];
 
 /// A line the parser rejects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -237,6 +257,8 @@ pub enum ErrorKind {
     BadColour,
     /// Not one to nine colours.
     BadPalette,
+    /// `[window] sidebar` is neither `open` nor `closed`.
+    BadSidebar,
     /// A key in `[keys]` that names no command.
     UnknownCommand,
     BadChord,
@@ -266,6 +288,7 @@ impl ErrorKind {
                 "the value is not one to nine colours",
                 "write the colours as \"#rrggbb #rrggbb\", split by spaces or commas",
             ),
+            Self::BadSidebar => ("the value is not open or closed", "write \"open\" or \"closed\""),
             Self::UnknownCommand => ("unknown command", every),
             Self::BadChord => (
                 "the value is not a key chord",

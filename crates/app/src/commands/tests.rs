@@ -110,6 +110,8 @@ fn every_command_has_its_own_default_chord() {
     }
     assert_eq!(keys.command(chord("cmd+alt+left")), Some(Command::FocusLeft));
     assert_eq!(keys.command(chord("ctrl+tab")), Some(Command::FocusNext));
+    assert_eq!(keys.command(chord("cmd+b")), Some(Command::ToggleSidebar));
+    assert_eq!(keys.command(chord("cmd+.")), Some(Command::DismissNotice));
 }
 
 #[test]

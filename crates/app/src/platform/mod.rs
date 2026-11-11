@@ -24,7 +24,7 @@ use objc2_foundation::{NSArray, NSObject, NSPoint, NSRect, NSSize, NSString, NST
 use crate::commands::Chord;
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
-use crate::scene::{Border, Scene};
+use crate::scene::{Border, Label, Scene};
 
 /// How often the main thread looks for a new scene, in seconds.
 const POLL_SECONDS: f64 = 0.5;
@@ -220,27 +220,44 @@ fn window(mtm: MainThreadMarker, scene: &Scene) -> Retained<KeyWindow> {
     window
 }
 
-/// Makes `window` show `scene`: its title, background, labels and border.
+/// Makes `window` show `scene`: its title, background, sidebar, labels and border.
 fn draw(window: &NSWindow, scene: &Scene, mtm: MainThreadMarker) {
     window.setTitle(&NSString::from_str(&scene.title));
     window.setBackgroundColor(Some(&color(scene.background)));
     let Some(view) = window.contentView() else { return };
     view.setSubviews(&NSArray::new());
-    // The border first, so a pop-up at the pen draws over it.
-    view.addSubview(&border(&scene.focus, scene.size.height, mtm));
-    for label in &scene.labels {
-        let field = NSTextField::labelWithString(&NSString::from_str(&label.text), mtm);
-        field.setFrame(flipped(scene.size.height, label.frame));
-        field.setAlignment(NSTextAlignment::Center);
-        // A line longer than its frame keeps both ends: paths end in the part that matters.
-        field.setLineBreakMode(NSLineBreakMode::ByTruncatingMiddle);
-        field.setTextColor(Some(&color(label.colour)));
-        if let Some(fill) = label.fill {
-            field.setDrawsBackground(true);
-            field.setBackgroundColor(Some(&color(fill)));
-        }
+    let height = scene.size.height;
+    for row in &scene.sidebar {
+        let field = label(row, height, NSTextAlignment::Left, mtm);
+        field.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
         view.addSubview(&field);
     }
+    // The border first, so a pop-up at the pen draws over it.
+    view.addSubview(&border(&scene.focus, height, mtm));
+    for line in &scene.labels {
+        let field = label(line, height, NSTextAlignment::Center, mtm);
+        // A line longer than its frame keeps both ends: paths end in the part that matters.
+        field.setLineBreakMode(NSLineBreakMode::ByTruncatingMiddle);
+        view.addSubview(&field);
+    }
+}
+
+/// A text field that shows `line` in a view `height` tall.
+fn label(
+    line: &Label,
+    height: f64,
+    align: NSTextAlignment,
+    mtm: MainThreadMarker,
+) -> Retained<NSTextField> {
+    let field = NSTextField::labelWithString(&NSString::from_str(&line.text), mtm);
+    field.setFrame(flipped(height, line.frame));
+    field.setAlignment(align);
+    field.setTextColor(Some(&color(line.colour)));
+    if let Some(fill) = line.fill {
+        field.setDrawsBackground(true);
+        field.setBackgroundColor(Some(&color(fill)));
+    }
+    field
 }
 
 /// A box that draws only its edge: no title, no fill.

@@ -40,6 +40,13 @@
 # commas. The digit keys 1 to 9 pick them. The first is the pen's colour at start.
 #colours = "#e6e6e6 #ff6b6b #ffa94d #ffd43b #69db7c #4dabf7 #b197fc"
 
+# --- window: the window around the panes.
+[window]
+# The sidebar, which lists the open workspaces and each agent's status (working, blocked,
+# done): "open" or "closed" when the app starts. The toggle-sidebar command opens or
+# collapses it at any time.
+#sidebar = "open"
+
 # --- keys: every action is a named command, bound to a key chord here.
 # A chord is lowercase modifiers (shift, ctrl, alt, cmd) joined by "+", then one character
 # or a key's name: space, tab, return, escape, delete, forward-delete, up, down, left,
@@ -79,3 +86,8 @@
 # Give the focused pane more, or less, of the space it shares with the pane beside it.
 #grow-pane = "cmd+="
 #shrink-pane = "cmd+-"
+# Open the sidebar, or collapse it; the panes take the space it leaves.
+#toggle-sidebar = "cmd+b"
+# Hide the notice that an agent became blocked or done. It also goes once the agent's
+# status moves on.
+#dismiss-notice = "cmd+."
