@@ -71,6 +71,8 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              units a side) and strokes (a stroke's or a cluster's points).
              put.rs: an agent's answer (SPEC section 7): text, a box or an arrow
              beside an item, placed by free_beside, as one undo step.
+             edit.rs: the agent changes (text, size, place) or removes what it
+             put. The author rule stays in Canvas (may_change), checked first.
 packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
              canvas page, the clusters of the user's ink and what changed, and gives
              the `new`, `made` and `page` lines in reading order, plus the render list:
@@ -167,7 +169,9 @@ sessions.rs  the statuses agents set since the daemon started (`working`
              record. `status_set` appends its event inside the same lock.
 server/session.rs  `session_list`, `session_show`, `status_set` on the wire.
 server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
-             agent's latest sling on the canvas (`sling::landed`), if any.
+             agent's latest sling on the canvas (`sling::landed`), if any;
+             `canvas_edit` and `canvas_remove`, which pass the agent's name
+             to the core's `Log::edit` and `Log::remove`.
 ```
 
 ### Inside the app
@@ -255,6 +259,7 @@ Each boundary has something that fails when it is broken:
 | A status set shows in the session list and the record; blocked and done survive a restart | `crates/daemon/src/tests/session.rs`, through a real socket |
 | A put covers nothing: right of the item, else below, left, above, else further right | `crates/core/tests/canvas_put.rs` |
 | A put shows with its author; after a sling it lands `reply_landed`; an unknown item is `not_found` | `crates/daemon/src/tests/put.rs`, through a real socket |
+| An agent edits and removes only its own items; removing twice succeeds twice | `crates/core/tests/canvas_edit.rs`, and `crates/daemon/src/tests/edit.rs` through a real socket |
 | An agent verb takes its agent from `--agent` or `SLINGER_AGENT`, else exits 2 | `crates/cli/tests/agent_env.rs`, against the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |

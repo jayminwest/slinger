@@ -134,6 +134,8 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_show` | `agent`: string | `session` |
 | `status_set` | `agent`: string, `status`: `working`, `blocked` or `done`, `note`: string (optional) | `agent`, `status`, `note` (absent when none), `event`: the number of the event appended (absent for `working`) |
 | `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `arrow`: `[from, to]` item ids | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
+| `canvas_edit` | `canvas`: canvas id, `agent`: string, `item`: an item id, then any of `text`: string, `box`: `[w, h]` in tenths, `move`: `[x, y]` in tenths | `item`, `page`, `x`, `y`, `w`, `h`: its box now, `seq`: the numbers written (empty when nothing changed) |
+| `canvas_remove` | `canvas`: canvas id, `agent`: string, `item`: an item id | `seq`: the numbers written (empty when it was already gone) |
 
 **`record_append`** appends one event to this machine's record. `tags`
 may set `workspace`, `agent` and `canvas`; the daemon sets `machine`, the
@@ -467,6 +469,27 @@ item on another page is `invalid`.
 ```json
 { "v": 1, "op": "canvas_put", "canvas": "idea", "agent": "scout", "beside": "c12", "text": "the date is wrong" }
 { "ok": true, "item": "i31", "page": "p1", "x": 4810, "y": 1200, "w": 4080, "h": 240, "seq": 58, "event": 14 }
+```
+
+**`canvas_edit`** changes an item the agent made, as one undo step: `text`
+gives a text item new words (its frame grows or shrinks to hold them),
+`box` gives a text or a box a new size `[w, h]`, and `move` puts the top-left
+corner of the item's box at `[x, y]`. What it leaves out stays; an edit that
+leaves the item as it was writes nothing. **`canvas_remove`** takes an item
+the agent made off the canvas; an item already gone (or never there)
+succeeds and writes nothing (SPEC B4). Ids are as for `canvas_put`. The
+author rule (above, "Authors") is checked first: an agent naming the user's
+ink, or another agent's item, gets `invalid` with a hint, whatever it asked.
+A canvas that is not there, or an item to edit that is not there, is
+`not_found`; a blank agent, an id that is not one, blank text, text for an
+item that is not text, a size for a stroke or an arrow, or a size below zero
+is `invalid`.
+
+```json
+{ "v": 1, "op": "canvas_edit", "canvas": "idea", "agent": "scout", "item": "i31", "text": "the date is right", "move": [4810, 1500] }
+{ "ok": true, "item": "i31", "page": "p1", "x": 4810, "y": 1500, "w": 4080, "h": 240, "seq": [59] }
+{ "v": 1, "op": "canvas_remove", "canvas": "idea", "agent": "scout", "item": "i31" }
+{ "ok": true, "seq": [60] }
 ```
 
 The agent canvas verbs are one variant of `Request` (`Request::Agent`),

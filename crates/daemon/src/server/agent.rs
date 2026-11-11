@@ -1,8 +1,9 @@
-//! The agent's canvas verbs as they cross the socket: `canvas_put`, and the
-//! `reply_landed` a put appends when it answers a sling.
+//! The agent's canvas verbs as they cross the socket: `canvas_put`, the
+//! `reply_landed` a put appends when it answers a sling, `canvas_edit` and
+//! `canvas_remove`.
 
 use slinger_control::{self as control, AgentAsk, RemoteError, Reply};
-use slinger_core::canvas::file::{Placed, Put};
+use slinger_core::canvas::file::{Edit, Placed, Put};
 use slinger_core::record::{Event, Tags};
 use slinger_core::{session, sling};
 
@@ -18,6 +19,21 @@ pub(super) fn answer(store: &Store, ask: AgentAsk) -> Result<Reply, RemoteError>
                 control::Put::Arrow([from, to]) => Put::Arrow { from, to },
             };
             canvas_put(store, &put.canvas, &put.agent, &put.beside, &what)
+        }
+        AgentAsk::CanvasEdit(ask) => {
+            session::check_agent(&ask.agent).map_err(|e| remote(&e))?;
+            let edit = Edit { text: ask.text, size: ask.size, to: ask.to };
+            let edited = store.canvases().edit(&ask.canvas, &ask.agent, &ask.item, &edit);
+            let Placed { written, item, page, frame: [x, y, w, h] } =
+                edited.map_err(|e| drawn(&e))?;
+            let seq = written.seq;
+            Ok(Reply::CanvasEdit(control::CanvasEdited { item, page, x, y, w, h, seq }))
+        }
+        AgentAsk::CanvasRemove(ask) => {
+            session::check_agent(&ask.agent).map_err(|e| remote(&e))?;
+            let removed = store.canvases().remove(&ask.canvas, &ask.agent, &ask.item);
+            let seq = removed.map_err(|e| drawn(&e))?.seq;
+            Ok(Reply::CanvasRemove(control::CanvasRemoved { seq }))
         }
     }
 }

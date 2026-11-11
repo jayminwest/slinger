@@ -47,6 +47,8 @@ a "did you mean" suggestion.
 | `session show <AGENT>` | One field per line, the name and the value separated by a tab: `agent`, `home`, `deliver`, `status`, then `note` (if any). `--json`: `session` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
 | `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --arrow FROM TO) [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
+| `canvas edit <ID> --item ITEM [--text TEXT] [--box W,H] [--move X,Y] [--agent NAME]` | The item's id and its box `x,y,w,h` in tenths now, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq` |
+| `canvas remove <ID> --item ITEM [--agent NAME]` | Nothing. `--json`: `seq` |
 
 `record append` takes the payload as a JSON object (default `{}`); the
 kinds and their payloads are in `docs/service.md`. A payload that is not
@@ -136,6 +138,14 @@ verbs"). After a sling to that agent on that canvas, the put also appends
 `reply_landed` to the record. An item that is not there exits 3
 (`not_found`); none or two of `--text`, `--box` and `--arrow`, or a `--box`
 that is not two integers, exits 2 (`usage`); blank text exits 5 (`invalid`).
+`canvas edit` and `canvas remove` are agent verbs for items the agent made:
+`edit` gives a text new words, a text or a box a new size (`--box W,H`), or
+moves the item's top-left corner to `--move X,Y`, all in tenths; `remove`
+takes the item off the canvas, and an item already gone succeeds. Naming
+the user's ink or another agent's item exits 5 (`invalid`) with a hint. An
+edit with none of `--text`, `--box` and `--move`, or a pair that is not two
+integers, exits 2 (`usage`); an item to edit that is not there exits 3
+(`not_found`).
 `session list` shows the agents of the open workspaces; with none it prints
 nothing and exits 0. `session show` of an agent with no session exits 3
 (`not_found`).

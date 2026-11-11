@@ -22,7 +22,9 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub use agent::{AgentAsk, CanvasPlaced, CanvasPut, Put};
+pub use agent::{
+    AgentAsk, CanvasEdit, CanvasEdited, CanvasPlaced, CanvasPut, CanvasRemove, CanvasRemoved, Put,
+};
 pub use client::Client;
 pub use feed::{CanvasFeed, MAX_WAIT_MS};
 pub use imported::CanvasImported;
@@ -132,8 +134,9 @@ pub enum Request {
     /// sends none of them (its size budget is nearly full).
     #[serde(untagged, skip_serializing)]
     Session(SessionAsk),
-    /// The agent's canvas verbs (`canvas_put`), read by their own `op`s and
-    /// written only by clients that send them, as the session verbs are.
+    /// The agent's canvas verbs (`canvas_put`, `canvas_edit`,
+    /// `canvas_remove`), read by their own `op`s and written only by clients
+    /// that send them, as the session verbs are.
     #[serde(untagged, skip_serializing)]
     Agent(AgentAsk),
 }
@@ -170,6 +173,8 @@ pub enum Reply {
     SessionShow(SessionInfo),
     StatusSet(StatusSet),
     CanvasPut(CanvasPlaced),
+    CanvasEdit(CanvasEdited),
+    CanvasRemove(CanvasRemoved),
 }
 
 /// The reply to [`Request::Hello`].
