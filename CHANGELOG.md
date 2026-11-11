@@ -22,6 +22,10 @@ bullet with the area in bold.
 - **App:** the window resizes. Drag its edge or corner, or zoom it, and the
   sidebar and the panes follow. It opens at 960x600 and goes down to 480x320.
 
+- **App:** two new commands, `show-keys` (`cmd+/`) and `show-commands`
+  (`cmd+k`). They do nothing yet: the key overlay and the command palette
+  that they open come next. Rebind them in `[keys]` as any other command.
+
 - **App:** the "send to agent" button. The `place-button` command
   (`cmd+shift+b`) puts one in the middle of the focused canvas pane. Tap it
   to sling what is new on the page since the last sling to the agent of the
