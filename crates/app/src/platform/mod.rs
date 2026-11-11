@@ -1,7 +1,8 @@
 //! The macOS layer. Every `unsafe` block and every objc2 or `AppKit` call in the
 //! project is in this directory (gate check:layers, rule `platform-owns-ffi`).
 //! It exposes safe functions and makes no decisions: it turns a key press
-//! into a [`Chord`] and hands it on, and it draws what a [`Scene`] says.
+//! into a [`Chord`] and a pen or mouse event into a [`Point`] and hands them
+//! on, and it draws what a [`Scene`] says.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
 //! that touches `AppKit` takes a `MainThreadMarker`, which only the main thread
@@ -22,7 +23,7 @@ use objc2_foundation::{NSArray, NSObject, NSPoint, NSRect, NSSize, NSString, NST
 
 use crate::commands::Chord;
 use crate::config::Rgb;
-use crate::layout::Rect;
+use crate::layout::{Point, Rect};
 use crate::scene::Scene;
 
 /// How often the main thread looks for a new scene, in seconds.
@@ -44,6 +45,10 @@ pub enum Event {
     Tick,
     /// A key press.
     Key(Chord),
+    /// The pen or pointer moved to a point in the window (top-left origin).
+    Moved(Point),
+    /// The pen or the mouse button went down at a point in the window.
+    Press(Point),
 }
 
 /// What to do about an [`Event`].
@@ -91,13 +96,22 @@ define_class!(
         }
 
         /// Every event for the window comes through here first. A key press
-        /// that is a command stops here; everything else goes on as usual.
+        /// or a press the app uses stops here; everything else, moves
+        /// included, goes on as usual.
         #[unsafe(method(sendEvent:))]
         fn send_event(&self, event: &NSEvent) {
-            if event.r#type() == NSEventType::KeyDown
-                && let Some(chord) = chord(event)
-                && dispatch(Event::Key(chord), self.mtm())
-            {
+            let kind = event.r#type();
+            let used = if kind == NSEventType::KeyDown {
+                chord(event).is_some_and(|chord| dispatch(Event::Key(chord), self.mtm()))
+            } else if kind == NSEventType::LeftMouseDown {
+                dispatch(Event::Press(self.point(event)), self.mtm())
+            } else {
+                if kind == NSEventType::MouseMoved || kind == NSEventType::LeftMouseDragged {
+                    dispatch(Event::Moved(self.point(event)), self.mtm());
+                }
+                false
+            };
+            if used {
                 return;
             }
             // SAFETY: `NSWindow`'s own `sendEvent:`, with the event it was given.
@@ -105,6 +119,15 @@ define_class!(
         }
     }
 );
+
+impl KeyWindow {
+    /// Where a pen or mouse event is in the window's content, from the top left.
+    fn point(&self, event: &NSEvent) -> Point {
+        let at = event.locationInWindow();
+        let height = self.contentView().map_or(0.0, |v| v.frame().size.height);
+        Point { x: at.x, y: height - at.y }
+    }
+}
 
 /// The chord of a key press: the device-independent modifier flags, whose
 /// shift, control, option and command bits (17 to 20) are the [`Chord`]
@@ -137,7 +160,8 @@ fn dispatch(event: Event, mtm: MainThreadMarker) -> bool {
 
 /// Shows `scene` in a window and runs the app until it quits (the window
 /// closes, or a [`Step::Quit`]). Each key press and twice a second a tick go
-/// to `answer` on the main thread, which must return quickly. Call it from
+/// to `answer` on the main thread, which must return quickly; so do pen and
+/// mouse presses and moves in the window. Call it from
 /// `main`.
 ///
 /// # Errors
@@ -191,6 +215,7 @@ fn window(mtm: MainThreadMarker, scene: &Scene) -> Retained<KeyWindow> {
     };
     // SAFETY: `Retained` owns the window, so `AppKit` must not also release it on close.
     unsafe { window.setReleasedWhenClosed(false) };
+    window.setAcceptsMouseMovedEvents(true);
     window.center();
     window
 }
@@ -208,6 +233,10 @@ fn draw(window: &NSWindow, scene: &Scene, mtm: MainThreadMarker) {
         // A line longer than its frame keeps both ends: paths end in the part that matters.
         field.setLineBreakMode(NSLineBreakMode::ByTruncatingMiddle);
         field.setTextColor(Some(&color(label.colour)));
+        if let Some(fill) = label.fill {
+            field.setDrawsBackground(true);
+            field.setBackgroundColor(Some(&color(fill)));
+        }
         view.addSubview(&field);
     }
 }

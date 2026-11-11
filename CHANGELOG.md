@@ -11,6 +11,14 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** pop-ups at the pen. `pick-colour` (cmd+shift+c), `pick-shape`
+  (cmd+shift+s) and `pick-tool` (cmd+shift+t) open a small pop-up where the
+  pen or pointer last was, kept inside the window. Pick with the pen, with a
+  digit, or with the arrow keys and return; escape or the same command again
+  closes it. The colours come from `[pen] colours` in the config file (one to
+  nine, `"#rrggbb"`, split by spaces or commas). The canvas that uses the
+  chosen tool and colour comes later.
+
 - **CLI:** agents answer on the canvas. `slinger canvas put <canvas> --beside
   <id> --text <text>` puts text beside an item, where it covers nothing:
   to the right first, else below, left or above. `--box w,h` puts a box and

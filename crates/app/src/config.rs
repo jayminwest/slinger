@@ -4,7 +4,7 @@
 //! The format is a small subset of TOML: `# comments`, `[table]` headers and
 //! `key = "string"` lines. In `[keys]`, each key is a command's name and its
 //! value is a chord (`commands`). Every key is optional; a missing key keeps its
-//! default. A machine's overlay file is parsed the same way and merged over
+//! default. `[pen] colours` is a list in one string ([`Palette`]). A machine's overlay file is parsed the same way and merged over
 //! the shared file key by key ([`Layer::over`]). `config.example.toml` at the
 //! repository root lists every key with its default.
 
@@ -45,6 +45,47 @@ const fn rgb(r: u8, g: u8, b: u8) -> Rgb {
     Rgb { r, g, b }
 }
 
+/// The pen's colours, in the order the colour pop-up shows them: one to
+/// [`Palette::MAX`], so each has a digit key. The first is the pen's colour
+/// when the app starts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Palette(Vec<Rgb>);
+
+impl Palette {
+    /// The most colours a palette holds: the digit keys 1 to 9.
+    pub const MAX: usize = 9;
+
+    /// The colours, never none.
+    pub fn colours(&self) -> &[Rgb] {
+        &self.0
+    }
+
+    /// Parses `"#rrggbb #rrggbb"`: colours split by spaces or commas.
+    fn parse(value: &str) -> Option<Palette> {
+        let colours = value
+            .split(|c: char| c == ',' || c.is_ascii_whitespace())
+            .filter(|w| !w.is_empty())
+            .map(parse_colour)
+            .collect::<Option<Vec<_>>>()?;
+        (1..=Self::MAX).contains(&colours.len()).then_some(Palette(colours))
+    }
+}
+
+impl Default for Palette {
+    /// The theme's text colour, then red, orange, yellow, green, blue, violet.
+    fn default() -> Self {
+        Palette(vec![
+            Theme::default().text,
+            rgb(0xff, 0x6b, 0x6b),
+            rgb(0xff, 0xa9, 0x4d),
+            rgb(0xff, 0xd4, 0x3b),
+            rgb(0x69, 0xdb, 0x7c),
+            rgb(0x4d, 0xab, 0xf7),
+            rgb(0xb1, 0x97, 0xfc),
+        ])
+    }
+}
+
 /// Every setting, resolved: what the file says, else the default.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Config {
@@ -53,6 +94,7 @@ pub struct Config {
     /// `None` is the daemon's default socket.
     pub socket: Option<String>,
     pub keys: Keymap,
+    pub palette: Palette,
 }
 
 /// What one file sets. Unset keys fall through to the layer below.
@@ -63,6 +105,7 @@ pub struct Layer {
     muted: Option<Rgb>,
     error: Option<Rgb>,
     socket: Option<String>,
+    palette: Option<Palette>,
     /// By command: `Some(None)` unbinds it.
     #[expect(
         clippy::option_option,
@@ -93,6 +136,7 @@ impl Layer {
             muted: top.muted.or(self.muted),
             error: top.error.or(self.error),
             socket: top.socket.or(self.socket),
+            palette: top.palette.or(self.palette),
             keys,
         }
     }
@@ -115,6 +159,7 @@ impl Layer {
             },
             socket: self.socket,
             keys,
+            palette: self.palette.unwrap_or_default(),
         }
     }
 
@@ -125,6 +170,10 @@ impl Layer {
         }
         let slot = match (table, key) {
             ("daemon", "socket") => return put(&mut self.socket, value),
+            ("pen", "colours") => {
+                let palette = Palette::parse(&value).ok_or(ErrorKind::BadPalette)?;
+                return put(&mut self.palette, palette);
+            }
             ("theme", "background") => &mut self.background,
             ("theme", "text") => &mut self.text,
             ("theme", "muted") => &mut self.muted,
@@ -158,7 +207,7 @@ fn put<T>(slot: &mut Option<T>, value: T) -> Result<(), ErrorKind> {
     Ok(())
 }
 
-const TABLES: [&str; 3] = ["theme", "daemon", "keys"];
+const TABLES: [&str; 4] = ["theme", "daemon", "pen", "keys"];
 
 /// A line the parser rejects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -179,6 +228,8 @@ pub enum ErrorKind {
     /// The value is not one double-quoted string.
     NotAString,
     BadColour,
+    /// Not one to nine colours.
+    BadPalette,
     /// A key in `[keys]` that names no command.
     UnknownCommand,
     BadChord,
@@ -204,6 +255,10 @@ impl ErrorKind {
                 ("the value is not a quoted string", "quote the value: key = \"value\"")
             }
             Self::BadColour => ("the value is not a colour", "write a colour as \"#rrggbb\""),
+            Self::BadPalette => (
+                "the value is not one to nine colours",
+                "write the colours as \"#rrggbb #rrggbb\", split by spaces or commas",
+            ),
             Self::UnknownCommand => ("unknown command", every),
             Self::BadChord => (
                 "the value is not a key chord",

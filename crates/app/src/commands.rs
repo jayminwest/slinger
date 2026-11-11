@@ -8,6 +8,12 @@
 pub enum Command {
     Quit,
     ReloadConfig,
+    /// Open the colour pop-up at the pen.
+    PickColour,
+    /// Open the shape pop-up (box, arrow) at the pen.
+    PickShape,
+    /// Open the tool pop-up (pen, eraser, lasso, text) at the pen.
+    PickTool,
 }
 
 /// How many commands there are.
@@ -15,8 +21,13 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 2] =
-        [(Command::Quit, "quit"), (Command::ReloadConfig, "reload-config")];
+    pub const ALL: [(Command, &str); 5] = [
+        (Command::Quit, "quit"),
+        (Command::ReloadConfig, "reload-config"),
+        (Command::PickColour, "pick-colour"),
+        (Command::PickShape, "pick-shape"),
+        (Command::PickTool, "pick-tool"),
+    ];
 
     /// The command called `name` in the config file.
     pub fn named(name: &str) -> Option<Command> {
@@ -59,7 +70,7 @@ impl Chord {
     /// A key event: `mods` is a set of the bits above (others are dropped),
     /// and `key` is the character the key types with no modifier but shift.
     /// A letter matches in either case.
-    pub fn new(mods: u8, key: char) -> Chord {
+    pub const fn new(mods: u8, key: char) -> Chord {
         Chord { mods: mods & (SHIFT | CTRL | ALT | CMD), key: key.to_ascii_lowercase() }
     }
 
@@ -118,7 +129,14 @@ impl Default for Keymap {
     /// The few defaults; `config.example.toml` lists them. The final keys
     /// wait for a canvas to use them on (SPEC O4).
     fn default() -> Self {
-        Keymap([Some(Chord { mods: CMD, key: 'q' }), Some(Chord { mods: CMD, key: 'r' })])
+        let on = |mods, key| Some(Chord { mods, key });
+        Keymap([
+            on(CMD, 'q'),
+            on(CMD, 'r'),
+            on(CMD | SHIFT, 'c'),
+            on(CMD | SHIFT, 's'),
+            on(CMD | SHIFT, 't'),
+        ])
     }
 }
 
