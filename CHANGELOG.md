@@ -11,6 +11,8 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a pane's footer no longer draws its page and key hints on top of
+  the tool name: each part sits at its own place (left, middle, right).
 - **Canvas:** text added with `canvas apply` and no size now gets a box that
   fits its words, so `canvas put --beside` it no longer lands on top of it.
   Text already on a canvas with no box gets one when the canvas is read. A

@@ -14,7 +14,7 @@ use objc2_foundation::{
     NSString,
 };
 
-use super::{color, label};
+use super::{color, flipped, label};
 use crate::config::Rgb;
 use crate::scene::Label;
 use crate::scene::sidebar::Row;
@@ -46,14 +46,9 @@ pub(super) fn footer(footer: &Footer, height: f64, mtm: MainThreadMarker) -> Vec
     let mut views = vec![filled(footer.frame, footer.fill)];
     views.extend(footer.swatch.map(|(frame, colour)| filled(frame, colour)));
     for part in &footer.parts {
-        let align = match part.align {
-            Align::Left => NSTextAlignment::Left,
-            Align::Centre => NSTextAlignment::Center,
-            Align::Right => NSTextAlignment::Right,
-        };
         let colour = part.runs.first().map_or(Rgb { r: 0, g: 0, b: 0 }, |r| r.colour);
         let blank = Label { text: String::new(), colour, fill: None, frame: part.frame };
-        let field = label(&blank, height, align, mtm);
+        let field = label(&blank, height, NSTextAlignment::Left, mtm);
         let text = NSMutableAttributedString::new();
         for run in &part.runs {
             text.appendAttributedString(&styled(
@@ -65,9 +60,20 @@ pub(super) fn footer(footer: &Footer, height: f64, mtm: MainThreadMarker) -> Vec
             ));
         }
         field.setAttributedStringValue(&text);
-        // The alignment is the field's: set after its text, which would reset it.
-        field.setAlignment(align);
         field.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
+        // A field does not align styled text, so the field itself is placed:
+        // as wide as its text (at most the part), at the part's left, middle
+        // or right.
+        field.sizeToFit();
+        let mut frame = flipped(height, part.frame);
+        let width = field.frame().size.width.min(frame.size.width);
+        frame.origin.x += match part.align {
+            Align::Left => 0.0,
+            Align::Centre => (frame.size.width - width) / 2.0,
+            Align::Right => frame.size.width - width,
+        };
+        frame.size.width = width;
+        field.setFrame(frame);
         views.push(Retained::into_super(Retained::into_super(field)));
     }
     views
