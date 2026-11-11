@@ -9,8 +9,9 @@
 //! pane, so a new scene repaints only what changed.
 //! `web` shows agent UIs in sandboxed web views, each kept as long as its
 //! page is shown. `entry` is the sling's one-line text field; `overlay`
-//! dims the window under the key overlay. `text` sets styled text: the
-//! sidebar's rows and the panes' footers. The window
+//! dims the window under the key overlay; `chrome` the focus border and the
+//! flash's pill. `text` sets styled text: the sidebar's rows and the panes'
+//! footers. The window
 //! resizes, down to [`layout::SMALLEST`], and says its new size.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
@@ -20,6 +21,7 @@
 #![expect(unsafe_code, reason = "the FFI boundary: AppKit is reached through objc2")]
 
 mod canvas;
+mod chrome;
 mod entry;
 mod overlay;
 mod text;
@@ -31,10 +33,9 @@ use objc2::rc::Retained;
 use objc2::runtime::{NSObjectProtocol, ProtocolObject};
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSBox, NSBoxType, NSColor,
-    NSEvent, NSEventSubtype, NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment,
-    NSTextField, NSTitlePosition, NSView, NSWindow, NSWindowDelegate, NSWindowOrderingMode,
-    NSWindowStyleMask,
+    NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSColor, NSEvent,
+    NSEventSubtype, NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment, NSTextField,
+    NSView, NSWindow, NSWindowDelegate, NSWindowOrderingMode, NSWindowStyleMask,
 };
 use objc2_foundation::{NSNotification, NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
@@ -42,6 +43,7 @@ use self::canvas::CanvasView;
 use crate::commands::Chord;
 use crate::config::Rgb;
 use crate::layout::{self, PaneId, Point, Rect, Size};
+use crate::scene::flash::Pill;
 use crate::scene::ink::Pen;
 use crate::scene::sidebar::Row;
 use crate::scene::status::Footer;
@@ -131,8 +133,8 @@ struct Shown {
 }
 
 /// What the chrome is made from: the sidebar, the footers, the labels, the
-/// border and the overlay.
-type Chrome = (Vec<Row>, Vec<Footer>, Vec<Label>, Border, Option<Box<Overlay>>);
+/// border, the overlay and the flash.
+type Chrome = (Vec<Row>, Vec<Footer>, Vec<Label>, Border, Option<Box<Overlay>>, Option<Box<Pill>>);
 
 thread_local! {
     /// Set once by [`run`], on the main thread, and kept for the app's life.
@@ -386,7 +388,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
             shown.canvases.push((pane.pane, canvas.clone()));
             canvas
         };
-        canvas.show(frame, pane.scene.clone());
+        canvas.show(frame, pane.scene.clone(), scene.cursor);
     }
     let canvas = |pane| {
         let found = shown.canvases.iter().find(|(p, _)| *p == pane);
@@ -401,6 +403,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
         scene.labels.clone(),
         scene.focus,
         scene.overlay.clone(),
+        scene.flash.clone(),
     ));
     if shown.made_from == made_from {
         return;
@@ -416,12 +419,15 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
         shown.chrome.extend(text::footer(footer, height, mtm));
     }
     // The border first, so a pop-up at the pen draws over it.
-    shown.chrome.push(Retained::into_super(border(&scene.focus, height, mtm)));
+    shown.chrome.push(Retained::into_super(chrome::border(&scene.focus, height, mtm)));
     for line in &scene.labels {
         let field = label(line, height, NSTextAlignment::Center, mtm);
         // A line longer than its frame keeps both ends: paths end in the part that matters.
         field.setLineBreakMode(NSLineBreakMode::ByTruncatingMiddle);
         shown.chrome.push(Retained::into_super(Retained::into_super(field)));
+    }
+    if let Some(pill) = &scene.flash {
+        shown.chrome.push(Retained::into_super(chrome::pill(window, pill, height, mtm)));
     }
     shown.chrome.extend(scene.overlay.iter().flat_map(|o| overlay::views(o, height, mtm)));
     for chrome in &shown.chrome {
@@ -456,18 +462,6 @@ fn label(
         field.setBackgroundColor(Some(&color(fill)));
     }
     field
-}
-
-/// A box that draws only its edge: no title, no fill.
-fn border(border: &Border, height: f64, mtm: MainThreadMarker) -> Retained<NSBox> {
-    let edge = NSBox::new(mtm);
-    edge.setBoxType(NSBoxType::Custom);
-    edge.setTitlePosition(NSTitlePosition::NoTitle);
-    edge.setBorderWidth(border.width);
-    edge.setBorderColor(&color(border.colour));
-    edge.setFillColor(&NSColor::clearColor());
-    edge.setFrame(flipped(height, border.frame));
-    edge
 }
 
 /// `rect`, whose origin is the top left of a view `height` tall, in `AppKit`'s

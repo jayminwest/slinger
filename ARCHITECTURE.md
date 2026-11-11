@@ -330,7 +330,8 @@ scene.rs     decides what the window shows: each pane's placeholder, an
              notice, the sling's labelled entry (scene/sling.rs), each
              pane's footer (scene/status.rs) and the key overlay (an
              Overlay: a dim over the window and its lines, each with a font
-             and an alignment). A canvas pane's chrome is
+             and an alignment); the flash and the cursor over the canvas
+             panes. A canvas pane's chrome is
              decided with its gestures: the selection's box, handles and
              count (`select`), a text being typed's caret, frame and hint
              (`shapes`). Every state shows, nothing else (SPEC P6). Pure.
@@ -341,6 +342,15 @@ scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              and `i/n`; the `show-keys` and `show-commands` keys, each only
              when bound. A UI pane's has no tool part. A narrow pane drops
              the right part, then the middle. Pure.
+scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
+             `<Tool> <key>` in a 14 pt pill, a step lighter than the pane, at
+             the top centre of the focused pane for 0.8 s. The pill says when
+             it goes; platform sets one timer for then (no repeating
+             redraw). Pure.
+scene/cursor.rs  the pointer over a canvas pane, per tool: the pen a ring in
+             its colour, the eraser a ring its width, the lasso and the
+             shapes cross hairs, text an I-beam, the arrow while a pop-up is
+             open. The arrow elsewhere (sidebar, agent UI, chrome). Pure.
 ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
              slinger-ui://<hex>/ with the policy), the sandbox's constants
              (the policy and the shim in ui/policy.txt and ui/shim.js, the
@@ -450,6 +460,10 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              code. No decisions.
 platform/overlay.rs  draws a scene's Overlay over the chrome: a box that
              dims the window, then a text field per line.
+platform/chrome.rs  the focus border, and the flash's pill (a rounded box
+             with its text) with the one-shot timer that ticks when it goes.
+             Each canvas view sets the scene's cursor over itself (a ring is
+             drawn once).
 platform/entry.rs  the sling's entry: a native text field in its box, with
              its label and keys, kept while the scene has one, over every view; it takes the keyboard when it
              appears, and each edit goes to main as Event::Typed. It takes

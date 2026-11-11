@@ -14,6 +14,9 @@
 //! Laying text out costs far more than drawing it, so each text is laid out
 //! once, in canvas points, and kept while it is drawn the same; a pan or a
 //! zoom only moves and scales the glyphs.
+//!
+//! Over the view the pointer is the scene's [`Cursor`]: a system cursor, or
+//! a ring drawn once in its colour.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -23,8 +26,8 @@ use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2::{AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send};
 use objc2_app_kit::{
-    NSAffineTransformNSAppKitAdditions, NSBezierPath, NSFont, NSFontAttributeName,
-    NSForegroundColorAttributeName, NSGraphicsContext, NSLayoutManager, NSLineCapStyle,
+    NSAffineTransformNSAppKitAdditions, NSBezierPath, NSCursor, NSFont, NSFontAttributeName,
+    NSForegroundColorAttributeName, NSGraphicsContext, NSImage, NSLayoutManager, NSLineCapStyle,
     NSLineJoinStyle, NSRectClip, NSRectFill, NSResponder, NSTextContainer, NSTextStorage, NSView,
 };
 use objc2_foundation::{
@@ -36,19 +39,21 @@ use super::{Event, color, dispatch};
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Draw, ItemId, Mark, Scene};
+use crate::scene::cursor::Cursor;
 
 /// How tall a text column may grow, in canvas points: text is never cut.
 const TALL: f64 = 1e7;
 /// A dashed panel's dashes and gaps, in screen points.
 const DASH: [f64; 2] = [4.0, 3.0];
 
-/// The scene a view shows, its texts laid out, and the time of the oldest
-/// pen event shown but not yet painted.
+/// The scene a view shows, its texts laid out, the time of the oldest
+/// pen event shown but not yet painted, and the pointer over it.
 #[derive(Default)]
 pub struct Ivars {
     scene: RefCell<Option<Rc<Scene>>>,
     texts: RefCell<HashMap<ItemId, Laid>>,
     unpainted: Cell<Option<f64>>,
+    cursor: RefCell<Option<(Cursor, Retained<NSCursor>)>>,
 }
 
 /// What a text is laid out from: its words, column width, size and colour.
@@ -94,6 +99,14 @@ define_class!(
                 dispatch(Event::Painted(delay), self.mtm());
             }
         }
+
+        /// The pointer is the scene's cursor over the whole view.
+        #[unsafe(method(resetCursorRects))]
+        fn reset_cursor_rects(&self) {
+            if let Some((_, cursor)) = self.ivars().cursor.borrow().as_ref() {
+                self.addCursorRect_cursor(self.bounds(), cursor);
+            }
+        }
     }
 );
 
@@ -105,13 +118,20 @@ impl CanvasView {
         unsafe { msg_send![super(this), initWithFrame: frame] }
     }
 
-    /// Shows `scene` at `frame`. A view that moved, or that showed nothing,
-    /// repaints whole; otherwise only the box the scene says changed. Texts
-    /// no longer drawn are let go.
-    pub fn show(&self, frame: NSRect, scene: Rc<Scene>) {
+    /// Shows `scene` at `frame`, with `cursor` over it. A view that moved,
+    /// or that showed nothing, repaints whole; otherwise only the box the
+    /// scene says changed. Texts no longer drawn are let go.
+    pub fn show(&self, frame: NSRect, scene: Rc<Scene>, cursor: Cursor) {
         let moved = self.frame() != frame;
         if moved {
             self.setFrame(frame);
+        }
+        let held = &self.ivars().cursor;
+        if held.borrow().as_ref().is_none_or(|(now, _)| *now != cursor) {
+            held.replace(Some((cursor, ns_cursor(cursor))));
+            if let Some(window) = self.window() {
+                window.invalidateCursorRectsForView(self);
+            }
         }
         let changed = scene.changed;
         if let Some(when) = scene.pen_event {
@@ -254,6 +274,33 @@ fn end_of(laid: &Laid) -> NSRect {
         NSPoint::new(r.origin.x + r.size.width, r.origin.y),
         NSSize::new(0.0, r.size.height),
     )
+}
+
+/// The system cursor `cursor` names, or its ring drawn.
+fn ns_cursor(cursor: Cursor) -> Retained<NSCursor> {
+    match cursor {
+        Cursor::Arrow => NSCursor::arrowCursor(),
+        Cursor::Crosshair => NSCursor::crosshairCursor(),
+        Cursor::IBeam => NSCursor::IBeamCursor(),
+        Cursor::Ring { colour, diameter } => ring(colour, diameter),
+    }
+}
+
+/// A ring `diameter` points across in `colour`, pointing at its centre.
+#[expect(deprecated, reason = "lockFocus draws a few points once, without a block")]
+fn ring(colour: Rgb, diameter: f64) -> Retained<NSCursor> {
+    let side = diameter + 2.0;
+    let image = NSImage::initWithSize(NSImage::alloc(), NSSize::new(side, side));
+    image.lockFocus();
+    let path = NSBezierPath::bezierPathWithOvalInRect(NSRect::new(
+        NSPoint::new(1.0, 1.0),
+        NSSize::new(diameter, diameter),
+    ));
+    path.setLineWidth(1.5);
+    color(colour).setStroke();
+    path.stroke();
+    image.unlockFocus();
+    NSCursor::initWithImage_hotSpot(NSCursor::alloc(), &image, NSPoint::new(side / 2.0, side / 2.0))
 }
 
 /// The text `from` laid out, kept for item `id`: laid out again only when

@@ -31,6 +31,12 @@ bullet with the area in bold.
   narrow pane leaves out the right part, then the middle. The page's name
   is no longer a line at the bottom of the canvas.
 
+- **App:** a new tool says so. Pick a tool by its key or from a pop-up and
+  its name and key (`Eraser ⌘2`) show at the top of the focused pane for a
+  moment. Over a canvas the pointer shows the tool: a ring in the pen's
+  colour, a wider ring for the eraser, cross hairs for the lasso, box and
+  arrow, and an I-beam for text.
+
 - **App:** the window resizes. Drag its edge or corner, or zoom it, and the
   sidebar and the panes follow. It opens at 960x600 and goes down to 480x320.
 
