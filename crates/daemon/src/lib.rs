@@ -8,6 +8,7 @@
 //! [`Store`] is this machine's record on disk.
 
 mod canvases;
+mod feedback;
 mod processes;
 mod server;
 mod sessions;
@@ -28,6 +29,7 @@ use signal_hook::iterator::Signals;
 use slinger_control as control;
 
 pub use canvases::{CanvasError, Canvases};
+pub use feedback::{Feedback, FeedbackError};
 pub use processes::{ProcessError, Processes, Shown};
 pub use server::{Server, StartError, Stopper};
 pub use sessions::{SessionError, Sessions};
@@ -41,6 +43,9 @@ const SOCKET_HELP: &str =
 /// Help for `--data-dir`, for the same reason.
 const DATA_DIR_HELP: &str = "Directory that holds the record [default: $XDG_DATA_HOME/slinger, \
      else ~/Library/Application Support/slinger on macOS, ~/.local/share/slinger elsewhere]";
+/// Help for `--feedback`, for the same reason.
+const FEEDBACK_HELP: &str = "File that feedback notes go to [default: feedback.jsonl in the \
+     checkout slingerd was built from, else in the data directory]";
 
 /// Exit codes, the same table as the CLI's (docs/service.md).
 mod exit {
@@ -68,6 +73,8 @@ struct Args {
     /// The slinger CLI each agent's hooks run [default: the one beside slingerd, else slinger on PATH]
     #[arg(long, value_name = "PATH")]
     slinger: Option<PathBuf>,
+    #[arg(long, value_name = "PATH", help = FEEDBACK_HELP)]
+    feedback: Option<PathBuf>,
     /// Print the version
     #[arg(short = 'v', long)]
     version: bool,
@@ -100,7 +107,8 @@ fn report(
         Ok(args) => {
             let socket = args.socket.unwrap_or_else(control::default_socket);
             let slinger = args.slinger.unwrap_or_else(beside_me);
-            match serve(&socket, args.data_dir, args.claude, slinger) {
+            let programs = (args.claude, slinger);
+            match serve(&socket, args.data_dir, programs, args.feedback) {
                 Ok(()) => return Ok(exit::OK),
                 Err(failure) => failure,
             }
@@ -130,23 +138,29 @@ fn beside_me() -> PathBuf {
     beside.filter(|p| p.is_file()).unwrap_or_else(|| SLINGER.into())
 }
 
+/// Serves the record in `data_dir` on `socket`, with the agents' `claude`
+/// and `slinger` programs, writing feedback to `feedback` (by default
+/// [`feedback::default_file`]).
 fn serve(
     socket: &Path,
     data_dir: Option<PathBuf>,
-    claude: PathBuf,
-    slinger: PathBuf,
+    (claude, slinger): (PathBuf, PathBuf),
+    feedback: Option<PathBuf>,
 ) -> Result<(), Failure> {
     let internal = |e: io::Error| (exit::ERROR, e.to_string(), None);
     let code = |code: &str| if code == "conflict" { exit::CONFLICT } else { exit::ERROR };
     let server = Server::bind(socket).map_err(|e| (code(e.code()), e.to_string(), e.hint()))?;
     // Opened after the socket is ours, so a second daemon on the same socket
     // never touches the record. Held until the daemon stops.
-    let store = data_dir
-        .map_or_else(default_data_dir, Ok)
-        .and_then(|dir| Store::open(&dir, machine_name()))
-        .map_err(|e| (code(e.code()), e.to_string(), e.hint()))?
+    let stored = |e: StoreError| (code(e.code()), e.to_string(), e.hint());
+    let dir = data_dir.map_or_else(default_data_dir, Ok).map_err(stored)?;
+    // A relative --feedback is from where slingerd started.
+    let feedback = feedback.map(|f| std::path::absolute(&f).unwrap_or(f));
+    let store = Store::open(&dir, machine_name())
+        .map_err(stored)?
         .with_claude(claude)
-        .with_slinger(slinger);
+        .with_slinger(slinger)
+        .with_feedback(feedback.unwrap_or_else(|| feedback::default_file(&dir)));
     let stopper = server.stopper();
     let mut signals = Signals::new([SIGTERM, SIGINT]).map_err(internal)?;
     std::thread::spawn(move || {

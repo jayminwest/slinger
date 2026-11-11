@@ -2,6 +2,7 @@
 //! stop that lets every accepted request finish.
 
 mod agent;
+mod feedback;
 mod import;
 mod pane;
 mod read;
@@ -283,6 +284,7 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
         Request::Agent(ask) => agent::answer(store, ask),
         Request::Pane(ask) => pane::answer(store, ask),
         Request::Showing(ask) => showing::answer(store, ask),
+        Request::Feedback(ask) => feedback::answer(store, ask),
     }
 }
 

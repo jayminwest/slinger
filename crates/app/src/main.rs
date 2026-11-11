@@ -174,7 +174,7 @@ fn window(mut settings: Settings) -> ExitCode {
                     Command::PickShape => Some(Kind::Shape),
                     Command::PickTool => Some(Kind::Tool),
                     // Nothing selected here: the key goes on (a delete in a UI's form).
-                    c if !selection(&mut canvases, &shared, area, c) => return Step::Pass,
+                    c if !selection(&mut canvases, &shared, &tools, area, c) => return Step::Pass,
                     command => {
                         match command {
                             Command::ToggleSidebar => sidebar.set_open(!sidebar.is_open()),
@@ -299,10 +299,22 @@ fn taken(
 }
 
 /// Runs a selection command (`sling`, `dictate`: the entry) when the focused pane of `shared`
-/// laid in `area` shows its canvas; false when it does not. Any other command goes on (true).
-fn selection(canvases: &mut Canvases, shared: &Shared, area: Rect, command: Command) -> bool {
+/// laid in `area` shows its canvas; false when it does not. `leave-feedback` opens its entry
+/// there, with the pen's tool in `tools`. Any other command goes on (true).
+fn selection(
+    canvases: &mut Canvases,
+    shared: &Shared,
+    tools: &Tools,
+    area: Rect,
+    command: Command,
+) -> bool {
     let panes = &shared.panes;
     match command {
+        Command::LeaveFeedback => {
+            let (at, workspace) = (focus(panes, area), shared.workspace.as_deref());
+            canvases.open_feedback(panes, at, workspace, tools.tool());
+            true
+        }
         Command::DeleteSelection => canvases.delete_selection(panes, panes.focus()),
         Command::ClearSelection => canvases.clear_selection(panes, panes.focus()),
         Command::Sling | Command::Dictate => canvases.sling_command(command, panes, area),
@@ -434,7 +446,7 @@ fn focus(panes: &Panes, area: Rect) -> (PaneId, Rect) {
 
 /// The window: the sidebar, the panes and their footers, any problem with the
 /// daemon, a canvas or the config (each said once), the notice, the pop-up
-/// at the pen and the flash of a new tool, the key overlay on top, and the
+/// at the pen and the flash of a new tool or a saved note, the key overlay on top, and the
 /// tool's cursor.
 fn view(
     settings: &Settings,
@@ -467,6 +479,9 @@ fn view(
     scene.cursor = cursor::over_canvas(tools, theme);
     let now = Instant::now();
     tools.flash().follow(tools.tool(), keys, now);
+    if let Some(text) = canvases.take_flash() {
+        tools.flash().say(text, now);
+    }
     scene.flash = tools.flash().pill(focused(&shared.panes, area), theme, now).map(Box::new);
     scene.menus = commands::menu::bar(keys, status::command(tools.tool()));
     Box::new(scene)

@@ -58,6 +58,19 @@ a "did you mean" suggestion.
 | `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --arrow FROM TO) [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
 | `canvas edit <ID> --item ITEM [--text TEXT] [--box W,H] [--move X,Y] [--agent NAME]` | The item's id and its box `x,y,w,h` in tenths now, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq` |
 | `canvas remove <ID> --item ITEM [--agent NAME]` | Nothing. `--json`: `seq` |
+| `feedback add <TEXT>...` | The note's `ts`. `--json`: `path`, `entry` |
+| `feedback ls [--all] [--limit N]` | One line per note, newest first: `ts`, text and, with `--all`, `resolved` and its note for a resolved one, separated by tabs. `--limit` defaults to 20. `--json`: `path`, `entries` |
+| `feedback resolve <TS> [NOTE]...` | Nothing. `--json`: `path`, `resolves`, `ts`, `note` |
+| `feedback path` | The feedback file's path. `--json`: `path` |
+
+`feedback` keeps notes about slinger itself in the daemon's feedback
+file (`docs/service.md`, "Feedback"), the same notes the app's
+`leave-feedback` command saves. `feedback add` joins its words with spaces;
+a blank note exits 5 (`invalid`). `feedback ls` lists the open notes;
+`--all` adds the resolved ones. `feedback resolve` takes a note's `ts` as
+`ls` prints it, and a note of how it was resolved (a tracker id, say): an
+unknown `ts` exits 3 (`not_found`) and one resolved already exits 4
+(`conflict`).
 
 `record append` takes the payload as a JSON object (default `{}`); the
 kinds and their payloads are in `docs/service.md`. A payload that is not

@@ -24,6 +24,7 @@ pub mod button;
 pub mod canvas;
 pub mod cursor;
 pub mod dictation;
+pub mod feedback;
 pub mod flash;
 pub mod ink;
 pub mod live;

@@ -17,8 +17,11 @@ impl Canvases {
     /// The `sling` command: opens the entry at the selection, when the
     /// focused pane of `panes` laid in `area` shows it; else beside the
     /// first button on that pane's page, to sling what is new there. False
-    /// when it shows neither, or a sling is on its way.
+    /// when it shows neither, a sling is on its way, or feedback is open.
     pub fn open_sling(&mut self, panes: &Panes, area: Rect) -> bool {
+        if self.notes.is_typing() {
+            return false;
+        }
         let selected = self.selection_in(panes, area).map(|(s, a, w)| (s.clone(), a, w));
         let Some((selection, around, within)) = selected.or_else(|| self.button_in(panes, area))
         else {
@@ -43,9 +46,10 @@ impl Canvases {
         sent
     }
 
-    /// Whether the sling's entry is open: it takes the keys.
+    /// Whether the sling's entry, or the feedback entry, is open: it takes
+    /// the keys.
     pub fn typing(&self) -> bool {
-        self.sling.is_typing()
+        self.sling.is_typing() || self.notes.is_typing()
     }
 
     /// Whether a key no command took is a text's: every key while the entry
@@ -61,6 +65,9 @@ impl Canvases {
     /// for any other key, which is the entry's own and goes on to it, and
     /// for every key while it is closed.
     pub fn sling_key(&mut self, chord: Chord) -> bool {
+        if let Some(closed) = self.feedback_key(chord) {
+            return closed;
+        }
         let closed = match self.sling.key(chord) {
             Some(Key::Send) => {
                 self.sling.send();
@@ -77,32 +84,37 @@ impl Canvases {
     /// The entry's text is now `text`. Nothing more to draw (false): the
     /// entry shows it already.
     pub fn sling_typed(&mut self, text: &str) -> bool {
-        self.sling.typed(text);
+        if !self.feedback_typed(text) {
+            self.sling.typed(text);
+        }
         false
     }
 
     /// Whether `at`, a point in the window, is on the open entry: a press
     /// there is the entry's.
     pub fn sling_covers(&self, at: Point) -> bool {
-        self.sling.covers(at)
+        self.sling.covers(at) || self.notes.covers(at)
     }
 
     /// Lays the sling over `scene` in `theme`'s colours: its entry, to the
     /// agent `sidebar` names for its canvas, with `keys`' dictate key; or
-    /// its line while it goes, or why it failed; and what dictation says.
+    /// its line while it goes, or why it failed; the feedback entry in its
+    /// place while that is open, and its lines; and what dictation says.
     pub fn show_sling(&self, scene: &mut Scene, theme: &Theme, keys: &Keymap, sidebar: &Sidebar) {
         let agent = self.sling.canvas().and_then(|canvas| sidebar.agent(canvas));
         let entry = self.sling.entry(theme, agent, keys.chord(Command::Dictate));
-        scene.entry = entry.map(Box::new);
+        let (note, lines) = self.notes.shown(theme);
+        scene.entry = note.or(entry).map(Box::new);
         scene.labels.extend(self.sling.labels(theme));
+        scene.labels.extend(lines);
         scene.labels.extend(self.dictation_labels(theme));
     }
 
-    /// Takes the daemon's answer to the sling, and sends a waiting one once
+    /// Takes the daemon's answers to the sling and the feedback, and sends a waiting one once
     /// the ink of its canvas is in the daemon. Returns whether anything
     /// shown changed.
     pub(super) fn poll_sling(&mut self) -> bool {
-        let mut changed = false;
+        let mut changed = self.poll_feedback();
         for answer in self.slinger.answers() {
             changed |= self.sling.answered(answer);
         }

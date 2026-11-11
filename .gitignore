@@ -15,3 +15,6 @@ test-results/
 
 # Rust
 /target
+
+# Feedback notes the daemon writes into the checkout it was built from
+/feedback.jsonl

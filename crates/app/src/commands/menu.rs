@@ -145,7 +145,7 @@ const BAR: [(&str, &[Action]); 8] = [
         ],
     ),
     ("Window", &[R(Command::ToggleSidebar), R(Command::DismissNotice), N(Native::Minimise)]),
-    ("Help", &[R(Command::ShowKeys), R(Command::ShowCommands)]),
+    ("Help", &[R(Command::ShowKeys), R(Command::ShowCommands), R(Command::LeaveFeedback)]),
 ];
 
 /// The menu bar for the keys in `keys`, with a check mark on `checked` (the

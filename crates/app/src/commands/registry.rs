@@ -90,6 +90,7 @@ impl Command {
             Command::PlaceButton => "Place send button",
             Command::ShowKeys => "Show keys",
             Command::ShowCommands => "Show commands",
+            Command::LeaveFeedback => "Leave feedback…",
         }
     }
 
@@ -134,7 +135,8 @@ impl Command {
             | Command::ToggleSidebar
             | Command::DismissNotice
             | Command::ShowKeys
-            | Command::ShowCommands => Group::Window,
+            | Command::ShowCommands
+            | Command::LeaveFeedback => Group::Window,
         }
     }
 }

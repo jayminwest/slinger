@@ -217,7 +217,8 @@ impl Panes {
             | Command::Dictate
             | Command::PlaceButton
             | Command::ShowKeys
-            | Command::ShowCommands => {}
+            | Command::ShowCommands
+            | Command::LeaveFeedback => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),

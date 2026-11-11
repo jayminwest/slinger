@@ -155,3 +155,7 @@
 #show-keys = "cmd+/"
 # Find a command by its name and run it (the command palette).
 #show-commands = "cmd+k"
+# Leave a note about slinger itself, without leaving it: a one-line entry opens in the
+# focused pane; return saves it, with what the window shows, to slingerd's feedback file
+# (`slinger feedback path`), and escape cancels.
+#leave-feedback = "cmd+shift+f"
