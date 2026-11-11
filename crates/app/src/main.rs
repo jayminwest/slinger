@@ -42,7 +42,7 @@ use crate::layout::{Axis, Direction, PaneId, Point, Rect};
 use crate::panes::{Pane, Panes};
 use crate::platform::{Event, Step};
 use crate::scene::sidebar::Sidebar;
-use crate::scene::tools::{Kind, Tool, Tools};
+use crate::scene::tools::{Kind, Tools};
 use crate::scene::{Notes, Scene, Uis};
 
 fn main() -> ExitCode {
@@ -164,6 +164,8 @@ fn window(mut settings: Settings) -> ExitCode {
                     Some(Command::PickColour) => Some(Kind::Colour),
                     Some(Command::PickShape) => Some(Kind::Shape),
                     Some(Command::PickTool) => Some(Kind::Tool),
+                    // Nothing selected here: the key goes on (a delete in a UI's form).
+                    Some(c) if !selection(&mut canvases, &shared.panes, c) => return Step::Pass,
                     Some(command) => {
                         let area = sidebar.panes(window.rect());
                         match command {
@@ -332,7 +334,9 @@ fn own(panes: &mut Panes, command: Command, area: Rect) {
         | Command::PanDown
         | Command::ZoomIn
         | Command::ZoomOut
-        | Command::NextPage => {}
+        | Command::NextPage
+        | Command::DeleteSelection
+        | Command::ClearSelection => {}
         Command::SplitRight => panes.split(Axis::Row),
         Command::SplitDown => panes.split(Axis::Column),
         Command::ClosePane => panes.close(),
@@ -371,10 +375,21 @@ fn canvas_command(canvases: &mut Canvases, panes: &Panes, area: Rect, command: C
     true
 }
 
+/// Runs a selection command when the focused pane of `panes` shows the
+/// selection's canvas; false when it does not, or there is none. Any other
+/// command is not the selection's, so it goes on (true).
+fn selection(canvases: &mut Canvases, panes: &Panes, command: Command) -> bool {
+    match command {
+        Command::DeleteSelection => canvases.delete_selection(panes, panes.focus()),
+        Command::ClearSelection => canvases.clear_selection(panes, panes.focus()),
+        _ => true,
+    }
+}
+
 /// Hands a pen or mouse press, drag or lift to the pop-up at the pen, then
-/// to the canvas pane of `panes` laid in `area` under it, where the pen tool
-/// draws; a scroll or a pinch pans or zooms. False when nothing used it, and
-/// for a move or a paint, which need no new scene. A lift writes the
+/// to the canvas pane of `panes` laid in `area` under it, where the tool
+/// draws, erases or selects; a scroll or a pinch pans or zooms. False when
+/// nothing used it, and for a move or a paint, which need no new scene. A lift writes the
 /// stroke's delay log.
 fn pointer(
     event: &Event,
@@ -394,16 +409,15 @@ fn pointer(
         }
         Event::Press(pen) if tools.press(pen.at) => true,
         Event::Press(pen) => {
-            let under = pane_at(panes, area, pen.at);
-            let drawing = tools.tool() == Tool::Pen;
-            drawing && under.is_some_and(|u| canvases.pen_down(panes, u, pen, tools.colour()))
+            let tool = (tools.tool(), tools.colour());
+            pane_at(panes, area, pen.at).is_some_and(|u| canvases.pen_down(panes, u, pen, tool))
         }
         Event::Drag(pen) => {
             tools.moved(pen.at);
-            canvases.pen_drag(pen)
+            canvases.pen_drag(panes, pen)
         }
         Event::Lift(pen) => {
-            let ended = canvases.pen_up(pen);
+            let ended = canvases.pen_up(panes, pen);
             if let Some(line) = canvases.delay_log() {
                 // Nothing can be done if stderr is closed.
                 let _ = writeln!(io::stderr(), "{line}");

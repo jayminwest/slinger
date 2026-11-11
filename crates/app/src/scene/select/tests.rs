@@ -1,0 +1,213 @@
+use super::*;
+
+const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
+const GREY: Rgb = Rgb { r: 128, g: 128, b: 128 };
+const HERE: (&str, &str) = ("main", "p1");
+
+fn pt(x: f64, y: f64) -> Point {
+    Point { x, y }
+}
+
+fn item(id: u64, shape: Shape) -> Item {
+    Item { id: ItemId(id), colour: RED, shape }
+}
+
+fn stroke(id: u64, points: &[(f64, f64)]) -> Item {
+    let points = points.iter().map(|&(x, y)| pt(x, y)).collect();
+    item(id, Shape::Stroke { points, width: 2.0 })
+}
+
+fn frame(x: f64, y: f64, w: f64, h: f64) -> Rect {
+    Rect { x, y, width: w, height: h }
+}
+
+/// Three notes in a row (a word, a box, a text), an arrow below them, and a
+/// stroke of local ink: i1 to i4, then ink.
+fn page() -> Vec<Item> {
+    vec![
+        stroke(1, &[(0.0, 0.0), (10.0, 0.0)]),
+        item(2, Shape::Box { frame: frame(20.0, -5.0, 10.0, 10.0), width: 2.0 }),
+        item(
+            3,
+            Shape::Text { frame: frame(40.0, -5.0, 10.0, 10.0), text: "hi".into(), size: 24.0 },
+        ),
+        item(4, Shape::Arrow { from: pt(0.0, 50.0), to: pt(50.0, 50.0), width: 2.0 }),
+        stroke(LOCAL_INK, &[(0.0, 20.0), (50.0, 20.0)]),
+    ]
+}
+
+const LOCAL_INK: u64 = crate::scene::ink::LOCAL;
+
+fn shown(items: &[Item]) -> Vec<Cow<'_, Item>> {
+    items.iter().map(Cow::Borrowed).collect()
+}
+
+fn ids(items: &[Cow<'_, Item>]) -> Vec<u64> {
+    items.iter().map(|i| i.id.0).collect()
+}
+
+/// A gesture with `tool` along `path`, then the lift.
+fn gesture(select: &mut Select, ink: &mut Ink, tool: Tool, path: &[(f64, f64)], items: &[Item]) {
+    let items = shown(items);
+    let (&(x, y), rest) = path.split_first().unwrap();
+    assert!(select.down(tool, HERE, pt(x, y), 1.0, &items));
+    for &(x, y) in rest {
+        assert!(select.drag(pt(x, y), &items));
+    }
+    assert!(select.up(None, &items, ink));
+}
+
+/// A lasso around the three notes, x -5 to 55, y -10 to 10.
+const AROUND: [(f64, f64); 4] = [(-5.0, -10.0), (55.0, -10.0), (55.0, 10.0), (-5.0, 10.0)];
+
+#[test]
+fn the_eraser_hides_what_it_touches_at_once_and_removes_it_in_one_change() {
+    let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
+    let items = shown(&page);
+    assert!(select.down(Tool::Eraser, HERE, pt(5.0, 30.0), 1.0, &items));
+    assert!(
+        select.drag(pt(5.0, 5.0), &items),
+        "within reach of i1: 5 from its line, 1 its half width"
+    );
+    let over = select.shown(HERE, shown(&page), 1.0, GREY);
+    assert_eq!(ids(&over), [2, 3, 4, LOCAL_INK], "i1 hides at once; ink is not erased");
+    assert_eq!(
+        ids(&select.shown(("main", "p2"), shown(&page), 1.0, GREY)),
+        [1, 2, 3, 4, LOCAL_INK]
+    );
+    assert!(select.drag(pt(25.0, 0.0), &items), "over the box: only strokes are erased");
+    assert!(select.up(Some(pt(25.0, 1.0)), &items, &mut ink));
+    let remove = Change::Remove { canvas: "main".into(), page: "p1".into(), ids: vec![ItemId(1)] };
+    assert_eq!(ink.next().map(|(_, c)| c), Some(remove));
+    assert!(!select.up(None, &items, &mut ink), "no gesture is under the pen now");
+    assert!(!select.drag(pt(0.0, 0.0), &items));
+}
+
+#[test]
+fn an_eraser_that_touches_nothing_changes_nothing_and_its_reach_follows_the_zoom() {
+    let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
+    gesture(&mut select, &mut ink, Tool::Eraser, &[(5.0, 8.0)], &page);
+    assert_eq!(ink.next(), None, "8 from i1 is out of reach at zoom 1: 6 and 1");
+    let items = shown(&page);
+    assert!(select.down(Tool::Eraser, HERE, pt(5.0, 8.0), 0.5, &items), "a dab at zoom 0.5");
+    assert!(select.up(None, &items, &mut ink));
+    assert!(matches!(ink.next(), Some((_, Change::Remove { ids, .. })) if ids == [ItemId(1)]));
+}
+
+#[test]
+fn a_lasso_selects_the_items_it_holds_whole_and_draws_a_box_around_them() {
+    let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
+    let items = shown(&page);
+    assert!(select.down(Tool::Lasso, HERE, pt(-5.0, -10.0), 1.0, &items));
+    assert!(select.drag(pt(55.0, -10.0), &items));
+    assert!(select.drag(pt(55.0, -10.0), &items), "the same point again");
+    let over = select.shown(HERE, shown(&page), 1.0, GREY);
+    let Shape::Stroke { points, .. } = &over.last().unwrap().shape else { panic!() };
+    assert_eq!(points, &[pt(-5.0, -10.0), pt(55.0, -10.0), pt(-5.0, -10.0)], "the loop, closed");
+    assert!(select.drag(pt(55.0, 10.0), &items));
+    assert!(select.up(Some(pt(-5.0, 10.0)), &items, &mut ink));
+    let selection = select.selection().unwrap();
+    assert_eq!(selection.ids, [ItemId(1), ItemId(2), ItemId(3)], "not the arrow, not the ink");
+    assert_eq!((selection.canvas.as_str(), selection.page.as_str()), HERE);
+    assert_eq!(ink.next(), None, "selecting changes nothing on the server");
+    let over = select.shown(HERE, shown(&page), 2.0, GREY);
+    let last = over.last().unwrap();
+    assert_eq!((last.id, last.colour), (BOX, GREY));
+    let Shape::Box { frame: b, width } = last.shape else { panic!() };
+    assert_eq!(width, 0.5, "one screen point at zoom 2");
+    assert_eq!(b, frame(-1.0 - 3.0, -6.0 - 3.0, 51.0 + 6.0, 12.0 + 6.0));
+    assert_eq!(select.shown(("main", "p2"), shown(&page), 1.0, GREY).len(), page.len());
+}
+
+#[test]
+fn a_lasso_that_holds_nothing_or_presses_outside_clears_the_selection() {
+    let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
+    gesture(&mut select, &mut ink, Tool::Lasso, &AROUND, &page);
+    assert!(select.selection().is_some());
+    gesture(&mut select, &mut ink, Tool::Lasso, &[(100.0, 100.0), (110.0, 100.0)], &page);
+    assert_eq!(select.selection(), None);
+    gesture(&mut select, &mut ink, Tool::Lasso, &AROUND, &page);
+    assert!(select.clear());
+    assert!(!select.clear(), "nothing left to clear");
+    assert!(!select.delete(&mut ink));
+    assert_eq!(ink.next(), None);
+}
+
+#[test]
+fn a_drag_inside_the_box_moves_the_selection_in_one_change() {
+    let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
+    gesture(&mut select, &mut ink, Tool::Lasso, &AROUND, &page);
+    let items = shown(&page);
+    assert!(select.down(Tool::Lasso, HERE, pt(52.0, 0.0), 1.0, &items), "inside the box's margin");
+    assert!(select.drag(pt(62.04, 4.96), &items));
+    let over = select.shown(HERE, shown(&page), 1.0, GREY);
+    let Shape::Stroke { points, .. } = &over[0].shape else { panic!() };
+    assert!((points[0].x - 10.04).abs() < 1e-9, "the selection follows the pen");
+    assert!(matches!(over[3], Cow::Borrowed(_)), "what is not selected stays put");
+    assert!(select.up(None, &items, &mut ink));
+    let Some((_, Change::Move { ids, by, .. })) = ink.next() else { panic!() };
+    assert_eq!(ids, [ItemId(1), ItemId(2), ItemId(3)]);
+    assert_eq!(by, pt(10.0, 5.0), "whole tenths, as the file stores them");
+    assert!(select.selection().is_some(), "the selection stays after a move");
+    gesture(&mut select, &mut ink, Tool::Lasso, &[(52.0, 0.0), (52.01, 0.0)], &page);
+    assert_eq!(ink.next(), None, "a move that rounds to nothing sends nothing");
+}
+
+#[test]
+fn delete_removes_the_selection_in_one_change_and_clears_it() {
+    let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
+    gesture(&mut select, &mut ink, Tool::Lasso, &AROUND, &page);
+    assert!(select.delete(&mut ink));
+    assert_eq!(select.selection(), None);
+    let Some((_, Change::Remove { ids, .. })) = ink.next() else { panic!() };
+    assert_eq!(ids, [ItemId(1), ItemId(2), ItemId(3)]);
+}
+
+#[test]
+fn items_removed_elsewhere_leave_the_selection() {
+    let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
+    gesture(&mut select, &mut ink, Tool::Lasso, &AROUND, &page);
+    select.keep(("main", "p2"), &[]);
+    assert_eq!(select.selection().unwrap().ids.len(), 3, "another page says nothing");
+    select.keep(HERE, &shown(&page[1..]));
+    assert_eq!(select.selection().unwrap().ids, [ItemId(2), ItemId(3)]);
+    select.keep(HERE, &[]);
+    assert_eq!(select.selection(), None, "nothing left selected");
+}
+
+#[test]
+fn only_the_eraser_and_the_lasso_start_a_gesture_and_a_selection_is_per_page() {
+    let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
+    let items = shown(&page);
+    for tool in [Tool::Pen, Tool::Text, Tool::Box, Tool::Arrow] {
+        assert!(!select.down(tool, HERE, pt(0.0, 0.0), 1.0, &items));
+    }
+    gesture(&mut select, &mut ink, Tool::Lasso, &AROUND, &page);
+    assert!(select.down(Tool::Lasso, ("main", "p2"), pt(0.0, 0.0), 1.0, &items));
+    assert_eq!(select.selection(), None, "a press on another page does not drag it");
+}
+
+#[test]
+fn a_lasso_holds_by_winding_and_needs_three_points() {
+    let note = stroke(1, &[(1.0, 1.0)]).shape;
+    let square = [pt(0.0, 0.0), pt(2.0, 0.0), pt(2.0, 2.0), pt(0.0, 2.0)];
+    assert!(hit::holds(&square, &note));
+    assert!(!hit::holds(&square[..2], &note));
+    let twice: Vec<Point> = square.iter().chain(&square).copied().collect();
+    assert!(hit::holds(&twice, &note), "a loop drawn twice still holds");
+    let backwards: Vec<Point> = square.iter().rev().copied().collect();
+    assert!(hit::holds(&backwards, &note));
+    let wide = item(2, Shape::Box { frame: frame(1.0, 1.0, 5.0, 0.5), width: 2.0 }).shape;
+    assert!(!hit::holds(&square, &wide), "a corner outside");
+    let empty = Shape::Stroke { points: vec![], width: 1.0 };
+    assert!(!hit::holds(&square, &empty));
+}
+
+#[test]
+fn an_eraser_crossing_a_stroke_between_its_points_touches_it() {
+    let line = stroke(1, &[(0.0, 0.0), (10.0, 10.0)]).shape;
+    assert!(hit::erases(&line, pt(0.0, 10.0), pt(10.0, 0.0), 0.0), "crosses it");
+    assert!(!hit::erases(&line, pt(0.0, 20.0), pt(20.0, 20.0), 0.0));
+    assert!(hit::erases(&line, pt(0.0, 20.0), pt(20.0, 20.0), 9.0), "the end is 10 away, width 2");
+    assert!(hit::erases(&line, pt(5.0, 5.0), pt(5.0, 5.0), -1.0), "a dab on it; no reach is none");
+}

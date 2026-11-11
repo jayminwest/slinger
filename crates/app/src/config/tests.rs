@@ -188,6 +188,8 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
             "alt+=",
             "alt+-",
             "cmd+]",
+            "delete",
+            "escape",
         ]
         .map(|c| Some(Chord::parse(c))),
     };

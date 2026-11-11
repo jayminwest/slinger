@@ -194,7 +194,7 @@ fn grown(old: &Draw, new: &Draw) -> Option<Rect> {
 
 impl Shape {
     /// The canvas box the shape's ink covers; `None` when it has no ink.
-    fn bounds(&self) -> Option<Rect> {
+    pub fn bounds(&self) -> Option<Rect> {
         match self {
             Self::Stroke { points, width } => {
                 Rect::around(points.iter().copied()).map(|r| r.outset(width / 2.0))
@@ -203,6 +203,24 @@ impl Shape {
             Self::Box { frame, width } => Some(frame.outset(width / 2.0)),
             Self::Arrow { from, to, width } => {
                 Rect::around([*from, *to]).map(|r| r.outset(width / 2.0 + HEAD_LENGTH))
+            }
+        }
+    }
+
+    /// The shape moved by `by` canvas points.
+    pub fn moved(&self, by: Point) -> Shape {
+        let at = |p: &Point| Point { x: p.x + by.x, y: p.y + by.y };
+        let shift = |r: &Rect| Rect { x: r.x + by.x, y: r.y + by.y, ..*r };
+        match self {
+            Self::Stroke { points, width } => {
+                Self::Stroke { points: points.iter().map(at).collect(), width: *width }
+            }
+            Self::Text { frame, text, size } => {
+                Self::Text { frame: shift(frame), text: text.clone(), size: *size }
+            }
+            Self::Box { frame, width } => Self::Box { frame: shift(frame), width: *width },
+            Self::Arrow { from, to, width } => {
+                Self::Arrow { from: at(from), to: at(to), width: *width }
             }
         }
     }

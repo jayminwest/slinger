@@ -239,9 +239,10 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
              news without blocking. When the layout changes it fetches the
              code of each agent UI the panes show first.
              Its Follower keeps one canvas page coming: `canvas_show`,
-             then the change feed. Its Outbox sends the pen's strokes
-             (`canvas_apply`, one `add` each) on a thread of its own, in the
-             order handed in, and hands back each answer.
+             then the change feed. Its Outbox sends the pen's changes
+             (`canvas_apply`, one each: a stroke's `add`, an erase's or a
+             delete's `remove`, a drag's `move`) on a thread of its own, in
+             the order handed in, and hands back each answer.
 backend/ui.rs  what a UI pane shows (`ui_shown`: the version, and a showing's
              id and data), its code by ui_export into a directory of the
              app's own, read, removed; and a showing's reply (`ui_reply`),
@@ -252,10 +253,11 @@ backend/panes.rs  the server's panes: `layout` for the Watch, and `open` and
 mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              feed reply applied in order; reads the canvas file's items
              (tenths, delta points, `#rrggbb`) into scene items, and writes
-             a pen stroke as one. Pure.
+             the pen's changes as `canvas_apply` operations. Pure.
 canvases.rs  the canvas panes: one follower and mirror per canvas shown, each
              pane's viewport and last scene; pan, zoom and next page; the
-             pen's ink over each page, and its outbox.
+             pen's ink and the eraser's and lasso's work over each page, and
+             the outbox they share.
 config.rs    the config file's format: text in, a typed config or an error
              with its line out; merges a machine's overlay over it. Pure.
 commands.rs  key commands: the closed list of commands, the chord parser and
@@ -283,10 +285,21 @@ scene/sidebar.rs  the agents' statuses (SPEC D17, P6): the open workspaces and
              notice. Pure.
 scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport in,
              the visible marks in screen points and the box to repaint out. Pure.
-scene/ink.rs  the pen's ink: the stroke under the pen and the finished strokes
-             the server's page does not hold yet, drawn over it; which stroke
-             goes next (one at a time, oldest first, a failed one again
-             first); the pen-to-paint delay log (O2). Pure.
+scene/ink.rs  the pen's ink: the stroke under the pen and the finished changes
+             (strokes, removals, moves) the server's page does not hold yet,
+             laid over it; which change goes next (one at a time, oldest
+             first, a failed one again first); the pen-to-paint delay log
+             (O2). Pure.
+scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
+             hides what it touches at once and removes it on the lift; a loop
+             selects the items it holds whole, with a plain box; a drag inside
+             the box moves them; delete removes them. Each is one change, so
+             one undo step. The selection (canvas, page, server ids) is app
+             state the sling and moves between panes read. Pure.
+scene/select/hit.rs  which strokes an eraser's path touches and which items a
+             lasso holds: the core's geometry rules (canvas/geometry.rs), kept
+             here too so they answer at every pen event without the socket
+             (P7). Keep the two alike. Pure.
 scene/tools.rs  the pen's tool and colour, and the pop-up at the pen (colour, shape,
              tool) that changes them: opens, picks by pen or key, closes. Pure.
 layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
@@ -354,6 +367,17 @@ tablet display) never draws. Each stroke's pen-to-paint delays go to
 stderr as one `ink:` line (SPEC O2). Ink not yet sent is lost if the app
 quits. The app binary has a size budget, and the release
 profile builds it at `opt-level = "z"`, so it adds no async runtime.
+
+**Eraser and lasso:** they work on the page as the user sees it (the
+mirror with the ink laid over) and answer under the pen from the app's own
+copy, by the core's rules (`scene/select/hit.rs`): a round trip to the
+daemon per pen event would make the main thread wait or the eraser trail
+the pen. Only the server's items count, so ink still on its way is never
+erased or selected. A finished erase, move or delete joins the ink's queue
+as one `canvas_apply`, in turn with the strokes, and shows from there until
+the feed brings it. The user may erase, move and delete any item, an
+agent's too. Delete and clear act only when the focused pane shows the
+selection's canvas; otherwise their keys go on (a delete in an agent UI).
 
 **Keys:** every action is a named command (SPEC P4), bound to a chord in the
 config's `[keys]` table. The window's `sendEvent:` turns each key press into
@@ -424,7 +448,8 @@ Each boundary has something that fails when it is broken:
 | A follower shows the page, hands on each change, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
 | A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |
 | Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |
-| The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused | `crates/app/src/backend/outbox.rs`, against a real daemon |
+| An erase, a move and a delete are one change each and show at once; a lasso selects what it holds whole; the selection clears | `crates/app/src/scene/select/tests.rs` |
+| The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items | `crates/app/src/backend/outbox.rs`, against a real daemon |
 | Layout is fully tested | the 100% floor on `crates/app/src/layout.rs` in `budgets/coverage-budgets.json` |
 | The app binary does not grow unnoticed | `check:binary-size` |
 

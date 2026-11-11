@@ -1,8 +1,9 @@
 //! What the window shows. Pure: every decision about content is made here, so
 //! `platform` only draws what a [`Scene`] says. [`canvas`] decides what a
 //! canvas pane shows. [`tools`] holds the pen's tool and colour and the
-//! pop-up at the pen that changes them. [`ink`] holds the pen's strokes until
-//! the server's page has them. [`sidebar`] holds the agents'
+//! pop-up at the pen that changes them. [`ink`] holds the pen's strokes and
+//! changes until the server's page has them. [`select`] holds the eraser,
+//! the lasso and the selection. [`sidebar`] holds the agents'
 //! statuses, the optional sidebar that shows them and the notice when one
 //! becomes blocked or done.
 //!
@@ -16,6 +17,7 @@
 
 pub mod canvas;
 pub mod ink;
+pub mod select;
 pub mod sidebar;
 pub mod tools;
 

@@ -222,3 +222,20 @@ fn a_pen_stroke_is_written_as_it_reads_back() {
     assert_eq!(stroke_object(&thin)["width"], 1);
     assert_eq!(stroke_object(&thin)["pts"], json!([-1, 0]));
 }
+
+#[test]
+fn a_move_and_a_removal_are_written_as_the_feed_brings_them_back() {
+    let mut m = Mirror::new(&shown(vec![stroke("i1", "p1"), stroke("i2", "p1")]));
+    let here = || ("main".to_string(), "p1".to_string());
+    let (canvas, page) = here();
+    let by = pt(1.04, -0.5);
+    let moved = ops(&Change::Move { canvas, page, ids: vec![ItemId(1)], by });
+    assert_eq!(moved, json!({"op": "move", "ids": ["i1"], "dx": 10, "dy": -5}));
+    let (canvas, page) = here();
+    let removed = ops(&Change::Remove { canvas, page, ids: vec![ItemId(2), ItemId(9)] });
+    assert_eq!(removed, json!({"op": "remove", "ids": ["i2", "i9"]}));
+    assert_eq!(m.apply(&feed(7, vec![moved, removed])), Applied::Changed);
+    assert_eq!(ids(&m), [1]);
+    let Shape::Stroke { points, .. } = &m.items()[0].shape else { panic!() };
+    assert_eq!(points[0], pt(11.0, 19.5));
+}
