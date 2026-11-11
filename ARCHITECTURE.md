@@ -319,7 +319,7 @@ scene.rs     decides what the window shows: each pane's placeholder, an
              agent UI pane's page (a Web) or its name and why it cannot
              show, a note over a UI pane whose agent did not take its reply,
              one focus border, problems in the focused pane, and the
-             sidebar and notice. No other chrome. Pure.
+             sidebar and notice. No other chrome (SPEC P6). Pure.
 ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
              slinger-ui://<hex>/ with the policy), the sandbox's constants
              (the policy and the shim in ui/policy.txt and ui/shim.js, the
