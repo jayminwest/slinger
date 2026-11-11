@@ -31,7 +31,7 @@ pub use canvases::{CanvasError, Canvases};
 pub use processes::{ProcessError, Processes, Shown};
 pub use server::{Server, StartError, Stopper};
 pub use sessions::{SessionError, Sessions};
-pub use store::{CLAUDE, Query, Store, StoreError, default_data_dir, machine_name};
+pub use store::{CLAUDE, Query, SLINGER, Store, StoreError, default_data_dir, machine_name};
 pub use workspaces::{Opened, WorkspaceError, Workspaces};
 
 const HELP_HINT: &str = "run 'slingerd --help'";
@@ -65,6 +65,9 @@ struct Args {
     /// The program each agent's process runs: Claude Code
     #[arg(long, value_name = "PATH", default_value = CLAUDE)]
     claude: PathBuf,
+    /// The slinger CLI each agent's hooks run [default: the one beside slingerd, else slinger on PATH]
+    #[arg(long, value_name = "PATH")]
+    slinger: Option<PathBuf>,
     /// Print the version
     #[arg(short = 'v', long)]
     version: bool,
@@ -96,7 +99,8 @@ fn report(
         }
         Ok(args) => {
             let socket = args.socket.unwrap_or_else(control::default_socket);
-            match serve(&socket, args.data_dir, args.claude) {
+            let slinger = args.slinger.unwrap_or_else(beside_me);
+            match serve(&socket, args.data_dir, args.claude, slinger) {
                 Ok(()) => return Ok(exit::OK),
                 Err(failure) => failure,
             }
@@ -119,7 +123,19 @@ fn report(
     Ok(code)
 }
 
-fn serve(socket: &Path, data_dir: Option<PathBuf>, claude: PathBuf) -> Result<(), Failure> {
+/// The `slinger` installed beside this `slingerd`, else the name alone, to
+/// look up on `PATH`.
+fn beside_me() -> PathBuf {
+    let beside = std::env::current_exe().ok().and_then(|me| Some(me.parent()?.join(SLINGER)));
+    beside.filter(|p| p.is_file()).unwrap_or_else(|| SLINGER.into())
+}
+
+fn serve(
+    socket: &Path,
+    data_dir: Option<PathBuf>,
+    claude: PathBuf,
+    slinger: PathBuf,
+) -> Result<(), Failure> {
     let internal = |e: io::Error| (exit::ERROR, e.to_string(), None);
     let code = |code: &str| if code == "conflict" { exit::CONFLICT } else { exit::ERROR };
     let server = Server::bind(socket).map_err(|e| (code(e.code()), e.to_string(), e.hint()))?;
@@ -129,7 +145,8 @@ fn serve(socket: &Path, data_dir: Option<PathBuf>, claude: PathBuf) -> Result<()
         .map_or_else(default_data_dir, Ok)
         .and_then(|dir| Store::open(&dir, machine_name()))
         .map_err(|e| (code(e.code()), e.to_string(), e.hint()))?
-        .with_claude(claude);
+        .with_claude(claude)
+        .with_slinger(slinger);
     let stopper = server.stopper();
     let mut signals = Signals::new([SIGTERM, SIGINT]).map_err(internal)?;
     std::thread::spawn(move || {

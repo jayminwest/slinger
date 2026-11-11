@@ -17,7 +17,7 @@ use slinger_control as control;
 
 use crate::canvas::Canvas;
 use crate::output::{Ctx, Failure, Output, exit};
-use crate::session::{Session, Status};
+use crate::session::{Session, Status, Touch};
 use crate::sling::Sling;
 use crate::ui::Ui;
 use crate::workspace::Workspace;
@@ -106,6 +106,9 @@ enum Command {
     /// Send what changed on a canvas, with a prompt, to its workspace's agent
     #[command(subcommand)]
     Sling(Sling),
+    /// Report a file the calling agent wrote
+    #[command(subcommand)]
+    File(Touch),
 }
 
 #[derive(Subcommand)]
@@ -184,6 +187,7 @@ impl Command {
             Self::Session(session) => session.name(),
             Self::Status(status) => status.name(),
             Self::Sling(sling) => sling.name(),
+            Self::File(file) => file.name(),
         }
     }
 }
@@ -264,6 +268,7 @@ fn execute(
         Command::Session(session) => crate::session::execute(session, daemon, input),
         Command::Status(status) => crate::session::set(status, daemon),
         Command::Sling(sling) => crate::sling::execute(sling, daemon, input),
+        Command::File(file) => crate::session::touched(file, daemon, input),
     }
 }
 

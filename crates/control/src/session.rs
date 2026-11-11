@@ -34,6 +34,23 @@ pub enum SessionAsk {
     SessionSend { workspace: String, text: String },
     /// Send a canvas's new ink and a prompt to the agent of its workspace.
     SlingSend(SlingAsk),
+    /// An agent wrote a file: the absolute `path`, or the one a Claude Code
+    /// `PostToolUse` hook's payload (`hook`) names. One of the two.
+    FileTouched {
+        agent: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        path: Option<PathBuf>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        hook: Option<String>,
+    },
+}
+
+/// What [`SessionAsk::FileTouched`] reports: a file by its path, or the
+/// payload of the hook that saw it written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Touched<'a> {
+    Path(&'a std::path::Path),
+    Hook(&'a str),
 }
 
 /// One agent the daemon can reach.
@@ -89,6 +106,20 @@ pub struct StatusSet {
     pub status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event: Option<u64>,
+}
+
+/// The reply to [`SessionAsk::FileTouched`]: the file, its hash and the
+/// number of the `file_touched` event. All absent when a hook's payload
+/// names no file: nothing was touched.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileTouched {
+    pub agent: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub event: Option<u64>,
 }
@@ -170,6 +201,22 @@ impl Client {
         let ask = SessionAsk::SessionSend { workspace: workspace.into(), text: text.into() };
         Ok(self.call::<_, SessionInfo>(&ask)?.session)
     }
+
+    /// Reports that `agent` wrote a file. The daemon hashes it and appends a
+    /// `file_touched` event with its path and hash, never its contents.
+    ///
+    /// # Errors
+    ///
+    /// `invalid` for a blank agent or a relative path, `not_found` for a
+    /// file that is not there, and `unavailable` when the daemon does not
+    /// answer.
+    pub fn file_touched(&self, agent: &str, what: Touched<'_>) -> Result<FileTouched, RemoteError> {
+        let (path, hook) = match what {
+            Touched::Path(path) => (Some(path.to_owned()), None),
+            Touched::Hook(payload) => (None, Some(payload.to_string())),
+        };
+        self.call(&SessionAsk::FileTouched { agent: agent.into(), path, hook })
+    }
 }
 
 #[cfg(test)]
@@ -217,6 +264,14 @@ mod tests {
             (
                 SessionAsk::SlingSend(SlingAsk { canvas: "c".into(), ..SlingAsk::default() }),
                 r#"{"v":1,"op":"sling_send","canvas":"c","prompt":""}"#,
+            ),
+            (
+                SessionAsk::FileTouched { agent: "a".into(), path: Some("/f".into()), hook: None },
+                r#"{"v":1,"op":"file_touched","agent":"a","path":"/f"}"#,
+            ),
+            (
+                SessionAsk::FileTouched { agent: "a".into(), path: None, hook: Some("{}".into()) },
+                r#"{"v":1,"op":"file_touched","agent":"a","hook":"{}"}"#,
             ),
         ] {
             assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));

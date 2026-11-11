@@ -9,11 +9,12 @@
 //! agent through the process [`Processes`] holds for it.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::io;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use slinger_core::record::{Event, Tags};
-use slinger_core::session::{self, Report, Session, Status, stream};
+use slinger_core::record::{BlobId, Body, Event, FileTouched, Tags};
+use slinger_core::session::{self, Report, Session, Status, hooks, stream};
 
 use crate::processes::{ProcessError, Processes};
 use crate::store::{Query, Store, StoreError};
@@ -229,6 +230,59 @@ impl Sessions {
         set.insert(agent.to_string(), report.clone());
         Ok((report, event))
     }
+
+    /// Records that `agent` wrote the file at `path`, or at the path a
+    /// Claude Code hook's payload (`hook`) names: appends `file_touched` with
+    /// the path and the hash of the file's bytes, never the bytes, tagged as
+    /// [`Sessions::set`] tags. A payload that names no file touches none:
+    /// `None`.
+    ///
+    /// # Errors
+    ///
+    /// `invalid` for a blank agent, a relative path, or both or neither of
+    /// `path` and `hook`; `not_found` for a file that is not there; and the
+    /// record's error.
+    pub fn touched(
+        &self,
+        store: &Store,
+        agent: &str,
+        path: Option<PathBuf>,
+        hook: Option<&str>,
+    ) -> Result<Option<Event>> {
+        session::check_agent(agent)?;
+        let path = match (path, hook) {
+            (Some(path), None) => path,
+            (None, Some(payload)) => match hooks::touched(payload) {
+                Some(path) => path,
+                None => return Ok(None),
+            },
+            _ => return Err(invalid("pass a file's path or a hook's payload, one of the two")),
+        };
+        if path.is_relative() {
+            return Err(invalid(&format!("{} is not an absolute path", path.display())));
+        }
+        let hash = BlobId::of(&read(&path)?);
+        let body = Body::FileTouched(FileTouched { path: path.display().to_string(), hash });
+        let tags = Tags { agent: Some(agent.into()), ..Tags::on("") };
+        Ok(Some(store.append(Event::new(0, agent, tags, body))?))
+    }
+}
+
+/// The bytes of the file at `path`, to hash.
+fn read(path: &Path) -> Result<Vec<u8>> {
+    std::fs::read(path).map_err(|e| {
+        let what = format!("file {}", path.display());
+        let hint = match e.kind() {
+            io::ErrorKind::NotFound => "name a file that exists".to_string(),
+            _ => format!("it cannot be read: {e}"),
+        };
+        slinger_core::Error::NotFound { what, hint: Some(hint) }.into()
+    })
+}
+
+fn invalid(message: &str) -> SessionError {
+    let hint = Some("see 'slinger file touched --help'".into());
+    slinger_core::Error::Invalid { message: message.into(), hint }.into()
 }
 
 /// The last status `agent` set in the record, if any.

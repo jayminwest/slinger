@@ -129,6 +129,10 @@ session/stream.rs  Claude Code's stream format (D10): the arguments that start
              runs and loads, from its workspace's agent), a message as one
              input line (text, or a sling's text and base64 PNG blocks), and
              what an output line says (its session id, the end of a turn).
+session/hooks.rs  Claude Code's hooks (SPEC section 5): the `--settings` JSON
+             whose hooks run the CLI (turn start working, stop done, a wait
+             for the user blocked, a file write `file touched --hook`), and
+             the file a `PostToolUse` payload names.
 error.rs     the typed errors and their stable codes.
 ```
 
@@ -177,12 +181,16 @@ sessions.rs  the statuses agents set since the daemon started (`working`
              lives only here); else each agent's last status event in the
              record. `status_set` appends its event inside the same lock.
              Start, stop and send find the agent by its workspace.
+             `touched` reads and hashes a file an agent wrote and appends
+             `file_touched` (path and hash, never the bytes).
 processes.rs the agents' processes, one per agent: spawned in the agent's
-             home within its limits, with `SLINGER_AGENT` and `SLINGER_SOCKET`, written to under
-             one lock, read by a thread each so a pipe never fills. Keeps each
-             session id in `sessions.json` once the output names it. Dropping
-             one closes its input, waits a grace period, then kills it; `serve`
-             ends them all when it stops. No restart on death (D20).
+             home within its limits, with `SLINGER_AGENT` and `SLINGER_SOCKET`,
+             written to under one lock, read by a thread each so a pipe never
+             fills. Keeps each session id in `sessions.json` once the output
+             names it. Dropping one closes its input, waits a grace period,
+             then kills it; `serve` ends them all when it stops. No restart on death (D20).
+             Each starts with the core's hooks in `--settings`, running the
+             CLI at `--slinger` (default: beside slingerd).
 server/session.rs  the session verbs on the wire, each session with its process.
 server/sling.rs  `sling_send`: the workspace of the canvas, the marker, the
              packet, `sling::message` with the verbs this daemon serves
@@ -293,6 +301,8 @@ Each boundary has something that fails when it is broken:
 | A session starts with the exact limits its workspace sets: by default its roots, the `slinger` CLI and no user config; wider with the agent's `dirs`, `tools` and `user_config` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
 | Three slings go into one conversation, each with its packet blob and `sling_sent`; old ink is not sent again; no running agent is `unavailable` and stores nothing; each verb the note names is served | `crates/daemon/src/tests/sling.rs`, with a stand-in for Claude Code |
 | An agent verb takes its agent from `--agent` or `SLINGER_AGENT`, else exits 2 | `crates/cli/tests/agent_env.rs`, against the real binary |
+| The hooks: each event runs its CLI command and none exits 2; `file_touched` stores a path and a hash, no contents | `crates/core/src/session/hooks.rs`, and `crates/daemon/src/tests/touched.rs` through a real socket |
+| A turn's hooks move a session from working to done and record the file it wrote | `crates/cli/tests/hooks.rs`, with a stand-in for Claude Code and the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |
 | Layout is fully tested | the 100% floor on `crates/app/src/layout.rs` in `budgets/coverage-budgets.json` |

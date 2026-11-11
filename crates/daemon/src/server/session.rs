@@ -1,7 +1,8 @@
 //! `session_list`, `session_show`, `status_set`, `session_start`,
-//! `session_stop` and `session_send`: the sessions as they cross the socket.
+//! `session_stop`, `session_send` and `file_touched`: the sessions as they cross the socket.
 
 use slinger_control::{self as control, RemoteError, Reply, SessionAsk};
+use slinger_core::record::Body;
 use slinger_core::session::Session;
 
 use crate::processes::ProcessError;
@@ -26,6 +27,20 @@ pub fn answer(store: &Store, ask: SessionAsk) -> Result<Reply, RemoteError> {
             Ok(Reply::SessionSend(info(store, session)?))
         }
         SessionAsk::SlingSend(ask) => super::sling::send(store, ask),
+        SessionAsk::FileTouched { agent, path, hook } => {
+            let touched = store.sessions().touched(store, &agent, path, hook.as_deref());
+            let event = touched.map_err(|e| remote(&e))?;
+            let file = event.as_ref().and_then(|e| match &e.body {
+                Body::FileTouched(file) => Some(file),
+                _ => None,
+            });
+            Ok(Reply::FileTouched(control::FileTouched {
+                agent,
+                path: file.map(|f| f.path.clone().into()),
+                hash: file.map(|f| f.hash.to_string()),
+                event: event.as_ref().and_then(|e| e.number),
+            }))
+        }
     }
 }
 

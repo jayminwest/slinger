@@ -49,6 +49,7 @@ a "did you mean" suggestion.
 | `session send <WORKSPACE> <TEXT\|->` | Nothing. `--json`: `session` |
 | `sling send <ID> [--page PAGE] [--select IDS] [--prompt TEXT\|-]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
+| `file touched (<PATH> \| --hook) [--agent NAME]` | Nothing. `--json`: `agent`, `path`, `hash`, `event` |
 | `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --arrow FROM TO) [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
 | `canvas edit <ID> --item ITEM [--text TEXT] [--box W,H] [--move X,Y] [--agent NAME]` | The item's id and its box `x,y,w,h` in tenths now, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq` |
 | `canvas remove <ID> --item ITEM [--agent NAME]` | Nothing. `--json`: `seq` |
@@ -133,6 +134,14 @@ it exits 2 (`usage`) with a hint. Every agent verb added after it names the
 agent the same way. `status set blocked` and `status set done` append
 `agent_blocked` and `agent_done` to the record (the note is the reason or the
 summary); `working` is shown by `session list` only. Another status exits 2.
+`file touched` is an agent verb: it records that the agent wrote the file at
+`PATH` (relative to the current directory) as a `file_touched` event with its
+path and hash, never its contents. `--hook` reads a Claude Code `PostToolUse`
+hook's payload on stdin instead and takes the file from it; a payload that
+names no file records nothing and exits 0. The hooks `slingerd` gives each
+agent's process run it after every file write (`docs/service.md`, "Hooks").
+A file that is not there exits 3 (`not_found`); both or neither of `PATH`
+and `--hook` exits 2.
 `canvas put` is an agent verb too: the agent answers on the canvas with
 text, a box (`W,H` in tenths of a unit) or an arrow between two items, placed
 beside `--beside`, an id from `canvas show` (`i12`) or a packet (`c12` is the
