@@ -69,6 +69,9 @@ pub enum Command {
     /// steps are its own.
     Undo,
     Redo,
+    /// Speak the sling's prompt: Flick's dictation starts (opening the
+    /// prompt), and the next press stops it.
+    Dictate,
 }
 
 /// How many commands there are.
@@ -76,7 +79,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 39] = [
+    pub const ALL: [(Command, &str); 40] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -116,6 +119,7 @@ impl Command {
         (Command::RemovePage, "remove-page"),
         (Command::Undo, "undo"),
         (Command::Redo, "redo"),
+        (Command::Dictate, "dictate"),
     ];
 
     /// The command called `name` in the config file.
@@ -269,6 +273,7 @@ impl Default for Keymap {
             on(CMD | SHIFT, '\u{7f}'),
             on(CMD, 'z'),
             on(CMD | SHIFT, 'z'),
+            on(CMD | SHIFT, '\r'),
         ])
     }
 }

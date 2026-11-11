@@ -20,6 +20,12 @@ bullet with the area in bold.
   working, then done. If the sling fails (for example, the agent is not
   running), the prompt stays open with the error and what to do; return
   tries again.
+- **App:** speak the sling's prompt. The `dictate` command
+  (`cmd+shift+return`) opens the prompt at the selection and starts Flick's
+  dictation; press it again to stop, and Flick types what you said into the
+  prompt. Escape or return cancels a dictation still going. If Flick is not
+  running, or its dictation is not set up, the prompt says so once and you
+  can type instead. The prompt now takes cmd+X, C, V and A.
 - **Agent UIs:** `slinger ui open <UI> --workspace <W> [--data JSON]` lets an
   agent show a UI in a new pane, with data, and get the user's answer back.
   It prints the showing's id (`pick-slot#12`) and the pane. Each

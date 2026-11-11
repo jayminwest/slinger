@@ -7,8 +7,9 @@
 //! the lasso work on the page as shown ([`Select`]), and so do the text, box
 //! and arrow tools ([`Shapes`]); what they change goes the same way, in turn
 //! with the strokes. The sling sends the selection ([`sling`]) once the ink
-//! before it is in. Runs on the main thread and never waits: the followers,
-//! the outbox and the slinger do.
+//! before it is in; its prompt can be spoken ([`dictation`]). Runs on the
+//! main thread and never waits: the followers, the outbox, the slinger and
+//! Flick's thread do.
 //!
 //! Each pane keeps its own page: a page followed once however many panes
 //! show it. The page commands, undo and redo are in [`paging`].
@@ -20,7 +21,7 @@ use std::rc::Rc;
 
 use slinger_control::Client;
 
-use crate::backend::{Follower, News, Outbox, Problem, Slinger};
+use crate::backend::{Flick, Follower, News, Outbox, Problem, Slinger};
 use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Point, Rect, Size, Viewport};
 use crate::mirror::{Applied, Mirror};
@@ -34,6 +35,7 @@ use crate::scene::sling::Sling;
 use crate::scene::tools::Tool;
 use crate::scene::{CanvasPane, canvas};
 
+mod dictation;
 mod sling;
 
 /// The canvases of a window's panes.
@@ -47,6 +49,8 @@ pub struct Canvases {
     outbox: Outbox,
     sling: Sling,
     slinger: Slinger,
+    /// Speaking the sling's prompt through Flick.
+    voice: dictation::Voice,
     /// The pane the pen draws in, and its frame in the window, while down.
     pen: Option<(PaneId, Rect)>,
     /// When the oldest pen event no scene has shown yet happened.
@@ -86,6 +90,7 @@ impl Canvases {
         let (open, views) = (Vec::new(), Vec::new());
         let (shapes, asks, turning) = (Shapes::default(), Pages::default(), Vec::new());
         let (pen, unshown) = (None, None);
+        let voice = dictation::Voice::new(Flick::socket());
         Self {
             daemon,
             open,
@@ -96,6 +101,7 @@ impl Canvases {
             outbox,
             sling,
             slinger,
+            voice,
             pen,
             unshown,
             asks,
@@ -142,8 +148,8 @@ impl Canvases {
         for (canvas, page, next) in lost {
             self.gone(&canvas, &page, next.as_deref());
         }
-        let sent = self.send();
-        self.poll_sling() || sent || changed
+        let (sent, dictated) = (self.send(), self.poll_dictation());
+        self.poll_sling() || sent || changed || dictated
     }
 
     /// Takes the daemon's answers to the ink (a pane that asked for a new

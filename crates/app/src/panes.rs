@@ -213,7 +213,8 @@ impl Panes {
             | Command::RenamePage
             | Command::RemovePage
             | Command::Undo
-            | Command::Redo => {}
+            | Command::Redo
+            | Command::Dictate => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),
