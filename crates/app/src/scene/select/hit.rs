@@ -40,9 +40,10 @@ pub fn holds(lasso: &[Point], shape: &Shape) -> bool {
     let vertices = match shape {
         Shape::Stroke { points, .. } => points.clone(),
         Shape::Arrow { from, to, .. } => vec![*from, *to],
-        Shape::Text { frame, .. } | Shape::Box { frame, .. } | Shape::Live { frame, .. } => {
-            corners(frame)
-        }
+        Shape::Text { frame, .. }
+        | Shape::Box { frame, .. }
+        | Shape::Live { frame, .. }
+        | Shape::Button { frame, .. } => corners(frame),
     };
     !vertices.is_empty() && vertices.into_iter().all(|p| winding(lasso, p) != 0)
 }

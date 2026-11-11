@@ -190,7 +190,7 @@ Operation kinds in v1 (their fields follow the envelope):
 | `restore` | `item`: a removed item put back whole, under its own id. The item object adds `by` and `t` (its maker and time) after `page`. Undo and redo write it. |
 | `page.restore` | `page`, `name`, `index` (0-based position), `items` (whole items, as in `restore`). Undo writes it. |
 
-Item objects. Every item has `id`, `page`, `kind` and, but for `live`, `color`; then by
+Item objects. Every item has `id`, `page`, `kind` and, but for `live` and `button`, `color`; then by
 kind:
 
 | `kind` | fields (lengths and positions in tenths of a unit) |
@@ -200,6 +200,7 @@ kind:
 | `box` | `x`, `y`, `w`, `h` |
 | `arrow` | `pts` (delta array, two or more pairs); optional `from`, `to` (item ids it points at) |
 | `live` | `x`, `y`, `w`, `h` (both above 0), `ui` (the UI's name), `hash` (the blob id of the version shown), `open` (the showing, `pick-slot#12`) |
+| `button` | `x`, `y`, `w`, `h` (both above 0): the built-in "send to agent" button (SPEC section 8). It names no code: the app draws it, and a tap on it slings what is new on its page |
 
 `color` is a string: a palette name the model defines, `#rrggbb`, or `#rrggbbaa` when
 the colour is not opaque. The model has no palette yet, so a reader reads any other
@@ -231,7 +232,7 @@ string as black.
   kind in `add`, not a new operation: a reader from before it keeps that `add` as a
   line it does not know, its counter still moves past the id, and a later `move`,
   `set` or `remove` of the id finds no item and changes nothing, so the rest of the
-  file replays the same.
+  file replays the same. A `button` is added the same way.
 
 ### Versions (B5)
 

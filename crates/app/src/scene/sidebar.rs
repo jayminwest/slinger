@@ -49,6 +49,8 @@ impl Status {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Workspace {
     pub name: String,
+    /// Its default canvas's id: where its agent's button shows its status.
+    pub canvas: String,
     pub agent: Option<Agent>,
 }
 
@@ -142,6 +144,13 @@ impl Sidebar {
         *self != before
     }
 
+    /// Each open workspace's canvas and its agent's status, as last heard:
+    /// what the canvases' buttons show. Empty without a list.
+    pub fn statuses(&self) -> Vec<(String, Option<Status>)> {
+        let list = self.workspaces.iter().flatten();
+        list.map(|w| (w.canvas.clone(), w.agent.as_ref().and_then(|a| a.status))).collect()
+    }
+
     /// Where the panes go in `window`: all of it, less the sidebar when open.
     pub fn panes(&self, window: Rect) -> Rect {
         let width = if self.open { WIDTH.min(window.width) } else { 0.0 };
@@ -229,14 +238,28 @@ impl Sidebar {
 /// its text and colour.
 type Line<'a> = (Option<(&'static str, Rgb)>, &'a str, Rgb);
 
-/// The mark for a status, and its colour: blocked in the error colour, so it
-/// is the one that stands out.
+/// The mark for a status, and its colour.
 fn mark(status: Option<Status>, theme: &Theme) -> (&'static str, Rgb) {
+    (glyph(status), colour(status, theme))
+}
+
+/// The mark for a status: a ring while the agent has said nothing.
+pub(super) fn glyph(status: Option<Status>) -> &'static str {
     match status {
-        None => ("○", theme.muted),
-        Some(Status::Working) => ("●", theme.focus),
-        Some(Status::Blocked) => ("●", theme.error),
-        Some(Status::Done) => ("✓", theme.text),
+        None => "○",
+        Some(Status::Working | Status::Blocked) => "●",
+        Some(Status::Done) => "✓",
+    }
+}
+
+/// A status mark's colour: blocked in the error colour, so it is the one
+/// that stands out.
+pub(super) fn colour(status: Option<Status>, theme: &Theme) -> Rgb {
+    match status {
+        None => theme.muted,
+        Some(Status::Working) => theme.focus,
+        Some(Status::Blocked) => theme.error,
+        Some(Status::Done) => theme.text,
     }
 }
 

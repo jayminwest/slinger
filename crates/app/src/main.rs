@@ -477,6 +477,7 @@ fn view(
 ) -> Scene {
     let theme = &settings.config.theme;
     let area = sidebar.panes(layout::WINDOW.rect());
+    canvases.agents(sidebar.statuses());
     let drawn = canvases.show(&shared.panes, area, theme);
     let mut problems: Vec<&Problem> = Vec::new();
     for problem in shared.trouble.iter().chain(canvases.problems()).chain(&settings.problem) {

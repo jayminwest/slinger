@@ -19,7 +19,8 @@
 //! the error's message and hint under it: return tries again, escape gives up.
 //!
 //! [`Sling::send_now`] is the one entry point for slings that need no
-//! typing (a prompt from dictation, a button on a live item).
+//! typing (a tap on the "send to agent" button). A sling with nothing
+//! selected sends what is new on its page.
 
 use crate::backend::Problem;
 use crate::commands::Chord;
@@ -240,9 +241,10 @@ fn ask(selection: &Selection, prompt: String) -> Ask {
     Ask { canvas, page, ids, prompt }
 }
 
-/// "1 item", "3 items".
+/// "1 item", "3 items"; "what is new" for none (a button's sling).
 fn count(ask: &Ask) -> String {
     match ask.ids.len() {
+        0 => "what is new".to_string(),
         1 => "1 item".to_string(),
         n => format!("{n} items"),
     }

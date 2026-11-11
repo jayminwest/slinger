@@ -13,7 +13,8 @@ const WINDOW: Rect = Rect { x: 0.0, y: 0.0, width: 960.0, height: 600.0 };
 /// A workspace named for its agent, `<agent>-ws`, with that status.
 fn ws(agent: &str, status: Option<Status>) -> Workspace {
     let agent = Agent { name: agent.into(), status, note: None };
-    Workspace { name: format!("{}-ws", agent.name), agent: Some(agent) }
+    let canvas = format!("{}-canvas", agent.name);
+    Workspace { name: format!("{}-ws", agent.name), canvas, agent: Some(agent) }
 }
 
 fn noted(agent: &str, status: Status, note: &str) -> Workspace {
@@ -49,7 +50,7 @@ fn reads_the_three_statuses_and_nothing_else() {
 fn open_it_lists_each_workspace_and_its_agents_mark() {
     let mut idle = ws("x", None);
     idle.name = "idle".into();
-    let none = Workspace { name: "plain".into(), agent: None };
+    let none = Workspace { name: "plain".into(), canvas: "plain".into(), agent: None };
     let sidebar = heard(vec![
         ws("ada", Some(Status::Working)),
         ws("bo", Some(Status::Blocked)),
@@ -100,6 +101,18 @@ fn collapsed_it_shows_nothing_and_the_panes_take_the_window() {
 fn before_the_first_list_it_is_empty_and_with_none_it_says_so() {
     assert_eq!(Sidebar::new(true).rows(&T, WINDOW), []);
     assert_eq!(shown(&heard(vec![]).rows(&T, WINDOW)), [("no open workspaces", T.muted)]);
+}
+
+#[test]
+fn each_canvas_has_the_status_of_its_workspaces_agent_for_its_button() {
+    assert_eq!(Sidebar::new(false).statuses(), []);
+    let none = Workspace { name: "plain".into(), canvas: "plain".into(), agent: None };
+    let mut sidebar = heard(vec![ws("ada", Some(Status::Blocked)), ws("bo", None), none]);
+    let blocked = ("ada-canvas".to_string(), Some(Status::Blocked));
+    let quiet = [("bo-canvas".to_string(), None), ("plain".to_string(), None)];
+    assert_eq!(sidebar.statuses(), [blocked, quiet[0].clone(), quiet[1].clone()]);
+    sidebar.update(Err(crate::backend::Problem { message: "gone".into(), hint: None }));
+    assert_eq!(sidebar.statuses(), [], "a lost daemon: no status");
 }
 
 #[test]

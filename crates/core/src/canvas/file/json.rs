@@ -145,7 +145,7 @@ fn rect(o: Obj, r: Rect) -> Obj {
 
 /// Writes a shape's fields into `o`: `kind`, `color`, then the kind's own.
 /// A stroke's width is at least one tenth, so a thin stroke stays drawable.
-/// A live item has no colour: its page draws itself.
+/// A live item and a button have no colour: they draw themselves.
 pub(super) fn shape(o: Obj, s: &Shape) -> Obj {
     match s {
         Shape::Stroke { points, colour: c, width } => o
@@ -173,6 +173,7 @@ pub(super) fn shape(o: Obj, s: &Shape) -> Obj {
         Shape::Live { frame, ui, hash, open } => {
             rect(o.str("kind", "live"), *frame).str("ui", ui).str("hash", hash).str("open", open)
         }
+        Shape::Button { frame } => rect(o.str("kind", "button"), *frame),
     }
 }
 
@@ -242,6 +243,11 @@ pub(super) fn read_shape(m: &Fields) -> Result<Option<Shape>, Bad> {
         let frame = Rect::new(at("x")?, at("y")?, at("w")?, at("h")?);
         let [ui, hash, open] = ["ui", "hash", "open"].map(|k| text(m, k).map(str::to_owned));
         return Ok(Some(Shape::Live { frame, ui: ui?, hash: hash?, open: open? }));
+    }
+    if kind == "button" {
+        return Ok(Some(Shape::Button {
+            frame: Rect::new(at("x")?, at("y")?, at("w")?, at("h")?),
+        }));
     }
     if !matches!(kind, "stroke" | "text" | "box" | "arrow") {
         return Ok(None);

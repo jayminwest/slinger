@@ -45,6 +45,7 @@ impl Canvases {
             Command::RenamePage => self.rename_page(panes, pane),
             Command::RemovePage => self.remove_page(panes, pane),
             Command::Undo | Command::Redo => self.step(panes, pane, command == Command::Redo),
+            Command::PlaceButton => self.place_button(panes, pane, frame),
             _ => return false,
         }
         true
@@ -52,7 +53,11 @@ impl Canvases {
 
     /// The canvas `pane` of `panes` shows, its pages and the one shown,
     /// once that page has arrived.
-    fn pages_of(&self, panes: &Panes, pane: PaneId) -> Option<(String, Vec<Page>, String)> {
+    pub(super) fn pages_of(
+        &self,
+        panes: &Panes,
+        pane: PaneId,
+    ) -> Option<(String, Vec<Page>, String)> {
         let canvas = canvas_of(panes, pane)?;
         let open = find(&self.open, canvas, wanted(&self.views, pane, canvas))?;
         let mirror = open.mirror.as_ref()?;

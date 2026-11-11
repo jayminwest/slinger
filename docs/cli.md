@@ -95,7 +95,9 @@ there exits 3 (`not_found`). A refused open records nothing.
 
 `canvas apply` takes one operation as a JSON object, or a list of them, as
 one undo step (the operations are in `docs/service.md`, "Canvas
-operations"); `-` reads them from stdin. Without `--agent` the user acts.
+operations"); `-` reads them from stdin. An `add` of kind `button` places
+the "send to agent" button, which needs no UI put first:
+`slinger canvas apply notes '{"op":"add","item":{"page":"p1","kind":"button","x":0,"y":0,"w":1600,"h":400}}'`. Without `--agent` the user acts.
 An agent changing an item it did not make, an id that is not one, or
 operations that are not JSON exit 5 (`invalid`). A canvas that exists exits
 4 (`conflict`) on create; one that does not exists exits 3 (`not_found`) on

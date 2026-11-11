@@ -19,6 +19,9 @@ const MIN_RADIUS: f64 = 0.5;
 /// The length, in canvas units, of each side of an arrow's head.
 const HEAD: f64 = 16.0;
 
+/// What a crop writes inside a "send to agent" button.
+const BUTTON_LABEL: &str = "send to agent";
+
 /// The size, in canvas units, of one character cell of text.
 pub(super) const TEXT_SIZE: f64 = 24.0;
 
@@ -74,11 +77,16 @@ impl Raster {
                 (lines, LINE_WIDTH * SCALE / 2.0, *colour)
             }
             Shape::Text { text, frame, colour } => return self.text(text, *frame, *colour),
-            // A live item's page is not drawn: its box, and its UI's name inside.
-            Shape::Live { frame, ui, .. } => {
+            // A live item's page is not drawn: its box, and its UI's name
+            // inside. A button the same, with its label.
+            Shape::Live { frame, .. } | Shape::Button { frame } => {
+                let label = match item.shape() {
+                    Shape::Live { ui, .. } => ui.as_str(),
+                    _ => BUTTON_LABEL,
+                };
                 let pad = TEXT_SIZE / 2.0;
                 let inside = Rect::new(frame.x + pad, frame.y + pad, frame.w - 2.0 * pad, frame.h);
-                self.text(ui, inside, Colour::BLACK);
+                self.text(label, inside, Colour::BLACK);
                 (vec![corners(self, *frame)], LINE_WIDTH * SCALE / 2.0, Colour::BLACK)
             }
         };

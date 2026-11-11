@@ -183,6 +183,7 @@ impl<'a> Page<'a> {
             Shape::Box { .. } => "b",
             Shape::Arrow { .. } => "a",
             Shape::Live { .. } => "l",
+            Shape::Button { .. } => "u",
         };
         Some(format!("{prefix}{}", item.get()))
     }
@@ -241,6 +242,7 @@ impl<'a> Page<'a> {
                 fields.extend([("ui", ui.clone()), ("open", open.clone())]);
                 ("live", None)
             }
+            Shape::Button { .. } => ("button", None),
         };
         let frame = item.bounds();
         fields.extend(self.container(n, frame).map(|b| ("in", b)));

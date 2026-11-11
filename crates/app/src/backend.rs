@@ -71,7 +71,11 @@ pub fn workspaces(daemon: &Client) -> Result<Vec<Workspace>, Problem> {
     };
     Ok(open
         .into_iter()
-        .map(|w| Workspace { name: w.name, agent: w.agent.map(|a| agent(a.name)) })
+        .map(|w| Workspace {
+            name: w.name,
+            canvas: w.canvas,
+            agent: w.agent.map(|a| agent(a.name)),
+        })
         .collect())
 }
 
@@ -330,7 +334,7 @@ pub(crate) mod tests {
 
     fn notes(status: Option<Status>, note: Option<&str>) -> Vec<Workspace> {
         let agent = Agent { name: "scout".into(), status, note: note.map(str::to_string) };
-        vec![Workspace { name: "notes".into(), agent: Some(agent) }]
+        vec![Workspace { name: "notes".into(), canvas: "notes".into(), agent: Some(agent) }]
     }
 
     #[test]

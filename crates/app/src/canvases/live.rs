@@ -4,9 +4,6 @@
 //! once it has come ([`scene::live`]). A press on an item whose page shows
 //! goes to the page, unless it grabs the selection: a live item is selected
 //! with the lasso around it, then moved or deleted like any other.
-//!
-//! A later "send to agent" on a live item goes through
-//! [`Canvases::sling_now`] with that item selected.
 
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
