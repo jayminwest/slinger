@@ -116,7 +116,9 @@ impl CanvasView {
             unpainted.set(Some(unpainted.get().map_or(when, |t| t.min(when))));
         }
         self.ivars().texts.borrow_mut().retain(|id, _| {
-            let laid = |d: &Draw| matches!(d.mark, Mark::Text { .. } | Mark::Live { .. });
+            let laid = |d: &Draw| {
+                matches!(d.mark, Mark::Text { .. } | Mark::Live { .. } | Mark::Button { .. })
+            };
             scene.draws.iter().any(|d| d.id == *id && laid(d))
         });
         let first = self.ivars().scene.replace(Some(scene)).is_none();
@@ -178,6 +180,16 @@ fn paint(scene: &Scene, dirty: NSRect, texts: &mut HashMap<ItemId, Laid>) {
             Mark::Live { frame, name, at, size, zoom, .. } => {
                 NSBezierPath::bezierPathWithRect(ns_rect(*frame)).stroke();
                 let from = (name.clone(), frame.width / zoom, *size, draw.colour);
+                draw_text(laid(texts, draw.id, from), *at, *zoom);
+            }
+            Mark::Button { frame, label, at, size, width, zoom } => {
+                let corner = frame.height / 4.0;
+                let r = ns_rect(*frame);
+                let path =
+                    NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(r, corner, corner);
+                path.setLineWidth(*width);
+                path.stroke();
+                let from = (label.clone(), frame.width / zoom, *size, draw.colour);
                 draw_text(laid(texts, draw.id, from), *at, *zoom);
             }
         }

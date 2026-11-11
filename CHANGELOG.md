@@ -11,6 +11,17 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** the "send to agent" button. The `place-button` command
+  (`cmd+shift+b`) puts one in the middle of the focused canvas pane. Tap it
+  to sling what is new on the page since the last sling to the agent of the
+  canvas's workspace, with no prompt. To add a prompt, press `sling` with
+  nothing selected: the prompt opens beside the button; type, then tap the
+  button or press return. Its mark shows the agent's status, as the sidebar
+  does: working, blocked or done. Select, move, delete and undo it like any
+  item. `slinger canvas apply <C> '{"op":"add","item":{"page":"p1","kind":"button","x":0,"y":0,"w":1600,"h":400}}'`
+  places one from a terminal. A packet lists it as a `button` line; older
+  versions of slinger skip it when they read the canvas.
+
 - **Agent UIs:** live items. `slinger ui open <UI> --as item --canvas <C>
   --beside <ITEM> [--size W,H] [--data JSON]` puts an agent's UI on a canvas,
   beside an item, instead of in a pane. It prints the showing's id and the

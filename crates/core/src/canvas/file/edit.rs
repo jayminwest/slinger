@@ -55,11 +55,16 @@ impl Log {
             (*words, frame.w, frame.h) = (text.clone(), w, h);
         }
         if let Some([w, h]) = edit.size {
-            let (Shape::Text { frame, .. } | Shape::Box { frame, .. } | Shape::Live { frame, .. }) =
-                &mut new
+            let (Shape::Text { frame, .. }
+            | Shape::Box { frame, .. }
+            | Shape::Live { frame, .. }
+            | Shape::Button { frame }) = &mut new
             else {
                 let hint = "move it instead";
-                return Err(invalid("only a text, a box or a live item has a size", hint));
+                return Err(invalid(
+                    "only a text, a box, a live item or a button has a size",
+                    hint,
+                ));
             };
             (frame.w, frame.h) = (json::units(w), json::units(h));
         }

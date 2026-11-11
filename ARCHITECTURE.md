@@ -284,14 +284,22 @@ canvases/live.rs  the live items' pages: each showing a pane draws fetched
              once on a thread of its own, put over its item; a press on an
              item whose page shows goes to the page unless it grabs the
              selection.
+canvases/button.rs  the "send to agent" button (SPEC section 8): a tap slings
+             what is new on its page (`sling_now`, nothing selected, no
+             prompt), or sends the open entry; `place-button` puts one in
+             the focused pane through the ink's queue; each button shows the
+             status of its canvas's agent (`agents`, from the sidebar).
+canvases/find.rs  which page, canvas and items each pane shows; a window
+             point in canvas points.
 canvases/paging.rs  the canvas commands on a pane: pan, zoom, the page
              commands (each turns only that pane) and undo and redo, each
              through the ink's queue; each pane's page line.
 canvases/sling.rs  the sling from the window: opens the entry at the
              focused pane's selection, sends it once the ink of its canvas
              is written (`Ink::settled`), takes the answer. `sling_now` is
-             the one entry point for a sling with no typing (a live
-             item's button).
+             the one entry point for a sling with no typing (a tap on the
+             button). With nothing selected the entry opens beside the
+             focused page's first button.
 canvases/dictation.rs  the `dictate` command: opens the entry when it is
              closed, then starts or stops Flick's dictation into it; the
              entry closing cancels one going. Flick types the text into the
@@ -321,7 +329,11 @@ scene/sidebar.rs  the agents' statuses (SPEC D17, P6): the open workspaces and
              mark: working, blocked, done), where the panes go beside it, and
              the one notice when an agent becomes blocked or done out. The
              first list is the baseline; a status that moves on clears its
-             notice. Pure.
+             notice. `statuses`: each workspace canvas's agent status. Pure.
+scene/button.rs  the "send to agent" button: an item of kind `button`, drawn
+             as an outline with the agent's status mark (the sidebar's) and
+             its label; which button is under a point; where a new one goes.
+             Pure.
 scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport in,
              the visible marks in screen points and the box to repaint out. Pure.
 scene/live.rs  where each live item's page shows: over its item's visible
@@ -566,6 +578,9 @@ Each boundary has something that fails when it is broken:
 | A live item is one `add` line an old reader skips whole; a put beside an item is one undo step; the packet says it as text | `crates/core/tests/canvas_live.rs` |
 | An agent opens a UI as a live item: a refused open records nothing; the item, the showing and its data come back; one undo step | `crates/daemon/src/tests/live.rs`, through a real socket |
 | A live item's page shows over its box, follows a pan and a zoom, and takes presses until it is selected | `crates/app/src/scene/live/tests.rs`, and `crates/app/src/canvases/live/tests.rs` against a real daemon |
+| A button is one `add` line that needs an area; the packet says it as a `u` line; an agent puts beside it but cannot remove it | `crates/core/tests/canvas_button.rs` |
+| The button's mark and colour follow its agent's status (none, working, blocked, done), scale with the canvas and repaint on a change | `crates/app/src/scene/button/tests.rs` |
+| `place-button` places a button; a tap slings what is new with no selection, the reply lands beside the note, a typed prompt goes with a tap, a failure shows under the button | `crates/app/src/canvases/button/tests.rs` against a real daemon and a stand-in for Claude Code |
 | A follower shows the page, hands on each change, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
 | A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |
 | Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |

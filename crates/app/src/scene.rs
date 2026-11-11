@@ -16,6 +16,7 @@
 //! focused pane, over what it shows; when all is well the window says
 //! nothing more, except the one notice that an agent is blocked or done.
 
+pub mod button;
 pub mod canvas;
 pub mod dictation;
 pub mod ink;
@@ -345,7 +346,7 @@ mod tests {
         use sidebar::{Agent, Status, Workspace};
         let ws = |status| {
             let agent = Agent { name: "ada".into(), status, note: None };
-            vec![Workspace { name: "notes".into(), agent: Some(agent) }]
+            vec![Workspace { name: "notes".into(), canvas: "notes".into(), agent: Some(agent) }]
         };
         let mut side = Sidebar::new(true);
         side.update(Ok(ws(Some(Status::Working))));

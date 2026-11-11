@@ -277,6 +277,7 @@ fn read(o: &Map<String, Value>) -> Option<Item> {
             Shape::Text { frame: text_frame(frame()?, &text), text, size: TEXT_SIZE }
         }
         "box" => Shape::Box { frame: frame()?, width: LINE_WIDTH },
+        "button" => Shape::Button { frame: frame()?, status: None },
         "live" => {
             let text = |key: &str| o.get(key).and_then(Value::as_str).map(str::to_string);
             Shape::Live { frame: frame()?, name: text("ui")?, open: text("open")? }
@@ -364,7 +365,7 @@ fn set(id: ItemId, shape: &Shape) -> Value {
     serde_json::json!({"op": "set", "id": format!("i{}", id.0), "fields": fields})
 }
 
-/// The item fields of a text, a box or an arrow, with its kind, in tenths:
+/// The item fields of a text, a box, a button or an arrow, with its kind, in tenths:
 /// a frame as `x`, `y`, `w`, `h`; an arrow's ends as a delta array, and the
 /// items they point at as `from` and `to`. A stroke is written whole by
 /// [`stroke_object`], so it has none here.
@@ -383,6 +384,10 @@ fn fields(shape: &Shape) -> Map<String, Value> {
         }
         Shape::Box { frame: r, .. } => {
             o.insert("kind".into(), "box".into());
+            frame(&mut o, r);
+        }
+        Shape::Button { frame: r, .. } => {
+            o.insert("kind".into(), "button".into());
             frame(&mut o, r);
         }
         Shape::Arrow { from, to, bound, .. } => {

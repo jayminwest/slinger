@@ -14,27 +14,30 @@ use crate::scene::sling::Key;
 
 impl Canvases {
     /// The `sling` command: opens the entry at the selection, when the
-    /// focused pane of `panes` laid in `area` shows it. False when it does
-    /// not, or a sling is on its way.
+    /// focused pane of `panes` laid in `area` shows it; else beside the
+    /// first button on that pane's page, to sling what is new there. False
+    /// when it shows neither, or a sling is on its way.
     pub fn open_sling(&mut self, panes: &Panes, area: Rect) -> bool {
-        let Some((selection, around, within)) = self.selection_in(panes, area) else {
+        let selected = self.selection_in(panes, area).map(|(s, a, w)| (s.clone(), a, w));
+        let Some((selection, around, within)) = selected.or_else(|| self.button_in(panes, area))
+        else {
             return false;
         };
-        let selection = selection.clone();
         self.sling.open(&selection, around, within)
     }
 
-    /// Slings the selection the focused pane of `panes` laid in `area`
-    /// shows, with `prompt`, without the entry: for a prompt that comes
-    /// some other way (dictation, a button on a live item). False when that
-    /// pane shows no selection, or a sling is on its way.
-    #[cfg_attr(not(test), expect(dead_code, reason = "a live item's button calls it"))]
-    pub fn sling_now(&mut self, panes: &Panes, area: Rect, prompt: &str) -> bool {
-        let Some((selection, around, within)) = self.selection_in(panes, area) else {
-            return false;
-        };
-        let selection = selection.clone();
-        let sent = self.sling.send_now(&selection, prompt, around, within);
+    /// Slings `selection` (no ids: what is new on its page) with `prompt`,
+    /// without the entry; its line, and a failure's entry, stand under
+    /// `around` inside `within`, in the window. For a sling that needs no
+    /// typing: a tap on a button. False while a sling is on its way.
+    pub(super) fn sling_now(
+        &mut self,
+        selection: &Selection,
+        prompt: &str,
+        around: Rect,
+        within: Rect,
+    ) -> bool {
+        let sent = self.sling.send_now(selection, prompt, around, within);
         self.poll_sling();
         sent
     }
@@ -159,7 +162,6 @@ mod tests {
         let mut canvases = Canvases::new(Client::new("/nonexistent/x.sock"));
         let (panes, area) = (notes(), WINDOW.rect());
         assert!(!canvases.open_sling(&panes, area));
-        assert!(!canvases.sling_now(&panes, area, "hi"));
         assert!(!canvases.typing());
         assert!(!canvases.sling_key(Chord::new(0, '\r')), "closed: the keymap's");
         assert!(!canvases.sling_typed("ignored"));
@@ -237,7 +239,13 @@ mod tests {
             assert!(canvases.open_sling(&panes, WINDOW.rect()));
             assert!(canvases.sling_key(Chord::new(0, '\u{1b}')), "escape cancels");
             assert!(!canvases.typing());
-            assert!(canvases.sling_now(&panes, WINDOW.rect(), "and now?"));
+            let selection = canvases.selection().unwrap().clone();
+            let around = Rect { x: 50.0, y: 50.0, width: 10.0, height: 10.0 };
+            assert!(canvases.sling_now(&selection, "and now?", around, WINDOW.rect()));
+            assert!(
+                !canvases.sling_now(&selection, "again?", around, WINDOW.rect()),
+                "one at a time"
+            );
             wait_until(|| canvases.poll());
             daemon.session_stop("notes").unwrap();
         });

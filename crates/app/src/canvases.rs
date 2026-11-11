@@ -14,10 +14,11 @@
 //! Each pane keeps its own page, followed once however many panes show it:
 //! page commands, undo and redo are in [`paging`], live items' pages in [`live`].
 
+mod button;
+mod find;
 mod live;
 mod paging;
 
-use std::borrow::Cow;
 use std::rc::Rc;
 
 use slinger_control::Client;
@@ -27,14 +28,16 @@ use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Point, Rect, Size, Viewport};
 use crate::mirror::{Applied, Mirror};
 use crate::panes::{Kind, Panes};
-use crate::scene::canvas::{Item, ItemId};
+use crate::scene::canvas::ItemId;
 use crate::scene::ink::{Answer, Ink, Pen};
 use crate::scene::pages::{self, Pages};
 use crate::scene::select::{Landing, Select, Selection};
 use crate::scene::shapes::{Press, Shapes};
+use crate::scene::sidebar::Status;
 use crate::scene::sling::Sling;
 use crate::scene::tools::Tool;
 use crate::scene::{CanvasPane, canvas};
+use find::{canvas_of, find, matches, pane_shown, to_canvas, wanted};
 
 mod dictation;
 mod sling;
@@ -61,6 +64,8 @@ pub struct Canvases {
     /// The panes waiting for a new page, by the key of its `page.add`.
     turning: Vec<(u64, PaneId, String)>,
     lives: live::Lives,
+    /// Each open workspace's canvas and its agent's status, for the buttons.
+    statuses: Vec<(String, Option<Status>)>,
 }
 
 /// One canvas page followed: the page asked for (`None`: the first), as
@@ -109,6 +114,7 @@ impl Canvases {
             asks,
             turning,
             lives,
+            statuses: Vec::new(),
         }
     }
 
@@ -203,6 +209,7 @@ impl Canvases {
     /// text tool a text, the box and arrow tools a drag. Returns false, and
     /// nothing starts, for touch (a palm), a pane whose canvas page has
     /// not arrived, or a press on a live item's page outside the selection.
+    /// A press on a button outside the selection slings ([`button`]).
     pub fn pen_down(
         &mut self,
         panes: &Panes,
@@ -221,7 +228,11 @@ impl Canvases {
         let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
         let press = Press { at, when: pen.when, zoom: viewport.zoom() };
         let here = (canvas, shown.as_str());
-        if self.lives.under(&items, at) && !self.select.grabs(here, at, viewport.zoom(), &items) {
+        let grabs = self.select.grabs(here, at, viewport.zoom(), &items);
+        if let Some(button) = button::under(&items, at).filter(|_| !grabs) {
+            drop(items);
+            return self.tap(here, button, viewport, frame);
+        } else if self.lives.under(&items, at) && !grabs {
             return false;
         } else if self.shapes.down((tool, colour), here, press, &items, &mut self.ink) {
             drop(items);
@@ -425,6 +436,7 @@ impl Canvases {
             self.select.keep(here, &items);
             let items = self.select.shown(here, items, view.viewport.zoom(), theme.muted);
             let items = self.shapes.shown(here, items);
+            let items = button::shown(items, button::status(&self.statuses, here.0));
             let items = items.iter().map(AsRef::as_ref);
             let mut scene = canvas::build(items, view.viewport, screen, theme, last);
             if self.pen.is_some_and(|(p, _)| p == id) {
@@ -451,48 +463,4 @@ impl Canvases {
             self.select.clear();
         }
     }
-}
-
-/// The canvas point under `at`, a point in the window, in a pane laid at
-/// `frame` that looks through `viewport`.
-fn to_canvas(viewport: Viewport, frame: Rect, at: Point) -> Point {
-    viewport.to_canvas(Point { x: at.x - frame.x, y: at.y - frame.y })
-}
-
-/// The page `pane` of `panes` shows, as the user sees it: the server's copy
-/// with the ink laid over it; empty while it has not arrived.
-fn pane_shown<'a>(
-    open: &'a [Open],
-    views: &[(PaneId, View)],
-    ink: &Ink,
-    panes: &Panes,
-    pane: PaneId,
-) -> Vec<Cow<'a, Item>> {
-    let Some(canvas) = canvas_of(panes, pane) else { return Vec::new() };
-    let mirror = find(open, canvas, wanted(views, pane, canvas)).and_then(|o| o.mirror.as_ref());
-    mirror.map_or_else(Vec::new, |m| ink.shown(canvas, m.page(), m.items()))
-}
-
-/// Whether `open` follows the page `page` of `canvas` names (`None`: the
-/// first): it was asked for that, or it shows that page.
-fn matches(open: &Open, canvas: &str, page: Option<&str>) -> bool {
-    let showing = || open.mirror.as_ref().map(Mirror::page);
-    open.canvas == canvas && (open.asked.as_deref() == page || page.is_some() && showing() == page)
-}
-
-/// The page followed that `page` of `canvas` names, if any.
-fn find<'a>(open: &'a [Open], canvas: &str, page: Option<&str>) -> Option<&'a Open> {
-    open.iter().find(|o| matches(o, canvas, page))
-}
-
-/// The page `pane` shows of `canvas`: `None` for the first.
-fn wanted<'a>(views: &'a [(PaneId, View)], pane: PaneId, canvas: &str) -> Option<&'a str> {
-    let view = views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v)?;
-    view.page.as_ref().filter(|(c, _)| c == canvas).map(|(_, p)| p.as_str())
-}
-
-/// The canvas `pane` shows, if it shows one.
-fn canvas_of(panes: &Panes, pane: PaneId) -> Option<&str> {
-    let shown = panes.shows(pane);
-    (shown.kind == Kind::Canvas).then_some(shown.name.as_str())
 }

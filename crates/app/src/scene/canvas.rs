@@ -11,6 +11,8 @@
 use std::collections::HashMap;
 use std::f64::consts::FRAC_PI_6;
 
+use super::button;
+use super::sidebar::Status;
 use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect, Size, Viewport};
 
@@ -42,6 +44,9 @@ pub enum Shape {
     /// An agent UI on the canvas, in `frame`: the UI's `name` and the
     /// showing (`open`, `pick-slot#12`) whose page shows in it.
     Live { frame: Rect, name: String, open: String },
+    /// The "send to agent" button in `frame`, with the status of the agent
+    /// of its canvas's workspace (`scene::button`).
+    Button { frame: Rect, status: Option<Status> },
 }
 
 /// One thing to draw: a [`Shape`] placed by the viewport, in screen points.
@@ -85,6 +90,16 @@ pub enum Mark {
         name: String,
         at: Point,
         size: f64,
+        zoom: f64,
+    },
+    /// The button's outline, `width` wide, and its `label` (its status mark
+    /// first) laid out like a text from `at`, `zoom` times its size.
+    Button {
+        frame: Rect,
+        label: String,
+        at: Point,
+        size: f64,
+        width: f64,
         zoom: f64,
     },
 }
@@ -151,7 +166,10 @@ pub fn build<'a>(
             Some(Draw {
                 id: item.id,
                 bounds: viewport.rect_to_screen(bounds),
-                colour: legible(item.colour, theme),
+                colour: match item.shape {
+                    Shape::Button { status, .. } => button::colour(status, theme),
+                    _ => legible(item.colour, theme),
+                },
                 mark: item.shape.mark(viewport),
             })
         })
@@ -218,7 +236,9 @@ impl Shape {
             Self::Stroke { points, width } => {
                 Rect::around(points.iter().copied()).map(|r| r.outset(width / 2.0))
             }
-            Self::Text { frame, .. } | Self::Live { frame, .. } => Some(*frame),
+            Self::Text { frame, .. } | Self::Live { frame, .. } | Self::Button { frame, .. } => {
+                Some(*frame)
+            }
             Self::Box { frame, width } => Some(frame.outset(width / 2.0)),
             Self::Arrow { from, to, width, .. } => {
                 Rect::around([*from, *to]).map(|r| r.outset(width / 2.0 + HEAD_LENGTH))
@@ -238,6 +258,7 @@ impl Shape {
                 Self::Text { frame: shift(frame), text: text.clone(), size: *size }
             }
             Self::Box { frame, width } => Self::Box { frame: shift(frame), width: *width },
+            Self::Button { frame, status } => Self::Button { frame: shift(frame), status: *status },
             Self::Live { frame, name, open } => {
                 Self::Live { frame: shift(frame), name: name.clone(), open: open.clone() }
             }
@@ -281,6 +302,7 @@ impl Shape {
                 size: NAME_SIZE,
                 zoom,
             },
+            Self::Button { frame, status } => button::mark(*frame, *status, view),
         }
     }
 }
