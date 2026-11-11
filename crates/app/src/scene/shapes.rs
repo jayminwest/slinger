@@ -4,7 +4,9 @@
 //! [`Ink`] as one [`Change`], so one `canvas_apply` and one undo step.
 //!
 //! - Text: a tap places it and the keyboard types it ([`Shapes::typed`]);
-//!   escape or a tap outside ends it. A tap with the text tool on a text,
+//!   escape or a press outside ends it. A press outside with any other tool
+//!   also starts that tool's gesture: the first gesture after a text is
+//!   never lost. A tap with the text tool on a text,
 //!   or a double tap on one with any tool but the pen, edits it. The edit
 //!   is one change when it ends: an `add`, a `set`, or a `remove` when it
 //!   was emptied.
@@ -91,9 +93,12 @@ pub struct Shapes {
 
 impl Shapes {
     /// The pen went down on `page` of `canvas`, over `items`, with `tool`
-    /// in `colour`. Returns whether the press was this module's: it ends a
-    /// text being typed (a press outside it, used up), edits a text, places
-    /// one, or starts a box or an arrow. A text ended goes to `ink`.
+    /// in `colour`. A press outside a text being typed ends it, to `ink`, then
+    /// goes on as below; only the text tool's single tap is used up by
+    /// ending it. Returns whether the press was this module's: it ends a
+    /// text with the text tool, keeps typing (a press inside the text),
+    /// edits a text, places one, or starts a box or an arrow. False for a
+    /// press the pen, the eraser or the lasso goes on with.
     pub fn down(
         &mut self,
         (tool, colour): (Tool, Rgb),
@@ -116,7 +121,9 @@ impl Shapes {
                 return true;
             }
             self.end(ink);
-            if !double {
+            // The text tool's tap only ends the text. Any other tool's press,
+            // and a double tap, goes on: the gesture that ends a text is never lost.
+            if tool == Tool::Text && !double {
                 return true;
             }
         }

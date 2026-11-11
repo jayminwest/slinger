@@ -141,6 +141,57 @@ fn a_tap_outside_ends_the_text_and_is_used_up_a_tap_inside_is_not() {
     assert!(changes(&mut ink).is_empty(), "unchanged");
 }
 
+/// slinger-a77a12: a press outside a text still being typed, with any tool
+/// but the text tool, ends the text and is that tool's press too.
+#[test]
+fn a_press_outside_with_another_tool_ends_the_text_and_starts_its_gesture() {
+    let word =
+        || Shape::Text { frame: frame(0.0, -15.6, 48.0, 31.2), text: "hi".into(), size: 24.0 };
+    for tool in [Tool::Box, Tool::Arrow] {
+        let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
+        assert!(down(&mut shapes, &mut ink, Tool::Text, (0.0, 0.0), 0.0, &[]));
+        shapes.typed("hi", &mut ink);
+        drag(&mut shapes, &mut ink, tool, (200.0, 200.0), (300.0, 260.0), &[]);
+        assert!(!shapes.editing(), "{tool:?}");
+        let made = changes(&mut ink);
+        assert_eq!(made.len(), 2, "{tool:?}: the text, then the shape: {made:?}");
+        assert_eq!(made[0], put(word()), "{tool:?}");
+        let Change::Put { shape, .. } = &made[1] else { panic!("{made:?}") };
+        assert_eq!(matches!(shape, Shape::Arrow { .. }), tool == Tool::Arrow, "{shape:?}");
+    }
+    for tool in [Tool::Pen, Tool::Eraser, Tool::Lasso] {
+        let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
+        assert!(down(&mut shapes, &mut ink, Tool::Text, (0.0, 0.0), 0.0, &[]));
+        shapes.typed("hi", &mut ink);
+        let used = down(&mut shapes, &mut ink, tool, (200.0, 200.0), 5.0, &[]);
+        assert!(!used, "{tool:?}: the press goes on to the pen, the eraser or the lasso");
+        assert!(!shapes.editing(), "{tool:?}");
+        assert_eq!(changes(&mut ink), vec![put(word())], "{tool:?}");
+    }
+}
+
+/// Escape ends the text; the next drag with the box tool is a box.
+#[test]
+fn after_escape_the_first_box_drag_is_a_box() {
+    let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
+    assert!(down(&mut shapes, &mut ink, Tool::Text, (0.0, 0.0), 0.0, &[]));
+    shapes.typed("hi\u{1b}", &mut ink);
+    assert!(!shapes.editing());
+    drag(&mut shapes, &mut ink, Tool::Box, (200.0, 200.0), (300.0, 260.0), &[]);
+    let boxed = Shape::Box { frame: frame(200.0, 200.0, 100.0, 60.0), width: LINE_WIDTH };
+    assert_eq!(
+        changes(&mut ink),
+        vec![
+            put(Shape::Text {
+                frame: frame(0.0, -15.6, 48.0, 31.2),
+                text: "hi".into(),
+                size: 24.0
+            }),
+            put(boxed)
+        ]
+    );
+}
+
 #[test]
 fn the_text_tool_on_a_text_edits_it_as_one_set_or_a_remove_when_emptied() {
     let items = page();
@@ -204,7 +255,10 @@ fn a_double_tap_on_another_text_ends_the_one_being_typed_and_edits_it() {
     let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
     assert!(down(&mut shapes, &mut ink, Tool::Text, (150.0, 150.0), 4.0, &items));
     shapes.typed("new", &mut ink);
-    assert!(down(&mut shapes, &mut ink, Tool::Lasso, (310.0, 10.0), 5.0, &items));
+    assert!(
+        !down(&mut shapes, &mut ink, Tool::Lasso, (310.0, 10.0), 5.0, &items),
+        "it ends the text and is the lasso's"
+    );
     assert!(down(&mut shapes, &mut ink, Tool::Lasso, (310.0, 10.0), 5.2, &items));
     assert!(shapes.editing());
     assert_eq!(changes(&mut ink).len(), 1, "the new text went");

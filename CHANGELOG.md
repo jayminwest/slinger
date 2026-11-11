@@ -309,3 +309,7 @@ bullet with the area in bold.
   sidebar or the pane beside it. Text, boxes or buttons that a pan or a
   sidebar toggle put part past the pane's edge drew past it and stayed
   there; now each pane draws only inside its own frame.
+- **Canvas:** the first box, arrow, stroke, erase or lasso after a text you
+  were typing is no longer lost. A press outside the text with any tool but
+  the text tool ends the text and starts that tool's gesture at once; with
+  the text tool, a tap outside still only ends the text.
