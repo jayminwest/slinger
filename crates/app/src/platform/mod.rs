@@ -355,7 +355,11 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
         };
         canvas.show(frame, pane.scene.clone());
     }
-    web::place(&view, &scene.webs, height, mtm);
+    let canvas = |pane| {
+        let found = shown.canvases.iter().find(|(p, _)| *p == pane);
+        found.map(|(_, canvas)| Retained::into_super(canvas.clone()))
+    };
+    web::place(&view, &scene.webs, height, canvas, mtm);
     entry::place(window, &view, &mut shown.entry, scene.entry.as_deref(), height, mtm);
 
     let made_from = Some((scene.sidebar.clone(), scene.labels.clone(), scene.focus));

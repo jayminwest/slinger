@@ -249,7 +249,7 @@ impl Select {
 
     /// Whether a press at `at` on `page` of `canvas` is inside the
     /// selection's box at `zoom`, over `items`.
-    fn grabs(
+    pub fn grabs(
         &self,
         (canvas, page): (&str, &str),
         at: Point,

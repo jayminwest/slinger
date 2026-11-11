@@ -39,6 +39,9 @@ pub enum Shape {
     /// A line from `from` to `to`, with its head at `to`. `bound` holds the
     /// items its two ends point at, if any: a bound end follows its item.
     Arrow { from: Point, to: Point, width: f64, bound: [Option<ItemId>; 2] },
+    /// An agent UI on the canvas, in `frame`: the UI's `name` and the
+    /// showing (`open`, `pick-slot#12`) whose page shows in it.
+    Live { frame: Rect, name: String, open: String },
 }
 
 /// One thing to draw: a [`Shape`] placed by the viewport, in screen points.
@@ -72,6 +75,17 @@ pub enum Mark {
         to: Point,
         barbs: [Point; 2],
         width: f64,
+    },
+    /// A live item's box, and its UI's `name` laid out like a text, from
+    /// `at`, inside its top left corner: what shows until, or unless, the
+    /// page of the showing `open` shows over it, `zoom` times its size.
+    Live {
+        frame: Rect,
+        open: String,
+        name: String,
+        at: Point,
+        size: f64,
+        zoom: f64,
     },
 }
 
@@ -108,6 +122,10 @@ pub struct Scene {
 const HEAD_LENGTH: f64 = 12.0;
 /// The angle between an arrow's shaft and each barb.
 const HEAD_ANGLE: f64 = FRAC_PI_6;
+/// How high a live item's name is set, and how far inside its corner, in
+/// canvas points.
+const NAME_SIZE: f64 = 16.0;
+const NAME_INSET: f64 = 8.0;
 /// The least contrast (WCAG ratio) ink keeps with the paper. Ink closer to
 /// the background than this, such as black ink on a dark theme, draws in
 /// the theme's text colour, so nothing on a page is invisible.
@@ -200,7 +218,7 @@ impl Shape {
             Self::Stroke { points, width } => {
                 Rect::around(points.iter().copied()).map(|r| r.outset(width / 2.0))
             }
-            Self::Text { frame, .. } => Some(*frame),
+            Self::Text { frame, .. } | Self::Live { frame, .. } => Some(*frame),
             Self::Box { frame, width } => Some(frame.outset(width / 2.0)),
             Self::Arrow { from, to, width, .. } => {
                 Rect::around([*from, *to]).map(|r| r.outset(width / 2.0 + HEAD_LENGTH))
@@ -220,6 +238,9 @@ impl Shape {
                 Self::Text { frame: shift(frame), text: text.clone(), size: *size }
             }
             Self::Box { frame, width } => Self::Box { frame: shift(frame), width: *width },
+            Self::Live { frame, name, open } => {
+                Self::Live { frame: shift(frame), name: name.clone(), open: open.clone() }
+            }
             Self::Arrow { from, to, width, bound } => {
                 Self::Arrow { from: at(from), to: at(to), width: *width, bound: *bound }
             }
@@ -251,6 +272,14 @@ impl Shape {
                 to: view.to_screen(*to),
                 barbs: barbs(*from, *to).map(|p| view.to_screen(p)),
                 width: width * zoom,
+            },
+            Self::Live { frame, name, open } => Mark::Live {
+                frame: view.rect_to_screen(*frame),
+                open: open.clone(),
+                name: name.clone(),
+                at: view.to_screen(Point { x: frame.x + NAME_INSET, y: frame.y + NAME_INSET }),
+                size: NAME_SIZE,
+                zoom,
             },
         }
     }

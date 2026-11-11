@@ -13,8 +13,8 @@
 //! A UI pane's reply goes to the daemon, which hands it to the agent that
 //! opened the showing (`backend::ui::reply`); the pane notes one its agent
 //! did not take. `slinger-app --preview UI [--data JSON]` shows one agent UI
-//! (or a showing) alone in the window and writes each of its replies to
-//! stdout, one `ui_reply` line each.
+//! (or a showing) alone in the window, `--as item` as a live item on a
+//! canvas, and writes each of its replies to stdout, one `ui_reply` line each.
 
 mod backend;
 mod canvases;
@@ -51,9 +51,8 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
         [] => window(settings),
-        ["--preview", reference] => preview(&settings, reference, None),
-        ["--preview", reference, "--data", data] => preview(&settings, reference, Some(data)),
-        _ => fail("usage: slinger-app [--preview UI [--data JSON]]", None),
+        ["--preview", reference, ref more @ ..] => preview(&settings, reference, more),
+        _ => fail("usage: slinger-app [--preview UI [--data JSON] [--as item]]", None),
     }
 }
 
@@ -68,16 +67,24 @@ fn fail(message: &str, hint: Option<&str>) -> ExitCode {
 }
 
 /// Shows the agent UI `reference` names (or a showing, by its id) alone,
-/// with `data` as its context's data (else the showing's), and writes each
-/// reply to stdout until the window closes.
-fn preview(settings: &Settings, reference: &str, data: Option<&str>) -> ExitCode {
+/// with `--data` as its context's data (else the showing's), as a pane or
+/// `--as item`, and writes each reply to stdout until the window closes.
+fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
+    let (data, item) = match more {
+        [] | ["--as", "item"] => (None, !more.is_empty()),
+        ["--data", data] | ["--data", data, "--as", "item"] => (Some(*data), more.len() > 2),
+        _ => return fail("usage: slinger-app --preview UI [--data JSON] [--as item]", None),
+    };
     let data = match data.map(ui::data).transpose() {
         Ok(data) => data,
         Err(why) => return fail(&why, None),
     };
     let daemon = control::Client::new(settings.socket());
     let page = match backend::ui::fetch(&daemon, reference) {
-        Ok(shown) => ui::Page::new(ui::Shown { data: data.unwrap_or(shown.data), ..shown }, "pane"),
+        Ok(shown) => {
+            let host = if item { "canvas" } else { "pane" };
+            ui::Page::new(ui::Shown { data: data.unwrap_or(shown.data), ..shown }, host)
+        }
         Err(problem) => return fail(&problem.message, problem.hint.as_deref()),
     };
     let page = match page {
@@ -103,7 +110,7 @@ fn preview(settings: &Settings, reference: &str, data: Option<&str>) -> ExitCode
         | Event::Zoom { .. } => Step::Pass,
         Event::Tick | Event::Moved(_) | Event::Painted(_) | Event::Typed(_) => Step::Stay,
     };
-    let scene = scene::preview(page, &settings.config.theme);
+    let scene = scene::preview(page, &settings.config.theme, item);
     match platform::run(&scene, answer) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => fail(&e.to_string(), None),
@@ -479,6 +486,7 @@ fn view(
     }
     let mut scene =
         scene::build(&shared.panes, theme, &problems, sidebar, drawn, &shared.uis, &shared.notes);
+    canvases.show_live(&mut scene);
     canvases.show_sling(&mut scene, theme);
     scene.labels.splice(0..0, canvases.labels(&shared.panes, area, theme));
     scene.labels.extend(tools.labels(theme));

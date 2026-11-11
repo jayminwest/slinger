@@ -141,7 +141,9 @@ impl<'a> Geometry<'a> {
             Shape::Arrow { from, to, .. } => {
                 Geometry::Line { points: Cow::Owned(vec![from.at, to.at]), radius: 0.0 }
             }
-            Shape::Text { frame, .. } | Shape::Box { frame, .. } => Geometry::Area(*frame),
+            Shape::Text { frame, .. } | Shape::Box { frame, .. } | Shape::Live { frame, .. } => {
+                Geometry::Area(*frame)
+            }
         }
     }
 

@@ -14,7 +14,8 @@ use crate::{Client, RemoteError, Ui};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum UiAsk {
-    /// An agent shows a UI, with data, in a new pane of a workspace.
+    /// An agent shows a UI, with data, in a new pane of a workspace or as a
+    /// live item on a canvas.
     UiOpen(UiOpen),
     /// What a pane's UI target shows: a showing's id or a UI reference.
     UiShown { ui: String },
@@ -22,16 +23,19 @@ pub enum UiAsk {
     UiReply { open: String, value: Value },
 }
 
-/// What [`UiAsk::UiOpen`] asks.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// What [`UiAsk::UiOpen`] asks. A pane needs `workspace`; a live item
+/// (`host` `canvas`) needs `canvas` and `item`, and takes `size`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UiOpen {
     /// The UI: `<name>`, `<name>@<version>` or a blob id.
     pub ui: String,
-    /// The workspace whose window shows it: a name, or the directory of its file.
+    /// The workspace whose window shows it as a pane: a name, or the
+    /// directory of its file.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub workspace: String,
     /// The agent that opens it, which its replies go to.
     pub agent: String,
-    /// Where it shows: `pane`.
+    /// Where it shows: `pane`, or `canvas` for a live item.
     #[serde(default = "pane")]
     pub host: String,
     /// The JSON the UI's context gives it; `null` when absent.
@@ -43,17 +47,54 @@ pub struct UiOpen {
     /// Below instead of to the right.
     #[serde(default, skip_serializing_if = "is_false")]
     pub below: bool,
+    /// The canvas a live item goes on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canvas: Option<String>,
+    /// The item a live item goes beside, as a packet or `canvas show`
+    /// names it (`i12`, `c12`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item: Option<String>,
+    /// A live item's `[w, h]`, in tenths of a unit; [`LIVE_SIZE`] when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<[i64; 2]>,
 }
 
+/// The size of a live item when `ui_open` gives none: 320 by 240 units, in tenths.
+pub const LIVE_SIZE: [i64; 2] = [3200, 2400];
+
 /// The reply to [`UiAsk::UiOpen`]: the showing's id, the version it shows,
-/// the pane that shows it and the `ui_opened` event.
+/// and the pane that shows it or the live item that does; the `ui_opened`
+/// event, and the workspace the showing is tagged with (for a live item,
+/// the canvas's; empty when no open workspace holds it).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UiOpened {
     pub open: String,
     pub ui: Ui,
     pub workspace: String,
-    pub pane: u32,
+    /// The pane's number, for a pane.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pane: Option<u32>,
+    /// The live item, for a canvas.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item: Option<LiveItem>,
     pub event: u64,
+}
+
+/// A live item `ui_open` put on a canvas.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LiveItem {
+    pub canvas: String,
+    /// Its id (`i12`).
+    pub item: String,
+    /// Its page's id (`p1`).
+    pub page: String,
+    /// Its box, in tenths of a unit.
+    pub x: i64,
+    pub y: i64,
+    pub w: i64,
+    pub h: i64,
+    /// The number of the canvas operation that added it.
+    pub seq: u64,
 }
 
 /// The reply to [`UiAsk::UiShown`]: the version shown, and for a showing its
@@ -80,14 +121,16 @@ pub struct UiReplied {
 }
 
 impl Client {
-    /// Shows a UI, with data, in a new pane of a workspace, for an agent.
+    /// Shows a UI, with data, for an agent: in a new pane of a workspace,
+    /// or as a live item beside an item of a canvas.
     ///
     /// # Errors
     ///
-    /// `not_found` for a UI, a workspace or a pane `beside` that is not
-    /// there; `invalid` for a blank agent, a host that is not `pane`, data
-    /// over 16384 bytes or a window with the most panes it holds; and
-    /// `unavailable` when the daemon does not answer.
+    /// `not_found` for a UI, a workspace, a pane `beside`, a canvas or an
+    /// `item` that is not there; `invalid` for a blank agent, a host that
+    /// is not `pane` or `canvas`, a missing workspace, canvas or item, a
+    /// size not above zero, data over 16384 bytes or a window with the
+    /// most panes it holds; and `unavailable` when the daemon does not answer.
     pub fn ui_open(&self, open: UiOpen) -> Result<UiOpened, RemoteError> {
         self.call(&UiAsk::UiOpen(open))
     }
@@ -148,8 +191,18 @@ mod tests {
                 data,
                 beside,
                 below,
+                ..UiOpen::default()
             })
         };
+        let item = UiAsk::UiOpen(UiOpen {
+            ui: "pick".into(),
+            agent: "a".into(),
+            host: "canvas".into(),
+            canvas: Some("notes".into()),
+            item: Some("c3".into()),
+            size: Some([100, 50]),
+            ..UiOpen::default()
+        });
         for (ask, line) in [
             (
                 open(Value::Null, None, false),
@@ -158,6 +211,10 @@ mod tests {
             (
                 open(json!({"n": 1}), Some(2), true),
                 r#"{"v":1,"op":"ui_open","ui":"pick","workspace":"w","agent":"a","host":"pane","data":{"n":1},"beside":2,"below":true}"#,
+            ),
+            (
+                item,
+                r#"{"v":1,"op":"ui_open","ui":"pick","agent":"a","host":"canvas","canvas":"notes","item":"c3","size":[100,50]}"#,
             ),
             (UiAsk::UiShown { ui: "pick#3".into() }, r#"{"v":1,"op":"ui_shown","ui":"pick#3"}"#),
             (

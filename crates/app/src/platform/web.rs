@@ -4,6 +4,11 @@
 //! and the bridge's message handler. Every answer comes from a
 //! [`Bridge`]; this file only pipes `WebKit` to it.
 //!
+//! A live item's view is made the same way, so it has every layer of the
+//! sandbox. It sits in a view of its own at its canvas pane's frame, which
+//! cuts it off at the pane's edges, just over the pane's canvas, and its
+//! page is zoomed with the canvas.
+//!
 //! The rule list compiles once, asynchronously: a view loads its page only
 //! once the list is on it, so no load ever runs without it.
 
@@ -29,7 +34,9 @@ use objc2_web_kit::{
 };
 
 use super::flipped;
+use crate::layout::{PaneId, Rect};
 use crate::scene::Web;
+use crate::scene::canvas::ItemId;
 use crate::ui::{self, Bridge, Page};
 
 /// What a [`Host`] holds: the bridge of its one showing.
@@ -163,11 +170,21 @@ fn serve(bridge: &Bridge, task: &ProtocolObject<dyn WKURLSchemeTask>) {
     }
 }
 
-/// A view on screen and what it shows.
+/// Which view a [`Web`] is: a live item's by its pane and item, and any by
+/// its page's URL.
+type Key = (Option<(Option<PaneId>, ItemId)>, String);
+
+fn key(web: &Web) -> Key {
+    (web.live.map(|l| (l.pane, l.item)), web.page.url.clone())
+}
+
+/// A view on screen and what it shows; a live item's in its clip, at its zoom.
 struct Shown {
-    page: Arc<Page>,
+    key: Key,
     view: Retained<WKWebView>,
     _host: Retained<Host>,
+    clip: Option<Retained<NSView>>,
+    zoom: f64,
 }
 
 /// Where the rule list is.
@@ -186,31 +203,70 @@ thread_local! {
 }
 
 /// Shows `webs` in `into`, a view `height` tall: each one already showing
-/// that page keeps its view (and its state), each new one gets a new view
-/// below the chrome, and the rest close.
-pub fn place(into: &NSView, webs: &[Web], height: f64, mtm: MainThreadMarker) {
+/// that page (for a live item, that item in that pane) keeps its view (and
+/// its state), each new one gets a new view below the chrome, a live item's
+/// just over the view `canvas` gives for its pane, and the rest close.
+pub fn place(
+    into: &NSView,
+    webs: &[Web],
+    height: f64,
+    canvas: impl Fn(PaneId) -> Option<Retained<NSView>>,
+    mtm: MainThreadMarker,
+) {
     let mut old = SHOWN.take();
     let mut now = Vec::new();
     for web in webs {
-        let frame = flipped(height, web.frame);
-        let kept = old.iter().position(|s| s.page.url == web.page.url).map(|at| old.remove(at));
-        let shown = kept.unwrap_or_else(|| {
-            let shown = open(Arc::clone(&web.page), mtm);
-            into.addSubview_positioned_relativeTo(&shown.view, NSWindowOrderingMode::Below, None);
+        let key = key(web);
+        let kept = old.iter().position(|s| s.key == key).map(|at| old.remove(at));
+        let mut shown = kept.unwrap_or_else(|| {
+            let mut shown = open(&web.page, key, mtm);
+            let Some(live) = web.live else {
+                into.addSubview_positioned_relativeTo(
+                    &shown.view,
+                    NSWindowOrderingMode::Below,
+                    None,
+                );
+                return shown;
+            };
+            let clip = NSView::initWithFrame(NSView::alloc(mtm), super::NSRect::ZERO);
+            clip.setClipsToBounds(true);
+            clip.addSubview(&shown.view);
+            let under = live.pane.and_then(&canvas);
+            into.addSubview_positioned_relativeTo(
+                &clip,
+                NSWindowOrderingMode::Above,
+                under.as_deref(),
+            );
+            shown.clip = Some(clip);
             shown
         });
-        shown.view.setFrame(frame);
+        match (&shown.clip, web.live) {
+            (Some(clip), Some(live)) => {
+                clip.setFrame(flipped(height, live.clip));
+                let (x, y) = (web.frame.x - live.clip.x, web.frame.y - live.clip.y);
+                shown.view.setFrame(flipped(live.clip.height, Rect { x, y, ..web.frame }));
+                if (shown.zoom - live.zoom).abs() > f64::EPSILON {
+                    // SAFETY: a setter on a view of ours, on the main thread.
+                    unsafe { shown.view.setPageZoom(live.zoom) };
+                    shown.zoom = live.zoom;
+                }
+            }
+            _ => shown.view.setFrame(flipped(height, web.frame)),
+        }
         now.push(shown);
     }
     for gone in old {
-        gone.view.removeFromSuperview();
+        match gone.clip {
+            Some(clip) => clip.removeFromSuperview(),
+            None => gone.view.removeFromSuperview(),
+        }
     }
     SHOWN.set(now);
 }
 
 /// A new view for `page`, sandboxed; it loads once the rule list is on it.
-fn open(page: Arc<Page>, mtm: MainThreadMarker) -> Shown {
-    let host = Host::new(Arc::clone(&page), mtm);
+fn open(page: &Arc<Page>, key: Key, mtm: MainThreadMarker) -> Shown {
+    let host = Host::new(Arc::clone(page), mtm);
     let me = ProtocolObject::from_ref(&*host);
     // SAFETY: setting up a fresh configuration on the main thread, with the
     // host alive as long as the view (`Shown` keeps both).
@@ -244,7 +300,7 @@ fn open(page: Arc<Page>, mtm: MainThreadMarker) -> Shown {
     // SAFETY: the view's own controller, which it shares with its configuration.
     let content = unsafe { view.configuration().userContentController() };
     when_ruled(view.clone(), content, page.url.clone(), mtm);
-    Shown { page, view, _host: host }
+    Shown { key, view, _host: host, clip: None, zoom: 1.0 }
 }
 
 /// Loads `url` in `view` once the rule list is on its `content`.

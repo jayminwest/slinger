@@ -11,7 +11,7 @@ use super::Daemon;
 use super::process::{fake_claude, wait_lines};
 use super::session::open_with_agent;
 
-fn put(client: &Client, dir: &TempDir, name: &str, html: &str) -> slinger_control::Ui {
+pub(super) fn put(client: &Client, dir: &TempDir, name: &str, html: &str) -> slinger_control::Ui {
     let file = dir.path().join(format!("{name}.html"));
     std::fs::write(&file, html).unwrap();
     client.ui_put(name, &file, "scout").unwrap().ui
@@ -24,12 +24,11 @@ fn ask(ui: &str, data: Value) -> UiOpen {
         agent: "scout".into(),
         host: "pane".into(),
         data,
-        beside: None,
-        below: false,
+        ..UiOpen::default()
     }
 }
 
-fn events(client: &Client, kind: &str) -> Vec<Value> {
+pub(super) fn events(client: &Client, kind: &str) -> Vec<Value> {
     client.record_list(EventFilter { kind: Some(kind.into()), ..EventFilter::default() }).unwrap()
 }
 
@@ -72,7 +71,7 @@ fn an_agent_opens_a_ui_and_each_reply_reaches_its_session_as_one_json_line() {
     let opened = client.ui_open(ask("pick-slot@1", slots.clone())).unwrap();
     assert_eq!(opened.open, format!("pick-slot#{}", opened.event));
     assert_eq!((opened.ui.version, opened.ui.hash.as_str()), (1, first.hash.as_str()));
-    assert_eq!((opened.workspace.as_str(), opened.pane), ("notes", 2));
+    assert_eq!((opened.workspace.as_str(), opened.pane), ("notes", Some(2)));
     let panes = client.pane_list("notes").unwrap();
     assert_eq!(panes.layout.panes()[1].target, opened.open, "the pane names the showing");
     let recorded = &events(&client, "ui_opened")[0];

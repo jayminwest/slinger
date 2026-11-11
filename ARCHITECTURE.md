@@ -69,8 +69,10 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              look.rs: what an agent asks beyond the packet (R5, R6): crop (an
              item, a cluster c<n> or a box, as render images, at most MAX_CROP
              units a side) and strokes (a stroke's or a cluster's points).
-             put.rs: an agent's answer (SPEC section 7): text, a box or an arrow
-             beside an item, placed by free_beside, as one undo step.
+             put.rs: an agent's answer (SPEC section 7): text, a box, an arrow
+             or a live item (an agent UI's showing, kind `live`) beside an
+             item, placed by free_beside, as one undo step; check_put says
+             first whether a put would go.
              edit.rs: the agent changes (text, size, place) or removes what it
              put. The author rule stays in Canvas (may_change), checked first.
 packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
@@ -115,8 +117,9 @@ ui.rs        agent UIs (docs/design/live-items.md): the rules for a name and its
              put adds and what a reference (`name`, `name@3`, blob id) names.
              No IO; the daemon hands it the events.
 ui/showing.rs  showings (`ui open`): a showing's id (`<name>#<n>`, n its
-             `ui_opened` event), the limits on its data and replies, and the
-             line its agent's session receives for each reply. No IO.
+             `ui_opened` event), its hosts (a pane, a canvas), the limits on
+             its data and replies, and the line its agent's session receives
+             for each reply. No IO.
 workspace.rs workspaces (SPEC section 10): the definition file's format
              (docs/workspace.md), the rules a set of them keeps (one primary
              root, name and canvas each), what a new one gets (slug of its
@@ -190,7 +193,9 @@ server/pane.rs  `pane_list`, `pane_open`, `pane_close`, `pane_resize`: the canva
              appends its `pane_moved`, tagged with the workspace. `open` is
              shared with `ui_open`.
 server/showing.rs  `ui_open`, `ui_shown`, `ui_reply`: an open checks all
-             before it appends `ui_opened` and opens the pane; a reply counts
+             before it appends `ui_opened` and opens the pane, or, on a
+             canvas, appends it under the canvas's lock once the put will go
+             (Canvases::put_when) and puts the live item; a reply counts
              the showing's replies inside the store's write, appends
              `ui_reply`, then hands the core's line to the agent's process.
 server/read.rs  `canvas_read`: the marker is the `to` of the packet the
@@ -275,6 +280,10 @@ canvases.rs  the canvas panes: one follower and mirror per page shown, each
              page turned to arrives); the pen's ink, the eraser's and
              lasso's work and the text, box and arrow tools' over each page,
              and the outbox they share. A selection no pane shows clears.
+canvases/live.rs  the live items' pages: each showing a pane draws fetched
+             once on a thread of its own, put over its item; a press on an
+             item whose page shows goes to the page unless it grabs the
+             selection.
 canvases/paging.rs  the canvas commands on a pane: pan, zoom, the page
              commands (each turns only that pane) and undo and redo, each
              through the ink's queue; each pane's page line.
@@ -315,6 +324,8 @@ scene/sidebar.rs  the agents' statuses (SPEC D17, P6): the open workspaces and
              notice. Pure.
 scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport in,
              the visible marks in screen points and the box to repaint out. Pure.
+scene/live.rs  where each live item's page shows: over its item's visible
+             mark in each canvas pane, cut off at the pane, at its zoom. Pure.
 scene/ink.rs  the pen's ink: the stroke under the pen and the finished changes
              (strokes, removals, moves) the server's page does not hold yet,
              laid over it; which change goes next (one at a time, oldest
@@ -389,7 +400,9 @@ platform/web.rs  agent UIs in WKWebViews: the scheme handler, navigation and
              UI delegate and message handler in one class that pipes each
              call to its ui::Bridge, the rule list (compiled once; no view
              loads before it is on), and a view kept across draws while its
-             page is shown. A reply goes to main as Event::Reply.
+             page is shown; a live item's in a clip at its pane, just over
+             the pane's canvas, at the canvas's pageZoom. A reply goes to
+             main as Event::Reply.
 ```
 
 **Threading rule:** AppKit runs on the main thread only. Every `platform`
@@ -550,6 +563,9 @@ Each boundary has something that fails when it is broken:
 | Panes open, close, resize and list through the socket, each change records `pane_moved`, closing a pane already gone succeeds, the layout survives a restart; the app follows another client's change | `crates/daemon/src/tests/pane.rs` through a real socket, and `crates/app/src/backend.rs` |
 | An agent opens a UI with data; each reply is recorded and reaches its running session as one JSON line, in order; a reply for a stopped session stays in the record; a refused open records nothing; replies are bounded | `crates/daemon/src/tests/showing.rs`, with a stand-in for Claude Code, and `crates/core/src/ui/showing.rs` |
 | A canvas page reads every kind from the canvas file and follows each feed operation | `crates/app/src/mirror/tests.rs` |
+| A live item is one `add` line an old reader skips whole; a put beside an item is one undo step; the packet says it as text | `crates/core/tests/canvas_live.rs` |
+| An agent opens a UI as a live item: a refused open records nothing; the item, the showing and its data come back; one undo step | `crates/daemon/src/tests/live.rs`, through a real socket |
+| A live item's page shows over its box, follows a pan and a zoom, and takes presses until it is selected | `crates/app/src/scene/live/tests.rs`, and `crates/app/src/canvases/live/tests.rs` against a real daemon |
 | A follower shows the page, hands on each change, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
 | A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |
 | Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |

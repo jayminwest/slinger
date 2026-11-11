@@ -123,7 +123,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `ui_list` | none | `uis`: the latest version of each UI, by name |
 | `ui_show` | `name`: string | `uis`: every version of that UI, oldest first |
 | `ui_export` | `ui`: a UI reference, `dir`: absolute path of a directory | `ui`: the version, `path`: the file written |
-| `ui_open` | `ui`: a UI reference, `workspace`: as `workspace_show`, `agent`: string, `host`: `pane` (default), `data`: any JSON (optional), `beside`: a pane number (optional), `below`: bool (default `false`) | `open`: the showing's id, `ui`: the version, `workspace`, `pane`: the new pane's number, `event`: the `ui_opened` appended |
+| `ui_open` | `ui`: a UI reference, `agent`: string, `host`: `pane` (default) or `canvas`, `data`: any JSON (optional). A pane: `workspace`: as `workspace_show`, `beside`: a pane number (optional), `below`: bool (default `false`). A canvas: `canvas`, `item`: the item it goes beside, `size`: `[w, h]` in tenths (default `[3200, 2400]`) | `open`: the showing's id, `ui`: the version, `workspace`, `pane`: the new pane's number, or `item`: the live item (`canvas`, `item`, `page`, `x`, `y`, `w`, `h`, `seq`), `event`: the `ui_opened` appended |
 | `ui_shown` | `ui`: a showing's id or a UI reference | `ui`: the version, then for a showing `open`, `data` (absent when `null`) and `agent` |
 | `ui_reply` | `open`: a showing's id, `value`: any JSON | `event`: the `ui_reply` appended, `agent`, `delivered`: whether its session took it |
 | `canvas_create` | `canvas`: canvas id | `canvas`: the id |
@@ -240,14 +240,18 @@ data, and each reply from it goes back to that agent's session. Its id is
 No UI reference holds a `#`, so a pane's target is either.
 
 **`ui_open`** resolves `ui` to one version, checks the agent (not blank),
-the host (only `pane`; a canvas item comes with live items), the data (at
-most 16384 bytes as JSON) and the workspace's window (`beside` there, room
-for a pane), then appends a `ui_opened` event tagged with the agent and the
-workspace and opens a pane whose target is the showing's id, as
-`pane_open` does. A refused open records nothing. **`ui_shown`** says what
-a pane's UI target shows: for a showing, the version it opened, its data
-and its agent; for a reference, the version alone. The app asks it for
-each UI pane.
+the host (`pane` or `canvas`), the data (at most 16384 bytes as JSON) and
+the workspace's window (`beside` there, room for a pane), then appends a
+`ui_opened` event tagged with the agent and the workspace and opens a pane
+whose target is the showing's id, as `pane_open` does. With `host`
+`canvas` it checks the put instead (`item` on the canvas, a size above 0),
+then, under the canvas's lock, appends the `ui_opened` event tagged with
+the agent and the canvas and adds a live item (`kind` `live`, with `ui`,
+`hash` and `open`, `docs/design/canvas-file.md`) beside `item`, as
+`canvas_put` places, one undo step. A refused open records nothing.
+**`ui_shown`** says what a pane's UI target shows: for a showing, the
+version it opened, its data and its agent; for a reference, the version
+alone. The app asks it for each UI pane and each live item it shows.
 
 **`ui_reply`** appends a `ui_reply` event (source `user`, the showing's
 tags), then sends the agent's running session one message: the line
@@ -261,6 +265,8 @@ is not a showing id is `invalid`.
 ```json
 { "v": 1, "op": "ui_open", "ui": "pick-slot", "workspace": "notes", "agent": "scout", "data": { "slots": ["Tue 10:00", "Wed 14:00"] } }
 { "ok": true, "open": "pick-slot#12", "ui": { "name": "pick-slot", "version": 1, … }, "workspace": "notes", "pane": 2, "event": 12 }
+{ "v": 1, "op": "ui_open", "ui": "pick-slot", "agent": "scout", "host": "canvas", "canvas": "notes", "item": "c3" }
+{ "ok": true, "open": "pick-slot#14", "ui": { "name": "pick-slot", "version": 1, … }, "workspace": "notes", "item": { "canvas": "notes", "item": "i15", "page": "p1", "x": 1240, "y": 0, "w": 3200, "h": 2400, "seq": 9 }, "event": 14 }
 { "v": 1, "op": "ui_reply", "open": "pick-slot#12", "value": { "slot": "Wed 14:00" } }
 { "ok": true, "event": 13, "agent": "scout", "delivered": true }
 

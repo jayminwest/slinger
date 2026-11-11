@@ -66,11 +66,7 @@ impl Raster {
                 (vec![points], width * SCALE / 2.0, *colour)
             }
             Shape::Box { frame, colour } => {
-                let [a, b, c, d] =
-                    [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)].map(|(u, v)| {
-                        self.at(Point::new(frame.x + u * frame.w, frame.y + v * frame.h))
-                    });
-                (vec![vec![a, b, c, d, a]], LINE_WIDTH * SCALE / 2.0, *colour)
+                (vec![corners(self, *frame)], LINE_WIDTH * SCALE / 2.0, *colour)
             }
             Shape::Arrow { from, to, colour } => {
                 let lines = arrow(from.at, to.at).into_iter();
@@ -78,6 +74,13 @@ impl Raster {
                 (lines, LINE_WIDTH * SCALE / 2.0, *colour)
             }
             Shape::Text { text, frame, colour } => return self.text(text, *frame, *colour),
+            // A live item's page is not drawn: its box, and its UI's name inside.
+            Shape::Live { frame, ui, .. } => {
+                let pad = TEXT_SIZE / 2.0;
+                let inside = Rect::new(frame.x + pad, frame.y + pad, frame.w - 2.0 * pad, frame.h);
+                self.text(ui, inside, Colour::BLACK);
+                (vec![corners(self, *frame)], LINE_WIDTH * SCALE / 2.0, Colour::BLACK)
+            }
         };
         let radius = radius.max(MIN_RADIUS);
         let points = lines.iter().flatten().copied();
@@ -232,6 +235,13 @@ impl Mask {
 }
 
 /// An arrow as lines: the shaft, then the head at `to`.
+/// The outline of `frame`, closed, in `tile`'s pixels.
+fn corners(tile: &Raster, frame: Rect) -> Vec<Point> {
+    let [a, b, c, d] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+        .map(|(u, v)| tile.at(Point::new(frame.x + u * frame.w, frame.y + v * frame.h)));
+    vec![a, b, c, d, a]
+}
+
 fn arrow(from: Point, to: Point) -> Vec<Vec<Point>> {
     let (dx, dy) = (to.x - from.x, to.y - from.y);
     let len = dx.hypot(dy);

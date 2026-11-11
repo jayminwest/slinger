@@ -118,8 +118,7 @@ mod tests {
                 agent: "scout".into(),
                 host: "pane".into(),
                 data: data.clone(),
-                beside: None,
-                below: false,
+                ..UiOpen::default()
             };
             let open = d.ui_open(ask).unwrap().open;
             let shown = fetch(d, &open).unwrap();

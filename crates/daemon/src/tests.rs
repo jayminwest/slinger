@@ -18,6 +18,7 @@ mod canvas;
 mod edit;
 mod feed;
 mod import;
+mod live;
 mod look;
 mod pane;
 mod process;

@@ -24,7 +24,7 @@ pub struct Edit {
     /// New words for a text item. Its frame grows or shrinks to hold them,
     /// unless `size` says otherwise.
     pub text: Option<String>,
-    /// A new `[w, h]` for a text or a box, its top-left corner kept.
+    /// A new `[w, h]` for a text, a box or a live item, its top-left corner kept.
     pub size: Option<[i64; 2]>,
     /// Where the top-left corner of the item's box goes, `[x, y]`.
     pub to: Option<[i64; 2]>,
@@ -55,8 +55,11 @@ impl Log {
             (*words, frame.w, frame.h) = (text.clone(), w, h);
         }
         if let Some([w, h]) = edit.size {
-            let (Shape::Text { frame, .. } | Shape::Box { frame, .. }) = &mut new else {
-                return Err(invalid("only a text or a box has a size", "move it instead"));
+            let (Shape::Text { frame, .. } | Shape::Box { frame, .. } | Shape::Live { frame, .. }) =
+                &mut new
+            else {
+                let hint = "move it instead";
+                return Err(invalid("only a text, a box or a live item has a size", hint));
             };
             (frame.w, frame.h) = (json::units(w), json::units(h));
         }

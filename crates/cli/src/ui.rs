@@ -41,25 +41,31 @@ pub enum Ui {
         #[arg(long, value_name = "DIR", default_value = ".")]
         out: PathBuf,
     },
-    /// Show a UI in a new pane, with data, for the calling agent; prints the showing's id and the pane's number
+    /// Show a UI, with data, for the calling agent, in a new pane or as a live item on a canvas; prints the showing's id and the pane's number or the item's id
     Open {
         /// The UI: <name> (latest), <name>@<version> or a blob id
         ui: String,
-        /// The workspace whose window shows it: its name, or the directory of its file
-        #[arg(long, value_name = "WORKSPACE")]
-        workspace: String,
-        /// Where it shows
-        #[arg(long = "as", value_name = "HOST", default_value = "pane", value_parser = ["pane"])]
+        /// The workspace whose window shows it as a pane: its name, or the directory of its file
+        #[arg(long, value_name = "WORKSPACE", required_if_eq("host", "pane"))]
+        workspace: Option<String>,
+        /// Where it shows: a pane of its own, or an item on a canvas
+        #[arg(long = "as", value_name = "HOST", default_value = "pane", value_parser = ["pane", "item"])]
         host: String,
         /// The JSON the UI's context gives it, or - to read standard input
         #[arg(long, value_name = "JSON")]
         data: Option<String>,
-        /// Open it beside this pane, by number; else beside the whole window
-        #[arg(long, value_name = "PANE")]
-        beside: Option<u32>,
-        /// Put it below instead of to the right
+        /// A pane: open it beside this pane, by number (else beside the whole window). An item: put it beside this item (i12, c12)
+        #[arg(long, value_name = "PANE|ITEM", required_if_eq("host", "item"))]
+        beside: Option<String>,
+        /// A pane: put it below instead of to the right
         #[arg(long)]
         below: bool,
+        /// An item: the canvas it goes on
+        #[arg(long, value_name = "CANVAS", required_if_eq("host", "item"))]
+        canvas: Option<String>,
+        /// An item: its size, w,h in tenths of a unit (default 3200,2400)
+        #[arg(long, value_name = "W,H", value_parser = crate::put::size)]
+        size: Option<[i64; 2]>,
         #[arg(long, value_name = "NAME", help = AGENT_HELP)]
         agent: Option<String>,
     },
@@ -100,27 +106,49 @@ impl Ui {
                 let human = exported.path.display().to_string();
                 Ok(Output::new(json!({ "ui": exported.ui, "path": exported.path }), human))
             }
-            Self::Open { ui, workspace, host, data, beside, below, agent } => {
+            Self::Open { ui, workspace, host, data, beside, below, canvas, size, agent } => {
                 let data = match data.as_deref() {
                     None => serde_json::Value::Null,
                     Some("-") => json_data(&io::read_to_string(input)?)?,
                     Some(text) => json_data(text)?,
                 };
-                let ask = control::UiOpen {
+                let mut ask = control::UiOpen {
                     ui: ui.clone(),
-                    workspace: which(workspace)?,
                     agent: calling_agent(agent.as_deref())?,
-                    host: host.clone(),
                     data,
-                    beside: *beside,
-                    below: *below,
+                    ..control::UiOpen::default()
                 };
+                if host == "item" {
+                    ask.host = "canvas".into();
+                    (ask.canvas, ask.item, ask.size) = (canvas.clone(), beside.clone(), *size);
+                } else {
+                    ask.host = "pane".into();
+                    ask.workspace = which(workspace.as_deref().unwrap_or_default())?;
+                    ask.beside = beside.as_deref().map(pane_number).transpose()?;
+                    ask.below = *below;
+                }
                 let opened = daemon.ui_open(ask)?;
-                let human = format!("{}\t{}", opened.open, opened.pane);
+                let place = match (&opened.item, opened.pane) {
+                    (Some(item), _) => item.item.clone(),
+                    (None, pane) => pane.unwrap_or_default().to_string(),
+                };
+                let human = format!("{}\t{place}", opened.open);
                 Ok(Output::new(serde_json::to_value(opened)?, human))
             }
         }
     }
+}
+
+/// A pane's number, as `--beside` names it for a pane.
+fn pane_number(text: &str) -> Result<u32, control::RemoteError> {
+    text.parse().map_err(|_| {
+        let hint = "beside a pane, --beside takes its number, as 'slinger pane list' prints it";
+        control::RemoteError::new(
+            "invalid",
+            format!("`{text}` is not a pane's number"),
+            Some(hint.into()),
+        )
+    })
 }
 
 /// The data a UI is given, as JSON.

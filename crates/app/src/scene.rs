@@ -19,6 +19,7 @@
 pub mod canvas;
 pub mod dictation;
 pub mod ink;
+pub mod live;
 pub mod pages;
 pub mod resize;
 pub mod select;
@@ -66,11 +67,13 @@ pub struct CanvasPane {
     pub scene: Rc<canvas::Scene>,
 }
 
-/// An agent UI on screen: its page, in `frame`.
+/// An agent UI on screen: its page, in `frame`; a live item's page also
+/// says where it is ([`live::Live`]).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Web {
     pub frame: Rect,
     pub page: Arc<Page>,
+    pub live: Option<live::Live>,
 }
 
 /// The agent UIs fetched so far, by name: each one's page, or why it
@@ -128,7 +131,8 @@ pub fn build(
         match (pane.kind, uis.get(&pane.name)) {
             _ if canvases.iter().any(|c| c.pane == id) => {}
             (Kind::Ui, Some(Ok(page))) => {
-                webs.push(Web { frame: frame.outset(-BORDER), page: Arc::clone(page) });
+                let frame = frame.outset(-BORDER);
+                webs.push(Web { frame, page: Arc::clone(page), live: None });
                 if let Some(note) = notes.get(&pane.name) {
                     texts.push((format!("✗ {}", note.message), theme.error));
                     texts.extend(note.hint.clone().map(|hint| (hint, theme.muted)));
@@ -171,15 +175,22 @@ pub fn build(
 }
 
 /// The window for `page` alone (`slinger-app --preview`): the page fills
-/// it, with no border.
-pub fn preview(page: Arc<Page>, theme: &Theme) -> Scene {
+/// it, with no border; as a live `item`, it shows at the default item's
+/// size, zoomed by half again.
+pub fn preview(page: Arc<Page>, theme: &Theme, item: bool) -> Scene {
     let size = layout::WINDOW;
+    let title = format!("slinger: {}", page.code.name);
+    let web = if item {
+        live::alone(page, size, 1.5)
+    } else {
+        Web { frame: size.rect(), page, live: None }
+    };
     Scene {
-        title: format!("slinger: {}", page.code.name),
+        title,
         size,
         background: theme.background,
         canvases: Vec::new(),
-        webs: vec![Web { frame: size.rect(), page }],
+        webs: vec![web],
         labels: Vec::new(),
         sidebar: Vec::new(),
         focus: Border { frame: size.rect(), width: 0.0, colour: theme.background },
@@ -279,7 +290,8 @@ mod tests {
         let half = layout::WINDOW.width / 2.0;
         let inner = Rect { x: half, y: 0.0, width: half, height: layout::WINDOW.height };
         assert_eq!(scene.webs.len(), 2);
-        assert_eq!(scene.webs[1], Web { frame: inner.outset(-BORDER), page: Arc::clone(&page) });
+        let web = Web { frame: inner.outset(-BORDER), page: Arc::clone(&page), live: None };
+        assert_eq!(scene.webs[1], web);
 
         let note = Problem { message: "scout is not running".into(), hint: Some("start".into()) };
         let kept = Notes::from([("board".to_string(), note)]);
@@ -288,7 +300,7 @@ mod tests {
         assert_eq!(shown(&noted)[..2], [("✗ scout is not running", T.error), ("start", T.muted)]);
         assert!(noted.labels[2].frame.x >= half, "each pane says it over its own page");
 
-        let alone = preview(page, &T);
+        let alone = preview(page, &T, false);
         assert_eq!((alone.title.as_str(), alone.labels.len()), ("slinger: board", 0));
         assert_eq!(alone.webs[0].frame, layout::WINDOW.rect());
 

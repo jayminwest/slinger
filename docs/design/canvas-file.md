@@ -190,7 +190,8 @@ Operation kinds in v1 (their fields follow the envelope):
 | `restore` | `item`: a removed item put back whole, under its own id. The item object adds `by` and `t` (its maker and time) after `page`. Undo and redo write it. |
 | `page.restore` | `page`, `name`, `index` (0-based position), `items` (whole items, as in `restore`). Undo writes it. |
 
-Item objects. Every item has `id`, `page`, `kind`, `color`; then by kind:
+Item objects. Every item has `id`, `page`, `kind` and, but for `live`, `color`; then by
+kind:
 
 | `kind` | fields (lengths and positions in tenths of a unit) |
 |---|---|
@@ -198,6 +199,7 @@ Item objects. Every item has `id`, `page`, `kind`, `color`; then by kind:
 | `text` | `x`, `y`, `w`, `h` (the frame the text is laid out in; `w` and `h` read as 0 when missing), `text` |
 | `box` | `x`, `y`, `w`, `h` |
 | `arrow` | `pts` (delta array, two or more pairs); optional `from`, `to` (item ids it points at) |
+| `live` | `x`, `y`, `w`, `h` (both above 0), `ui` (the UI's name), `hash` (the blob id of the version shown), `open` (the showing, `pick-slot#12`) |
 
 `color` is a string: a palette name the model defines, `#rrggbb`, or `#rrggbbaa` when
 the colour is not opaque. The model has no palette yet, so a reader reads any other
@@ -225,6 +227,11 @@ string as black.
   `null`, which clears it. Keys inside `fields` are written sorted.
 - A v1 reader reads `page.move` as a line it does not know and skips it: the model
   cannot reorder pages yet.
+- A live item (an agent UI on the canvas, `docs/design/live-items.md`) is a new item
+  kind in `add`, not a new operation: a reader from before it keeps that `add` as a
+  line it does not know, its counter still moves past the id, and a later `move`,
+  `set` or `remove` of the id finds no item and changes nothing, so the rest of the
+  file replays the same.
 
 ### Versions (B5)
 
