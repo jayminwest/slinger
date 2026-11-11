@@ -4,6 +4,7 @@
 mod canvas;
 mod cli;
 mod edit;
+mod feedback;
 mod look;
 mod output;
 mod pane;

@@ -9,6 +9,7 @@
 mod agent;
 mod client;
 mod feed;
+mod feedback;
 mod imported;
 mod look;
 mod packet;
@@ -30,6 +31,10 @@ pub use agent::{
 };
 pub use client::Client;
 pub use feed::{CanvasFeed, MAX_WAIT_MS};
+pub use feedback::{
+    FeedbackAdded, FeedbackAsk, FeedbackEntries, FeedbackEntry, FeedbackFile, FeedbackNote,
+    FeedbackResolution, FeedbackResolved,
+};
 pub use imported::CanvasImported;
 pub use look::{CanvasImage, CanvasImages, CanvasStrokes};
 pub use packet::{CanvasPacket, PacketAsk, PacketImage};
@@ -154,6 +159,11 @@ pub enum Request {
     /// own `op`s and written by clients with `UiAsk` itself.
     #[serde(untagged, skip_serializing)]
     Showing(UiAsk),
+    /// The feedback verbs (`feedback_add`, `feedback_list`,
+    /// `feedback_resolve`, `feedback_path`), read by their own `op`s and
+    /// written by clients with `FeedbackAsk` itself.
+    #[serde(untagged, skip_serializing)]
+    Feedback(FeedbackAsk),
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -199,6 +209,10 @@ pub enum Reply {
     UiOpen(UiOpened),
     UiShown(UiShown),
     UiReply(UiReplied),
+    FeedbackAdd(FeedbackAdded),
+    FeedbackList(FeedbackEntries),
+    FeedbackResolve(FeedbackResolution),
+    FeedbackPath(FeedbackFile),
 }
 
 /// The reply to [`Request::Hello`].

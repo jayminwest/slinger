@@ -7,6 +7,7 @@ and agents rely on this contract. Breaking it is a breaking change.
 
 ```
 slingerd [--socket <PATH>] [--data-dir <PATH>] [--claude <PATH>] [--slinger <PATH>]
+         [--feedback <PATH>]
 ```
 
 - It says nothing on success and runs until SIGTERM or SIGINT.
@@ -14,6 +15,11 @@ slingerd [--socket <PATH>] [--data-dir <PATH>] [--claude <PATH>] [--slinger <PAT
   Claude Code, `claude` on `PATH` by default. `--slinger` is the CLI its
   hooks run (see "Sessions", "Hooks"): the `slinger` beside `slingerd`, else
   `slinger` on `PATH`, by default.
+- `--feedback` is the file feedback notes go to (see "Feedback"). By
+  default it is `feedback.jsonl` at the root of the checkout `slingerd` was
+  built from, so the notes sit beside the code they are about; a build with
+  no checkout left uses the data directory. A relative path is taken from
+  the directory `slingerd` starts in.
 - **One instance per socket path.** The daemon holds a lock on
   `<socket>.lock` for its whole life. A second daemon on the same path exits
   4 with `✗ socket <path> is in use by another slingerd` and a hint. A
@@ -154,6 +160,10 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_stop` | `workspace`: string | `session` |
 | `session_send` | `workspace`: string, `text`: string | `session` |
 | `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` |
+| `feedback_add` | `text`: string, then each optional: `workspace`, `canvas`, `page`, `tool`: string, `selected`: number | `path`: the feedback file, `entry`: the note as saved |
+| `feedback_list` | `all`: bool (default `false`: the open notes only), `limit`: number (optional) | `path`, `entries`: notes, newest first |
+| `feedback_resolve` | `ts`: a note's `ts`, `note`: string (optional) | `path`, `resolves`: the `ts`, `ts`: when it was resolved, `note` (absent when none) |
+| `feedback_path` | none | `path` |
 | `file_touched` | `agent`: string, then one of `path`: absolute path of a file, `hook`: a Claude Code `PostToolUse` hook's payload, as a string | `agent`, `path`, `hash`: the file's blob id, `event`: the `file_touched` appended (all three absent when the payload names no file) |
 
 **`record_append`** appends one event to this machine's record. `tags`
@@ -694,6 +704,35 @@ lose which question it belonged to.
 ```json
 { "v": 1, "op": "sling_send", "canvas": "notes", "select": ["c42"], "prompt": "what is missing here?" }
 { "ok": true, "event": 14, "packet": "sha256:5e1f…", "from": 42, "to": 58, "strokes": 23, "agent": "scout", "session_id": "6f1c0d52-8a3e-4b7d-9c1e-2f4a5b6c7d8e" }
+```
+
+#### Feedback
+
+Notes about slinger itself, left from the app (the `leave-feedback`
+command) or the CLI (`slinger feedback`), as Flick keeps its own. They go
+to one JSON Lines file (`--feedback`, under "The daemon"), one object a
+line, appended and never rewritten; the daemon is its only writer while it
+runs, and a person or an agent reads it with any tool.
+
+- **A note** is `{ts, text, build}` and, from the app, what it showed:
+  `workspace`, `canvas`, `page` (its name), `tool` and `selected` (how many
+  items; absent when none). `ts` is the local time with its offset, to the
+  second (RFC 3339); it names the note. `build` is the commit `slingerd`
+  was built from, with `-dirty` for uncommitted changes, or `dev` when the
+  build did not say. A blank text is `invalid`.
+- **A resolution** is a line of its own, `{resolves, ts, note}`: `resolves`
+  is the note's `ts`. A resolved note is out of `feedback_list` unless
+  `all`, where it carries `resolved: {ts, note}`. A `ts` no note has is
+  `not_found`; one resolved already is `conflict`. Two notes saved in the
+  same second share a `ts`, and one resolution resolves both.
+- A file the daemon cannot write or read is `invalid`, with a hint to start
+  it with a `--feedback` it can write.
+
+```json
+{ "v": 1, "op": "feedback_add", "text": "the lasso is slow", "canvas": "notes", "page": "Page 1", "tool": "lasso", "selected": 3 }
+{ "ok": true, "path": "/Users/me/slinger/feedback.jsonl", "entry": { "ts": "2026-11-11T14:02:09-08:00", "text": "the lasso is slow", "build": "93ea49d", "canvas": "notes", "page": "Page 1", "tool": "lasso", "selected": 3 } }
+{ "v": 1, "op": "feedback_resolve", "ts": "2026-11-11T14:02:09-08:00", "note": "slinger-1234" }
+{ "ok": true, "path": "/Users/me/slinger/feedback.jsonl", "resolves": "2026-11-11T14:02:09-08:00", "ts": "2026-11-11T15:40:00-08:00", "note": "slinger-1234" }
 ```
 
 #### Agent canvas verbs

@@ -29,6 +29,7 @@ use rusqlite::{
 use slinger_core::record::{self, BlobId, Event};
 
 use crate::canvases::Canvases;
+use crate::feedback::Feedback;
 use crate::sessions::Sessions;
 use crate::workspaces::Workspaces;
 
@@ -154,6 +155,7 @@ pub struct Store {
     workspaces: Workspaces,
     packets: PathBuf,
     sessions: Sessions,
+    feedback: Feedback,
 }
 
 impl Store {
@@ -191,7 +193,8 @@ impl Store {
         let workspaces = Workspaces::new(dir.join(WORKSPACES), machine.clone());
         let packets = dir.join(PACKETS);
         let sessions = Sessions::new(CLAUDE.into(), dir.join(SESSION_IDS));
-        Ok(Self { db: Mutex::new(db), machine, canvases, workspaces, packets, sessions })
+        let feedback = Feedback::new(dir.join(slinger_core::feedback::FILE));
+        Ok(Self { db: Mutex::new(db), machine, canvases, workspaces, packets, sessions, feedback })
     }
 
     /// Appends `event` to the log and returns it as stored: with the next
@@ -347,6 +350,20 @@ impl Store {
     #[must_use]
     pub fn with_slinger(mut self, program: impl Into<PathBuf>) -> Self {
         self.sessions.processes_mut().set_slinger(program.into());
+        self
+    }
+
+    /// The feedback file: in the data directory unless
+    /// [`Store::with_feedback`] names another.
+    #[must_use]
+    pub fn feedback(&self) -> &Feedback {
+        &self.feedback
+    }
+
+    /// Writes feedback to the file at `path`.
+    #[must_use]
+    pub fn with_feedback(mut self, path: PathBuf) -> Self {
+        self.feedback = Feedback::new(path);
         self
     }
 

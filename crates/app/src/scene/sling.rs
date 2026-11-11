@@ -34,15 +34,15 @@ use crate::scene::sidebar::{Font, Row};
 use crate::scene::{Border, Label};
 
 /// The entry's box, in points.
-const WIDTH: f64 = 360.0;
-const HEIGHT: f64 = 44.0;
+pub const WIDTH: f64 = 360.0;
+pub const HEIGHT: f64 = 44.0;
 /// The space between the selection's box and the field, and the closest
 /// the field comes to an edge of its pane.
-const GAP: f64 = 8.0;
+pub const GAP: f64 = 8.0;
 /// The height of a line under the entry.
 const LINE: f64 = 22.0;
 /// The height of the label above the box and of the keys beneath it.
-const SMALL: f64 = 16.0;
+pub const SMALL: f64 = 16.0;
 /// The label's and the keys' text size, in points.
 const SMALL_TEXT: Font = Font { size: Some(11.0), bold: false, spacing: 0.0 };
 /// The text inside the box: its height, and its space from the box's side.
@@ -51,7 +51,7 @@ const PAD: f64 = 10.0;
 /// The box's border width.
 const EDGE: f64 = 1.0;
 /// The key that sends.
-const SEND: Chord = Chord::new(0, '\r');
+pub const SEND: Chord = Chord::new(0, '\r');
 
 /// What a sling sends: a page's selected items, by the server's ids, and
 /// the prompt.
@@ -159,16 +159,7 @@ impl Sling {
     /// What `chord` does while the entry is open; `None` when it is closed,
     /// so the key goes to the keymap.
     pub fn key(&self, chord: Chord) -> Option<Key> {
-        if !self.is_typing() {
-            return None;
-        }
-        Some(if chord == SEND {
-            Key::Send
-        } else if chord == Chord::new(0, '\u{1b}') {
-            Key::Cancel
-        } else {
-            Key::Type
-        })
+        self.is_typing().then(|| Key::of(chord))
     }
 
     /// The user sent the entry's prompt: it waits for its canvas's ink.
@@ -226,40 +217,18 @@ impl Sling {
         dictate: Option<Chord>,
     ) -> Option<Entry> {
         let Some((ask, frame, Stage::Typing(_))) = &self.open else { return None };
-        let frame = *frame;
-        let small = |text, y, fill| Row {
-            label: Label {
-                text,
-                colour: theme.muted,
-                fill,
-                frame: Rect { y, height: SMALL, ..frame },
-            },
-            font: SMALL_TEXT,
-        };
         let title = match agent {
             Some(agent) => format!("Sling to {agent}"),
             None => "Sling".to_string(),
         };
-        let under = frame.y + HEIGHT;
         let keys = format!("{} sends · esc cancels", SEND.glyphs());
-        let field = Rect {
-            x: frame.x + PAD,
-            y: frame.y + (HEIGHT - TEXT) / 2.0,
-            width: frame.width - 2.0 * PAD,
-            height: TEXT,
-        };
-        Some(Entry {
-            frame,
-            fill: theme.background,
-            border: Border { frame, width: EDGE, colour: theme.focus },
-            field,
-            colour: theme.text,
-            text: ask.prompt.clone(),
-            placeholder: format!("what to ask about {} (or nothing)", count(ask)),
-            title: small(title, frame.y - SMALL, Some(theme.background)),
-            keys: small(keys, under, Some(theme.background)),
-            dictate: dictate.map(|chord| small(format!("{} dictate", chord.glyphs()), under, None)),
-        })
+        let mut entry = Entry::framed(*frame, theme, title, keys);
+        entry.text.clone_from(&ask.prompt);
+        entry.placeholder = format!("what to ask about {} (or nothing)", count(ask));
+        let under = frame.y + HEIGHT;
+        let dictate = dictate.map(|chord| format!("{} dictate", chord.glyphs()));
+        entry.dictate = dictate.map(|text| small(theme, *frame, text, under, None));
+        Some(entry)
     }
 
     /// Whether `at`, a point in the window, is on the open entry's box: a
@@ -300,9 +269,56 @@ impl Sling {
     }
 }
 
+impl Entry {
+    /// An empty entry whose box is `frame`, in `theme`'s colours, with
+    /// `title` above it and `keys` beneath, no placeholder and no dictate
+    /// key: the look every one-line entry shares.
+    pub fn framed(frame: Rect, theme: &Theme, title: String, keys: String) -> Entry {
+        let field = Rect {
+            x: frame.x + PAD,
+            y: frame.y + (HEIGHT - TEXT) / 2.0,
+            width: frame.width - 2.0 * PAD,
+            height: TEXT,
+        };
+        let fill = Some(theme.background);
+        Entry {
+            frame,
+            fill: theme.background,
+            border: Border { frame, width: EDGE, colour: theme.focus },
+            field,
+            colour: theme.text,
+            text: String::new(),
+            placeholder: String::new(),
+            title: small(theme, frame, title, frame.y - SMALL, fill),
+            keys: small(theme, frame, keys, frame.y + HEIGHT, fill),
+            dictate: None,
+        }
+    }
+}
+
+impl Key {
+    /// What `chord` does in an open entry: return sends, escape cancels,
+    /// and any other key is the entry's own.
+    pub fn of(chord: Chord) -> Key {
+        if chord == SEND {
+            Key::Send
+        } else if chord == Chord::new(0, '\u{1b}') {
+            Key::Cancel
+        } else {
+            Key::Type
+        }
+    }
+}
+
+/// A muted row in small type at `y`, as wide as the entry's box at `frame`.
+fn small(theme: &Theme, frame: Rect, text: String, y: f64, fill: Option<Rgb>) -> Row {
+    let frame = Rect { y, height: SMALL, ..frame };
+    Row { label: Label { text, colour: theme.muted, fill, frame }, font: SMALL_TEXT }
+}
+
 /// Line `n` of the lines under the entry's box at `frame`, after its keys;
 /// line 0 stands in the box's place.
-fn line(frame: Rect, n: f64, text: String, colour: Rgb, theme: &Theme) -> Label {
+pub fn line(frame: Rect, n: f64, text: String, colour: Rgb, theme: &Theme) -> Label {
     let y = if n == 0.0 {
         frame.y + (HEIGHT - LINE) / 2.0
     } else {

@@ -16,6 +16,7 @@ use serde_json::{Value, json};
 use slinger_control as control;
 
 use crate::canvas::Canvas;
+use crate::feedback::Feedback;
 use crate::output::{Ctx, Failure, Output, exit};
 use crate::pane::Pane;
 use crate::session::{Session, Status, Touch};
@@ -113,6 +114,9 @@ enum Command {
     /// Report a file the calling agent wrote
     #[command(subcommand)]
     File(Touch),
+    /// Leave, list and resolve notes about slinger itself
+    #[command(subcommand)]
+    Feedback(Feedback),
 }
 
 #[derive(Subcommand)]
@@ -193,6 +197,7 @@ impl Command {
             Self::Status(status) => status.name(),
             Self::Sling(sling) => sling.name(),
             Self::File(file) => file.name(),
+            Self::Feedback(feedback) => feedback.name(),
         }
     }
 }
@@ -275,6 +280,7 @@ fn execute(
         Command::Status(status) => crate::session::set(status, daemon),
         Command::Sling(sling) => crate::sling::execute(sling, daemon, input),
         Command::File(file) => crate::session::touched(file, daemon, input),
+        Command::Feedback(feedback) => feedback.execute(daemon),
     }
 }
 

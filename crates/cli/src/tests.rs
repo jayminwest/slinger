@@ -14,6 +14,7 @@ use crate::output::{Ctx, color_enabled, exit};
 mod canvas;
 mod canvas_feed;
 mod edit;
+mod feedback;
 mod look;
 mod pane;
 mod put;

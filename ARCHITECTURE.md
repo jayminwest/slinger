@@ -110,6 +110,12 @@ sling.rs     the sling message (SPEC section 6, D10): a packet, the prompt, the
              `sling_sent` of the agent names that session id).
              landed: the `reply_landed` an agent's answer adds, for its latest
              sling on that canvas.
+feedback.rs  notes about slinger itself (docs/service.md, Feedback): a note
+             and its context, a resolution, both as JSON Lines; reading a
+             file's text back (newest first, open or all) and resolving a
+             note by its `ts`; the local time with its offset and the build
+             string. No IO: the daemon hands in the text, the time and the
+             build.
 record/      the record's formats (SPEC section 9): events as versioned JSON
              (encode, decode, to_value), the kinds a writer may append
              (Body::new checks a payload against its kind) and blob ids
@@ -219,6 +225,12 @@ processes.rs the agents' processes, one per agent: spawned in the agent's
              then kills it; `serve` ends them all when it stops. No restart on death (D20).
              Each starts with the core's hooks in `--settings`, running the
              CLI at `--slinger` (default: beside slingerd).
+feedback.rs  the feedback file (`--feedback`, default `feedback.jsonl` in
+             the checkout it was built from, else the data directory): one
+             lock, each note and resolution appended as one line, the
+             file read back for a list or a resolve; the time from `date
+             +%z` and the build from `SLINGER_BUILD_SHA` at build time.
+server/feedback.rs  the four feedback verbs on the wire.
 server/session.rs  the session verbs on the wire, each session with its process.
 server/sling.rs  `sling_send`: the workspace of the canvas, the marker, the
              packet, `sling::message` with the verbs this daemon serves
@@ -262,6 +274,9 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
 backend/sling.rs  the Slinger: each sling as one `sling_send` (canvas, page,
              the selected ids, the prompt) on a thread of its own, and the
              daemon's answer back. The daemon picks the agent.
+backend/feedback.rs  the Noter: each feedback note as one `feedback_add`
+             (the text and what the window showed) on a thread of its own,
+             and the daemon's answer back.
 backend/flick.rs  Flick's dictation (SPEC D2, K6): `dictation start`,
              `stop` and `cancel` as Flick's own control requests (one JSON
              array line to `$FLICK_SOCKET`, else Flick's default socket; one
@@ -306,6 +321,11 @@ canvases/sling.rs  the sling from the window: opens the entry at the
              the one entry point for a sling with no typing (a tap on the
              button). With nothing selected the entry opens beside the
              focused page's first button.
+canvases/feedback.rs  the `leave-feedback` command: opens the feedback
+             entry in the focused pane with its workspace, canvas, page
+             name, tool and selection count, closing an open sling's entry;
+             saves it through the Noter. It takes the keys and the sling's
+             place in the scene while open.
 canvases/dictation.rs  the `dictate` command: opens the entry when it is
              closed, then starts or stops Flick's dictation into it; the
              entry closing cancels one going. Flick types the text into the
@@ -345,7 +365,7 @@ scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              when bound. A UI pane's has no tool part. A narrow pane drops
              the right part, then the middle. Pure.
 scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
-             `<Tool> <key>` in a 14 pt pill, a step lighter than the pane, at
+             `<Tool> <key>` (a saved note, "Feedback saved") in a 14 pt pill, a step lighter than the pane, at
              the top centre of the focused pane for 0.8 s. The pill says when
              it goes; platform sets one timer for then (no repeating
              redraw). Pure.
@@ -440,6 +460,13 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              Return sends and escape cancels, the wait for the ink, the line
              while it goes, and a failure's message and hint under the entry
              opened again. Pure.
+scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
+             sling's labelled field (Entry::framed), "Feedback" above and
+             "↩ saves · esc cancels" beneath, centred in the focused pane
+             below the flash. Return saves, escape cancels, an empty note
+             saves nothing; "saving feedback…" while it goes, a failure's
+             message and hint under the entry opened again, and "Feedback
+             saved" flashed once on success. Pure.
 scene/dictation.rs  the dictation into the entry: start, then stop, one
              request to Flick at a time; that Flick listens, or why it
              failed (Flick not running, or its refusal) and what to do, under

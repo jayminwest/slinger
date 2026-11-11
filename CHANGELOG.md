@@ -19,6 +19,14 @@ bullet with the area in bold.
 
 ### Added
 
+- **Feedback:** leave a note about slinger without leaving it. In the app,
+  `leave-feedback` (⌘⇧F, or Help → Leave feedback…) opens an entry in the
+  focused pane: return saves the note with the workspace, canvas, page,
+  tool and selection count, and "Feedback saved" flashes. From a shell,
+  `slinger feedback add`, `ls`, `resolve` and `path`. Notes go to
+  `feedback.jsonl` in the checkout `slingerd` was built from, else in its
+  data directory; `slingerd --feedback <PATH>` picks another file.
+
 - **App:** a menu bar. slinger, File, Edit, Tools, Canvas, Pane, Window and
   Help list every command with its key from `[keys]`, and Tools checks the
   pen's tool. A rebound key shows after the config reloads. Edit's cut, copy,

@@ -40,6 +40,7 @@ use crate::scene::{CanvasPane, canvas};
 use find::{canvas_of, find, matches, pane_shown, to_canvas, wanted};
 
 mod dictation;
+mod feedback;
 mod sling;
 mod status;
 
@@ -56,6 +57,8 @@ pub struct Canvases {
     slinger: Slinger,
     /// Speaking the sling's prompt through Flick.
     voice: dictation::Voice,
+    /// The feedback being left.
+    notes: feedback::Notes,
     /// The pane the pen draws in, and its frame in the window, while down.
     pen: Option<(PaneId, Rect)>,
     /// When the oldest pen event no scene has shown yet happened.
@@ -105,6 +108,7 @@ impl Canvases {
         let (shapes, asks, turning) = (Shapes::default(), Pages::default(), Vec::new());
         let (pen, unshown, lives) = (None, None, live::Lives::start(daemon.clone()));
         let voice = dictation::Voice::new(Flick::socket());
+        let notes = feedback::Notes::new(daemon.clone());
         Self {
             daemon,
             open,
@@ -116,6 +120,7 @@ impl Canvases {
             sling,
             slinger,
             voice,
+            notes,
             pen,
             unshown,
             asks,
@@ -130,6 +135,7 @@ impl Canvases {
     pub fn reconnect(&mut self, daemon: Client) {
         self.outbox.reconnect(daemon.clone());
         self.slinger.reconnect(daemon.clone());
+        self.notes.reconnect(daemon.clone());
         self.lives = live::Lives::start(daemon.clone());
         self.daemon = daemon;
         self.open.clear();
