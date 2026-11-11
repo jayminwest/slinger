@@ -147,7 +147,8 @@ mod tests {
         let theme = Config::default().theme;
         let side = crate::scene::sidebar::Sidebar::new(false);
         let (uis, notes) = (crate::scene::Uis::new(), crate::scene::Notes::new());
-        let mut scene = crate::scene::build(panes, &theme, &[], &side, Vec::new(), &uis, &notes);
+        let mut scene =
+            crate::scene::build(WINDOW, panes, &theme, &[], &side, Vec::new(), &uis, &notes);
         scene.labels.clear();
         canvases.show_sling(&mut scene, &theme);
         scene

@@ -38,7 +38,7 @@ use crate::backend::{Problem, Settings, Watch};
 use crate::canvases::Canvases;
 use crate::commands::Command;
 use crate::config::Shown;
-use crate::layout::{PaneId, Point, Rect};
+use crate::layout::{PaneId, Point, Rect, Size};
 use crate::panes::{Pane, Panes};
 use crate::platform::{Event, Step};
 use crate::scene::resize::Dividers;
@@ -91,8 +91,10 @@ fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
         Ok(page) => Arc::new(page),
         Err(why) => return fail(&why, None),
     };
-    let keys = settings.config.keys;
+    let (keys, theme) = (settings.config.keys, settings.config.theme);
+    let scene = scene::preview(Arc::clone(&page), &theme, item, layout::WINDOW);
     let answer = move |event| match event {
+        Event::Resized(size) => Step::Draw(scene::preview(Arc::clone(&page), &theme, item, size)),
         Event::Reply(line) => {
             let mut out = io::stdout().lock();
             match writeln!(out, "{line}").and_then(|()| out.flush()) {
@@ -110,7 +112,6 @@ fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
         | Event::Zoom { .. } => Step::Pass,
         Event::Tick | Event::Moved(_) | Event::Painted(_) | Event::Typed(_) => Step::Stay,
     };
-    let scene = scene::preview(page, &settings.config.theme, item);
     match platform::run(&scene, answer) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => fail(&e.to_string(), None),
@@ -124,8 +125,7 @@ fn window(mut settings: Settings) -> ExitCode {
     let watch = Watch::start(socket.clone(), settings.config.workspace.clone());
     let mut shown = settings.config.sidebar;
     let mut sidebar = Sidebar::new(shown == Shown::Open);
-    let window = layout::WINDOW;
-    let centre = Point { x: window.width / 2.0, y: window.height / 2.0 };
+    let centre = Point { x: layout::WINDOW.width / 2.0, y: layout::WINDOW.height / 2.0 };
     let mut tools = Tools::new(settings.config.palette.clone(), centre);
     let mut shared = Shared::default();
     let mut canvases = Canvases::new(control::Client::new(&socket));
@@ -139,7 +139,7 @@ fn window(mut settings: Settings) -> ExitCode {
     // and the followers follow an edit that moves the socket or the
     // workspace. Only a split, a close or a resize asks the daemon here.
     let answer = move |event| {
-        let area = sidebar.panes(window.rect());
+        let area = sidebar.panes(shared.size.rect());
         let force = match event {
             Event::Tick => false,
             Event::Reply(line) => {
@@ -192,7 +192,7 @@ fn window(mut settings: Settings) -> ExitCode {
                 }
                 true
             }
-            // The pen, the mouse, the trackpad and typed text.
+            // The pen, the mouse, the trackpad, typed text and a resize.
             _ => {
                 if !pen(&event, &mut tools, &mut canvases, &mut shared, area, &socket) {
                     return Step::Pass;
@@ -234,6 +234,8 @@ fn window(mut settings: Settings) -> ExitCode {
 /// until the server's layout comes, or without a daemon.
 #[derive(Debug)]
 struct Shared {
+    /// The window's content size: the panes share what the sidebar leaves.
+    size: Size,
     panes: Panes,
     /// The agent UIs the panes show, as last fetched.
     uis: Uis,
@@ -252,8 +254,9 @@ impl Default for Shared {
     fn default() -> Self {
         let main = Pane { kind: panes::Kind::Canvas, name: "main".to_string() };
         let (uis, notes) = (Uis::new(), Notes::new());
-        let (workspace, trouble, dividers) = (None, None, Dividers::default());
-        Self { panes: Panes::new(main), uis, workspace, trouble, notes, dividers }
+        let (size, workspace, trouble, dividers) =
+            (layout::WINDOW, None, None, Dividers::default());
+        Self { size, panes: Panes::new(main), uis, workspace, trouble, notes, dividers }
     }
 }
 
@@ -359,8 +362,9 @@ fn selection(canvases: &mut Canvases, shared: &Shared, area: Rect, command: Comm
 
 /// Hands a press on a divider between panes (with no pop-up open), and the
 /// drag and lift after it, to the panes of `shared` laid in `area`, which
-/// resize; a moved divider goes to the daemon on `socket`. Any other event
-/// goes on to [`pointer`]. False when nothing used it.
+/// resize; a moved divider goes to the daemon on `socket`. A resized window
+/// lays its panes out again. Any other event goes on to [`pointer`]. False
+/// when nothing used it.
 fn pen(
     event: &Event,
     tools: &mut Tools,
@@ -371,6 +375,7 @@ fn pen(
 ) -> bool {
     let free = tools.open_kind().is_none();
     match *event {
+        Event::Resized(size) => std::mem::replace(&mut shared.size, size) != size,
         Event::Press(pen) if free && shared.dividers.down(&shared.panes, area, pen.at) => true,
         Event::Drag(pen) if shared.dividers.drag(&mut shared.panes, pen.at) => true,
         Event::Lift(pen) if shared.dividers.held() => {
@@ -476,7 +481,7 @@ fn view(
     canvases: &mut Canvases,
 ) -> Scene {
     let theme = &settings.config.theme;
-    let area = sidebar.panes(layout::WINDOW.rect());
+    let area = sidebar.panes(shared.size.rect());
     canvases.agents(sidebar.statuses());
     let drawn = canvases.show(&shared.panes, area, theme);
     let mut problems: Vec<&Problem> = Vec::new();
@@ -485,8 +490,8 @@ fn view(
             problems.push(problem);
         }
     }
-    let mut scene =
-        scene::build(&shared.panes, theme, &problems, sidebar, drawn, &shared.uis, &shared.notes);
+    let (size, uis, notes) = (shared.size, &shared.uis, &shared.notes);
+    let mut scene = scene::build(size, &shared.panes, theme, &problems, sidebar, drawn, uis, notes);
     canvases.show_live(&mut scene);
     canvases.show_sling(&mut scene, theme);
     scene.labels.splice(0..0, canvases.labels(&shared.panes, area, theme));

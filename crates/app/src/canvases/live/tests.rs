@@ -19,7 +19,7 @@ fn webs(canvases: &mut Canvases, panes: &Panes) -> Vec<Web> {
     canvases.poll();
     let drawn = canvases.show(panes, WINDOW.rect(), &theme);
     let mut scene =
-        crate::scene::build(panes, &theme, &[], &side, drawn, &Uis::new(), &Notes::new());
+        crate::scene::build(WINDOW, panes, &theme, &[], &side, drawn, &Uis::new(), &Notes::new());
     canvases.show_live(&mut scene);
     scene.webs
 }

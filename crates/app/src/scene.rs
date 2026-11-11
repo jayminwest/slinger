@@ -107,14 +107,17 @@ pub struct Scene {
 /// The focus border's width, in points.
 pub const BORDER: f64 = 2.0;
 
-/// The window for `panes` in `theme`'s colours, beside `sidebar`. The panes
+/// The window of `size` for `panes` in `theme`'s colours, beside `sidebar`:
+/// the panes share what the sidebar leaves of it. The panes
 /// in `canvases` draw their canvas. An agent UI pane shows its page from
 /// `uis` inside the border's width, with its note from `notes` over it; one
 /// that cannot show says its name and why. Every other pane shows its kind
 /// and name. `problems` show in the focused pane, each with its hint under it:
 /// the window keeps working on the last good config and says what is wrong.
 /// The notice, if any, is the last label, over the panes.
+#[expect(clippy::too_many_arguments, reason = "each is one input the window shows")]
 pub fn build(
+    size: Size,
     panes: &Panes,
     theme: &Theme,
     problems: &[&Problem],
@@ -123,7 +126,6 @@ pub fn build(
     uis: &Uis,
     notes: &Notes,
 ) -> Scene {
-    let size = layout::WINDOW;
     let area = sidebar.panes(size.rect());
     let (mut labels, mut webs) = (Vec::new(), Vec::new());
     let mut focus = Border { frame: area, width: BORDER, colour: theme.focus };
@@ -175,11 +177,10 @@ pub fn build(
     }
 }
 
-/// The window for `page` alone (`slinger-app --preview`): the page fills
-/// it, with no border; as a live `item`, it shows at the default item's
-/// size, zoomed by half again.
-pub fn preview(page: Arc<Page>, theme: &Theme, item: bool) -> Scene {
-    let size = layout::WINDOW;
+/// The window of `size` for `page` alone (`slinger-app --preview`): the
+/// page fills it, with no border; as a live `item`, it shows at the default
+/// item's size, zoomed by half again.
+pub fn preview(page: Arc<Page>, theme: &Theme, item: bool, size: Size) -> Scene {
     let title = format!("slinger: {}", page.code.name);
     let web = if item {
         live::alone(page, size, 1.5)
@@ -236,7 +237,8 @@ mod tests {
         sidebar: &Sidebar,
         canvases: Vec<CanvasPane>,
     ) -> Scene {
-        super::build(panes, theme, problems, sidebar, canvases, &Uis::new(), &Notes::new())
+        let (uis, notes) = (Uis::new(), Notes::new());
+        super::build(layout::WINDOW, panes, theme, problems, sidebar, canvases, &uis, &notes)
     }
 
     #[test]
@@ -286,7 +288,8 @@ mod tests {
         let page = Arc::new(Page::new(what, "pane").unwrap());
         let mut uis = Uis::from([("board".to_string(), Ok(Arc::clone(&page)))]);
         let side = Sidebar::new(false);
-        let scene = super::build(&panes, &T, &[], &side, Vec::new(), &uis, &Notes::new());
+        let scene =
+            super::build(layout::WINDOW, &panes, &T, &[], &side, Vec::new(), &uis, &Notes::new());
         assert_eq!(shown(&scene), []);
         let half = layout::WINDOW.width / 2.0;
         let inner = Rect { x: half, y: 0.0, width: half, height: layout::WINDOW.height };
@@ -296,18 +299,19 @@ mod tests {
 
         let note = Problem { message: "scout is not running".into(), hint: Some("start".into()) };
         let kept = Notes::from([("board".to_string(), note)]);
-        let noted = super::build(&panes, &T, &[], &side, Vec::new(), &uis, &kept);
+        let noted = super::build(layout::WINDOW, &panes, &T, &[], &side, Vec::new(), &uis, &kept);
         assert_eq!(noted.webs, scene.webs, "the page stays under its note");
         assert_eq!(shown(&noted)[..2], [("✗ scout is not running", T.error), ("start", T.muted)]);
         assert!(noted.labels[2].frame.x >= half, "each pane says it over its own page");
 
-        let alone = preview(page, &T, false);
+        let alone = preview(page, &T, false, layout::WINDOW);
         assert_eq!((alone.title.as_str(), alone.labels.len()), ("slinger: board", 0));
         assert_eq!(alone.webs[0].frame, layout::WINDOW.rect());
 
         let why = Problem { message: "ui \"board\" not found".into(), hint: Some("put it".into()) };
         uis.insert("board".into(), Err(why));
-        let scene = super::build(&panes, &T, &[], &side, Vec::new(), &uis, &Notes::new());
+        let scene =
+            super::build(layout::WINDOW, &panes, &T, &[], &side, Vec::new(), &uis, &Notes::new());
         assert_eq!(scene.webs, []);
         assert_eq!(
             shown(&scene)[..3],
@@ -370,5 +374,23 @@ mod tests {
         let scene = build(&panes, &T, &[&daemon], &Sidebar::new(false), canvases.clone());
         assert_eq!(shown(&scene), [("canvas main", T.text), ("✗ no daemon", T.error)]);
         assert_eq!(scene.canvases, canvases);
+    }
+
+    #[test]
+    fn the_panes_and_the_sidebar_follow_the_window_size() {
+        let mut panes = main();
+        panes.split(Axis::Row);
+        let side = Sidebar::new(true);
+        let (uis, notes) = (Uis::new(), Notes::new());
+        for size in [layout::SMALLEST, layout::WINDOW, Size { width: 1600.0, height: 1000.0 }] {
+            let scene = super::build(size, &panes, &T, &[], &side, Vec::new(), &uis, &notes);
+            assert_eq!(scene.size, size);
+            let area = side.panes(size.rect());
+            let half = area.width / 2.0;
+            let right = Rect { x: area.x + half, y: 0.0, width: half, height: size.height };
+            assert_eq!(scene.focus.frame, right, "the focused pane fills its share of {size:?}");
+            assert_eq!(scene.sidebar, side.rows(&T, size.rect()));
+            assert!(scene.labels.iter().all(|l| l.frame.y + l.frame.height <= size.height));
+        }
     }
 }
