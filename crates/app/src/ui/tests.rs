@@ -6,8 +6,14 @@ fn code(html: &str) -> Code {
     Code { name: "pick-slot".into(), version: 3, hash: HASH.into(), html: html.into() }
 }
 
+fn shown(code: Code) -> Shown {
+    Shown { code, open: None, data: Value::Null }
+}
+
 fn page(html: &str) -> Arc<Page> {
-    Arc::new(Page::new(code(html), "pane", &json!({"slots": ["Tue"]})).unwrap())
+    let open = Some("pick-slot#12".to_string());
+    let shown = Shown { code: code(html), open, data: json!({"slots": ["Tue"]}) };
+    Arc::new(Page::new(shown, "pane").unwrap())
 }
 
 #[test]
@@ -32,21 +38,24 @@ fn the_context_says_what_the_ui_was_given() {
         context,
         json!({
             "v": 1, "ui": {"name": "pick-slot", "version": 3, "hash": HASH},
-            "host": "pane", "open": null, "data": {"slots": ["Tue"]},
+            "host": "pane", "open": "pick-slot#12", "data": {"slots": ["Tue"]},
         })
     );
+    let by_name = Page::new(shown(code("")), "pane").unwrap();
+    let context: Value = serde_json::from_str(&by_name.context).unwrap();
+    assert_eq!((&context["open"], &context["data"]), (&Value::Null, &Value::Null));
 }
 
 #[test]
 fn a_page_that_is_not_one_or_declares_another_bridge_shows_a_line_instead() {
     let bad = Code { hash: "sha256:xyz".into(), ..code("") };
-    assert_eq!(Page::new(bad, "pane", &Value::Null).unwrap_err(), "sha256:xyz is not a blob id");
+    assert_eq!(Page::new(shown(bad), "pane").unwrap_err(), "sha256:xyz is not a blob id");
     let v2 = code("<!doctype html>\n<META Name=\"slinger-bridge\" content=\"2\">");
-    assert_eq!(Page::new(v2, "pane", &Value::Null).unwrap_err(), "bridge v2 is not supported");
+    assert_eq!(Page::new(shown(v2), "pane").unwrap_err(), "bridge v2 is not supported");
     for fine in
         ["<meta name=\"slinger-bridge\" content=\"1\">", "<meta name=\"slinger-bridge\">", "<p>"]
     {
-        assert!(Page::new(code(fine), "pane", &Value::Null).is_ok(), "{fine}");
+        assert!(Page::new(shown(code(fine)), "pane").is_ok(), "{fine}");
     }
 }
 
@@ -82,7 +91,7 @@ fn a_reply_goes_out_as_one_ui_reply_line() {
         line,
         json!({
             "v": 1, "kind": "ui_reply", "ui": "pick-slot", "version": 3, "hash": HASH,
-            "open": null, "value": {"slot": "Wed"},
+            "open": "pick-slot#12", "value": {"slot": "Wed"},
         })
     );
 }

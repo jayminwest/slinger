@@ -15,6 +15,7 @@ mod packet;
 mod pane;
 mod session;
 mod sling;
+mod ui;
 mod wire;
 mod workspace;
 
@@ -35,6 +36,7 @@ pub use packet::{CanvasPacket, PacketAsk, PacketImage};
 pub use pane::{Pane, PaneAsk, PaneKind, PaneLayout, PaneSplit, PaneTree};
 pub use session::{FileTouched, Session, SessionAsk, SessionInfo, Sessions, StatusSet, Touched};
 pub use sling::{SlingAsk, Slung};
+pub use ui::{UiAsk, UiOpen, UiOpened, UiReplied, UiShown};
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
 pub use workspace::{
     Workspace, WorkspaceAgent, WorkspaceClosed, WorkspaceInfo, WorkspaceOpened, WorkspaceRoot,
@@ -148,6 +150,10 @@ pub enum Request {
     /// their own `op`s and written by clients with `PaneAsk` itself.
     #[serde(untagged, skip_serializing)]
     Pane(PaneAsk),
+    /// The showing verbs (`ui_open`, `ui_shown`, `ui_reply`), read by their
+    /// own `op`s and written by clients with `UiAsk` itself.
+    #[serde(untagged, skip_serializing)]
+    Showing(UiAsk),
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -190,6 +196,9 @@ pub enum Reply {
     CanvasEdit(CanvasEdited),
     CanvasRemove(CanvasRemoved),
     Pane(PaneLayout),
+    UiOpen(UiOpened),
+    UiShown(UiShown),
+    UiReply(UiReplied),
 }
 
 /// The reply to [`Request::Hello`].

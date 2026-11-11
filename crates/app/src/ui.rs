@@ -65,24 +65,36 @@ pub struct Code {
     pub html: Vec<u8>,
 }
 
-/// A UI ready to show: its code, the URL it is served from and the context
-/// `slinger.context()` gives it.
+/// What a pane shows: a UI's code and, when an agent opened it with
+/// `ui open`, the showing's id and the agent's data.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Shown {
+    pub code: Code,
+    /// The showing's id, which its replies name; `None` for a UI opened by
+    /// name, whose replies go nowhere.
+    pub open: Option<String>,
+    pub data: Value,
+}
+
+/// A UI ready to show: its code, the URL it is served from, the showing it
+/// is and the context `slinger.context()` gives it.
 #[derive(Debug, PartialEq)]
 pub struct Page {
     pub code: Code,
     pub url: String,
+    pub open: Option<String>,
     pub context: String,
 }
 
 impl Page {
-    /// The page for `code` shown in `host` (`pane` or `canvas`) with the
-    /// agent's `data`.
+    /// The page for `shown` in `host` (`pane` or `canvas`).
     ///
     /// # Errors
     ///
     /// The line to show instead: a hash that is not a blob id, or a bridge
     /// version this host does not speak.
-    pub fn new(code: Code, host: &str, data: &Value) -> Result<Self, String> {
+    pub fn new(shown: Shown, host: &str) -> Result<Self, String> {
+        let Shown { code, open, data } = shown;
         let hex = code
             .hash
             .strip_prefix("sha256:")
@@ -98,12 +110,11 @@ impl Page {
             "v": 1,
             "ui": { "name": code.name, "version": code.version, "hash": code.hash },
             "host": host,
-            // Names a showing once `ui open` makes them (slinger-6f8a).
-            "open": null,
+            "open": open,
             "data": data,
         })
         .to_string();
-        Ok(Self { code, url, context })
+        Ok(Self { code, url, open, context })
     }
 
     /// The response to a load of `url`: the page for its own URL, with the
@@ -222,7 +233,7 @@ impl Bridge {
                 let code = &self.page.code;
                 let line = json!({
                     "v": 1, "kind": "ui_reply", "ui": code.name, "version": code.version,
-                    "hash": code.hash, "open": null, "value": value,
+                    "hash": code.hash, "open": self.page.open, "value": value,
                 });
                 send(line.to_string()).map_err(|e| refuse("unavailable", e))?;
                 self.replies += 1;

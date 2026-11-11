@@ -11,11 +11,18 @@ bullet with the area in bold.
 
 ### Added
 
+- **Agent UIs:** `slinger ui open <UI> --workspace <W> [--data JSON]` lets an
+  agent show a UI in a new pane, with data, and get the user's answer back.
+  It prints the showing's id (`pick-slot#12`) and the pane. Each
+  `slinger.reply()` from that pane is recorded and reaches the agent's
+  running session as one `ui_reply` JSON line, in order. If the agent is not
+  running, the reply stays in the record and the pane says so. Data and each
+  reply are at most 16 KiB, and a showing sends at most 100 replies.
 - **App:** an agent UI pane shows the UI. `slinger pane open <workspace>
   --type ui --target <name>` shows the latest version of that UI in a
   sandbox: no network, no files, no way to navigate away or open a window.
-  The UI reads what it was given with `slinger.context()`; `slinger.reply()`
-  answers `unavailable` until replies reach the agent. A UI that cannot show
+  The UI reads what it was given with `slinger.context()`; a UI opened by
+  name has no agent, so `slinger.reply()` answers `unavailable` there. A UI that cannot show
   says its name and why, and the rest of the window keeps working.
   `slinger-app --preview <UI> [--data JSON]` shows one UI alone, with that
   data, and prints each reply as a `ui_reply` JSON line.

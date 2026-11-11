@@ -24,6 +24,7 @@ mod process;
 mod put;
 mod read;
 mod session;
+mod showing;
 mod sling;
 mod touched;
 mod workspace;

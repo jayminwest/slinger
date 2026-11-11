@@ -114,6 +114,9 @@ ui.rs        agent UIs (docs/design/live-items.md): the rules for a name and its
              code, the versions rebuilt from `ui_put` events (Catalog), what a
              put adds and what a reference (`name`, `name@3`, blob id) names.
              No IO; the daemon hands it the events.
+ui/showing.rs  showings (`ui open`): a showing's id (`<name>#<n>`, n its
+             `ui_opened` event), the limits on its data and replies, and the
+             line its agent's session receives for each reply. No IO.
 workspace.rs workspaces (SPEC section 10): the definition file's format
              (docs/workspace.md), the rules a set of them keeps (one primary
              root, name and canvas each), what a new one gets (slug of its
@@ -183,7 +186,12 @@ workspaces.rs the open workspaces: the list of directories that hold their
              the file whole when it changed.
 server/pane.rs  `pane_list`, `pane_open`, `pane_close`: the canvas or UI a
              pane shows must exist; the core changes the layout; each change
-             appends its `pane_moved`, tagged with the workspace.
+             appends its `pane_moved`, tagged with the workspace. `open` is
+             shared with `ui_open`.
+server/showing.rs  `ui_open`, `ui_shown`, `ui_reply`: an open checks all
+             before it appends `ui_opened` and opens the pane; a reply counts
+             the showing's replies inside the store's write, appends
+             `ui_reply`, then hands the core's line to the agent's process.
 server/read.rs  `canvas_read`: the marker is the `to` of the packet the
              canvas's last `sling_sent` names (0 before one), so it lives in
              the record and survives a restart. Stores the text (no `at`)
@@ -232,8 +240,10 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
              code of each agent UI the panes show first.
              Its Follower keeps one canvas page coming: `canvas_show`,
              then the change feed.
-backend/ui.rs  an agent UI's code by reference: ui_export into a directory
-             of the app's own, read, removed.
+backend/ui.rs  what a UI pane shows (`ui_shown`: the version, and a showing's
+             id and data), its code by ui_export into a directory of the
+             app's own, read, removed; and a showing's reply (`ui_reply`),
+             with a note when its agent did not take it.
 backend/panes.rs  the server's panes: `layout` for the Watch, and `open` and
              `close`, which send the window's own splits and closes to the
              server as `pane_open` and `pane_close`.
@@ -252,7 +262,8 @@ panes.rs     the window's panes: what each shows (a canvas or an agent UI, by
              tree, focus kept by number. Always one pane at least. Pure.
 scene.rs     decides what the window shows: each pane's placeholder, an
              agent UI pane's page (a Web) or its name and why it cannot
-             show, one focus border, problems in the focused pane, and the
+             show, a note over a UI pane whose agent did not take its reply,
+             one focus border, problems in the focused pane, and the
              sidebar and notice. No other chrome. Pure.
 ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
              slinger-ui://<hex>/ with the policy), the sandbox's constants
@@ -382,6 +393,7 @@ Each boundary has something that fails when it is broken:
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |
 | A layout reads back as written; a closed pane's space goes to its sibling | the tests of `crates/core/src/workspace/panes.rs`, `crates/app/src/layout/tree.rs` and `crates/app/src/panes.rs` |
 | Panes open, close and list through the socket, each change records `pane_moved`, closing a pane already gone succeeds, the layout survives a restart; the app follows another client's change | `crates/daemon/src/tests/pane.rs` through a real socket, and `crates/app/src/backend.rs` |
+| An agent opens a UI with data; each reply is recorded and reaches its running session as one JSON line, in order; a reply for a stopped session stays in the record; a refused open records nothing; replies are bounded | `crates/daemon/src/tests/showing.rs`, with a stand-in for Claude Code, and `crates/core/src/ui/showing.rs` |
 | A canvas page reads every kind from the canvas file and follows each feed operation | `crates/app/src/mirror/tests.rs` |
 | A follower shows the page, hands on each change, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
 | A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |

@@ -67,6 +67,10 @@ pub struct Web {
 /// cannot show.
 pub type Uis = HashMap<String, Result<Arc<Page>, Problem>>;
 
+/// What an agent UI pane says over its page, by name: why its last reply
+/// did not reach the agent.
+pub type Notes = HashMap<String, Problem>;
+
 /// One window, fully decided.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scene {
@@ -89,8 +93,9 @@ pub const BORDER: f64 = 2.0;
 
 /// The window for `panes` in `theme`'s colours, beside `sidebar`. The panes
 /// in `canvases` draw their canvas. An agent UI pane shows its page from
-/// `uis` inside the border's width; one that cannot show says its name and
-/// why. Every other pane shows its kind and name. `problems` show in the focused pane, each with its hint under it:
+/// `uis` inside the border's width, with its note from `notes` over it; one
+/// that cannot show says its name and why. Every other pane shows its kind
+/// and name. `problems` show in the focused pane, each with its hint under it:
 /// the window keeps working on the last good config and says what is wrong.
 /// The notice, if any, is the last label, over the panes.
 pub fn build(
@@ -100,6 +105,7 @@ pub fn build(
     sidebar: &Sidebar,
     canvases: Vec<CanvasPane>,
     uis: &Uis,
+    notes: &Notes,
 ) -> Scene {
     let size = layout::WINDOW;
     let area = sidebar.panes(size.rect());
@@ -111,6 +117,10 @@ pub fn build(
             _ if canvases.iter().any(|c| c.pane == id) => {}
             (Kind::Ui, Some(Ok(page))) => {
                 webs.push(Web { frame: frame.outset(-BORDER), page: Arc::clone(page) });
+                if let Some(note) = notes.get(&pane.name) {
+                    texts.push((format!("✗ {}", note.message), theme.error));
+                    texts.extend(note.hint.clone().map(|hint| (hint, theme.muted)));
+                }
             }
             (Kind::Ui, Some(Err(why))) => {
                 texts.push((placeholder(pane), theme.text));
@@ -200,7 +210,7 @@ mod tests {
         sidebar: &Sidebar,
         canvases: Vec<CanvasPane>,
     ) -> Scene {
-        super::build(panes, theme, problems, sidebar, canvases, &Uis::new())
+        super::build(panes, theme, problems, sidebar, canvases, &Uis::new(), &Notes::new())
     }
 
     #[test]
@@ -246,15 +256,23 @@ mod tests {
         panes.split(Axis::Row);
         let hash = format!("sha256:{}", "a".repeat(64));
         let code = Code { name: "board".into(), version: 1, hash, html: Vec::new() };
-        let page = Arc::new(Page::new(code, "pane", &serde_json::Value::Null).unwrap());
+        let what = crate::ui::Shown { code, open: None, data: serde_json::Value::Null };
+        let page = Arc::new(Page::new(what, "pane").unwrap());
         let mut uis = Uis::from([("board".to_string(), Ok(Arc::clone(&page)))]);
         let side = Sidebar::new(false);
-        let scene = super::build(&panes, &T, &[], &side, Vec::new(), &uis);
+        let scene = super::build(&panes, &T, &[], &side, Vec::new(), &uis, &Notes::new());
         assert_eq!(shown(&scene), []);
         let half = layout::WINDOW.width / 2.0;
         let inner = Rect { x: half, y: 0.0, width: half, height: layout::WINDOW.height };
         assert_eq!(scene.webs.len(), 2);
         assert_eq!(scene.webs[1], Web { frame: inner.outset(-BORDER), page: Arc::clone(&page) });
+
+        let note = Problem { message: "scout is not running".into(), hint: Some("start".into()) };
+        let kept = Notes::from([("board".to_string(), note)]);
+        let noted = super::build(&panes, &T, &[], &side, Vec::new(), &uis, &kept);
+        assert_eq!(noted.webs, scene.webs, "the page stays under its note");
+        assert_eq!(shown(&noted)[..2], [("✗ scout is not running", T.error), ("start", T.muted)]);
+        assert!(noted.labels[2].frame.x >= half, "each pane says it over its own page");
 
         let alone = preview(page, &T);
         assert_eq!((alone.title.as_str(), alone.labels.len()), ("slinger: board", 0));
@@ -262,7 +280,7 @@ mod tests {
 
         let why = Problem { message: "ui \"board\" not found".into(), hint: Some("put it".into()) };
         uis.insert("board".into(), Err(why));
-        let scene = super::build(&panes, &T, &[], &side, Vec::new(), &uis);
+        let scene = super::build(&panes, &T, &[], &side, Vec::new(), &uis, &Notes::new());
         assert_eq!(scene.webs, []);
         assert_eq!(
             shown(&scene)[..3],
