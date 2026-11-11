@@ -337,7 +337,8 @@ scene/button.rs  the "send to agent" button: an item of kind `button`, drawn
              its label; which button is under a point; where a new one goes.
              Pure.
 scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport in,
-             the visible marks in screen points and the box to repaint out. Pure.
+             the visible marks in screen points and the box to repaint out;
+             paint is cut off at the pane's edges (`clip`). Pure.
 scene/live.rs  where each live item's page shows: over its item's visible
              mark in each canvas pane, cut off at the pane, at its zoom. Pure.
 scene/ink.rs  the pen's ink: the stroke under the pen and the finished changes

@@ -302,3 +302,10 @@ bullet with the area in bold.
 - **Packet:** a whole packet for a page: what is new since the last sling (your ink with its images, and what agents made), then an outline of the rest, or only of what you selected. It carries a format version, and nothing new is still a valid packet. The whole fixture board costs under half of what its screenshots did.
 - **Packet:** your new ink is grouped into notes by distance, colour and time, so two notes of different colours side by side stay apart, and a frame, arrow or divider you drew never glues notes together.
 - **Canvas:** undo and redo. Your undo takes back only your own changes, never an agent's, and an agent's undo never touches yours. A lasso move or one erase gesture is one undo step.
+
+### Fixed
+
+- **App:** a canvas pane no longer leaves a stale copy of its items over the
+  sidebar or the pane beside it. Text, boxes or buttons that a pan or a
+  sidebar toggle put part past the pane's edge drew past it and stayed
+  there; now each pane draws only inside its own frame.

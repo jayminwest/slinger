@@ -24,7 +24,7 @@ use objc2::{AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_cl
 use objc2_app_kit::{
     NSAffineTransformNSAppKitAdditions, NSBezierPath, NSFont, NSFontAttributeName,
     NSForegroundColorAttributeName, NSGraphicsContext, NSLayoutManager, NSLineCapStyle,
-    NSLineJoinStyle, NSRectFill, NSResponder, NSTextContainer, NSTextStorage, NSView,
+    NSLineJoinStyle, NSRectClip, NSRectFill, NSResponder, NSTextContainer, NSTextStorage, NSView,
 };
 use objc2_foundation::{
     NSAffineTransform, NSAttributedString, NSAttributedStringKey, NSDictionary,
@@ -130,21 +130,26 @@ impl CanvasView {
     }
 }
 
-/// Paints the marks of `scene` that touch `dirty` over its background.
+/// Paints the marks of `scene` that touch `dirty` over its background, cut
+/// off where the scene says ([`Scene::clip`]). `AppKit` does not cut a
+/// view's drawing off at its bounds (`clipsToBounds` is off by default
+/// since macOS 14, and `dirty` may run past the bounds), so ink past the
+/// pane's edge would stay drawn over the sidebar or the pane beside it.
 fn paint(scene: &Scene, dirty: NSRect, texts: &mut HashMap<ItemId, Laid>) {
-    color(scene.background).setFill();
-    NSRectFill(dirty);
     let dirty = Rect {
         x: dirty.origin.x,
         y: dirty.origin.y,
         width: dirty.size.width,
         height: dirty.size.height,
     };
+    let Some(area) = scene.clip(dirty) else { return };
+    // `AppKit` saves the graphics state around `drawRect:`, so the clip
+    // ends with it.
+    NSRectClip(ns_rect(area));
+    color(scene.background).setFill();
+    NSRectFill(ns_rect(area));
     let mut ink: Option<Rgb> = None;
-    for draw in &scene.draws {
-        if draw.bounds.intersection(dirty).is_none() {
-            continue;
-        }
+    for draw in scene.touching(area) {
         if ink != Some(draw.colour) {
             color(draw.colour).set();
             ink = Some(draw.colour);
