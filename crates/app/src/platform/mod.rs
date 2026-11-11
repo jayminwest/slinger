@@ -8,8 +8,9 @@
 //! canvas pane is a view of its own (`canvas`) that lives as long as its
 //! pane, so a new scene repaints only what changed.
 //! `web` shows agent UIs in sandboxed web views, each kept as long as its
-//! page is shown. `entry` is the sling's one-line text field. `text` sets
-//! styled text: the sidebar's rows and the panes' footers. The window
+//! page is shown. `entry` is the sling's one-line text field; `overlay`
+//! dims the window under the key overlay. `text` sets styled text: the
+//! sidebar's rows and the panes' footers. The window
 //! resizes, down to [`layout::SMALLEST`], and says its new size.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
@@ -20,6 +21,7 @@
 
 mod canvas;
 mod entry;
+mod overlay;
 mod text;
 mod web;
 
@@ -43,7 +45,7 @@ use crate::layout::{self, PaneId, Point, Rect, Size};
 use crate::scene::ink::Pen;
 use crate::scene::sidebar::Row;
 use crate::scene::status::Footer;
-use crate::scene::{Border, Label, Scene};
+use crate::scene::{Border, Label, Scene, overlay::Overlay};
 
 /// How often the main thread looks for a new scene, in seconds.
 const POLL_SECONDS: f64 = 0.5;
@@ -100,7 +102,7 @@ pub enum Step {
     Pass,
     /// Nothing more.
     Stay,
-    Draw(Scene),
+    Draw(Box<Scene>),
     Quit,
     /// The reply cannot go on, and why.
     Refuse(String),
@@ -118,8 +120,8 @@ struct State {
 }
 
 /// The views a window shows: one per canvas pane, under the chrome (the
-/// sidebar, the footers, the focus border and the labels), and what the chrome was made from, so an
-/// unchanged one is kept.
+/// sidebar, the footers, the focus border, the labels and the overlay), and
+/// what the chrome was made from, so an unchanged one is kept.
 #[derive(Default)]
 struct Shown {
     canvases: Vec<(PaneId, Retained<CanvasView>)>,
@@ -128,8 +130,9 @@ struct Shown {
     made_from: Option<Chrome>,
 }
 
-/// What the chrome is made from: the sidebar, the footers, the labels and the border.
-type Chrome = (Vec<Row>, Vec<Footer>, Vec<Label>, Border);
+/// What the chrome is made from: the sidebar, the footers, the labels, the
+/// border and the overlay.
+type Chrome = (Vec<Row>, Vec<Footer>, Vec<Label>, Border, Option<Box<Overlay>>);
 
 thread_local! {
     /// Set once by [`run`], on the main thread, and kept for the app's life.
@@ -351,8 +354,8 @@ fn window(mtm: MainThreadMarker, scene: &Scene) -> Retained<KeyWindow> {
 }
 
 /// Makes the window show `scene`: its title, background, canvas panes,
-/// sidebar, footers, labels and border. Canvas views stay from scene to scene; the chrome is
-/// made again only when it changed.
+/// sidebar, footers, labels, border and overlay. Canvas views stay from scene
+/// to scene; the chrome is made again only when it changed.
 fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     let window = &state.window;
     let title = NSString::from_str(&scene.title);
@@ -392,8 +395,13 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     web::place(&view, &scene.webs, height, canvas, mtm);
     entry::place(window, &view, &mut shown.entry, scene.entry.as_deref(), height, mtm);
 
-    let made_from =
-        Some((scene.sidebar.clone(), scene.footers.clone(), scene.labels.clone(), scene.focus));
+    let made_from = Some((
+        scene.sidebar.clone(),
+        scene.footers.clone(),
+        scene.labels.clone(),
+        scene.focus,
+        scene.overlay.clone(),
+    ));
     if shown.made_from == made_from {
         return;
     }
@@ -415,6 +423,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
         field.setLineBreakMode(NSLineBreakMode::ByTruncatingMiddle);
         shown.chrome.push(Retained::into_super(Retained::into_super(field)));
     }
+    shown.chrome.extend(scene.overlay.iter().flat_map(|o| overlay::views(o, height, mtm)));
     for chrome in &shown.chrome {
         // Under the sling's entry, if it is up: it stays on top.
         match &shown.entry {

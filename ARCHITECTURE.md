@@ -239,7 +239,8 @@ main.rs      wires the modules below. The only caller of platform. With
              `--preview UI [--data JSON]` it shows one agent UI alone and
              writes each reply's `ui_reply` line to stdout instead.
 shared.rs    the window's panes as the server keeps them for its workspace,
-             the window's size, the agent UIs the panes show and their notes:
+             the window's size, the agent UIs the panes show and their notes,
+             and the key overlay over them:
              it follows the server's layout and sends the pane commands.
 backend.rs   the app's IO: the one module that talks to the daemon, and the
              one that reads and watches the config files. Its Watch asks the
@@ -326,8 +327,10 @@ scene.rs     decides what the window shows: each pane's placeholder, an
              show, a note over a UI pane whose agent did not take its reply,
              one focus border (only with two panes or more), problems in the
              focused pane, the sidebar's rows (each with its font) and
-             notice, the sling's labelled entry (scene/sling.rs) and each
-             pane's footer (scene/status.rs). A canvas pane's chrome is
+             notice, the sling's labelled entry (scene/sling.rs), each
+             pane's footer (scene/status.rs) and the key overlay (an
+             Overlay: a dim over the window and its lines, each with a font
+             and an alignment). A canvas pane's chrome is
              decided with its gestures: the selection's box, handles and
              count (`select`), a text being typed's caret, frame and hint
              (`shapes`). Every state shows, nothing else (SPEC P6). Pure.
@@ -405,6 +408,11 @@ scene/resize.rs  the pen on a divider between panes: the press grabs it,
              each drag resizes the panes at once, the lift names it (the
              number of the pane before it, and its share) for
              `pane_resize`. Pure.
+scene/overlay.rs  the key overlay (`show-keys`): open or closed; while
+             open it takes every key (escape and the show-keys key close it)
+             and every press (one outside the panel closes it). Its panel
+             lists Command::ALL by Group in three columns, each row a title
+             and a chip of the live key from the Keymap. Pure.
 scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              selection's box (inside its pane), a labelled field: "Sling to
              <agent>" above a 44 pt box with a focus-coloured border, and
@@ -440,6 +448,8 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              layout::SMALLEST) and says its new size as Event::Resized; main
              lays the scene out again at it. All unsafe, objc2 and AppKit
              code. No decisions.
+platform/overlay.rs  draws a scene's Overlay over the chrome: a box that
+             dims the window, then a text field per line.
 platform/entry.rs  the sling's entry: a native text field in its box, with
              its label and keys, kept while the scene has one, over every view; it takes the keyboard when it
              appears, and each edit goes to main as Event::Typed. It takes
