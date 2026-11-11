@@ -38,7 +38,7 @@ use slinger_control as control;
 
 use crate::backend::{Problem, Settings, Watch};
 use crate::canvases::Canvases;
-use crate::commands::Command;
+use crate::commands::{Chord, Command};
 use crate::config::Shown;
 use crate::layout::{PaneId, Point, Rect};
 use crate::panes::Panes;
@@ -96,7 +96,9 @@ fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
     let (keys, theme) = (settings.config.keys, settings.config.theme);
     let scene = scene::preview(Arc::clone(&page), &theme, item, layout::WINDOW);
     let answer = move |event| match event {
-        Event::Resized(size) => Step::Draw(scene::preview(Arc::clone(&page), &theme, item, size)),
+        Event::Resized(size) => {
+            Step::Draw(Box::new(scene::preview(Arc::clone(&page), &theme, item, size)))
+        }
         Event::Reply(line) => {
             let mut out = io::stdout().lock();
             match writeln!(out, "{line}").and_then(|()| out.flush()) {
@@ -134,8 +136,9 @@ fn window(mut settings: Settings) -> ExitCode {
     let mut canvases = Canvases::new(control::Client::new(&socket));
     let first = view(&settings, &shared, &tools, &sidebar, &mut canvases);
     // Runs on the main thread for each key press, pen, mouse or trackpad
-    // event, paint of new ink, and tick of the window's timer. The sling's
-    // entry, then a pop-up, takes its keys first; a press on a divider between
+    // event, paint of new ink, and tick of the window's timer. The open key
+    // overlay takes every key and press; then the sling's entry, then a
+    // pop-up, takes its keys first; a press on a divider between
     // panes drags it; the pen draws with the pen tool on a canvas pane. A
     // tick stats the two config files and takes the watch's news of the
     // agents and the panes and what the canvases' followers heard; the watch
@@ -154,7 +157,7 @@ fn window(mut settings: Settings) -> ExitCode {
                     Err(why) => Step::Refuse(why),
                 };
             }
-            Event::Key(chord) if canvases.sling_key(chord) || tools.key(chord) => {
+            Event::Key(c) if taken(c, &mut shared, &mut canvases, &mut tools, &settings) => {
                 return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
             }
             Event::Key(chord) if canvases.takes(chord, &settings.config.keys) => return Step::Pass,
@@ -234,6 +237,21 @@ fn window(mut settings: Settings) -> ExitCode {
     }
 }
 
+/// Hands `chord` to what takes keys before the keymap: the open key overlay
+/// in `shared` (every key), the sling's entry, then a pop-up. False when
+/// none took it.
+fn taken(
+    chord: Chord,
+    shared: &mut Shared,
+    canvases: &mut Canvases,
+    tools: &mut Tools,
+    settings: &Settings,
+) -> bool {
+    shared.overlay.key(chord, &settings.config.keys)
+        || canvases.sling_key(chord)
+        || tools.key(chord)
+}
+
 /// Runs a selection command (`sling`, `dictate`: the entry) when the focused pane of `shared`
 /// laid in `area` shows its canvas; false when it does not. Any other command goes on (true).
 fn selection(canvases: &mut Canvases, shared: &Shared, area: Rect, command: Command) -> bool {
@@ -249,8 +267,10 @@ fn selection(canvases: &mut Canvases, shared: &Shared, area: Rect, command: Comm
 /// Hands a press on a divider between panes (with no pop-up open), and the
 /// drag and lift after it, to the panes of `shared` laid in `area`, which
 /// resize; a moved divider goes to the daemon on `socket`. A resized window
-/// lays its panes out again. Any other event goes on to [`pointer`]. False
-/// when nothing used it.
+/// lays its panes out again. The open key overlay takes every press (one
+/// outside it closes it) and every other pen, mouse or trackpad event and
+/// typed text. Any other event goes on to [`pointer`]. False when nothing
+/// used it.
 fn pen(
     event: &Event,
     tools: &mut Tools,
@@ -262,6 +282,16 @@ fn pen(
     let free = tools.open_kind().is_none();
     match *event {
         Event::Resized(size) => std::mem::replace(&mut shared.size, size) != size,
+        Event::Press(pen) if shared.overlay.press(pen.at, shared.size) => true,
+        Event::Drag(_)
+        | Event::Lift(_)
+        | Event::Scroll { .. }
+        | Event::Zoom { .. }
+        | Event::Text(_)
+            if shared.overlay.is_open() =>
+        {
+            true
+        }
         Event::Press(pen) if free && shared.dividers.down(&shared.panes, area, pen.at) => true,
         Event::Drag(pen) if shared.dividers.drag(&mut shared.panes, pen.at) => true,
         Event::Lift(pen) if shared.dividers.held() => {
@@ -356,16 +386,16 @@ fn focus(panes: &Panes, area: Rect) -> (PaneId, Rect) {
     (panes.focus(), status::content(found.map_or(area, |(_, _, frame)| frame)))
 }
 
-/// The window: the sidebar, the panes and their footers, any problem with the daemon, a
-/// canvas or the config (each said once), the notice, and the pop-up at
-/// the pen on top.
+/// The window: the sidebar, the panes and their footers, any problem with the
+/// daemon, a canvas or the config (each said once), the notice, the pop-up
+/// at the pen, and the key overlay on top.
 fn view(
     settings: &Settings,
     shared: &Shared,
     tools: &Tools,
     sidebar: &Sidebar,
     canvases: &mut Canvases,
-) -> Scene {
+) -> Box<Scene> {
     let theme = &settings.config.theme;
     let area = sidebar.panes(shared.size.rect());
     canvases.agents(sidebar.statuses());
@@ -384,5 +414,6 @@ fn view(
     let pen = (tools.tool(), tools.colour());
     scene.footers = canvases.footers(&shared.panes, area, theme, pen, &settings.config.keys);
     scene.labels.extend(tools.labels(theme));
-    scene
+    scene.overlay = shared.overlay.shown(&settings.config.keys, theme, size).map(Box::new);
+    Box::new(scene)
 }

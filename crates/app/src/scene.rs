@@ -6,7 +6,7 @@
 //! the lasso and the selection. [`sidebar`] holds the agents'
 //! statuses, the optional sidebar that shows them and the notice when one
 //! becomes blocked or done. [`sling`] holds the sling from the window: its
-//! one-line entry, and how it goes.
+//! one-line entry, and how it goes. [`overlay`] holds the key overlay.
 //!
 //! No chrome, but every state is visible (SPEC P6): the panes, each with
 //! what it shows above its footer ([`status`]), one focus border around the
@@ -23,6 +23,7 @@ pub mod canvas;
 pub mod dictation;
 pub mod ink;
 pub mod live;
+pub mod overlay;
 pub mod pages;
 pub mod resize;
 pub mod select;
@@ -108,6 +109,8 @@ pub struct Scene {
     pub focus: Border,
     /// The sling's one-line entry, over everything, while it is open.
     pub entry: Option<Box<sling::Entry>>,
+    /// The key overlay, over everything but the entry, while it is open.
+    pub overlay: Option<Box<overlay::Overlay>>,
 }
 
 /// The focus border's width, in points.
@@ -186,6 +189,7 @@ pub fn build(
         footers: Vec::new(),
         focus,
         entry: None,
+        overlay: None,
     }
 }
 
@@ -210,6 +214,7 @@ pub fn preview(page: Arc<Page>, theme: &Theme, item: bool, size: Size) -> Scene 
         footers: Vec::new(),
         focus: Border { frame: size.rect(), width: 0.0, colour: theme.background },
         entry: None,
+        overlay: None,
     }
 }
 

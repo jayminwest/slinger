@@ -17,7 +17,6 @@ pub enum Group {
     Window,
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "the key overlay and the menu bar read them"))]
 impl Group {
     /// Every group, in the order the surfaces show them.
     pub const ALL: [Group; 7] = [
@@ -44,10 +43,6 @@ impl Group {
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the key overlay, the palette and the menu bar read them")
-)]
 impl Command {
     /// The command's name for people: "Split right".
     pub const fn title(self) -> &'static str {

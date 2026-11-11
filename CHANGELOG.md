@@ -35,8 +35,12 @@ bullet with the area in bold.
   sidebar and the panes follow. It opens at 960x600 and goes down to 480x320.
 
 - **App:** two new commands, `show-keys` (`cmd+/`) and `show-commands`
-  (`cmd+k`). They do nothing yet: the key overlay and the command palette
-  that they open come next. Rebind them in `[keys]` as any other command.
+  (`cmd+k`). `show-commands` does nothing yet: the command palette it opens
+  comes next. Rebind them in `[keys]` as any other command.
+- **App:** the key overlay. `show-keys` (`cmd+/`) dims the window and lists
+  every command by group (tools, pop-ups, sling, canvas, pages, panes,
+  window), each with its key from your config, or `no key`. Escape, the
+  same key again, or a tap outside the panel closes it.
 
 - **App:** the sidebar has a `WORKSPACES` heading and a row per workspace:
   its name, bold on a lighter row for the workspace the window shows; under

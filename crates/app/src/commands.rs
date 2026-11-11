@@ -7,10 +7,6 @@
 
 mod registry;
 
-#[cfg_attr(
-    not(test),
-    expect(unused_imports, reason = "the key overlay and the menu bar name the groups")
-)]
 pub use registry::Group;
 
 /// Every action a key can run. Later seeds add to [`Command::ALL`].
