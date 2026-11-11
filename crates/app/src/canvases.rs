@@ -9,6 +9,11 @@
 //! with the strokes. The sling sends the selection ([`sling`]) once the ink
 //! before it is in. Runs on the main thread and never waits: the followers,
 //! the outbox and the slinger do.
+//!
+//! Each pane keeps its own page: a page followed once however many panes
+//! show it. The page commands, undo and redo are in [`paging`].
+
+mod paging;
 
 use std::borrow::Cow;
 use std::rc::Rc;
@@ -21,7 +26,8 @@ use crate::layout::{PaneId, Point, Rect, Size, Viewport};
 use crate::mirror::{Applied, Mirror};
 use crate::panes::{Kind, Panes};
 use crate::scene::canvas::{Item, ItemId};
-use crate::scene::ink::{Ink, Pen};
+use crate::scene::ink::{Answer, Ink, Pen};
+use crate::scene::pages::{self, Pages};
 use crate::scene::select::{Landing, Select, Selection};
 use crate::scene::shapes::{Press, Shapes};
 use crate::scene::sling::Sling;
@@ -45,22 +51,30 @@ pub struct Canvases {
     pen: Option<(PaneId, Rect)>,
     /// When the oldest pen event no scene has shown yet happened.
     unshown: Option<f64>,
+    /// The question a page command asks, if any.
+    asks: Pages,
+    /// The panes waiting for a new page, by the key of its `page.add`.
+    turning: Vec<(u64, PaneId, String)>,
 }
 
-/// One canvas followed: its page as last heard, the number of the last
-/// change heard, and what is wrong, if anything.
+/// One canvas page followed: the page asked for (`None`: the first), as
+/// last heard, the number of the last change heard, and what is wrong, if
+/// anything.
 struct Open {
     canvas: String,
+    asked: Option<String>,
     follower: Follower,
     mirror: Option<Mirror>,
     heard: u64,
     problem: Option<Problem>,
 }
 
-/// One canvas pane: where it looks, and what it last drew.
+/// One canvas pane: where it looks, the page it shows (by canvas and page
+/// id; the first page without one), and what it last drew.
 #[derive(Default)]
 struct View {
     viewport: Viewport,
+    page: Option<(String, String)>,
     last: Option<Rc<canvas::Scene>>,
 }
 
@@ -70,8 +84,23 @@ impl Canvases {
         let (outbox, slinger) = (Outbox::start(daemon.clone()), Slinger::start(daemon.clone()));
         let (ink, select, sling) = (Ink::default(), Select::default(), Sling::default());
         let (open, views) = (Vec::new(), Vec::new());
-        let (shapes, pen, unshown) = (Shapes::default(), None, None);
-        Self { daemon, open, views, ink, select, shapes, outbox, sling, slinger, pen, unshown }
+        let (shapes, asks, turning) = (Shapes::default(), Pages::default(), Vec::new());
+        let (pen, unshown) = (None, None);
+        Self {
+            daemon,
+            open,
+            views,
+            ink,
+            select,
+            shapes,
+            outbox,
+            sling,
+            slinger,
+            pen,
+            unshown,
+            asks,
+            turning,
+        }
     }
 
     /// Follows every canvas, and sends ink not yet sent, through `daemon`
@@ -102,30 +131,49 @@ impl Canvases {
                         open.heard = feed.next.saturating_sub(1);
                         let Some(mirror) = &mut open.mirror else { continue };
                         if mirror.apply(&feed) == Applied::Gone {
-                            lost.push(open.canvas.clone());
+                            let next = pages::after_remove(mirror.pages(), mirror.page());
+                            let next = next.map(str::to_string);
+                            lost.push((open.canvas.clone(), mirror.page().to_string(), next));
                         }
                     }
                 }
             }
         }
-        for canvas in lost {
-            self.turn(&canvas, None);
+        for (canvas, page, next) in lost {
+            self.gone(&canvas, &page, next.as_deref());
         }
         let sent = self.send();
         self.poll_sling() || sent || changed
     }
 
-    /// Takes the daemon's answers to the ink, lets go of the changes the
-    /// mirrors now hold, and hands the next change to the outbox. Returns
-    /// whether there were answers.
+    /// Takes the daemon's answers to the ink (a pane that asked for a new
+    /// page turns to it), lets go of the changes every page followed of
+    /// their canvas now holds, and hands the next change to the outbox.
+    /// Returns whether there were answers.
     fn send(&mut self) -> bool {
         let answers = self.outbox.answers();
         let answered = !answers.is_empty();
         for (key, answer) in answers {
+            if let Some(at) = self.turning.iter().position(|(k, ..)| *k == key) {
+                if let Answer::NewPage { page, .. } = &answer {
+                    let (_, pane, canvas) = self.turning.remove(at);
+                    self.view(pane).page = Some((canvas, page.clone()));
+                } else if matches!(answer, Answer::Refused(_)) {
+                    self.turning.remove(at);
+                }
+            }
             self.ink.answered(key, answer);
         }
+        // Every page of a canvas hears the same numbers: the slowest decides.
+        let mut heard: Vec<(&str, u64)> = Vec::new();
         for open in self.open.iter().filter(|o| o.mirror.is_some()) {
-            self.ink.heard(&open.canvas, open.heard);
+            match heard.iter_mut().find(|(c, _)| *c == open.canvas) {
+                Some((_, upto)) => *upto = (*upto).min(open.heard),
+                None => heard.push((&open.canvas, open.heard)),
+            }
+        }
+        for (canvas, upto) in heard {
+            self.ink.heard(canvas, upto);
         }
         if let Some((key, change)) = self.ink.next() {
             self.outbox.send(key, change);
@@ -153,13 +201,14 @@ impl Canvases {
         (tool, colour): (Tool, Rgb),
     ) -> bool {
         let Some(canvas) = canvas_of(panes, pane).filter(|_| !pen.touch) else { return false };
-        let open = self.open.iter().find(|o| o.canvas == canvas);
+        self.asks.cancel();
+        let open = find(&self.open, canvas, wanted(&self.views, pane, canvas));
         let Some(shown) = open.and_then(|o| o.mirror.as_ref()).map(|m| m.page().to_string()) else {
             return false;
         };
         let viewport = self.view(pane).viewport;
         let at = to_canvas(viewport, frame, pen.at);
-        let items = pane_shown(&self.open, &self.ink, panes, pane);
+        let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
         let press = Press { at, when: pen.when, zoom: viewport.zoom() };
         let here = (canvas, shown.as_str());
         if self.shapes.down((tool, colour), here, press, &items, &mut self.ink) {
@@ -184,7 +233,7 @@ impl Canvases {
         if self.ink.drag(at) || self.shapes.drag(at) {
             return true;
         }
-        let items = pane_shown(&self.open, &self.ink, panes, pane);
+        let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
         self.select.drag(at, &items)
     }
 
@@ -199,17 +248,17 @@ impl Canvases {
         let at = to_canvas(self.view(pane).viewport, frame, pen.at);
         let landing = under.and_then(|(to, frame)| {
             let canvas = canvas_of(panes, to)?;
-            let open = self.open.iter().find(|o| o.canvas == canvas)?;
+            let open = find(&self.open, canvas, wanted(&self.views, to, canvas))?;
             let shown = open.mirror.as_ref()?.page().to_string();
             Some((canvas, shown, to_canvas(self.view(to).viewport, frame, pen.at)))
         });
         let ended = self.ink.up(Some(at)) || {
-            let items = pane_shown(&self.open, &self.ink, panes, pane);
+            let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
             self.shapes.up(Some(at), &items, &mut self.ink) || {
                 let landing =
                     landing.as_ref().map(|(canvas, page, at)| Landing { canvas, page, at: *at });
-                let source =
-                    canvas_of(panes, pane).and_then(|c| self.open.iter().find(|o| o.canvas == c));
+                let source = canvas_of(panes, pane)
+                    .and_then(|c| find(&self.open, c, wanted(&self.views, pane, c)));
                 let source = source.and_then(|o| o.mirror.as_ref());
                 let carry = |ids: &[ItemId], by| match (source, landing) {
                     (Some(mirror), Some(to)) => mirror.carried(ids, to.page, by),
@@ -223,16 +272,27 @@ impl Canvases {
         ended
     }
 
-    /// Whether a text is being typed: the keys that type go to it.
+    /// Whether a text is being typed, or a page command asks: the keys
+    /// that type go to it.
     pub fn editing(&self) -> bool {
-        self.shapes.editing()
+        self.shapes.editing() || self.asks.asking()
     }
 
-    /// Typed `text` goes into the text being typed; escape ends it, and the
-    /// text goes to the daemon. Returns false when no text is being typed.
+    /// Typed `text` answers a page command's question, or goes into the
+    /// text being typed; escape ends it, and the text goes to the daemon.
+    /// Returns false when neither is open.
     pub fn typed(&mut self, text: &str) -> bool {
         // The sling's open entry has the keys: its text is not the canvas's.
-        let used = !self.typing() && self.shapes.typed(text, &mut self.ink);
+        if self.typing() {
+            return false;
+        }
+        if self.asks.asking() {
+            if let Some((canvas, op)) = self.asks.typed(text) {
+                self.change_pages(canvas, op);
+            }
+            return true;
+        }
+        let used = self.shapes.typed(text, &mut self.ink);
         if used {
             self.send();
         }
@@ -244,20 +304,29 @@ impl Canvases {
         self.select.selection()
     }
 
+    /// Whether `pane` of `panes` shows the selection's page.
+    fn shows_selection(&self, panes: &Panes, pane: PaneId) -> bool {
+        let Some(s) = self.selection() else { return false };
+        let asked = wanted(&self.views, pane, &s.canvas);
+        let open = find(&self.open, &s.canvas, asked).and_then(|o| o.mirror.as_ref());
+        let showing = asked.or(open.map(Mirror::page));
+        canvas_of(panes, pane) == Some(&s.canvas) && showing == Some(&s.page)
+    }
+
     /// Removes the selection, in one step, when `pane` of `panes` shows its
-    /// canvas. Returns false when it does not, or there is none.
+    /// page. Returns false when it does not, or there is none.
     pub fn delete_selection(&mut self, panes: &Panes, pane: PaneId) -> bool {
-        let shown = self.selection().is_some_and(|s| canvas_of(panes, pane) == Some(&s.canvas));
+        let shown = self.shows_selection(panes, pane);
         shown && self.select.delete(&mut self.ink) && {
             self.send();
             true
         }
     }
 
-    /// Clears the selection when `pane` of `panes` shows its canvas.
+    /// Clears the selection when `pane` of `panes` shows its page.
     /// Returns false when it does not, or there is none.
     pub fn clear_selection(&mut self, panes: &Panes, pane: PaneId) -> bool {
-        let shown = self.selection().is_some_and(|s| canvas_of(panes, pane) == Some(&s.canvas));
+        let shown = self.shows_selection(panes, pane);
         shown && self.select.clear()
     }
 
@@ -269,24 +338,6 @@ impl Canvases {
     /// The last stroke's pen-to-paint delays as one line (SPEC O2), once.
     pub fn delay_log(&mut self) -> Option<String> {
         self.ink.delay_log()
-    }
-
-    /// Shows the page after the one `pane`'s canvas shows, in every pane on
-    /// that canvas. Until it arrives, the panes keep the page they have.
-    pub fn next_page(&mut self, panes: &Panes, pane: PaneId) {
-        let Some(canvas) = canvas_of(panes, pane) else { return };
-        let open = self.open.iter().find(|o| o.canvas == canvas);
-        let next = open.and_then(|o| o.mirror.as_ref()).map(|m| m.next_page().to_string());
-        if next.is_some() {
-            self.turn(canvas, next);
-        }
-    }
-
-    /// Follows `page` of `canvas` from now on.
-    fn turn(&mut self, canvas: &str, page: Option<String>) {
-        if let Some(open) = self.open.iter_mut().find(|o| o.canvas == canvas) {
-            open.follower = Follower::start(self.daemon.clone(), canvas.to_string(), page);
-        }
     }
 
     /// Drags `pane`'s canvas by `dx`, `dy` screen points.
@@ -310,38 +361,39 @@ impl Canvases {
     }
 
     /// The scene of each canvas pane of `panes` laid in `area` whose page
-    /// has arrived. Starts following each canvas a pane shows, stops
-    /// following the others, and forgets the views of panes that closed.
+    /// has arrived; a pane turned to a page still on its way keeps what it
+    /// drew. Starts following each page a pane shows, stops following the
+    /// others, forgets the views of panes that closed, and clears a
+    /// selection no pane shows.
     pub fn show(&mut self, panes: &Panes, area: Rect, theme: &Theme) -> Vec<CanvasPane> {
-        let placed = panes.place(area);
-        let shown: Vec<&str> = placed
+        let placed: Vec<_> =
+            panes.place(area).into_iter().filter(|(_, p, _)| p.kind == Kind::Canvas).collect();
+        let shown: Vec<(&str, Option<String>)> = placed
             .iter()
-            .filter(|(_, pane, _)| pane.kind == Kind::Canvas)
-            .map(|(_, pane, _)| pane.name.as_str())
+            .map(|(id, p, _)| {
+                (p.name.as_str(), wanted(&self.views, *id, &p.name).map(str::to_string))
+            })
             .collect();
-        for o in self.open.iter().filter(|o| !shown.contains(&o.canvas.as_str())) {
+        for o in self.open.iter().filter(|o| !shown.iter().any(|(c, _)| *c == o.canvas)) {
             // No feed of it comes now: its strokes already written are let go.
             self.ink.heard(&o.canvas, u64::MAX);
         }
-        self.open.retain(|o| shown.contains(&o.canvas.as_str()));
-        for canvas in &shown {
-            if !self.open.iter().any(|o| o.canvas == *canvas) {
-                let follower = Follower::start(self.daemon.clone(), (*canvas).to_string(), None);
-                self.open.push(Open {
-                    canvas: (*canvas).to_string(),
-                    follower,
-                    mirror: None,
-                    heard: 0,
-                    problem: None,
-                });
+        self.open.retain(|o| shown.iter().any(|(c, p)| matches(o, c, p.as_deref())));
+        for (canvas, page) in &shown {
+            if find(&self.open, canvas, page.as_deref()).is_none() {
+                let follower =
+                    Follower::start(self.daemon.clone(), (*canvas).to_string(), page.clone());
+                let (canvas, asked) = ((*canvas).to_string(), page.clone());
+                let (mirror, problem) = (None, None);
+                self.open.push(Open { canvas, asked, follower, mirror, heard: 0, problem });
             }
         }
         self.views.retain(|(id, _)| placed.iter().any(|(p, _, _)| p == id));
+        self.clear_hidden_selection(&shown);
         let mut scenes = Vec::new();
         for (id, pane, frame) in placed {
-            let open =
-                self.open.iter().find(|o| pane.kind == Kind::Canvas && o.canvas == pane.name);
-            let Some(mirror) = open.and_then(|o| o.mirror.as_ref()) else { continue };
+            let open = find(&self.open, &pane.name, wanted(&self.views, id, &pane.name));
+            let mirror = open.and_then(|o| o.mirror.as_ref());
             let screen = Size { width: frame.width, height: frame.height };
             let at = self.views.iter().position(|(p, _)| *p == id);
             let at = at.unwrap_or_else(|| {
@@ -349,6 +401,12 @@ impl Canvases {
                 self.views.len() - 1
             });
             let view = &mut self.views[at].1;
+            let Some(mirror) = mirror else {
+                if let Some(last) = &view.last {
+                    scenes.push(CanvasPane { pane: id, frame, scene: Rc::clone(last) });
+                }
+                continue;
+            };
             let last = view.last.as_deref();
             let here = (pane.name.as_str(), mirror.page());
             let items = self.ink.shown(here.0, here.1, mirror.items());
@@ -366,6 +424,21 @@ impl Canvases {
         }
         scenes
     }
+
+    /// Clears the selection when no pane in `shown` (each a canvas and the
+    /// page it asked for) shows its page. A pane whose first page has not
+    /// arrived may show it.
+    fn clear_hidden_selection(&mut self, shown: &[(&str, Option<String>)]) {
+        let Some(s) = self.select.selection() else { return };
+        let maybe = shown.iter().any(|(canvas, asked)| {
+            let open = find(&self.open, canvas, asked.as_deref()).and_then(|o| o.mirror.as_ref());
+            let page = asked.as_deref().or(open.map(Mirror::page));
+            *canvas == s.canvas && page.is_none_or(|p| p == s.page)
+        });
+        if !maybe {
+            self.select.clear();
+        }
+    }
 }
 
 /// The canvas point under `at`, a point in the window, in a pane laid at
@@ -376,10 +449,34 @@ fn to_canvas(viewport: Viewport, frame: Rect, at: Point) -> Point {
 
 /// The page `pane` of `panes` shows, as the user sees it: the server's copy
 /// with the ink laid over it; empty while it has not arrived.
-fn pane_shown<'a>(open: &'a [Open], ink: &Ink, panes: &Panes, pane: PaneId) -> Vec<Cow<'a, Item>> {
+fn pane_shown<'a>(
+    open: &'a [Open],
+    views: &[(PaneId, View)],
+    ink: &Ink,
+    panes: &Panes,
+    pane: PaneId,
+) -> Vec<Cow<'a, Item>> {
     let Some(canvas) = canvas_of(panes, pane) else { return Vec::new() };
-    let mirror = open.iter().find(|o| o.canvas == canvas).and_then(|o| o.mirror.as_ref());
+    let mirror = find(open, canvas, wanted(views, pane, canvas)).and_then(|o| o.mirror.as_ref());
     mirror.map_or_else(Vec::new, |m| ink.shown(canvas, m.page(), m.items()))
+}
+
+/// Whether `open` follows the page `page` of `canvas` names (`None`: the
+/// first): it was asked for that, or it shows that page.
+fn matches(open: &Open, canvas: &str, page: Option<&str>) -> bool {
+    let showing = || open.mirror.as_ref().map(Mirror::page);
+    open.canvas == canvas && (open.asked.as_deref() == page || page.is_some() && showing() == page)
+}
+
+/// The page followed that `page` of `canvas` names, if any.
+fn find<'a>(open: &'a [Open], canvas: &str, page: Option<&str>) -> Option<&'a Open> {
+    open.iter().find(|o| matches(o, canvas, page))
+}
+
+/// The page `pane` shows of `canvas`: `None` for the first.
+fn wanted<'a>(views: &'a [(PaneId, View)], pane: PaneId, canvas: &str) -> Option<&'a str> {
+    let view = views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v)?;
+    view.page.as_ref().filter(|(c, _)| c == canvas).map(|(_, p)| p.as_str())
 }
 
 /// The canvas `pane` shows, if it shows one.

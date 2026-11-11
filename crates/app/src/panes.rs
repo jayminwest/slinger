@@ -207,7 +207,13 @@ impl Panes {
             | Command::ToolText
             | Command::ToolBox
             | Command::ToolArrow
-            | Command::Sling => {}
+            | Command::Sling
+            | Command::PreviousPage
+            | Command::NewPage
+            | Command::RenamePage
+            | Command::RemovePage
+            | Command::Undo
+            | Command::Redo => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),

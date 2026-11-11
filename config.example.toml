@@ -106,7 +106,8 @@
 # Zoom the focused pane's canvas in or out about its centre. The trackpad pinches too.
 #zoom-in = "alt+="
 #zoom-out = "alt+-"
-# Show the next page of the focused pane's canvas, back to the first after the last.
+# Pages: each pane shows its own page of its canvas, named at its foot. Turn the
+# focused pane to the next page (after the last, the first) or the one before.
 #next-page = "cmd+]"
 # Remove the items the lasso selected, in one undo step. With nothing selected on the
 # focused pane's canvas the key goes on as usual.
@@ -125,3 +126,17 @@
 # the selection. Return sends (an empty prompt too), escape cancels; while it is open it
 # takes every other key. With nothing selected on the focused pane's canvas the key goes on.
 #sling = "cmd+return"
+# Turn the focused pane to the page before; before the first, the last.
+#previous-page = "cmd+["
+# Add a page after the last; the focused pane turns to it.
+#new-page = "cmd+n"
+# Type a new name for the focused pane's page: return keeps it, escape keeps the old one.
+#rename-page = "cmd+shift+r"
+# Remove the focused pane's page and its items. A page with items asks first: the same
+# command again, or return, removes it; escape keeps it. The last page stays.
+#remove-page = "cmd+shift+delete"
+# Undo the last thing you did on the focused pane's canvas (a stroke, an erase, a move,
+# a text, a page), or redo what you undid. An agent's items are its own: your undo never
+# takes them back.
+#undo = "cmd+z"
+#redo = "cmd+shift+z"

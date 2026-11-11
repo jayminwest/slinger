@@ -8,7 +8,9 @@
 //! daemon is told on another thread, one change at a time, in the order the
 //! changes were made: a change goes only once every change before it is
 //! written, so the canvas file holds them in that order. One change is one
-//! `canvas_apply`, so one undo step.
+//! `canvas_apply`, so one undo step. An undo, a redo and a change to the
+//! pages wait their turn in the same queue: an undo pressed right after a
+//! stroke undoes that stroke. They show nothing here; the feed brings them.
 //!
 //! Local ink and the server's echo: a change stays here, and shows from here,
 //! until the change feed has passed the number it was written under
@@ -32,6 +34,7 @@ use crate::backend::Problem;
 use crate::config::Rgb;
 use crate::layout::Point;
 use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::pages::PageOp;
 
 /// The pen's line width, in canvas units: tldraw's small pen.
 pub const PEN_WIDTH: f64 = 2.0;
@@ -67,7 +70,8 @@ pub struct Stroke {
     pub points: Vec<Point>,
 }
 
-/// One change to a page: one `canvas_apply`, so one undo step.
+/// One change to a page or a canvas: one `canvas_apply`, so one undo step,
+/// or one `canvas_undo` or `canvas_redo`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Change {
     /// A pen line to add.
@@ -85,6 +89,11 @@ pub enum Change {
     /// Items carried in from another page, one `add` each: a selection
     /// dragged into this page's pane ([`Ink::carry`]).
     Carry { canvas: String, page: String, items: Vec<Carried> },
+    /// A change to the canvas's pages.
+    Page { canvas: String, op: PageOp },
+    /// The user's last step on the canvas undone, or redone when `redo`.
+    /// Steps are per author, so an agent's items are never undone by it.
+    Step { canvas: String, redo: bool },
 }
 
 /// An item carried to another page: as it will draw there (under its old
@@ -105,19 +114,23 @@ impl Change {
             | Change::Move { canvas, .. }
             | Change::Put { canvas, .. }
             | Change::Set { canvas, .. }
-            | Change::Carry { canvas, .. } => canvas,
+            | Change::Carry { canvas, .. }
+            | Change::Page { canvas, .. }
+            | Change::Step { canvas, .. } => canvas,
         }
     }
 
-    /// The page it changes.
-    pub fn page(&self) -> &str {
+    /// The page whose items it changes as it shows here; `None` for a
+    /// change to the pages, an undo or a redo, which show nothing here.
+    pub fn page(&self) -> Option<&str> {
         match self {
-            Change::Add(stroke) => &stroke.page,
+            Change::Add(stroke) => Some(&stroke.page),
             Change::Remove { page, .. }
             | Change::Move { page, .. }
             | Change::Put { page, .. }
             | Change::Set { page, .. }
-            | Change::Carry { page, .. } => page,
+            | Change::Carry { page, .. } => Some(page),
+            Change::Page { .. } | Change::Step { .. } => None,
         }
     }
 }
@@ -125,8 +138,11 @@ impl Change {
 /// What the daemon said to one change.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Answer {
-    /// Written; the number of its line in the canvas file.
+    /// Written; the number of its last line in the canvas file, or 0 when
+    /// it wrote none (an undo with nothing to undo): nothing to wait for.
     Applied(u64),
+    /// A new page written, under that number: its id.
+    NewPage { seq: u64, page: String },
     /// Not reached: send it again.
     Unreachable(Problem),
     /// Refused: drop it.
@@ -209,6 +225,11 @@ impl Ink {
         self.queue(change, None);
     }
 
+    /// As [`Ink::push`], and the key its answer comes back under.
+    pub fn push_keyed(&mut self, change: Change) -> u64 {
+        self.queue(change, None)
+    }
+
     /// A selection carried to another page: the `add` of its items there,
     /// then the `remove` of them here, each one step on its canvas. Both
     /// show at once; the removal goes only once the add is written, and is
@@ -247,7 +268,7 @@ impl Ink {
     pub fn answered(&mut self, key: u64, answer: Answer) {
         let Some(at) = self.pending.iter().position(|p| p.key == key) else { return };
         match answer {
-            Answer::Applied(seq) => {
+            Answer::Applied(seq) | Answer::NewPage { seq, .. } => {
                 self.pending[at].state = State::Sent(seq);
                 self.problem = None;
             }
@@ -280,7 +301,8 @@ impl Ink {
     pub fn shown<'a>(&self, canvas: &str, page: &str, items: &'a [Item]) -> Vec<Cow<'a, Item>> {
         let mut shown: Vec<Cow<'a, Item>> = items.iter().map(Cow::Borrowed).collect();
         let here = |c: &str, p: &str| c == canvas && p == page;
-        for pending in self.pending.iter().filter(|p| here(p.change.canvas(), p.change.page())) {
+        let mine = |p: &&Pending| p.change.page().is_some_and(|page| here(p.change.canvas(), page));
+        for pending in self.pending.iter().filter(mine) {
             match &pending.change {
                 Change::Add(stroke) => shown.push(Cow::Owned(local(pending.key, stroke))),
                 Change::Carry { items, .. } => {
@@ -313,6 +335,7 @@ impl Ink {
                         *item = Cow::Owned(Item { id: *id, colour, shape: shape.clone() });
                     }
                 }
+                Change::Page { .. } | Change::Step { .. } => {}
             }
         }
         let drawing = self.drawing.iter().filter(|(_, s)| here(&s.canvas, &s.page));

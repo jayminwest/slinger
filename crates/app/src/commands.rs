@@ -40,8 +40,8 @@ pub enum Command {
     /// Zoom the focused pane's canvas in or out about the pane's centre.
     ZoomIn,
     ZoomOut,
-    /// Show the next page of the focused pane's canvas. For now: pages get
-    /// their own commands with slinger-e91c.
+    /// Turn the focused pane to the next page of its canvas, after the last
+    /// to the first. Other panes keep their page.
     NextPage,
     /// Remove the lasso's selection, in one undo step.
     DeleteSelection,
@@ -57,6 +57,18 @@ pub enum Command {
     ToolArrow,
     /// Sling the selection: a one-line prompt opens at it.
     Sling,
+    /// Turn the focused pane to the page before, before the first to the last.
+    PreviousPage,
+    /// Add a page after the last; the focused pane turns to it.
+    NewPage,
+    /// Type a new name for the focused pane's page.
+    RenamePage,
+    /// Remove the focused pane's page, asking once when it has items.
+    RemovePage,
+    /// Undo the user's last step on the focused pane's canvas; an agent's
+    /// steps are its own.
+    Undo,
+    Redo,
 }
 
 /// How many commands there are.
@@ -64,7 +76,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 33] = [
+    pub const ALL: [(Command, &str); 39] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -98,6 +110,12 @@ impl Command {
         (Command::ToolBox, "tool-box"),
         (Command::ToolArrow, "tool-arrow"),
         (Command::Sling, "sling"),
+        (Command::PreviousPage, "previous-page"),
+        (Command::NewPage, "new-page"),
+        (Command::RenamePage, "rename-page"),
+        (Command::RemovePage, "remove-page"),
+        (Command::Undo, "undo"),
+        (Command::Redo, "redo"),
     ];
 
     /// The command called `name` in the config file.
@@ -245,6 +263,12 @@ impl Default for Keymap {
             on(CMD, '5'),
             on(CMD, '6'),
             on(CMD, '\r'),
+            on(CMD, '['),
+            on(CMD, 'n'),
+            on(CMD | SHIFT, 'r'),
+            on(CMD | SHIFT, '\u{7f}'),
+            on(CMD, 'z'),
+            on(CMD | SHIFT, 'z'),
         ])
     }
 }

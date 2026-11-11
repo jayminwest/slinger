@@ -244,8 +244,10 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
              (`canvas_apply`, one each: a stroke's, text's, box's or
              arrow's `add`, an erase's or a delete's `remove`, a drag's
              `move` with a `set` of each arrow that follows, a text edit's
-             `set`) on a thread of its own, in the order handed in, and
-             hands back each answer.
+             `set`, a page's `page.add`, `page.rename` or `page.remove`;
+             an undo or a redo as `canvas_undo` or `canvas_redo`) on a
+             thread of its own, in the order handed in, and hands back each
+             answer (a new page's id with it).
 backend/sling.rs  the Slinger: each sling as one `sling_send` (canvas, page,
              the selected ids, the prompt) on a thread of its own, and the
              daemon's answer back. The daemon picks the agent.
@@ -261,11 +263,16 @@ mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              feed reply applied in order; reads the canvas file's items
              (tenths, delta points, `#rrggbb`, an arrow's bound ends) into
              scene items, and writes the pen's changes as `canvas_apply`
-             operations, and the frame a typed text is stored with. Pure.
-canvases.rs  the canvas panes: one follower and mirror per canvas shown, each
-             pane's viewport and last scene; pan, zoom and next page; the
-             pen's ink, the eraser's and lasso's work and the text, box and
-             arrow tools' over each page, and the outbox they share.
+             operations, and the frame a typed text is stored with. Keeps
+             the canvas's pages, with their names. Pure.
+canvases.rs  the canvas panes: one follower and mirror per page shown, each
+             pane's page, viewport and last scene (kept on screen until a
+             page turned to arrives); the pen's ink, the eraser's and
+             lasso's work and the text, box and arrow tools' over each page,
+             and the outbox they share. A selection no pane shows clears.
+canvases/paging.rs  the canvas commands on a pane: pan, zoom, the page
+             commands (each turns only that pane) and undo and redo, each
+             through the ink's queue; each pane's page line.
 canvases/sling.rs  the sling from the window: opens the entry at the
              focused pane's selection, sends it once the ink of its canvas
              is written (`Ink::settled`), takes the answer. `sling_now` is
@@ -302,8 +309,12 @@ scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport
 scene/ink.rs  the pen's ink: the stroke under the pen and the finished changes
              (strokes, removals, moves) the server's page does not hold yet,
              laid over it; which change goes next (one at a time, oldest
-             first, a failed one again first); the pen-to-paint delay log
-             (O2). Pure.
+             first, a failed one again first), page changes, undos and
+             redos in the same queue; the pen-to-paint delay log (O2). Pure.
+scene/pages.rs  pages (SPEC D6): the next and previous page, a new page's
+             name, where a pane goes when its page is removed, the page
+             line, and the two questions a page command asks (a rename's
+             typed name; a removal of a page with items, asked once). Pure.
 scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
              hides what it touches at once and removes it on the lift; a loop
              selects the items it holds whole, with a plain box; a drag inside
@@ -420,7 +431,17 @@ erased or selected. A finished erase, move or delete joins the ink's queue
 as one `canvas_apply`, in turn with the strokes, and shows from there until
 the feed brings it. The user may erase, move and delete any item, an
 agent's too. Delete and clear act only when the focused pane shows the
-selection's canvas; otherwise their keys go on (a delete in an agent UI).
+selection's page; otherwise their keys go on (a delete in an agent UI).
+
+**Pages and undo (SPEC D6):** each pane keeps its own page and viewport;
+a page shown in two panes is followed once. The pane's page name is its
+one quiet line, at its foot. Undo and redo are the daemon's (`canvas_undo`,
+`canvas_redo`, per author, as `user`), so the user's undo never takes back
+an agent's item. They and the page changes wait in the ink's queue, so an
+undo pressed right after a stroke undoes that stroke, and show when the
+feed brings them. A reply that wrote no line (nothing to undo) has nothing
+to wait for. A carry between pages is two steps (the add there, then the
+removal here); on one canvas, one undo takes back the removal only.
 
 **Between panes (SPEC section 11):** a press within 8 points of the divider
 between two panes grabs it (before any tool sees the press), each drag
@@ -516,7 +537,8 @@ Each boundary has something that fails when it is broken:
 | An erase, a move and a delete are one change each and show at once; a lasso selects what it holds whole; the selection clears | `crates/app/src/scene/select/tests.rs` |
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
-| The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items | `crates/app/src/backend/outbox.rs`, against a real daemon |
+| The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |
+| Page commands turn, name and remove pages; removing a page with items asks once | `crates/app/src/scene/pages/tests.rs` |
 | Layout is fully tested | the 100% floor on `crates/app/src/layout.rs` in `budgets/coverage-budgets.json` |
 | The app binary does not grow unnoticed | `check:binary-size` |
 

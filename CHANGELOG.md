@@ -45,6 +45,14 @@ bullet with the area in bold.
   one step. Pick a tool from the tool and shape pop-ups or with the new
   `tool-pen`, `tool-eraser`, `tool-lasso`, `tool-text`, `tool-box` and
   `tool-arrow` keys (`cmd+1` to `cmd+6`).
+- **Canvas:** pages, undo and redo in the app. Each pane shows its own page,
+  named quietly at its foot. `cmd+]` and `cmd+[` turn the focused pane to
+  the next or previous page, `cmd+n` adds a page, `cmd+shift+r` renames
+  the page (type the name, then `return`), and `cmd+shift+delete` removes
+  it; a page with items asks first, and the last page stays. `cmd+z` undoes
+  your last step on the canvas and `cmd+shift+z` redoes it. Undo is yours
+  alone: it never takes back what an agent put. New keys: `previous-page`,
+  `new-page`, `rename-page`, `remove-page`, `undo`, `redo`.
 - **App:** resize panes and move things between them with the pen. Drag
   the divider between two panes (it is easy to catch: 8 points either
   side) to resize them; the workspace keeps the new sizes, and so do the

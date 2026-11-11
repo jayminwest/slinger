@@ -197,6 +197,12 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
             "cmd+5",
             "cmd+6",
             "cmd+return",
+            "cmd+[",
+            "cmd+n",
+            "cmd+shift+r",
+            "cmd+shift+delete",
+            "cmd+z",
+            "cmd+shift+z",
         ]
         .map(|c| Some(Chord::parse(c))),
     };

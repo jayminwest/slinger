@@ -16,6 +16,7 @@ use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::ink::{Carried, Change, Stroke};
+use crate::scene::pages::{Page, PageOp};
 
 /// The height of text, in canvas units: the packet's text size, so the pane
 /// and the images an agent reads agree.
@@ -31,8 +32,8 @@ const LINE_HEIGHT: f64 = 1.3;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Mirror {
     page: String,
-    /// The canvas's page ids, in order.
-    pages: Vec<String>,
+    /// The canvas's pages, in order.
+    pages: Vec<Page>,
     /// The page's items that can be drawn, by id, and the object each was
     /// read from (to lay a `set` over). Both are in id order.
     items: Vec<Item>,
@@ -53,8 +54,7 @@ pub enum Applied {
 impl Mirror {
     /// The page `canvas_show` gave.
     pub fn new(shown: &CanvasPage) -> Self {
-        let pages =
-            shown.pages.iter().filter_map(|p| Some(p.get("id")?.as_str()?.to_string())).collect();
+        let pages = shown.pages.iter().filter_map(page).collect();
         let mut mirror =
             Self { page: shown.page.clone(), pages, items: Vec::new(), objects: Vec::new() };
         for item in &shown.items {
@@ -73,11 +73,9 @@ impl Mirror {
         &self.items
     }
 
-    /// The id of the page after this one, back to the first after the last.
-    pub fn next_page(&self) -> &str {
-        let at = self.pages.iter().position(|p| *p == self.page);
-        let next = at.map_or(0, |i| (i + 1) % self.pages.len());
-        self.pages.get(next).map_or(&self.page, |p| p)
+    /// The canvas's pages, in order.
+    pub fn pages(&self) -> &[Page] {
+        &self.pages
     }
 
     /// Items `ids` of this page as they would be carried to `page` (of this
@@ -145,22 +143,31 @@ impl Mirror {
                 })
             }
             "page.add" => {
-                self.pages.extend(text("page").map(str::to_string));
+                self.pages.extend(page(op));
+                false
+            }
+            "page.rename" => {
+                let found = self.pages.iter_mut().find(|p| Some(p.id.as_str()) == text("page"));
+                if let (Some(found), Some(name)) = (found, text("name")) {
+                    found.name = name.to_string();
+                }
                 false
             }
             "page.restore" => {
                 let index = op.get("index").and_then(Value::as_u64).unwrap_or(u64::MAX);
                 let index = usize::try_from(index).unwrap_or(usize::MAX).min(self.pages.len());
-                self.pages.insert(index, text("page").unwrap_or_default().to_string());
+                if let Some(restored) = page(op) {
+                    self.pages.insert(index, restored);
+                }
                 let items = op.get("items").and_then(Value::as_array);
                 items.into_iter().flatten().fold(false, |any, item| self.put(item) | any)
             }
             "page.remove" if text("page") == Some(self.page.as_str()) => return Applied::Gone,
             "page.remove" => {
-                self.pages.retain(|p| Some(p.as_str()) != text("page"));
+                self.pages.retain(|p| Some(p.id.as_str()) != text("page"));
                 false
             }
-            // `page.rename` changes nothing drawn; `page.move` and kinds
+            // `page.move` and kinds
             // this app does not know are skipped, as the server's own reader does.
             _ => false,
         };
@@ -205,6 +212,14 @@ impl Mirror {
         }
         true
     }
+}
+
+/// The page an object names: `{"id", "name"}` as `canvas_show` lists it, or
+/// an operation's `page` and `name`. A page without a name is named by its id.
+fn page(o: &Value) -> Option<Page> {
+    let id = o.get("id").or_else(|| o.get("page"))?.as_str()?.to_string();
+    let name = o.get("name").and_then(Value::as_str).map_or_else(|| id.clone(), str::to_string);
+    Some(Page { id, name })
 }
 
 /// The item ids an operation's `ids` names.
@@ -291,7 +306,8 @@ fn points(pts: &Value) -> Option<Vec<Point>> {
 
 /// The operations of the one `canvas_apply` that makes `change`: an `add`
 /// (a stroke, a text, a box or an arrow), a `remove`, a `move` by whole
-/// tenths with a `set` of each arrow that follows it, or the `set` of an edit.
+/// tenths with a `set` of each arrow that follows it, the `set` of an edit,
+/// a carry's `add`s or a page's operation. An undo or a redo has none.
 pub fn ops(change: &Change) -> Value {
     let ids = |ids: &[ItemId]| ids.iter().copied().map(item_ref).collect::<Vec<_>>();
     match change {
@@ -319,6 +335,15 @@ pub fn ops(change: &Change) -> Value {
             let add = |c: &Carried| serde_json::json!({"op": "add", "item": c.object});
             Value::Array(items.iter().map(add).collect())
         }
+        Change::Page { op, .. } => match op {
+            PageOp::Add { name } => serde_json::json!({"op": "page.add", "name": name}),
+            PageOp::Rename { page, name } => {
+                serde_json::json!({"op": "page.rename", "page": page, "name": name})
+            }
+            PageOp::Remove { page } => serde_json::json!({"op": "page.remove", "page": page}),
+        },
+        // An undo or a redo is a verb of its own, with no operations.
+        Change::Step { .. } => Value::Array(Vec::new()),
     }
 }
 
