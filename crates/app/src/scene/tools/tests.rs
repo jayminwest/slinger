@@ -1,4 +1,5 @@
 use super::*;
+use crate::config::Widths;
 
 const WITHIN: Rect = Rect { x: 0.0, y: 0.0, width: 440.0, height: 160.0 };
 const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
@@ -239,4 +240,113 @@ fn a_tool_command_picks_its_tool_and_closes_a_tool_pop_up() {
     assert_eq!(tools.open_kind(), Some(Kind::Colour), "a colour pop-up stays");
     assert!(!tools.command(Command::Quit));
     assert_eq!(tools.tool(), Tool::Box);
+}
+
+fn widths(value: &str) -> Widths {
+    crate::config::parse(&format!("[pen]\nwidths = \"{value}\"\n")).unwrap().resolve().widths
+}
+
+fn width_text(tools: &Tools) -> String {
+    tools.width().text()
+}
+
+#[test]
+fn the_pen_starts_with_the_first_width() {
+    assert_eq!(width_text(&tools()), "2", "the default widths' first");
+    assert_eq!(width_text(&tools().with_widths(widths("3 1"))), "3");
+}
+
+#[test]
+fn the_width_popup_picks_by_pen_digit_and_arrows_and_keeps_the_tool() {
+    let mut tools = tools().with_widths(widths("1 3 5"));
+    tools.command(Command::ToolBox);
+    tools.open(Kind::Width, WITHIN);
+    assert_eq!((lit(&tools), tools.popup.as_ref().unwrap().place.cells.len()), (0, 3));
+    assert!(tools.press(cell(&tools, 2)));
+    assert_eq!((width_text(&tools), tools.open_kind()), ("5".to_string(), None));
+    tools.open(Kind::Width, WITHIN);
+    assert_eq!(lit(&tools), 2, "the current width is lit");
+    assert!(tools.key(key("2")));
+    assert_eq!(width_text(&tools), "3");
+    tools.open(Kind::Width, WITHIN);
+    assert!(tools.key(key("left")) && tools.key(key("return")));
+    assert_eq!(width_text(&tools), "1");
+    tools.open(Kind::Width, WITHIN);
+    assert!(tools.key(key("right")) && tools.key(key("escape")));
+    assert_eq!((width_text(&tools), tools.open_kind()), ("1".to_string(), None));
+    assert_eq!((tools.tool(), tools.colour()), (Tool::Box, RED), "a width keeps tool and colour");
+}
+
+#[test]
+fn width_up_and_down_step_along_the_list_and_stop_at_its_ends() {
+    let mut tools = tools().with_widths(widths("1 3 5"));
+    tools.open(Kind::Width, WITHIN);
+    assert!(tools.command(Command::WidthDown));
+    assert_eq!(width_text(&tools), "1", "the first stays");
+    assert_eq!(tools.open_kind(), None, "a width pop-up closes");
+    let mut seen = Vec::new();
+    for _ in 0..3 {
+        assert!(tools.command(Command::WidthUp));
+        seen.push(width_text(&tools));
+    }
+    assert_eq!(seen, ["3", "5", "5"]);
+    tools.open(Kind::Colour, WITHIN);
+    assert!(tools.command(Command::WidthDown));
+    assert_eq!((width_text(&tools), tools.open_kind()), ("3".to_string(), Some(Kind::Colour)));
+    assert_eq!(tools.tool(), Tool::Pen, "a width keeps the tool");
+}
+
+#[test]
+fn new_widths_keep_the_width_and_close_a_width_popup() {
+    let mut tools = tools().with_widths(widths("1 3 5"));
+    tools.command(Command::WidthUp);
+    tools.open(Kind::Width, WITHIN);
+    tools.set_widths(widths("1 3 5"));
+    assert_eq!(tools.open_kind(), Some(Kind::Width), "the same widths change nothing");
+    tools.set_widths(widths("2 4"));
+    assert_eq!((width_text(&tools), tools.open_kind()), ("3".to_string(), None));
+    tools.command(Command::WidthUp);
+    assert_eq!(width_text(&tools), "4", "a width not in the list steps from the first");
+    tools.open(Kind::Tool, WITHIN);
+    tools.set_widths(widths("9"));
+    assert_eq!(tools.open_kind(), Some(Kind::Tool));
+}
+
+#[test]
+fn a_width_popup_draws_each_width_as_a_line_in_the_pen_colour_framed_when_lit() {
+    let mut tools = tools().with_widths(widths("1 4 40"));
+    tools.command(Command::WidthUp);
+    tools.open(Kind::Colour, WITHIN);
+    tools.key(key("3"));
+    tools.open(Kind::Width, WITHIN);
+    let labels = tools.labels(&T);
+    let fills: Vec<Option<Rgb>> = labels.iter().map(|l| l.fill).collect();
+    let (m, b, t) = (Some(T.muted), Some(T.background), Some(T.text));
+    assert_eq!(fills, [m, b, Some(BLUE), t, b, Some(BLUE), Some(BLUE)]);
+    let cells = tools.popup.as_ref().unwrap().place.cells.clone();
+    let (thin, lit, thick) = (labels[2].frame, labels[5].frame, labels[6].frame);
+    assert_eq!((labels[3].frame, labels[4].frame), (cells[1], cells[1].outset(-1.0)));
+    assert_eq!((thin.height, lit.height), (1.0, 4.0));
+    assert_eq!(thick.height, cells[2].height - 2.0 * LINE_INSET, "a wide line fits its cell");
+    for (line, cell) in [(thin, cells[0]), (lit, cells[1]), (thick, cells[2])] {
+        assert!(cell.contains(Point { x: line.x, y: line.y }), "{line:?} in {cell:?}");
+        assert!((line.y + line.height / 2.0 - (cell.y + cell.height / 2.0)).abs() < 1e-9);
+    }
+    assert!(labels.iter().all(|l| l.text.is_empty()));
+}
+
+#[test]
+fn each_pick_command_opens_its_popup() {
+    let opened: Vec<Option<Kind>> = [
+        Command::PickColour,
+        Command::PickShape,
+        Command::PickTool,
+        Command::PickWidth,
+        Command::Quit,
+    ]
+    .map(Kind::opened_by)
+    .to_vec();
+    let kinds = [Kind::Colour, Kind::Shape, Kind::Tool, Kind::Width].map(Some);
+    assert_eq!(opened[..4], kinds);
+    assert_eq!(opened[4], None);
 }

@@ -73,3 +73,21 @@ fn the_pill_is_at_the_top_centre_of_the_pane_a_step_lighter() {
     let f = flash.pill(narrow, &T, now).unwrap().label.frame;
     assert_eq!((f.x, f.y, f.width), (0.0, 50.0, 40.0), "inside a pane too small for it");
 }
+
+#[test]
+fn the_first_width_does_not_flash_and_a_new_one_does_with_the_pop_up_key() {
+    let (keys, now) = (Keymap::default(), Instant::now());
+    let widths = crate::config::parse("[pen]\nwidths = \"2 4.5\"\n").unwrap().resolve().widths;
+    let [thin, thick] = widths.widths() else { panic!() };
+    let flash = Flash::new(Tool::Pen);
+    flash.follow_width(*thin, &keys, now);
+    assert_eq!(text(&flash, now), None);
+    flash.follow_width(*thin, &keys, now);
+    assert_eq!(text(&flash, now), None, "the same width again");
+    flash.follow_width(*thick, &keys, now);
+    assert_eq!(text(&flash, now).as_deref(), Some("Width 4.5 ⇧⌘W"));
+    let mut unbound = keys;
+    unbound.bind(Command::PickWidth, None);
+    flash.follow_width(*thin, &unbound, now);
+    assert_eq!(text(&flash, now).as_deref(), Some("Width 2"));
+}

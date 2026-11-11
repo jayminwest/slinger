@@ -4,7 +4,8 @@
 //! The format is a small subset of TOML: `# comments`, `[table]` headers and
 //! `key = "string"` lines. In `[keys]`, each key is a command's name and its
 //! value is a chord (`commands`). Every key is optional; a missing key keeps its
-//! default. `[pen] colours` is a list in one string ([`Palette`]). A machine's overlay file is parsed the same way and merged over
+//! default. `[pen] colours` and `[pen] widths` are lists in one string
+//! ([`Palette`], [`Widths`]). A machine's overlay file is parsed the same way and merged over
 //! the shared file key by key ([`Layer::over`]). `config.example.toml` at the
 //! repository root lists every key with its default.
 
@@ -12,6 +13,10 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::commands::{Chord, Command, Keymap};
+
+mod widths;
+
+pub use widths::{Width, Widths};
 
 /// A colour, written `"#rrggbb"` in the file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,6 +114,7 @@ pub struct Config {
     pub workspace: Option<String>,
     pub keys: Keymap,
     pub palette: Palette,
+    pub widths: Widths,
     pub sidebar: Shown,
 }
 
@@ -123,6 +129,7 @@ pub struct Layer {
     socket: Option<String>,
     workspace: Option<String>,
     palette: Option<Palette>,
+    widths: Option<Widths>,
     sidebar: Option<Shown>,
     /// By command: `Some(None)` unbinds it.
     #[expect(
@@ -145,6 +152,7 @@ impl Default for Layer {
             socket: None,
             workspace: None,
             palette: None,
+            widths: None,
             sidebar: None,
             keys: [None; Command::ALL.len()],
         }
@@ -176,6 +184,7 @@ impl Layer {
             socket: top.socket.or(self.socket),
             workspace: top.workspace.or(self.workspace),
             palette: top.palette.or(self.palette),
+            widths: top.widths.or(self.widths),
             sidebar: top.sidebar.or(self.sidebar),
             keys,
         }
@@ -202,6 +211,7 @@ impl Layer {
             workspace: self.workspace,
             keys,
             palette: self.palette.unwrap_or_default(),
+            widths: self.widths.unwrap_or_default(),
             sidebar: self.sidebar.unwrap_or_default(),
         }
     }
@@ -217,6 +227,10 @@ impl Layer {
             ("pen", "colours") => {
                 let palette = Palette::parse(&value).ok_or(ErrorKind::BadPalette)?;
                 return put(&mut self.palette, palette);
+            }
+            ("pen", "widths") => {
+                let widths = Widths::parse(&value).ok_or(ErrorKind::BadWidths)?;
+                return put(&mut self.widths, widths);
             }
             ("window", "sidebar") => {
                 let shown = match value.as_str() {
@@ -283,6 +297,8 @@ pub enum ErrorKind {
     BadColour,
     /// Not one to nine colours.
     BadPalette,
+    /// Not one to nine widths, each above 0 and at most 50.
+    BadWidths,
     /// `[window] sidebar` is neither `open` nor `closed`.
     BadSidebar,
     /// A key in `[keys]` that names no command.
@@ -313,6 +329,10 @@ impl ErrorKind {
             Self::BadPalette => (
                 "the value is not one to nine colours",
                 "write the colours as \"#rrggbb #rrggbb\", split by spaces or commas",
+            ),
+            Self::BadWidths => (
+                "the value is not one to nine widths from 0.1 to 50",
+                "write the widths in points as \"2 4 8 16\", split by spaces or commas",
             ),
             Self::BadSidebar => ("the value is not open or closed", "write \"open\" or \"closed\""),
             Self::UnknownCommand => ("unknown command", every),

@@ -190,6 +190,9 @@ impl Panes {
             | Command::PickColour
             | Command::PickShape
             | Command::PickTool
+            | Command::PickWidth
+            | Command::WidthUp
+            | Command::WidthDown
             | Command::ToggleSidebar
             | Command::DismissNotice
             | Command::PanLeft

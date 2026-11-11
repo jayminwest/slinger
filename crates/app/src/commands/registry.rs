@@ -52,6 +52,7 @@ impl Command {
             Command::PickColour => "Pick a colour",
             Command::PickShape => "Pick a shape",
             Command::PickTool => "Pick a tool",
+            Command::PickWidth => "Pick a width",
             Command::SplitRight => "Split right",
             Command::SplitDown => "Split down",
             Command::ClosePane => "Close pane",
@@ -79,6 +80,8 @@ impl Command {
             Command::ToolText => "Text",
             Command::ToolBox => "Box",
             Command::ToolArrow => "Arrow",
+            Command::WidthUp => "Thicker pen",
+            Command::WidthDown => "Thinner pen",
             Command::Sling => "Sling selection",
             Command::PreviousPage => "Previous page",
             Command::NewPage => "New page",
@@ -101,8 +104,12 @@ impl Command {
             | Command::ToolLasso
             | Command::ToolText
             | Command::ToolBox
-            | Command::ToolArrow => Group::Tools,
-            Command::PickColour | Command::PickShape | Command::PickTool => Group::PopUps,
+            | Command::ToolArrow
+            | Command::WidthUp
+            | Command::WidthDown => Group::Tools,
+            Command::PickColour | Command::PickShape | Command::PickTool | Command::PickWidth => {
+                Group::PopUps
+            }
             Command::Sling | Command::Dictate | Command::PlaceButton => Group::Sling,
             Command::PanLeft
             | Command::PanRight

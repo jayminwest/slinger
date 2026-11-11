@@ -46,6 +46,11 @@
 # The colours the colour pop-up offers, in order: one to nine "#rrggbb", split by spaces or
 # commas. The digit keys 1 to 9 pick them. The first is the pen's colour at start.
 #colours = "#e6e6e6 #ff6b6b #ffa94d #ffd43b #69db7c #4dabf7 #b197fc"
+# The line widths the width pop-up offers, in order: one to nine widths in canvas points,
+# from 0.1 to 50 with at most one decimal place, split by spaces or commas. The digit keys
+# 1 to 9 pick them. The first is the pen's width at start. A width is the pen's alone:
+# boxes and arrows keep their one line width.
+#widths = "2 4 8 16"
 
 # --- window: the window around the panes.
 [window]
@@ -78,6 +83,9 @@
 #pick-shape = "cmd+shift+s"
 # A tool: pen, eraser, lasso or text.
 #pick-tool = "cmd+shift+t"
+# The pen's line width, from [pen] widths: each shown as a line of that width in the pen's
+# colour.
+#pick-width = "cmd+shift+w"
 # Split the focused pane in two, side by side; the new pane, on the right, shows the same.
 #split-right = "cmd+d"
 # Split the focused pane in two, one over the other; the new pane, below, shows the same.
@@ -123,6 +131,9 @@
 #tool-text = "cmd+4"
 #tool-box = "cmd+5"
 #tool-arrow = "cmd+6"
+# The next width of [pen] widths for the pen, or the one before; at either end it stays.
+#width-up = "alt+]"
+#width-down = "alt+["
 # Sling the selection to the agent of the canvas's workspace: a one-line prompt opens at
 # the selection. Return sends (an empty prompt too), escape cancels; while it is open it
 # takes every other key. With nothing selected on the focused pane's canvas the key goes on.

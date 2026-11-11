@@ -311,7 +311,9 @@ canvases/dictation.rs  the `dictate` command: opens the entry when it is
              entry closing cancels one going. Flick types the text into the
              focused entry, so it reaches the sling as typing does.
 config.rs    the config file's format: text in, a typed config or an error
-             with its line out; merges a machine's overlay over it. Pure.
+             with its line out; merges a machine's overlay over it.
+             `config/widths.rs` parses `[pen] widths` by hand (tenths of a
+             point: no float parsing, for the size budget). Pure.
 commands.rs  key commands: the closed list of commands, the chord parser and
              the keymap from a chord to a command (and a command to its
              live chord). `registry` gives each command a title and a
@@ -339,13 +341,15 @@ scene.rs     decides what the window shows: each pane's placeholder, an
              (`shapes`). Every state shows, nothing else (SPEC P6). Pure.
 scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              under which nothing of the pane shows (`content`: hit-testing,
-             paint and the pan and zoom centre use it): the pen's colour,
+             paint and the pan and zoom centre use it): the pen's colour
+             and width (a swatch line that thick, up to a square), its
              tool and live key and `· typing` or `· N selected`; the page
              and `i/n`; the `show-keys` and `show-commands` keys, each only
              when bound. A UI pane's has no tool part. A narrow pane drops
              the right part, then the middle. Pure.
 scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
-             `<Tool> <key>` in a 14 pt pill, a step lighter than the pane, at
+             `<Tool> <key>` (a new width: `Width <n> <pick-width key>`)
+             in a 14 pt pill, a step lighter than the pane, at
              the top centre of the focused pane for 0.8 s. The pill says when
              it goes; platform sets one timer for then (no repeating
              redraw). Pure.
@@ -445,9 +449,12 @@ scene/dictation.rs  the dictation into the entry: start, then stop, one
              failed (Flick not running, or its refusal) and what to do, under
              the entry; an answer overtaken by the entry closing is ignored.
              Pure.
-scene/tools.rs  the pen's tool and colour, and the pop-up at the pen (colour, shape,
-             tool) that changes them: opens, picks by pen or key, closes.
-             The tool commands pick a tool without it. Pure.
+scene/tools.rs  the pen's tool, colour and width, and the pop-up at the pen (colour,
+             shape, tool, width) that changes them: opens, picks by pen or
+             key, closes. The tool commands pick a tool without it, and
+             `width-up`/`width-down` step the width. The width is the pen's
+             line alone: boxes and arrows keep one line width. Canvases
+             hold it for new strokes (`set_pen_width`). Pure.
 layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
              about a point, limits; the canvas has no edge; a pane's view
              starts with the origin in by a margin) and where a pop-up

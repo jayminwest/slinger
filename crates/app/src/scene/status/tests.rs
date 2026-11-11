@@ -12,7 +12,7 @@ const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
 const PANE: Rect = Rect { x: 100.0, y: 0.0, width: 600.0, height: 400.0 };
 
 fn pen(tool: Tool, state: State) -> Pen {
-    Pen { tool, colour: RED, state }
+    Pen { tool, colour: RED, width: 16.0, state }
 }
 
 /// Each part's text, its runs joined.
@@ -45,6 +45,22 @@ fn a_canvas_pane_s_footer_says_the_pen_its_page_and_the_two_keys() {
     assert_eq!((swatch.width, swatch.height, colour), (SWATCH, SWATCH, RED));
     assert!(swatch.x > PANE.x && swatch.x + swatch.width < footer.parts[0].frame.x);
     assert!(footer.frame.contains(crate::layout::Point { x: swatch.x, y: swatch.y }));
+}
+
+#[test]
+fn the_swatch_is_a_line_as_thick_as_the_pen_up_to_a_square_and_centred() {
+    let keys = Keymap::default();
+    let high = |width: f64| {
+        let pen = Pen { width, ..pen(Tool::Pen, State::Idle) };
+        let (swatch, _) = footer(PANE, &T, &keys, Some(pen), "").swatch.unwrap();
+        let bar = footer(PANE, &T, &keys, Some(pen), "").frame;
+        assert!((swatch.y + swatch.height / 2.0 - (bar.y + bar.height / 2.0)).abs() < 1e-9);
+        (swatch.width, swatch.height)
+    };
+    assert_eq!(high(2.0), (SWATCH, 2.0));
+    assert_eq!(high(4.0), (SWATCH, 4.0));
+    assert_eq!(high(0.5), (SWATCH, 1.0), "at least a point");
+    assert_eq!(high(16.0), (SWATCH, SWATCH), "at most a square");
 }
 
 #[test]

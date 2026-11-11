@@ -66,6 +66,23 @@ fn the_stroke_under_the_pen_shows_at_once_point_by_point() {
 }
 
 #[test]
+fn a_new_stroke_takes_the_width_set_and_the_one_under_the_pen_keeps_its_own() {
+    let mut ink = Ink::default();
+    assert!((ink.width() - PEN_WIDTH).abs() < f64::EPSILON, "until one is set");
+    ink.down("main", "p1", RED, pt(0.0, 0.0));
+    ink.set_width(8.0);
+    ink.down("main", "p1", RED, pt(5.0, 0.0));
+    let widths: Vec<f64> = ink_of(&ink, "main", "p1")
+        .iter()
+        .map(|item| match item.shape {
+            Shape::Stroke { width, .. } => width,
+            _ => panic!(),
+        })
+        .collect();
+    assert_eq!(widths, [PEN_WIDTH, 8.0]);
+}
+
+#[test]
 fn a_lifted_stroke_keeps_its_id_and_waits_to_be_sent() {
     let mut ink = Ink::default();
     ink.down("main", "p1", RED, pt(0.0, 0.0));

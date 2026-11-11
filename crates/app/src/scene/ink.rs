@@ -36,7 +36,8 @@ use crate::layout::Point;
 use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::pages::PageOp;
 
-/// The pen's line width, in canvas units: tldraw's small pen.
+/// The pen's line width until one is set ([`Ink::set_width`]), in canvas
+/// units: tldraw's small pen.
 pub const PEN_WIDTH: f64 = 2.0;
 /// Ink's item ids start here, far above any id the server hands out, so
 /// local ink and the page's items never share an id.
@@ -178,9 +179,22 @@ pub struct Ink {
     problem: Option<Problem>,
     /// Pen-to-paint delays of the stroke under the pen, in seconds.
     delays: Vec<f64>,
+    /// The width a new stroke takes; none is [`PEN_WIDTH`].
+    width: Option<f64>,
 }
 
 impl Ink {
+    /// The width a new stroke takes, in canvas units.
+    pub fn width(&self) -> f64 {
+        self.width.unwrap_or(PEN_WIDTH)
+    }
+
+    /// New strokes take `width`, in canvas units; the stroke under the pen
+    /// keeps its own.
+    pub fn set_width(&mut self, width: f64) {
+        self.width = Some(width);
+    }
+
     /// The pen went down at `at` on `page` of `canvas`: a new stroke of one
     /// point. A stroke still under the pen (its lift was lost) is finished.
     pub fn down(&mut self, canvas: &str, page: &str, colour: Rgb, at: Point) {
@@ -189,7 +203,7 @@ impl Ink {
             canvas: canvas.to_string(),
             page: page.to_string(),
             colour,
-            width: PEN_WIDTH,
+            width: self.width(),
             points: vec![at],
         };
         self.drawing = Some((self.next_key, stroke));

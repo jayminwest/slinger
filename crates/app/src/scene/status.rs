@@ -1,9 +1,10 @@
 //! Each pane's footer (SPEC P6: every state is visible): one line along the
 //! pane's bottom edge, [`HEIGHT`] points high, on a fill a little lighter
 //! than the background. A canvas pane's footer says, from the left, the
-//! pen's colour (a swatch), its tool (bold) and the tool's live key, and
-//! what the pane is doing: `· typing` while a text is open there, `· N
-//! selected` with a selection on its page. In the middle, its page and
+//! pen's colour and width (a swatch: a line that thick, up to a square),
+//! its tool (bold) and the tool's live key, and what the pane is doing:
+//! `· typing` while a text is open there, `· N selected` with a selection
+//! on its page. In the middle, its page and
 //! where that is among the pages; on the right, the keys of the key overlay
 //! and the command palette, each left out while unbound. An agent UI pane's
 //! footer has no tool part, and its UI's name in the middle. A narrow pane
@@ -22,7 +23,7 @@ pub const HEIGHT: f64 = 28.0;
 pub const TEXT_SIZE: f64 = 12.0;
 /// The height of a line of footer text.
 const LINE: f64 = 16.0;
-/// The side of the pen's colour swatch.
+/// The width of the pen's swatch, and the most it is high.
 const SWATCH: f64 = 10.0;
 /// The space inside the footer's ends, and between the swatch and the tool.
 const PAD: f64 = 10.0;
@@ -48,6 +49,8 @@ pub enum State {
 pub struct Pen {
     pub tool: Tool,
     pub colour: Rgb,
+    /// The pen's line width, in points.
+    pub width: f64,
     pub state: State,
 }
 
@@ -108,8 +111,9 @@ pub fn footer(frame: Rect, theme: &Theme, keys: &Keymap, pen: Option<Pen>, centr
     let (mut left, mut swatch, mut indent) = (Vec::new(), None, 0.0);
     if let Some(pen) = pen {
         let command = command(pen.tool);
-        let y = bar.y + (bar.height - SWATCH) / 2.0;
-        swatch = Some((Rect { x: line.x, y, width: SWATCH, height: SWATCH }, pen.colour));
+        let high = pen.width.clamp(1.0, SWATCH);
+        let y = bar.y + (bar.height - high) / 2.0;
+        swatch = Some((Rect { x: line.x, y, width: SWATCH, height: high }, pen.colour));
         indent = SWATCH + GAP;
         left.push(run(command.title().to_string(), theme.text, true));
         if let Some(chord) = keys.chord(command) {

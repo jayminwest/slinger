@@ -19,6 +19,17 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** pen widths. `pick-width` (cmd+shift+w) opens a pop-up at the pen
+  that shows each width as a line of that width in the pen's colour; pick
+  one with the pen, a digit, or the arrows and return, as in the other
+  pop-ups. `width-up` (alt+]) and `width-down` (alt+[) step to the next or
+  previous width without the pop-up. New pen strokes take the width; boxes
+  and arrows keep their one line width. The footer's swatch is a line as
+  thick as the pen (up to a square), and a new width flashes (`Width 8
+  ⇧⌘W`). The widths come from `[pen] widths` in the config file (one to
+  nine, in points; default `"2 4 8 16"`: fine, medium, bold and marker);
+  the first is the width at start.
+
 - **App:** a menu bar. slinger, File, Edit, Tools, Canvas, Pane, Window and
   Help list every command with its key from `[keys]`, and Tools checks the
   pen's tool. A rebound key shows after the config reloads. Edit's cut, copy,

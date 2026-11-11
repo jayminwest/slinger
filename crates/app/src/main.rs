@@ -134,7 +134,8 @@ fn window(mut settings: Settings) -> ExitCode {
     let mut sidebar = Sidebar::new(shown == Shown::Open);
     sidebar.show(settings.config.workspace.clone());
     let centre = Point { x: layout::WINDOW.width / 2.0, y: layout::WINDOW.height / 2.0 };
-    let mut tools = Tools::new(settings.config.palette.clone(), centre);
+    let widths = settings.config.widths.clone();
+    let mut tools = Tools::new(settings.config.palette.clone(), centre).with_widths(widths);
     let mut shared = Shared::default();
     let mut canvases = Canvases::new(control::Client::new(&socket));
     let first = view(&settings, &shared, &tools, &sidebar, &mut canvases);
@@ -170,9 +171,7 @@ fn window(mut settings: Settings) -> ExitCode {
                 let kind = match command {
                     Command::Quit => return Step::Quit,
                     Command::ReloadConfig => None,
-                    Command::PickColour => Some(Kind::Colour),
-                    Command::PickShape => Some(Kind::Shape),
-                    Command::PickTool => Some(Kind::Tool),
+                    c if Kind::opened_by(c).is_some() => Kind::opened_by(c),
                     // Nothing selected here: the key goes on (a delete in a UI's form).
                     c if !selection(&mut canvases, &shared, area, c) => return Step::Pass,
                     command => {
@@ -221,6 +220,7 @@ fn window(mut settings: Settings) -> ExitCode {
         }
         if reloaded {
             tools.set_palette(settings.config.palette.clone());
+            tools.set_widths(settings.config.widths.clone());
             if settings.config.sidebar != shown {
                 shown = settings.config.sidebar;
                 sidebar.set_open(shown == Shown::Open);
@@ -378,6 +378,7 @@ fn pointer(
         Event::Press(pen) if tools.press(pen.at) => true,
         Event::Press(pen) => {
             let tool = (tools.tool(), tools.colour());
+            canvases.set_pen_width(tools.width().points());
             pane_at(panes, area, pen.at).is_some_and(|u| canvases.pen_down(panes, u, pen, tool))
         }
         Event::Drag(pen) => {
@@ -459,6 +460,7 @@ fn view(
     canvases.show_sling(&mut scene, theme, &settings.config.keys, sidebar);
     scene.labels.splice(0..0, canvases.labels(&shared.panes, area, theme));
     let pen = (tools.tool(), tools.colour());
+    canvases.set_pen_width(tools.width().points());
     scene.footers = canvases.footers(&shared.panes, area, theme, pen, &settings.config.keys);
     scene.labels.extend(tools.labels(theme));
     let keys = &settings.config.keys;
@@ -466,7 +468,7 @@ fn view(
     scene.overlay = overlay.or_else(|| shared.palette.shown(keys, theme, size)).map(Box::new);
     scene.cursor = cursor::over_canvas(tools, theme);
     let now = Instant::now();
-    tools.flash().follow(tools.tool(), keys, now);
+    tools.follow(keys, now);
     scene.flash = tools.flash().pill(focused(&shared.panes, area), theme, now).map(Box::new);
     scene.menus = commands::menu::bar(keys, status::command(tools.tool()));
     Box::new(scene)
