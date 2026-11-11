@@ -19,7 +19,7 @@ Each decision has an id (D1, D2, ...). Each open item has an id (O1, O2, ...). R
 - P3. One core library, thin front ends. Each command does one thing. New commands never change old ones.
 - P4. One grammar for input. A tablet button is a key. Slinger sees key commands only.
 - P5. Config is plain text, edited in place, reloaded live, the same on every machine. Machine-specific values go in an overlay file.
-- P6. No chrome. One focus border, one theme. Tell the user only when an agent is blocked or done.
+- P6. No chrome, but every state is visible: the active tool, colour, page and selection always show; a command confirms itself briefly. One focus border, one theme.
 - P7. A write never waits on the network.
 - P8. The spec stays small. A thing is not designed until it is needed.
 
@@ -45,6 +45,7 @@ Each decision has an id (D1, D2, ...). Each open item has an id (O1, O2, ...). R
 - D18. Keyboard input always works. Terminal and code entry are not design goals.
 - D19. Code that an agent writes for a UI lives in the record as a blob. It is not a file in a directory. A pane or a canvas item refers to it by hash.
 - D20. Slinger does not make an agent durable. The harness does: cc-durable for Claude Code today, Daffy later. Slinger builds no durable-agent machinery.
+- D21. Three surfaces show the commands: a key overlay, a command palette and the macOS menu bar. All three read one command registry: each command's title, group and live key. A command added to the registry shows in all three.
 
 ## 4. Not in v1
 
@@ -127,7 +128,7 @@ Rules:
 - Pen: draw, select, resize panes, move things between panes.
 - Voice: Flick dictation, for prose.
 - Keys: every action is a key command in the config file. The tablet's buttons are bound to keys or macros in the tablet's own software. Slinger has no tablet-button code.
-- Pop-ups at the pen (colour, shape, tool) open from a key command.
+- Pop-ups at the pen (colour, shape, tool) open from a key command. They stay: the discovery surfaces (D21) do not replace them.
 
 ## 12. Risks
 
@@ -143,7 +144,7 @@ Rules:
 - O1. What code does a live canvas item run? Decided 2026-11-10 (the owner chose "agent picks"): v1 runs one self-contained HTML file in a sandboxed web view, placed and scaled by the canvas, with the two-call bridge. Both alternatives, the bridge, the blob and the reasons are in `docs/design/live-items.md`. Later: restrict it to Flick's model, a closed set of blocks (text, key and value, list, progress, choice, field) and a closed set of actions, where anything unknown degrades to text, as a second blob kind. Open: when to restrict, and which blocks.
 - O2. Pen feel has no number yet. Lean: the test is "not worse than tldraw on the same tablet", judged by the owner, with the pen-to-screen delay logged for reference.
 - O3. What exactly the thinking record shows. Decide after the log has real events in it.
-- O4. The key commands themselves. Decide when there is a canvas to use them on.
+- O4. The key commands themselves. Decide when there is a canvas to use them on. Every command has a default key in `config.example.toml`. `show-keys` (the key overlay) and `show-commands` (the command palette) are added (D21). The final keys stay open.
 - O5. Closed 2026-11-10: an append-only operation log per canvas. See `docs/design/canvas-file.md`.
 - O6. The workspace definition file: its name and fields. Decided 2026-11-10: `slinger-workspace.toml` in the primary root, versioned TOML that keeps unknown fields. The fields and rules are in `docs/workspace.md`.
 - O7. The scaffold has no GUI layer and no service layer yet. The brief for that work is `BRIEF-gui-service-layers.md` in the scaffold-project repository. It must be done before Slinger is scaffolded. The spikes do not wait for it.
