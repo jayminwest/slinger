@@ -248,3 +248,26 @@ fn a_pen_line_that_grows_repaints_only_its_new_end() {
     let shorter = at(&line(9), Viewport::default(), Some(&first));
     assert_eq!(shorter.changed, Some(rect(9.0, 99.0, 92.0, 2.0)), "not grown: the whole line");
 }
+
+#[test]
+fn paint_stops_at_the_pane_edge_when_ink_runs_past_it() {
+    // A pan right puts a text and a box part past the pane's left edge
+    // (slinger-d90e4d): both are drawn, and their ink runs past the edge.
+    let text = Shape::Text { frame: rect(20.0, 100.0, 80.0, 20.0), text: "hi".into(), size: 16.0 };
+    let boxed = Shape::Box { frame: rect(30.0, 200.0, 40.0, 40.0), width: 2.0 };
+    let scene = at(&[item(1, text), item(2, boxed)], Viewport::default().pan(-60.0, 0.0), None);
+    assert_eq!(ids(&scene), [1, 2]);
+    assert!(scene.draws.iter().all(|d| d.bounds.x < 0.0));
+    // AppKit may ask for more than the pane: only the pane is painted.
+    let area = scene.clip(rect(-200.0, -50.0, 1200.0, 700.0));
+    assert_eq!(area, Some(SCREEN.rect()));
+    assert_eq!(scene.touching(SCREEN.rect()).count(), 2);
+    // Nothing wholly beside the pane is painted.
+    assert_eq!(scene.clip(rect(-150.0, 0.0, 100.0, 600.0)), None);
+    // A box part in the pane is cut to it, with only the draws there.
+    let edge = scene.clip(rect(-100.0, 90.0, 110.0, 40.0));
+    assert_eq!(edge, Some(rect(0.0, 90.0, 10.0, 40.0)));
+    let there: Vec<u64> =
+        edge.into_iter().flat_map(|e| scene.touching(e)).map(|d| d.id.0).collect();
+    assert_eq!(there, [1]);
+}

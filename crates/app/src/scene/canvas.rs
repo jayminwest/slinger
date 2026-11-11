@@ -189,6 +189,21 @@ pub fn build<'a>(
     Scene { viewport, screen, background, draws, changed, pen_event: None }
 }
 
+impl Scene {
+    /// The part of `dirty` to paint: what of it lies inside the pane, or
+    /// `None` when none does. Paint is cut off at the pane's edges. A mark
+    /// that runs past an edge would otherwise land on what lies beside the
+    /// pane (the sidebar, another pane), which the pane never paints again.
+    pub fn clip(&self, dirty: Rect) -> Option<Rect> {
+        dirty.intersection(self.screen.rect())
+    }
+
+    /// The draws whose ink touches `area`, bottom first.
+    pub fn touching(&self, area: Rect) -> impl Iterator<Item = &Draw> {
+        self.draws.iter().filter(move |d| d.bounds.intersection(area).is_some())
+    }
+}
+
 /// The box around every draw that is in one list and not, unchanged, in the
 /// other. A pen line that only grew at its end (the stroke under the pen)
 /// counts only its new end, so a long stroke does not repaint whole at
