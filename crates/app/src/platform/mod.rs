@@ -8,7 +8,8 @@
 //! canvas pane is a view of its own (`canvas`) that lives as long as its
 //! pane, so a new scene repaints only what changed.
 //! `web` shows agent UIs in sandboxed web views, each kept as long as its
-//! page is shown. `entry` is the sling's one-line text field.
+//! page is shown. `entry` is the sling's one-line text field. The window
+//! resizes, down to [`layout::SMALLEST`], and says its new size.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
 //! that touches `AppKit` takes a `MainThreadMarker`, which only the main thread
@@ -23,18 +24,20 @@ mod web;
 use std::cell::{Cell, RefCell};
 
 use objc2::rc::Retained;
+use objc2::runtime::{NSObjectProtocol, ProtocolObject};
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSBox, NSBoxType, NSColor,
     NSEvent, NSEventSubtype, NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment,
-    NSTextField, NSTitlePosition, NSView, NSWindow, NSWindowOrderingMode, NSWindowStyleMask,
+    NSTextField, NSTitlePosition, NSView, NSWindow, NSWindowDelegate, NSWindowOrderingMode,
+    NSWindowStyleMask,
 };
-use objc2_foundation::{NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
+use objc2_foundation::{NSNotification, NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
 use self::canvas::CanvasView;
 use crate::commands::Chord;
 use crate::config::Rgb;
-use crate::layout::{PaneId, Point, Rect};
+use crate::layout::{self, PaneId, Point, Rect, Size};
 use crate::scene::ink::Pen;
 use crate::scene::{Border, Label, Scene};
 
@@ -83,6 +86,8 @@ pub enum Event {
     Painted(f64),
     /// The user edited the text of the sling's entry: all of it now.
     Typed(String),
+    /// The window's content is this size now: draw a scene of it.
+    Resized(Size),
 }
 
 /// What to do about an [`Event`].
@@ -131,6 +136,19 @@ define_class!(
     #[thread_kind = MainThreadOnly]
     #[name = "SlingerWindow"]
     struct KeyWindow;
+
+    unsafe impl NSObjectProtocol for KeyWindow {}
+
+    // The window is its own delegate, for this one call.
+    unsafe impl NSWindowDelegate for KeyWindow {
+        /// The window's content changed size: the scene follows it.
+        #[unsafe(method(windowDidResize:))]
+        fn did_resize(&self, _note: &NSNotification) {
+            let Some(view) = self.contentView() else { return };
+            let size = view.frame().size;
+            dispatch(Event::Resized(Size { width: size.width, height: size.height }), self.mtm());
+        }
+    }
 
     impl KeyWindow {
         /// The timer's action.
@@ -299,8 +317,10 @@ pub fn run(
 
 fn window(mtm: MainThreadMarker, scene: &Scene) -> Retained<KeyWindow> {
     let size = NSSize::new(scene.size.width, scene.size.height);
-    let style =
-        NSWindowStyleMask::Titled | NSWindowStyleMask::Closable | NSWindowStyleMask::Miniaturizable;
+    let style = NSWindowStyleMask::Titled
+        | NSWindowStyleMask::Closable
+        | NSWindowStyleMask::Miniaturizable
+        | NSWindowStyleMask::Resizable;
     let frame = NSRect::new(NSPoint::new(0.0, 0.0), size);
     // SAFETY: `NSWindow`'s designated initializer on a fresh allocation of a
     // subclass with no ivars, called once with valid arguments.
@@ -316,6 +336,9 @@ fn window(mtm: MainThreadMarker, scene: &Scene) -> Retained<KeyWindow> {
     // SAFETY: `Retained` owns the window, so `AppKit` must not also release it on close.
     unsafe { window.setReleasedWhenClosed(false) };
     window.setAcceptsMouseMovedEvents(true);
+    window.setContentMinSize(NSSize::new(layout::SMALLEST.width, layout::SMALLEST.height));
+    // The delegate is weak: the window lives as long as the app.
+    window.setDelegate(Some(ProtocolObject::from_ref(&*window)));
     window.center();
     window
 }

@@ -217,8 +217,12 @@ impl Rect {
     }
 }
 
-/// The content size of the window.
+/// The content size the window opens at. The user resizes it from there.
 pub const WINDOW: Size = Size { width: 960.0, height: 600.0 };
+
+/// The smallest content size the window resizes to: room for the open
+/// sidebar beside a pane.
+pub const SMALLEST: Size = Size { width: 480.0, height: 320.0 };
 
 impl Size {
     /// A rectangle of this size at the origin.

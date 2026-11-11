@@ -405,8 +405,10 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              event into a point, a time and whether a finger made it (mouse
              coalescing off: every point). One view per canvas pane repaints
              only the box its scene says changed, and says how long after
-             the pen event it painted. All unsafe, objc2 and AppKit code.
-             No decisions.
+             the pen event it painted. The window resizes (down to
+             layout::SMALLEST) and says its new size as Event::Resized; main
+             lays the scene out again at it. All unsafe, objc2 and AppKit
+             code. No decisions.
 platform/entry.rs  the sling's entry: a native text field kept while the
              scene has one, over every view; it takes the keyboard when it
              appears, and each edit goes to main as Event::Typed. It takes
