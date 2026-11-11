@@ -62,8 +62,8 @@ pub enum Event {
     Scroll { at: Point, dx: f64, dy: f64 },
     /// A pinch over a point in the window: zoom by `factor` about it.
     Zoom { at: Point, factor: f64 },
-    /// An agent UI replied: its `ui_reply` line. Answer [`Step::Refuse`]
-    /// when it cannot go on.
+    /// An agent UI replied: its `ui_reply` line, for the daemon to hand to
+    /// the agent. Answer [`Step::Refuse`] when it cannot go on.
     Reply(String),
 }
 

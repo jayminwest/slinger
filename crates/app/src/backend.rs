@@ -18,7 +18,7 @@ use slinger_control::{self as control, Client, PaneKind, PaneLayout, RemoteError
 
 use crate::config::{self, Config, Layer};
 use crate::scene::sidebar::{Agent, Status, Workspace};
-use crate::ui::Code;
+use crate::ui::Shown;
 
 mod follow;
 pub mod panes;
@@ -79,11 +79,11 @@ pub struct Watch {
     wanted: Arc<Mutex<Option<String>>>,
     news: Receiver<Result<Vec<Workspace>, Problem>>,
     layouts: Receiver<Result<PaneLayout, Problem>>,
-    codes: Receiver<Vec<(String, Result<Code, Problem>)>>,
+    codes: Receiver<Vec<(String, Result<Shown, Problem>)>>,
 }
 
 /// What each agent UI shown in `layout` is: its name and its code.
-fn load(daemon: &Client, layout: &PaneLayout) -> Vec<(String, Result<Code, Problem>)> {
+fn load(daemon: &Client, layout: &PaneLayout) -> Vec<(String, Result<Shown, Problem>)> {
     let mut names: Vec<&str> = layout
         .layout
         .panes()
@@ -143,7 +143,7 @@ impl Watch {
 
     /// The code of the agent UIs fetched since the last call, by name. A
     /// layout's UIs come before the layout. Never blocks.
-    pub fn uis(&self) -> Vec<(String, Result<Code, Problem>)> {
+    pub fn uis(&self) -> Vec<(String, Result<Shown, Problem>)> {
         self.codes.try_iter().flatten().collect()
     }
 
@@ -299,7 +299,7 @@ mod tests {
     }
 
     /// Opens a workspace `notes` whose agent is `scout`, in a fresh directory.
-    fn open_notes(daemon: &Client) -> tempfile::TempDir {
+    pub(super) fn open_notes(daemon: &Client) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
         let file = "version = 1\nname = \"notes\"\ncanvas = \"notes\"\n[agent]\nname = \"scout\"\n";
         fs::write(dir.path().join("slinger-workspace.toml"), file).unwrap();

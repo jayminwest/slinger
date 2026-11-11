@@ -11,6 +11,8 @@ use slinger_control as control;
 
 use crate::cli::{NAME, Scratch};
 use crate::output::Output;
+use crate::session::{AGENT_HELP, calling_agent};
+use crate::workspace::which;
 
 #[derive(Subcommand)]
 pub enum Ui {
@@ -39,6 +41,28 @@ pub enum Ui {
         #[arg(long, value_name = "DIR", default_value = ".")]
         out: PathBuf,
     },
+    /// Show a UI in a new pane, with data, for the calling agent; prints the showing's id and the pane's number
+    Open {
+        /// The UI: <name> (latest), <name>@<version> or a blob id
+        ui: String,
+        /// The workspace whose window shows it: its name, or the directory of its file
+        #[arg(long, value_name = "WORKSPACE")]
+        workspace: String,
+        /// Where it shows
+        #[arg(long = "as", value_name = "HOST", default_value = "pane", value_parser = ["pane"])]
+        host: String,
+        /// The JSON the UI's context gives it, or - to read standard input
+        #[arg(long, value_name = "JSON")]
+        data: Option<String>,
+        /// Open it beside this pane, by number; else beside the whole window
+        #[arg(long, value_name = "PANE")]
+        beside: Option<u32>,
+        /// Put it below instead of to the right
+        #[arg(long)]
+        below: bool,
+        #[arg(long, value_name = "NAME", help = AGENT_HELP)]
+        agent: Option<String>,
+    },
 }
 
 impl Ui {
@@ -48,6 +72,7 @@ impl Ui {
             Self::List => "ui list",
             Self::Show { .. } => "ui show",
             Self::Export { .. } => "ui export",
+            Self::Open { .. } => "ui open",
         }
     }
 
@@ -75,8 +100,35 @@ impl Ui {
                 let human = exported.path.display().to_string();
                 Ok(Output::new(json!({ "ui": exported.ui, "path": exported.path }), human))
             }
+            Self::Open { ui, workspace, host, data, beside, below, agent } => {
+                let data = match data.as_deref() {
+                    None => serde_json::Value::Null,
+                    Some("-") => json_data(&io::read_to_string(input)?)?,
+                    Some(text) => json_data(text)?,
+                };
+                let ask = control::UiOpen {
+                    ui: ui.clone(),
+                    workspace: which(workspace)?,
+                    agent: calling_agent(agent.as_deref())?,
+                    host: host.clone(),
+                    data,
+                    beside: *beside,
+                    below: *below,
+                };
+                let opened = daemon.ui_open(ask)?;
+                let human = format!("{}\t{}", opened.open, opened.pane);
+                Ok(Output::new(serde_json::to_value(opened)?, human))
+            }
         }
     }
+}
+
+/// The data a UI is given, as JSON.
+fn json_data(text: &str) -> Result<serde_json::Value, control::RemoteError> {
+    serde_json::from_str(text).map_err(|e| {
+        let hint = "pass JSON, such as '{\"slots\":[\"Tue 10:00\"]}'".to_string();
+        control::RemoteError::new("invalid", format!("the data is not JSON: {e}"), Some(hint))
+    })
 }
 
 /// One line per version: `<name>@<version>`, hash, bytes, source and time,

@@ -3,7 +3,7 @@
 use serde_json::{Value, json};
 use slinger_core::record::{
     AgentBlocked, AgentDone, BlobId, Body, Event, FileTouched, KINDS, NamedBlob, PaneMoved,
-    ReplyLanded, SlingSent, Tags, UiPut, VERSION, decode, encode, to_value,
+    ReplyLanded, SlingSent, Tags, UiOpened, UiPut, UiReply, VERSION, decode, encode, to_value,
 };
 
 fn tags() -> Tags {
@@ -170,4 +170,22 @@ fn ui_put_is_read_typed_but_only_its_verb_writes_it() {
     assert_eq!(decode(&encode(&event)).unwrap(), event);
     let err = Body::new("ui_put", doc["payload"].clone()).unwrap_err();
     assert_eq!(err.code(), "invalid");
+}
+
+#[test]
+fn showings_and_replies_are_read_typed_but_only_their_verbs_write_them() {
+    let hash = BlobId::of(b"<p>");
+    let data = json!({"slots": ["Tue"]});
+    let (name, host) = ("pick-slot".to_string(), "pane".to_string());
+    let opened = UiOpened { name: name.clone(), version: 2, hash, host, data };
+    let value = json!({"slot": "Tue"});
+    let reply = UiReply { open: "pick-slot#7".into(), name, version: 2, hash, value };
+    for (body, kind) in [(Body::UiOpened(opened), "ui_opened"), (Body::UiReply(reply), "ui_reply")]
+    {
+        let event = Event::new(1, "scout", Tags::on("m"), body);
+        let doc = to_value(&event);
+        assert_eq!(doc["kind"], kind);
+        assert_eq!(decode(&encode(&event)).unwrap(), event);
+        assert_eq!(Body::new(kind, doc["payload"].clone()).unwrap_err().code(), "invalid");
+    }
 }

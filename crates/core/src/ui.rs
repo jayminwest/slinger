@@ -3,8 +3,11 @@
 //!
 //! This module owns the rules: what a name and the code may be, how the
 //! versions are rebuilt from `ui_put` events, what a reference such as
-//! `pick-slot@3` means and what an export is called. It does no IO: the
-//! daemon hands it the events and stores what it returns.
+//! `pick-slot@3` means and what an export is called. [`showing`] owns what
+//! `ui open` shows and what each reply sends. It does no IO: the daemon
+//! hands it the events and stores what it returns.
+
+pub mod showing;
 
 use std::collections::BTreeMap;
 

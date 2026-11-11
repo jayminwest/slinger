@@ -70,15 +70,16 @@ slinger.reply(value)    // Promise<void>: send one JSON value to the agent
   "v": 1,
   "ui": { "name": "pick-slot", "version": 3, "hash": "sha256:9f2c…" },
   "host": "canvas",
-  "open": "o-12",
+  "open": "pick-slot#12",
   "data": { "slots": ["Tue 10:00", "Wed 14:00"] }
 }
 ```
 
 - `host` is `pane` or `canvas`. `open` names this showing of the UI: two
-  showings of one version have different `open` ids. It is `null` until
-  `ui open` makes showings (slinger-6f8a); a pane opened with
-  `pane open --type ui` has none.
+  showings of one version have different `open` ids. It is
+  `<name>#<number>`, the number of the `ui_opened` event `ui open` appended
+  (no reference holds a `#`). It is `null` for a pane opened with
+  `pane open --type ui`, which no agent waits on.
 - `data` is the JSON the agent passed to `ui open --data`, or `null`. It is
   at most 16384 bytes, checked by `ui open`.
 
@@ -98,11 +99,14 @@ slinger.reply(value)    // Promise<void>: send one JSON value to the agent
 | `limit` | This showing already sent 100 replies |
 | `unavailable` | The daemon did not answer |
 
-The agent's session receives one JSON line per reply (how it gets there is
-the `ui open` seed's work):
+The agent's session receives one JSON line per reply, as a user message:
+the daemon records the reply, then hands the line to the session of the
+agent that opened the showing. A session that is not running does not get
+it; the reply stays in the record and the pane says the agent is not
+running.
 
 ```json
-{"v":1,"kind":"ui_reply","ui":"pick-slot","version":3,"hash":"sha256:9f2c…","open":"o-12","value":{"slot":"Wed 14:00"}}
+{"v":1,"kind":"ui_reply","ui":"pick-slot","version":3,"hash":"sha256:9f2c…","open":"pick-slot#12","value":{"slot":"Wed 14:00"}}
 ```
 
 **Versioning.** Within bridge v1 changes only add: a new context field, a
@@ -180,9 +184,9 @@ JSON text of `{"v":1,"call":"context"}` or
 JSON text, so WebKit's object conversion cannot change a number into a
 boolean. The handler answers with JSON text, or an error string
 `<code>: <message>` that the shim turns into the `Error`. Any other message
-gets `invalid`. Until `ui open` (slinger-6f8a) carries replies to the
-agent, a pane's `reply` rejects with `unavailable`; `slinger-app --preview`
-writes each reply's `ui_reply` line to its stdout.
+gets `invalid`. A pane of a UI opened by name, not by `ui open`, has no
+agent, so its `reply` rejects with `unavailable`; `slinger-app --preview`
+writes each reply's `ui_reply` line to its stdout instead.
 
 **The test** (acceptance 2 of the plan, `crates/app/tests/sandbox.rs`):
 it runs the real app, `slinger-app --preview escape --data '{"port":N}'`,

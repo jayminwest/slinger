@@ -20,6 +20,7 @@ mod put;
 mod read;
 mod session;
 mod sling;
+mod ui_open;
 mod workspace;
 
 struct Run {

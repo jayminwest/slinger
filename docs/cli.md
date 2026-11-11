@@ -28,6 +28,7 @@ a "did you mean" suggestion.
 | `ui list` | One line per UI, its latest version: `<name>@<version>`, hash, bytes, source and time, separated by tabs. `--json`: `uis` |
 | `ui show <NAME>` | One line per version of that UI, oldest first, as `ui list`. `--json`: `uis` |
 | `ui export <UI> [--out DIR]` | The path of the file written, `<DIR>/<name>.v<version>.html`. `--json`: `ui`, `path` |
+| `ui open <UI> --workspace W [--as pane] [--data JSON\|-] [--beside N] [--below] [--agent NAME]` | `<open>\t<pane>`: the showing's id (`pick-slot#12`) and the new pane's number. `--json`: `open`, `ui`, `workspace`, `pane`, `event` |
 | `blob get <ID> [--out FILE]` | The blob's bytes, exactly, on stdout. With `--out`: nothing, and the file holds the bytes. `--json` (needs `--out`): `id`, `size` |
 | `canvas create <ID>` | Nothing. `--json`: `canvas` |
 | `canvas list` | One canvas id per line. `--json`: `canvases` (list of ids) |
@@ -77,6 +78,16 @@ none and prints that version. A name or file the rules in
 into the current directory unless `--out` names another, which it makes
 if missing. An unknown UI exits 3 (`not_found`). `ui list` with no UIs
 prints nothing and exits 0.
+
+`ui open` is an agent verb (see `status set`): the calling agent shows one
+version of a UI in a new pane of the workspace's window, with `--data` (JSON,
+`-` reads stdin) as its context's data. Each reply the user makes in it is
+recorded and reaches that agent's running session as one JSON line,
+`{"v":1,"kind":"ui_reply","ui","version","hash","open","value"}`; a reply
+made while the session is not running stays in the record. Data that is not
+JSON or over 16384 bytes, or a window that holds 64 panes, exits 5
+(`invalid`); a UI, workspace or `--beside` pane that is not there exits 3
+(`not_found`). A refused open records nothing.
 
 `canvas apply` takes one operation as a JSON object, or a list of them, as
 one undo step (the operations are in `docs/service.md`, "Canvas

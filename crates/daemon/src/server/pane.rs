@@ -20,13 +20,8 @@ pub fn answer(store: &Store, ask: PaneAsk) -> Result<Reply, RemoteError> {
         }
         PaneAsk::PaneOpen { workspace, kind, target, beside, below } => {
             let pane = shown(store, kind, &target)?;
-            let axis = if below { Axis::Column } else { Axis::Row };
-            let beside = beside.map(|n| n as usize);
-            let (opened, layout, (number, moved)) = workspaces
-                .panes(&workspace, |layout| layout.open(pane, beside, axis))
-                .map_err(|e| kept(&e))?;
-            let event = record(store, &opened, moved)?;
-            Ok(reply(&opened, &layout, number.try_into().ok(), Some(event)))
+            let (opened, layout, number, event) = open(store, &workspace, pane, beside, below)?;
+            Ok(reply(&opened, &layout, Some(number), Some(event)))
         }
         PaneAsk::PaneClose { workspace, pane } => {
             let (opened, layout, moved) = workspaces
@@ -36,6 +31,28 @@ pub fn answer(store: &Store, ask: PaneAsk) -> Result<Reply, RemoteError> {
             Ok(reply(&opened, &layout, None, event))
         }
     }
+}
+
+/// Opens `pane` in `workspace`, beside pane number `beside` (to its right,
+/// or below it with `below`) or beside the whole window, and appends its
+/// `pane_moved`. Returns the workspace, its layout now, the new pane's number
+/// and the event's.
+pub fn open(
+    store: &Store,
+    workspace: &str,
+    pane: Pane,
+    beside: Option<u32>,
+    below: bool,
+) -> Result<(Opened, Layout, u32, u64), RemoteError> {
+    let axis = if below { Axis::Column } else { Axis::Row };
+    let beside = beside.map(|n| n as usize);
+    let (opened, layout, (number, moved)) = store
+        .workspaces()
+        .panes(workspace, |layout| layout.open(pane, beside, axis))
+        .map_err(|e| kept(&e))?;
+    let event = record(store, &opened, moved)?;
+    // A layout holds at most 64 panes.
+    Ok((opened, layout, u32::try_from(number).unwrap_or(u32::MAX), event))
 }
 
 /// The pane for `target`, which must be there: a canvas, or a UI with a

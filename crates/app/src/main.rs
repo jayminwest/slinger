@@ -10,8 +10,11 @@
 //! Only `platform` touches `AppKit`, and only this file starts it (gate
 //! check:layers).
 //!
-//! `slinger-app --preview UI [--data JSON]` shows one agent UI alone in the
-//! window and writes each of its replies to stdout, one `ui_reply` line each.
+//! A UI pane's reply goes to the daemon, which hands it to the agent that
+//! opened the showing (`backend::ui::reply`); the pane notes one its agent
+//! did not take. `slinger-app --preview UI [--data JSON]` shows one agent UI
+//! (or a showing) alone in the window and writes each of its replies to
+//! stdout, one `ui_reply` line each.
 
 mod backend;
 mod canvases;
@@ -40,7 +43,7 @@ use crate::panes::{Pane, Panes};
 use crate::platform::{Event, Step};
 use crate::scene::sidebar::Sidebar;
 use crate::scene::tools::{Kind, Tools};
-use crate::scene::{Scene, Uis};
+use crate::scene::{Notes, Scene, Uis};
 
 fn main() -> ExitCode {
     let settings = backend::Settings::load(backend::ConfigFiles::locate());
@@ -63,16 +66,17 @@ fn fail(message: &str, hint: Option<&str>) -> ExitCode {
     ExitCode::FAILURE
 }
 
-/// Shows the agent UI `reference` names alone, with `data` as its
-/// context's data, and writes each reply to stdout until the window closes.
+/// Shows the agent UI `reference` names (or a showing, by its id) alone,
+/// with `data` as its context's data (else the showing's), and writes each
+/// reply to stdout until the window closes.
 fn preview(settings: &Settings, reference: &str, data: Option<&str>) -> ExitCode {
     let data = match data.map(ui::data).transpose() {
-        Ok(data) => data.unwrap_or_default(),
+        Ok(data) => data,
         Err(why) => return fail(&why, None),
     };
     let daemon = control::Client::new(settings.socket());
     let page = match backend::ui::fetch(&daemon, reference) {
-        Ok(code) => ui::Page::new(code, "pane", &data),
+        Ok(shown) => ui::Page::new(ui::Shown { data: data.unwrap_or(shown.data), ..shown }, "pane"),
         Err(problem) => return fail(&problem.message, problem.hint.as_deref()),
     };
     let page = match page {
@@ -121,8 +125,15 @@ fn window(mut settings: Settings) -> ExitCode {
     let answer = move |event| {
         let force = match event {
             Event::Tick => false,
-            // Replies reach the agent with `ui open` (slinger-6f8a).
-            Event::Reply(_) => return Step::Refuse("the agent cannot take replies yet".into()),
+            Event::Reply(line) => {
+                return match shared.reply(&line, &socket) {
+                    Ok(false) => Step::Stay,
+                    Ok(true) => {
+                        Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases))
+                    }
+                    Err(why) => Step::Refuse(why),
+                };
+            }
             Event::Moved(at) => {
                 tools.moved(at);
                 return Step::Stay;
@@ -215,12 +226,15 @@ struct Shared {
     workspace: Option<String>,
     /// The problem asking the server, if any.
     trouble: Option<Problem>,
+    /// Why an agent UI's last reply did not reach its agent, by showing.
+    notes: Notes,
 }
 
 impl Default for Shared {
     fn default() -> Self {
         let main = Pane { kind: panes::Kind::Canvas, name: "main".to_string() };
-        Self { panes: Panes::new(main), uis: Uis::new(), workspace: None, trouble: None }
+        let (uis, notes) = (Uis::new(), Notes::new());
+        Self { panes: Panes::new(main), uis, workspace: None, trouble: None, notes }
     }
 }
 
@@ -239,16 +253,31 @@ impl Shared {
 
     /// Takes the agent UIs' code the watch fetched, each as a page for a
     /// pane or why it cannot show; whether there was any.
-    fn fetched(&mut self, codes: Vec<(String, Result<ui::Code, Problem>)>) -> bool {
+    fn fetched(&mut self, codes: Vec<(String, Result<ui::Shown, Problem>)>) -> bool {
         let any = !codes.is_empty();
-        for (name, code) in codes {
-            let page = code.and_then(|code| {
-                let page = ui::Page::new(code, "pane", &serde_json::Value::Null);
+        for (name, shown) in codes {
+            let page = shown.and_then(|shown| {
+                let page = ui::Page::new(shown, "pane");
                 page.map(Arc::new).map_err(|why| Problem { message: why, hint: None })
             });
             self.uis.insert(name, page);
         }
         any
+    }
+
+    /// Sends an agent UI's reply `line` to the daemon on `socket`, which
+    /// records it and hands it to the agent that opened the showing. The
+    /// showing's pane notes an agent that did not take it, until one does;
+    /// whether that changed what the window shows, or why the reply cannot
+    /// go on, for the page's promise.
+    fn reply(&mut self, line: &str, socket: &Path) -> Result<bool, String> {
+        Ok(match backend::ui::reply(&control::Client::new(socket), line)? {
+            (open, Some(unreachable)) => {
+                self.notes.insert(open, unreachable);
+                true
+            }
+            (open, None) => self.notes.remove(&open).is_some(),
+        })
     }
 
     /// Runs a pane command on the panes in `area`. Opening and closing go
@@ -388,7 +417,8 @@ fn view(
             problems.push(problem);
         }
     }
-    let mut scene = scene::build(&shared.panes, theme, &problems, sidebar, drawn, &shared.uis);
+    let mut scene =
+        scene::build(&shared.panes, theme, &problems, sidebar, drawn, &shared.uis, &shared.notes);
     scene.labels.extend(tools.labels(theme));
     scene
 }

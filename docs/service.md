@@ -123,6 +123,9 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `ui_list` | none | `uis`: the latest version of each UI, by name |
 | `ui_show` | `name`: string | `uis`: every version of that UI, oldest first |
 | `ui_export` | `ui`: a UI reference, `dir`: absolute path of a directory | `ui`: the version, `path`: the file written |
+| `ui_open` | `ui`: a UI reference, `workspace`: as `workspace_show`, `agent`: string, `host`: `pane` (default), `data`: any JSON (optional), `beside`: a pane number (optional), `below`: bool (default `false`) | `open`: the showing's id, `ui`: the version, `workspace`, `pane`: the new pane's number, `event`: the `ui_opened` appended |
+| `ui_shown` | `ui`: a showing's id or a UI reference | `ui`: the version, then for a showing `open`, `data` (absent when `null`) and `agent` |
+| `ui_reply` | `open`: a showing's id, `value`: any JSON | `event`: the `ui_reply` appended, `agent`, `delivered`: whether its session took it |
 | `canvas_create` | `canvas`: canvas id | `canvas`: the id |
 | `canvas_list` | none | `canvases`: list of `{canvas}`, sorted by id |
 | `canvas_show` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `canvas`, `next`: the next operation's number, `page`: the page's id, `pages`: list of `{id, name}`, `items`: list of items |
@@ -177,7 +180,10 @@ A blob id is `sha256:` and 64 lowercase hex digits.
 
 `record_list` also returns `ui_put` events (`name`, `version`, `hash`: blob
 id, `bytes`), but `record_append` refuses that kind: only `ui_put` writes
-it, so a name's versions stay 1, 2, 3 in log order.
+it, so a name's versions stay 1, 2, 3 in log order. The same holds for
+`ui_opened` (`name`, `version`, `hash`, `host`, `data`), which only
+`ui_open` writes, and `ui_reply` (`open`, `name`, `version`, `hash`,
+`value`), which only `ui_reply` writes (see "Showings").
 
 **`record_list`** returns the events that match every filter given:
 `kind`, each tag, and `after` (only events numbered above it). No match
@@ -223,6 +229,39 @@ request; they are not stored anywhere else.
 { "ok": true, "ui": { "name": "pick-slot", "version": 1, "hash": "sha256:9f2c…", "bytes": 1234, "source": "scout", "time": 1762790400000 }, "new": true }
 { "v": 1, "op": "ui_export", "ui": "pick-slot@1", "dir": "/tmp/out" }
 { "ok": true, "ui": { "name": "pick-slot", "version": 1, … }, "path": "/tmp/out/pick-slot.v1.html" }
+```
+
+#### Showings
+
+A **showing** is one `ui_open`: an agent shows a version of a UI, with
+data, and each reply from it goes back to that agent's session. Its id is
+`<name>#<number>`, the number of its `ui_opened` event (`pick-slot#12`).
+No UI reference holds a `#`, so a pane's target is either.
+
+**`ui_open`** resolves `ui` to one version, checks the agent (not blank),
+the host (only `pane`; a canvas item comes with live items), the data (at
+most 16384 bytes as JSON) and the workspace's window (`beside` there, room
+for a pane), then appends a `ui_opened` event tagged with the agent and the
+workspace and opens a pane whose target is the showing's id, as
+`pane_open` does. A refused open records nothing. **`ui_shown`** says what
+a pane's UI target shows: for a showing, the version it opened, its data
+and its agent; for a reference, the version alone. The app asks it for
+each UI pane.
+
+**`ui_reply`** appends a `ui_reply` event (source `user`, the showing's
+tags), then sends the agent's running session one message: the line
+`{"v":1,"kind":"ui_reply","ui","version","hash","open","value"}`, JSON on
+one line. A session that is not running does not get it: the reply is
+still in the record, and `delivered` is `false`. A value over 16384 bytes,
+or a showing's 101st reply, is `invalid` with a hint, and records nothing.
+A showing id that names no `ui_opened` event is `not_found`; a target that
+is not a showing id is `invalid`.
+
+```json
+{ "v": 1, "op": "ui_open", "ui": "pick-slot", "workspace": "notes", "agent": "scout", "data": { "slots": ["Tue 10:00", "Wed 14:00"] } }
+{ "ok": true, "open": "pick-slot#12", "ui": { "name": "pick-slot", "version": 1, … }, "workspace": "notes", "pane": 2, "event": 12 }
+{ "v": 1, "op": "ui_reply", "open": "pick-slot#12", "value": { "slot": "Wed 14:00" } }
+{ "ok": true, "event": 13, "agent": "scout", "delivered": true }
 
 #### Canvases
 
@@ -762,8 +801,9 @@ not open, and an agent with no session.
    own, tagged by `op`, as `crates/control/src/session.rs` and
    `crates/control/src/agent.rs` do (`sling_send` is a session verb). The app sends
    `workspace_list` and the pane verbs, each written with such a type of its
-   own (`crates/control/src/pane.rs`), so the app builds no `Request` at
-   all; keep it that way.
+   own (`crates/control/src/pane.rs`), as are the showing verbs it sends
+   (`crates/control/src/ui.rs`), so the app builds no `Request` at all;
+   keep it that way.
 3. Add one arm to `answer` in `crates/daemon/src/server.rs`. It calls the
    core and nothing else.
 4. Add tests to `crates/daemon/src/tests.rs`. They go through a real socket.

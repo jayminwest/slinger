@@ -32,6 +32,10 @@ pub enum Body {
     AgentDone(AgentDone),
     /// `ui_put`: a version of an agent UI's code was stored.
     UiPut(UiPut),
+    /// `ui_opened`: an agent showed a version of a UI with its data.
+    UiOpened(UiOpened),
+    /// `ui_reply`: a showing of a UI replied to the agent that opened it.
+    UiReply(UiReply),
     /// A kind this reader does not know, with its payload as written.
     Other { kind: String, payload: Value },
 }
@@ -120,6 +124,33 @@ pub struct UiPut {
     pub bytes: u64,
 }
 
+/// Payload of `ui_opened` (docs/design/live-items.md): one showing of a
+/// UI. Only the `ui_open` verb writes it. The agent is the event's `agent`
+/// tag, and the showing's id is `<name>#<the event's number>`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UiOpened {
+    pub name: String,
+    pub version: u64,
+    /// The code shown, so the showing keeps showing these bytes (D19).
+    pub hash: BlobId,
+    /// Where it shows: `pane`.
+    pub host: String,
+    /// The JSON the agent gave the UI, `null` for none.
+    pub data: Value,
+}
+
+/// Payload of `ui_reply`: one JSON value a showing sent its agent. Only the
+/// `ui_reply` verb writes it, before it delivers the value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UiReply {
+    /// The showing's id, `<name>#<number>`.
+    pub open: String,
+    pub name: String,
+    pub version: u64,
+    pub hash: BlobId,
+    pub value: Value,
+}
+
 impl Body {
     /// The kind's name as it is written in an event.
     #[must_use]
@@ -132,6 +163,8 @@ impl Body {
             Self::AgentBlocked(_) => "agent_blocked",
             Self::AgentDone(_) => "agent_done",
             Self::UiPut(_) => "ui_put",
+            Self::UiOpened(_) => "ui_opened",
+            Self::UiReply(_) => "ui_reply",
             Self::Other { kind, .. } => kind,
         }
     }
@@ -146,6 +179,8 @@ impl Body {
             Self::AgentBlocked(p) => to_value(p),
             Self::AgentDone(p) => to_value(p),
             Self::UiPut(p) => to_value(p),
+            Self::UiOpened(p) => to_value(p),
+            Self::UiReply(p) => to_value(p),
             Self::Other { payload, .. } => payload.clone(),
         }
     }
@@ -183,16 +218,18 @@ impl Body {
             "agent_blocked" => Self::AgentBlocked(serde_json::from_value(payload)?),
             "agent_done" => Self::AgentDone(serde_json::from_value(payload)?),
             "ui_put" => Self::UiPut(serde_json::from_value(payload)?),
+            "ui_opened" => Self::UiOpened(serde_json::from_value(payload)?),
+            "ui_reply" => Self::UiReply(serde_json::from_value(payload)?),
             _ => Self::Other { kind, payload },
         })
     }
 }
 
-/// Every payload is a struct of strings, numbers and lists, which always
-/// serializes: a non-finite float becomes `null` rather than an error.
+/// Every payload is a struct of strings, numbers, lists and JSON values,
+/// which always serializes: a non-finite float becomes `null` rather than an error.
 #[expect(
     clippy::expect_used,
-    reason = "payload structs have no map keys, so serializing cannot fail"
+    reason = "payloads hold only string map keys, so serializing cannot fail"
 )]
 fn to_value(payload: &impl Serialize) -> Value {
     serde_json::to_value(payload).expect("a payload serializes")

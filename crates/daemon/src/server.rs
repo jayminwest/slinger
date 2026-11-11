@@ -6,6 +6,7 @@ mod import;
 mod pane;
 mod read;
 mod session;
+mod showing;
 mod sling;
 
 #[cfg(test)]
@@ -281,6 +282,7 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
         Request::Session(ask) => session::answer(store, ask),
         Request::Agent(ask) => agent::answer(store, ask),
         Request::Pane(ask) => pane::answer(store, ask),
+        Request::Showing(ask) => showing::answer(store, ask),
     }
 }
 
