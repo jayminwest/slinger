@@ -23,7 +23,8 @@ bullet with the area in bold.
   are untouched): its status is `working` while a turn runs, `done` when it
   ends and `blocked` while it waits for your permission or input, and every
   file it writes is recorded by path and hash. `slingerd --slinger <path>`
-  names the CLI the hooks run.
+  names the CLI the hooks run; its folder also comes first on the agent's
+  `PATH`, so the agent's own `slinger` commands run the same CLI.
 - **CLI:** `slinger file touched <path>` records that the calling agent wrote
   a file: its path and hash, never its contents. `--hook` reads a Claude Code
   hook's payload on stdin instead.
