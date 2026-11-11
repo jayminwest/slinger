@@ -5,6 +5,10 @@ mod agent;
 mod import;
 mod read;
 mod session;
+mod sling;
+
+#[cfg(test)]
+pub(crate) use sling::VERBS;
 
 use std::fs::{self, File, Permissions, TryLockError};
 use std::io::{self, BufReader};

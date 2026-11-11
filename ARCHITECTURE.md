@@ -82,7 +82,8 @@ packet/      what an agent reads from a page (docs/design/packet.md). Index::new
              and time, sized by each pen's median stroke; a long stroke (frame, arrow,
              divider) and an agent's stroke stay alone. Same strokes, same clusters.
              build(log, ask) is the one entry: an op log, a page, the last sling's
-             marker and a selection in; a Packet (header, sections, images) out.
+             marker and a selection in; a Packet (header, sections, images, and
+             the selection as packet ids: a stroke as its cluster c<n>) out.
              It hides the delta, clustering (whole page), rendering and the index.
              Packet::text / Packet::read own the versioned format (VERSION, B5).
 tldraw/      the tldraw importer (SPEC D7): import(bytes, time) -> canvas and a
@@ -101,6 +102,8 @@ sling.rs     the sling message (SPEC section 6, D10): a packet, the prompt, the
              Line 1 is `slinger-sling <VERSION>`; then the packet, a `# reply` note
              (whole on a session's first sling, one line after) and the prompt last.
              The note names only the verbs passed in. No errors.
+             first: whether a sling is the first into a conversation (no
+             `sling_sent` of the agent names that session id).
              landed: the `reply_landed` an agent's answer adds, for its latest
              sling on that canvas.
 record/      the record's formats (SPEC section 9): events as versioned JSON
@@ -119,12 +122,13 @@ workspace.rs workspaces (SPEC section 10): the definition file's format
 session.rs   sessions (SPEC section 5, section 7 status set): a session per
              agent of the open workspaces (agent, home, delivery, status), the
              three statuses, and the record event each writes (blocked, done)
-             or none (working), and back. No IO.
+             or none (working), and back. on_canvas: the workspace a sling on a
+             canvas goes to. No IO.
 session/stream.rs  Claude Code's stream format (D10): the arguments that start
              or resume a session's process, with its limits (what it reads,
              runs and loads, from its workspace's agent), a message as one
-             input line, and what an output line says (its session id, the
-             end of a turn).
+             input line (text, or a sling's text and base64 PNG blocks), and
+             what an output line says (its session id, the end of a turn).
 error.rs     the typed errors and their stable codes.
 ```
 
@@ -180,8 +184,14 @@ processes.rs the agents' processes, one per agent: spawned in the agent's
              one closes its input, waits a grace period, then kills it; `serve`
              ends them all when it stops. No restart on death (D20).
 server/session.rs  the session verbs on the wire, each session with its process.
+server/sling.rs  `sling_send`: the workspace of the canvas, the marker, the
+             packet, `sling::message` with the verbs this daemon serves
+             (VERBS), delivery to the agent's process, then the blobs and
+             `sling_sent`. Nothing is stored when delivery fails. One sling at a
+             time (`Sessions::slinging`), so packets never overlap.
 server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
-             agent's latest sling on the canvas (`sling::landed`), if any;
+             agent's latest sling on the canvas (`sling::landed`), if any,
+             looked up under the sling lock so a fast reply finds its sling;
              `canvas_edit` and `canvas_remove`, which pass the agent's name
              to the core's `Log::edit` and `Log::remove`.
 ```
@@ -281,6 +291,7 @@ Each boundary has something that fails when it is broken:
 | An agent edits and removes only its own items; removing twice succeeds twice | `crates/core/tests/canvas_edit.rs`, and `crates/daemon/src/tests/edit.rs` through a real socket |
 | Three sends reach one process under one session id and their answers are read; a restart resumes it; a dead process makes a send `unavailable`; a daemon stop ends it | `crates/daemon/src/tests/process.rs`, with a stand-in for Claude Code |
 | A session starts with the exact limits its workspace sets: by default its roots, the `slinger` CLI and no user config; wider with the agent's `dirs`, `tools` and `user_config` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
+| Three slings go into one conversation, each with its packet blob and `sling_sent`; old ink is not sent again; no running agent is `unavailable` and stores nothing; each verb the note names is served | `crates/daemon/src/tests/sling.rs`, with a stand-in for Claude Code |
 | An agent verb takes its agent from `--agent` or `SLINGER_AGENT`, else exits 2 | `crates/cli/tests/agent_env.rs`, against the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |

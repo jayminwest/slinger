@@ -47,6 +47,7 @@ a "did you mean" suggestion.
 | `session show <AGENT>` | One field per line, the name and the value separated by a tab: `agent`, `home`, `deliver`, `status`, then those it has of `note`, `process`, `pid`, `pending`, `session_id` and `answer` (its line breaks as `\n`). `--json`: `session` |
 | `session start <WORKSPACE>`, `session stop <WORKSPACE>` | Nothing. `--json`: `session` |
 | `session send <WORKSPACE> <TEXT\|->` | Nothing. `--json`: `session` |
+| `sling send <ID> [--page PAGE] [--select IDS] [--prompt TEXT\|-]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
 | `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --arrow FROM TO) [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
 | `canvas edit <ID> --item ITEM [--text TEXT] [--box W,H] [--move X,Y] [--agent NAME]` | The item's id and its box `x,y,w,h` in tenths now, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq` |
@@ -163,6 +164,17 @@ A workspace that is not open exits 3, one with no agent exits 5. The process
 gets `SLINGER_AGENT` and `SLINGER_SOCKET`, so its `slinger` calls act as its
 agent on the daemon that started it (see "The process" in
 `docs/service.md`).
+
+`sling send` sends what changed on a canvas page since its last sling, the
+selection (`--select c42,t12`, ids as `canvas read` takes them) and the
+prompt (`-` reads it from stdin; none is valid: the selection is the
+question) to the agent of the canvas's open workspace, and returns once it
+is delivered. The answer arrives on the canvas, as the agent's `canvas put`s,
+and as its status. Each sling is in the record (`sling_sent`, with its packet
+as a blob). With no running agent it exits 6 (`unavailable`) with a hint to
+`session start` it, and sends and records nothing; slinger never starts one
+for a sling. A canvas no open workspace has exits 3, a workspace with no
+agent or an id that is not one exits 5.
 
 ## Output
 

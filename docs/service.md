@@ -144,6 +144,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_start` | `workspace`: string, its name or the directory of its file | `session` |
 | `session_stop` | `workspace`: string | `session` |
 | `session_send` | `workspace`: string, `text`: string | `session` |
+| `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` |
 
 **`record_append`** appends one event to this machine's record. `tags`
 may set `workspace`, `agent` and `canvas`; the daemon sets `machine`, the
@@ -159,7 +160,7 @@ is dropped.
 
 | `kind` | `payload` |
 |---|---|
-| `sling_sent` | `prompt`: string, `packet`: blob id |
+| `sling_sent` | `prompt`: string, `packet`: blob id, `images`: list of `{name, hash}` (optional), `session`: the session id it went into (optional) |
 | `reply_landed` | `sling`: number (the `sling_sent` event), `items`: list of item ids |
 | `file_touched` | `path`: string, `hash`: blob id (never the contents) |
 | `pane_moved` | `pane`: string, `x`, `y`, `width`, `height`: number (points) |
@@ -523,6 +524,49 @@ Start `slingerd` again on the same `--data-dir`, `session start check` and
 ask once more: `session show checker` has the same `session_id`, and the
 answer is still the word.
 
+#### Slings
+
+**`sling_send`** is the sling (SPEC section 6): the packet of one canvas
+page and the user's prompt, as one message to the agent of the open
+workspace whose canvas it is. The packet holds the ink drawn after the
+canvas's last sling (the marker of `canvas_read`), with `select` naming the
+selection as `canvas_read` takes it. The message
+(`slinger_core::sling::message`) is line 1 `slinger-sling 1` with the
+selection as packet ids (a stroke is named by its cluster), the packet with
+each image under the line that names it, a `# reply` note naming only the
+agent verbs this daemon serves (`canvas put`, `canvas crop`), and the
+prompt last. The first sling into a conversation (no `sling_sent` of the
+agent names its session id) gets the whole note, later ones one line. It
+reaches the process as one stream-json user message: text blocks and a
+base64 PNG image block per image.
+
+The reply comes once the message is written to the process; the daemon
+does not wait for the answer, which arrives as the agent's `canvas_put`s
+and its `status_set`. Only after delivery is the packet stored (its text
+without `at` and each image as blobs) and `sling_sent` appended, with the
+daemon as source and tagged with the agent and the canvas. That event moves
+the marker, so a sling that fails sends the same ink next time. Selecting
+old items again sends a packet with nothing new (`strokes` 0). Slings go one
+at a time, so two packets never cover the same operation.
+
+Slinger never starts an agent for a sling (D10): with no running process
+the reply is `unavailable` with a hint to `session start` the workspace,
+and nothing is stored. A canvas no open workspace has is `not_found`, a
+workspace with no agent `invalid`, and the canvas, page and selection fail
+as in `canvas_read`.
+
+**Which sling a reply answers.** A `canvas_put` answers the agent's latest
+sling on that canvas, until the next sling there: nothing closes a sling,
+`agent_done` included, so an agent that adds a note after it reported done
+still lands `reply_landed` against it. The other choice was to close a sling
+at `agent_done`; then a late put would answer nothing, and the record would
+lose which question it belonged to.
+
+```json
+{ "v": 1, "op": "sling_send", "canvas": "notes", "select": ["c42"], "prompt": "what is missing here?" }
+{ "ok": true, "event": 14, "packet": "sha256:5e1f…", "from": 42, "to": 58, "strokes": 23, "agent": "scout", "session_id": "6f1c0d52-8a3e-4b7d-9c1e-2f4a5b6c7d8e" }
+```
+
 #### Agent canvas verbs
 
 An agent answers on the canvas, not in chat (SPEC section 7). Each answer
@@ -607,7 +651,7 @@ The protocol adds:
 | `bad_request` | The line is not JSON, has no `v`, names no known `op`, or has wrong arguments |
 | `too_large` | The request line is over the limit |
 | `unsupported_version` | `v` is not a version this daemon speaks |
-| `unavailable` | The agent's process is not running (`session_send`); made by the client when the daemon did not answer |
+| `unavailable` | The agent's process is not running (`session_send`, `sling_send`); made by the client when the daemon did not answer |
 | `internal` | The daemon could not read or write its record, or the client could not read the reply |
 
 `not_found` also covers a blob the record does not hold, a file to put
@@ -639,7 +683,7 @@ not open, and an agent with no session.
    `crates/control/src/packet.rs`. A group of such verbs shares one
    variant: `#[serde(untagged, skip_serializing)]` over an enum of their
    own, tagged by `op`, as `crates/control/src/session.rs` and
-   `crates/control/src/agent.rs` do. The app sends only `hello`, which
+   `crates/control/src/agent.rs` do (`sling_send` is a session verb). The app sends only `hello`, which
    `Client::hello` also writes with a type of its own, so the app builds
    no `Request` at all; keep it that way.
 3. Add one arm to `answer` in `crates/daemon/src/server.rs`. It calls the

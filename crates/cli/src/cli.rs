@@ -18,6 +18,7 @@ use slinger_control as control;
 use crate::canvas::Canvas;
 use crate::output::{Ctx, Failure, Output, exit};
 use crate::session::{Session, Status};
+use crate::sling::Sling;
 use crate::ui::Ui;
 use crate::workspace::Workspace;
 
@@ -102,6 +103,9 @@ enum Command {
     /// Report the calling agent's status: working, blocked or done
     #[command(subcommand)]
     Status(Status),
+    /// Send what changed on a canvas, with a prompt, to its workspace's agent
+    #[command(subcommand)]
+    Sling(Sling),
 }
 
 #[derive(Subcommand)]
@@ -179,6 +183,7 @@ impl Command {
             Self::Workspace(workspace) => workspace.name(),
             Self::Session(session) => session.name(),
             Self::Status(status) => status.name(),
+            Self::Sling(sling) => sling.name(),
         }
     }
 }
@@ -258,6 +263,7 @@ fn execute(
         Command::Workspace(workspace) => crate::workspace::execute(workspace, daemon),
         Command::Session(session) => crate::session::execute(session, daemon, input),
         Command::Status(status) => crate::session::set(status, daemon),
+        Command::Sling(sling) => crate::sling::execute(sling, daemon, input),
     }
 }
 

@@ -27,8 +27,8 @@
 //! session gets the whole note; later slings, whose session remembers it
 //! (D10), get one line.
 //!
-//! [`landed`] is the other end: the record's `reply_landed` when the agent
-//! answers on the canvas.
+//! [`first`] says which slings get the whole note. [`landed`] is the other
+//! end: the record's `reply_landed` when the agent answers on the canvas.
 
 use std::fmt::Write as _;
 
@@ -153,6 +153,19 @@ pub fn message(sling: &Sling<'_>) -> Message {
 pub fn landed(slings: &[Event], items: Vec<String>) -> Option<Body> {
     let sling = slings.iter().rev().find(|e| matches!(e.body, Body::SlingSent(_)))?.number?;
     Some(Body::ReplyLanded(ReplyLanded { sling, items }))
+}
+
+/// Whether a sling into the conversation `session` is its first, and so gets
+/// the whole note: none of `slings` (the agent's `sling_sent` events) went
+/// into it. A conversation remembers its slings (D10), even across a resume,
+/// so a new process on an old conversation is not a first; a new
+/// conversation is, whatever the agent was sent before.
+#[must_use]
+pub fn first(slings: &[Event], session: &str) -> bool {
+    !slings.iter().any(|e| match &e.body {
+        Body::SlingSent(sent) => sent.session.as_deref() == Some(session),
+        _ => false,
+    })
 }
 
 /// Line 1: the message's version, the canvas and the selection.

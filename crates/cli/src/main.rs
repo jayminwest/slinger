@@ -8,6 +8,7 @@ mod look;
 mod output;
 mod put;
 mod session;
+mod sling;
 #[cfg(test)]
 mod tests;
 mod ui;

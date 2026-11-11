@@ -35,7 +35,7 @@ done
 "#;
 
 /// Writes the stand-in into `dir` and returns its path.
-fn fake_claude(dir: &Path) -> PathBuf {
+pub(super) fn fake_claude(dir: &Path) -> PathBuf {
     let path = dir.join("claude");
     std::fs::write(&path, FAKE_CLAUDE).unwrap();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -55,7 +55,7 @@ fn wait_for(client: &Client, agent: &str, done: impl Fn(&Session) -> bool) -> Se
 }
 
 /// The lines of the file at `path` once it has `n` of them, or fails after 10 s.
-fn wait_lines(path: &Path, n: usize) -> Vec<String> {
+pub(super) fn wait_lines(path: &Path, n: usize) -> Vec<String> {
     until(|| lines(path).len() >= n);
     lines(path)
 }

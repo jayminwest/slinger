@@ -57,6 +57,8 @@ fn canvas_put(
         canvas: tags.canvas.clone(),
         ..Query::default()
     };
+    // A sling being sent appends its event first: the put answers that one.
+    let _sling = store.sessions().slinging();
     let slings = store.events(&query).map_err(|e| stored(&e))?;
     let event = match sling::landed(&slings, vec![item.clone()]) {
         Some(body) => {

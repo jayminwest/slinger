@@ -179,9 +179,14 @@ fn a_selection_narrows_the_page_to_it_plus_what_is_new() {
     assert_eq!(ids(&p.new), ["c3"]);
     assert_eq!(ids(&p.made), ["a5"]);
     assert_eq!(ids(&p.page), ["c1"]);
+    // A stroke is selected as its cluster, once; the new arrow by its own id.
+    let selection = [ItemId::new(2), ItemId::new(5), ItemId::new(1)];
+    let p = build(&log, &Ask { selection: &selection, ..ask(page, marker) }).unwrap();
+    assert_eq!(p.selected, ["c1", "a5"]);
+    assert_eq!(p.new_strokes(), 1);
     // Selecting something not on the page leaves the page section empty.
     let p = build(&log, &Ask { selection: &[ItemId::new(99)], ..ask(page, marker) }).unwrap();
-    assert!(p.page.is_empty() && !p.new.is_empty());
+    assert!(p.page.is_empty() && !p.new.is_empty() && p.selected.is_empty());
 }
 
 #[test]

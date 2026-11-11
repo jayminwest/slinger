@@ -23,6 +23,7 @@ mod process;
 mod put;
 mod read;
 mod session;
+mod sling;
 mod workspace;
 
 const DAEMON: &str = "slingerd";

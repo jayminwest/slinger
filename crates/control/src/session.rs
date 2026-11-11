@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Client, RemoteError};
+use crate::{Client, RemoteError, SlingAsk};
 
 /// A session request, as a client writes it and the daemon reads it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,6 +32,8 @@ pub enum SessionAsk {
     SessionStop { workspace: String },
     /// Deliver one message to the running process of a workspace's agent.
     SessionSend { workspace: String, text: String },
+    /// Send a canvas's new ink and a prompt to the agent of its workspace.
+    SlingSend(SlingAsk),
 }
 
 /// One agent the daemon can reach.
@@ -203,6 +205,19 @@ mod tests {
                 SessionAsk::SessionSend { workspace: "w".into(), text: "hi".into() },
                 r#"{"v":1,"op":"session_send","workspace":"w","text":"hi"}"#,
             ),
+            (
+                SessionAsk::SlingSend(SlingAsk {
+                    canvas: "c".into(),
+                    page: Some("p1".into()),
+                    select: vec!["c4".into(), "t9".into()],
+                    prompt: "why?".into(),
+                }),
+                r#"{"v":1,"op":"sling_send","canvas":"c","page":"p1","select":["c4","t9"],"prompt":"why?"}"#,
+            ),
+            (
+                SessionAsk::SlingSend(SlingAsk { canvas: "c".into(), ..SlingAsk::default() }),
+                r#"{"v":1,"op":"sling_send","canvas":"c","prompt":""}"#,
+            ),
         ] {
             assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
@@ -216,6 +231,7 @@ mod tests {
             r#"{"v":1,"op":"session_show"}"#,
             r#"{"v":1,"op":"status_set","agent":"a"}"#,
             r#"{"v":1,"op":"session_send","workspace":"w"}"#,
+            r#"{"v":1,"op":"sling_send","prompt":"p"}"#,
             r#"{"v":1,"op":"session_nope"}"#,
         ] {
             let err = crate::read_request(&mut line.as_bytes()).unwrap_err();
