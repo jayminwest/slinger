@@ -2,6 +2,16 @@
 //! named [`Command`], bound to a [`Chord`] in the config file. A tablet button
 //! is a key, set in the tablet's own software. Pure: `platform` turns a key
 //! event into a chord, and a [`Keymap`] turns the chord into a command.
+//! `registry` gives each command a title and a group for the surfaces that
+//! list them.
+
+mod registry;
+
+#[cfg_attr(
+    not(test),
+    expect(unused_imports, reason = "the key overlay and the menu bar name the groups")
+)]
+pub use registry::Group;
 
 /// Every action a key can run. Later seeds add to [`Command::ALL`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,6 +85,10 @@ pub enum Command {
     /// Put a "send to agent" button in the middle of the focused pane's
     /// canvas page.
     PlaceButton,
+    /// Show every command by group with its key (the key overlay).
+    ShowKeys,
+    /// Find a command by its title and run it (the command palette).
+    ShowCommands,
 }
 
 /// How many commands there are.
@@ -82,7 +96,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 41] = [
+    pub const ALL: [(Command, &str); 43] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -124,6 +138,8 @@ impl Command {
         (Command::Redo, "redo"),
         (Command::Dictate, "dictate"),
         (Command::PlaceButton, "place-button"),
+        (Command::ShowKeys, "show-keys"),
+        (Command::ShowCommands, "show-commands"),
     ];
 
     /// The command called `name` in the config file.
@@ -279,6 +295,8 @@ impl Default for Keymap {
             on(CMD | SHIFT, 'z'),
             on(CMD | SHIFT, '\r'),
             on(CMD | SHIFT, 'b'),
+            on(CMD, '/'),
+            on(CMD, 'k'),
         ])
     }
 }
@@ -288,6 +306,15 @@ impl Keymap {
     pub fn command(&self, chord: Chord) -> Option<Command> {
         let i = self.0.iter().position(|&c| c == Some(chord))?;
         Some(Command::ALL[i].0)
+    }
+
+    /// The chord that runs `command`, if any: the live key a surface shows.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "the key overlay, the palette and the menu bar show it")
+    )]
+    pub fn chord(&self, command: Command) -> Option<Chord> {
+        self.0[command as usize]
     }
 
     /// Puts `command` on `chord`, or on none. A command that was on `chord`

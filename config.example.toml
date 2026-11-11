@@ -61,8 +61,9 @@
 # write the letter ("cmd+shift+k"). "" binds a command to no key. Two commands on one
 # chord in one file is an error. A chord set in a file moves from the command that had it
 # by default, or in the shared file when set in the overlay; that command has no key then.
-# A tablet button is a key: bind it to a chord in the tablet's own software. The final
-# keys are not decided yet.
+# A tablet button is a key: bind it to a chord in the tablet's own software. show-keys
+# lists every command with its key; show-commands finds one by name. The final keys are
+# not decided yet.
 [keys]
 # Quit the app.
 #quit = "cmd+q"
@@ -150,3 +151,7 @@
 # status of the agent of the canvas's workspace. With nothing selected, `sling` opens the
 # prompt beside it, and a tap sends that prompt. Select, move and delete it like a box.
 #place-button = "cmd+shift+b"
+# Show every command, by group, with its key (the key overlay).
+#show-keys = "cmd+/"
+# Find a command by its name and run it (the command palette).
+#show-commands = "cmd+k"
