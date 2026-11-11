@@ -233,6 +233,23 @@ impl Shape {
         }
     }
 
+    /// The same shape, with a text's frame sized to hold its text when the
+    /// frame has none ([`crate::render::text_frame`]): narrower than a
+    /// character, or no height. A text item never covers less than it draws,
+    /// so a put beside it does not land on it. A size below zero or not a
+    /// number is left for [`Shape::check`] to refuse. Other shapes are as
+    /// they are.
+    #[must_use]
+    pub fn fitted(mut self) -> Self {
+        if let Shape::Text { text, frame, .. } = &mut self
+            && frame.w >= 0.0
+            && frame.h >= 0.0
+        {
+            (frame.w, frame.h) = crate::render::text_frame(text, frame.w, frame.h);
+        }
+        self
+    }
+
     /// The items this shape points at.
     pub(super) fn targets(&self) -> impl Iterator<Item = ItemId> {
         let ends = match self {
@@ -352,6 +369,11 @@ impl Item {
     #[must_use]
     pub fn bounds(&self) -> Rect {
         self.shape.bounds()
+    }
+
+    /// The same item, its shape [`Shape::fitted`].
+    pub(super) fn fitted(self) -> Self {
+        Self { shape: self.shape.fitted(), ..self }
     }
 }
 

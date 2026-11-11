@@ -97,7 +97,9 @@ render/      images of items (docs/design/packet.md, Images): a set of items or 
              tiles past the size limit (SCALE, MAX_EDGE, OVERLAP, MARGIN). Owns
              the rasterizer (raster.rs) and the PNG container (png.rs). Pure and
              deterministic: the same input gives the same bytes. text_size: the
-             frame text needs as drawn.
+             frame text needs as drawn; text_frame: the one rule for a text
+             item's frame (Shape::fitted), which Canvas::apply and the file's
+             snap both keep, so no text item covers less than it draws.
 sling.rs     the sling message (SPEC section 6, D10): a packet, the prompt, the
              selected packet ids, first-or-later and the verbs the caller serves in;
              text and image blocks out, each image after the packet line naming it.

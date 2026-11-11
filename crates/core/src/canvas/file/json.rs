@@ -234,6 +234,23 @@ pub(super) fn fields(s: &Shape) -> Fields {
     m
 }
 
+/// A requested `set`'s `fields` laid over `current`'s. New text without a
+/// `w` or `h` leaves that one at 0, so [`Shape::fitted`] sizes it to the new
+/// words and the frame is never the old text's. The line written for it
+/// carries the whole frame, so replay lays a line's fields over plainly.
+pub(super) fn laid_over(current: &Shape, fields: &Fields) -> Fields {
+    let mut merged = self::fields(current);
+    merged.extend(fields.iter().map(|(k, v)| (k.clone(), v.clone())));
+    if fields.contains_key("text") && merged.get("kind").and_then(Value::as_str) == Some("text") {
+        for key in ["w", "h"] {
+            if !fields.contains_key(key) {
+                merged.insert(key.into(), 0.into());
+            }
+        }
+    }
+    merged
+}
+
 /// Reads a shape from an item object or merged `set` fields. `None` for a
 /// kind this reader does not know.
 pub(super) fn read_shape(m: &Fields) -> Result<Option<Shape>, Bad> {

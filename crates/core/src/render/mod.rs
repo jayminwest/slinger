@@ -84,6 +84,23 @@ pub fn text_size(text: &str, columns: usize) -> (f64, f64) {
     (cells(longest) * raster::TEXT_SIZE, cells(rows.len()) * raster::TEXT_SIZE)
 }
 
+/// The frame size, in canvas units, that text drawn in a frame `w` by `h`
+/// has. A frame at least a character wide and with a height is kept as it
+/// is. One with no height keeps its width and gets the height of the text
+/// wrapped to it. One narrower than a character is drawn unwrapped, so it
+/// gets the unwrapped text's size, at least one character wide.
+#[must_use]
+pub fn text_frame(text: &str, w: f64, h: f64) -> (f64, f64) {
+    match (w >= raster::TEXT_SIZE, h > 0.0) {
+        (true, true) => (w, h),
+        (true, false) => (w, text_size(text, raster::columns(w)).1),
+        (false, _) => {
+            let (w, h) = text_size(text, usize::MAX);
+            (w.max(raster::TEXT_SIZE), h)
+        }
+    }
+}
+
 /// Draws `items` into the picture of `frame`, as one image or as tiles.
 fn draw(items: &[&Item], frame: Rect, id: &str) -> Vec<Image> {
     let (width, height) = (pixels(frame.w), pixels(frame.h));

@@ -304,10 +304,10 @@ tenths of a unit.
 
 | `op` | fields |
 |---|---|
-| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000` |
+| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000`. A `text` without `w` or `h` gets a frame that fits its words (the rule is in `docs/design/canvas-file.md`); a given size is kept |
 | `remove` | `ids`: list of item ids. Ids already gone are fine |
 | `move` | `ids`, `dx`, `dy` |
-| `set` | `id`, `fields`: item fields to replace, laid over the item's current ones |
+| `set` | `id`, `fields`: item fields to replace, laid over the item's current ones. New `text` without `w` or `h` reads the missing one as 0, so the frame fits the new words by the same rule |
 | `page.add` | `name`. The page goes last |
 | `page.rename` | `page`, `name` |
 | `page.remove` | `page`. Its items go with it; the last page stays |
