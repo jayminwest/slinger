@@ -354,8 +354,9 @@ scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
              one undo step. The selection (canvas, page, server ids) is app
              state the sling and moves between panes read. Pure.
 scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
-             text and typed keys go into it until escape or a tap outside
-             (the text tool on a text, or a double tap with any tool but
+             text and typed keys go into it until escape or a press outside,
+             which with any tool but the text tool also starts that tool's
+             gesture (the text tool on a text, or a double tap with any tool but
              the pen, edits it); a drag makes a box or an arrow, whose ends
              bind to the items they land on. An arrow bound to a moved item
              follows it (`follow`): the move's change carries the arrow's

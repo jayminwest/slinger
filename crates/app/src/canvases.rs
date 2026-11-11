@@ -204,8 +204,9 @@ impl Canvases {
 
     /// The pen went down in `pane` of `panes`, laid at `frame` in the
     /// window, with `tool` and `colour`: a press outside a text being typed
-    /// ends it; else the pen starts a stroke on the page the pane shows, the
-    /// eraser an erase, the lasso a loop or a drag of the selection, the
+    /// ends it, and only the text tool's tap does nothing more; the pen
+    /// starts a stroke on the page the pane shows, the eraser an erase,
+    /// the lasso a loop or a drag of the selection, the
     /// text tool a text, the box and arrow tools a drag. Returns false, and
     /// nothing starts, for touch (a palm), a pane whose canvas page has
     /// not arrived, or a press on a live item's page outside the selection.
@@ -464,3 +465,6 @@ impl Canvases {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
