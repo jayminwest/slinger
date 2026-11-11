@@ -48,7 +48,9 @@ canvas/delta.rs  what is new after the last sling (R1): an op log and a
              removed against the canvas at the marker out. Compares the two
              canvases, so added-then-removed is nothing. No errors.
 canvas/geometry.rs  pure queries on a page: item at a point, items in a
-             lasso (nonzero winding), strokes an eraser touches, items touching a
+             lasso (nonzero winding), items an eraser touches (strokes, text,
+             a box by its outline, arrows; never a live item or the
+             button), items touching a
              box, bounds of a set, free space beside an item (free_beside: right,
              below, left, above, then further right). No errors: degenerate input
              finds nothing.
@@ -389,7 +391,8 @@ scene/pages.rs  pages (SPEC D6): the next and previous page, a new page's
              line, and the two questions a page command asks (a rename's
              typed name; a removal of a page with items, asked once). Pure.
 scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
-             hides what it touches at once and removes it on the lift; a loop
+             hides the strokes, text, boxes and arrows it touches at once and
+             removes them on the lift (one change, one undo step); a loop
              selects the items it holds whole, drawn as a tinted box with four
              corner handles (marks only, no resize) and its item count above
              it, all in the focus colour, at screen size; a drag inside
@@ -407,7 +410,7 @@ scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
              follows it (`follow`): the move's change carries the arrow's
              new ends, so it is still one `canvas_apply`. Each text, shape
              or edit is one change. Pure.
-scene/select/hit.rs  which strokes an eraser's path touches and which items a
+scene/select/hit.rs  which items an eraser's path touches and which items a
              lasso holds: the core's geometry rules (canvas/geometry.rs), kept
              here too so they answer at every pen event without the socket
              (P7). Keep the two alike. Pure.
@@ -447,7 +450,10 @@ scene/dictation.rs  the dictation into the entry: start, then stop, one
              Pure.
 scene/tools.rs  the pen's tool and colour, and the pop-up at the pen (colour, shape,
              tool) that changes them: opens, picks by pen or key, closes.
-             The tool commands pick a tool without it. Pure.
+             The tool commands pick a tool without it. While a tablet pen's
+             eraser end is in use the tool is the eraser (footer, cursor,
+             gesture); the chosen tool (menu check, flash, pop-up) comes
+             back with the tip. Pure.
 layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
              about a point, limits; the canvas has no edge; a pane's view
              starts with the origin in by a margin) and where a pop-up
@@ -461,8 +467,14 @@ layout/tree/divider.rs  the dividers between panes: each named by the pane
              share a drag to a point gives its split. Pure.
 platform/    draws a scene, turns a key press into a chord (and, when the app
              passes the chord on, into the text it types) and a pen or mouse
-             event into a point, a time and whether a finger made it (mouse
-             coalescing off: every point). One view per canvas pane repaints
+             event into a point, a time, whether a finger made it and whether
+             a tablet pen's eraser end did (mouse coalescing off: every
+             point); `input` does this. A right-button drag is a scroll at
+             its press point, so it pans as two fingers do. A tablet
+             proximity event says which end of the pen is near
+             (Event::EraserEnd). The pointer's cursor is set again from the
+             view under it on each move and when the window becomes key
+             (a canvas's cursor, the arrow over the chrome). One view per canvas pane repaints
              only the box its scene says changed, and says how long after
              the pen event it painted. The window resizes (down to
              layout::SMALLEST) and says its new size as Event::Resized; main
@@ -547,7 +559,10 @@ the pen. Only the server's items count, so ink still on its way is never
 erased or selected. A finished erase, move or delete joins the ink's queue
 as one `canvas_apply`, in turn with the strokes, and shows from there until
 the feed brings it. The user may erase, move and delete any item, an
-agent's too. Delete and clear act only when the focused pane shows the
+agent's too. The eraser takes strokes, text, boxes (by their outline, so
+erasing the ink inside a box keeps the box) and arrows; never a live item
+or the button, which are not ink. A tablet pen's eraser end erases with
+any tool chosen. Delete and clear act only when the focused pane shows the
 selection's page; otherwise their keys go on (a delete in an agent UI).
 
 **Pages and undo (SPEC D6):** each pane keeps its own page and viewport;

@@ -111,7 +111,7 @@ fn queries_on_an_empty_or_missing_page_find_nothing() {
     for p in [page, missing] {
         assert_eq!(c.item_at(p, Point::new(0.0, 0.0), 1e9), None);
         assert_eq!(c.items_in_lasso(p, &lasso), []);
-        assert_eq!(c.strokes_erased(p, &lasso, 1e9), []);
+        assert_eq!(c.items_erased(p, &lasso, 1e9), []);
         assert_eq!(c.items_in_box(p, Rect::new(-1e6, -1e6, 2e6, 2e6)), []);
     }
     let (full, _, _) = sample();
@@ -171,7 +171,7 @@ fn items_in_lasso_finds_items_wholly_inside() {
 }
 
 #[test]
-fn strokes_erased_finds_strokes_the_eraser_touches() {
+fn items_erased_finds_what_the_eraser_touches() {
     let (c, page, ids) = sample();
     let cases: &[(&str, Vec<Xy>, f64, Vec<usize>)] = &[
         ("a swipe across a stroke", vec![(50.0, -20.0), (50.0, 20.0)], 0.0, vec![0]),
@@ -179,31 +179,50 @@ fn strokes_erased_finds_strokes_the_eraser_touches() {
         ("a swipe that reaches with its radius", vec![(50.0, -20.0), (50.0, -5.0)], 3.0, vec![0]),
         ("a dab on a stroke", vec![(10.0, 1.0)], 0.0, vec![0]),
         ("a dab on a one-point stroke", vec![(207.0, 200.0)], 2.0, vec![1]),
+        ("a dab inside a box keeps it", vec![(60.0, 60.0)], 1.0, vec![]),
+        ("a dab on a box's edge", vec![(50.0, 60.0)], 1.0, vec![2]),
+        ("a dab on text", vec![(310.0, 10.0)], 1.0, vec![3]),
+        ("a dab on an arrow", vec![(50.0, 150.0)], 1.0, vec![4]),
+        ("a dab beside an arrow", vec![(60.0, 150.0)], 1.0, vec![]),
         (
-            "boxes, text and arrows are not erased",
-            vec![(60.0, 60.0), (310.0, 10.0), (50.0, 150.0)],
-            1.0,
-            vec![],
+            "a swipe across a box erases the box and the stroke on it",
+            vec![(70.0, 45.0), (70.0, 95.0)],
+            0.0,
+            vec![2, 5],
         ),
         (
-            "a swipe across a box erases the stroke on it",
-            vec![(70.0, 45.0), (70.0, 95.0)],
+            "a swipe inside a box erases only the stroke",
+            vec![(70.0, 60.0), (70.0, 80.0)],
             0.0,
             vec![5],
         ),
         (
-            "a path along both strokes",
+            "a path along both strokes, across the box's sides",
             vec![(-5.0, 0.0), (120.0, 0.0), (120.0, 70.0), (30.0, 70.0)],
             0.0,
-            vec![0, 5],
+            vec![0, 2, 5],
         ),
         ("a negative radius counts as zero", vec![(10.0, 1.0)], -3.0, vec![0]),
         ("no path", vec![], 100.0, vec![]),
     ];
     for (name, path, radius, want) in cases {
-        let found = c.strokes_erased(page, &pts(path), *radius);
+        let found = c.items_erased(page, &pts(path), *radius);
         assert_eq!(&which(&ids, &found), want, "{name}");
     }
+}
+
+#[test]
+fn the_eraser_keeps_live_items_and_the_button() {
+    let live = Shape::Live {
+        frame: Rect::new(0.0, 0.0, 100.0, 100.0),
+        ui: "pick".into(),
+        hash: format!("sha256:{}", "0".repeat(64)),
+        open: "pick#1".into(),
+    };
+    let button = Shape::Button { frame: Rect::new(200.0, 0.0, 40.0, 20.0) };
+    let (c, page, _) = page_of(vec![live, button]);
+    let path = pts(&[(-10.0, 10.0), (300.0, 10.0)]);
+    assert_eq!(c.items_erased(page, &path, 5.0), []);
 }
 
 #[test]
@@ -267,7 +286,7 @@ fn queries_on_a_page_of_7500_strokes_keep_up_with_the_pen() {
     let start = Instant::now();
     let hit = c.item_at(page, Point::new(2510.0, 1802.0), 2.0);
     let lassoed = c.items_in_lasso(page, &lasso);
-    let erased = c.strokes_erased(page, &path, 1.0);
+    let erased = c.items_erased(page, &path, 1.0);
     let boxed = c.items_in_box(page, Rect::new(0.0, 0.0, 1000.0, 1000.0));
     let all = c.bounds_of(ids.iter().copied());
     let took = start.elapsed();

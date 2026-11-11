@@ -14,7 +14,8 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSObject, NSString};
 
-use super::{Event, chord, dispatch};
+use super::input::chord;
+use super::{Event, dispatch};
 use crate::commands::Command;
 use crate::commands::menu::{Action, Item, Menu, Native};
 

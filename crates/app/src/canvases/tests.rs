@@ -16,7 +16,7 @@ fn notes() -> Panes {
 }
 
 fn pen(x: f64, y: f64, when: f64) -> Pen {
-    Pen { at: Point { x, y }, when, touch: false }
+    Pen { at: Point { x, y }, when, touch: false, eraser: false }
 }
 
 /// The kinds of the items the daemon holds on the first page of `notes`.

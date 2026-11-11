@@ -50,7 +50,7 @@ fn read(home: &std::path::Path, n: usize) -> Vec<String> {
 
 fn tap(canvases: &mut Canvases, panes: &Panes, on: Rect) -> bool {
     let at = Point { x: on.x + on.width / 2.0, y: on.y + on.height / 2.0 };
-    let pen = Pen { at, when: 0.0, touch: false };
+    let pen = Pen { at, when: 0.0, touch: false, eraser: false };
     canvases.pen_down(
         panes,
         (panes.focus(), WINDOW.rect()),

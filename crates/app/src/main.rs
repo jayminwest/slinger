@@ -116,7 +116,8 @@ fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
         | Event::Drag(_)
         | Event::Lift(_)
         | Event::Scroll { .. }
-        | Event::Zoom { .. } => Step::Pass,
+        | Event::Zoom { .. }
+        | Event::EraserEnd(_) => Step::Pass,
         Event::Tick | Event::Moved(_) | Event::Painted(_) | Event::Typed(_) => Step::Stay,
     };
     match platform::run(&scene, answer) {
@@ -353,7 +354,8 @@ fn pen(
 /// the canvas pane of `panes` laid in `area` under it, where the tool draws,
 /// erases, selects, places text or draws a shape; typed text to the text being
 /// typed (the sling's open entry keeps its presses and keys); a scroll or a
-/// pinch pans or zooms. False when nothing used it, and for a move or a paint.
+/// pinch pans or zooms. The pen's eraser end, near or pressed, erases with
+/// any tool. False when nothing used it, and for a move or a paint.
 /// A lift writes the stroke's delay log.
 fn pointer(
     event: &Event,
@@ -375,8 +377,10 @@ fn pointer(
         Event::Typed(ref text) => canvases.sling_typed(text),
         // A text being typed takes the keys that type, which come back as text.
         Event::Text(ref text) => canvases.typed(text),
+        Event::EraserEnd(eraser) => tools.set_eraser_end(eraser),
         Event::Press(pen) if tools.press(pen.at) => true,
         Event::Press(pen) => {
+            tools.set_eraser_end(pen.eraser);
             let tool = (tools.tool(), tools.colour());
             pane_at(panes, area, pen.at).is_some_and(|u| canvases.pen_down(panes, u, pen, tool))
         }
@@ -466,8 +470,8 @@ fn view(
     scene.overlay = overlay.or_else(|| shared.palette.shown(keys, theme, size)).map(Box::new);
     scene.cursor = cursor::over_canvas(tools, theme);
     let now = Instant::now();
-    tools.flash().follow(tools.tool(), keys, now);
+    tools.flash().follow(tools.chosen(), keys, now);
     scene.flash = tools.flash().pill(focused(&shared.panes, area), theme, now).map(Box::new);
-    scene.menus = commands::menu::bar(keys, status::command(tools.tool()));
+    scene.menus = commands::menu::bar(keys, status::command(tools.chosen()));
     Box::new(scene)
 }

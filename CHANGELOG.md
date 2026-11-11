@@ -17,7 +17,22 @@ bullet with the area in bold.
   `set` that changes the words and gives no `w` or `h` fits the box to the
   new words.
 
+- **App:** the eraser now removes boxes, text and arrows it passes over, not
+  only pen lines. A box goes when the eraser crosses its outline, so erasing
+  the ink inside a box keeps the box. One eraser swipe is still one undo.
+
+- **App:** after you switch to another app and back, the pointer over a
+  canvas shows the tool's cursor again at once, and the pane's footer and
+  the sidebar show the arrow.
+
 ### Added
+
+- **App:** a tablet pen's eraser end erases, whatever tool is chosen. The
+  footer and the cursor show the eraser while it is in use, and the tool
+  comes back when you turn the pen to its tip.
+
+- **App:** drag with the right mouse button to pan the canvas under the
+  pointer, with any tool.
 
 - **App:** a menu bar. slinger, File, Edit, Tools, Canvas, Pane, Window and
   Help list every command with its key from `[keys]`, and Tools checks the

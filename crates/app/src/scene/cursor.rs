@@ -78,4 +78,16 @@ mod tests {
         tools.open(Kind::Colour, Rect { x: 0.0, y: 0.0, width: 400.0, height: 300.0 });
         assert_eq!(over_canvas(&tools, &T), Cursor::Arrow);
     }
+
+    #[test]
+    fn the_pen_s_eraser_end_has_the_eraser_s_ring_until_the_tip_is_back() {
+        let palette = crate::config::Palette::default();
+        let mut tools = Tools::new(palette, Point { x: 10.0, y: 10.0 });
+        assert!(tools.command(Command::ToolLasso));
+        tools.set_eraser_end(true);
+        let ring = Cursor::Ring { colour: T.muted, diameter: ERASER * 2.0 };
+        assert_eq!(over_canvas(&tools, &T), ring);
+        tools.set_eraser_end(false);
+        assert_eq!(over_canvas(&tools, &T), Cursor::Crosshair);
+    }
 }
