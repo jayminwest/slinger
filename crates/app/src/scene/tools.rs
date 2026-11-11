@@ -13,6 +13,7 @@ use crate::commands::{Chord, Command};
 use crate::config::{Palette, Rgb, Theme};
 use crate::layout::{self, Point, Rect};
 use crate::scene::Label;
+use crate::scene::flash::Flash;
 
 /// What the pen does on the canvas.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,7 +65,7 @@ pub struct Popup {
 }
 
 /// The pen's state: its tool, its colour, the palette it picks from, where
-/// it last was, and the open pop-up, if any.
+/// it last was, the open pop-up, if any, and the flash that names a new tool.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tools {
     tool: Tool,
@@ -72,6 +73,7 @@ pub struct Tools {
     palette: Palette,
     pen: Point,
     popup: Option<Popup>,
+    flash: Flash,
 }
 
 impl Tools {
@@ -79,7 +81,13 @@ impl Tools {
     /// or pointer moves, a pop-up opens at `pen`.
     pub fn new(palette: Palette, pen: Point) -> Self {
         let colour = palette.colours()[0];
-        Self { tool: Tool::Pen, colour, palette, pen, popup: None }
+        let flash = Flash::new(Tool::Pen);
+        Self { tool: Tool::Pen, colour, palette, pen, popup: None, flash }
+    }
+
+    /// The flash that names a new tool, [`Flash::follow`]ing [`Tools::tool`].
+    pub fn flash(&self) -> &Flash {
+        &self.flash
     }
 
     /// What the pen does.

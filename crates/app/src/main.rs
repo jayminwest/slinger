@@ -33,6 +33,7 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
 use std::sync::Arc;
+use std::time::Instant;
 
 use slinger_control as control;
 
@@ -45,7 +46,7 @@ use crate::panes::Panes;
 use crate::platform::{Event, Step};
 use crate::scene::sidebar::Sidebar;
 use crate::scene::tools::{Kind, Tools};
-use crate::scene::{Scene, status};
+use crate::scene::{Scene, cursor, status};
 use crate::shared::Shared;
 
 fn main() -> ExitCode {
@@ -211,7 +212,8 @@ fn window(mut settings: Settings) -> ExitCode {
         let fetched = shared.fetched(watch.uis());
         let drawn = canvases.poll();
         let reloaded = settings.refresh(force);
-        if !reloaded && !heard && !moved && !drawn && !fetched {
+        let faded = tools.flash().fade(Instant::now());
+        if !reloaded && !heard && !moved && !drawn && !fetched && !faded {
             return Step::Stay;
         }
         if reloaded {
@@ -388,7 +390,8 @@ fn focus(panes: &Panes, area: Rect) -> (PaneId, Rect) {
 
 /// The window: the sidebar, the panes and their footers, any problem with the
 /// daemon, a canvas or the config (each said once), the notice, the pop-up
-/// at the pen, and the key overlay on top.
+/// at the pen and the flash of a new tool, the key overlay on top, and the
+/// tool's cursor.
 fn view(
     settings: &Settings,
     shared: &Shared,
@@ -415,5 +418,9 @@ fn view(
     scene.footers = canvases.footers(&shared.panes, area, theme, pen, &settings.config.keys);
     scene.labels.extend(tools.labels(theme));
     scene.overlay = shared.overlay.shown(&settings.config.keys, theme, size).map(Box::new);
+    scene.cursor = cursor::over_canvas(tools, theme);
+    let now = Instant::now();
+    tools.flash().follow(tools.tool(), &settings.config.keys, now);
+    scene.flash = tools.flash().pill(focused(&shared.panes, area), theme, now).map(Box::new);
     Box::new(scene)
 }

@@ -7,6 +7,8 @@
 //! statuses, the optional sidebar that shows them and the notice when one
 //! becomes blocked or done. [`sling`] holds the sling from the window: its
 //! one-line entry, and how it goes. [`overlay`] holds the key overlay.
+//! [`flash`] holds the flash that names a new tool; [`cursor`] the pointer
+//! over a canvas pane.
 //!
 //! No chrome, but every state is visible (SPEC P6): the panes, each with
 //! what it shows above its footer ([`status`]), one focus border around the
@@ -20,7 +22,9 @@
 
 pub mod button;
 pub mod canvas;
+pub mod cursor;
 pub mod dictation;
+pub mod flash;
 pub mod ink;
 pub mod live;
 pub mod overlay;
@@ -111,6 +115,10 @@ pub struct Scene {
     pub entry: Option<Box<sling::Entry>>,
     /// The key overlay, over everything but the entry, while it is open.
     pub overlay: Option<Box<overlay::Overlay>>,
+    /// The flash, over the labels, while it shows.
+    pub flash: Option<Box<flash::Pill>>,
+    /// The pointer over the canvas panes; elsewhere it is the arrow.
+    pub cursor: cursor::Cursor,
 }
 
 /// The focus border's width, in points.
@@ -190,6 +198,8 @@ pub fn build(
         focus,
         entry: None,
         overlay: None,
+        flash: None,
+        cursor: cursor::Cursor::Arrow,
     }
 }
 
@@ -215,6 +225,8 @@ pub fn preview(page: Arc<Page>, theme: &Theme, item: bool, size: Size) -> Scene 
         focus: Border { frame: size.rect(), width: 0.0, colour: theme.background },
         entry: None,
         overlay: None,
+        flash: None,
+        cursor: cursor::Cursor::Arrow,
     }
 }
 
@@ -266,6 +278,7 @@ mod tests {
         assert_eq!(scene.sidebar, []);
         assert_eq!(scene.background, T.background);
         assert_eq!(shown(&scene), [("canvas main", T.text)]);
+        assert_eq!((scene.flash, scene.cursor), (None, cursor::Cursor::Arrow));
         assert_eq!(
             scene.focus,
             Border { frame: layout::WINDOW.rect(), width: 0.0, colour: T.background }

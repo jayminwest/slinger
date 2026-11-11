@@ -17,8 +17,9 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSObject, NSString};
 
+use super::chrome::border;
 use super::text::sidebar_row;
-use super::{Event, border, chord, color, dispatch, flipped};
+use super::{Event, chord, color, dispatch, flipped};
 use crate::commands::{CMD, Chord};
 use crate::scene::sling::Entry;
 
