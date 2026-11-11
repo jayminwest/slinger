@@ -43,6 +43,10 @@ pub enum Command {
     /// Show the next page of the focused pane's canvas. For now: pages get
     /// their own commands with slinger-e91c.
     NextPage,
+    /// Remove the lasso's selection, in one undo step.
+    DeleteSelection,
+    /// Select nothing.
+    ClearSelection,
 }
 
 /// How many commands there are.
@@ -50,7 +54,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 24] = [
+    pub const ALL: [(Command, &str); 26] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -75,6 +79,8 @@ impl Command {
         (Command::ZoomIn, "zoom-in"),
         (Command::ZoomOut, "zoom-out"),
         (Command::NextPage, "next-page"),
+        (Command::DeleteSelection, "delete-selection"),
+        (Command::ClearSelection, "clear-selection"),
     ];
 
     /// The command called `name` in the config file.
@@ -208,6 +214,8 @@ impl Default for Keymap {
             on(ALT, '='),
             on(ALT, '-'),
             on(CMD, ']'),
+            on(0, '\u{7f}'),
+            on(0, '\u{1b}'),
         ])
     }
 }

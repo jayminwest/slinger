@@ -3,9 +3,12 @@
 //! [`Mirror`] its news keeps up to date. Each canvas pane has its own
 //! viewport, and keeps the last scene it drew, so the next one repaints only
 //! what changed. The pen draws on a canvas pane: its [`Ink`] shows over the
-//! page at once and goes to the daemon through an [`Outbox`]. Runs on the
-//! main thread and never waits: the followers and the outbox do.
+//! page at once and goes to the daemon through an [`Outbox`]. The eraser and
+//! the lasso work on the page as shown ([`Select`]), and what they change
+//! goes the same way, in turn with the strokes. Runs on the main thread and
+//! never waits: the followers and the outbox do.
 
+use std::borrow::Cow;
 use std::rc::Rc;
 
 use slinger_control::Client;
@@ -15,7 +18,10 @@ use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Point, Rect, Size, Viewport};
 use crate::mirror::{Applied, Mirror};
 use crate::panes::{Kind, Panes};
+use crate::scene::canvas::Item;
 use crate::scene::ink::{Ink, Pen};
+use crate::scene::select::{Select, Selection};
+use crate::scene::tools::Tool;
 use crate::scene::{CanvasPane, canvas};
 
 /// The canvases of a window's panes.
@@ -24,6 +30,7 @@ pub struct Canvases {
     open: Vec<Open>,
     views: Vec<(PaneId, View)>,
     ink: Ink,
+    select: Select,
     outbox: Outbox,
     /// The pane the pen draws in, and its frame in the window, while down.
     pen: Option<(PaneId, Rect)>,
@@ -52,8 +59,9 @@ impl Canvases {
     /// None followed yet; [`Canvases::show`] starts following.
     pub fn new(daemon: Client) -> Self {
         let outbox = Outbox::start(daemon.clone());
-        let ink = Ink::default();
-        Self { daemon, open: Vec::new(), views: Vec::new(), ink, outbox, pen: None, unshown: None }
+        let (ink, select) = (Ink::default(), Select::default());
+        let (open, views) = (Vec::new(), Vec::new());
+        Self { daemon, open, views, ink, select, outbox, pen: None, unshown: None }
     }
 
     /// Follows every canvas, and sends ink not yet sent, through `daemon`
@@ -95,8 +103,8 @@ impl Canvases {
         self.send() || changed
     }
 
-    /// Takes the daemon's answers to the ink, lets go of the strokes the
-    /// mirrors now hold, and hands the next stroke to the outbox. Returns
+    /// Takes the daemon's answers to the ink, lets go of the changes the
+    /// mirrors now hold, and hands the next change to the outbox. Returns
     /// whether there were answers.
     fn send(&mut self) -> bool {
         let answers = self.outbox.answers();
@@ -107,8 +115,8 @@ impl Canvases {
         for open in self.open.iter().filter(|o| o.mirror.is_some()) {
             self.ink.heard(&open.canvas, open.heard);
         }
-        if let Some((key, stroke)) = self.ink.next() {
-            self.outbox.send(key, stroke);
+        if let Some((key, change)) = self.ink.next() {
+            self.outbox.send(key, change);
         }
         answered
     }
@@ -119,46 +127,85 @@ impl Canvases {
     }
 
     /// The pen went down in `pane` of `panes`, laid at `frame` in the
-    /// window, with `colour`: a stroke starts on the page the pane shows.
-    /// Returns false, and nothing starts, for touch (a palm) or a pane whose
-    /// canvas page has not arrived.
+    /// window, with `tool` and `colour`: the pen starts a stroke on the page
+    /// the pane shows, the eraser an erase, the lasso a loop or a drag of
+    /// the selection. Returns false, and nothing starts, for touch (a palm),
+    /// another tool, or a pane whose canvas page has not arrived.
     pub fn pen_down(
         &mut self,
         panes: &Panes,
         (pane, frame): (PaneId, Rect),
         pen: Pen,
-        colour: Rgb,
+        (tool, colour): (Tool, Rgb),
     ) -> bool {
         let Some(canvas) = canvas_of(panes, pane).filter(|_| !pen.touch) else { return false };
         let open = self.open.iter().find(|o| o.canvas == canvas);
         let Some(shown) = open.and_then(|o| o.mirror.as_ref()).map(|m| m.page().to_string()) else {
             return false;
         };
-        let at = to_canvas(self.view(pane).viewport, frame, pen.at);
-        self.ink.down(canvas, &shown, colour, at);
+        let viewport = self.view(pane).viewport;
+        let at = to_canvas(viewport, frame, pen.at);
+        if tool == Tool::Pen {
+            self.ink.down(canvas, &shown, colour, at);
+        } else {
+            let items = pane_shown(&self.open, &self.ink, panes, pane);
+            if !self.select.down(tool, (canvas, &shown), at, viewport.zoom(), &items) {
+                return false;
+            }
+        }
         self.pen = Some((pane, frame));
         self.unshown = Some(pen.when);
         true
     }
 
-    /// The pen moved while down: the stroke under it grows. Returns false
-    /// when no stroke is under it.
-    pub fn pen_drag(&mut self, pen: Pen) -> bool {
+    /// The pen moved while down: the stroke or the gesture under it goes on.
+    /// Returns false when none is under it.
+    pub fn pen_drag(&mut self, panes: &Panes, pen: Pen) -> bool {
         let Some((pane, frame)) = self.pen else { return false };
         let at = to_canvas(self.view(pane).viewport, frame, pen.at);
         self.unshown = Some(self.unshown.map_or(pen.when, |t| t.min(pen.when)));
-        self.ink.drag(at)
+        if self.ink.drag(at) {
+            return true;
+        }
+        let items = pane_shown(&self.open, &self.ink, panes, pane);
+        self.select.drag(at, &items)
     }
 
-    /// The pen lifted: the stroke is finished and goes to the daemon in its
-    /// turn. Returns false when no stroke was under it.
-    pub fn pen_up(&mut self, pen: Pen) -> bool {
+    /// The pen lifted: the stroke, erase or move is finished and goes to the
+    /// daemon in its turn, or the loop selects. Returns false when nothing
+    /// was under the pen.
+    pub fn pen_up(&mut self, panes: &Panes, pen: Pen) -> bool {
         let Some((pane, frame)) = self.pen.take() else { return false };
         let at = to_canvas(self.view(pane).viewport, frame, pen.at);
-        let ended = self.ink.up(Some(at));
+        let ended = self.ink.up(Some(at)) || {
+            let items = pane_shown(&self.open, &self.ink, panes, pane);
+            self.select.up(Some(at), &items, &mut self.ink)
+        };
         self.unshown = None;
         self.send();
         ended
+    }
+
+    /// The selection, if any: one page's items, by the server's ids.
+    pub fn selection(&self) -> Option<&Selection> {
+        self.select.selection()
+    }
+
+    /// Removes the selection, in one step, when `pane` of `panes` shows its
+    /// canvas. Returns false when it does not, or there is none.
+    pub fn delete_selection(&mut self, panes: &Panes, pane: PaneId) -> bool {
+        let shown = self.selection().is_some_and(|s| canvas_of(panes, pane) == Some(&s.canvas));
+        shown && self.select.delete(&mut self.ink) && {
+            self.send();
+            true
+        }
+    }
+
+    /// Clears the selection when `pane` of `panes` shows its canvas.
+    /// Returns false when it does not, or there is none.
+    pub fn clear_selection(&mut self, panes: &Panes, pane: PaneId) -> bool {
+        let shown = self.selection().is_some_and(|s| canvas_of(panes, pane) == Some(&s.canvas));
+        shown && self.select.clear()
     }
 
     /// A paint showed ink `delay` seconds after its pen event.
@@ -250,8 +297,11 @@ impl Canvases {
             });
             let view = &mut self.views[at].1;
             let last = view.last.as_deref();
-            let ink = self.ink.items(&pane.name, mirror.page());
-            let items = mirror.items().iter().chain(&ink);
+            let here = (pane.name.as_str(), mirror.page());
+            let items = self.ink.shown(here.0, here.1, mirror.items());
+            self.select.keep(here, &items);
+            let items = self.select.shown(here, items, view.viewport.zoom(), theme.muted);
+            let items = items.iter().map(AsRef::as_ref);
             let mut scene = canvas::build(items, view.viewport, screen, theme, last);
             if self.pen.is_some_and(|(p, _)| p == id) {
                 scene.pen_event = self.unshown.take();
@@ -268,6 +318,14 @@ impl Canvases {
 /// `frame` that looks through `viewport`.
 fn to_canvas(viewport: Viewport, frame: Rect, at: Point) -> Point {
     viewport.to_canvas(Point { x: at.x - frame.x, y: at.y - frame.y })
+}
+
+/// The page `pane` of `panes` shows, as the user sees it: the server's copy
+/// with the ink laid over it; empty while it has not arrived.
+fn pane_shown<'a>(open: &'a [Open], ink: &Ink, panes: &Panes, pane: PaneId) -> Vec<Cow<'a, Item>> {
+    let Some(canvas) = canvas_of(panes, pane) else { return Vec::new() };
+    let mirror = open.iter().find(|o| o.canvas == canvas).and_then(|o| o.mirror.as_ref());
+    mirror.map_or_else(Vec::new, |m| ink.shown(canvas, m.page(), m.items()))
 }
 
 /// The canvas `pane` shows, if it shows one.

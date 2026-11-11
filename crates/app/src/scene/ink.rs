@@ -1,26 +1,32 @@
-//! The pen's ink (SPEC D6, P7): the stroke under the pen, and the strokes
-//! drawn but not yet in the server's copy of their page. Pure: `canvases`
-//! hands in pen points in canvas units and the daemon's answers, and reads
-//! back the items to draw over the page and the next stroke to send.
+//! The pen's ink (SPEC D6, P7): the stroke under the pen, and the changes
+//! made but not yet in the server's copy of their page: strokes drawn, and
+//! items erased, deleted or moved ([`Change`]). Pure: `canvases` hands in pen
+//! points in canvas units and the daemon's answers, and reads back the page
+//! as the user should see it ([`Ink::shown`]) and the next change to send.
 //!
-//! Ink shows at once from here, drawn over the page the server holds. The
-//! daemon is told on another thread, one stroke at a time, in the order the
-//! strokes were drawn: a stroke goes only once every stroke before it is
-//! written, so the canvas file holds them in that order. One stroke is one
-//! `add`, so one undo step.
+//! Ink shows at once from here, laid over the page the server holds. The
+//! daemon is told on another thread, one change at a time, in the order the
+//! changes were made: a change goes only once every change before it is
+//! written, so the canvas file holds them in that order. One change is one
+//! `canvas_apply`, so one undo step.
 //!
-//! Local ink and the server's echo: a stroke stays here, and draws from here,
-//! until the change feed has passed the number its `add` was written under
+//! Local ink and the server's echo: a change stays here, and shows from here,
+//! until the change feed has passed the number it was written under
 //! ([`Ink::heard`]). From then on the page's mirror holds it, so it never
-//! blinks out between the daemon's reply and the echo. For that moment both
-//! draw, in the same place.
+//! blinks out between the daemon's reply and the echo. For that moment a
+//! stroke draws twice, in the same place; a removal or a move laid over a
+//! mirror that already has it changes nothing more, since the mirror takes
+//! the feed and the change leaves in the same poll.
 //!
-//! A stroke the daemon did not get stays on screen and is sent again, ahead
-//! of every stroke after it. A stroke the daemon refuses (its canvas is gone)
+//! A change the daemon did not get stays on screen and is sent again, ahead
+//! of every change after it. A change the daemon refuses (its canvas is gone)
 //! is dropped, and the refusal is the problem shown.
 //!
 //! Each paint that shows new ink adds its delay from the pen event, and the
 //! end of a stroke gives the log line for SPEC O2 ([`Ink::delay_log`]).
+
+use std::borrow::Cow;
+use std::collections::HashSet;
 
 use crate::backend::Problem;
 use crate::config::Rgb;
@@ -31,7 +37,13 @@ use crate::scene::canvas::{Item, ItemId, Shape};
 pub const PEN_WIDTH: f64 = 2.0;
 /// Ink's item ids start here, far above any id the server hands out, so
 /// local ink and the page's items never share an id.
-const LOCAL: u64 = 1 << 62;
+pub const LOCAL: u64 = 1 << 62;
+
+/// Whether `id` is the server's, not local ink's or a mark's drawn over
+/// the page: only the server's items can be erased, selected or moved.
+pub fn on_server(id: ItemId) -> bool {
+    id.0 < LOCAL
+}
 
 /// One pen, mouse or touch event, as `platform` hears it.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -55,7 +67,36 @@ pub struct Stroke {
     pub points: Vec<Point>,
 }
 
-/// What the daemon said to one stroke.
+/// One change to a page: one `canvas_apply`, so one undo step.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Change {
+    /// A pen line to add.
+    Add(Stroke),
+    /// Items to remove: one erase gesture, or a deleted selection.
+    Remove { canvas: String, page: String, ids: Vec<ItemId> },
+    /// Items to move by `by` canvas units: one drag of a selection.
+    Move { canvas: String, page: String, ids: Vec<ItemId>, by: Point },
+}
+
+impl Change {
+    /// The canvas it changes.
+    pub fn canvas(&self) -> &str {
+        match self {
+            Change::Add(stroke) => &stroke.canvas,
+            Change::Remove { canvas, .. } | Change::Move { canvas, .. } => canvas,
+        }
+    }
+
+    /// The page it changes.
+    pub fn page(&self) -> &str {
+        match self {
+            Change::Add(stroke) => &stroke.page,
+            Change::Remove { page, .. } | Change::Move { page, .. } => page,
+        }
+    }
+}
+
+/// What the daemon said to one change.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Answer {
     /// Written; the number of its line in the canvas file.
@@ -71,23 +112,23 @@ pub enum Answer {
 enum State {
     Waiting,
     Sending,
-    /// Written under this number; drawn from here until the feed passes it.
+    /// Written under this number; shown from here until the feed passes it.
     Sent(u64),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 struct Pending {
     key: u64,
-    stroke: Stroke,
+    change: Change,
     state: State,
 }
 
-/// The ink not yet in the server's copy of its page.
+/// The ink and changes not yet in the server's copy of their page.
 #[derive(Debug, Default)]
 pub struct Ink {
     /// The stroke under the pen, and its key.
     drawing: Option<(u64, Stroke)>,
-    /// Finished strokes, oldest first.
+    /// Finished changes, oldest first.
     pending: Vec<Pending>,
     next_key: u64,
     problem: Option<Problem>,
@@ -129,23 +170,30 @@ impl Ink {
             self.drag(at);
         }
         let Some((key, stroke)) = self.drawing.take() else { return false };
-        self.pending.push(Pending { key, stroke, state: State::Waiting });
+        self.pending.push(Pending { key, change: Change::Add(stroke), state: State::Waiting });
         true
     }
 
-    /// The next stroke to send, and its key, now marked as sending. `None`
-    /// while one is sending: strokes go one at a time, oldest first, so a
-    /// stroke sent again stays ahead of every stroke after it.
-    pub fn next(&mut self) -> Option<(u64, Stroke)> {
+    /// A finished erase, delete or move: it shows at once and waits its
+    /// turn to be sent, after every change made before it.
+    pub fn push(&mut self, change: Change) {
+        self.pending.push(Pending { key: self.next_key, change, state: State::Waiting });
+        self.next_key += 1;
+    }
+
+    /// The next change to send, and its key, now marked as sending. `None`
+    /// while one is sending: changes go one at a time, oldest first, so a
+    /// change sent again stays ahead of every change after it.
+    pub fn next(&mut self) -> Option<(u64, Change)> {
         if self.pending.iter().any(|p| p.state == State::Sending) {
             return None;
         }
         let first = self.pending.iter_mut().find(|p| p.state == State::Waiting)?;
         first.state = State::Sending;
-        Some((first.key, first.stroke.clone()))
+        Some((first.key, first.change.clone()))
     }
 
-    /// The daemon's answer to the stroke sent under `key`.
+    /// The daemon's answer to the change sent under `key`.
     pub fn answered(&mut self, key: u64, answer: Answer) {
         let Some(at) = self.pending.iter().position(|p| p.key == key) else { return };
         match answer {
@@ -164,31 +212,44 @@ impl Ink {
         }
     }
 
-    /// The change feed of `canvas` has passed line `upto`: every stroke
+    /// The change feed of `canvas` has passed line `upto`: every change
     /// written at or below it is in the page's mirror now, and leaves.
     pub fn heard(&mut self, canvas: &str, upto: u64) {
         self.pending.retain(|p| {
-            p.stroke.canvas != canvas || !matches!(p.state, State::Sent(seq) if seq <= upto)
+            p.change.canvas() != canvas || !matches!(p.state, State::Sent(seq) if seq <= upto)
         });
     }
 
-    /// The ink on `page` of `canvas`, to draw over the page's items: the
-    /// finished strokes oldest first, then the one under the pen.
-    pub fn items(&self, canvas: &str, page: &str) -> Vec<Item> {
-        let finished = self.pending.iter().map(|p| (p.key, &p.stroke));
-        let drawing = self.drawing.iter().map(|(key, stroke)| (*key, stroke));
-        finished
-            .chain(drawing)
-            .filter(|(_, s)| s.canvas == canvas && s.page == page)
-            .map(|(key, s)| Item {
-                id: ItemId(LOCAL + key),
-                colour: s.colour,
-                shape: Shape::Stroke { points: s.points.clone(), width: s.width },
-            })
-            .collect()
+    /// `items`, the server's copy of `page` of `canvas`, as the user should
+    /// see it: each change not yet heard laid over it in the order made
+    /// (removed items gone, moved ones moved, strokes on top), then the
+    /// stroke under the pen. Items no change touches are borrowed, not
+    /// copied, so a big page costs little.
+    pub fn shown<'a>(&self, canvas: &str, page: &str, items: &'a [Item]) -> Vec<Cow<'a, Item>> {
+        let mut shown: Vec<Cow<'a, Item>> = items.iter().map(Cow::Borrowed).collect();
+        let here = |c: &str, p: &str| c == canvas && p == page;
+        for pending in self.pending.iter().filter(|p| here(p.change.canvas(), p.change.page())) {
+            match &pending.change {
+                Change::Add(stroke) => shown.push(Cow::Owned(local(pending.key, stroke))),
+                Change::Remove { ids, .. } => {
+                    let ids: HashSet<&ItemId> = ids.iter().collect();
+                    shown.retain(|i| !ids.contains(&i.id));
+                }
+                Change::Move { ids, by, .. } => {
+                    let ids: HashSet<&ItemId> = ids.iter().collect();
+                    for item in shown.iter_mut().filter(|i| ids.contains(&i.id)) {
+                        let (id, colour) = (item.id, item.colour);
+                        *item = Cow::Owned(Item { id, colour, shape: item.shape.moved(*by) });
+                    }
+                }
+            }
+        }
+        let drawing = self.drawing.iter().filter(|(_, s)| here(&s.canvas, &s.page));
+        shown.extend(drawing.map(|(key, stroke)| Cow::Owned(local(*key, stroke))));
+        shown
     }
 
-    /// Why the last stroke sent did not go, until one goes.
+    /// Why the last change sent did not go, until one goes.
     pub fn problem(&self) -> Option<&Problem> {
         self.problem.as_ref()
     }
@@ -223,6 +284,15 @@ impl Ink {
             "ink: pen to paint over {} paints, ms: median {median:.1}, 95th {high:.1}, most {most:.1}",
             ms.len()
         ))
+    }
+}
+
+/// A stroke of local ink as an item, under an id no server item has.
+fn local(key: u64, stroke: &Stroke) -> Item {
+    Item {
+        id: ItemId(LOCAL + key),
+        colour: stroke.colour,
+        shape: Shape::Stroke { points: stroke.points.clone(), width: stroke.width },
     }
 }
 

@@ -108,3 +108,8 @@
 #zoom-out = "alt+-"
 # Show the next page of the focused pane's canvas, back to the first after the last.
 #next-page = "cmd+]"
+# Remove the items the lasso selected, in one undo step. With nothing selected on the
+# focused pane's canvas the key goes on as usual.
+#delete-selection = "delete"
+# Select nothing. With nothing selected on the focused pane's canvas the key goes on.
+#clear-selection = "escape"

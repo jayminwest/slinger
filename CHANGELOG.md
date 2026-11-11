@@ -27,6 +27,13 @@ bullet with the area in bold.
   `slinger-app --preview <UI> [--data JSON]` shows one UI alone, with that
   data, and prints each reply as a `ui_reply` JSON line.
 
+- **Canvas:** erase, select and move. With the eraser, every stroke the pen
+  passes over goes at once; the whole drag is one step. With the lasso, draw
+  a loop: the items wholly inside it are selected, with a box around them.
+  Drag inside the box to move them, press `delete` to remove them, or
+  `escape` to select nothing (the `delete-selection` and `clear-selection`
+  keys). Each drag, and each delete, is one step. Anything on the canvas can
+  be erased or moved, an agent's items too.
 - **Canvas:** draw with the pen. With the pen tool, a stroke on a canvas pane
   shows under the pen at once, at a constant width in the pen's colour, and
   is saved to the canvas when the pen lifts (one stroke, one undo step). If

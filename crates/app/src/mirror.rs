@@ -3,7 +3,7 @@
 //! operations in order. Pure. It owns the canvas file's item objects
 //! (docs/design/canvas-file.md): lengths in tenths of a unit, stroke and
 //! arrow points as a delta array, colours as `#rrggbb`. It reads them, and
-//! writes the pen's strokes ([`stroke_object`]).
+//! writes the pen's changes as the operations of one `canvas_apply` ([`ops`]).
 //!
 //! What it cannot draw it leaves out (an item of a kind it does not know, an
 //! operation it does not know); the server keeps those, so nothing is lost.
@@ -15,7 +15,7 @@ use slinger_control::{CanvasFeed, CanvasPage};
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Item, ItemId, Shape};
-use crate::scene::ink::Stroke;
+use crate::scene::ink::{Change, Stroke};
 
 /// The height of text, in canvas units: the packet's text size, so the pane
 /// and the images an agent reads agree.
@@ -258,13 +258,33 @@ fn points(pts: &Value) -> Option<Vec<Point>> {
     Some(points.collect())
 }
 
+/// The operation `canvas_apply` takes for `change`: an `add` of a stroke, a
+/// `remove`, or a `move` by whole tenths.
+pub fn ops(change: &Change) -> Value {
+    let ids = |ids: &[ItemId]| ids.iter().map(|id| format!("i{}", id.0)).collect::<Vec<_>>();
+    match change {
+        Change::Add(stroke) => serde_json::json!({"op": "add", "item": stroke_object(stroke)}),
+        Change::Remove { ids: gone, .. } => serde_json::json!({"op": "remove", "ids": ids(gone)}),
+        Change::Move { ids: moved, by, .. } => serde_json::json!({
+            "op": "move",
+            "ids": ids(moved),
+            "dx": tenths(by.x),
+            "dy": tenths(by.y),
+        }),
+    }
+}
+
+/// A length in canvas units as the whole tenths the canvas file stores.
+#[expect(clippy::cast_possible_truncation, reason = "canvas units are far inside i64")]
+fn tenths(v: f64) -> i64 {
+    (v * 10.0).round() as i64
+}
+
 /// A pen stroke as the item object an `add` takes: its page, `#rrggbb`, its
 /// width and its points as a delta array, each value rounded to the tenth
 /// before the deltas are taken (so error does not build up along it). A
 /// width is at least one tenth.
-pub fn stroke_object(stroke: &Stroke) -> Value {
-    #[expect(clippy::cast_possible_truncation, reason = "canvas units are far inside i64")]
-    let tenths = |v: f64| (v * 10.0).round() as i64;
+fn stroke_object(stroke: &Stroke) -> Value {
     let mut pts = Vec::with_capacity(stroke.points.len() * 2);
     let mut last = (0, 0);
     for p in &stroke.points {
