@@ -20,7 +20,10 @@
 //! Any of them can be erased or moved, an agent's too: the user may change
 //! every item.
 
+mod carry;
 mod hit;
+
+pub use carry::Landing;
 
 use std::borrow::Cow;
 use std::collections::HashSet;

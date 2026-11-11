@@ -196,6 +196,23 @@ impl Layout {
         self.root.remove(number).then_some(gone)
     }
 
+    /// Moves the border after pane number `number` (on its right, or below
+    /// it) so the split it divides gives its first side `ratio`, held in
+    /// the ratio's limits. That split is the one whose first side ends with
+    /// the pane, so every border is after exactly one pane. Returns the
+    /// `pane_moved` the change records: the pane, with its new frame.
+    /// `None` when nothing changed: there is no such pane, it is the last
+    /// one (no border comes after it), the split already has that share, or
+    /// `ratio` is not a finite number.
+    pub fn resize(&mut self, number: usize, ratio: f64) -> Option<PaneMoved> {
+        if !ratio.is_finite() {
+            return None;
+        }
+        let word = self.panes().get(number.checked_sub(1)?)?.word();
+        let ratio = ratio.clamp(MIN_RATIO, 1.0 - MIN_RATIO);
+        self.root.resize(number, ratio)?.then(|| self.moved(number, word))
+    }
+
     /// Each pane's frame, in order.
     #[must_use]
     pub fn frames(&self) -> Vec<Frame> {
@@ -276,6 +293,23 @@ impl Node {
         let gone = Self::Pane(Pane { kind: Kind::Canvas, target: String::new() });
         *self = std::mem::replace(&mut **keep, gone);
         true
+    }
+
+    /// Sets to `ratio` the share of the split under this node whose first
+    /// side ends with pane number `n`. `None` when there is none;
+    /// `Some(changed)` once found.
+    fn resize(&mut self, n: usize, ratio: f64) -> Option<bool> {
+        let Self::Split { ratio: share, first, second, .. } = self else { return None };
+        let before = first.count();
+        match n.cmp(&before) {
+            std::cmp::Ordering::Equal => {
+                let changed = (*share - ratio).abs() > f64::EPSILON;
+                *share = ratio;
+                Some(changed)
+            }
+            std::cmp::Ordering::Less => first.resize(n, ratio),
+            std::cmp::Ordering::Greater => second.resize(n - before, ratio),
+        }
     }
 
     fn place(&self, area: Frame, out: &mut Vec<Frame>) {

@@ -39,6 +39,15 @@ pub enum Pane {
         /// The pane's number, as `pane list` prints it
         pane: u32,
     },
+    /// Move the border after a pane (on its right, or below it): its split gives its first side RATIO. The last pane has none, and stays as it is
+    Resize {
+        /// Its name, or the directory of its file
+        workspace: String,
+        /// The number of the pane before the border, as `pane list` prints it
+        pane: u32,
+        /// The first side's share of the split, held in 0.1 to 0.9
+        ratio: f64,
+    },
 }
 
 impl Pane {
@@ -47,6 +56,7 @@ impl Pane {
             Self::List { .. } => "pane list",
             Self::Open { .. } => "pane open",
             Self::Close { .. } => "pane close",
+            Self::Resize { .. } => "pane resize",
         }
     }
 }
@@ -67,6 +77,9 @@ pub fn execute(command: &Pane, daemon: &control::Client) -> anyhow::Result<Outpu
         }
         Pane::Close { workspace, pane } => {
             (daemon.pane_close(&which(workspace)?, *pane)?, String::new())
+        }
+        Pane::Resize { workspace, pane, ratio } => {
+            (daemon.pane_resize(&which(workspace)?, *pane, *ratio)?, String::new())
         }
     };
     Ok(Output::new(json(&layout)?, human))

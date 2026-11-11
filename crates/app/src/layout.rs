@@ -7,7 +7,7 @@
 
 pub mod tree;
 
-pub use tree::{Axis, Direction, PaneId, Tree};
+pub use tree::{Axis, Direction, Divider, PaneId, Tree};
 
 /// A width and a height.
 #[derive(Debug, Clone, Copy, PartialEq)]

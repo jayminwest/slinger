@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{Client, RemoteError};
 
 /// A pane request, as a client writes it and the daemon reads it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum PaneAsk {
     /// The panes of a workspace.
@@ -28,6 +28,9 @@ pub enum PaneAsk {
     },
     /// Close pane number `pane`. One that is already gone succeeds.
     PaneClose { workspace: String, pane: u32 },
+    /// Move the border after pane number `pane` (on its right, or below
+    /// it) so its split gives its first side `ratio`.
+    PaneResize { workspace: String, pane: u32, ratio: f64 },
 }
 
 /// What a pane shows.
@@ -140,6 +143,24 @@ impl Client {
     pub fn pane_close(&self, workspace: &str, pane: u32) -> Result<PaneLayout, RemoteError> {
         self.call(&PaneAsk::PaneClose { workspace: workspace.into(), pane })
     }
+
+    /// Moves the border after pane number `pane` of `workspace` (on its
+    /// right, or below it): the split whose first side ends with that pane
+    /// gives its first side `ratio`, held in 0.1 to 0.9. A pane that is not
+    /// there, the last pane (no border comes after it), or a share the
+    /// split already has changes nothing and succeeds.
+    ///
+    /// # Errors
+    ///
+    /// As [`Client::pane_list`].
+    pub fn pane_resize(
+        &self,
+        workspace: &str,
+        pane: u32,
+        ratio: f64,
+    ) -> Result<PaneLayout, RemoteError> {
+        self.call(&PaneAsk::PaneResize { workspace: workspace.into(), pane, ratio })
+    }
 }
 
 #[expect(
@@ -182,6 +203,10 @@ mod tests {
                 PaneAsk::PaneClose { workspace: "w".into(), pane: 3 },
                 r#"{"v":1,"op":"pane_close","workspace":"w","pane":3}"#,
             ),
+            (
+                PaneAsk::PaneResize { workspace: "w".into(), pane: 1, ratio: 0.3 },
+                r#"{"v":1,"op":"pane_resize","workspace":"w","pane":1,"ratio":0.3}"#,
+            ),
         ] {
             assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
@@ -191,6 +216,7 @@ mod tests {
             r#"{"v":1,"op":"pane_open","workspace":"w","kind":"browser","target":"x"}"#,
             r#"{"v":1,"op":"pane_close","workspace":"w"}"#,
             r#"{"v":1,"op":"pane_list"}"#,
+            r#"{"v":1,"op":"pane_resize","workspace":"w","pane":1}"#,
         ] {
             let err = crate::read_request(&mut line.as_bytes()).unwrap_err();
             assert_eq!(err.code(), "bad_request", "{line}");

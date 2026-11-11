@@ -76,6 +76,35 @@ fn closing_inside_a_nested_split_finds_the_pane_by_number() {
 }
 
 #[test]
+fn resize_moves_the_border_after_a_pane() {
+    let text = "row 0.5 column 0.5 canvas:a canvas:b canvas:c";
+    let mut layout = Layout::decode(text).unwrap();
+    // After pane 1 comes the column's border; after pane 2, the row's.
+    let moved = layout.resize(1, 0.25).unwrap();
+    assert_eq!(layout.encode(), "row 0.5 column 0.25 canvas:a canvas:b canvas:c");
+    assert_eq!(
+        (moved.pane.as_str(), moved.x, moved.y, moved.width, moved.height),
+        ("canvas:a", 0.0, 0.0, 0.5, 0.25)
+    );
+    let moved = layout.resize(2, 0.7).unwrap();
+    assert_eq!(layout.encode(), "row 0.7 column 0.25 canvas:a canvas:b canvas:c");
+    assert_eq!((moved.pane.as_str(), moved.width), ("canvas:b", 0.7));
+    layout.resize(2, 5.0).unwrap();
+    assert_eq!(layout.encode(), "row 0.9 column 0.25 canvas:a canvas:b canvas:c", "held");
+}
+
+#[test]
+fn a_resize_that_changes_nothing_is_none() {
+    let text = "row 0.5 canvas:a canvas:b";
+    let mut layout = Layout::decode(text).unwrap();
+    for (number, ratio) in [(0, 0.3), (2, 0.3), (3, 0.3), (1, 0.5), (1, f64::NAN)] {
+        assert_eq!(layout.resize(number, ratio), None, "{number} {ratio}");
+    }
+    assert_eq!(layout.encode(), text);
+    assert_eq!(Layout::new(canvas("a")).resize(1, 0.3), None, "a lone pane has no border");
+}
+
+#[test]
 fn frames_tile_the_window() {
     let layout = Layout::decode("row 0.25 canvas:a column 0.5 canvas:b canvas:c").unwrap();
     let frames: Vec<_> = layout.frames().iter().map(|f| (f.x, f.y, f.width, f.height)).collect();

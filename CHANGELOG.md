@@ -36,6 +36,14 @@ bullet with the area in bold.
   one step. Pick a tool from the tool and shape pop-ups or with the new
   `tool-pen`, `tool-eraser`, `tool-lasso`, `tool-text`, `tool-box` and
   `tool-arrow` keys (`cmd+1` to `cmd+6`).
+- **App:** resize panes and move things between them with the pen. Drag
+  the divider between two panes (it is easy to catch: 8 points either
+  side) to resize them; the workspace keeps the new sizes, and so do the
+  `grow-pane` and `shrink-pane` keys now. Drag a selection into a pane on
+  another canvas and its items move there, where the pen let go: one undo
+  step on each canvas. Let go outside any canvas pane and nothing moves.
+  `slinger pane resize <workspace> <pane> <ratio>` moves the divider after
+  a pane from a terminal.
 - **Canvas:** erase, select and move. With the eraser, every stroke the pen
   passes over goes at once; the whole drag is one step. With the lasso, draw
   a loop: the items wholly inside it are selected, with a box around them.

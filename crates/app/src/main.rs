@@ -38,9 +38,10 @@ use crate::backend::{Problem, Settings, Watch};
 use crate::canvases::Canvases;
 use crate::commands::Command;
 use crate::config::Shown;
-use crate::layout::{Axis, Direction, PaneId, Point, Rect};
+use crate::layout::{PaneId, Point, Rect};
 use crate::panes::{Pane, Panes};
 use crate::platform::{Event, Step};
+use crate::scene::resize::Dividers;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::tools::{Kind, Tools};
 use crate::scene::{Notes, Scene, Uis};
@@ -124,11 +125,12 @@ fn window(mut settings: Settings) -> ExitCode {
     let first = view(&settings, &shared, &tools, &sidebar, &mut canvases);
     // Runs on the main thread for each key press, pen, mouse or trackpad
     // event, paint of new ink, and tick of the window's timer. An open
-    // pop-up takes its keys and presses first; the pen draws with the pen
-    // tool on a canvas pane. A tick stats the two config files and takes the
-    // watch's news of the agents and the panes and what the canvases'
-    // followers heard; the watch and the followers follow an edit that moves
-    // the socket or the workspace. Only a split or a close asks the daemon here.
+    // pop-up takes its keys and presses first; a press on a divider between
+    // panes drags it; the pen draws with the pen tool on a canvas pane. A
+    // tick stats the two config files and takes the watch's news of the
+    // agents and the panes and what the canvases' followers heard; the watch
+    // and the followers follow an edit that moves the socket or the
+    // workspace. Only a split, a close or a resize asks the daemon here.
     let answer = move |event| {
         let force = match event {
             Event::Tick => false,
@@ -182,7 +184,7 @@ fn window(mut settings: Settings) -> ExitCode {
             // The pen, the mouse, the trackpad and typed text.
             _ => {
                 let area = sidebar.panes(window.rect());
-                if !pointer(&event, &mut tools, &mut canvases, &shared.panes, area) {
+                if !pen(&event, &mut tools, &mut canvases, &mut shared, area, &socket) {
                     return Step::Pass;
                 }
                 return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
@@ -232,13 +234,16 @@ struct Shared {
     trouble: Option<Problem>,
     /// Why an agent UI's last reply did not reach its agent, by showing.
     notes: Notes,
+    /// The divider between panes under the pen, if any.
+    dividers: Dividers,
 }
 
 impl Default for Shared {
     fn default() -> Self {
         let main = Pane { kind: panes::Kind::Canvas, name: "main".to_string() };
         let (uis, notes) = (Uis::new(), Notes::new());
-        Self { panes: Panes::new(main), uis, workspace: None, trouble: None, notes }
+        let (workspace, trouble, dividers) = (None, None, Dividers::default());
+        Self { panes: Panes::new(main), uis, workspace, trouble, notes, dividers }
     }
 }
 
@@ -284,11 +289,15 @@ impl Shared {
         })
     }
 
-    /// Runs a pane command on the panes in `area`. Opening and closing go
-    /// to the daemon on `socket`, which keeps the layout (to the window's
-    /// own panes without a workspace). Commands that are not about panes do
-    /// nothing.
+    /// Runs a pane command on the panes in `area`. Opening, closing and
+    /// resizing go to the daemon on `socket`, which keeps the layout (to the
+    /// window's own panes without a workspace). Commands that are not about
+    /// panes do nothing.
     fn command(&mut self, command: Command, area: Rect, socket: &Path) {
+        if matches!(command, Command::GrowPane | Command::ShrinkPane) && self.workspace.is_some() {
+            let steps = if command == Command::GrowPane { 1.0 } else { -1.0 };
+            return self.resized(self.panes.grown(steps), socket);
+        }
         let panes = &mut self.panes;
         let server = self.workspace.as_deref().map(|w| (control::Client::new(socket), w));
         let asked = match (command, server) {
@@ -303,55 +312,26 @@ impl Shared {
                 backend::panes::close(&daemon, workspace, number)
                     .map(|layout| Panes::follow(&layout, number.saturating_sub(1)))
             }
-            _ => {
-                own(panes, command, area);
-                return;
-            }
+            _ => return panes.command(command, area),
         };
         match asked {
             Ok(now) => *panes = now,
             Err(problem) => self.trouble = Some(problem),
         }
     }
-}
 
-/// Runs a pane command on the window's own panes in `area`. Commands that
-/// are not about panes do nothing.
-fn own(panes: &mut Panes, command: Command, area: Rect) {
-    match command {
-        Command::Quit
-        | Command::ReloadConfig
-        | Command::PickColour
-        | Command::PickShape
-        | Command::PickTool
-        | Command::ToggleSidebar
-        | Command::DismissNotice
-        | Command::PanLeft
-        | Command::PanRight
-        | Command::PanUp
-        | Command::PanDown
-        | Command::ZoomIn
-        | Command::ZoomOut
-        | Command::NextPage
-        | Command::DeleteSelection
-        | Command::ClearSelection
-        | Command::ToolPen
-        | Command::ToolEraser
-        | Command::ToolLasso
-        | Command::ToolText
-        | Command::ToolBox
-        | Command::ToolArrow => {}
-        Command::SplitRight => panes.split(Axis::Row),
-        Command::SplitDown => panes.split(Axis::Column),
-        Command::ClosePane => panes.close(),
-        Command::FocusNext => panes.focus_next(),
-        Command::FocusLeft => panes.focus_toward(Direction::Left, area),
-        Command::FocusRight => panes.focus_toward(Direction::Right, area),
-        Command::FocusUp => panes.focus_toward(Direction::Up, area),
-        Command::FocusDown => panes.focus_toward(Direction::Down, area),
-        // The window's own until resizing goes to the server (slinger-dfac).
-        Command::GrowPane => panes.grow(1.0),
-        Command::ShrinkPane => panes.grow(-1.0),
+    /// Sends a moved divider (the number of the pane before it, and its
+    /// split's share) to the daemon on `socket`, which keeps the layout.
+    /// Without a workspace the window's own panes are the layout.
+    fn resized(&mut self, moved: Option<(u32, f64)>, socket: &Path) {
+        let (Some((number, ratio)), Some(workspace)) = (moved, self.workspace.as_deref()) else {
+            return;
+        };
+        let daemon = control::Client::new(socket);
+        match backend::panes::resize(&daemon, workspace, number, ratio) {
+            Ok(layout) => self.panes = Panes::follow(&layout, self.panes.number()),
+            Err(problem) => self.trouble = Some(problem),
+        }
     }
 }
 
@@ -390,6 +370,31 @@ fn selection(canvases: &mut Canvases, panes: &Panes, command: Command) -> bool {
     }
 }
 
+/// Hands a press on a divider between panes (with no pop-up open), and the
+/// drag and lift after it, to the panes of `shared` laid in `area`, which
+/// resize; a moved divider goes to the daemon on `socket`. Any other event
+/// goes on to [`pointer`]. False when nothing used it.
+fn pen(
+    event: &Event,
+    tools: &mut Tools,
+    canvases: &mut Canvases,
+    shared: &mut Shared,
+    area: Rect,
+    socket: &Path,
+) -> bool {
+    let free = tools.open_kind().is_none();
+    match *event {
+        Event::Press(pen) if free && shared.dividers.down(&shared.panes, area, pen.at) => true,
+        Event::Drag(pen) if shared.dividers.drag(&mut shared.panes, pen.at) => true,
+        Event::Lift(pen) if shared.dividers.held() => {
+            let moved = shared.dividers.up(&mut shared.panes, pen.at);
+            shared.resized(moved, socket);
+            true
+        }
+        _ => pointer(event, tools, canvases, &shared.panes, area),
+    }
+}
+
 /// Hands a pen or mouse press, drag or lift to the pop-up at the pen, then
 /// to the canvas pane of `panes` laid in `area` under it, where the tool
 /// draws, erases, selects, places text or draws a shape; typed text to the
@@ -424,7 +429,7 @@ fn pointer(
             canvases.pen_drag(panes, pen)
         }
         Event::Lift(pen) => {
-            let ended = canvases.pen_up(panes, pen);
+            let ended = canvases.pen_up(panes, pen, pane_at(panes, area, pen.at));
             if let Some(line) = canvases.delay_log() {
                 // Nothing can be done if stderr is closed.
                 let _ = writeln!(io::stderr(), "{line}");
