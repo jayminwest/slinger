@@ -99,6 +99,16 @@ fn put(shape: Shape) -> Change {
 }
 
 #[test]
+fn a_text_being_typed_says_its_canvas_and_page() {
+    let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
+    assert_eq!(shapes.typing_on(), None);
+    assert!(down(&mut shapes, &mut ink, Tool::Text, (10.0, 215.6), 0.0, &[]));
+    assert_eq!(shapes.typing_on(), Some(HERE));
+    assert!(shapes.typed("\u{1b}", &mut ink));
+    assert_eq!(shapes.typing_on(), None);
+}
+
+#[test]
 fn a_tap_places_a_text_the_keyboard_types_and_escape_ends_as_one_add() {
     let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
     assert!(!shapes.typed("x", &mut ink), "nothing to type into");

@@ -1,6 +1,6 @@
 //! Pages (SPEC D6): which page a page command turns a pane to, the name a
-//! new page gets, where a pane goes when its page is removed, the one quiet
-//! line that names a pane's page, and the two questions a page command
+//! new page gets, where a pane goes when its page is removed, the line
+//! that names a pane's page in its footer, and the two questions a page command
 //! asks: a rename's new name, typed, and whether to remove a page that has
 //! items, asked once. Pure: `canvases` hands in the canvas's pages and the
 //! typed keys, and sends the [`PageOp`] that comes out through the ink's
@@ -64,12 +64,11 @@ pub fn after_remove<'a>(pages: &'a [Page], at: &str) -> Option<&'a str> {
     pages.get(there).map(|p| p.id.as_str())
 }
 
-/// The quiet line that names page `at`: its name, and where it is among
-/// the pages when there is more than one.
+/// The line that names page `at` in its pane's footer: its name, and
+/// where it is among the pages. Empty for a page not among them.
 pub fn line(pages: &[Page], at: &str) -> String {
     let Some(here) = pages.iter().position(|p| p.id == at) else { return String::new() };
-    let name = &pages[here].name;
-    if pages.len() == 1 { name.clone() } else { format!("{name} · {}/{}", here + 1, pages.len()) }
+    format!("{} · {}/{}", pages[here].name, here + 1, pages.len())
 }
 
 /// A question a page command asks, in the pane it was asked in.
