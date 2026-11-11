@@ -379,7 +379,7 @@ fn view(
     let (size, uis, notes) = (shared.size, &shared.uis, &shared.notes);
     let mut scene = scene::build(size, &shared.panes, theme, &problems, sidebar, drawn, uis, notes);
     canvases.show_live(&mut scene);
-    canvases.show_sling(&mut scene, theme);
+    canvases.show_sling(&mut scene, theme, &settings.config.keys, sidebar);
     scene.labels.splice(0..0, canvases.labels(&shared.panes, area, theme));
     scene.labels.extend(tools.labels(theme));
     scene

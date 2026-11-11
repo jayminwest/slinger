@@ -10,6 +10,7 @@ use crate::layout::{Point, Rect, Viewport};
 use crate::panes::Panes;
 use crate::scene::Scene;
 use crate::scene::select::Selection;
+use crate::scene::sidebar::Sidebar;
 use crate::scene::sling::Key;
 
 impl Canvases {
@@ -86,10 +87,13 @@ impl Canvases {
         self.sling.covers(at)
     }
 
-    /// Lays the sling over `scene` in `theme`'s colours: its entry, or its
-    /// line while it goes, or why it failed; and what dictation says.
-    pub fn show_sling(&self, scene: &mut Scene, theme: &Theme) {
-        scene.entry = self.sling.entry().map(Box::new);
+    /// Lays the sling over `scene` in `theme`'s colours: its entry, to the
+    /// agent `sidebar` names for its canvas, with `keys`' dictate key; or
+    /// its line while it goes, or why it failed; and what dictation says.
+    pub fn show_sling(&self, scene: &mut Scene, theme: &Theme, keys: &Keymap, sidebar: &Sidebar) {
+        let agent = self.sling.canvas().and_then(|canvas| sidebar.agent(canvas));
+        let entry = self.sling.entry(theme, agent, keys.chord(Command::Dictate));
+        scene.entry = entry.map(Box::new);
         scene.labels.extend(self.sling.labels(theme));
         scene.labels.extend(self.dictation_labels(theme));
     }
@@ -150,7 +154,7 @@ mod tests {
         let mut scene =
             crate::scene::build(WINDOW, panes, &theme, &[], &side, Vec::new(), &uis, &notes);
         scene.labels.clear();
-        canvases.show_sling(&mut scene, &theme);
+        canvases.show_sling(&mut scene, &theme, &Keymap::default(), &side);
         scene
     }
 
@@ -206,6 +210,10 @@ mod tests {
         let entry = shown(canvases, panes).entry.unwrap();
         let (x, y) = (entry.frame.x - CANVAS_MARGIN, entry.frame.y - CANVAS_MARGIN);
         assert!(y > 110.0 && x <= 100.0, "under the stroke: {entry:?}");
+        assert_eq!(entry.title.label.text, "Sling", "no workspace list: no agent to name");
+        let dictate = Keymap::default().chord(Command::Dictate).map(Chord::glyphs);
+        let shown_key = entry.dictate.map(|row| row.label.text);
+        assert_eq!(shown_key, dictate.map(|key| format!("{key} dictate")), "the live key");
         let on = Point { x: entry.frame.x + 1.0, y: entry.frame.y + 1.0 };
         assert!(canvases.sling_covers(on) && canvases.typing());
         assert!(!canvases.sling_key(Chord::new(0, 'w')), "a letter is the entry's");

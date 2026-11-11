@@ -1,7 +1,8 @@
 //! The sling's one-line entry: a native text field, so typing, the caret,
-//! input methods and accents work as in any Mac app. It lives while the
-//! scene has an entry, over every other view, and takes the keyboard when
-//! it appears. Each edit goes to the app as [`Event::Typed`] with the
+//! input methods and accents work as in any Mac app, in a box with a
+//! border, its label above and its keys beneath. It lives while the scene
+//! has an entry, over every other view, and takes the keyboard when it
+//! appears. Each edit goes to the app as [`Event::Typed`] with the
 //! whole text. Return and escape never reach it: the window's
 //! `sendEvent:` hands every key to the app first, which keeps those two.
 //! The app has no menu bar, so the field takes cmd+X, C, V and A itself:
@@ -11,11 +12,12 @@ use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
-    NSApplication, NSControl, NSEvent, NSResponder, NSTextField, NSView, NSWindow,
+    NSApplication, NSControl, NSEvent, NSFocusRingType, NSResponder, NSTextAlignment, NSTextField,
+    NSView, NSWindow, NSWindowOrderingMode,
 };
 use objc2_foundation::{NSObject, NSString};
 
-use super::{Event, chord, dispatch, flipped};
+use super::{Event, border, chord, color, dispatch, flipped, sidebar_row};
 use crate::commands::{CMD, Chord};
 use crate::scene::sling::Entry;
 
@@ -61,12 +63,17 @@ define_class!(
 
 impl EntryField {
     fn new(entry: &Entry, height: f64, mtm: MainThreadMarker) -> Retained<Self> {
-        let frame = flipped(height, entry.frame);
+        let frame = flipped(height, entry.field);
         // SAFETY: `NSTextField`'s designated initializer, on a fresh
         // allocation of a subclass with no ivars.
         let field: Retained<Self> = unsafe { msg_send![Self::alloc(mtm), initWithFrame: frame] };
         field.setEditable(true);
-        field.setBezeled(true);
+        // The box behind it is its bezel and its focus ring.
+        field.setBezeled(false);
+        field.setBordered(false);
+        field.setDrawsBackground(false);
+        field.setFocusRingType(NSFocusRingType::None);
+        field.setTextColor(Some(&color(entry.colour)));
         field.setUsesSingleLineMode(true);
         // SAFETY: a text field's cell is an `NSTextFieldCell`, which scrolls
         // its text sideways when told to, instead of wrapping it.
@@ -80,36 +87,92 @@ impl EntryField {
     }
 }
 
+/// The entry on screen: its field, the views around it (the box, the
+/// label and the keys, lowest first) and what they were made from (the
+/// entry with no text), so they are made again only when that changes.
+pub struct Kept {
+    field: Retained<EntryField>,
+    around: Vec<Retained<NSView>>,
+    made_from: Entry,
+}
+
+impl Kept {
+    /// The lowest of its views: the window's other chrome goes under it.
+    pub fn bottom(&self) -> &NSView {
+        self.around.first().map_or(&self.field, |box_| box_)
+    }
+
+    /// Makes the views around the field from `entry`, under the field.
+    fn surround(&mut self, view: &NSView, entry: &Entry, height: f64, mtm: MainThreadMarker) {
+        for old in self.around.drain(..) {
+            old.removeFromSuperview();
+        }
+        let edge = border(&entry.border, height, mtm);
+        edge.setFillColor(&color(entry.fill));
+        self.around.push(Retained::into_super(edge));
+        for (row, align) in
+            [(&entry.title, NSTextAlignment::Left), (&entry.keys, NSTextAlignment::Left)]
+                .into_iter()
+                .chain(entry.dictate.as_ref().map(|row| (row, NSTextAlignment::Right)))
+        {
+            let line = sidebar_row(row, height, mtm);
+            line.setAlignment(align);
+            self.around.push(Retained::into_super(Retained::into_super(line)));
+        }
+        // Each right under the field, so the last made is the highest.
+        for around in &self.around {
+            view.addSubview_positioned_relativeTo(
+                around,
+                NSWindowOrderingMode::Below,
+                Some(&self.field),
+            );
+        }
+        self.made_from = Entry { text: String::new(), ..entry.clone() };
+    }
+}
+
 /// Makes `view` (`height` tall) of `window` show `entry`: a field made
-/// when the entry appears, which then takes the keyboard; moved and given
-/// the entry's text while it stays (its text only when it differs, so the
-/// caret stays where it is); removed when the entry goes, the keyboard
-/// back to the window.
+/// when the entry appears, in its box with its label and keys, which then
+/// takes the keyboard; moved and given the entry's text while it stays
+/// (its text only when it differs, so the caret stays where it is), the
+/// views around it made again when they change; all removed when the entry
+/// goes, the keyboard back to the window.
 pub fn place(
     window: &NSWindow,
     view: &NSView,
-    kept: &mut Option<Retained<EntryField>>,
+    kept: &mut Option<Kept>,
     entry: Option<&Entry>,
     height: f64,
     mtm: MainThreadMarker,
 ) {
     let Some(entry) = entry else {
-        if let Some(field) = kept.take() {
-            field.removeFromSuperview();
+        if let Some(kept) = kept.take() {
+            kept.around.iter().for_each(|v| v.removeFromSuperview());
+            kept.field.removeFromSuperview();
             window.makeFirstResponder(None);
         }
         return;
     };
-    if let Some(field) = kept.as_ref() {
-        field.setFrame(flipped(height, entry.frame));
+    if let Some(kept) = kept.as_mut() {
+        kept.field.setFrame(flipped(height, entry.field));
         let text = NSString::from_str(&entry.text);
-        if field.stringValue() != text {
-            field.setStringValue(&text);
+        if kept.field.stringValue() != text {
+            kept.field.setStringValue(&text);
+        }
+        if kept.made_from != (Entry { text: String::new(), ..entry.clone() }) {
+            kept.surround(view, entry, height, mtm);
         }
         return;
     }
     let field = EntryField::new(entry, height, mtm);
     view.addSubview(&field);
     window.makeFirstResponder(Some(&field));
-    *kept = Some(field);
+    if let Some(editor) = field.currentEditor() {
+        // SAFETY: a text field's field editor is an `NSTextView`, whose
+        // caret takes an `NSColor`.
+        let () = unsafe { msg_send![&*editor, setInsertionPointColor: &*color(entry.colour)] };
+    }
+    let mut shown = Kept { field, around: Vec::new(), made_from: entry.clone() };
+    shown.surround(view, entry, height, mtm);
+    *kept = Some(shown);
 }

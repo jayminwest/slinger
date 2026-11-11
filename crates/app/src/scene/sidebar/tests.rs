@@ -162,6 +162,18 @@ fn each_canvas_has_the_status_of_its_workspaces_agent_for_its_button() {
 }
 
 #[test]
+fn a_canvas_names_its_workspaces_agent_for_the_sling() {
+    assert_eq!(Sidebar::new(false).agent("ada-canvas"), None, "no list yet");
+    let none = Workspace { name: "plain".into(), canvas: "plain".into(), agent: None };
+    let mut sidebar = heard(vec![ws("ada", None), none]);
+    assert_eq!(sidebar.agent("ada-canvas"), Some("ada"));
+    assert_eq!(sidebar.agent("plain"), None, "a workspace with no agent");
+    assert_eq!(sidebar.agent("elsewhere"), None, "a canvas no open workspace has");
+    sidebar.update(Err(crate::backend::Problem { message: "gone".into(), hint: None }));
+    assert_eq!(sidebar.agent("ada-canvas"), None, "a lost daemon: no agent");
+}
+
+#[test]
 fn lines_that_do_not_fit_are_left_out() {
     let many: Vec<_> = (0..40).map(|i| ws(&format!("a{i}"), None)).collect();
     let rows = heard(many).rows(&T, WINDOW);

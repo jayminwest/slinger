@@ -88,9 +88,9 @@ fn reply_lands_beside_the_note(canvases: &mut Canvases, panes: &Panes, daemon: &
 /// `frame`, and a tap sends what was typed there.
 fn type_beside_and_tap(canvases: &mut Canvases, panes: &Panes, frame: Rect) {
     assert!(canvases.open_sling(panes, WINDOW.rect()));
-    let entry = canvases.sling.entry().unwrap();
+    let entry = canvases.sling.entry(&Config::default().theme, None, None).unwrap();
     assert!(entry.frame.y > frame.y + frame.height, "under the button: {entry:?}");
-    assert!(entry.placeholder.starts_with("sling what is new"), "{entry:?}");
+    assert!(entry.placeholder.ends_with("about what is new (or nothing)"), "{entry:?}");
     assert!(!canvases.sling_typed("and now?"));
     assert!(!canvases.sling_key(Chord::new(0, 'w')), "the entry's key");
     assert!(tap(canvases, panes, frame));

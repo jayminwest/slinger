@@ -309,10 +309,6 @@ impl Keymap {
     }
 
     /// The chord that runs `command`, if any: the live key a surface shows.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the key overlay, the palette and the menu bar show it")
-    )]
     pub fn chord(&self, command: Command) -> Option<Chord> {
         self.0[command as usize]
     }

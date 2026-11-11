@@ -19,6 +19,10 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** the sling prompt is a labelled field. Above it, "Sling to" and
+  the agent of the canvas's workspace ("Sling" when it has none); beneath
+  it, the keys that send, cancel and dictate.
+
 - **App:** the window resizes. Drag its edge or corner, or zoom it, and the
   sidebar and the panes follow. It opens at 960x600 and goes down to 480x320.
 
