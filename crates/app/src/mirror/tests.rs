@@ -163,24 +163,49 @@ fn changes_elsewhere_change_nothing_drawn() {
 }
 
 #[test]
-fn pages_are_followed_and_the_next_one_wraps_around() {
+fn pages_are_followed_with_their_names() {
     let mut m = Mirror::new(&shown(vec![]));
-    assert_eq!(m.next_page(), "p2");
+    let names =
+        |m: &Mirror| m.pages().iter().map(|p| format!("{}={}", p.id, p.name)).collect::<Vec<_>>();
+    assert_eq!(names(&m), ["p1=one", "p2=two"]);
     m.apply(&feed(6, vec![json!({"op": "page.add", "page": "p3", "name": "three"})]));
     m.apply(&feed(7, vec![json!({"op": "page.remove", "page": "p2"})]));
-    assert_eq!(m.next_page(), "p3");
+    assert_eq!(names(&m), ["p1=one", "p3=three"]);
     let restore = json!({"op": "page.restore", "page": "p2", "name": "two", "index": 1,
                          "items": [stroke("i4", "p2")]});
     assert_eq!(m.apply(&feed(8, vec![restore])), Applied::Same);
-    assert_eq!(m.next_page(), "p2");
+    let rename = json!({"op": "page.rename", "page": "p3", "name": "spec"});
+    assert_eq!(m.apply(&feed(9, vec![rename])), Applied::Same, "nothing drawn changed");
+    assert_eq!(names(&m), ["p1=one", "p2=two", "p3=spec"]);
     m.apply(&feed(
         10,
         vec![
             json!({"op": "page.remove", "page": "p2"}),
             json!({"op": "page.remove", "page": "p3"}),
+            json!({"op": "page.rename", "page": "p9", "name": "lost"}),
+            json!({"op": "page.add", "page": "p4"}),
         ],
     ));
-    assert_eq!(m.next_page(), "p1");
+    assert_eq!(names(&m), ["p1=one", "p4=p4"], "a page with no name is named by its id");
+}
+
+#[test]
+fn page_changes_and_steps_are_written_as_their_operations() {
+    use crate::scene::pages::PageOp;
+    let page = |op| ops(&Change::Page { canvas: "main".into(), op });
+    assert_eq!(
+        page(PageOp::Add { name: "Page 2".into() }),
+        json!({"op": "page.add", "name": "Page 2"})
+    );
+    assert_eq!(
+        page(PageOp::Rename { page: "p2".into(), name: "spec".into() }),
+        json!({"op": "page.rename", "page": "p2", "name": "spec"})
+    );
+    assert_eq!(
+        page(PageOp::Remove { page: "p2".into() }),
+        json!({"op": "page.remove", "page": "p2"})
+    );
+    assert_eq!(ops(&Change::Step { canvas: "main".into(), redo: true }), json!([]));
 }
 
 #[test]

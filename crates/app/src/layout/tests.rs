@@ -232,3 +232,11 @@ fn contains_includes_the_edges() {
     assert!(r.contains(pt(10.0, 10.0)) && r.contains(pt(15.0, 15.0)));
     assert!(!r.contains(pt(9.9, 12.0)) && !r.contains(pt(12.0, 15.1)));
 }
+
+#[test]
+fn the_foot_line_sits_at_the_bottom_inside_the_margins_or_at_the_top_of_a_short_area() {
+    let area = Rect { x: 10.0, y: 20.0, width: 300.0, height: 200.0 };
+    assert_eq!(foot(area), Rect { x: 34.0, y: 192.0, width: 252.0, height: 22.0 });
+    let short = Rect { x: 0.0, y: 5.0, width: 10.0, height: 10.0 };
+    assert_eq!(foot(short), Rect { x: 24.0, y: 5.0, width: 0.0, height: 22.0 });
+}

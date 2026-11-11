@@ -229,8 +229,9 @@ fn a_change_names_its_canvas_and_page() {
         by: pt(0.0, 0.0),
         follow: vec![],
     };
-    let named: Vec<(&str, &str)> = [&add, &remove, &moved].map(|c| (c.canvas(), c.page())).into();
-    assert_eq!(named, [("main", "p1"), ("c", "p2"), ("d", "p3")]);
+    let named: Vec<(&str, Option<&str>)> =
+        [&add, &remove, &moved].map(|c| (c.canvas(), c.page())).into();
+    assert_eq!(named, [("main", Some("p1")), ("c", Some("p2")), ("d", Some("p3"))]);
     assert!(on_server(ItemId(LOCAL - 1)) && !on_server(ItemId(LOCAL)));
 }
 
@@ -276,4 +277,38 @@ fn a_canvas_is_settled_once_every_change_of_it_is_written() {
     assert!(!ink.settled("main"), "sending");
     ink.answered(key, Answer::Applied(7));
     assert!(ink.settled("main"), "written, though the feed has not echoed it");
+}
+
+#[test]
+fn an_undo_and_a_page_change_wait_their_turn_show_nothing_and_leave_when_heard() {
+    use crate::scene::pages::PageOp;
+    let mut ink = Ink::default();
+    ink.down("main", "p1", RED, pt(0.0, 0.0));
+    ink.up(Some(pt(1.0, 1.0)));
+    let undo = Change::Step { canvas: "main".into(), redo: false };
+    let undo_key = ink.push_keyed(undo.clone());
+    let add = Change::Page { canvas: "main".into(), op: PageOp::Add { name: "Page 2".into() } };
+    let add_key = ink.push_keyed(add.clone());
+    assert_eq!((undo.page(), add.page()), (None, None));
+    assert_eq!(ink.shown("main", "p1", &[]).len(), 1, "only the stroke shows");
+
+    let (stroke_key, _) = ink.next().unwrap();
+    assert_eq!(ink.next(), None, "the undo waits for the stroke");
+    ink.answered(stroke_key, Answer::Applied(1));
+    assert_eq!(ink.next(), Some((undo_key, undo)), "then the undo, which undoes it");
+    ink.answered(undo_key, Answer::Applied(2));
+    assert_eq!(ink.next(), Some((add_key, add)));
+    ink.answered(add_key, Answer::NewPage { seq: 3, page: "p2".into() });
+    assert_eq!(ink.next(), None);
+    ink.heard("main", 2);
+    assert_eq!(ink.shown("main", "p1", &[]).len(), 0);
+    assert_eq!(ink.pending.len(), 1, "the page add waits for line 3");
+    ink.heard("main", 3);
+    assert_eq!(ink.pending, []);
+
+    let nothing = ink.push_keyed(Change::Step { canvas: "main".into(), redo: true });
+    ink.next();
+    ink.answered(nothing, Answer::Applied(0));
+    ink.heard("main", 0);
+    assert_eq!(ink.pending, [], "a step that wrote nothing leaves at once");
 }

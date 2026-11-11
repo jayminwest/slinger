@@ -245,5 +245,13 @@ pub fn lines(area: Rect, count: usize) -> Vec<Rect> {
     offsets.iter().map(|y| Rect { x, y: top + y, width, height: LINE_HEIGHT }).collect()
 }
 
+/// The one line at the foot of `area`, full width inside its side margins,
+/// a gap above its bottom edge; at its top in an area too short for that.
+pub fn foot(area: Rect) -> Rect {
+    let width = (area.width - 2.0 * MARGIN).max(0.0);
+    let y = (area.y + area.height - LINE_HEIGHT - LINE_GAP).max(area.y);
+    Rect { x: area.x + MARGIN, y, width, height: LINE_HEIGHT }
+}
+
 #[cfg(test)]
 mod tests;

@@ -3,7 +3,7 @@
 //! waits for, and to the thread that sends it ([`crate::backend::Slinger`]).
 //! Runs on the main thread and never waits.
 
-use super::{Canvases, canvas_of, pane_shown};
+use super::{Canvases, pane_shown};
 use crate::commands::Chord;
 use crate::config::Theme;
 use crate::layout::{Point, Rect};
@@ -107,8 +107,9 @@ impl Canvases {
     fn selection_in(&self, panes: &Panes, area: Rect) -> Option<(&Selection, Rect, Rect)> {
         let (selection, pane) = (self.selection()?, panes.focus());
         let placed = panes.place(area).into_iter().find(|(id, _, _)| *id == pane);
-        let frame = placed.filter(|_| canvas_of(panes, pane) == Some(&selection.canvas))?.2;
-        let bounds = self.select.bounds(&pane_shown(&self.open, &self.ink, panes, pane))?;
+        let frame = placed.filter(|_| self.shows_selection(panes, pane))?.2;
+        let bounds =
+            self.select.bounds(&pane_shown(&self.open, &self.views, &self.ink, panes, pane))?;
         let view = self.views.iter().find(|(p, _)| *p == pane);
         let on = view.map(|(_, v)| v.viewport).unwrap_or_default().rect_to_screen(bounds);
         Some((selection, Rect { x: on.x + frame.x, y: on.y + frame.y, ..on }, frame))

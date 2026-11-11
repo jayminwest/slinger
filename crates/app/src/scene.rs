@@ -18,6 +18,7 @@
 
 pub mod canvas;
 pub mod ink;
+pub mod pages;
 pub mod resize;
 pub mod select;
 pub mod shapes;

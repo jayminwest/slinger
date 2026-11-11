@@ -1,7 +1,8 @@
 //! Sending the pen's changes (SPEC P7): a thread of its own applies each
-//! change (a stroke, an erase, a delete, a move) to its canvas, in the order
-//! it was handed them, as one `canvas_apply`, so one undo step, and hands
-//! back the daemon's answer. The main thread hands changes in with
+//! change (a stroke, an erase, a delete, a move, a page's change) to its
+//! canvas, in the order it was handed them, as one `canvas_apply`, so one
+//! undo step, or sends an undo or redo as `canvas_undo` or `canvas_redo`,
+//! as the user, and hands back the daemon's answer. The main thread hands changes in with
 //! [`Outbox::send`] and takes the answers with [`Outbox::answers`]; it never
 //! waits on the socket. Which change goes when is `scene::ink`'s to decide.
 //!
@@ -13,10 +14,11 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 use std::time::Duration;
 
-use slinger_control::{CanvasOps, Client};
+use slinger_control::{CanvasOps, CanvasStep, Client};
 
 use crate::mirror;
 use crate::scene::ink::{Answer, Change};
+use crate::scene::pages::PageOp;
 
 /// How long to wait before saying a daemon did not answer.
 const RETRY: Duration = Duration::from_secs(1);
@@ -66,12 +68,28 @@ impl Outbox {
 }
 
 /// Applies `change` to its canvas as the user, in one `canvas_apply`: one
-/// undo step.
+/// undo step. An undo or a redo takes back or puts back the user's last
+/// step instead.
 fn apply(daemon: &Client, change: &Change) -> Answer {
-    let ops = mirror::ops(change);
-    let request = CanvasOps { canvas: change.canvas().to_string(), by: "user".into(), ops };
-    match daemon.canvas_apply(request) {
-        Ok(change) => Answer::Applied(change.seq.last().copied().unwrap_or(0)),
+    let canvas = change.canvas().to_string();
+    let written = match change {
+        Change::Step { redo, .. } => {
+            let step = CanvasStep { canvas, by: "user".into() };
+            if *redo { daemon.canvas_redo(step) } else { daemon.canvas_undo(step) }
+        }
+        _ => daemon.canvas_apply(CanvasOps { canvas, by: "user".into(), ops: mirror::ops(change) }),
+    };
+    match written {
+        Ok(written) => {
+            // No line (nothing to undo, ids already gone): nothing to wait for.
+            let seq = written.seq.last().copied().unwrap_or(0);
+            match (change, written.made.into_iter().next()) {
+                (Change::Page { op: PageOp::Add { .. }, .. }, Some(page)) => {
+                    Answer::NewPage { seq, page }
+                }
+                _ => Answer::Applied(seq),
+            }
+        }
         Err(e) if e.code() == "unavailable" => {
             thread::sleep(RETRY);
             Answer::Unreachable(e.into())
@@ -180,6 +198,56 @@ mod tests {
             daemon.canvas_undo(step).unwrap();
             let back = daemon.canvas_show("main", None).unwrap();
             assert_eq!(back.items.len(), 4, "one undo puts both back: one step");
+        });
+    }
+
+    #[test]
+    fn undo_and_redo_take_only_the_user_s_steps_in_turn_and_a_new_page_says_its_id() {
+        with_daemon(|daemon| {
+            daemon.canvas_create("main").unwrap();
+            let outbox = Outbox::start(daemon.clone());
+            outbox.send(1, stroke("main", 1.0));
+            wait(&outbox, 1);
+            let note = serde_json::json!({"op": "add", "item":
+                {"page": "p1", "kind": "text", "x": 0, "y": 0, "text": "hi"}});
+            let by = "agent:scout".to_string();
+            daemon.canvas_apply(CanvasOps { canvas: "main".into(), by, ops: note }).unwrap();
+            let step = |redo| Change::Step { canvas: "main".into(), redo };
+            // Sent right after a stroke, an undo undoes that stroke.
+            outbox.send(2, stroke("main", 2.0));
+            outbox.send(3, step(false));
+            outbox.send(4, step(false));
+            outbox.send(5, step(true));
+            let answers = wait(&outbox, 4);
+            assert!(answers.iter().all(|(_, a)| matches!(a, Answer::Applied(n) if *n > 0)));
+            let shown = daemon.canvas_show("main", None).unwrap();
+            let left: Vec<_> = shown.items.iter().map(|i| i["kind"].clone()).collect();
+            assert_eq!(
+                left,
+                ["stroke", "text"],
+                "the second stroke is undone, the agent's text stays"
+            );
+            assert_eq!(shown.items[0]["pts"][0], 10, "the first stroke is back");
+            outbox.send(6, step(true));
+            outbox.send(60, step(true));
+            let answers = wait(&outbox, 2);
+            assert!(matches!(answers[0], (6, Answer::Applied(n)) if n > 0), "the second stroke");
+            assert_eq!(answers[1], (60, Answer::Applied(0)), "nothing more to redo");
+
+            let op = PageOp::Add { name: "Page 2".into() };
+            outbox.send(7, Change::Page { canvas: "main".into(), op });
+            let rename = PageOp::Rename { page: "p2".into(), name: "spec".into() };
+            outbox.send(8, Change::Page { canvas: "main".into(), op: rename });
+            let answers = wait(&outbox, 2);
+            assert!(matches!(&answers[0], (7, Answer::NewPage { page, .. }) if page == "p2"));
+            let pages = daemon.canvas_show("main", Some("spec")).unwrap().pages;
+            assert_eq!(pages[1]["name"], "spec");
+            outbox.send(
+                9,
+                Change::Page { canvas: "main".into(), op: PageOp::Remove { page: "p2".into() } },
+            );
+            wait(&outbox, 1);
+            assert_eq!(daemon.canvas_show("main", None).unwrap().pages.len(), 1);
         });
     }
 

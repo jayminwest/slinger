@@ -162,7 +162,11 @@ fn window(mut settings: Settings) -> ExitCode {
                         match command {
                             Command::ToggleSidebar => sidebar.set_open(!sidebar.is_open()),
                             Command::DismissNotice => sidebar.dismiss(),
-                            _ if canvas_command(&mut canvases, &shared.panes, area, command) => {}
+                            _ if canvases.command(
+                                &shared.panes,
+                                focus(&shared.panes, area),
+                                command,
+                            ) => {}
                             _ if tools.command(command) => {}
                             _ => shared.command(command, area, &socket),
                         }
@@ -334,30 +338,6 @@ impl Shared {
     }
 }
 
-/// How far a pan command moves the canvas, in screen points.
-const PAN_STEP: f64 = 80.0;
-/// How much a zoom command zooms in, or out.
-const ZOOM_STEP: f64 = 1.25;
-
-/// Runs a canvas command on the focused pane of `panes` laid in `area`;
-/// false for a command that is not about canvases.
-fn canvas_command(canvases: &mut Canvases, panes: &Panes, area: Rect, command: Command) -> bool {
-    let focus = panes.focus();
-    let frame = focused(panes, area);
-    let centre = Point { x: frame.width / 2.0, y: frame.height / 2.0 };
-    match command {
-        Command::PanLeft => canvases.pan(focus, PAN_STEP, 0.0),
-        Command::PanRight => canvases.pan(focus, -PAN_STEP, 0.0),
-        Command::PanUp => canvases.pan(focus, 0.0, PAN_STEP),
-        Command::PanDown => canvases.pan(focus, 0.0, -PAN_STEP),
-        Command::ZoomIn => canvases.zoom(focus, centre, ZOOM_STEP),
-        Command::ZoomOut => canvases.zoom(focus, centre, 1.0 / ZOOM_STEP),
-        Command::NextPage => canvases.next_page(panes, focus),
-        _ => return false,
-    }
-    true
-}
-
 /// Runs a selection command (`sling` opens its entry) when the focused pane of `shared`
 /// laid in `area` shows its canvas; false when it does not. Any other command goes on (true).
 fn selection(canvases: &mut Canvases, shared: &Shared, area: Rect, command: Command) -> bool {
@@ -468,9 +448,14 @@ fn pane_at(panes: &Panes, area: Rect, at: Point) -> Option<(PaneId, Rect)> {
 
 /// The frame of the focused pane of `panes` laid in `area`.
 fn focused(panes: &Panes, area: Rect) -> Rect {
+    focus(panes, area).1
+}
+
+/// The focused pane of `panes` laid in `area`, and its frame.
+fn focus(panes: &Panes, area: Rect) -> (PaneId, Rect) {
     let placed = panes.place(area);
     let found = placed.into_iter().find(|(id, _, _)| *id == panes.focus());
-    found.map_or(area, |(_, _, frame)| frame)
+    (panes.focus(), found.map_or(area, |(_, _, frame)| frame))
 }
 
 /// The window: the sidebar, the panes, any problem with the daemon, a
@@ -495,6 +480,7 @@ fn view(
     let mut scene =
         scene::build(&shared.panes, theme, &problems, sidebar, drawn, &shared.uis, &shared.notes);
     canvases.show_sling(&mut scene, theme);
+    scene.labels.splice(0..0, canvases.labels(&shared.panes, area, theme));
     scene.labels.extend(tools.labels(theme));
     scene
 }
