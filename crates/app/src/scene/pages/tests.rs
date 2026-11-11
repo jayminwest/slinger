@@ -49,8 +49,8 @@ fn a_removed_page_sends_its_pane_to_the_page_before_or_else_after() {
 }
 
 #[test]
-fn the_line_names_the_page_and_where_it_is_among_more_than_one() {
-    assert_eq!(line(&pages(&["Page 1"]), "p1"), "Page 1");
+fn the_line_names_the_page_and_where_it_is_among_the_pages() {
+    assert_eq!(line(&pages(&["Page 1"]), "p1"), "Page 1 · 1/1");
     assert_eq!(line(&pages(&["ideas", "spec"]), "p2"), "spec · 2/2");
     assert_eq!(line(&pages(&["ideas"]), "p7"), "");
 }

@@ -8,7 +8,8 @@
 //! canvas pane is a view of its own (`canvas`) that lives as long as its
 //! pane, so a new scene repaints only what changed.
 //! `web` shows agent UIs in sandboxed web views, each kept as long as its
-//! page is shown. `entry` is the sling's one-line text field. The window
+//! page is shown. `entry` is the sling's one-line text field. `text` sets
+//! styled text: the sidebar's rows and the panes' footers. The window
 //! resizes, down to [`layout::SMALLEST`], and says its new size.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
@@ -19,24 +20,21 @@
 
 mod canvas;
 mod entry;
+mod text;
 mod web;
 
 use std::cell::{Cell, RefCell};
 
 use objc2::rc::Retained;
-use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
-use objc2::{AnyThread, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
+use objc2::runtime::{NSObjectProtocol, ProtocolObject};
+use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSBox, NSBoxType, NSColor,
-    NSEvent, NSEventSubtype, NSEventType, NSFont, NSFontAttributeName,
-    NSForegroundColorAttributeName, NSKernAttributeName, NSLineBreakMode, NSResponder,
-    NSTextAlignment, NSTextField, NSTitlePosition, NSView, NSWindow, NSWindowDelegate,
-    NSWindowOrderingMode, NSWindowStyleMask,
+    NSEvent, NSEventSubtype, NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment,
+    NSTextField, NSTitlePosition, NSView, NSWindow, NSWindowDelegate, NSWindowOrderingMode,
+    NSWindowStyleMask,
 };
-use objc2_foundation::{
-    NSAttributedString, NSAttributedStringKey, NSDictionary, NSNotification, NSNumber, NSObject,
-    NSPoint, NSRect, NSSize, NSString, NSTimer,
-};
+use objc2_foundation::{NSNotification, NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
 use self::canvas::CanvasView;
 use crate::commands::Chord;
@@ -44,6 +42,7 @@ use crate::config::Rgb;
 use crate::layout::{self, PaneId, Point, Rect, Size};
 use crate::scene::ink::Pen;
 use crate::scene::sidebar::Row;
+use crate::scene::status::Footer;
 use crate::scene::{Border, Label, Scene};
 
 /// How often the main thread looks for a new scene, in seconds.
@@ -119,15 +118,18 @@ struct State {
 }
 
 /// The views a window shows: one per canvas pane, under the chrome (the
-/// sidebar, the focus border and the labels), and what the chrome was made from, so an
+/// sidebar, the footers, the focus border and the labels), and what the chrome was made from, so an
 /// unchanged one is kept.
 #[derive(Default)]
 struct Shown {
     canvases: Vec<(PaneId, Retained<CanvasView>)>,
     chrome: Vec<Retained<NSView>>,
     entry: Option<entry::Kept>,
-    made_from: Option<(Vec<Row>, Vec<Label>, Border)>,
+    made_from: Option<Chrome>,
 }
+
+/// What the chrome is made from: the sidebar, the footers, the labels and the border.
+type Chrome = (Vec<Row>, Vec<Footer>, Vec<Label>, Border);
 
 thread_local! {
     /// Set once by [`run`], on the main thread, and kept for the app's life.
@@ -349,7 +351,7 @@ fn window(mtm: MainThreadMarker, scene: &Scene) -> Retained<KeyWindow> {
 }
 
 /// Makes the window show `scene`: its title, background, canvas panes,
-/// sidebar, labels and border. Canvas views stay from scene to scene; the chrome is
+/// sidebar, footers, labels and border. Canvas views stay from scene to scene; the chrome is
 /// made again only when it changed.
 fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     let window = &state.window;
@@ -390,7 +392,8 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     web::place(&view, &scene.webs, height, canvas, mtm);
     entry::place(window, &view, &mut shown.entry, scene.entry.as_deref(), height, mtm);
 
-    let made_from = Some((scene.sidebar.clone(), scene.labels.clone(), scene.focus));
+    let made_from =
+        Some((scene.sidebar.clone(), scene.footers.clone(), scene.labels.clone(), scene.focus));
     if shown.made_from == made_from {
         return;
     }
@@ -398,8 +401,11 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
         old.removeFromSuperview();
     }
     for row in &scene.sidebar {
-        let field = sidebar_row(row, height, mtm);
+        let field = text::sidebar_row(row, height, mtm);
         shown.chrome.push(Retained::into_super(Retained::into_super(field)));
+    }
+    for footer in &scene.footers {
+        shown.chrome.extend(text::footer(footer, height, mtm));
     }
     // The border first, so a pop-up at the pen draws over it.
     shown.chrome.push(Retained::into_super(border(&scene.focus, height, mtm)));
@@ -440,36 +446,6 @@ fn label(
         field.setDrawsBackground(true);
         field.setBackgroundColor(Some(&color(fill)));
     }
-    field
-}
-
-/// A text field that shows a sidebar `row`, read from its left edge, in
-/// its font.
-fn sidebar_row(row: &Row, height: f64, mtm: MainThreadMarker) -> Retained<NSTextField> {
-    let field = label(&row.label, height, NSTextAlignment::Left, mtm);
-    let size = row.font.size.unwrap_or_else(NSFont::systemFontSize);
-    let font = if row.font.bold {
-        NSFont::boldSystemFontOfSize(size)
-    } else {
-        NSFont::systemFontOfSize(size)
-    };
-    let (ink, kern) = (color(row.label.colour), NSNumber::new_f64(row.font.spacing));
-    // SAFETY: the three keys are AppKit's own statics.
-    let keys: [&NSAttributedStringKey; 3] =
-        unsafe { [NSFontAttributeName, NSForegroundColorAttributeName, NSKernAttributeName] };
-    let values: [&AnyObject; 3] = [&font, &ink, &kern];
-    let attributes = NSDictionary::from_slices(&keys, &values);
-    // SAFETY: each value is the type its key takes: an `NSFont`, an `NSColor`
-    // and an `NSNumber`.
-    let styled = unsafe {
-        NSAttributedString::initWithString_attributes(
-            NSAttributedString::alloc(),
-            &NSString::from_str(&row.label.text),
-            Some(&attributes),
-        )
-    };
-    field.setAttributedStringValue(&styled);
-    field.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
     field
 }
 

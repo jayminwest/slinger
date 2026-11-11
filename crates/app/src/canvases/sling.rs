@@ -120,7 +120,8 @@ impl Canvases {
     fn selection_in(&self, panes: &Panes, area: Rect) -> Option<(&Selection, Rect, Rect)> {
         let (selection, pane) = (self.selection()?, panes.focus());
         let placed = panes.place(area).into_iter().find(|(id, _, _)| *id == pane);
-        let frame = placed.filter(|_| self.shows_selection(panes, pane))?.2;
+        let frame =
+            crate::scene::status::content(placed.filter(|_| self.shows_selection(panes, pane))?.2);
         let bounds =
             self.select.bounds(&pane_shown(&self.open, &self.views, &self.ink, panes, pane))?;
         let view = self.views.iter().find(|(p, _)| *p == pane);

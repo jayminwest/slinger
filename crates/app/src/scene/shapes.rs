@@ -216,6 +216,11 @@ impl Shapes {
         self.editing.is_some()
     }
 
+    /// The canvas and page of the text being typed, if any.
+    pub fn typing_on(&self) -> Option<(&str, &str)> {
+        self.editing.as_ref().map(|e| (e.canvas.as_str(), e.page.as_str()))
+    }
+
     /// Typed `text` goes into the text being edited: delete takes the last
     /// character back, return starts a line, escape ends the text (to
     /// `ink`). Other control and function keys do nothing. Returns false,

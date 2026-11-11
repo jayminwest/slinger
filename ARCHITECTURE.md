@@ -326,11 +326,18 @@ scene.rs     decides what the window shows: each pane's placeholder, an
              show, a note over a UI pane whose agent did not take its reply,
              one focus border (only with two panes or more), problems in the
              focused pane, the sidebar's rows (each with its font) and
-             notice, and the sling's labelled entry (scene/sling.rs). A canvas
-             pane's chrome is decided with its gestures: the selection's box,
-             handles and count (`select`), a text being typed's caret, frame
-             and hint (`shapes`). Every state shows, nothing else (SPEC P6).
-             Pure.
+             notice, the sling's labelled entry (scene/sling.rs) and each
+             pane's footer (scene/status.rs). A canvas pane's chrome is
+             decided with its gestures: the selection's box, handles and
+             count (`select`), a text being typed's caret, frame and hint
+             (`shapes`). Every state shows, nothing else (SPEC P6). Pure.
+scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
+             under which nothing of the pane shows (`content`: hit-testing,
+             paint and the pan and zoom centre use it): the pen's colour,
+             tool and live key and `· typing` or `· N selected`; the page
+             and `i/n`; the `show-keys` and `show-commands` keys, each only
+             when bound. A UI pane's has no tool part. A narrow pane drops
+             the right part, then the middle. Pure.
 ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
              slinger-ui://<hex>/ with the policy), the sandbox's constants
              (the policy and the shim in ui/policy.txt and ui/shim.js, the

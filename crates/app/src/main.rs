@@ -43,9 +43,9 @@ use crate::config::Shown;
 use crate::layout::{PaneId, Point, Rect};
 use crate::panes::Panes;
 use crate::platform::{Event, Step};
-use crate::scene::Scene;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::tools::{Kind, Tools};
+use crate::scene::{Scene, status};
 use crate::shared::Shared;
 
 fn main() -> ExitCode {
@@ -336,11 +336,11 @@ fn gesture(canvases: &mut Canvases, panes: &Panes, area: Rect, event: &Event) ->
 }
 
 /// The canvas pane of `panes` laid in `area` under `at`, a point in the
-/// window, and its frame. Over any other pane a gesture goes on to what it
-/// shows (an agent UI scrolls itself).
+/// window, and its canvas's frame (above its footer). Over any other pane,
+/// or a footer, a gesture goes on to what it shows (an agent UI scrolls itself).
 fn pane_at(panes: &Panes, area: Rect, at: Point) -> Option<(PaneId, Rect)> {
-    let placed = panes.place(area);
-    let found = placed.into_iter().find(|(_, _, frame)| frame.contains(at));
+    let mut placed = panes.place(area).into_iter().map(|(id, p, f)| (id, p, status::content(f)));
+    let found = placed.find(|(_, _, frame)| frame.contains(at));
     found.filter(|(_, pane, _)| pane.kind == panes::Kind::Canvas).map(|(id, _, frame)| (id, frame))
 }
 
@@ -349,14 +349,14 @@ fn focused(panes: &Panes, area: Rect) -> Rect {
     focus(panes, area).1
 }
 
-/// The focused pane of `panes` laid in `area`, and its frame.
+/// The focused pane of `panes` laid in `area`, and its frame above its footer.
 fn focus(panes: &Panes, area: Rect) -> (PaneId, Rect) {
     let placed = panes.place(area);
     let found = placed.into_iter().find(|(id, _, _)| *id == panes.focus());
-    (panes.focus(), found.map_or(area, |(_, _, frame)| frame))
+    (panes.focus(), status::content(found.map_or(area, |(_, _, frame)| frame)))
 }
 
-/// The window: the sidebar, the panes, any problem with the daemon, a
+/// The window: the sidebar, the panes and their footers, any problem with the daemon, a
 /// canvas or the config (each said once), the notice, and the pop-up at
 /// the pen on top.
 fn view(
@@ -381,6 +381,8 @@ fn view(
     canvases.show_live(&mut scene);
     canvases.show_sling(&mut scene, theme, &settings.config.keys, sidebar);
     scene.labels.splice(0..0, canvases.labels(&shared.panes, area, theme));
+    let pen = (tools.tool(), tools.colour());
+    scene.footers = canvases.footers(&shared.panes, area, theme, pen, &settings.config.keys);
     scene.labels.extend(tools.labels(theme));
     scene
 }

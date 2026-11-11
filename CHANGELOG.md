@@ -23,6 +23,14 @@ bullet with the area in bold.
   the agent of the canvas's workspace ("Sling" when it has none); beneath
   it, the keys that send, cancel and dictate.
 
+- **App:** each pane has a footer. On a canvas pane it shows the pen's
+  colour, its tool and that tool's key, and `· typing` while a text is open
+  or `· N selected` with a selection; in the middle, the page and where it
+  is among the pages (`ideas · 2/3`); on the right, the keys that show the
+  keys and the commands. An agent UI pane's footer shows the UI's name. A
+  narrow pane leaves out the right part, then the middle. The page's name
+  is no longer a line at the bottom of the canvas.
+
 - **App:** the window resizes. Drag its edge or corner, or zoom it, and the
   sidebar and the panes follow. It opens at 960x600 and goes down to 480x320.
 

@@ -8,9 +8,10 @@
 //! becomes blocked or done. [`sling`] holds the sling from the window: its
 //! one-line entry, and how it goes.
 //!
-//! No chrome (SPEC P6): the panes, each with what it shows, one focus
-//! border around the focused pane when there are two or more, and the
-//! sidebar when it is open. A
+//! No chrome, but every state is visible (SPEC P6): the panes, each with
+//! what it shows above its footer ([`status`]), one focus border around the
+//! focused pane when there are two or more, and the sidebar when it is
+//! open. A
 //! canvas pane whose page has arrived draws it; an agent UI pane shows its
 //! page ([`Web`]), or its name and why it cannot; any other pane shows its
 //! kind and name. A problem (no daemon, a bad config file) shows in the
@@ -28,6 +29,7 @@ pub mod select;
 pub mod shapes;
 pub mod sidebar;
 pub mod sling;
+pub mod status;
 pub mod tools;
 
 use std::collections::HashMap;
@@ -99,6 +101,8 @@ pub struct Scene {
     pub labels: Vec<Label>,
     /// The sidebar's lines: labels read from their left edge, not centred.
     pub sidebar: Vec<sidebar::Row>,
+    /// Each pane's footer, under the labels and the border.
+    pub footers: Vec<status::Footer>,
     /// Around the focused pane: the window's one border; none, zero wide,
     /// when one pane fills the area.
     pub focus: Border,
@@ -141,7 +145,7 @@ pub fn build(
         match (pane.kind, uis.get(&pane.name)) {
             _ if canvases.iter().any(|c| c.pane == id) => {}
             (Kind::Ui, Some(Ok(page))) => {
-                let frame = frame.outset(-BORDER);
+                let frame = status::content(frame).outset(-BORDER);
                 webs.push(Web { frame, page: Arc::clone(page), live: None });
                 if let Some(note) = notes.get(&pane.name) {
                     texts.push((format!("✗ {}", note.message), theme.error));
@@ -162,7 +166,7 @@ pub fn build(
                 texts.extend(p.hint.clone().map(|hint| (hint, theme.muted)));
             }
         }
-        let lines = layout::lines(frame, texts.len());
+        let lines = layout::lines(status::content(frame), texts.len());
         labels.extend(texts.into_iter().zip(lines).map(|((text, colour), frame)| Label {
             text,
             colour,
@@ -179,6 +183,7 @@ pub fn build(
         webs,
         labels,
         sidebar: sidebar.rows(theme, size.rect()),
+        footers: Vec::new(),
         focus,
         entry: None,
     }
@@ -202,6 +207,7 @@ pub fn preview(page: Arc<Page>, theme: &Theme, item: bool, size: Size) -> Scene 
         webs: vec![web],
         labels: Vec::new(),
         sidebar: Vec::new(),
+        footers: Vec::new(),
         focus: Border { frame: size.rect(), width: 0.0, colour: theme.background },
         entry: None,
     }
@@ -305,7 +311,8 @@ mod tests {
         let half = layout::WINDOW.width / 2.0;
         let inner = Rect { x: half, y: 0.0, width: half, height: layout::WINDOW.height };
         assert_eq!(scene.webs.len(), 2);
-        let web = Web { frame: inner.outset(-BORDER), page: Arc::clone(&page), live: None };
+        let inner = status::content(inner).outset(-BORDER);
+        let web = Web { frame: inner, page: Arc::clone(&page), live: None };
         assert_eq!(scene.webs[1], web);
 
         let note = Problem { message: "scout is not running".into(), hint: Some("start".into()) };

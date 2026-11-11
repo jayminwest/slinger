@@ -350,8 +350,9 @@ fn block(workspace: &Workspace, shown: bool, theme: &Theme) -> Vec<Line> {
     lines
 }
 
-/// The shown workspace's row: the background, a little toward the text.
-fn lighter(theme: &Theme) -> Rgb {
+/// The shown workspace's row and each pane's footer: the background, a
+/// little toward the text.
+pub(super) fn lighter(theme: &Theme) -> Rgb {
     let toward = |from: u8, to: u8| {
         let (from, to) = (u16::from(from), u16::from(to));
         let mixed = (from * (255 - LIGHTER) + to * LIGHTER) / 255;

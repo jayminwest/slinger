@@ -41,6 +41,7 @@ use find::{canvas_of, find, matches, pane_shown, to_canvas, wanted};
 
 mod dictation;
 mod sling;
+mod status;
 
 /// The canvases of a window's panes.
 pub struct Canvases {
@@ -396,8 +397,11 @@ impl Canvases {
     /// others, forgets the views of panes that closed, and clears a
     /// selection no pane shows.
     pub fn show(&mut self, panes: &Panes, area: Rect, theme: &Theme) -> Vec<CanvasPane> {
-        let placed: Vec<_> =
-            panes.place(area).into_iter().filter(|(_, p, _)| p.kind == Kind::Canvas).collect();
+        // A canvas pane's canvas is what its footer leaves of it.
+        let placed: Vec<_> = (panes.place(area).into_iter())
+            .filter(|(_, p, _)| p.kind == Kind::Canvas)
+            .map(|(id, p, frame)| (id, p, crate::scene::status::content(frame)))
+            .collect();
         let shown: Vec<(&str, Option<String>)> = placed
             .iter()
             .map(|(id, p, _)| {

@@ -14,6 +14,7 @@ use crate::panes::{Kind, Panes};
 use crate::scene::Label;
 use crate::scene::ink::Change;
 use crate::scene::pages::{self, Page, PageOp};
+use crate::scene::status;
 
 /// How far a pan command moves the canvas, in screen points.
 const PAN_STEP: f64 = 80.0;
@@ -152,19 +153,14 @@ impl Canvases {
         self.send();
     }
 
-    /// The one quiet line of each canvas pane of `panes` laid in `area`
-    /// whose page has arrived: its page's name at its foot, or the
-    /// question a page command asks there.
+    /// The question a page command asks, if any, at the foot of the canvas
+    /// pane of `panes` laid in `area` it was asked in, above its footer.
     pub fn labels(&self, panes: &Panes, area: Rect, theme: &Theme) -> Vec<Label> {
         let canvases = panes.place(area).into_iter().filter(|(_, p, _)| p.kind == Kind::Canvas);
-        let line = |(id, pane, frame): (PaneId, &crate::panes::Pane, Rect)| {
-            let open = find(&self.open, &pane.name, wanted(&self.views, id, &pane.name))?;
-            let mirror = open.mirror.as_ref()?;
-            let (text, colour) = match self.asks.prompt(id) {
-                Some(asked) => (asked, theme.text),
-                None => (pages::line(mirror.pages(), mirror.page()), theme.muted),
-            };
-            Some(Label { text, colour, fill: None, frame: layout::foot(frame) })
+        let line = |(id, _, frame): (PaneId, &crate::panes::Pane, Rect)| {
+            let text = self.asks.prompt(id)?;
+            let frame = layout::foot(status::content(frame));
+            Some(Label { text, colour: theme.text, fill: None, frame })
         };
         canvases.filter_map(line).collect()
     }

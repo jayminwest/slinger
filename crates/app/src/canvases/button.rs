@@ -56,6 +56,7 @@ impl Canvases {
     pub(super) fn button_in(&self, panes: &Panes, area: Rect) -> Option<(Selection, Rect, Rect)> {
         let pane = panes.focus();
         let frame = panes.place(area).into_iter().find(|(id, ..)| *id == pane)?.2;
+        let frame = crate::scene::status::content(frame);
         let canvas = canvas_of(panes, pane)?;
         let open = find(&self.open, canvas, wanted(&self.views, pane, canvas))?;
         let shown = open.mirror.as_ref()?.page().to_string();
