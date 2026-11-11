@@ -12,6 +12,7 @@ mod feed;
 mod imported;
 mod look;
 mod packet;
+mod pane;
 mod session;
 mod sling;
 mod wire;
@@ -31,6 +32,7 @@ pub use feed::{CanvasFeed, MAX_WAIT_MS};
 pub use imported::CanvasImported;
 pub use look::{CanvasImage, CanvasImages, CanvasStrokes};
 pub use packet::{CanvasPacket, PacketAsk, PacketImage};
+pub use pane::{Pane, PaneAsk, PaneKind, PaneLayout, PaneSplit, PaneTree};
 pub use session::{FileTouched, Session, SessionAsk, SessionInfo, Sessions, StatusSet, Touched};
 pub use sling::{SlingAsk, Slung};
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
@@ -142,10 +144,14 @@ pub enum Request {
     /// that send them, as the session verbs are.
     #[serde(untagged, skip_serializing)]
     Agent(AgentAsk),
+    /// The pane verbs (`pane_list`, `pane_open`, `pane_close`), read by
+    /// their own `op`s and written by clients with `PaneAsk` itself.
+    #[serde(untagged, skip_serializing)]
+    Pane(PaneAsk),
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum Reply {
     Hello(Greeting),
@@ -183,6 +189,7 @@ pub enum Reply {
     CanvasPut(CanvasPlaced),
     CanvasEdit(CanvasEdited),
     CanvasRemove(CanvasRemoved),
+    Pane(PaneLayout),
 }
 
 /// The reply to [`Request::Hello`].

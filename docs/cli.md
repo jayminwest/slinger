@@ -40,6 +40,9 @@ a "did you mean" suggestion.
 | `workspace list` | One line per open workspace, by name: name, canvas and directory, separated by tabs. `--json`: `workspaces` |
 | `workspace show <WORKSPACE>` | One field per line, the name and the value separated by a tab: `name`, `tag`, `canvas`, `dir`, then `agent` (if any) and one `root` line per root, `machine:path`. `--json`: `workspace` |
 | `workspace close <WORKSPACE>` | Nothing. `--json`: `dir` |
+| `pane list <WORKSPACE>` | One line per pane, in order (left to right, top to bottom): number, kind (`canvas` or `ui`) and target, separated by tabs. `--json`: `workspace`, `layout`, `panes` |
+| `pane open <WORKSPACE> --type <canvas\|ui> --target <ID> [--beside PANE] [--below]` | The new pane's number. `--json`: `workspace`, `layout`, `panes`, `pane`, `event` |
+| `pane close <WORKSPACE> <PANE>` | Nothing. `--json`: `workspace`, `layout`, `panes`, `event` (absent when nothing changed) |
 | `canvas changes <ID> [--after NUMBER] [--wait MS]` | One line per operation numbered above `--after` (default 0: all), lowest first, as the canvas file's JSON line. `--json`: `next`, `ops` |
 | `canvas crop <ID> (--item ITEM \| --box X,Y,W,H [--page PAGE]) [--out FILE]` | The path of each image written, one per line, tiles in reading order. `--json`: `images` (`path`, `x`, `y`, `width`, `height`) |
 | `canvas strokes <ID> --item ITEM` | One stroke per line, as JSON with absolute `points` in tenths. `--json`: `strokes` |
@@ -98,6 +101,18 @@ a `/`). A directory that is not there or a workspace that is not open exits
 4 (`conflict`); `workspace open` with neither exits 5 (`invalid`). Closing
 keeps the file, the canvas and the agent. The rules are in
 `docs/workspace.md`; what the daemon does is in `docs/service.md`.
+
+`pane` changes the panes the server keeps for a workspace, the ones the app
+shows: the app follows them, so `slinger pane open` from a terminal shows a
+new pane in an open window. A pane is named by its number, as `pane list`
+prints it. `pane open` shows a canvas or an agent UI that exists, beside pane
+`--beside` (to its right, or below it with `--below`), or beside the whole
+window; the new pane gets half the space. `pane close` gives the pane's space
+to the pane beside it. Closing a pane that is already gone, or the last pane,
+changes nothing and succeeds. A workspace that is not open, a canvas or UI
+that is not there, or no pane `--beside` exits 3 (`not_found`); a window that
+holds 64 panes exits 5 (`invalid`) on `pane open`. Each change is recorded as
+a `pane_moved` event.
 
 `canvas read` prints what an agent reads instead of a screenshot: images
 of the ink drawn after operation `--after` (default: the canvas's last

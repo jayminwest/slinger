@@ -17,7 +17,7 @@ fn an_empty_file_is_every_default() {
 fn parses_every_key() {
     let text = "[theme]\nbackground = \"#000000\"\ntext = \"#FFFFFF\"\n\
                 muted=\"#010203\"   # a note\nerror = \"#ff0000\"\nfocus = \"#00ff00\"\n\
-                [daemon]  # the daemon\nsocket = \"~/s.sock\"\n";
+                [daemon]  # the daemon\nsocket = \"~/s.sock\"\n[workspace]\nname = \"My Notes\"\n";
     let config = parse(text).unwrap().resolve();
     let theme = Theme {
         background: rgb(0, 0, 0),
@@ -29,6 +29,7 @@ fn parses_every_key() {
     let expected = Config {
         theme,
         socket: Some("~/s.sock".into()),
+        workspace: Some("My Notes".into()),
         keys: Keymap::default(),
         palette: Palette::default(),
         sidebar: Shown::Open,
@@ -158,6 +159,7 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
         error: Some(Theme::default().error),
         focus: Some(Theme::default().focus),
         socket: all.socket.clone(),
+        workspace: Some("notes".into()),
         palette: Some(Palette::default()),
         sidebar: Some(Shown::Open),
         // The defaults, each written out.

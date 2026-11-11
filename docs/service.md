@@ -134,6 +134,9 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `workspace_list` | none | `workspaces`: list of workspaces, sorted by name |
 | `workspace_show` | `workspace`: a name, or the absolute directory of its file | `workspace` |
 | `workspace_close` | `workspace`: as `workspace_show` | `dir`: the directory of its file |
+| `pane_list` | `workspace`: as `workspace_show` | `workspace`: its name, `layout`: the pane tree |
+| `pane_open` | `workspace`, `kind`: `canvas` or `ui`, `target`: canvas id or UI name, `beside`: a pane number (optional), `below`: bool (default `false`) | `workspace`, `layout`, `pane`: the new pane's number, `event`: the `pane_moved` appended |
+| `pane_close` | `workspace`, `pane`: a pane number | `workspace`, `layout`, `event`: the `pane_moved` appended (absent when nothing changed) |
 | `canvas_read` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `after`: number (optional, default the last sling's), `select`: list of item ids (optional), `out`: absolute path of a directory (optional) | `packet`: blob id of the text, `dir`: the directory written, `text`: the packet with `at`, `images`: list of `{name, id}` |
 | `canvas_crop` | `canvas`: canvas id, `of`: an item id or a box, `path`: absolute path of a PNG file | `images`: list of `{path, x, y, width, height}` |
 | `canvas_strokes` | `canvas`: canvas id, `item`: an item id | `strokes`: list of stroke items with `points` |
@@ -166,7 +169,7 @@ is dropped.
 | `sling_sent` | `prompt`: string, `packet`: blob id, `images`: list of `{name, hash}` (optional), `session`: the session id it went into (optional) |
 | `reply_landed` | `sling`: number (the `sling_sent` event), `items`: list of item ids |
 | `file_touched` | `path`: string, `hash`: blob id (never the contents) |
-| `pane_moved` | `pane`: string, `x`, `y`, `width`, `height`: number (points) |
+| `pane_moved` | `pane`: string, `x`, `y`, `width`, `height`: number (points; from the pane verbs, the pane's share of the window, see "Panes") |
 | `agent_blocked` | `reason`: string |
 | `agent_done` | `summary`: string (optional) |
 
@@ -349,6 +352,43 @@ sling whose packet it cannot read is `invalid`, with a hint.
 ```json
 { "v": 1, "op": "canvas_read", "canvas": "idea", "after": 41 }
 { "ok": true, "packet": "sha256:5e1f…", "dir": "/data/slinger/packets/5e1f…", "text": "slinger-packet 1 canvas=idea page=Page%201 from=42 to=58 scale=0.35 at=/data/slinger/packets/5e1f…\n# new\n…", "images": [{ "name": "c42.png", "id": "sha256:9a0c…" }] }
+```
+
+#### Panes
+
+The server keeps each workspace's panes in its file (`[layout]`,
+`docs/workspace.md`), so the app, the CLI and agents share one arrangement:
+the app sends its own changes with these verbs and follows the changes others
+make. A pane shows a canvas or an agent UI. A pane is named by its number: 1
+for the first in order, depth first, which is left to right and top to
+bottom. Numbers move as panes open and close; list them again before naming
+one.
+
+`layout` is a tree: a pane, `{pane, kind, target}`, or a split,
+`{split, ratio, first, second}`, where `split` is `row` (side by side) or
+`column` (stacked) and `ratio` (0.1 to 0.9) is the first side's share. A
+workspace whose layout is unset, or one this daemon cannot read, has one
+pane on its canvas.
+
+**`pane_open`** splits pane `beside` in half: it keeps the first side, and
+the new pane takes the second, to its right, or below it with `below`.
+Without `beside`, the whole window splits that way. The canvas or UI must be
+there (`not_found`, with a hint), and so must pane `beside` (`not_found`). A
+window holds at most 64 panes; one more is `invalid`. **`pane_close`** gives
+the pane's space to its sibling. A pane that is already gone, or the last
+pane, which stays, changes nothing and succeeds with no `event`. A workspace
+that is not open is `not_found`.
+
+Each change is written to the workspace's file, whole, before the reply, and
+appends one `pane_moved` event tagged with the workspace, from `slingerd`:
+the pane it opened (`canvas:notes`) with its frame, or the pane it closed,
+with no size. The server has no window, so a frame there is the pane's share
+of the window: `x`, `y`, `width` and `height` from 0 to 1, origin at the top
+left.
+
+```json
+{ "v": 1, "op": "pane_open", "workspace": "notes", "kind": "canvas", "target": "board", "beside": 1 }
+{ "ok": true, "workspace": "notes", "layout": { "split": "row", "ratio": 0.5, "first": { "pane": 1, "kind": "canvas", "target": "notes" }, "second": { "pane": 2, "kind": "canvas", "target": "board" } }, "pane": 2, "event": 7 }
 ```
 
 #### The change feed
@@ -720,9 +760,10 @@ not open, and an agent with no session.
    `crates/control/src/packet.rs`. A group of such verbs shares one
    variant: `#[serde(untagged, skip_serializing)]` over an enum of their
    own, tagged by `op`, as `crates/control/src/session.rs` and
-   `crates/control/src/agent.rs` do (`sling_send` is a session verb). The app sends only `hello`, which
-   `Client::hello` also writes with a type of its own, so the app builds
-   no `Request` at all; keep it that way.
+   `crates/control/src/agent.rs` do (`sling_send` is a session verb). The app sends
+   `workspace_list` and the pane verbs, each written with such a type of its
+   own (`crates/control/src/pane.rs`), so the app builds no `Request` at
+   all; keep it that way.
 3. Add one arm to `answer` in `crates/daemon/src/server.rs`. It calls the
    core and nothing else.
 4. Add tests to `crates/daemon/src/tests.rs`. They go through a real socket.

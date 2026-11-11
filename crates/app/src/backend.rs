@@ -2,20 +2,22 @@
 //! and reads the config files. It turns their errors into what the window can
 //! show. [`Settings::refresh`] is cheap when nothing changed (two `stat`
 //! calls), so the window's timer calls it. A daemon round trip waits up to
-//! the client's timeout, so the window asks for the greeting only at start
-//! and when the socket changes, and a [`Watch`] asks for the agents'
-//! statuses on its own thread.
+//! the client's timeout, so a [`Watch`] asks for the agents' statuses and
+//! the workspace's panes on its own thread; the window sends only its own
+//! pane changes ([`panes`]).
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, SystemTime};
 
-use slinger_control::{self as control, Client, RemoteError};
+use slinger_control::{self as control, Client, PaneLayout, RemoteError};
 
 use crate::config::{self, Config, Layer};
 use crate::scene::sidebar::{Agent, Status, Workspace};
+
+pub mod panes;
 
 /// A failure as the window shows it: the message and what to do about it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,11 +36,6 @@ impl From<RemoteError> for Problem {
     fn from(e: RemoteError) -> Self {
         Problem::new(e.to_string(), e.hint())
     }
-}
-
-/// Blocks until the daemon answers or its client gives up.
-pub fn greeting(daemon: &Client, name: &str) -> Result<String, Problem> {
-    Ok(daemon.hello(name)?)
 }
 
 /// The open workspaces, by name, each with its agent's status from the
@@ -63,37 +60,53 @@ pub fn workspaces(daemon: &Client) -> Result<Vec<Workspace>, Problem> {
 /// How often a [`Watch`] asks the daemon.
 const EVERY: Duration = Duration::from_secs(1);
 
-/// Asks the daemon for [`workspaces`] every second on a thread of its own,
-/// so a slow daemon never holds up the window. The window takes the
-/// answers with [`Watch::latest`].
+/// Asks the daemon for [`workspaces`] and for the panes
+/// ([`panes::layout`]) every second on a thread of its own, so a slow
+/// daemon never holds up the window. The window takes the answers with
+/// [`Watch::latest`] and [`Watch::layout`].
 #[derive(Debug)]
 pub struct Watch {
     socket: Arc<Mutex<PathBuf>>,
+    wanted: Arc<Mutex<Option<String>>>,
     news: Receiver<Result<Vec<Workspace>, Problem>>,
+    layouts: Receiver<Result<PaneLayout, Problem>>,
 }
 
 impl Watch {
     /// Starts asking the daemon on `socket`. The thread ends after the
     /// watch is dropped, at its next answer that differs from the last.
-    pub fn start(socket: PathBuf) -> Self {
+    /// The panes are those of `wanted` (see [`panes::layout`]).
+    pub fn start(socket: PathBuf, wanted: Option<String>) -> Self {
         let socket = Arc::new(Mutex::new(socket));
-        let (tell, news) = mpsc::channel();
-        let theirs = Arc::clone(&socket);
+        let wanted = Arc::new(Mutex::new(wanted));
+        let (agents, news) = mpsc::channel();
+        let (panes, layouts) = mpsc::channel();
+        let (theirs, their_wanted) = (Arc::clone(&socket), Arc::clone(&wanted));
         std::thread::spawn(move || {
-            let mut last = None;
+            let (mut last, mut drawn) = (None, None);
             loop {
-                let now = theirs.lock().unwrap_or_else(PoisonError::into_inner).clone();
-                let now = workspaces(&Client::new(now));
-                if last.as_ref() != Some(&now) {
-                    if tell.send(now.clone()).is_err() {
-                        return;
-                    }
-                    last = Some(now);
+                let daemon =
+                    Client::new(theirs.lock().unwrap_or_else(PoisonError::into_inner).clone());
+                let wanted = their_wanted.lock().unwrap_or_else(PoisonError::into_inner).clone();
+                if !tell(&agents, &mut last, workspaces(&daemon))
+                    || !tell(&panes, &mut drawn, panes::layout(&daemon, wanted.as_deref()))
+                {
+                    return;
                 }
                 std::thread::sleep(EVERY);
             }
         });
-        Self { socket, news }
+        Self { socket, wanted, news, layouts }
+    }
+
+    /// Asks for the panes of `wanted` from the next time on.
+    pub fn want(&self, wanted: Option<String>) {
+        *self.wanted.lock().unwrap_or_else(PoisonError::into_inner) = wanted;
+    }
+
+    /// The newest layout since the last call, if it changed. Never blocks.
+    pub fn layout(&self) -> Option<Result<PaneLayout, Problem>> {
+        self.layouts.try_iter().last()
     }
 
     /// Asks the daemon on `socket` from the next time on.
@@ -105,6 +118,15 @@ impl Watch {
     pub fn latest(&self) -> Option<Result<Vec<Workspace>, Problem>> {
         self.news.try_iter().last()
     }
+}
+
+/// Sends `now` when it differs from `last`; false once nobody listens.
+fn tell<T: Clone + PartialEq>(to: &Sender<T>, last: &mut Option<T>, now: T) -> bool {
+    if last.as_ref() == Some(&now) {
+        return true;
+    }
+    *last = Some(now.clone());
+    to.send(now).is_ok()
 }
 
 /// Where the config lives: the file shared by every machine, and the
@@ -217,7 +239,7 @@ mod tests {
     use super::*;
 
     /// Runs `f` against a daemon that lives for this one call.
-    fn with_daemon<T>(f: impl FnOnce(&Client) -> T) -> T {
+    pub(super) fn with_daemon<T>(f: impl FnOnce(&Client) -> T) -> T {
         with_socket(|socket| f(&Client::new(socket)))
     }
 
@@ -236,18 +258,6 @@ mod tests {
         serving.join().unwrap().unwrap();
         std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();
         result
-    }
-
-    #[test]
-    fn returns_the_daemons_greeting() {
-        assert_eq!(with_daemon(|d| greeting(d, "ada")), Ok("hello, ada".to_string()));
-    }
-
-    #[test]
-    fn a_daemon_error_becomes_a_problem_with_its_hint() {
-        let problem = with_daemon(|d| greeting(d, " ")).unwrap_err();
-        assert_eq!(problem.message, "name is empty");
-        assert!(problem.hint.is_some());
     }
 
     /// Opens a workspace `notes` whose agent is `scout`, in a fresh directory.
@@ -286,7 +296,7 @@ mod tests {
 
     #[test]
     fn a_watch_hears_a_status_change_and_follows_a_new_socket() {
-        let watch = Watch::start(PathBuf::from("/nonexistent/x.sock"));
+        let watch = Watch::start(PathBuf::from("/nonexistent/x.sock"), None);
         let deadline = std::time::Instant::now() + Duration::from_secs(10);
         let lost = loop {
             if let Some(answer) = watch.latest() {
@@ -307,9 +317,23 @@ mod tests {
     }
 
     #[test]
-    fn no_daemon_is_a_problem_that_says_how_to_start_it() {
-        let problem = greeting(&Client::new("/nonexistent/x.sock"), "ada").unwrap_err();
-        assert!(problem.hint.unwrap().starts_with("start it with '"));
+    fn a_watch_hears_a_pane_opened_elsewhere_in_the_workspace_it_wants() {
+        with_socket(|socket| {
+            let d = &Client::new(socket);
+            let _dir = open_notes(d);
+            let watch = Watch::start(socket.to_path_buf(), Some("nope".into()));
+            let deadline = std::time::Instant::now() + Duration::from_secs(10);
+            let count = || {
+                assert!(std::time::Instant::now() < deadline, "timed out");
+                std::thread::sleep(Duration::from_millis(20));
+                watch.layout().map(|l| l.map(|l| l.layout.panes().len()).map_err(|p| p.message))
+            };
+            while count() != Some(Err("open workspace \"nope\" not found".into())) {}
+            watch.want(Some("notes".into()));
+            while count() != Some(Ok(1)) {}
+            d.pane_open("notes", control::PaneKind::Canvas, "notes", None, false).unwrap();
+            while count() != Some(Ok(2)) {}
+        });
     }
 
     /// A fresh, empty directory for one test's config files.

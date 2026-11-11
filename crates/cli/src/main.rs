@@ -6,6 +6,7 @@ mod cli;
 mod edit;
 mod look;
 mod output;
+mod pane;
 mod put;
 mod session;
 mod sling;

@@ -17,6 +17,7 @@ use slinger_control as control;
 
 use crate::canvas::Canvas;
 use crate::output::{Ctx, Failure, Output, exit};
+use crate::pane::Pane;
 use crate::session::{Session, Status, Touch};
 use crate::sling::Sling;
 use crate::ui::Ui;
@@ -97,6 +98,9 @@ enum Command {
     /// Open, list, show and close workspaces: a name, directories, an agent and a canvas
     #[command(subcommand)]
     Workspace(Workspace),
+    /// List, open and close a workspace's panes: canvases and agent UIs
+    #[command(subcommand)]
+    Pane(Pane),
     /// List, start, stop and message the agents slingerd can reach
     #[command(subcommand)]
     Session(Session),
@@ -184,6 +188,7 @@ impl Command {
             Self::Ui(ui) => ui.name(),
             Self::Canvas(canvas) => canvas.name(),
             Self::Workspace(workspace) => workspace.name(),
+            Self::Pane(pane) => pane.name(),
             Self::Session(session) => session.name(),
             Self::Status(status) => status.name(),
             Self::Sling(sling) => sling.name(),
@@ -265,6 +270,7 @@ fn execute(
         Command::Ui(ui) => ui.execute(daemon, input),
         Command::Canvas(canvas) => crate::canvas::execute(canvas, daemon, input),
         Command::Workspace(workspace) => crate::workspace::execute(workspace, daemon),
+        Command::Pane(pane) => crate::pane::execute(pane, daemon),
         Command::Session(session) => crate::session::execute(session, daemon, input),
         Command::Status(status) => crate::session::set(status, daemon),
         Command::Sling(sling) => crate::sling::execute(sling, daemon, input),

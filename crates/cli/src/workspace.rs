@@ -70,7 +70,7 @@ pub fn execute(command: &Workspace, daemon: &control::Client) -> anyhow::Result<
 }
 
 /// A name as it is, a directory (`.`, `..` or anything with a `/`) from the root.
-fn which(workspace: &str) -> anyhow::Result<String> {
+pub fn which(workspace: &str) -> anyhow::Result<String> {
     if workspace != "." && workspace != ".." && !workspace.contains('/') {
         return Ok(workspace.to_string());
     }

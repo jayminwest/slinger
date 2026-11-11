@@ -153,7 +153,7 @@ mod tests {
 
     #[test]
     fn an_agent_ui_pane_says_so() {
-        let panes = Panes::decode(1, "ui:board").unwrap();
+        let panes = Panes::new(Pane { kind: Kind::Ui, name: "board".into() });
         assert_eq!(
             shown(&build(&panes, &T, &[], &Sidebar::new(false))),
             [("agent UI board", T.text)]

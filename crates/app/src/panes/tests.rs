@@ -1,3 +1,5 @@
+use slinger_control::Pane as Shown;
+
 use super::*;
 
 const AREA: Rect = Rect { x: 0.0, y: 0.0, width: 800.0, height: 600.0 };
@@ -6,11 +8,32 @@ fn canvas(name: &str) -> Pane {
     Pane { kind: Kind::Canvas, name: name.into() }
 }
 
+fn word(pane: &Pane) -> String {
+    let kind = if pane.kind == Kind::Canvas { "canvas" } else { "ui" };
+    format!("{kind}:{}", pane.name)
+}
+
 /// What each pane shows, in order, and which one has focus.
 fn shown(panes: &Panes) -> (Vec<String>, usize) {
     let placed = panes.place(AREA);
     let focus = placed.iter().position(|(id, _, _)| *id == panes.focus()).unwrap();
-    (placed.iter().map(|(_, pane, _)| pane.word()).collect(), focus)
+    (placed.iter().map(|(_, pane, _)| word(pane)).collect(), focus)
+}
+
+/// A pane as the server sends it.
+fn leaf(pane: u32, kind: PaneKind, target: &str) -> PaneTree {
+    PaneTree::Pane(Shown { pane, kind, target: target.into() })
+}
+
+fn split(split: PaneSplit, ratio: f64, first: PaneTree, second: PaneTree) -> PaneTree {
+    PaneTree::Split { split, ratio, first: Box::new(first), second: Box::new(second) }
+}
+
+/// `row 0.5 canvas:a column 0.5 ui:b canvas:c`, as the server sends it.
+fn three() -> PaneTree {
+    let right =
+        split(PaneSplit::Column, 0.5, leaf(2, PaneKind::Ui, "b"), leaf(3, PaneKind::Canvas, "c"));
+    split(PaneSplit::Row, 0.5, leaf(1, PaneKind::Canvas, "a"), right)
 }
 
 #[test]
@@ -43,7 +66,7 @@ fn a_full_window_does_not_split() {
 
 #[test]
 fn close_gives_focus_to_the_pane_before_and_keeps_the_last() {
-    let mut panes = Panes::decode(1, "row 0.5 canvas:a column 0.5 ui:b canvas:c").unwrap();
+    let mut panes = Panes::follow(&three(), 1);
     panes.focus_next();
     panes.focus_next();
     panes.close();
@@ -58,7 +81,7 @@ fn close_gives_focus_to_the_pane_before_and_keeps_the_last() {
 
 #[test]
 fn focus_moves_in_order_and_by_direction() {
-    let mut panes = Panes::decode(1, "row 0.5 canvas:a column 0.5 ui:b canvas:c").unwrap();
+    let mut panes = Panes::follow(&three(), 1);
     assert_eq!(shown(&panes).1, 0);
     panes.focus_toward(Direction::Left, AREA);
     assert_eq!(shown(&panes).1, 0, "at the edge, focus stays");
@@ -75,32 +98,37 @@ fn grow_and_shrink_move_the_focused_panes_edge_by_steps() {
     let mut panes = Panes::new(canvas("main"));
     panes.split(Axis::Row);
     panes.grow(2.0);
-    assert_eq!(panes.encode(), "row 0.4 canvas:main canvas:main");
+    assert_eq!(panes.place(AREA)[1].2.width, 480.0);
     panes.grow(-1.0);
-    assert_eq!(panes.encode(), "row 0.45 canvas:main canvas:main");
+    assert_eq!(panes.place(AREA)[1].2.width, 440.0);
 }
 
 #[test]
-fn a_layout_encodes_and_decodes_to_the_same_panes() {
-    let text = "row 0.3 canvas:main column 0.5 ui:board canvas:notes";
-    let panes = Panes::decode(VERSION, text).unwrap();
-    assert_eq!(panes.encode(), text);
+fn follows_the_servers_tree_with_focus_on_a_number() {
+    let tree = split(PaneSplit::Row, 0.3, leaf(1, PaneKind::Canvas, "main"), three());
+    let panes = Panes::follow(&tree, 3);
     assert_eq!(
         shown(&panes),
-        (vec!["canvas:main".into(), "ui:board".into(), "canvas:notes".into()], 0)
+        (vec!["canvas:main".into(), "canvas:a".into(), "ui:b".into(), "canvas:c".into()], 2)
     );
-    assert_eq!(panes.place(AREA)[1].1, &Pane { kind: Kind::Ui, name: "board".into() });
-    let mut changed = panes.clone();
-    changed.split(Axis::Column);
-    changed.grow(1.0);
-    assert_eq!(Panes::decode(VERSION, &changed.encode()).unwrap().encode(), changed.encode());
+    assert_eq!((panes.number(), panes.focused()), (3, &Pane { kind: Kind::Ui, name: "b".into() }));
+    let rects: Vec<Rect> = panes.place(AREA).iter().map(|p| p.2).collect();
+    assert_eq!(rects[0], Rect { x: 0.0, y: 0.0, width: 240.0, height: 600.0 });
+    assert_eq!(rects[3], Rect { x: 520.0, y: 300.0, width: 280.0, height: 300.0 });
+    assert_eq!(Panes::follow(&tree, 0).number(), 1);
+    assert_eq!(Panes::follow(&tree, 99).number(), 4);
+    assert_eq!(
+        Panes::follow(&leaf(1, PaneKind::Ui, "x"), 1),
+        Panes::new(Pane { kind: Kind::Ui, name: "x".into() })
+    );
 }
 
 #[test]
-fn a_layout_this_app_cannot_read_is_none() {
-    assert_eq!(Panes::decode(2, "canvas:main"), None);
-    assert_eq!(Panes::decode(0, "canvas:main"), None);
-    for text in ["", "main", "canvas:", "browser:x", "row 0.5 canvas:a", "canvas:a canvas:b"] {
-        assert_eq!(Panes::decode(VERSION, text), None, "{text:?}");
+fn a_tree_past_the_most_panes_shows_what_fits() {
+    let mut tree = leaf(1, PaneKind::Canvas, "a");
+    for n in 2..=70 {
+        tree = split(PaneSplit::Column, 0.5, tree, leaf(n, PaneKind::Canvas, "b"));
     }
+    let panes = Panes::follow(&tree, 70);
+    assert_eq!(panes.place(AREA).len(), crate::layout::tree::MAX_PANES);
 }

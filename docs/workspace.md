@@ -62,14 +62,14 @@ version = 1
 | `[layout]` | no | The pane layout. Absent means unset: the app picks one. |
 | `layout.version` | yes, in `[layout]` | The layout's own format version. |
 
-Everything else in `[layout]` belongs to the app shell. The core stores it
-and writes it back without reading it.
-
-The app writes `[layout]` as `version = 1` and one string, `panes`: the pane
-tree in prefix order, words joined by one space. A pane is `canvas:<id>` or
-`ui:<name>`; a split is `row` (side by side) or `column` (stacked), the
-first side's share (0.1 to 0.9; a share past that is held in it), then its
-first side and its second. At most 64 panes. Focus is not kept.
+The server keeps the panes here and changes them with the pane verbs
+(`pane open`, `pane close`; docs/service.md, "Panes"), which the app uses
+too. The core module `crates/core/src/workspace/panes.rs` owns this text.
+Version 1 is `version = 1` and one string, `panes`: the pane tree in prefix
+order, words joined by one space. A pane is `canvas:<id>` or `ui:<name>`; a
+split is `row` (side by side) or `column` (stacked), the first side's share
+(0.1 to 0.9; a share past that is held in it), then its first side and its
+second. At most 64 panes. Focus is not kept: it is the window's own.
 
 ```toml
 [layout]
@@ -77,8 +77,9 @@ version = 1
 panes = "row 0.6 canvas:main column 0.5 ui:board canvas:notes"
 ```
 
-An app that cannot read the layout (another version, or text that is not a
-tree) opens one pane on the workspace's canvas instead.
+A layout that cannot be read (another version, or text that is not a tree)
+is one pane on the workspace's canvas. The first change to it replaces it
+with version 1. Other fields in a version 1 `[layout]` are kept.
 
 ## The agent's limits
 

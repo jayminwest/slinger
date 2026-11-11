@@ -104,6 +104,9 @@ pub struct Config {
     /// The daemon's socket as written (`~/` allowed; see [`expand_home`]);
     /// `None` is the daemon's default socket.
     pub socket: Option<String>,
+    /// The workspace whose panes the window shows, by name; `None` is the
+    /// first open workspace.
+    pub workspace: Option<String>,
     pub keys: Keymap,
     pub palette: Palette,
     pub sidebar: Shown,
@@ -118,6 +121,7 @@ pub struct Layer {
     error: Option<Rgb>,
     focus: Option<Rgb>,
     socket: Option<String>,
+    workspace: Option<String>,
     palette: Option<Palette>,
     sidebar: Option<Shown>,
     /// By command: `Some(None)` unbinds it.
@@ -151,6 +155,7 @@ impl Layer {
             error: top.error.or(self.error),
             focus: top.focus.or(self.focus),
             socket: top.socket.or(self.socket),
+            workspace: top.workspace.or(self.workspace),
             palette: top.palette.or(self.palette),
             sidebar: top.sidebar.or(self.sidebar),
             keys,
@@ -175,6 +180,7 @@ impl Layer {
                 focus: self.focus.unwrap_or(d.focus),
             },
             socket: self.socket,
+            workspace: self.workspace,
             keys,
             palette: self.palette.unwrap_or_default(),
             sidebar: self.sidebar.unwrap_or_default(),
@@ -188,6 +194,7 @@ impl Layer {
         }
         let slot = match (table, key) {
             ("daemon", "socket") => return put(&mut self.socket, value),
+            ("workspace", "name") => return put(&mut self.workspace, value),
             ("pen", "colours") => {
                 let palette = Palette::parse(&value).ok_or(ErrorKind::BadPalette)?;
                 return put(&mut self.palette, palette);
@@ -234,7 +241,7 @@ fn put<T>(slot: &mut Option<T>, value: T) -> Result<(), ErrorKind> {
     Ok(())
 }
 
-const TABLES: [&str; 5] = ["theme", "daemon", "pen", "window", "keys"];
+const TABLES: [&str; 6] = ["theme", "daemon", "workspace", "pen", "window", "keys"];
 
 /// A line the parser rejects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

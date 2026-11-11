@@ -17,6 +17,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use serde_json::{Value, json};
 use slinger_core::record::Tags;
+use slinger_core::workspace::panes::Layout;
 use slinger_core::workspace::{self, FILE_NAME, Workspace};
 
 use crate::canvases::{CanvasError, Canvases};
@@ -182,6 +183,35 @@ impl Workspaces {
         let open = guard.as_deref().unwrap_or_default();
         let dir = find(open, which).ok_or_else(|| not_open(which))?;
         Ok(Opened { workspace: read(&dir.join(FILE_NAME))?, dir: dir.clone() })
+    }
+
+    /// The panes of the open workspace `which` names, as
+    /// [`Workspaces::show`], after `change`. A change that leaves them as
+    /// they were writes nothing; one that changes them writes the file whole
+    /// before this returns. One change at a time, so none is lost.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`Workspaces::show`], `change`'s, and the error of
+    /// writing the file.
+    pub fn panes<T>(
+        &self,
+        which: &str,
+        change: impl FnOnce(&mut Layout) -> slinger_core::Result<T>,
+    ) -> Result<(Opened, Layout, T)> {
+        let guard = self.lock()?;
+        let open = guard.as_deref().unwrap_or_default();
+        let dir = find(open, which).ok_or_else(|| not_open(which))?;
+        let file = dir.join(FILE_NAME);
+        let mut ws = read(&file)?;
+        let before = ws.panes();
+        let mut layout = before.clone();
+        let changed = change(&mut layout)?;
+        if layout != before {
+            ws.set_panes(&layout);
+            write_synced(&file, ws.to_toml().as_bytes())?;
+        }
+        Ok((Opened { dir: dir.clone(), workspace: ws }, layout, changed))
     }
 
     /// Closes the open workspace `which` names, as [`Workspaces::show`], and
