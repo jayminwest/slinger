@@ -401,7 +401,8 @@ fn fields(shape: &Shape) -> Map<String, Value> {
             }
         }
         // Only an agent makes or changes a live item.
-        Shape::Stroke { .. } | Shape::Live { .. } => {}
+        // Chrome is the app's alone and never written.
+        Shape::Stroke { .. } | Shape::Live { .. } | Shape::Panel { .. } | Shape::Caret { .. } => {}
     }
     o
 }
