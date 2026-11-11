@@ -76,7 +76,9 @@ slinger.reply(value)    // Promise<void>: send one JSON value to the agent
 ```
 
 - `host` is `pane` or `canvas`. `open` names this showing of the UI: two
-  showings of one version have different `open` ids.
+  showings of one version have different `open` ids. It is `null` until
+  `ui open` makes showings (slinger-6f8a); a pane opened with
+  `pane open --type ui` has none.
 - `data` is the JSON the agent passed to `ui open --data`, or `null`. It is
   at most 16384 bytes, checked by `ui open`.
 
@@ -150,10 +152,11 @@ line, `bridge v<n> is not supported`, and runs none of its code.
 ### How the sandbox holds (K4)
 
 The web content runs in WebKit's own sandboxed process. The host adds four
-checks, each one enough to stop a load on its own:
+checks:
 
-1. **Only one origin.** The page is loaded from `slinger-ui://<hash>/`
-   through a `WKURLSchemeHandler`. It answers that one URL with the blob and
+1. **Only one origin.** The page is loaded from `slinger-ui://<hex>/`,
+   where `<hex>` is the 64 hex characters of its blob id (`sha256:` cannot
+   be part of a URL host), through a `WKURLSchemeHandler`. It answers that one URL with the blob and
    every other URL with 404. The app never calls `loadFileURL` or
    `loadHTMLString`, so there is no file or `about:` origin.
 2. **A content security policy on the response**, not in the page, so the
@@ -170,19 +173,45 @@ checks, each one enough to stop a load on its own:
 
 The bridge is the only script message handler. The shim that defines
 `window.slinger` is a user script injected at document start in the main
-frame only, and its object is frozen. Over the wire, the shim posts
-`{"v":1,"call":"context"}` or `{"v":1,"call":"reply","value":"<JSON text>"}`
-to a `WKScriptMessageHandlerWithReply` named `slinger`. It sends the value as
+frame only, and its object is frozen. Over the wire, the shim posts the
+JSON text of `{"v":1,"call":"context"}` or
+`{"v":1,"call":"reply","value":"<JSON text>"}` to a
+`WKScriptMessageHandlerWithReply` named `slinger`. It sends the value as
 JSON text, so WebKit's object conversion cannot change a number into a
 boolean. The handler answers with JSON text, or an error string
 `<code>: <message>` that the shim turns into the `Error`. Any other message
-gets `invalid`.
+gets `invalid`. Until `ui open` (slinger-6f8a) carries replies to the
+agent, a pane's `reply` rejects with `unavailable`; `slinger-app --preview`
+writes each reply's `ui_reply` line to its stdout.
 
-**The test** (acceptance 2 of the plan): a fixture UI tries each way out
-(`fetch`, XHR, WebSocket, an `<img>`, a form post, an iframe of
-`file:///etc/hosts`, `location = "http://…"`, `window.open`) against a TCP
-listener the test owns. It replies with what each attempt saw. The test
-passes when the listener saw no connection and every attempt failed.
+**The test** (acceptance 2 of the plan, `crates/app/tests/sandbox.rs`):
+it runs the real app, `slinger-app --preview escape --data '{"port":N}'`,
+against a daemon of its own. The fixture UI (`tests/fixtures/escape.html`)
+shows its context, then tries each way out against a TCP listener the test
+owns: `fetch`, XHR, WebSocket, EventSource, a beacon, an `<img>`, an
+iframe, a form post, `location = "http://…"` and `window.open`; and against
+`/etc/hosts`: `fetch`, XHR and an iframe of `file:///etc/hosts`. It replies
+with what each attempt saw. The test passes when the reply came, no attempt
+got out, `eval` threw (the policy on the response is in force), the page
+saw policy violations, and the listener saw no connection.
+
+**Each layer, measured** (macOS 26, by switching layers off in a local
+build of that test; not in the committed code):
+
+| Layers on | Connections | What got out |
+|---|---|---|
+| All four | 0 | nothing |
+| Rule list only (no policy, navigations allowed) | 0 | nothing; WebSocket fails |
+| Policy only (no rule list, navigations allowed) | 4 | `location = "http://…"` (top-level navigations are not the policy's) |
+| Policy and navigation delegate (no rule list) | 0 | nothing |
+| Navigation delegate only | 22 | fetch, XHR, WebSocket, EventSource, image, beacon |
+
+So WebKit applies a policy sent on a custom-scheme response (`eval`
+throws, and the page gets `securitypolicyviolation` events), and the
+content rule list covers WebSocket loads: both were open questions. The
+rule list alone stopped every attempt. The policy alone does not stop a
+top-level navigation; the navigation delegate does. No layer is redundant
+for every attempt, so all four stay.
 
 ### How it scales on a zoomed canvas
 

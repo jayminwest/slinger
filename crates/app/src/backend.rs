@@ -3,9 +3,9 @@
 //! show. [`Settings::refresh`] is cheap when nothing changed (two `stat`
 //! calls), so the window's timer calls it. A daemon round trip waits up to
 //! the client's timeout, so a [`Watch`] asks for the agents' statuses and
-//! the workspace's panes on its own thread; the window sends only its own
-//! pane changes ([`panes`]). A canvas is followed on a thread of its own
-//! ([`Follower`]).
+//! the workspace's panes, and the code of each agent UI they show
+//! ([`ui`]), on its own thread; the window sends only its own pane changes
+//! ([`panes`]). A canvas is followed on a thread of its own ([`Follower`]).
 
 use std::fs;
 use std::io::ErrorKind;
@@ -14,13 +14,15 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, SystemTime};
 
-use slinger_control::{self as control, Client, PaneLayout, RemoteError};
+use slinger_control::{self as control, Client, PaneKind, PaneLayout, RemoteError};
 
 use crate::config::{self, Config, Layer};
 use crate::scene::sidebar::{Agent, Status, Workspace};
+use crate::ui::Code;
 
 mod follow;
 pub mod panes;
+pub mod ui;
 
 pub use follow::{Follower, News};
 
@@ -67,14 +69,31 @@ const EVERY: Duration = Duration::from_secs(1);
 
 /// Asks the daemon for [`workspaces`] and for the panes
 /// ([`panes::layout`]) every second on a thread of its own, so a slow
-/// daemon never holds up the window. The window takes the answers with
-/// [`Watch::latest`] and [`Watch::layout`].
+/// daemon never holds up the window. Each time the layout changes it
+/// fetches the code of every agent UI the panes show ([`ui::fetch`]) before
+/// it tells of the layout. The window takes the answers with
+/// [`Watch::latest`], [`Watch::layout`] and [`Watch::uis`].
 #[derive(Debug)]
 pub struct Watch {
     socket: Arc<Mutex<PathBuf>>,
     wanted: Arc<Mutex<Option<String>>>,
     news: Receiver<Result<Vec<Workspace>, Problem>>,
     layouts: Receiver<Result<PaneLayout, Problem>>,
+    codes: Receiver<Vec<(String, Result<Code, Problem>)>>,
+}
+
+/// What each agent UI shown in `layout` is: its name and its code.
+fn load(daemon: &Client, layout: &PaneLayout) -> Vec<(String, Result<Code, Problem>)> {
+    let mut names: Vec<&str> = layout
+        .layout
+        .panes()
+        .into_iter()
+        .filter(|p| p.kind == PaneKind::Ui)
+        .map(|p| p.target.as_str())
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    names.into_iter().map(|name| (name.to_string(), ui::fetch(daemon, name))).collect()
 }
 
 impl Watch {
@@ -86,6 +105,7 @@ impl Watch {
         let wanted = Arc::new(Mutex::new(wanted));
         let (agents, news) = mpsc::channel();
         let (panes, layouts) = mpsc::channel();
+        let (uis, codes) = mpsc::channel();
         let (theirs, their_wanted) = (Arc::clone(&socket), Arc::clone(&wanted));
         std::thread::spawn(move || {
             let (mut last, mut drawn) = (None, None);
@@ -93,15 +113,22 @@ impl Watch {
                 let daemon =
                     Client::new(theirs.lock().unwrap_or_else(PoisonError::into_inner).clone());
                 let wanted = their_wanted.lock().unwrap_or_else(PoisonError::into_inner).clone();
-                if !tell(&agents, &mut last, workspaces(&daemon))
-                    || !tell(&panes, &mut drawn, panes::layout(&daemon, wanted.as_deref()))
+                let layout = panes::layout(&daemon, wanted.as_deref());
+                let fresh = drawn.as_ref() != Some(&layout);
+                let loaded = match &layout {
+                    Ok(now) if fresh => uis.send(load(&daemon, now)).is_ok(),
+                    _ => true,
+                };
+                if !loaded
+                    || !tell(&agents, &mut last, workspaces(&daemon))
+                    || !tell(&panes, &mut drawn, layout)
                 {
                     return;
                 }
                 std::thread::sleep(EVERY);
             }
         });
-        Self { socket, wanted, news, layouts }
+        Self { socket, wanted, news, layouts, codes }
     }
 
     /// Asks for the panes of `wanted` from the next time on.
@@ -112,6 +139,12 @@ impl Watch {
     /// The newest layout since the last call, if it changed. Never blocks.
     pub fn layout(&self) -> Option<Result<PaneLayout, Problem>> {
         self.layouts.try_iter().last()
+    }
+
+    /// The code of the agent UIs fetched since the last call, by name. A
+    /// layout's UIs come before the layout. Never blocks.
+    pub fn uis(&self) -> Vec<(String, Result<Code, Problem>)> {
+        self.codes.try_iter().flatten().collect()
     }
 
     /// Asks the daemon on `socket` from the next time on.

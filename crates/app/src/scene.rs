@@ -7,7 +7,8 @@
 //!
 //! No chrome (SPEC P6): the panes, each with what it shows, one focus
 //! border around the focused pane, and the sidebar when it is open. A
-//! canvas pane whose page has arrived draws it; any other pane shows its
+//! canvas pane whose page has arrived draws it; an agent UI pane shows its
+//! page ([`Web`]), or its name and why it cannot; any other pane shows its
 //! kind and name. A problem (no daemon, a bad config file) shows in the
 //! focused pane, over what it shows; when all is well the window says
 //! nothing more, except the one notice that an agent is blocked or done.
@@ -16,13 +17,16 @@ pub mod canvas;
 pub mod sidebar;
 pub mod tools;
 
+use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::backend::Problem;
 use crate::config::{Rgb, Theme};
 use crate::layout::{self, PaneId, Rect, Size};
 use crate::panes::{Kind, Pane, Panes};
 use crate::scene::sidebar::Sidebar;
+use crate::ui::Page;
 
 /// One line of text at a fixed place, on `fill` when it has one. A label
 /// with no text and a fill is a filled rectangle.
@@ -52,6 +56,17 @@ pub struct CanvasPane {
     pub scene: Rc<canvas::Scene>,
 }
 
+/// An agent UI on screen: its page, in `frame`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Web {
+    pub frame: Rect,
+    pub page: Arc<Page>,
+}
+
+/// The agent UIs fetched so far, by name: each one's page, or why it
+/// cannot show.
+pub type Uis = HashMap<String, Result<Arc<Page>, Problem>>;
+
 /// One window, fully decided.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scene {
@@ -60,6 +75,8 @@ pub struct Scene {
     pub background: Rgb,
     /// Under the labels and the border.
     pub canvases: Vec<CanvasPane>,
+    /// The agent UIs, under the labels and the border.
+    pub webs: Vec<Web>,
     pub labels: Vec<Label>,
     /// The sidebar's lines: labels read from their left edge, not centred.
     pub sidebar: Vec<Label>,
@@ -71,8 +88,9 @@ pub struct Scene {
 pub const BORDER: f64 = 2.0;
 
 /// The window for `panes` in `theme`'s colours, beside `sidebar`. The panes
-/// in `canvases` draw their canvas; every other pane shows its kind and
-/// name. `problems` show in the focused pane, each with its hint under it:
+/// in `canvases` draw their canvas. An agent UI pane shows its page from
+/// `uis` inside the border's width; one that cannot show says its name and
+/// why. Every other pane shows its kind and name. `problems` show in the focused pane, each with its hint under it:
 /// the window keeps working on the last good config and says what is wrong.
 /// The notice, if any, is the last label, over the panes.
 pub fn build(
@@ -81,15 +99,26 @@ pub fn build(
     problems: &[&Problem],
     sidebar: &Sidebar,
     canvases: Vec<CanvasPane>,
+    uis: &Uis,
 ) -> Scene {
     let size = layout::WINDOW;
     let area = sidebar.panes(size.rect());
-    let mut labels = Vec::new();
+    let (mut labels, mut webs) = (Vec::new(), Vec::new());
     let mut focus = Border { frame: area, width: BORDER, colour: theme.focus };
     for (id, pane, frame) in panes.place(area) {
-        let drawn = canvases.iter().any(|c| c.pane == id);
-        let mut texts: Vec<_> =
-            (!drawn).then(|| (placeholder(pane), theme.text)).into_iter().collect();
+        let mut texts = Vec::new();
+        match (pane.kind, uis.get(&pane.name)) {
+            _ if canvases.iter().any(|c| c.pane == id) => {}
+            (Kind::Ui, Some(Ok(page))) => {
+                webs.push(Web { frame: frame.outset(-BORDER), page: Arc::clone(page) });
+            }
+            (Kind::Ui, Some(Err(why))) => {
+                texts.push((placeholder(pane), theme.text));
+                texts.push((format!("✗ {}", why.message), theme.error));
+                texts.extend(why.hint.clone().map(|hint| (hint, theme.muted)));
+            }
+            _ => texts.push((placeholder(pane), theme.text)),
+        }
         if id == panes.focus() {
             focus.frame = frame;
             for p in problems {
@@ -111,9 +140,26 @@ pub fn build(
         size,
         background: theme.background,
         canvases,
+        webs,
         labels,
         sidebar: sidebar.rows(theme, size.rect()),
         focus,
+    }
+}
+
+/// The window for `page` alone (`slinger-app --preview`): the page fills
+/// it, with no border.
+pub fn preview(page: Arc<Page>, theme: &Theme) -> Scene {
+    let size = layout::WINDOW;
+    Scene {
+        title: format!("slinger: {}", page.code.name),
+        size,
+        background: theme.background,
+        canvases: Vec::new(),
+        webs: vec![Web { frame: size.rect(), page }],
+        labels: Vec::new(),
+        sidebar: Vec::new(),
+        focus: Border { frame: size.rect(), width: 0.0, colour: theme.background },
     }
 }
 
@@ -145,6 +191,16 @@ mod tests {
 
     fn main() -> Panes {
         Panes::new(Pane { kind: Kind::Canvas, name: "main".into() })
+    }
+
+    fn build(
+        panes: &Panes,
+        theme: &Theme,
+        problems: &[&Problem],
+        sidebar: &Sidebar,
+        canvases: Vec<CanvasPane>,
+    ) -> Scene {
+        super::build(panes, theme, problems, sidebar, canvases, &Uis::new())
     }
 
     #[test]
@@ -180,6 +236,41 @@ mod tests {
         assert_eq!(
             shown(&build(&panes, &T, &[], &Sidebar::new(false), Vec::new())),
             [("agent UI board", T.text)]
+        );
+    }
+
+    #[test]
+    fn an_agent_ui_shows_its_page_inside_the_border_or_its_name_and_why_not() {
+        use crate::ui::Code;
+        let mut panes = Panes::new(Pane { kind: Kind::Ui, name: "board".into() });
+        panes.split(Axis::Row);
+        let hash = format!("sha256:{}", "a".repeat(64));
+        let code = Code { name: "board".into(), version: 1, hash, html: Vec::new() };
+        let page = Arc::new(Page::new(code, "pane", &serde_json::Value::Null).unwrap());
+        let mut uis = Uis::from([("board".to_string(), Ok(Arc::clone(&page)))]);
+        let side = Sidebar::new(false);
+        let scene = super::build(&panes, &T, &[], &side, Vec::new(), &uis);
+        assert_eq!(shown(&scene), []);
+        let half = layout::WINDOW.width / 2.0;
+        let inner = Rect { x: half, y: 0.0, width: half, height: layout::WINDOW.height };
+        assert_eq!(scene.webs.len(), 2);
+        assert_eq!(scene.webs[1], Web { frame: inner.outset(-BORDER), page: Arc::clone(&page) });
+
+        let alone = preview(page, &T);
+        assert_eq!((alone.title.as_str(), alone.labels.len()), ("slinger: board", 0));
+        assert_eq!(alone.webs[0].frame, layout::WINDOW.rect());
+
+        let why = Problem { message: "ui \"board\" not found".into(), hint: Some("put it".into()) };
+        uis.insert("board".into(), Err(why));
+        let scene = super::build(&panes, &T, &[], &side, Vec::new(), &uis);
+        assert_eq!(scene.webs, []);
+        assert_eq!(
+            shown(&scene)[..3],
+            [
+                ("agent UI board", T.text),
+                ("✗ ui \"board\" not found", T.error),
+                ("put it", T.muted)
+            ]
         );
     }
 
