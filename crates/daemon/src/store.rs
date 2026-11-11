@@ -45,6 +45,8 @@ const SESSION_IDS: &str = "sessions.json";
 /// The program each agent's process runs unless the daemon is told another:
 /// Claude Code, on `PATH`.
 pub const CLAUDE: &str = "claude";
+/// The CLI each agent's hooks run, unless the daemon is told another.
+pub const SLINGER: &str = "slinger";
 /// The layout this code writes, kept in SQLite's `user_version`.
 const SCHEMA_VERSION: i64 = 1;
 const SCHEMA: &str = "
@@ -337,6 +339,14 @@ impl Store {
     #[must_use]
     pub fn with_claude(mut self, program: impl Into<PathBuf>) -> Self {
         self.sessions.processes_mut().set_program(program.into());
+        self
+    }
+
+    /// Has each agent's hooks run `slinger` (the CLI) at `program`, in place
+    /// of `slinger` on `PATH`.
+    #[must_use]
+    pub fn with_slinger(mut self, program: impl Into<PathBuf>) -> Self {
+        self.sessions.processes_mut().set_slinger(program.into());
         self
     }
 

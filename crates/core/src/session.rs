@@ -7,6 +7,7 @@
 //! and lives only as long as the server that was told. No IO: callers hand in
 //! the workspaces and the events.
 
+pub mod hooks;
 pub mod stream;
 
 use std::path::PathBuf;

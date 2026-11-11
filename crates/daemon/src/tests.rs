@@ -24,6 +24,7 @@ mod put;
 mod read;
 mod session;
 mod sling;
+mod touched;
 mod workspace;
 
 const DAEMON: &str = "slingerd";

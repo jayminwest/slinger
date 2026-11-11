@@ -8,10 +8,12 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use slinger_control::{Client, Session};
+use slinger_core::session::hooks;
 use tempfile::TempDir;
 
 use super::Daemon;
 use super::session::open_with_agent;
+use crate::store::SLINGER;
 
 /// Claude Code's stream mode, as far as the daemon uses it. It runs in the
 /// agent's home and leaves its evidence there: its arguments (`args.txt`, one
@@ -175,7 +177,12 @@ fn a_session_starts_within_its_workspaces_limits() {
         (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
     let daemon = Daemon::start_with_claude(data.path(), &fake_claude(bin.path()));
     let client = daemon.client();
-    let fixed = "--print --input-format stream-json --output-format stream-json";
+    // Its hooks first, running `slinger` on `PATH` (the daemon's default
+    // here), then the stream format and the limits.
+    let hooks = hooks::settings(Path::new(SLINGER));
+    let fixed = format!(
+        "--settings {hooks} --print --input-format stream-json --output-format stream-json"
+    );
     let denied = "--permission-mode dontAsk --tools";
 
     let plain = open_with_agent(&client, &projects, "plain", "scout");

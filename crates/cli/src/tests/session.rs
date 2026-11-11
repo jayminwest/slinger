@@ -1,11 +1,11 @@
-//! `slinger session ...` and `slinger status set` against a real daemon. The
-//! name from `SLINGER_AGENT` is tested against the real binary, in
-//! `tests/agent_env.rs`: these tests run in one process and share its
-//! environment.
+//! `slinger session ...`, `slinger status set` and `slinger file touched`
+//! against a real daemon. The name from `SLINGER_AGENT` is tested against the
+//! real binary, in `tests/agent_env.rs`: these tests run in one process and
+//! share its environment.
 
 use serde_json::Value;
 
-use super::{cli_each, cli_on, cli_raw, json, with_daemon_running};
+use super::{cli_each, cli_on, cli_raw, json, with_daemon, with_daemon_running};
 use crate::output::exit;
 
 #[test]
@@ -108,4 +108,44 @@ fn a_session_starts_takes_messages_and_stops_quietly() {
     let texts: Vec<&str> =
         texts.iter().map(|t| t["message"]["content"].as_str().unwrap()).collect();
     assert_eq!(texts, ["one", "two\n"]);
+}
+
+#[test]
+fn file_touched_takes_a_path_or_a_hook_payload_and_prints_nothing() {
+    let work = tempfile::tempdir().unwrap();
+    let file = work.path().canonicalize().unwrap().join("a.txt");
+    std::fs::write(&file, "x").unwrap();
+    let path = file.to_str().unwrap();
+    let hook = format!(r#"{{"tool_name":"Write","tool_input":{{"file_path":"{path}"}}}}"#);
+    let runs = with_daemon(|socket| {
+        vec![
+            cli_on(socket, &["file", "touched", path, "--agent", "scout"]),
+            cli_on(socket, &["file", "touched", path, "--agent", "scout", "--json"]),
+            cli_raw(
+                socket,
+                &["file", "touched", "--hook", "--agent", "scout"],
+                hook.as_bytes(),
+                &mut Vec::new(),
+            ),
+            cli_raw(
+                socket,
+                &["file", "touched", "--hook", "--agent", "scout"],
+                b"{}",
+                &mut Vec::new(),
+            ),
+            cli_on(socket, &["file", "touched", "--agent", "scout"]),
+            cli_on(socket, &["file", "touched", path, "--hook", "--agent", "scout"]),
+            cli_on(socket, &["file", "touched", "no-such-file.txt", "--agent", "scout"]),
+            cli_on(socket, &["record", "list", "--kind", "file_touched"]),
+        ]
+    });
+    let codes: Vec<u8> = runs.iter().map(|r| r.code).collect();
+    assert_eq!(codes, [0, 0, 0, 0, exit::USAGE, exit::USAGE, exit::NOT_FOUND, 0]);
+    for i in [0, 2, 3] {
+        assert_eq!((runs[i].out.as_str(), runs[i].err.as_str()), ("", ""), "run {i}");
+    }
+    let touched = json(&runs[1]);
+    assert_eq!((&touched["command"], &touched["path"]), (&"file touched".into(), &path.into()));
+    assert!(touched["hash"].as_str().unwrap().starts_with("sha256:"), "{touched}");
+    assert_eq!(runs[7].out.lines().count(), 3, "the empty payload touched nothing");
 }

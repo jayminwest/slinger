@@ -6,12 +6,14 @@ and agents rely on this contract. Breaking it is a breaking change.
 ## The daemon
 
 ```
-slingerd [--socket <PATH>] [--data-dir <PATH>] [--claude <PATH>]
+slingerd [--socket <PATH>] [--data-dir <PATH>] [--claude <PATH>] [--slinger <PATH>]
 ```
 
 - It says nothing on success and runs until SIGTERM or SIGINT.
 - `--claude` is the program an agent's process runs (see "Sessions"):
-  Claude Code, `claude` on `PATH` by default.
+  Claude Code, `claude` on `PATH` by default. `--slinger` is the CLI its
+  hooks run (see "Sessions", "Hooks"): the `slinger` beside `slingerd`, else
+  `slinger` on `PATH`, by default.
 - **One instance per socket path.** The daemon holds a lock on
   `<socket>.lock` for its whole life. A second daemon on the same path exits
   4 with `✗ socket <path> is in use by another slingerd` and a hint. A
@@ -145,6 +147,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_stop` | `workspace`: string | `session` |
 | `session_send` | `workspace`: string, `text`: string | `session` |
 | `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` |
+| `file_touched` | `agent`: string, then one of `path`: absolute path of a file, `hook`: a Claude Code `PostToolUse` hook's payload, as a string | `agent`, `path`, `hash`: the file's blob id, `event`: the `file_touched` appended (all three absent when the payload names no file) |
 
 **`record_append`** appends one event to this machine's record. `tags`
 may set `workspace`, `agent` and `canvas`; the daemon sets `machine`, the
@@ -501,6 +504,37 @@ with no agent is `invalid`, and a program that is not there is `not_found`.
 { "v": 1, "op": "session_start", "workspace": "notes" }
 { "ok": true, "session": { "agent": "scout", "home": "/Users/me/notes", "deliver": "process", "process": "running", "pid": 4242, "pending": 0, "session_id": "6f1c0d52-8a3e-4b7d-9c1e-2f4a5b6c7d8e" } }
 { "v": 1, "op": "session_send", "workspace": "notes", "text": "what is in this directory?" }
+```
+
+**Hooks.** Each process starts with `--settings <JSON>`: hooks of its own
+(SPEC section 5), so a session reports to Slinger without the agent's help
+and no settings file of the user's changes. Each hook runs the CLI, which
+takes the agent and the socket from the process's environment:
+
+| Claude Code event | Matcher | Command |
+|---|---|---|
+| `UserPromptSubmit` (a turn starts) | | `slinger status set working` |
+| `Stop` (the turn ends) | | `slinger status set done` |
+| `Notification` | `permission_prompt` | `slinger status set blocked --note 'waits for permission'` |
+| `Notification` | `elicitation_dialog\|elicitation_url_dialog` | `slinger status set blocked --note 'waits for input'` |
+| `PostToolUse` | `Write\|Edit\|MultiEdit\|NotebookEdit` | `slinger file touched --hook` |
+
+A hook's failure exits 1, never 2, which would block the prompt or keep the
+turn going: Claude Code notes it and goes on. The core makes the settings
+(`slinger_core::session::hooks`).
+
+**`file_touched`** records that an agent wrote a file: the daemon reads it,
+hashes it and appends `file_touched` with its `path` and `hash` (its blob id;
+the bytes are not stored, D14), the agent as source and agent tag. `hook` is
+the payload Claude Code gave the hook on stdin; the file is its tool input's
+`file_path` (`notebook_path` for a notebook), against its `cwd` when
+relative. A payload that names no file touches none and succeeds. A blank
+agent, a relative `path`, or both or neither of `path` and `hook` is
+`invalid`; a file that is not there, or cannot be read, is `not_found`.
+
+```json
+{ "v": 1, "op": "file_touched", "agent": "scout", "path": "/Users/me/notes/plan.md" }
+{ "ok": true, "agent": "scout", "path": "/Users/me/notes/plan.md", "hash": "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824", "event": 15 }
 ```
 
 **A check against the real Claude Code.** The tests run a stand-in that

@@ -1,8 +1,9 @@
-//! `slinger session ...` and `slinger status set`: the agents the daemon can
-//! reach and the status each reports. One request per command; the daemon
+//! `slinger session ...`, `slinger status set` and `slinger file touched`:
+//! the agents the daemon can reach and what each reports. One request per command; the daemon
 //! owns the sessions and the record.
 
 use std::io::Read;
+use std::path::PathBuf;
 
 use clap::Subcommand;
 use serde_json::json;
@@ -59,6 +60,29 @@ pub enum Status {
         #[arg(long, value_name = "NAME", help = AGENT_HELP)]
         agent: Option<String>,
     },
+}
+
+#[derive(Subcommand)]
+pub enum Touch {
+    /// Record that the calling agent wrote a file: its path and hash, never its contents
+    Touched {
+        /// The file
+        #[arg(required_unless_present = "hook", conflicts_with = "hook")]
+        path: Option<PathBuf>,
+        /// Read a Claude Code `PostToolUse` hook's payload on stdin and take the file from it
+        #[arg(long)]
+        hook: bool,
+        #[arg(long, value_name = "NAME", help = AGENT_HELP)]
+        agent: Option<String>,
+    },
+}
+
+impl Touch {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Touched { .. } => "file touched",
+        }
+    }
 }
 
 impl Session {
@@ -122,6 +146,28 @@ pub fn set(command: &Status, daemon: &control::Client) -> anyhow::Result<Output>
     let agent = calling_agent(agent.as_deref())?;
     let set = daemon.status_set(&agent, status, note.as_deref())?;
     Ok(Output::new(serde_json::to_value(set)?, String::new()))
+}
+
+pub fn touched(
+    command: &Touch,
+    daemon: &control::Client,
+    input: &mut dyn Read,
+) -> anyhow::Result<Output> {
+    let Touch::Touched { path, hook, agent } = command;
+    let agent = calling_agent(agent.as_deref())?;
+    let mut payload = String::new();
+    let absolute;
+    let what = if let Some(path) = path {
+        // The daemon does not share this directory: it gets the whole path.
+        absolute = std::path::absolute(path)?;
+        control::Touched::Path(&absolute)
+    } else {
+        debug_assert!(hook, "clap requires one of the two");
+        input.read_to_string(&mut payload)?;
+        control::Touched::Hook(&payload)
+    };
+    let touched = daemon.file_touched(&agent, what)?;
+    Ok(Output::new(serde_json::to_value(touched)?, String::new()))
 }
 
 /// The agent an agent verb acts as: `--agent`, else `$SLINGER_AGENT`.

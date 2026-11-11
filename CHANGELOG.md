@@ -18,6 +18,15 @@ bullet with the area in bold.
   closes it. The colours come from `[pen] colours` in the config file (one to
   nine, `"#rrggbb"`, split by spaces or commas). The canvas that uses the
   chosen tool and colour comes later.
+- **Sessions:** an agent reports without being asked. Each Claude Code
+  process slingerd starts gets hooks of its own (your Claude Code settings
+  are untouched): its status is `working` while a turn runs, `done` when it
+  ends and `blocked` while it waits for your permission or input, and every
+  file it writes is recorded by path and hash. `slingerd --slinger <path>`
+  names the CLI the hooks run.
+- **CLI:** `slinger file touched <path>` records that the calling agent wrote
+  a file: its path and hash, never its contents. `--hook` reads a Claude Code
+  hook's payload on stdin instead.
 
 - **Daemon:** a session runs within stated limits. By default the agent
   reads only its workspace's roots, runs only the `slinger` CLI and read-only

@@ -8,7 +8,9 @@
 //! start resumes it, even after a restart. An id is kept once the process's
 //! output names it; by then the conversation exists to resume. Slinger does
 //! not keep a process alive (D20): one that dies shows as `exited` until the
-//! next start.
+//! next start. Each process gets the hooks the core makes
+//! ([`slinger_core::session::hooks`]), so it reports its status and the files
+//! it writes through the CLI.
 
 use std::collections::{BTreeMap, HashMap};
 use std::io::{self, BufRead, BufReader, Read, Write};
@@ -17,6 +19,7 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
+use slinger_core::session::hooks;
 use slinger_core::session::stream::{self, Limits, Start};
 
 /// How long a stop waits for a process to end after its input closes, before
@@ -84,6 +87,8 @@ pub struct Shown {
 #[derive(Debug)]
 pub struct Processes {
     program: PathBuf,
+    /// The CLI the processes' hooks run (docs/service.md, "Hooks").
+    slinger: PathBuf,
     /// The daemon's socket, named to each process. Set once it serves.
     socket: OnceLock<PathBuf>,
     ids: Arc<Ids>,
@@ -96,12 +101,18 @@ impl Processes {
     #[must_use]
     pub fn new(program: PathBuf, ids: PathBuf) -> Self {
         let ids = Arc::new(Ids { path: ids, lock: Mutex::new(()) });
-        Self { program, socket: OnceLock::new(), ids, held: Mutex::default() }
+        let slinger = crate::store::SLINGER.into();
+        Self { program, slinger, socket: OnceLock::new(), ids, held: Mutex::default() }
     }
 
     /// Starts `program` from now on, in place of the one [`Processes::new`] took.
     pub fn set_program(&mut self, program: PathBuf) {
         self.program = program;
+    }
+
+    /// Has the hooks of every process started from now on run `slinger`.
+    pub fn set_slinger(&mut self, slinger: PathBuf) {
+        self.slinger = slinger;
     }
 
     /// Names `socket` to every process started from now on.
@@ -131,6 +142,9 @@ impl Processes {
         };
         let start = if resume { Start::Resume(&id) } else { Start::Fresh(&id) };
         let mut command = Command::new(&self.program);
+        // Its hooks report its status and the files it writes. Passed as an
+        // argument, they are this process's alone: no settings file changes.
+        command.arg("--settings").arg(hooks::settings(&self.slinger));
         command.args(stream::args(start, limits)).current_dir(home).env(AGENT_ENV, agent);
         if let Some(socket) = self.socket.get() {
             command.env(SOCKET_ENV, socket);
