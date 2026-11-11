@@ -460,7 +460,9 @@ workspace with that agent opens. A blank agent or another status is
 D10): `<claude> --print --input-format stream-json --output-format
 stream-json --verbose` and the session's limits (below), in the agent's home,
 with `SLINGER_AGENT` set to the agent and `SLINGER_SOCKET` to the daemon's
-socket, so the agent's own `slinger` calls act as it and reach this daemon. Its stderr goes to the
+socket, so the agent's own `slinger` calls act as it and reach this daemon.
+When `--slinger` is an absolute path, its folder comes first on the process's
+`PATH`, so those bare `slinger` calls run the CLI its hooks run. Its stderr goes to the
 daemon's. A session adds what the daemon knows of it: `process` (`running`,
 or `exited` when it ended without a stop; absent when there is none), and
 while it runs its `pid` and `pending`, the messages sent that it has not

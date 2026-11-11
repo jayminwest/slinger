@@ -149,6 +149,11 @@ impl Processes {
         if let Some(socket) = self.socket.get() {
             command.env(SOCKET_ENV, socket);
         }
+        // The agent's own Bash calls run a bare `slinger`: the CLI its hooks
+        // run comes first on its PATH, so both reach the same one.
+        if let Some(path) = path_first(&self.slinger) {
+            command.env("PATH", path);
+        }
         // Its chatter on stderr goes where the daemon's goes: the service log.
         command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::inherit());
         let spawned = command.spawn();
@@ -346,6 +351,18 @@ impl Ids {
     fn failed(&self, source: io::Error) -> ProcessError {
         ProcessError::Ids { path: self.path.clone(), source }
     }
+}
+
+/// The daemon's `PATH` with the folder of `slinger` first, when `slinger`
+/// is an absolute path; `None` (the daemon's `PATH` as it is) otherwise.
+fn path_first(slinger: &Path) -> Option<std::ffi::OsString> {
+    let folder = slinger.parent().filter(|_| slinger.is_absolute())?;
+    // No PATH, or an empty one, adds nothing: not an empty entry, the cwd.
+    let rest = std::env::var_os("PATH").filter(|p| !p.is_empty());
+    let folders =
+        std::iter::once(folder.to_owned()).chain(rest.iter().flat_map(std::env::split_paths));
+    // A folder with a ':' in it cannot be on a PATH: leave it as it is.
+    std::env::join_paths(folders).ok()
 }
 
 /// A new session id from the system's random source.

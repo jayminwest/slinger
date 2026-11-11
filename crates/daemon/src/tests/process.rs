@@ -9,19 +9,23 @@ use std::time::{Duration, Instant};
 
 use slinger_control::{Client, Session};
 use slinger_core::session::hooks;
+use slinger_core::session::stream::Limits;
 use tempfile::TempDir;
 
 use super::Daemon;
 use super::session::open_with_agent;
+use crate::processes::Processes;
 use crate::store::SLINGER;
 
 /// Claude Code's stream mode, as far as the daemon uses it. It runs in the
 /// agent's home and leaves its evidence there: its arguments (`args.txt`, one
-/// run per line), its environment (`env.txt`) and each line it was sent
+/// run per line), its environment (`env.txt`, and its `PATH` in `path.txt`)
+/// and each line it was sent
 /// (`in.txt`). For each line it names its session and answers.
 const FAKE_CLAUDE: &str = r#"#!/bin/sh
 printf '%s\n' "$*" >> args.txt
 printf '%s %s\n' "$SLINGER_AGENT" "$SLINGER_SOCKET" > env.txt
+printf '%s\n' "$PATH" > path.txt
 id=
 while [ $# -gt 0 ]; do
   case "$1" in --session-id|--resume) id="$2"; shift ;; esac
@@ -222,4 +226,25 @@ fn a_session_starts_within_its_workspaces_limits() {
     let env = wait_lines(&wide.join("env.txt"), 1);
     assert_eq!(env, [format!("ada {}", daemon.socket.display())]);
     daemon.stop();
+}
+
+#[test]
+fn the_cli_the_hooks_run_comes_first_on_the_agents_path() {
+    let (data, home, bin) =
+        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
+    let ids = data.path().join("sessions.json");
+    let mut processes = Processes::new(fake_claude(bin.path()), ids);
+    let daemons = std::env::var("PATH").unwrap();
+
+    // A bare name is looked up on the daemon's PATH, as it is.
+    processes.start("scout", home.path(), &Limits::default()).unwrap();
+    assert_eq!(wait_lines(&home.path().join("path.txt"), 1), std::slice::from_ref(&daemons));
+    processes.stop("scout");
+
+    std::fs::remove_file(home.path().join("path.txt")).unwrap();
+    processes.set_slinger(PathBuf::from("/opt/slinger/bin/slinger"));
+    processes.start("scout", home.path(), &Limits::default()).unwrap();
+    let path = wait_lines(&home.path().join("path.txt"), 1);
+    assert_eq!(path, [format!("/opt/slinger/bin:{daemons}")]);
+    processes.stop("scout");
 }
