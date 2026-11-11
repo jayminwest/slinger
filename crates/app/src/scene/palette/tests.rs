@@ -1,0 +1,184 @@
+use super::*;
+use crate::layout;
+
+const T: Theme = Theme {
+    background: Rgb { r: 0, g: 0, b: 0 },
+    text: Rgb { r: 1, g: 1, b: 1 },
+    muted: Rgb { r: 2, g: 2, b: 2 },
+    error: Rgb { r: 3, g: 3, b: 3 },
+    focus: Rgb { r: 4, g: 4, b: 4 },
+};
+
+fn key(text: &str) -> Chord {
+    Chord::parse(text).unwrap()
+}
+
+fn open() -> Palette {
+    let mut palette = Palette::default();
+    palette.toggle();
+    palette
+}
+
+/// Types each character of `text` into `palette`.
+fn type_in(palette: &mut Palette, text: &str) {
+    for c in text.chars() {
+        let chord = if c == ' ' { key("space") } else { Chord::new(0, c) };
+        assert_eq!(palette.key(chord, &Keymap::default()), Taken::Yes);
+    }
+}
+
+/// The text of each line of the open `palette`.
+fn texts(palette: &Palette, size: Size) -> Vec<String> {
+    let shown = palette.shown(&Keymap::default(), &T, size).unwrap();
+    shown.lines.into_iter().map(|l| l.label.text).collect()
+}
+
+#[test]
+fn opened_empty_it_matches_every_command_in_the_registry_order() {
+    let all: Vec<Command> = Command::ALL.into_iter().map(|(c, _)| c).collect();
+    assert_eq!(open().matches(), all);
+}
+
+#[test]
+fn the_search_is_a_subsequence_of_title_and_group_in_any_case() {
+    let mut palette = open();
+    type_in(&mut palette, "split");
+    assert_eq!(palette.matches(), [Command::SplitRight, Command::SplitDown]);
+    let mut palette = open();
+    type_in(&mut palette, "PEN TOOLS");
+    assert_eq!(palette.matches(), [Command::ToolPen]);
+    let mut palette = open();
+    type_in(&mut palette, "zz");
+    assert_eq!(palette.matches(), []);
+    assert!(texts(&palette, layout::WINDOW).contains(&NONE.to_string()));
+}
+
+#[test]
+fn delete_takes_back_a_character_and_held_command_keys_type_nothing() {
+    let keys = Keymap::default();
+    let mut palette = open();
+    type_in(&mut palette, "zx");
+    assert_eq!(palette.key(key("delete"), &keys), Taken::Yes);
+    assert_eq!(palette.query, "z");
+    for other in ["cmd+d", "ctrl+a", "up", "f5", "tab"] {
+        assert_eq!(palette.key(key(other), &keys), Taken::Yes, "{other}");
+    }
+    assert_eq!(palette.query, "z");
+    assert!(texts(&palette, layout::WINDOW).contains(&"z▏".to_string()));
+}
+
+#[test]
+fn up_and_down_move_the_selection_round_the_matches() {
+    let keys = Keymap::default();
+    let mut palette = open();
+    type_in(&mut palette, "split");
+    assert_eq!(palette.at, 0);
+    palette.key(key("up"), &keys);
+    assert_eq!(palette.at, 1, "up from the first goes to the last");
+    palette.key(key("down"), &keys);
+    assert_eq!(palette.at, 0, "down from the last goes to the first");
+    palette.key(key("down"), &keys);
+    type_in(&mut palette, " ");
+    assert_eq!(palette.at, 0, "typing selects the first again");
+}
+
+#[test]
+fn return_closes_it_and_runs_the_selected_command() {
+    let keys = Keymap::default();
+    let mut palette = open();
+    type_in(&mut palette, "split");
+    palette.key(key("down"), &keys);
+    assert_eq!(palette.key(key("return"), &keys), Taken::Run(Command::SplitDown));
+    assert!(!palette.is_open());
+    palette.toggle();
+    assert_eq!((palette.query.as_str(), palette.at), ("", 0), "it opens empty again");
+
+    type_in(&mut palette, "zz");
+    assert_eq!(palette.key(key("return"), &keys), Taken::Yes, "with no match nothing runs");
+    assert!(palette.is_open());
+}
+
+#[test]
+fn escape_or_its_own_key_closes_it_and_runs_nothing() {
+    let mut keys = Keymap::default();
+    let mut palette = Palette::default();
+    assert_eq!(palette.key(key("cmd+k"), &keys), Taken::No, "closed, the keymap runs it");
+    assert_eq!(palette.shown(&keys, &T, layout::WINDOW), None);
+    palette.toggle();
+    assert_eq!(palette.key(key("escape"), &keys), Taken::Yes);
+    assert!(!palette.is_open());
+    palette.toggle();
+    assert_eq!(palette.key(key("cmd+k"), &keys), Taken::Yes);
+    assert!(!palette.is_open());
+
+    keys.bind(Command::ShowCommands, Some(key("f2")));
+    palette.toggle();
+    assert_eq!(palette.key(key("f2"), &keys), Taken::Yes);
+    assert!(!palette.is_open());
+}
+
+#[test]
+fn a_press_on_a_row_runs_it_and_one_outside_closes_it() {
+    let size = layout::WINDOW;
+    let mut palette = Palette::default();
+    let row = place(size).row(1);
+    let on = Point { x: row.x + 10.0, y: row.y + row.height / 2.0 };
+    assert_eq!(palette.press(on, size), Taken::No);
+    palette.toggle();
+    type_in(&mut palette, "split");
+    assert_eq!(palette.press(on, size), Taken::Run(Command::SplitDown));
+    assert!(!palette.is_open());
+
+    palette.toggle();
+    let search = Point { x: on.x, y: place(size).panel.y + PAD + 4.0 };
+    assert_eq!(palette.press(search, size), Taken::Yes);
+    assert!(palette.is_open());
+    assert_eq!(palette.press(Point { x: 1.0, y: 1.0 }, size), Taken::Yes);
+    assert!(!palette.is_open());
+}
+
+#[test]
+fn rows_are_tall_enough_for_the_pen_and_the_panel_fits_every_window() {
+    for size in [layout::SMALLEST, layout::WINDOW, Size { width: 1600.0, height: 1000.0 }] {
+        let place = place(size);
+        let panel = place.panel;
+        assert!(panel.width <= WIDTH && place.rows >= 1, "{size:?}");
+        assert!(panel.x >= 0.0 && panel.y >= 0.0, "{size:?}");
+        assert!(panel.x + panel.width <= size.width && panel.y + panel.height <= size.height);
+        assert!((place.row(0).height - ROW).abs() < f64::EPSILON);
+        let shown = open().shown(&Keymap::default(), &T, size).unwrap();
+        assert_eq!((shown.frame, shown.dim), (size.rect(), T.background));
+        for line in &shown.lines {
+            let f = line.label.frame;
+            let corner = Point { x: f.x + f.width, y: f.y + f.height };
+            assert!(panel.contains(Point { x: f.x, y: f.y }) && panel.contains(corner), "{size:?}");
+        }
+    }
+}
+
+#[test]
+fn a_row_shows_title_group_and_key_and_the_footer_says_the_keys() {
+    let texts = texts(&open(), layout::WINDOW);
+    let at = texts.iter().position(|t| t == Command::Quit.title()).unwrap();
+    assert_eq!(texts[at + 1], "Window");
+    assert_eq!(texts[at + 2], "⌘Q");
+    assert_eq!(texts[2], PLACEHOLDER);
+    assert_eq!(texts.last().unwrap(), FOOTER);
+}
+
+#[test]
+fn the_selection_stays_in_view_and_is_filled() {
+    let keys = Keymap::default();
+    let mut palette = open();
+    let rows = place(layout::WINDOW).rows as usize;
+    for _ in 0..rows {
+        palette.key(key("down"), &keys);
+    }
+    let texts = texts(&palette, layout::WINDOW);
+    let selected = Command::ALL[rows].0.title();
+    assert!(texts.contains(&selected.to_string()));
+    assert!(!texts.contains(&Command::ALL[0].0.title().to_string()), "the first scrolled off");
+    let shown = palette.shown(&keys, &T, layout::WINDOW).unwrap();
+    let filled = shown.lines.iter().filter(|l| l.label.fill == Some(T.focus)).count();
+    assert_eq!(filled, 1);
+}

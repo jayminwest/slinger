@@ -188,6 +188,11 @@ impl Chord {
         Chord { mods: mods & (SHIFT | CTRL | ALT | CMD), key: key.to_ascii_lowercase() }
     }
 
+    /// The key, lowercase: `'k'` for `cmd+shift+k`.
+    pub const fn key(self) -> char {
+        self.key
+    }
+
     /// Whether the key types text: neither command nor control is held.
     pub const fn types(self) -> bool {
         self.mods & (CTRL | CMD) == 0
