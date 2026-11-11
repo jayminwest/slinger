@@ -5,11 +5,16 @@
 //! asks for that box alone, and only the marks that touch it are painted.
 //! The view is flipped, so its points are the scene's: top-left origin.
 //!
+//! A scene made by a pen event is painted, then the delay from that event
+//! to the paint goes to the app as [`Event::Painted`]: from the event's
+//! time stamp to the end of `drawRect:` (the screen shows it a frame or so
+//! later).
+//!
 //! Laying text out costs far more than drawing it, so each text is laid out
 //! once, in canvas points, and kept while it is drawn the same; a pan or a
 //! zoom only moves and scales the glyphs.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -23,10 +28,10 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{
     NSAffineTransform, NSAttributedString, NSAttributedStringKey, NSDictionary,
-    NSMutableAttributedString, NSObject, NSPoint, NSRect, NSSize, NSString,
+    NSMutableAttributedString, NSObject, NSPoint, NSProcessInfo, NSRect, NSSize, NSString,
 };
 
-use super::color;
+use super::{Event, color, dispatch};
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{ItemId, Mark, Scene};
@@ -34,11 +39,13 @@ use crate::scene::canvas::{ItemId, Mark, Scene};
 /// How tall a text column may grow, in canvas points: text is never cut.
 const TALL: f64 = 1e7;
 
-/// The scene a view shows, and its texts laid out.
+/// The scene a view shows, its texts laid out, and the time of the oldest
+/// pen event shown but not yet painted.
 #[derive(Default)]
 pub struct Ivars {
     scene: RefCell<Option<Rc<Scene>>>,
     texts: RefCell<HashMap<ItemId, Laid>>,
+    unpainted: Cell<Option<f64>>,
 }
 
 /// What a text is laid out from: its words, column width, size and colour.
@@ -79,6 +86,10 @@ define_class!(
             if let Some(scene) = self.ivars().scene.borrow().as_deref() {
                 paint(scene, dirty, &mut self.ivars().texts.borrow_mut());
             }
+            if let Some(when) = self.ivars().unpainted.take() {
+                let delay = NSProcessInfo::processInfo().systemUptime() - when;
+                dispatch(Event::Painted(delay), self.mtm());
+            }
         }
     }
 );
@@ -100,6 +111,10 @@ impl CanvasView {
             self.setFrame(frame);
         }
         let changed = scene.changed;
+        if let Some(when) = scene.pen_event {
+            let unpainted = &self.ivars().unpainted;
+            unpainted.set(Some(unpainted.get().map_or(when, |t| t.min(when))));
+        }
         self.ivars().texts.borrow_mut().retain(|id, _| {
             scene.draws.iter().any(|d| d.id == *id && matches!(d.mark, Mark::Text { .. }))
         });

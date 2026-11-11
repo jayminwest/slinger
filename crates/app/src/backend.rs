@@ -5,7 +5,8 @@
 //! the client's timeout, so a [`Watch`] asks for the agents' statuses and
 //! the workspace's panes, and the code of each agent UI they show
 //! ([`ui`]), on its own thread; the window sends only its own pane changes
-//! ([`panes`]). A canvas is followed on a thread of its own ([`Follower`]).
+//! ([`panes`]). A canvas is followed on a thread of its own ([`Follower`]),
+//! and the pen's strokes are sent on another ([`Outbox`]).
 
 use std::fs;
 use std::io::ErrorKind;
@@ -21,10 +22,12 @@ use crate::scene::sidebar::{Agent, Status, Workspace};
 use crate::ui::Shown;
 
 mod follow;
+mod outbox;
 pub mod panes;
 pub mod ui;
 
 pub use follow::{Follower, News};
+pub use outbox::Outbox;
 
 /// A failure as the window shows it: the message and what to do about it.
 #[derive(Debug, Clone, PartialEq, Eq)]

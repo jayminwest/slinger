@@ -83,13 +83,11 @@ impl Tools {
     }
 
     /// What the pen does.
-    #[cfg_attr(not(test), expect(dead_code, reason = "the canvas pane reads it from slinger-c94c"))]
     pub fn tool(&self) -> Tool {
         self.tool
     }
 
     /// The pen's colour.
-    #[cfg_attr(not(test), expect(dead_code, reason = "the canvas pane reads it from slinger-c94c"))]
     pub fn colour(&self) -> Rgb {
         self.colour
     }

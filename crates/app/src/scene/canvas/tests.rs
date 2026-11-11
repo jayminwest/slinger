@@ -224,3 +224,19 @@ fn a_new_viewport_pane_size_or_background_changes_the_whole_pane() {
     let repainted = build(&page(), Viewport::default(), SCREEN, &light, Some(&first));
     assert_eq!(repainted.changed, Some(rect(0.0, 0.0, 800.0, 600.0)));
 }
+
+#[test]
+fn a_pen_line_that_grows_repaints_only_its_new_end() {
+    let line = |n: u32| {
+        let points: Vec<(f64, f64)> = (1..=n).map(|i| (f64::from(i) * 10.0, 100.0)).collect();
+        [stroke(1, &points)]
+    };
+    let first = at(&line(10), Viewport::default(), None);
+    let next = at(&line(11), Viewport::default(), Some(&first));
+    assert_eq!(next.changed, Some(rect(93.0, 98.0, 19.0, 4.0)));
+    let dot = at(&line(1), Viewport::default(), None);
+    let two = at(&line(2), Viewport::default(), Some(&dot));
+    assert_eq!(two.changed, Some(rect(8.0, 98.0, 14.0, 4.0)));
+    let shorter = at(&line(9), Viewport::default(), Some(&first));
+    assert_eq!(shorter.changed, Some(rect(9.0, 99.0, 92.0, 2.0)), "not grown: the whole line");
+}

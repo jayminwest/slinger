@@ -1,8 +1,9 @@
 //! A copy of one canvas page as the server holds it (docs/service.md): made
 //! from `canvas_show`, then kept up to date by applying the change feed's
-//! operations in order. Pure. It owns the reading of the canvas file's item
-//! objects (docs/design/canvas-file.md): lengths in tenths of a unit, stroke
-//! and arrow points as a delta array, colours as `#rrggbb`.
+//! operations in order. Pure. It owns the canvas file's item objects
+//! (docs/design/canvas-file.md): lengths in tenths of a unit, stroke and
+//! arrow points as a delta array, colours as `#rrggbb`. It reads them, and
+//! writes the pen's strokes ([`stroke_object`]).
 //!
 //! What it cannot draw it leaves out (an item of a kind it does not know, an
 //! operation it does not know); the server keeps those, so nothing is lost.
@@ -14,6 +15,7 @@ use slinger_control::{CanvasFeed, CanvasPage};
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::ink::Stroke;
 
 /// The height of text, in canvas units: the packet's text size, so the pane
 /// and the images an agent reads agree.
@@ -59,6 +61,11 @@ impl Mirror {
             mirror.put(item);
         }
         mirror
+    }
+
+    /// The id of the page.
+    pub fn page(&self) -> &str {
+        &self.page
     }
 
     /// The page's items that can be drawn, bottom first.
@@ -249,6 +256,30 @@ fn points(pts: &Value) -> Option<Vec<Point>> {
         Point { x: at.x / 10.0, y: at.y / 10.0 }
     });
     Some(points.collect())
+}
+
+/// A pen stroke as the item object an `add` takes: its page, `#rrggbb`, its
+/// width and its points as a delta array, each value rounded to the tenth
+/// before the deltas are taken (so error does not build up along it). A
+/// width is at least one tenth.
+pub fn stroke_object(stroke: &Stroke) -> Value {
+    #[expect(clippy::cast_possible_truncation, reason = "canvas units are far inside i64")]
+    let tenths = |v: f64| (v * 10.0).round() as i64;
+    let mut pts = Vec::with_capacity(stroke.points.len() * 2);
+    let mut last = (0, 0);
+    for p in &stroke.points {
+        let at = (tenths(p.x), tenths(p.y));
+        pts.extend([at.0 - last.0, at.1 - last.1]);
+        last = at;
+    }
+    let Rgb { r, g, b } = stroke.colour;
+    serde_json::json!({
+        "page": stroke.page,
+        "kind": "stroke",
+        "color": format!("#{r:02x}{g:02x}{b:02x}"),
+        "width": tenths(stroke.width).max(1),
+        "pts": pts,
+    })
 }
 
 /// The frame text is drawn in. A stored frame narrower than one character

@@ -1,10 +1,12 @@
 //! The macOS layer. Every `unsafe` block and every objc2 or `AppKit` call in the
 //! project is in this directory (gate check:layers, rule `platform-owns-ffi`).
 //! It exposes safe functions and makes no decisions: it turns a key press
-//! into a [`Chord`], a pen or mouse event into a [`Point`] and a trackpad
-//! scroll or pinch into a pan or a zoom, and hands them on, and it draws what
-//! a [`Scene`] says. Each canvas pane is a view of its own (`canvas`) that
-//! lives as long as its pane, so a new scene repaints only what changed.
+//! into a [`Chord`], a pen or mouse event into a [`Pen`] (every point: mouse
+//! coalescing is off) and a trackpad scroll or pinch into a pan or a zoom,
+//! and hands them on, and it draws what a [`Scene`] says. A canvas view
+//! says how long after its pen event it painted new ink (SPEC O2). Each
+//! canvas pane is a view of its own (`canvas`) that lives as long as its
+//! pane, so a new scene repaints only what changed.
 //! `web` shows agent UIs in sandboxed web views, each kept as long as its
 //! page is shown.
 //!
@@ -23,8 +25,8 @@ use objc2::rc::Retained;
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSBox, NSBoxType, NSColor,
-    NSEvent, NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment, NSTextField,
-    NSTitlePosition, NSView, NSWindow, NSWindowOrderingMode, NSWindowStyleMask,
+    NSEvent, NSEventSubtype, NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment,
+    NSTextField, NSTitlePosition, NSView, NSWindow, NSWindowOrderingMode, NSWindowStyleMask,
 };
 use objc2_foundation::{NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
@@ -32,6 +34,7 @@ use self::canvas::CanvasView;
 use crate::commands::Chord;
 use crate::config::Rgb;
 use crate::layout::{PaneId, Point, Rect};
+use crate::scene::ink::Pen;
 use crate::scene::{Border, Label, Scene};
 
 /// How often the main thread looks for a new scene, in seconds.
@@ -53,10 +56,15 @@ pub enum Event {
     Tick,
     /// A key press.
     Key(Chord),
-    /// The pen or pointer moved to a point in the window (top-left origin).
+    /// The pen or pointer moved to a point in the window (top-left origin),
+    /// with no button down.
     Moved(Point),
-    /// The pen or the mouse button went down at a point in the window.
-    Press(Point),
+    /// The pen or the mouse button went down.
+    Press(Pen),
+    /// The pen or the mouse moved while down.
+    Drag(Pen),
+    /// The pen lifted, or the mouse button came up.
+    Lift(Pen),
     /// A two-finger scroll (or a mouse wheel) over a point in the window:
     /// drag what is under it by `dx`, `dy` points.
     Scroll { at: Point, dx: f64, dy: f64 },
@@ -65,6 +73,9 @@ pub enum Event {
     /// An agent UI replied: its `ui_reply` line, for the daemon to hand to
     /// the agent. Answer [`Step::Refuse`] when it cannot go on.
     Reply(String),
+    /// A canvas pane painted, this many seconds after the pen event its
+    /// scene was the first to show.
+    Painted(f64),
 }
 
 /// What to do about an [`Event`].
@@ -128,16 +139,20 @@ define_class!(
             NSApplication::sharedApplication(self.mtm()).terminate(None);
         }
 
-        /// Every event for the window comes through here first. A key press
-        /// or a press the app uses stops here; everything else, moves
-        /// included, goes on as usual.
+        /// Every event for the window comes through here first. A key press,
+        /// pen or mouse event, scroll or pinch the app uses stops here;
+        /// everything else, moves included, goes on as usual.
         #[unsafe(method(sendEvent:))]
         fn send_event(&self, event: &NSEvent) {
             let kind = event.r#type();
             let used = if kind == NSEventType::KeyDown {
                 chord(event).is_some_and(|chord| dispatch(Event::Key(chord), self.mtm()))
             } else if kind == NSEventType::LeftMouseDown {
-                dispatch(Event::Press(self.point(event)), self.mtm())
+                dispatch(Event::Press(self.pen(event)), self.mtm())
+            } else if kind == NSEventType::LeftMouseDragged {
+                dispatch(Event::Drag(self.pen(event)), self.mtm())
+            } else if kind == NSEventType::LeftMouseUp {
+                dispatch(Event::Lift(self.pen(event)), self.mtm())
             } else if kind == NSEventType::ScrollWheel {
                 let unit = if event.hasPreciseScrollingDeltas() { 1.0 } else { WHEEL_LINE };
                 let (dx, dy) = (event.scrollingDeltaX() * unit, event.scrollingDeltaY() * unit);
@@ -146,7 +161,7 @@ define_class!(
                 let factor = 1.0 + event.magnification();
                 dispatch(Event::Zoom { at: self.point(event), factor }, self.mtm())
             } else {
-                if kind == NSEventType::MouseMoved || kind == NSEventType::LeftMouseDragged {
+                if kind == NSEventType::MouseMoved {
                     dispatch(Event::Moved(self.point(event)), self.mtm());
                 }
                 false
@@ -166,6 +181,12 @@ impl KeyWindow {
         let at = event.locationInWindow();
         let height = self.contentView().map_or(0.0, |v| v.frame().size.height);
         Point { x: at.x, y: height - at.y }
+    }
+
+    /// A pen or mouse event: where, when, and whether a finger made it.
+    fn pen(&self, event: &NSEvent) -> Pen {
+        let touch = event.subtype() == NSEventSubtype::Touch;
+        Pen { at: self.point(event), when: event.timestamp(), touch }
     }
 }
 
@@ -187,7 +208,10 @@ fn chord(event: &NSEvent) -> Option<Chord> {
 /// when the answer is [`Step::Pass`].
 fn dispatch(event: Event, mtm: MainThreadMarker) -> bool {
     let Some(state) = STATE.get() else { return false };
-    let step = (state.answer.borrow_mut())(event);
+    // An event that comes while the answer runs (none should) is dropped.
+    let Ok(mut answer) = state.answer.try_borrow_mut() else { return false };
+    let step = answer(event);
+    drop(answer);
     match step {
         Step::Pass => return false,
         Step::Stay | Step::Refuse(_) => {}
@@ -218,8 +242,8 @@ fn reply(line: String, mtm: MainThreadMarker) -> Result<(), String> {
 /// Shows `scene` in a window and runs the app until it quits (the window
 /// closes, or a [`Step::Quit`]). Each key press and twice a second a tick go
 /// to `answer` on the main thread, which must return quickly; so do pen and
-/// mouse presses and moves in the window. Call it from
-/// `main`.
+/// mouse presses, drags, lifts and moves in the window, and each paint of
+/// new ink. Call it from `main`.
 ///
 /// # Errors
 ///
@@ -231,6 +255,8 @@ pub fn run(
     let mtm = MainThreadMarker::new().ok_or(NotMainThread)?;
     let app = NSApplication::sharedApplication(mtm);
     app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+    // Every pen point, not one per frame: a fast stroke keeps its shape.
+    NSEvent::setMouseCoalescingEnabled(false);
     let window = window(mtm, scene);
     // SAFETY: the target implements `tick:`, which takes the timer. The run
     // loop keeps the repeating timer, and the timer keeps its target.

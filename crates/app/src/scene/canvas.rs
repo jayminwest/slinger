@@ -96,6 +96,11 @@ pub struct Scene {
     /// The screen box to repaint since the last scene; `None` when nothing
     /// on the screen changed.
     pub changed: Option<Rect>,
+    /// When the oldest pen event this scene is the first to show happened,
+    /// on the clock the pen's events carry (seconds since the machine
+    /// started); `None` for a scene no pen event made. Only to measure the
+    /// delay from pen to paint (SPEC O2).
+    pub pen_event: Option<f64>,
 }
 
 /// The length of an arrow's head barbs, in canvas points.
@@ -111,8 +116,8 @@ const MIN_CONTRAST: f64 = 1.5;
 /// on `theme`'s background. Pass the scene before this one as `last` to
 /// learn what changed: with no last scene, or after the viewport, the size
 /// or the background changed, the whole pane did.
-pub fn build(
-    items: &[Item],
+pub fn build<'a>(
+    items: impl IntoIterator<Item = &'a Item>,
     viewport: Viewport,
     screen: Size,
     theme: &Theme,
@@ -120,7 +125,7 @@ pub fn build(
 ) -> Scene {
     let visible = viewport.visible(screen);
     let draws: Vec<Draw> = items
-        .iter()
+        .into_iter()
         .filter_map(|item| {
             let bounds = item.shape.bounds()?;
             bounds.intersection(visible)?;
@@ -144,16 +149,47 @@ pub fn build(
         }
         _ => Some(pane),
     };
-    Scene { viewport, screen, background, draws, changed }
+    Scene { viewport, screen, background, draws, changed, pen_event: None }
 }
 
-/// The box around every draw that is in one list and not, unchanged, in the other.
+/// The box around every draw that is in one list and not, unchanged, in the
+/// other. A pen line that only grew at its end (the stroke under the pen)
+/// counts only its new end, so a long stroke does not repaint whole at
+/// every pen event.
 fn changed_between(old: &[Draw], new: &[Draw]) -> Option<Rect> {
     let before: HashMap<ItemId, &Draw> = old.iter().map(|d| (d.id, d)).collect();
     let after: HashMap<ItemId, &Draw> = new.iter().map(|d| (d.id, d)).collect();
-    let gone = old.iter().filter(|d| after.get(&d.id).copied() != Some(*d));
-    let came = new.iter().filter(|d| before.get(&d.id).copied() != Some(*d));
-    gone.chain(came).map(|d| d.bounds).reduce(Rect::union)
+    let gone = old.iter().filter(|d| !after.contains_key(&d.id)).map(|d| d.bounds);
+    let came = new.iter().filter_map(|d| match before.get(&d.id) {
+        None => Some(d.bounds),
+        Some(was) if *was == d => None,
+        Some(was) => Some(grown(was, d).unwrap_or_else(|| was.bounds.union(d.bounds))),
+    });
+    gone.chain(came).reduce(Rect::union)
+}
+
+/// The screen box of what `new` adds to `old`, when both are the same pen
+/// line and `new` only grew at its end. Smoothing changes only a line's last
+/// curve when a point comes, so the box holds `old`'s last curve and `new`'s
+/// curves after it. A cubic stays inside its points' box.
+#[expect(clippy::float_cmp, reason = "the same line's width is the same value, from one product")]
+fn grown(old: &Draw, new: &Draw) -> Option<Rect> {
+    let (
+        Mark::Stroke { start: a, curves: was, width: w },
+        Mark::Stroke { start: b, curves: now, width },
+    ) = (&old.mark, &new.mark)
+    else {
+        return None;
+    };
+    let kept = was.len().checked_sub(1)?;
+    let same = a == b && w == width && old.colour == new.colour;
+    if !same || now.len() < was.len() || was[..kept] != now[..kept] {
+        return None;
+    }
+    let from = if kept == 0 { *a } else { was[kept - 1][2] };
+    let points = was[kept..].iter().chain(&now[kept..]).flatten().copied();
+    // One point more on each side for the edge's smoothing.
+    Rect::around(points.chain([from])).map(|r| r.outset(width / 2.0 + 1.0))
 }
 
 impl Shape {

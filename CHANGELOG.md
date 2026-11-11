@@ -27,6 +27,13 @@ bullet with the area in bold.
   `slinger-app --preview <UI> [--data JSON]` shows one UI alone, with that
   data, and prints each reply as a `ui_reply` JSON line.
 
+- **Canvas:** draw with the pen. With the pen tool, a stroke on a canvas pane
+  shows under the pen at once, at a constant width in the pen's colour, and
+  is saved to the canvas when the pen lifts (one stroke, one undo step). If
+  the daemon cannot be reached, your strokes stay on screen and are saved, in
+  the order you drew them, once it is back. A palm or finger on a tablet
+  display does not draw. The app writes each stroke's pen-to-screen delay to
+  stderr as an `ink:` line.
 - **App:** a sidebar lists the open workspaces and each agent's status with
   one mark: working, blocked or done. `toggle-sidebar` (cmd+b) opens or
   collapses it, and `[window] sidebar = "open"` or `"closed"` sets how the app
