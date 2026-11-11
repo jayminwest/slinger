@@ -6,7 +6,7 @@
 use super::{Canvases, pane_shown};
 use crate::commands::{Chord, Command, Keymap};
 use crate::config::Theme;
-use crate::layout::{Point, Rect};
+use crate::layout::{Point, Rect, Viewport};
 use crate::panes::Panes;
 use crate::scene::Scene;
 use crate::scene::select::Selection;
@@ -120,7 +120,7 @@ impl Canvases {
         let bounds =
             self.select.bounds(&pane_shown(&self.open, &self.views, &self.ink, panes, pane))?;
         let view = self.views.iter().find(|(p, _)| *p == pane);
-        let on = view.map(|(_, v)| v.viewport).unwrap_or_default().rect_to_screen(bounds);
+        let on = view.map_or_else(Viewport::start, |(_, v)| v.viewport).rect_to_screen(bounds);
         Some((selection, Rect { x: on.x + frame.x, y: on.y + frame.y, ..on }, frame))
     }
 }
@@ -133,7 +133,7 @@ mod tests {
     use crate::backend::testing::{fake_claude, fake_flick, ready, user_stroke, wait_until};
     use crate::backend::tests::{open_notes, with_store};
     use crate::config::{Config, Rgb};
-    use crate::layout::WINDOW;
+    use crate::layout::{CANVAS_MARGIN, WINDOW};
     use crate::panes::{Kind, Pane};
     use crate::scene::ink::Pen;
     use crate::scene::tools::Tool;
@@ -204,7 +204,8 @@ mod tests {
     fn sling(canvases: &mut Canvases, panes: &Panes, prompt: &str) {
         assert!(canvases.open_sling(panes, WINDOW.rect()));
         let entry = shown(canvases, panes).entry.unwrap();
-        assert!(entry.frame.y > 110.0 && entry.frame.x <= 100.0, "under the stroke: {entry:?}");
+        let (x, y) = (entry.frame.x - CANVAS_MARGIN, entry.frame.y - CANVAS_MARGIN);
+        assert!(y > 110.0 && x <= 100.0, "under the stroke: {entry:?}");
         let on = Point { x: entry.frame.x + 1.0, y: entry.frame.y + 1.0 };
         assert!(canvases.sling_covers(on) && canvases.typing());
         assert!(!canvases.sling_key(Chord::new(0, 'w')), "a letter is the entry's");

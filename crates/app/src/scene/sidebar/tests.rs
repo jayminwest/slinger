@@ -34,8 +34,10 @@ fn notice(sidebar: &Sidebar) -> Option<String> {
     sidebar.notice(&T, WINDOW).map(|l| l.text)
 }
 
-fn shown(labels: &[Label]) -> Vec<(&str, Rgb)> {
-    labels.iter().map(|l| (l.text.as_str(), l.colour)).collect()
+/// Each row's text and colour, less the shown workspace's background.
+fn shown(rows: &[Row]) -> Vec<(&str, Rgb)> {
+    let texts = rows.iter().filter(|r| r.label.fill.is_none());
+    texts.map(|r| (r.label.text.as_str(), r.label.colour)).collect()
 }
 
 #[test]
@@ -47,13 +49,13 @@ fn reads_the_three_statuses_and_nothing_else() {
 }
 
 #[test]
-fn open_it_lists_each_workspace_and_its_agents_mark() {
+fn open_it_lists_each_workspace_under_a_heading_with_its_agents_mark_and_status() {
     let mut idle = ws("x", None);
     idle.name = "idle".into();
     let none = Workspace { name: "plain".into(), canvas: "plain".into(), agent: None };
     let sidebar = heard(vec![
-        ws("ada", Some(Status::Working)),
-        ws("bo", Some(Status::Blocked)),
+        noted("ada", Status::Working, "only a blocked note shows"),
+        noted("bo", Status::Blocked, "which key?"),
         ws("cy", Some(Status::Done)),
         idle,
         none,
@@ -62,28 +64,69 @@ fn open_it_lists_each_workspace_and_its_agents_mark() {
     assert_eq!(
         shown(&rows),
         [
+            ("WORKSPACES", T.muted),
             ("ada-ws", T.text),
             ("●", T.focus),
-            ("ada", T.muted),
+            ("ada · working", T.muted),
             ("bo-ws", T.text),
-            ("●", T.error),
-            ("bo", T.muted),
+            ("■", T.error),
+            ("bo · blocked", T.muted),
+            ("which key?", T.muted),
             ("cy-ws", T.text),
-            ("✓", T.text),
-            ("cy", T.muted),
+            ("●", DONE),
+            ("cy · done", T.muted),
             ("idle", T.text),
             ("○", T.muted),
             ("x", T.muted),
             ("plain", T.text),
+            ("no agent", T.muted),
         ]
     );
-    // A mark and its agent share a line, indented under the workspace.
-    let (name, mark, agent) = (rows[0].frame, rows[1].frame, rows[2].frame);
-    assert!(mark.y > name.y);
+    let heading = rows.iter().find(|r| r.label.text == "WORKSPACES").unwrap().font;
+    assert_eq!(heading, Font { size: Some(11.0), bold: false, spacing: 1.0 });
+    // A mark and its agent share a line, set in under the workspace; the
+    // note and `no agent` line up with the agent.
+    let at = |text: &str| rows.iter().find(|r| r.label.text == text).unwrap().label.frame;
+    let (name, mark, agent, why) = (at("bo-ws"), at("■"), at("bo · blocked"), at("which key?"));
+    assert!(mark.y > name.y && why.y > agent.y);
     assert_eq!(mark.y.to_bits(), agent.y.to_bits());
-    assert!(name.x < mark.x && mark.x + mark.width <= agent.x);
-    assert!(rows.iter().all(|l| l.frame.x + l.frame.width <= WIDTH && l.fill.is_none()));
+    assert!(name.x <= mark.x && mark.x + mark.width <= agent.x);
+    assert_eq!(
+        (why.x.to_bits(), at("no agent").x.to_bits()),
+        (agent.x.to_bits(), agent.x.to_bits())
+    );
+    assert!(rows.iter().all(|r| r.label.frame.x + r.label.frame.width <= WIDTH));
     assert_eq!(sidebar.panes(WINDOW), Rect { x: WIDTH, width: 960.0 - WIDTH, ..WINDOW });
+}
+
+#[test]
+fn the_shown_workspace_is_bold_on_a_lighter_row() {
+    let mut sidebar = heard(vec![noted("ada", Status::Blocked, "why"), ws("bo", None)]);
+    let lit = |sidebar: &Sidebar| {
+        let rows = sidebar.rows(&T, WINDOW);
+        let fills: Vec<_> = rows.iter().filter(|r| r.label.fill.is_some()).cloned().collect();
+        let bold: Vec<_> =
+            rows.iter().filter(|r| r.font.bold).map(|r| r.label.text.clone()).collect();
+        (rows, fills, bold)
+    };
+    let (rows, fills, bold) = lit(&sidebar);
+    assert_eq!(bold, ["ada-ws"], "unset: the first");
+    let [fill] = fills.as_slice() else { panic!("one row lit: {fills:?}") };
+    assert_eq!((fill.label.text.as_str(), fill.label.fill), ("", Some(lighter(&T))));
+    let theme = Theme::default();
+    assert!(lighter(&theme).r > theme.background.r && lighter(&theme).r < theme.text.r);
+    assert_eq!(rows[0], *fill, "drawn first, under its text");
+    let row = |t: &str| rows.iter().find(|r| r.label.text == t).unwrap().label.frame;
+    let (frame, why) = (fill.label.frame, row("why"));
+    assert_eq!((frame.x, frame.width), (WINDOW.x, WIDTH));
+    assert_eq!(frame.y.to_bits(), row("ada-ws").y.to_bits());
+    assert_eq!((frame.y + frame.height).to_bits(), (why.y + why.height).to_bits(), "to the note");
+
+    sidebar.show(Some("bo-ws".into()));
+    assert_eq!(lit(&sidebar).2, ["bo-ws"]);
+    sidebar.show(Some("gone".into()));
+    let (_, fills, bold) = lit(&sidebar);
+    assert!(fills.is_empty() && bold.is_empty());
 }
 
 #[test]
@@ -94,13 +137,16 @@ fn collapsed_it_shows_nothing_and_the_panes_take_the_window() {
     assert_eq!(sidebar.rows(&T, WINDOW), []);
     assert_eq!(sidebar.panes(WINDOW), WINDOW);
     sidebar.set_open(true);
-    assert_eq!(sidebar.rows(&T, WINDOW).len(), 3);
+    assert_eq!(shown(&sidebar.rows(&T, WINDOW)).len(), 4);
 }
 
 #[test]
 fn before_the_first_list_it_is_empty_and_with_none_it_says_so() {
     assert_eq!(Sidebar::new(true).rows(&T, WINDOW), []);
-    assert_eq!(shown(&heard(vec![]).rows(&T, WINDOW)), [("no open workspaces", T.muted)]);
+    assert_eq!(
+        shown(&heard(vec![]).rows(&T, WINDOW)),
+        [("WORKSPACES", T.muted), ("no open workspaces", T.muted)]
+    );
 }
 
 #[test]
@@ -120,7 +166,7 @@ fn lines_that_do_not_fit_are_left_out() {
     let many: Vec<_> = (0..40).map(|i| ws(&format!("a{i}"), None)).collect();
     let rows = heard(many).rows(&T, WINDOW);
     assert!(rows.len() < 120);
-    assert!(rows.iter().all(|l| l.frame.y + l.frame.height <= WINDOW.height));
+    assert!(rows.iter().all(|r| r.label.frame.y + r.label.frame.height <= WINDOW.height));
 }
 
 #[test]
@@ -199,10 +245,13 @@ fn a_lost_daemon_shows_its_problem_and_its_return_is_a_new_start() {
     let lost = Problem { message: "no daemon".into(), hint: None };
     assert!(sidebar.update(Err(lost)));
     assert_eq!(notice(&sidebar), None);
-    assert_eq!(shown(&sidebar.rows(&T, WINDOW)), [("✗ no daemon", T.error)]);
+    assert_eq!(
+        shown(&sidebar.rows(&T, WINDOW)),
+        [("WORKSPACES", T.muted), ("✗ no daemon", T.error)]
+    );
     sidebar.update(Ok(vec![ws("ada", Some(Status::Done))]));
     assert_eq!(notice(&sidebar), None, "the first list after it");
-    assert_eq!(sidebar.rows(&T, WINDOW).len(), 3);
+    assert_eq!(shown(&sidebar.rows(&T, WINDOW)).len(), 4);
 }
 
 #[test]

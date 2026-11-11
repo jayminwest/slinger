@@ -125,6 +125,7 @@ fn window(mut settings: Settings) -> ExitCode {
     let watch = Watch::start(socket.clone(), settings.config.workspace.clone());
     let mut shown = settings.config.sidebar;
     let mut sidebar = Sidebar::new(shown == Shown::Open);
+    sidebar.show(settings.config.workspace.clone());
     let centre = Point { x: layout::WINDOW.width / 2.0, y: layout::WINDOW.height / 2.0 };
     let mut tools = Tools::new(settings.config.palette.clone(), centre);
     let mut shared = Shared::default();
@@ -215,6 +216,7 @@ fn window(mut settings: Settings) -> ExitCode {
                 sidebar.set_open(shown == Shown::Open);
             }
             watch.want(settings.config.workspace.clone());
+            sidebar.show(settings.config.workspace.clone());
             let now = settings.socket();
             if now != socket {
                 watch.follow(now.clone());

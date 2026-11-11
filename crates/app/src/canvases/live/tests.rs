@@ -6,7 +6,7 @@ use super::*;
 use crate::backend::testing::{user_stroke, wait_until};
 use crate::backend::tests::{open_notes, with_daemon};
 use crate::config::{Config, Rgb};
-use crate::layout::{Rect, WINDOW};
+use crate::layout::{CANVAS_MARGIN, Rect, WINDOW};
 use crate::panes::{Kind, Pane, Panes};
 use crate::scene::canvas::ItemId;
 use crate::scene::ink::Pen;
@@ -46,9 +46,10 @@ fn an_agent_s_live_item_shows_its_page_which_takes_presses_until_it_is_selected(
         };
         let opened = daemon.ui_open(ask).unwrap();
         let item = opened.item.unwrap();
+        // In the pane: a new view has the canvas origin in by the margin.
         let unit = |v: i64| f64::from(i32::try_from(v).unwrap()) / 10.0;
-        let frame =
-            Rect { x: unit(item.x), y: unit(item.y), width: unit(item.w), height: unit(item.h) };
+        let (x, y) = (unit(item.x) + CANVAS_MARGIN, unit(item.y) + CANVAS_MARGIN);
+        let frame = Rect { x, y, width: unit(item.w), height: unit(item.h) };
 
         let panes = Panes::new(Pane { kind: Kind::Canvas, name: "notes".into() });
         let mut canvases = Canvases::new(daemon.clone());

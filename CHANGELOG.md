@@ -26,6 +26,15 @@ bullet with the area in bold.
   (`cmd+k`). They do nothing yet: the key overlay and the command palette
   that they open come next. Rebind them in `[keys]` as any other command.
 
+- **App:** the sidebar has a `WORKSPACES` heading and a row per workspace:
+  its name, bold on a lighter row for the workspace the window shows; under
+  it the agent's mark with `<agent> · <status>` (or `no agent`); and, when
+  the agent is blocked, its note. The marks differ in shape as well as
+  colour: round for working, round and green for done, square and red for
+  blocked. The button's mark matches.
+- **App:** the focus border shows only when there are two panes or more.
+- **App:** a canvas pane's view starts with a margin, so an item at the
+  canvas's origin no longer touches the pane's edge.
 - **App:** the "send to agent" button. The `place-button` command
   (`cmd+shift+b`) puts one in the middle of the focused canvas pane. Tap it
   to sling what is new on the page since the last sling to the agent of the
