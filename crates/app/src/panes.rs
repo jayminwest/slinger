@@ -105,7 +105,8 @@ impl Panes {
         self.tree.rects(area).into_iter().map(|(id, rect)| (id, self.shows(id), rect)).collect()
     }
 
-    fn shows(&self, id: PaneId) -> &Pane {
+    /// What pane `id` shows.
+    pub fn shows(&self, id: PaneId) -> &Pane {
         let found = self.shows.iter().find(|(p, _)| *p == id);
         // The tree and `shows` change together, so every pane has an entry.
         found.map_or(&self.shows[0].1, |(_, pane)| pane)

@@ -227,9 +227,16 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
              panes (pane_list: the config's, else the first open one) every
              second on a thread of its own, and the window's timer takes the
              news without blocking.
+             Its Follower keeps one canvas page coming: `canvas_show`,
+             then the change feed.
 backend/panes.rs  the server's panes: `layout` for the Watch, and `open` and
              `close`, which send the window's own splits and closes to the
              server as `pane_open` and `pane_close`.
+mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
+             feed reply applied in order; reads the canvas file's items
+             (tenths, delta points, `#rrggbb`) into scene items. Pure.
+canvases.rs  the canvas panes: one follower and mirror per canvas shown, each
+             pane's viewport and last scene; pan, zoom and next page.
 config.rs    the config file's format: text in, a typed config or an error
              with its line out; merges a machine's overlay over it. Pure.
 commands.rs  key commands: the closed list of commands, the chord parser and
@@ -259,7 +266,9 @@ layout/tree.rs  the pane tree: binary splits with ratios to rectangles (no
              takes the space), grow, next, and the pane beside one in a
              direction. Pure.
 platform/    draws a scene, turns a key press into a chord and a pen or mouse
-             event into a point. All unsafe, objc2 and AppKit code. No decisions.
+             event into a point. One view per canvas pane repaints only the
+             box its scene says changed. All unsafe, objc2 and AppKit code.
+             No decisions.
 ```
 
 **Threading rule:** AppKit runs on the main thread only. Every `platform`
@@ -276,11 +285,21 @@ the workspace's panes come from `backend::Watch`'s one thread, so a daemon
 that is slow to answer never holds up the window; the timer takes its
 latest answers and draws only when the scene changed. A pane opened from a
 terminal shows within a second, and a daemon that cannot be reached shows
-as the problem. The release profile builds the app at `opt-level = "z"`. A file
+as the problem. The same timer drains the canvas followers.
+The release profile builds the app at `opt-level = "z"`. A file
 with an error keeps the last good config, and the window shows the file,
 the line and what to fix.
 A new setting changes `config.rs` (the key, its default, its test) and the
 example file, which a test checks against the keys.
+
+**Canvases:** each canvas a pane shows has one follower thread, which
+blocks on the daemon's change feed (a long wait, so an idle canvas costs no
+requests) and sends what it hears down a channel. The main thread drains
+the channels on its half-second timer, applies the operations to the page's
+mirror and builds a new scene: a change shows within about half a second.
+A lost daemon or canvas is a problem in the pane, and the follower tries
+again each second. The app binary has a size budget, and the release
+profile builds it at `opt-level = "z"`, so it adds no async runtime.
 
 **Keys:** every action is a named command (SPEC P4), bound to a chord in the
 config's `[keys]` table. The window's `sendEvent:` turns each key press into
@@ -346,6 +365,9 @@ Each boundary has something that fails when it is broken:
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |
 | A layout reads back as written; a closed pane's space goes to its sibling | the tests of `crates/core/src/workspace/panes.rs`, `crates/app/src/layout/tree.rs` and `crates/app/src/panes.rs` |
 | Panes open, close and list through the socket, each change records `pane_moved`, closing a pane already gone succeeds, the layout survives a restart; the app follows another client's change | `crates/daemon/src/tests/pane.rs` through a real socket, and `crates/app/src/backend.rs` |
+| A canvas page reads every kind from the canvas file and follows each feed operation | `crates/app/src/mirror/tests.rs` |
+| A follower shows the page, hands on each change, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
+| A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |
 | Layout is fully tested | the 100% floor on `crates/app/src/layout.rs` in `budgets/coverage-budgets.json` |
 | The app binary does not grow unnoticed | `check:binary-size` |
 

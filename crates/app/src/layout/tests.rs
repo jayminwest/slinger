@@ -179,7 +179,7 @@ fn the_window_fits_two_lines_inside_its_margins() {
 
 #[test]
 fn a_popup_is_centred_on_the_pen_with_its_cells_in_a_row() {
-    let pop = popup(pt(200.0, 100.0), 3, SWATCH, SCREEN);
+    let pop = popup(pt(200.0, 100.0), 3, SWATCH, SCREEN.rect());
     // 3 cells of 24 and 4 pads of 6 wide; 24 and 2 pads high.
     assert_eq!(pop.panel, rect(200.0 - 48.0, 100.0 - 18.0, 96.0, 36.0));
     let xs: Vec<f64> = pop.cells.iter().map(|c| c.x).collect();
@@ -194,26 +194,34 @@ fn a_popup_is_centred_on_the_pen_with_its_cells_in_a_row() {
 #[test]
 fn a_popup_near_an_edge_moves_inside_it() {
     let size = |p: &Popup| (p.panel.width, p.panel.height);
-    let top_left = popup(pt(3.0, 2.0), 4, WORD, SCREEN);
+    let top_left = popup(pt(3.0, 2.0), 4, WORD, SCREEN.rect());
     assert_eq!((top_left.panel.x, top_left.panel.y), (8.0, 8.0));
-    let bottom_right = popup(pt(799.0, 599.0), 4, WORD, SCREEN);
+    let bottom_right = popup(pt(799.0, 599.0), 4, WORD, SCREEN.rect());
     let (w, h) = size(&bottom_right);
     assert_eq!((bottom_right.panel.x, bottom_right.panel.y), (800.0 - 8.0 - w, 600.0 - 8.0 - h));
-    let off_screen = popup(pt(-500.0, 9000.0), 4, WORD, SCREEN);
+    let off_screen = popup(pt(-500.0, 9000.0), 4, WORD, SCREEN.rect());
     assert_eq!((off_screen.panel.x, off_screen.panel.y), (8.0, 600.0 - 8.0 - h));
     assert_eq!(off_screen.cells[0].x, 8.0 + 6.0);
 }
 
 #[test]
+fn a_popup_stays_inside_a_pane_away_from_the_origin() {
+    let pane = rect(400.0, 300.0, 400.0, 300.0);
+    let pop = popup(pt(401.0, 599.0), 4, WORD, pane);
+    let h = pop.panel.height;
+    assert_eq!((pop.panel.x, pop.panel.y), (408.0, 600.0 - 8.0 - h));
+}
+
+#[test]
 fn a_popup_too_big_for_its_space_keeps_its_top_left_in() {
-    let pop = popup(pt(20.0, 20.0), 9, WORD, Size { width: 100.0, height: 30.0 });
+    let pop = popup(pt(20.0, 20.0), 9, WORD, rect(0.0, 0.0, 100.0, 30.0));
     assert_eq!((pop.panel.x, pop.panel.y), (8.0, 8.0));
     assert!(pop.panel.width > 100.0);
 }
 
 #[test]
 fn a_popup_of_no_cells_is_an_empty_panel() {
-    let pop = popup(pt(100.0, 100.0), 0, SWATCH, SCREEN);
+    let pop = popup(pt(100.0, 100.0), 0, SWATCH, SCREEN.rect());
     assert_eq!(pop.cells, []);
     assert_eq!(pop.panel, rect(97.0, 82.0, 6.0, 36.0));
 }

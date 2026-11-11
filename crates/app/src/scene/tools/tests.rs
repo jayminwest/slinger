@@ -1,6 +1,6 @@
 use super::*;
 
-const WITHIN: Size = Size { width: 440.0, height: 160.0 };
+const WITHIN: Rect = Rect { x: 0.0, y: 0.0, width: 440.0, height: 160.0 };
 const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
 const GREEN: Rgb = Rgb { r: 0, g: 255, b: 0 };
 const BLUE: Rgb = Rgb { r: 0, g: 0, b: 255 };

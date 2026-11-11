@@ -181,6 +181,13 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
             "cmd+-",
             "cmd+b",
             "cmd+.",
+            "alt+left",
+            "alt+right",
+            "alt+up",
+            "alt+down",
+            "alt+=",
+            "alt+-",
+            "cmd+]",
         ]
         .map(|c| Some(Chord::parse(c))),
     };

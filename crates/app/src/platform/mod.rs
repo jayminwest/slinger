@@ -1,14 +1,18 @@
 //! The macOS layer. Every `unsafe` block and every objc2 or `AppKit` call in the
 //! project is in this directory (gate check:layers, rule `platform-owns-ffi`).
 //! It exposes safe functions and makes no decisions: it turns a key press
-//! into a [`Chord`] and a pen or mouse event into a [`Point`] and hands them
-//! on, and it draws what a [`Scene`] says.
+//! into a [`Chord`], a pen or mouse event into a [`Point`] and a trackpad
+//! scroll or pinch into a pan or a zoom, and hands them on, and it draws what
+//! a [`Scene`] says. Each canvas pane is a view of its own (`canvas`) that
+//! lives as long as its pane, so a new scene repaints only what changed.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
 //! that touches `AppKit` takes a `MainThreadMarker`, which only the main thread
 //! can make, so the compiler holds the rule. Blocking work (files, sockets)
 //! belongs on another thread; hand its result to the main thread to draw.
 #![expect(unsafe_code, reason = "the FFI boundary: AppKit is reached through objc2")]
+
+mod canvas;
 
 use std::cell::{Cell, RefCell};
 
@@ -17,13 +21,14 @@ use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSBox, NSBoxType, NSColor,
     NSEvent, NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment, NSTextField,
-    NSTitlePosition, NSWindow, NSWindowStyleMask,
+    NSTitlePosition, NSView, NSWindow, NSWindowOrderingMode, NSWindowStyleMask,
 };
-use objc2_foundation::{NSArray, NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
+use objc2_foundation::{NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
+use self::canvas::CanvasView;
 use crate::commands::Chord;
 use crate::config::Rgb;
-use crate::layout::{Point, Rect};
+use crate::layout::{PaneId, Point, Rect};
 use crate::scene::{Border, Label, Scene};
 
 /// How often the main thread looks for a new scene, in seconds.
@@ -49,6 +54,11 @@ pub enum Event {
     Moved(Point),
     /// The pen or the mouse button went down at a point in the window.
     Press(Point),
+    /// A two-finger scroll (or a mouse wheel) over a point in the window:
+    /// drag what is under it by `dx`, `dy` points.
+    Scroll { at: Point, dx: f64, dy: f64 },
+    /// A pinch over a point in the window: zoom by `factor` about it.
+    Zoom { at: Point, factor: f64 },
 }
 
 /// What to do about an [`Event`].
@@ -61,10 +71,25 @@ pub enum Step {
     Quit,
 }
 
-/// The running app's state: the window, and what answers its events.
+/// How far one line of a mouse wheel scrolls, in points. A trackpad gives points.
+const WHEEL_LINE: f64 = 16.0;
+
+/// The running app's state: the window, what answers its events, and what
+/// it shows.
 struct State {
     window: Retained<NSWindow>,
     answer: RefCell<Box<dyn FnMut(Event) -> Step>>,
+    shown: RefCell<Shown>,
+}
+
+/// The views a window shows: one per canvas pane, under the chrome (the
+/// sidebar, the focus border and the labels), and what the chrome was made from, so an
+/// unchanged one is kept.
+#[derive(Default)]
+struct Shown {
+    canvases: Vec<(PaneId, Retained<CanvasView>)>,
+    chrome: Vec<Retained<NSView>>,
+    made_from: Option<(Vec<Label>, Vec<Label>, Border)>,
 }
 
 thread_local! {
@@ -105,6 +130,13 @@ define_class!(
                 chord(event).is_some_and(|chord| dispatch(Event::Key(chord), self.mtm()))
             } else if kind == NSEventType::LeftMouseDown {
                 dispatch(Event::Press(self.point(event)), self.mtm())
+            } else if kind == NSEventType::ScrollWheel {
+                let unit = if event.hasPreciseScrollingDeltas() { 1.0 } else { WHEEL_LINE };
+                let (dx, dy) = (event.scrollingDeltaX() * unit, event.scrollingDeltaY() * unit);
+                dispatch(Event::Scroll { at: self.point(event), dx, dy }, self.mtm())
+            } else if kind == NSEventType::Magnify {
+                let factor = 1.0 + event.magnification();
+                dispatch(Event::Zoom { at: self.point(event), factor }, self.mtm())
             } else {
                 if kind == NSEventType::MouseMoved || kind == NSEventType::LeftMouseDragged {
                     dispatch(Event::Moved(self.point(event)), self.mtm());
@@ -151,7 +183,7 @@ fn dispatch(event: Event, mtm: MainThreadMarker) -> bool {
     match step {
         Step::Pass => return false,
         Step::Stay => {}
-        Step::Draw(scene) => draw(&state.window, &scene, mtm),
+        Step::Draw(scene) => draw(state, &scene, mtm),
         // The window quits the app as it closes.
         Step::Quit => state.window.close(),
     }
@@ -175,8 +207,6 @@ pub fn run(
     let app = NSApplication::sharedApplication(mtm);
     app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
     let window = window(mtm, scene);
-    draw(&window, scene, mtm);
-    window.makeKeyAndOrderFront(None);
     // SAFETY: the target implements `tick:`, which takes the timer. The run
     // loop keeps the repeating timer, and the timer keeps its target.
     let _timer = unsafe {
@@ -189,8 +219,12 @@ pub fn run(
         )
     };
     let window = Retained::into_super(window);
+    let answer = RefCell::new(Box::new(answer) as Box<dyn FnMut(Event) -> Step>);
+    let shown = RefCell::new(Shown::default());
     // The app ends in `exit`, so the state lives as long as it does.
-    let state = Box::leak(Box::new(State { window, answer: RefCell::new(Box::new(answer)) }));
+    let state = Box::leak(Box::new(State { window, answer, shown }));
+    draw(state, scene, mtm);
+    state.window.makeKeyAndOrderFront(None);
     STATE.set(Some(state));
     app.activate();
     app.run();
@@ -220,26 +254,66 @@ fn window(mtm: MainThreadMarker, scene: &Scene) -> Retained<KeyWindow> {
     window
 }
 
-/// Makes `window` show `scene`: its title, background, sidebar, labels and border.
-fn draw(window: &NSWindow, scene: &Scene, mtm: MainThreadMarker) {
-    window.setTitle(&NSString::from_str(&scene.title));
+/// Makes the window show `scene`: its title, background, canvas panes,
+/// sidebar, labels and border. Canvas views stay from scene to scene; the chrome is
+/// made again only when it changed.
+fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
+    let window = &state.window;
+    let title = NSString::from_str(&scene.title);
+    if window.title() != title {
+        window.setTitle(&title);
+    }
     window.setBackgroundColor(Some(&color(scene.background)));
     let Some(view) = window.contentView() else { return };
-    view.setSubviews(&NSArray::new());
+    let mut shown = state.shown.borrow_mut();
     let height = scene.size.height;
+
+    shown.canvases.retain(|(pane, canvas)| {
+        let kept = scene.canvases.iter().any(|c| c.pane == *pane);
+        if !kept {
+            canvas.removeFromSuperview();
+        }
+        kept
+    });
+    for pane in &scene.canvases {
+        let frame = flipped(height, pane.frame);
+        let found = shown.canvases.iter().find(|(p, _)| *p == pane.pane);
+        let canvas = if let Some((_, canvas)) = found {
+            canvas.clone()
+        } else {
+            let canvas = CanvasView::new(frame, mtm);
+            // Below every other view: the chrome draws over the canvases.
+            view.addSubview_positioned_relativeTo(&canvas, NSWindowOrderingMode::Below, None);
+            shown.canvases.push((pane.pane, canvas.clone()));
+            canvas
+        };
+        canvas.show(frame, pane.scene.clone());
+    }
+
+    let made_from = Some((scene.sidebar.clone(), scene.labels.clone(), scene.focus));
+    if shown.made_from == made_from {
+        return;
+    }
+    for old in shown.chrome.drain(..) {
+        old.removeFromSuperview();
+    }
     for row in &scene.sidebar {
         let field = label(row, height, NSTextAlignment::Left, mtm);
         field.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
-        view.addSubview(&field);
+        shown.chrome.push(Retained::into_super(Retained::into_super(field)));
     }
     // The border first, so a pop-up at the pen draws over it.
-    view.addSubview(&border(&scene.focus, height, mtm));
+    shown.chrome.push(Retained::into_super(border(&scene.focus, height, mtm)));
     for line in &scene.labels {
         let field = label(line, height, NSTextAlignment::Center, mtm);
         // A line longer than its frame keeps both ends: paths end in the part that matters.
         field.setLineBreakMode(NSLineBreakMode::ByTruncatingMiddle);
-        view.addSubview(&field);
+        shown.chrome.push(Retained::into_super(Retained::into_super(field)));
     }
+    for chrome in &shown.chrome {
+        view.addSubview(chrome);
+    }
+    shown.made_from = made_from;
 }
 
 /// A text field that shows `line` in a view `height` tall.
