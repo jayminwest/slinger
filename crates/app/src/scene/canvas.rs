@@ -36,8 +36,9 @@ pub enum Shape {
     Text { frame: Rect, text: String, size: f64 },
     /// The outline of `frame`.
     Box { frame: Rect, width: f64 },
-    /// A line from `from` to `to`, with its head at `to`.
-    Arrow { from: Point, to: Point, width: f64 },
+    /// A line from `from` to `to`, with its head at `to`. `bound` holds the
+    /// items its two ends point at, if any: a bound end follows its item.
+    Arrow { from: Point, to: Point, width: f64, bound: [Option<ItemId>; 2] },
 }
 
 /// One thing to draw: a [`Shape`] placed by the viewport, in screen points.
@@ -201,7 +202,7 @@ impl Shape {
             }
             Self::Text { frame, .. } => Some(*frame),
             Self::Box { frame, width } => Some(frame.outset(width / 2.0)),
-            Self::Arrow { from, to, width } => {
+            Self::Arrow { from, to, width, .. } => {
                 Rect::around([*from, *to]).map(|r| r.outset(width / 2.0 + HEAD_LENGTH))
             }
         }
@@ -219,8 +220,8 @@ impl Shape {
                 Self::Text { frame: shift(frame), text: text.clone(), size: *size }
             }
             Self::Box { frame, width } => Self::Box { frame: shift(frame), width: *width },
-            Self::Arrow { from, to, width } => {
-                Self::Arrow { from: at(from), to: at(to), width: *width }
+            Self::Arrow { from, to, width, bound } => {
+                Self::Arrow { from: at(from), to: at(to), width: *width, bound: *bound }
             }
         }
     }
@@ -245,7 +246,7 @@ impl Shape {
             Self::Box { frame, width } => {
                 Mark::Box { frame: view.rect_to_screen(*frame), width: width * zoom }
             }
-            Self::Arrow { from, to, width } => Mark::Arrow {
+            Self::Arrow { from, to, width, .. } => Mark::Arrow {
                 from: view.to_screen(*from),
                 to: view.to_screen(*to),
                 barbs: barbs(*from, *to).map(|p| view.to_screen(p)),

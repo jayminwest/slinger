@@ -56,6 +56,10 @@ pub enum Event {
     Tick,
     /// A key press.
     Key(Chord),
+    /// The text a key press types, when its [`Event::Key`] was passed on:
+    /// as typed, with every modifier (control keys as their characters:
+    /// delete, return, escape).
+    Text(String),
     /// The pen or pointer moved to a point in the window (top-left origin),
     /// with no button down.
     Moved(Point),
@@ -147,6 +151,7 @@ define_class!(
             let kind = event.r#type();
             let used = if kind == NSEventType::KeyDown {
                 chord(event).is_some_and(|chord| dispatch(Event::Key(chord), self.mtm()))
+                    || typed(event).is_some_and(|text| dispatch(Event::Text(text), self.mtm()))
             } else if kind == NSEventType::LeftMouseDown {
                 dispatch(Event::Press(self.pen(event)), self.mtm())
             } else if kind == NSEventType::LeftMouseDragged {
@@ -202,6 +207,12 @@ fn chord(event: &NSEvent) -> Option<Chord> {
     #[expect(clippy::cast_possible_truncation, reason = "masked to four bits")]
     let mods = ((event.modifierFlags().0 >> 17) & 0xf) as u8;
     Some(Chord::new(mods, key))
+}
+
+/// The characters a key press types, if any.
+fn typed(event: &NSEvent) -> Option<String> {
+    let chars = event.characters()?;
+    (chars.length() > 0).then(|| chars.to_string())
 }
 
 /// Hands `event` to the app's answer and does what it says. Returns false

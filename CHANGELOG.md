@@ -27,6 +27,15 @@ bullet with the area in bold.
   `slinger-app --preview <UI> [--data JSON]` shows one UI alone, with that
   data, and prints each reply as a `ui_reply` JSON line.
 
+- **Canvas:** text, boxes and arrows. With the text tool, tap to place a
+  text and type it; `escape` or a tap outside ends it. Tap a text with the
+  text tool, or double tap it with any tool but the pen, to edit it; empty it
+  to remove it. With the box tool, drag from corner to corner; with the arrow
+  tool, drag from start to end. An arrow end that lands on an item stays on
+  it: move the item and the arrow follows. Each text, box, arrow and edit is
+  one step. Pick a tool from the tool and shape pop-ups or with the new
+  `tool-pen`, `tool-eraser`, `tool-lasso`, `tool-text`, `tool-box` and
+  `tool-arrow` keys (`cmd+1` to `cmd+6`).
 - **Canvas:** erase, select and move. With the eraser, every stroke the pen
   passes over goes at once; the whole drag is one step. With the lasso, draw
   a loop: the items wholly inside it are selected, with a box around them.
