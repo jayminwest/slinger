@@ -429,3 +429,6 @@ fn gesture(canvases: &mut Canvases, panes: &Panes, area: Rect, event: &Event) ->
     }
     true
 }
+
+#[cfg(test)]
+mod tests;
