@@ -330,6 +330,9 @@ canvases.rs  the canvas panes: one follower and mirror per page shown, each
              page turned to arrives); the pen's ink, the eraser's and
              lasso's work and the text, box and arrow tools' over each page,
              and the outbox they share. A selection no pane shows clears.
+             A press on a canvas closes the open entry (the sling's, the
+             feedback's, a page's new name's), but one on a button sends
+             the sling's.
 canvases/live.rs  the live items' pages: each showing a pane draws fetched
              once on a thread of its own, put over its item; a press on an
              item whose page shows goes to the page unless it grabs the
@@ -602,9 +605,10 @@ scene/palette.rs  the command palette (`show-commands`): open or closed,
              a subsequence (a paste goes in too), ranked: title prefix,
              word start, title subsequence, then group. Empty, the command
              it last ran leads, then by Group::ALL with Quit last. 44 pt
-             high, each with the group and the live key's chip. While open it takes every key and press; return or
-             a press on a row gives back the command, which main runs as
-             its key would. It draws as the key overlay's Overlay: a
+             high, each with the group and the live key's chip. While open it takes every key and press; return, or
+             a lift on the row the press held, gives back the command,
+             which main runs as its key would (as the key overlay's and
+             the page menu's rows do). It draws as the key overlay's Overlay: a
              rounded panel, the search with a count, the selected row on a
              filled slab. Pure.
 scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
