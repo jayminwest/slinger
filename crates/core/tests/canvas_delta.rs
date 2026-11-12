@@ -160,6 +160,7 @@ fn a_refused_op_in_the_log_changes_nothing() {
             text: "t".into(),
             frame: Rect::new(0.0, 0.0, 9.0, 9.0),
             colour: Colour::BLACK,
+            size: 24.0,
         },
     }));
     let c = changes_since(&log, marker);

@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **Canvas:** text can be any size. Drag a corner handle of a selection
+  with text in it and the text grows or shrinks with it (from 4 to 400
+  units). Agents give a text its size with `size` in `canvas apply`
+  (`slinger canvas schema` shows it), and the pictures an agent reads draw
+  each text at its own size. Canvases saved before read exactly as they did.
+
 - **App:** a live item panned off the screen keeps its page for 30
   seconds, so panning away and back no longer resets what you entered;
   after that its page closes and loads again when it returns. Zoomed out
@@ -151,6 +157,10 @@ bullet with the area in bold.
   white parts of it: each tile of its picture is cut down to the ink, and a
   tile with nothing new on it is left out. The fixture board costs about
   13% fewer tokens (63 800 to 55 700 by the packet's estimate).
+- **Agents:** a scrap of a large drawing that spills just past a tile's
+  edge (the end of a word) goes into the tile beside it instead of being
+  sent as an image of its own, so the agent reads the word whole. A lone dot
+  or tick is still sent: nothing you drew is left out for being small.
 - **App:** a page menu with more pages than fit shows ▲ or ▼ at the end of
   its top or bottom page row while more pages are above or below.
 - **App:** a footer button's tip now sits on a small panel with rounded
@@ -200,6 +210,15 @@ bullet with the area in bold.
   slingerd is down) can be erased, selected, moved and deleted at once,
   like any other item. Each change still goes to slingerd in order, as one
   undo step.
+- **Workspaces:** one open workspace whose `slinger-workspace.toml` breaks
+  a rule (say an `agent.tools` rule slinger does not know) no longer stops
+  every other workspace from loading. The others work as before; the broken
+  one stays in `slinger workspace list` with its error, and anything you do
+  with it fails with that error and its hint, naming the file and the field
+  to fix. The hint for an unknown tool lists the accepted forms (`Tool`,
+  `Tool(pattern)`, `mcp__<server>`, `mcp__<server>__<tool>`,
+  `mcp__<server>__*`) and suggests `Bash` for `bash`. `slingerd` names a
+  broken file when it starts. The app's sidebar marks it "(invalid file)".
 - **App:** tapping the "send to agent" button while the feedback entry
   or a page's new name is open closes it and slings, instead of doing
   nothing.

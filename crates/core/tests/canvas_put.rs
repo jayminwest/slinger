@@ -117,7 +117,7 @@ fn bx(x: i64, y: i64, w: i64, h: i64) -> Value {
 fn put_text_lands_beside_the_item_as_the_agents_at_its_time() {
     let mut log = log_of(&bx(0, 0, 1000, 500));
     let placed = log.put(&scout(), AT, "b1", &Put::Text("looks right".into())).unwrap();
-    assert_eq!(render::text_size("looks right", TEXT_COLUMNS), (264.0, 24.0));
+    assert_eq!(render::text_size("looks right", TEXT_COLUMNS, 24.0), (264.0, 24.0));
     assert_eq!(placed.item, "i2");
     assert_eq!(placed.page, "p1");
     // Lengths in tenths: right of the box by a gap, top-aligned.
@@ -135,7 +135,7 @@ fn put_text_lands_beside_the_item_as_the_agents_at_its_time() {
 fn long_text_wraps_and_its_frame_holds_every_line() {
     // Eight words fit a line of 40; thirty make four lines.
     let words = "word ".repeat(30);
-    assert_eq!(render::text_size(&words, TEXT_COLUMNS), (39.0 * 24.0, 4.0 * 24.0));
+    assert_eq!(render::text_size(&words, TEXT_COLUMNS, 24.0), (39.0 * 24.0, 4.0 * 24.0));
     let mut log = log_of(&bx(0, 0, 10, 10));
     let placed = log.put(&scout(), AT, "i1", &Put::Text(words)).unwrap();
     assert_eq!(placed.frame[2..], [9360, 960]);

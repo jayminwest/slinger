@@ -20,7 +20,7 @@ pub enum Workspace {
         #[arg(long)]
         name: Option<String>,
     },
-    /// List the open workspaces: name, canvas and directory per line
+    /// List the open workspaces: name, canvas and directory per line, and the error of a broken file
     List,
     /// Print one open workspace: a field and its value per line
     Show {
@@ -77,9 +77,16 @@ pub fn which(workspace: &str) -> anyhow::Result<String> {
     Ok(std::path::absolute(Path::new(workspace))?.to_string_lossy().into_owned())
 }
 
-/// One workspace for `list`: name, canvas and directory, by tabs.
+/// One workspace for `list`: name, canvas and directory, by tabs. One whose
+/// file the daemon cannot use has `-` for what its file does not say, and
+/// its error last.
 fn line(ws: &control::Workspace) -> String {
-    format!("{}\t{}\t{}", ws.name, ws.canvas, ws.dir.display())
+    let or_dash = |s: &str| if s.is_empty() { "-".to_string() } else { s.to_string() };
+    let line = format!("{}\t{}\t{}", or_dash(&ws.name), or_dash(&ws.canvas), ws.dir.display());
+    match &ws.error {
+        Some(e) => format!("{line}\t✗ {}", e.message),
+        None => line,
+    }
 }
 
 /// One workspace for `show`: a field and its value per line, by a tab.

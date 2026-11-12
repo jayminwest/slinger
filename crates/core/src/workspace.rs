@@ -7,13 +7,13 @@
 
 pub mod panes;
 pub mod profile;
-
-use std::collections::{HashMap, HashSet};
+mod rules;
 
 use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
 pub use profile::Profile;
+pub use rules::{Rejected, check};
 
 /// The definition file's name, in a workspace's primary root.
 pub const FILE_NAME: &str = "slinger-workspace.toml";
@@ -220,9 +220,20 @@ impl Workspace {
     /// [`Error::Invalid`] when the text is not a workspace file, or breaks a
     /// rule.
     pub fn parse(text: &str) -> Result<Self> {
-        let mut ws: Self = toml::from_str(text).map_err(|e| invalid(e.message().trim()))?;
+        Ok(Self::read(text)?)
+    }
+
+    /// [`Workspace::parse`], but a refusal also names the field that broke
+    /// a rule, when one did.
+    ///
+    /// # Errors
+    ///
+    /// As [`Workspace::parse`].
+    pub fn read(text: &str) -> std::result::Result<Self, Rejected> {
+        let mut ws: Self = toml::from_str(text)
+            .map_err(|e| Rejected { field: None, error: invalid(&syntax(text, &e)) })?;
         if ws.version == 0 {
-            return Err(invalid("version must be 1 or more"));
+            return Err(Rejected::at("version", invalid("version must be 1 or more")));
         }
         if ws.tag.is_empty() {
             ws.tag.clone_from(&ws.name);
@@ -282,117 +293,17 @@ impl Workspace {
     pub fn primary_root(&self) -> Option<&Root> {
         self.roots.iter().find(|r| r.primary)
     }
-
-    /// The rules for one workspace on its own.
-    fn check_one(&self) -> Result<()> {
-        let ws = &self.name;
-        for (field, value) in [("name", &self.name), ("tag", &self.tag), ("canvas", &self.canvas)] {
-            if value.trim().is_empty() {
-                return Err(invalid(&format!("workspace {ws:?}: {field} is empty")));
-            }
-        }
-        for root in &self.roots {
-            if root.machine.trim().is_empty() {
-                return Err(invalid(&format!(
-                    "workspace {ws:?}: root {:?} has no machine",
-                    root.path
-                )));
-            }
-            if !root.path.starts_with('/') {
-                return Err(invalid(&format!(
-                    "workspace {ws:?}: root {:?} is not an absolute path",
-                    root.path
-                )));
-            }
-        }
-        let primaries = self.roots.iter().filter(|r| r.primary).count();
-        if primaries > 1 {
-            return Err(invalid(&format!(
-                "workspace {ws:?} has {primaries} primary roots; at most one"
-            )));
-        }
-        if let Some(agent) = &self.agent {
-            if agent.name.trim().is_empty() {
-                return Err(invalid(&format!("workspace {ws:?}: agent name is empty")));
-            }
-            if agent.name.contains('#') {
-                // `#` parts an agent from its profile in a session's key.
-                return Err(Error::Invalid {
-                    message: format!("workspace {ws:?}: agent name {:?} has a '#'", agent.name),
-                    hint: Some("rename the agent without '#' under [agent]".into()),
-                });
-            }
-            if let Some(dir) = agent.dirs.iter().find(|d| !d.starts_with('/')) {
-                return Err(invalid(&format!(
-                    "workspace {ws:?}: agent dir {dir:?} is not an absolute path"
-                )));
-            }
-            for rule in &agent.tools {
-                profile::check_rule(rule).map_err(|e| Error::Invalid {
-                    message: format!("workspace {ws:?}: agent.tools: {e}"),
-                    hint: e.hint().map(|h| format!("{h}; fix or drop it in {FILE_NAME}")),
-                })?;
-            }
-            profile::check_all(&agent.profiles).map_err(|e| Error::Invalid {
-                message: format!("workspace {ws:?}: {e}"),
-                hint: e.hint().map(str::to_string),
-            })?;
-            if agent.durable && primaries != 1 {
-                return Err(Error::Invalid {
-                    message: format!("workspace {ws:?} has a durable agent but no primary root"),
-                    hint: Some("mark the agent's home directory `primary = true`".into()),
-                });
-            }
-        }
-        Ok(())
-    }
 }
 
-/// Checks the rules over a set of workspaces: each one keeps its own rules
-/// (a durable agent has exactly one primary root, at most one root is
-/// primary); one directory is the primary root of at most one workspace; and
-/// one name, and one default canvas, belong to at most one workspace.
-///
-/// To ask whether a new workspace may join, check the existing ones with it.
-///
-/// # Errors
-///
-/// [`Error::Invalid`] when one workspace breaks its own rules.
-/// [`Error::Conflict`] when two workspaces share a primary root, a name or a
-/// default canvas.
-pub fn check(workspaces: &[Workspace]) -> Result<()> {
-    let mut owners: HashMap<(&str, &str), &str> = HashMap::new();
-    let mut names: HashSet<&str> = HashSet::new();
-    let mut canvases: HashMap<&str, &str> = HashMap::new();
-    for ws in workspaces {
-        ws.check_one()?;
-        if !names.insert(&ws.name) {
-            return Err(Error::Conflict {
-                message: format!("two workspaces are named {:?}", ws.name),
-                hint: Some("give one another name: `name` in its file, or --name".into()),
-            });
-        }
-        if let Some(owner) = canvases.insert(&ws.canvas, &ws.name) {
-            return Err(Error::Conflict {
-                message: format!(
-                    "canvas {:?} is already the canvas of workspace {owner:?}",
-                    ws.canvas
-                ),
-                hint: Some(format!("set another `canvas` in the file of workspace {:?}", ws.name)),
-            });
-        }
-        let Some(root) = ws.primary_root() else { continue };
-        if let Some(owner) = owners.insert(root.key(), &ws.name) {
-            return Err(Error::Conflict {
-                message: format!(
-                    "{} on {} is already the primary root of workspace {owner:?}",
-                    root.path, root.machine
-                ),
-                hint: Some(format!("open workspace {owner:?}, or pick another directory")),
-            });
-        }
-    }
-    Ok(())
+/// What a definition file says its name and default canvas are, read
+/// leniently: from a file [`Workspace::read`] refuses too, so the workspace
+/// can still be listed and named. Only what the file says: no default. Never
+/// serve a workspace from it.
+#[must_use]
+pub fn peek(text: &str) -> (Option<String>, Option<String>) {
+    let Ok(table) = toml::from_str::<toml::Table>(text) else { return (None, None) };
+    let field = |key: &str| table.get(key).and_then(toml::Value::as_str).map(str::to_string);
+    (field("name"), field("canvas"))
 }
 
 /// The tag of the workspace an event belongs to: the workspace whose default
@@ -440,6 +351,14 @@ pub fn slug(name: &str) -> String {
     }
     let out = out.trim_end_matches('-');
     if out.is_empty() { "workspace".into() } else { out.to_owned() }
+}
+
+/// A TOML error as one line, with the line of the file it is on.
+fn syntax(text: &str, e: &toml::de::Error) -> String {
+    let message = e.message().trim();
+    let Some(span) = e.span() else { return message.to_string() };
+    let line = text.get(..span.start).map_or(0, |before| before.matches('\n').count()) + 1;
+    format!("line {line}: {message}")
 }
 
 fn invalid(message: &str) -> Error {

@@ -34,10 +34,11 @@ use control::{
 use slinger_core::canvas::file::Written as Lines;
 use slinger_core::record::{self, BlobId, Body, Event, Tags};
 use slinger_core::ui;
+use slinger_core::workspace::FILE_NAME;
 
 use crate::canvases::CanvasError;
 use crate::store::{Query, Store, StoreError};
-use crate::workspaces::{Opened, WorkspaceError};
+use crate::workspaces::{Broken, Listed, Opened, WorkspaceError};
 
 /// How long one connection may take to send its request or take its reply. A
 /// stalled client costs one thread for this long and cannot hold up a stop.
@@ -265,7 +266,11 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
         }
         Request::WorkspaceList => {
             let all = store.workspaces().list().map_err(|e| kept(&e))?;
-            let workspaces = all.into_iter().map(wire_ws).collect();
+            let workspaces = all.into_iter().map(|w| match w {
+                Listed::Served(opened) => wire_ws(opened),
+                Listed::Broken(broken) => wire_broken(broken),
+            });
+            let workspaces = workspaces.collect();
             Ok(Reply::WorkspaceList(control::Workspaces { workspaces }))
         }
         Request::WorkspaceShow { workspace } => {
@@ -310,6 +315,31 @@ fn wire_ws(Opened { dir, workspace: ws }: Opened) -> control::Workspace {
         dir,
         agent,
         roots: roots.collect(),
+        error: None,
+    }
+}
+
+/// An open workspace whose file the daemon cannot use, with its error.
+fn wire_broken(Broken { dir, name, canvas, error }: Broken) -> control::Workspace {
+    let (file, field) = error.file().map_or_else(
+        || (dir.join(FILE_NAME), None),
+        |(file, field)| (file.to_owned(), field.map(str::to_string)),
+    );
+    let error = control::WorkspaceFileError {
+        code: error.code().into(),
+        message: error.to_string(),
+        hint: error.hint(),
+        file,
+        field,
+    };
+    control::Workspace {
+        name: name.unwrap_or_default(),
+        tag: String::new(),
+        canvas: canvas.unwrap_or_default(),
+        dir,
+        agent: None,
+        roots: Vec::new(),
+        error: Some(error),
     }
 }
 

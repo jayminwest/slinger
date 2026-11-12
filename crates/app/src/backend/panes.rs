@@ -21,7 +21,8 @@ pub fn layout(daemon: &Client, wanted: Option<&str>) -> Result<PaneLayout, Probl
     let workspace = if let Some(wanted) = wanted {
         wanted.to_string()
     } else {
-        let first = daemon.workspace_list()?.into_iter().next().ok_or_else(|| {
+        let mut usable = daemon.workspace_list()?.into_iter().filter(|w| w.error.is_none());
+        let first = usable.next().ok_or_else(|| {
             let hint = Some("open one: 'slinger workspace open <DIR>'");
             Problem::new("no workspace is open".into(), hint)
         })?;
