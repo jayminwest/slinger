@@ -20,7 +20,7 @@ fn webs(canvases: &mut Canvases, panes: &Panes) -> Vec<Web> {
     let drawn = canvases.show(panes, WINDOW.rect(), &theme);
     let mut scene =
         crate::scene::build(WINDOW, panes, &theme, &[], &side, drawn, &Uis::new(), &Notes::new());
-    canvases.show_live(&mut scene);
+    canvases.show_live(&mut scene, &Notes::new(), &theme);
     scene.webs
 }
 
@@ -67,6 +67,17 @@ fn an_agent_s_live_item_shows_its_page_which_takes_presses_until_it_is_selected(
         let (area, lasso) = (WINDOW.rect(), (Tool::Lasso, Rgb { r: 0, g: 0, b: 0 }));
         let on = pen(frame.x + 10.0, frame.y + 10.0);
         assert!(!canvases.pen_down(&panes, (panes.focus(), area), on, lasso), "the page's");
+        canvases.pen_up(&panes, on, Some((panes.focus(), area)));
+
+        // Zoomed out until it is under 48 points wide, the canvas takes the press.
+        let origin = Point { x: 0.0, y: 0.0 };
+        canvases.zoom(panes.focus(), origin, 0.1);
+        assert_eq!(webs(&mut canvases, &panes)[0].live.map(|l| l.shows), Some(Shows::Still));
+        let small = pen(frame.x * 0.1 + 1.0, frame.y * 0.1 + 1.0);
+        assert!(canvases.pen_down(&panes, (panes.focus(), area), small, lasso), "a lasso starts");
+        canvases.pen_up(&panes, small, Some((panes.focus(), area)));
+        canvases.zoom(panes.focus(), origin, 10.0);
+
         assert!(canvases.pen_down(&panes, (panes.focus(), area), pen(5.0, 5.0), lasso));
         for (x, y) in [(900.0, 5.0), (900.0, 600.0), (5.0, 600.0)] {
             canvases.pen_drag(&panes, pen(x, y), Some((panes.focus(), area)));

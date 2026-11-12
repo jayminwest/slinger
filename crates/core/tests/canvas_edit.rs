@@ -113,7 +113,50 @@ fn a_move_takes_the_ends_of_the_agents_arrows_bound_to_the_item_along() {
     assert_eq!(pts(&log, "i4"), user, "the user's arrow is not scout's to change");
     log.undo(&scout(), AT);
     assert_eq!(pts(&log, "i3"), ours, "one undo puts both back");
-    // An edit that does not move the item leaves its arrows be.
-    let words = Edit { text: Some("hello".into()), ..Edit::default() };
-    assert_eq!(log.edit(&scout(), AT, "i2", &words).unwrap().written.seq.len(), 1);
+    // An edit that leaves the item's box as it was leaves its arrows be.
+    let [w, h] = ["w", "h"].map(|k| field(&log, "i2", k).as_i64().unwrap());
+    let same = Edit { size: Some([w, h]), to: Some([x, y]), ..Edit::default() };
+    assert_eq!(log.edit(&scout(), AT, "i2", &same).unwrap().written.seq.len(), 0);
+}
+
+/// The end of the arrow `id`, from its `pts`.
+fn end(log: &Log, id: &str) -> [i64; 2] {
+    let p = pts(log, id);
+    [p[0] + p[2], p[1] + p[3]]
+}
+
+#[test]
+fn a_resize_keeps_the_arrow_end_on_the_same_spot_of_the_item() {
+    let mut log = log();
+    let [x, y, w, h] = ["x", "y", "w", "h"].map(|k| field(&log, "i2", k).as_i64().unwrap());
+    let [ex, ey] = end(&log, "i3");
+    let start = pts(&log, "i3")[..2].to_vec();
+    let bigger = Edit { size: Some([w * 2, h * 3]), ..Edit::default() };
+    let edited = log.edit(&scout(), AT, "i2", &bigger).unwrap();
+    assert_eq!(edited.written.seq.len(), 2, "the text and its arrow, in one step");
+    assert_eq!(end(&log, "i3"), [x + (ex - x) * 2, y + (ey - y) * 3]);
+    assert_eq!(pts(&log, "i3")[..2], start, "the end on the user's box stays");
+}
+
+#[test]
+fn an_applied_move_takes_bound_arrows_along_unless_the_ops_place_them() {
+    let mut log = log();
+    let theirs = serde_json::json!({ "op": "add", "item": { "page": "p1", "kind": "arrow",
+        "pts": [1300, 100, -400, 0], "from": "i2", "to": "i1" } });
+    log.apply(&Author::User, AT, &theirs).unwrap();
+    let (ours, user) = (end(&log, "i3"), pts(&log, "i4"));
+    let mv = serde_json::json!({ "op": "move", "ids": ["i2"], "dx": 100, "dy": -300 });
+    assert_eq!(log.apply(&scout(), AT, &mv).unwrap().seq.len(), 2);
+    assert_eq!(end(&log, "i3"), [ours[0] + 100, ours[1] - 300], "scout's arrow follows");
+    assert_eq!(pts(&log, "i4"), user, "the user's arrow is not scout's to change");
+    // The app sends a move with a set of each arrow that follows: the set
+    // is what the arrow becomes, not set and then moved again.
+    let placed = serde_json::json!([
+        { "op": "move", "ids": ["i1"], "dx": 50, "dy": 0 },
+        { "op": "set", "id": "i3", "fields": { "pts": [1, 2, 3, 4] } },
+    ]);
+    let before = end(&log, "i4");
+    assert_eq!(log.apply(&Author::User, AT, &placed).unwrap().seq.len(), 3);
+    assert_eq!(pts(&log, "i3"), [1, 2, 3, 4]);
+    assert_eq!(end(&log, "i4"), [before[0] + 50, before[1]], "an arrow the ops leave follows");
 }

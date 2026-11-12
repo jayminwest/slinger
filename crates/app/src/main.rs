@@ -120,7 +120,7 @@ fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
         }
         _ => Step::Pass,
     };
-    match platform::run(&scene, answer) {
+    match platform::run(&scene, platform::Kept::Preview, answer) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => fail(&e.to_string(), None),
     }
@@ -195,7 +195,7 @@ fn window(mut settings: Settings) -> ExitCode {
         }
         Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases))
     };
-    match platform::run(&first, remembering(step, sidebar)) {
+    match platform::run(&first, platform::Kept::Window, remembering(step, sidebar)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => fail(&e.to_string(), None),
     }
@@ -281,7 +281,8 @@ enum Ask {
 }
 
 /// What `event` asks: a menu item chosen with the pointer runs its command,
-/// and closes what is open over `shared` first; the palette takes
+/// and closes what is open over `shared` first (undo and redo pass on to
+/// an open entry's field); the palette takes
 /// every key and press, and runs a command as its key would (a row on the
 /// lift, as the key overlay's); then a key goes to what takes keys first
 /// ([`taken`]), to the canvases (a text being typed), and to the keymap. A
@@ -315,6 +316,10 @@ fn ask(
                 tools.flash().command(command, keys, Instant::now());
             }
             Ask::Run(command)
+        }
+        // Undo or redo chosen with an entry open is its field's, as the key is.
+        (Took::No, &Event::Command(Command::Undo | Command::Redo)) if canvases.typing() => {
+            Ask::Pass
         }
         (Took::Tap((_, Tap::Run(command))), _) | (Took::No, &Event::Command(command)) => {
             Ask::Run(command)

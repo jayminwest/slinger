@@ -25,8 +25,9 @@ const EVERY: Duration = Duration::from_millis(500);
 /// What the thread hands back about the sling it sent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Heard {
-    /// The sling is in this agent's process.
-    Went(String),
+    /// The sling is in this agent's process, and about how many tokens the
+    /// agent reads for it (`None`: the daemon does not count).
+    Went(String, Option<u64>),
     /// The sling did not go.
     Failed(Problem),
     /// The agent's session after the sling went, when it changed.
@@ -55,8 +56,8 @@ impl Slinger {
             let client = || theirs.lock().unwrap_or_else(PoisonError::into_inner).clone();
             let mut next = to_send.recv().ok();
             while let Some(ask) = next.take() {
-                let agent = match sling(&client(), ask) {
-                    Ok(agent) => agent,
+                let (agent, tokens) = match sling(&client(), ask) {
+                    Ok(went) => went,
                     Err(problem) => {
                         if tell.send(Heard::Failed(problem)).is_err() {
                             return;
@@ -65,7 +66,7 @@ impl Slinger {
                         continue;
                     }
                 };
-                if tell.send(Heard::Went(agent.clone())).is_err() {
+                if tell.send(Heard::Went(agent.clone(), tokens)).is_err() {
                     return;
                 }
                 next = match follow(&client, &agent, &to_send, &tell) {
@@ -142,12 +143,13 @@ fn follow(
 
 /// Sends `ask` as one `sling_send`: the canvas, the page, the selected
 /// items by the canvas file's ids, and the prompt. Returns the agent it
-/// went to.
-fn sling(daemon: &Client, ask: Ask) -> Result<String, Problem> {
+/// went to and the tokens it costs.
+fn sling(daemon: &Client, ask: Ask) -> Result<(String, Option<u64>), Problem> {
     let select = ask.ids.into_iter().map(mirror::item_ref).collect();
     let (canvas, page, prompt) = (ask.canvas, Some(ask.page), ask.prompt);
     let request = SlingAsk { canvas, page, select, prompt, profile: None };
-    daemon.sling_send(request).map(|slung| slung.agent).map_err(Problem::from)
+    let slung = daemon.sling_send(request).map_err(Problem::from)?;
+    Ok((slung.agent, slung.tokens))
 }
 
 /// What the window wants of the agent's `session` while a sling is out.
@@ -178,6 +180,14 @@ mod tests {
             !got.is_empty()
         });
         got.remove(0)
+    }
+
+    /// The agent a sling went to; the daemon counts what it costs.
+    fn went(heard: Heard) -> String {
+        match heard {
+            Heard::Went(agent, Some(tokens)) if tokens > 0 => agent,
+            other => panic!("not gone with a cost: {other:?}"),
+        }
     }
 
     fn failed(heard: Heard) -> Problem {
@@ -211,7 +221,7 @@ mod tests {
 
             daemon.session_start("notes").unwrap();
             slinger.send(ask(vec![ItemId(1)], "what is missing?"));
-            assert_eq!(wait(&slinger, got), Heard::Went("scout".into()));
+            assert_eq!(went(wait(&slinger, got)), "scout");
             let message = delivered(home.path(), "what is missing?");
             assert!(message.contains("slinger-sling 1 canvas=notes selected=c1"), "{message}");
             assert!(message.contains("what is missing?"), "{message}");
@@ -238,7 +248,7 @@ mod tests {
             let got = &mut Vec::new();
 
             slinger.send(ask(vec![ItemId(1)], "what is missing?"));
-            assert_eq!(wait(&slinger, got), Heard::Went("scout".into()));
+            assert_eq!(went(wait(&slinger, got)), "scout");
             let working = Progress { running: true, pending: 1, blocked: None, answer: None };
             assert_eq!(wait(&slinger, got), Heard::Progress(working));
 
@@ -250,7 +260,7 @@ mod tests {
             assert_eq!(slinger.heard(), [], "no more once it answered");
 
             slinger.send(ask(vec![ItemId(1)], "and now?"));
-            assert_eq!(wait(&slinger, got), Heard::Went("scout".into()));
+            assert_eq!(went(wait(&slinger, got)), "scout");
             daemon.session_stop("notes").unwrap();
             let stopped = loop {
                 if let Heard::Progress(p) = wait(&slinger, got)

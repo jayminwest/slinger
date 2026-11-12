@@ -172,12 +172,68 @@ fn a_very_wide_cluster_is_cut_into_tiles_that_overlap_by_the_constant() {
 #[test]
 fn a_tall_and_wide_picture_is_tiled_by_row_then_column() {
     let mut b = Board::new();
+    let line = b.stroke(Colour::BLACK, &[(0.0, 5000.0), (5000.0, 5000.0)]);
+    let corner = b.stroke(Colour::BLACK, &[(0.0, 0.0), (0.0, 5000.0)]);
+    let dot = b.stroke(Colour::BLACK, &[(5000.0, 0.0)]);
+    let tiles = render::items(&b.canvas, &[line, corner, dot], "c1");
+    let at: Vec<(u32, u32)> = tiles.iter().map(|t| (t.x, t.y)).collect();
+    let step = MAX_EDGE - OVERLAP;
+    let names: Vec<&str> = tiles.iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(names, ["c1-1.png", "c1-2.png", "c1-3.png", "c1-4.png"]);
+    // Each tile is cut down to its ink plus the margin: the left edge to a
+    // narrow column, the dot to a speck, the bottom edge to a strip.
+    assert_eq!((at[0], at[2].1), ((0, 0), step));
+    assert!(tiles[0].width < 30 && tiles[0].height == MAX_EDGE, "{:?}", tiles[0]);
+    assert!(tiles[1].width < 30 && tiles[1].height < 30 && tiles[1].y == 0, "{:?}", tiles[1]);
+    assert!(at[3].0 >= step && tiles[3].height < 30, "{:?}", tiles[3]);
+    let whole = px(5000.0 + 4.0 + 2.0 * MARGIN);
+    assert_eq!(tiles[3].x + tiles[3].width, whole, "the strip ends where the picture does");
+}
+
+#[test]
+fn a_tile_that_is_white_or_whose_ink_another_tile_holds_has_no_image() {
+    let mut b = Board::new();
+    // A diagonal crosses the top-right and bottom-left tiles only in their
+    // overlap with the top-left one: those two tiles add nothing.
     let line = b.stroke(Colour::BLACK, &[(0.0, 0.0), (5000.0, 5000.0)]);
     let tiles = render::items(&b.canvas, &[line], "c1");
     let at: Vec<(u32, u32)> = tiles.iter().map(|t| (t.x, t.y)).collect();
     let step = MAX_EDGE - OVERLAP;
-    assert_eq!(at, [(0, 0), (step, 0), (0, step), (step, step)]);
-    assert_eq!(tiles[3].name, "c1-4.png");
+    assert_eq!(at[0], (0, 0));
+    assert_eq!(at.len(), 2, "{at:?}");
+    assert!(at[1].0 >= step && at[1].1 >= step, "{at:?}");
+    // Ink in one corner of a big picture: one image, named as one.
+    let far = b.stroke(Colour::BLACK, &[(10_000.0, 10_000.0)]);
+    let dot = b.stroke(Colour::BLACK, &[(0.0, 0.0)]);
+    let tiles = render::items(&b.canvas, &[far, dot], "c2");
+    assert_eq!(tiles.len(), 2);
+    assert!(tiles.iter().all(|t| t.width < 30 && t.height < 30), "{tiles:?}");
+}
+
+#[test]
+fn a_speck_past_a_tile_edge_is_folded_into_the_tile_it_touches() {
+    let mut b = Board::new();
+    // A word ending at the first tile's right edge, its last letter just
+    // past it, and a dot far below that makes the picture two rows tall.
+    let word = b.stroke(Colour::BLACK, &[(3000.0, 0.0), (4460.0, 0.0)]);
+    let letter = b.stroke(Colour::BLACK, &[(4470.0, 0.0), (4500.0, 0.0)]);
+    let dot = b.stroke(Colour::BLACK, &[(0.0, 5000.0)]);
+    let tiles = render::items(&b.canvas, &[word, letter, dot], "c1");
+    let names: Vec<&str> = tiles.iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(names, ["c1-1.png", "c1-2.png"], "{tiles:?}");
+    // The word's image reaches past the first tile to hold the letter, and
+    // is drawn whole: its PNG is its size, with the letter's ink in it.
+    let host = &tiles[0];
+    let end = px(4500.0 + 2.0 + MARGIN) - px(0.0);
+    assert!(host.x + host.width >= end && host.width <= MAX_EDGE, "{host:?}");
+    let (w, h, rgb) = decode(&host.png);
+    assert_eq!((w, h), (host.width, host.height));
+    let inked = |x: u32| (0..h).any(|y| rgb[((y * w + x) * 3) as usize] < 128);
+    assert!(inked(px(4485.0) - host.x), "the letter is in the word's image");
+    // A speck that touches nothing keeps its own image: no ink is left out.
+    assert!(tiles[1].width < 30 && tiles[1].height < 30, "{:?}", tiles[1]);
+    let alone = render::items(&b.canvas, &[dot], "c3");
+    assert_eq!(alone.len(), 1);
 }
 
 /// Canvas units as whole pixels, rounded up.

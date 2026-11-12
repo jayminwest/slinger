@@ -232,6 +232,12 @@ for every attempt, so all four stay.
   that keeps it in the agent, through `reply`.
 - A pane is the same with a zoom of 1.
 
+As built (slinger-085117): the 48-point and 30 s rules are in
+`scene/live.rs` and `scene/live/away.rs`. Not built yet: a still item
+shows its live page, not a snapshot, without input; an off-screen item's
+view is hidden, not replaced by a snapshot; and a pinch sets `pageZoom` at
+each step instead of scaling the layer.
+
 ### Cost to build
 
 - The core: names, versions, hashes and the two events. Small; shared with B.

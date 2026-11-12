@@ -178,7 +178,8 @@ within a quarter of a size unit of, with the same colour and time, so a
 drawing's touching parts and a word's underline are one cluster, while a
 frame drawn clear of its notes stays alone (slinger-e0dbb0). On the fixture
 board this joins a diagram on `inital-planning` (client, server and
-database with their arrows) into one cluster of six tiles.
+database with their arrows) into one cluster of six tiles, four once tiles
+are cut down to their ink (`c1986`, 10.9 to 4.0 million pixels).
 
 **Ids**: canvas items keep their canvas item number behind a letter for their
 kind (`t12`, `b9`, `a13`, `l14`, and `u15` for a button: `b` is a box's). A cluster's id is `c` plus the item number of its
@@ -206,7 +207,18 @@ The quoted text is last, only on `text` lines: the full text in `new` and
 up), ink in its own colour on white, with a 16 canvas unit margin. Names are
 `<id>.png`. A cluster whose image has a long edge over 1568 px is cut into
 tiles of at most 1568 px a side that overlap by 64 px, named `<id>-1.png`,
-`<id>-2.png`, ... in reading order. `slinger_core::render` draws them and
+`<id>-2.png`, ... in reading order. Each tile is cut down to its ink plus
+the 16 unit margin (within the tile), and a tile with no ink of its own
+(white, or ink only in its overlap with a tile kept, the tiles with the
+most ink weighed first) has no image (slinger-0d212d). A speck, a kept
+tile at most 128 px a side, is folded into the kept tile it overlaps or
+touches when the two fit one image of at most 1568 px a side (the smallest
+such union; it may reach past the grid's tile edge), and has no image of
+its own (slinger-15e904). A speck that touches no tile, or whose union
+would not fit, keeps its image: ink is never dropped for being small, and
+a cluster that is one speck (a lone dot, a tick) is always its own image.
+The tiles kept are numbered from 1 in reading order, and a single one is
+`<id>.png`. `slinger_core::render` draws them and
 holds these numbers as constants. A line is never thinner than 1 px. A crop
 (below) draws every kind: boxes, arrows, live items' and buttons' boxes as 2-unit
 lines (a live item with its UI's name inside, a button with `send to agent`), text in an 8 by 8
@@ -230,7 +242,31 @@ and sections). `Packet::tokens` estimates the cost: a token per 4 characters
 of text, a token per 750 pixels of each image, at most 1600 an image. It is
 a local estimate, not a tokenizer's count: nothing is asked over the
 network. `build` writes it into the header's `tokens` (`Packet::count`).
-The whole fixture board, all new, is about 63 000 by this estimate.
+The whole fixture board, all new, is about 55 700 by this estimate (63 800
+before tiles were cut down to their ink, slinger-0d212d; then specks folded
+into a neighbouring tile, slinger-15e904):
+
+| Page | Tokens: whole tiles | cut to ink | specks folded | Images: whole | cut | folded |
+|---|---|---|---|---|---|---|
+| `inital-planning` | 38 535 | 32 149 | 32 147 | 64 | 62 | 61 |
+| `claude` | 12 728 | 10 965 | 10 965 | 11 | 11 | 11 |
+| `slinger-diagrams` | 4 734 | 4 734 | 4 734 | 12 | 12 | 12 |
+| `fable-5.2` | 5 672 | 5 672 | 5 672 | 23 | 23 | 23 |
+| `spec` | 2 149 | 2 149 | 2 149 | 11 | 11 | 11 |
+| **Total** | 63 818 | 55 669 | 55 667 | 121 | 119 | 118 |
+
+Only tiled clusters change: an image that is one tile already is the
+cluster's box plus the margin. The one speck folded on the board is
+`c23-4` (55 by 76 px), the word "it" cut at a tile edge on
+`inital-planning`, now whole in `c23-3`. The other small images are kept
+on purpose. `c2799` (`claude`, a purple tick, 26 by 28 px) and `c7821`
+(`spec`, a dot, 12 by 12 px) are each a cluster of one stroke with no other
+ink within 500 canvas units: dropping them would hide marks the user made,
+and folding them into a far cluster's image would cost more pixels than
+their own image. `c5717` (`fable-5.2`, a `[` beside a note) is its own
+cluster for the same reason. `c1759-2` (108 by 64 px) and `c1294-2` (195 by
+86 px) are the ends of long lines of writing that do not fit one image with
+the rest.
 
 ## Delivery and storage
 
@@ -260,7 +296,8 @@ The whole fixture board, all new, is about 63 000 by this estimate.
   so it lives in the record. A read never moves it.
 - **`slinger canvas crop <canvas> --item <id>`** or **`--box x,y,w,h`**: one
   image (or tiles) at the same scale, by the same rules, at most 16000 units
-  a side. A cluster id `c<n>` resolves against the page as it is now: the
+  a side. An item's tiles are cut down to their ink as above; a box's are
+  whole, cut at the box's edges. A cluster id `c<n>` resolves against the page as it is now: the
   cluster stroke `n` is in. (`--box` is in tenths, like the other canvas
   commands.)
 - **`slinger canvas strokes <canvas> --item <id>`**: raw points, the R6
@@ -331,7 +368,9 @@ word for word. The failures, each with its crop:
   spikes while the other / agent works."). The blank line between them
   stays a split.
 - **Noise images:** `c2799` (26 by 28 px) and `c7821` (12 by 12 px) are
-  single specks. Each cost a token and an image.
+  single specks. Each cost a token and an image. They are a lone purple
+  tick and a lone dot, with nothing near them, so they stay (slinger-15e904:
+  only a speck of a tiled cluster is folded into a neighbouring tile).
 
 Verdict: no worse than the spike. Unreadable words are the same (1), and no
 word was lost (2 before). The open defect is a note split into several

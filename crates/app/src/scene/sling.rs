@@ -100,8 +100,8 @@ pub struct Entry {
     /// dictate, from its right edge, when a key does.
     pub keys: Row,
     pub dictate: Option<Row>,
-    /// The word on the pen's "✓" button beside the box ([`pen`]): "Save";
-    /// none for the sling's, which the selection's "➤ Sling" sends.
+    /// The word on the pen's "✓" button beside the box ([`pen`]): "Sling",
+    /// "Save" or "Rename"; none for an entry with no buttons.
     pub done: Option<&'static str>,
 }
 
@@ -264,10 +264,8 @@ impl Sling {
         let mut entry = Entry::framed(*frame, theme, title, keys);
         entry.text.clone_from(&ask.prompt);
         entry.placeholder = format!("what to ask about {} (or nothing)", count(ask));
-        let under = frame.y + HEIGHT;
-        let dictate = dictate.map(|chord| format!("{} dictate", chord.glyphs()));
-        entry.dictate = dictate.map(|text| small(theme, *frame, text, under, None));
-        Some(entry)
+        entry.done = Some("Sling");
+        Some(entry.dictated(theme, dictate))
     }
 
     /// Whether `at`, a point in the window, is on the open entry's box: a
@@ -334,6 +332,16 @@ impl Entry {
             dictate: None,
             done: None,
         }
+    }
+
+    /// This entry with `chord`, the key that dictates, if any, beneath its
+    /// box from the right edge, in `theme`'s colours.
+    #[must_use]
+    pub fn dictated(mut self, theme: &Theme, chord: Option<Chord>) -> Entry {
+        let text = chord.map(|chord| format!("{} dictate", chord.glyphs()));
+        let under = self.frame.y + HEIGHT;
+        self.dictate = text.map(|text| small(theme, self.frame, text, under, None));
+        self
     }
 }
 
@@ -420,7 +428,8 @@ fn count(ask: &Ask) -> String {
 /// The entry's box for a selection whose box is `around`, in `within`:
 /// the field (the label, the box, the keys) under the selection,
 /// left-aligned with it; above it when there is no room below; moved inside
-/// `within` when it would cross an edge.
+/// `within` when it or the pen's buttons beside it ([`pen`]) would cross an
+/// edge, and narrower in a pane too narrow for both.
 fn place(around: Rect, within: Rect) -> Rect {
     let below = around.y + around.height + GAP + SMALL;
     let y = if below + HEIGHT + SMALL + GAP <= within.y + within.height {
@@ -428,8 +437,9 @@ fn place(around: Rect, within: Rect) -> Rect {
     } else {
         (around.y - GAP - SMALL - HEIGHT).max(within.y + GAP + SMALL)
     };
-    let x = around.x.min(within.x + within.width - WIDTH - GAP).max(within.x + GAP);
-    Rect { x, y, width: WIDTH, height: HEIGHT }
+    let width = WIDTH.min(within.width - 2.0 * GAP - pen::ROOM).max(0.0);
+    let x = around.x.min(within.x + within.width - width - pen::ROOM - GAP).max(within.x + GAP);
+    Rect { x, y, width, height: HEIGHT }
 }
 
 #[cfg(test)]
