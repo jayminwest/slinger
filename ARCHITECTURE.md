@@ -60,6 +60,8 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              Log holds a file open for the daemon: requests (ops as JSON, the
              author, the time) in, numbered lines to append out, with the
              History beside it. Canvas ids (check_id) never name a path.
+             An arrow added in a request may name an item an `add` before
+             it makes (`$n`, its place in `made`): ids are given in order.
              Log::import stores a whole canvas (an import) as a new file
              that replays to it, ids, makers and times included.
              Log keeps every op it applied with its line's number, so
@@ -334,12 +336,14 @@ mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              glyphs fill (scene/glyphs.rs), never the stored width, so every
              hit test, the lasso, the selection and the caret follow the
              glyphs, texts saved earlier included. Keeps the canvas's pages,
-             with their names. Pure.
+             with their names. Items carried to another page are `add`s
+             there, an arrow carried with its ends still bound to them. Pure.
 mirror/clip.rs  the selection's items on the clipboard: their file objects
-             as a JSON array, as a carry writes them (no id, maker, time,
-             page or arrow's bound ends), and its texts' plain text, one a
-             line; a paste reads the objects back as a carry's items for a
-             page, centred on a point. Pure.
+             as a JSON array, as a carry writes them (no id, maker, time
+             or page; an end bound to an item copied with it as `$n`), and
+             its texts' plain text, one a line; a paste reads the objects
+             back as a carry's items for a page, centred on a point, every
+             arrow's ends let go. Pure.
 canvases.rs  the canvas panes: one follower and mirror per page shown, each
              pane's page, viewport and last scene (kept on screen until a
              page turned to arrives); the pen's ink, the eraser's and
@@ -498,7 +502,8 @@ scene/paste.rs  the clipboard as the app sees it (`Clip`: plain text, a
 scene/cursor.rs  the pointer over a canvas pane, per tool: the pen a ring in
              its colour, the eraser a ring its width, the lasso and the
              shapes cross hairs, text an I-beam, the select tool and an open
-             pop-up the arrow. The arrow elsewhere (sidebar, agent UI, chrome). Pure.
+             pop-up the arrow. The arrow elsewhere (sidebar, agent UI, chrome).
+             On a divider between panes, the resize cursor across it. Pure.
 ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
              slinger-ui://<hex>/ with the policy), the sandbox's constants
              (the policy and the shim in ui/policy.txt and ui/shim.js, the
@@ -636,7 +641,8 @@ scene/select/scale.rs  a drag of a corner handle scales the selection
 scene/resize.rs  the pen on a divider between panes: the press grabs it,
              each drag resizes the panes at once, the lift names it (the
              number of the pane before it, and its share) for
-             `pane_resize`. Pure.
+             `pane_resize`. The pointer within reach of one, or holding
+             one, gets its resize cursor. Pure.
 scene/overlay.rs  the key overlay (`show-keys`): open or closed, its
              scroll, the row under the pen and the press. While open it
              takes every key (escape and the show-keys key close it, the

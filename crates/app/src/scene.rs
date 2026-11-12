@@ -140,6 +140,9 @@ pub struct Scene {
     pub overlay: Option<Box<overlay::Overlay>>,
     /// The flash, over the labels, while it shows.
     pub flash: Option<Box<flash::Pill>>,
+    /// The pointer within reach of a divider between panes, or holding one:
+    /// its cursor ([`cursor::over_divider`]), over every pane and the chrome.
+    pub divider: Option<cursor::Cursor>,
 }
 
 /// The focus border's width, in points.
@@ -226,6 +229,7 @@ pub fn build(
         entry: None,
         overlay: None,
         flash: None,
+        divider: None,
     }
 }
 
@@ -254,6 +258,7 @@ pub fn preview(page: Arc<Page>, theme: &Theme, item: bool, size: Size) -> Scene 
         entry: None,
         overlay: None,
         flash: None,
+        divider: None,
     }
 }
 

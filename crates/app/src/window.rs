@@ -165,6 +165,22 @@ pub fn grabs(canvases: &Canvases, panes: &Panes, tools: &Tools, area: Rect, pen:
     !pen.eraser && canvases.grabs(panes, pane_at(panes, area, pen.at), pen, tools.tool())
 }
 
+/// The pointer, up, moved to `at` over the panes of `shared` laid in
+/// `area`: on a divider a press would grab (no pop-up open, not grabbing
+/// the selection: [`grabs`]), it shows the divider's cursor. Returns
+/// whether that changed.
+pub fn divider(
+    shared: &mut Shared,
+    canvases: &Canvases,
+    tools: &Tools,
+    area: Rect,
+    at: Point,
+) -> bool {
+    let still = Pen { at, when: 0.0, touch: false, eraser: false, shift: false };
+    let free = tools.open_kind().is_none() && !grabs(canvases, &shared.panes, tools, area, still);
+    shared.dividers.hover(&shared.panes, area, free.then_some(at))
+}
+
 /// A press of `pen` focuses the pane of `shared` under it, the panes laid
 /// beside `sidebar` ([`Shared::press_focus`]), even on a divider when it
 /// [`grabs`] the selection; and a done agent's notice goes, as the user is
@@ -266,6 +282,8 @@ pub fn view(
     for pane in &mut scene.canvases {
         pane.cursor = cursor::over_canvas(tools, theme, pane.scene.viewport.zoom());
     }
+    let free = !shared.modal() && tools.open_kind().is_none();
+    scene.divider = shared.dividers.cursor().filter(|_| free);
     let now = Instant::now();
     tools.follow(keys, now);
     let said = canvases.said();

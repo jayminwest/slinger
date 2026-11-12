@@ -96,6 +96,36 @@ fn removing_what_is_gone_succeeds_and_writes_nothing() {
 }
 
 #[test]
+fn an_arrow_added_with_items_points_at_them_by_their_place_in_made() {
+    let (mut log, mut file) = new_canvas();
+    apply(&mut log, &mut file, &Author::User, &json!([bx(0), { "op": "remove", "ids": ["i1"] }]));
+    let arrow = |from: &str, to: &str| {
+        let item = json!({ "page": "p1", "kind": "arrow", "pts": [100, 25, 300, 0], "from": from, "to": to });
+        json!({ "op": "add", "item": item })
+    };
+    let page = json!({ "op": "page.add", "name": "two" });
+    let made = apply(
+        &mut log,
+        &mut file,
+        &Author::User,
+        &json!([bx(0), page, bx(400), arrow("$0", "$2")]),
+    );
+    assert_eq!(made, ["i2", "p2", "i3", "i4"]);
+    let shown = items(&Log::open(file.as_bytes()).unwrap().0);
+    assert_eq!((&shown[2]["from"], &shown[2]["to"]), (&json!("i2"), &json!("i3")));
+
+    let before = log.next();
+    let page = json!({ "op": "page.add", "name": "three" });
+    for (from, to) in [("$1", "$0"), ("$0", "$5"), ("$x", "$0"), ("$0", "$2")] {
+        // A page, nothing made, not a number, the arrow itself.
+        let ops = json!([bx(0), page, arrow(from, to)]);
+        let err = log.apply(&Author::User, AT, &ops).unwrap_err();
+        assert_eq!(err.code(), "invalid", "{from} {to}: {err}");
+    }
+    assert_eq!(log.next(), before);
+}
+
+#[test]
 fn set_lays_fields_over_the_item() {
     let (mut log, mut file) = new_canvas();
     apply(&mut log, &mut file, &Author::User, &bx(0));
