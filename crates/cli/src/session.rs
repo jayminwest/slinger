@@ -39,6 +39,9 @@ pub enum Session {
         /// Start a new session instead of resuming the last one, ending a running process
         #[arg(long)]
         fresh: bool,
+        /// Run under this profile of the agent's: its directory and rules, its own session
+        #[arg(long, value_name = "NAME")]
+        profile: Option<String>,
     },
     /// Stop a workspace's agent: end its process
     Stop {
@@ -128,9 +131,8 @@ pub fn execute(
             let human = fields(&session);
             Ok(Output::new(json!({ "session": session }), human))
         }
-        Session::Start { workspace, fresh: false } => Ok(quiet(&daemon.session_start(workspace)?)),
-        Session::Start { workspace, fresh: true } => {
-            Ok(quiet(&daemon.session_start_fresh(workspace)?))
+        Session::Start { workspace, fresh, profile } => {
+            Ok(quiet(&daemon.session_start_with(workspace, profile.as_deref(), *fresh)?))
         }
         Session::Stop { workspace } => Ok(quiet(&daemon.session_stop(workspace)?)),
         Session::Send { workspace, text } => {
@@ -220,6 +222,7 @@ fn fields(s: &control::Session) -> String {
     let process = [
         ("process", s.process.clone()),
         ("pid", s.pid.map(|p| p.to_string())),
+        ("profile", s.profile.clone()),
         ("pending", s.pending.map(|p| p.to_string())),
         ("session_id", s.session_id.clone()),
         // One line per field: an answer's own line breaks are escaped.

@@ -144,6 +144,10 @@ workspace/panes.rs  a workspace's panes (SPEC section 7): the tree of panes
              with the `pane_moved` it records, and the `[layout]` text
              (version 1, `panes`). Workspace::panes reads it (one pane on the
              canvas when unset or unreadable), set_panes stores it.
+workspace/profile.rs  an agent's profiles (`[[agent.profile]]`): a name,
+             a working directory and permission rules, each rule checked
+             against the tools it knows (an unknown one is refused, never
+             passed on); find, set in place and remove on a Workspace.
 session.rs   sessions (SPEC section 5, section 7 status set): a session per
              agent of the open workspaces (agent, home, delivery, status), the
              three statuses, and the record event each writes (blocked, done)
@@ -151,7 +155,8 @@ session.rs   sessions (SPEC section 5, section 7 status set): a session per
              canvas goes to. No IO.
 session/stream.rs  Claude Code's stream format (D10): the arguments that start
              or resume a session's process, with its limits (what it reads,
-             runs and loads, from its workspace's agent), a message as one
+             runs and loads, from its workspace's agent, or under one of its
+             profiles: `Limits::under`), a message as one
              input line (text, or a sling's text and base64 PNG blocks), and
              what an output line says (its session id, the end of a turn).
 session/hooks.rs  Claude Code's hooks (SPEC section 5): the `--settings` JSON
@@ -202,7 +207,11 @@ workspaces.rs the open workspaces: the list of directories that hold their
              on every request and checked by the core's rules. The store asks
              it for the workspace tag of each event it appends. `panes`
              changes a workspace's layout under the list's lock and writes
-             the file whole when it changed.
+             the file whole when it changed; `edit` does the same for any
+             change the core makes (the profiles).
+server/profile.rs  `profile_list`, `profile_set`, `profile_remove`: the core
+             checks the profile, a `dir` must be there (kept with its links
+             resolved), and `Workspaces::edit` writes the file.
 server/pane.rs  `pane_list`, `pane_open`, `pane_close`, `pane_resize`: the canvas or UI a
              pane shows must exist; the core changes the layout; each change
              appends its `pane_moved`, tagged with the workspace. `open` is
@@ -225,11 +234,14 @@ sessions.rs  the statuses agents set since the daemon started (`working`
              `touched` reads and hashes a file an agent wrote and appends
              `file_touched` (path and hash, never the bytes).
 processes.rs the agents' processes, one per agent: spawned in the agent's
-             home within its limits, with `SLINGER_AGENT` and `SLINGER_SOCKET`,
+             home (or its profile's dir) within its limits, with `SLINGER_AGENT` and `SLINGER_SOCKET`,
              written to under one lock, read by a thread each so a pipe never
              fills. Keeps each session id in `sessions.json` once the output
-             names it; drops it when a resume fails (an error exit before the
-             output names it) or on a `fresh` start. Dropping one closes its input, waits a grace period,
+             names it, under `<agent>#<profile>` for a profile, so each
+             profile resumes its own conversation; drops it when a resume fails (an error exit before the
+             output names it) or on a `fresh` start. A start under another
+             profile replaces the running process; a send for one profile
+             reaches only a process under it (`conflict` otherwise). Dropping one closes its input, waits a grace period,
              then kills it; `serve` ends them all when it stops. No restart on death (D20).
              Each starts with the core's hooks in `--settings`, running the
              CLI at `--slinger` (default: beside slingerd).
@@ -938,6 +950,7 @@ Each boundary has something that fails when it is broken:
 | An agent edits and removes only its own items; removing twice succeeds twice | `crates/core/tests/canvas_edit.rs`, and `crates/daemon/src/tests/edit.rs` through a real socket |
 | Three sends reach one process under one session id and their answers are read; a restart resumes it; a dead process makes a send `unavailable`; a daemon stop ends it; a resume that fails drops the id and the next start is new; a fresh start ends the running process and begins a new session | `crates/daemon/src/tests/process.rs`, with a stand-in for Claude Code |
 | A session starts with the exact limits its workspace sets: by default its roots, the `slinger` CLI and no user config; wider with the agent's `dirs`, `tools` and `user_config` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
+| A profile is set, listed and removed in the workspace's file, and a bad name, rule or dir is refused loudly with nothing written; a session under one runs in its dir with its rules in place of the agent's and resumes its own conversation; a sling that names one reaches only a process under it | `crates/core/src/workspace/profile.rs`, `crates/core/src/session/stream.rs`, `crates/daemon/src/tests/profile.rs` with a stand-in for Claude Code, `crates/cli/src/tests/profile.rs` |
 | Three slings go into one conversation, each with its packet blob and `sling_sent`; old ink is not sent again; no running agent is `unavailable` and stores nothing; each verb the note names is served | `crates/daemon/src/tests/sling.rs`, with a stand-in for Claude Code |
 | An agent verb takes its agent from `--agent` or `SLINGER_AGENT`, else exits 2 | `crates/cli/tests/agent_env.rs`, against the real binary |
 | The hooks: each event runs its CLI command and none exits 2; `file_touched` stores a path and a hash, no contents | `crates/core/src/session/hooks.rs`, and `crates/daemon/src/tests/touched.rs` through a real socket |

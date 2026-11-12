@@ -28,10 +28,13 @@ pub enum SessionAsk {
     },
     /// Start the process of a workspace's agent, or resume its session.
     /// `fresh` starts a new session instead, ending a running process.
+    /// `profile` runs it under that profile of the agent's.
     SessionStart {
         workspace: String,
         #[serde(default, skip_serializing_if = "is_false")]
         fresh: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        profile: Option<String>,
     },
     /// End the process of a workspace's agent.
     SessionStop { workspace: String },
@@ -88,6 +91,9 @@ pub struct Session {
     /// The conversation the process holds, which the next start resumes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    /// The profile the process runs under; absent: the agent's own limits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
 }
 
 /// The reply to [`SessionAsk::SessionList`]: the sessions, by agent.
@@ -180,7 +186,7 @@ impl Client {
     /// cannot find, `invalid` for a workspace with no agent, and
     /// `unavailable` when the daemon does not answer.
     pub fn session_start(&self, workspace: &str) -> Result<Session, RemoteError> {
-        self.start(workspace, false)
+        self.session_start_with(workspace, None, false)
     }
 
     /// Starts `workspace`'s agent in a new session: its last one is dropped,
@@ -190,11 +196,25 @@ impl Client {
     ///
     /// As [`Client::session_start`].
     pub fn session_start_fresh(&self, workspace: &str) -> Result<Session, RemoteError> {
-        self.start(workspace, true)
+        self.session_start_with(workspace, None, true)
     }
 
-    fn start(&self, workspace: &str, fresh: bool) -> Result<Session, RemoteError> {
-        let ask = SessionAsk::SessionStart { workspace: workspace.into(), fresh };
+    /// Starts `workspace`'s agent under `profile`, or within its own limits
+    /// with none. Each profile has a conversation of its own, which a start
+    /// resumes. A process running under another profile ends first.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a profile the agent does not have or a directory
+    /// that is not there, and the errors of [`Client::session_start`].
+    pub fn session_start_with(
+        &self,
+        workspace: &str,
+        profile: Option<&str>,
+        fresh: bool,
+    ) -> Result<Session, RemoteError> {
+        let profile = profile.map(str::to_string);
+        let ask = SessionAsk::SessionStart { workspace: workspace.into(), fresh, profile };
         Ok(self.call::<_, SessionInfo>(&ask)?.session)
     }
 
@@ -270,12 +290,20 @@ mod tests {
             (set(None), r#"{"v":1,"op":"status_set","agent":"a","status":"done"}"#),
             (set(Some("n")), r#"{"v":1,"op":"status_set","agent":"a","status":"done","note":"n"}"#),
             (
-                SessionAsk::SessionStart { workspace: "w".into(), fresh: false },
+                SessionAsk::SessionStart { workspace: "w".into(), fresh: false, profile: None },
                 r#"{"v":1,"op":"session_start","workspace":"w"}"#,
             ),
             (
-                SessionAsk::SessionStart { workspace: "w".into(), fresh: true },
+                SessionAsk::SessionStart { workspace: "w".into(), fresh: true, profile: None },
                 r#"{"v":1,"op":"session_start","workspace":"w","fresh":true}"#,
+            ),
+            (
+                SessionAsk::SessionStart {
+                    workspace: "w".into(),
+                    fresh: false,
+                    profile: Some("dev".into()),
+                },
+                r#"{"v":1,"op":"session_start","workspace":"w","profile":"dev"}"#,
             ),
             (
                 SessionAsk::SessionStop { workspace: "w".into() },
@@ -291,8 +319,9 @@ mod tests {
                     page: Some("p1".into()),
                     select: vec!["c4".into(), "t9".into()],
                     prompt: "why?".into(),
+                    profile: Some("dev".into()),
                 }),
-                r#"{"v":1,"op":"sling_send","canvas":"c","page":"p1","select":["c4","t9"],"prompt":"why?"}"#,
+                r#"{"v":1,"op":"sling_send","canvas":"c","page":"p1","select":["c4","t9"],"prompt":"why?","profile":"dev"}"#,
             ),
             (
                 SessionAsk::SlingSend(SlingAsk { canvas: "c".into(), ..SlingAsk::default() }),
