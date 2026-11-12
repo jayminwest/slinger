@@ -1,4 +1,4 @@
-//! What the app's tests share: a stand-in for Claude Code, one for Flick, a
+//! What the app's tests share: stand-ins for Claude Code, one for Flick, a
 //! wait, and a user's stroke on a canvas.
 
 use std::fs;
@@ -21,11 +21,34 @@ while IFS= read -r line; do
 done
 "#;
 
+/// A stand-in for Claude Code that holds each answer until a file `go`
+/// shows up in its home, and takes the file.
+const WAITING_CLAUDE: &str = r#"#!/bin/sh
+id=00000000-0000-4000-8000-000000000001
+printf '{"type":"system","subtype":"init","session_id":"%s"}\n' "$id"
+while IFS= read -r line; do
+  printf '%s\n' "$line" >> in.txt
+  while [ ! -e go ]; do sleep 0.02; done
+  rm go
+  printf '{"type":"result","subtype":"success","session_id":"%s","result":"ok"}\n' "$id"
+done
+"#;
+
 /// Writes the stand-in for Claude Code into `dir`; its path.
 pub(crate) fn fake_claude(dir: &Path) -> PathBuf {
+    write_claude(dir, FAKE_CLAUDE)
+}
+
+/// Writes the stand-in for Claude Code that answers once told to (a file
+/// `go` in its home) into `dir`; its path.
+pub(crate) fn waiting_claude(dir: &Path) -> PathBuf {
+    write_claude(dir, WAITING_CLAUDE)
+}
+
+fn write_claude(dir: &Path, script: &str) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
     let path = dir.join("claude");
-    fs::write(&path, FAKE_CLAUDE).unwrap();
+    fs::write(&path, script).unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
     path
 }

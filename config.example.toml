@@ -73,6 +73,14 @@
 # on the glass, write your screen's points per inch divided by 2.54 (120 gives "47.24").
 #grid = "28.35"
 
+# --- sling: what goes to the agent with a sling.
+[sling]
+# The words sent with a sling you wrote no prompt for: a tap on "➤ Sling" (at the
+# selection, in a pane's footer, or the sling-now key), a "send to agent" button, and the
+# entry sent empty. Your handwriting is the question; these words tell the agent to read
+# it. The agent is already told to answer on the canvas. Must not be blank.
+#prompt = "Read what I wrote and do what it asks."
+
 # --- keys: every action is a named command, bound to a key chord here.
 # A chord is lowercase modifiers (shift, ctrl, alt, cmd) joined by "+", then one character
 # or a key's name: space, tab, return, escape, delete, forward-delete, up, down, left,
@@ -152,10 +160,19 @@
 # The next width of [pen] widths for the pen, or the one before; at either end it stays.
 #width-up = "alt+]"
 #width-down = "alt+["
-# Sling the selection to the agent of the canvas's workspace: a one-line prompt opens at
-# the selection. Return sends (an empty prompt too), escape cancels; while it is open it
-# takes every other key. With nothing selected on the focused pane's canvas the key goes on.
+# Sling the selection to the agent of the canvas's workspace with words of your own: a
+# one-line prompt opens at the selection (the "+ prompt" button beside a selection opens it
+# too). Return sends; sent empty, it sends [sling] prompt. Escape cancels; while it is open
+# it takes every other key. With nothing selected on the focused pane's canvas the key goes
+# on.
 #sling = "cmd+return"
+# Sling at once, with [sling] prompt as its words: the selection (the ink is the
+# question), or with nothing selected what is new on the focused pane's page since the last
+# sling. While the prompt is open it sends the prompt. The "➤ Sling" button beside a
+# selection and the one in each canvas pane's footer run it. With no agent in the canvas's
+# workspace it says so and sends nothing. A pill under the selection then says what the
+# agent is doing, and when it answered; a tap on it shows the answer.
+#sling-now = "alt+return"
 # Turn the focused pane to the page before; before the first, the last.
 #previous-page = "cmd+["
 # Add a page after the last; the focused pane turns to it.
@@ -176,7 +193,7 @@
 # return cancels a dictation still going. Slinger has no speech code of its own.
 #dictate = "cmd+shift+return"
 # Put a "send to agent" button in the middle of the focused pane's canvas page. A tap on
-# it slings what is new on the page since the last sling, with no prompt; its mark is the
+# it slings what is new on the page since the last sling, with [sling] prompt; its mark is the
 # status of the agent of the canvas's workspace. With nothing selected, `sling` opens the
 # prompt beside it, and a tap sends that prompt. Select, move and delete it like a box.
 #place-button = "cmd+shift+b"

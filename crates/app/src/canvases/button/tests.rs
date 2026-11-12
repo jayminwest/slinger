@@ -9,6 +9,7 @@ use crate::layout::WINDOW;
 use crate::panes::{Kind, Pane};
 use crate::scene::canvas::{Draw, Mark};
 use crate::scene::ink::Pen;
+use crate::scene::sidebar::{Agent, Status};
 use crate::scene::tools::Tool;
 
 fn notes() -> Panes {
@@ -105,7 +106,8 @@ fn a_placed_button_shows_its_agent_s_status_and_a_tap_slings_what_is_new() {
         daemon.session_start("notes").unwrap();
         let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
         let frame = place(&mut canvases, &panes, daemon);
-        canvases.agents(vec![("notes".into(), Some(Status::Working))]);
+        let scout = Agent { name: "scout".into(), status: Some(Status::Working), note: None };
+        canvases.agents(Some(vec![("notes".into(), Some(scout))]));
         assert_eq!(button(&mut canvases, &panes, daemon).1, "● send to agent");
 
         // A note, then a tap: what is new goes, with no selection and no prompt.
@@ -126,7 +128,7 @@ fn a_placed_button_shows_its_agent_s_status_and_a_tap_slings_what_is_new() {
 }
 
 #[test]
-fn a_tap_with_no_agent_running_shows_why_under_the_button() {
+fn a_tap_with_no_agent_running_says_why_under_the_button() {
     with_store(None, |daemon| {
         let _home = open_notes(daemon);
         let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
@@ -136,11 +138,25 @@ fn a_tap_with_no_agent_running_shows_why_under_the_button() {
         });
         assert!(canvases.command(&panes, (panes.focus(), WINDOW.rect()), Command::PlaceButton));
         let (frame, _) = button(&mut canvases, &panes, daemon);
-        assert_eq!(status(&canvases.statuses, "notes"), None);
+        assert!(canvases.agent_of("notes").is_none());
+        // The pill stands under the button the daemon holds: wait for it to be heard.
+        wait_until(|| {
+            canvases.poll();
+            let mirrors = canvases.open.iter().filter_map(|o| o.mirror.as_ref());
+            let mut items = mirrors.flat_map(crate::mirror::Mirror::items);
+            items.any(|i| matches!(i.shape, crate::scene::canvas::Shape::Button { .. }))
+        });
         assert!(tap(&mut canvases, &panes, frame));
-        wait_until(|| canvases.poll() && canvases.typing());
-        let lines = canvases.sling.labels(&Config::default().theme);
+        let theme = Config::default().theme;
+        let mut lines = Vec::new();
+        wait_until(|| {
+            canvases.poll();
+            lines = canvases.sling_marks(&panes, WINDOW.rect(), &theme).0;
+            !lines.is_empty()
+        });
+        assert!(!canvases.typing(), "no entry: the pen cannot press escape");
         assert!(lines[0].text.starts_with("✗ "), "{lines:?}");
+        assert!(lines[1].text.contains("session start"), "its hint: {lines:?}");
         assert!(lines[0].frame.y > frame.y + frame.height, "under the button: {lines:?}");
     });
 }

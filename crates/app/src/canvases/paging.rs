@@ -75,11 +75,12 @@ impl Canvases {
         Some((canvas.to_string(), mirror.pages().to_vec(), mirror.page().to_string()))
     }
 
-    /// What the last page command did, or the zoom a canvas went to, once,
-    /// for the flash.
+    /// What the last page command did, the zoom a canvas went to, or what
+    /// became of the last sling, once, for the flash.
     pub fn said(&mut self) -> Option<String> {
         let zoomed = self.zoomed.take();
-        self.asks.said().or(zoomed)
+        let slung = self.slung.flash();
+        self.asks.said().or(zoomed).or(slung)
     }
 
     /// Takes the config's `[canvas]`: whether the panes show the dotted grid

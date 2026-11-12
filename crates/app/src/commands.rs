@@ -100,6 +100,9 @@ pub enum Command {
     LeaveFeedback,
     /// Show the dotted grid on every canvas pane, or hide it.
     ToggleGrid,
+    /// Sling at once, with no prompt: the selection, or with nothing
+    /// selected what is new on the focused pane's page.
+    SlingNow,
 }
 
 /// How many commands there are.
@@ -107,7 +110,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 50] = [
+    pub const ALL: [(Command, &str); 51] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -158,6 +161,7 @@ impl Command {
         (Command::ShowCommands, "show-commands"),
         (Command::LeaveFeedback, "leave-feedback"),
         (Command::ToggleGrid, "toggle-grid"),
+        (Command::SlingNow, "sling-now"),
     ];
 
     /// The command called `name` in the config file.
@@ -327,6 +331,7 @@ impl Default for Keymap {
             on(CMD, 'k'),
             on(CMD | SHIFT, 'f'),
             on(CMD, '\''),
+            on(ALT, '\r'),
         ])
     }
 }

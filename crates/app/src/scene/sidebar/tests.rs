@@ -1,4 +1,5 @@
 use super::*;
+use crate::scene::taps::Tap;
 
 const T: Theme = Theme {
     background: Rgb { r: 0, g: 0, b: 0 },
@@ -31,7 +32,7 @@ fn heard(first: Vec<Workspace>) -> Sidebar {
 }
 
 fn notice(sidebar: &Sidebar) -> Option<String> {
-    sidebar.notice(&T, WINDOW).map(|l| l.text)
+    sidebar.notice(&T, WINDOW).first().map(|l| l.text.clone())
 }
 
 /// Each row's text and colour, less the shown workspace's background.
@@ -150,15 +151,74 @@ fn before_the_first_list_it_is_empty_and_with_none_it_says_so() {
 }
 
 #[test]
-fn each_canvas_has_the_status_of_its_workspaces_agent_for_its_button() {
-    assert_eq!(Sidebar::new(false).statuses(), []);
+fn each_canvas_has_its_workspaces_agent_for_its_button_and_footer() {
+    assert_eq!(Sidebar::new(false).agents(), None);
     let none = Workspace { name: "plain".into(), canvas: "plain".into(), agent: None };
     let mut sidebar = heard(vec![ws("ada", Some(Status::Blocked)), ws("bo", None), none]);
-    let blocked = ("ada-canvas".to_string(), Some(Status::Blocked));
-    let quiet = [("bo-canvas".to_string(), None), ("plain".to_string(), None)];
-    assert_eq!(sidebar.statuses(), [blocked, quiet[0].clone(), quiet[1].clone()]);
+    let agents = sidebar.agents().unwrap();
+    let canvases: Vec<&str> = agents.iter().map(|(c, _)| c.as_str()).collect();
+    assert_eq!(canvases, ["ada-canvas", "bo-canvas", "plain"]);
+    let named = |i: usize| agents[i].1.as_ref().map(|a| (a.name.as_str(), a.status));
+    assert_eq!(named(0), Some(("ada", Some(Status::Blocked))));
+    assert_eq!((named(1), named(2)), (Some(("bo", None)), None));
     sidebar.update(Err(crate::backend::Problem { message: "gone".into(), hint: None }));
-    assert_eq!(sidebar.statuses(), [], "a lost daemon: no status");
+    assert_eq!(sidebar.agents(), None, "a lost daemon: nothing known");
+}
+
+#[test]
+fn the_daemon_s_count_of_pending_messages_wins_over_what_the_agent_said() {
+    use Status::{Blocked, Done, Stopped, Working};
+    assert_eq!(Status::of(Some(Done), false, 0, true), Some(Stopped), "no process");
+    assert_eq!(Status::of(None, false, 1, false), Some(Stopped));
+    assert_eq!(Status::of(None, true, 0, false), None, "started, nothing asked");
+    assert_eq!(Status::of(Some(Done), true, 1, true), Some(Working), "a hook is late");
+    assert_eq!(Status::of(None, true, 2, false), Some(Working), "no hooks at all");
+    assert_eq!(Status::of(Some(Blocked), true, 1, false), Some(Blocked));
+    assert_eq!(Status::of(Some(Working), true, 0, true), Some(Done), "it answered");
+    assert_eq!(Status::of(None, true, 0, true), Some(Done), "answered with no hooks");
+    assert_eq!(Status::of(Some(Blocked), true, 0, false), Some(Done));
+    let stopped = heard(vec![ws("ada", Some(Stopped))]);
+    let rows = stopped.rows(&T, WINDOW);
+    assert!(
+        shown(&rows).iter().any(|(text, _)| *text == "ada · not running"),
+        "{:?}",
+        shown(&rows)
+    );
+}
+
+#[test]
+fn a_done_agent_leaves_the_notice_on_its_own_and_a_blocked_one_stays() {
+    let start = std::time::Instant::now();
+    let mut sidebar = heard(vec![ws("ada", None), ws("bo", None)]);
+    sidebar.update(Ok(vec![ws("ada", Some(Status::Done)), ws("bo", Some(Status::Blocked))]));
+    assert!(!sidebar.fade(start), "stamped when it first shows");
+    assert_eq!(notice(&sidebar).as_deref(), Some("ada is done · bo is blocked"));
+    assert!(!sidebar.fade(start + notice::FADE / 2));
+    assert!(sidebar.fade(start + notice::FADE));
+    assert_eq!(notice(&sidebar).as_deref(), Some("bo is blocked"));
+    assert!(!sidebar.fade(start + 100 * notice::FADE), "blocked waits for the user");
+    assert!(!sidebar.pressed());
+    assert_eq!(notice(&sidebar).as_deref(), Some("bo is blocked"));
+}
+
+#[test]
+fn the_pen_s_next_press_takes_a_done_agent_out_of_the_notice() {
+    let mut sidebar = heard(vec![ws("ada", None)]);
+    sidebar.update(Ok(vec![ws("ada", Some(Status::Done))]));
+    assert!(sidebar.pressed());
+    assert_eq!(notice(&sidebar), None);
+    assert!(!sidebar.pressed(), "nothing more to take");
+}
+
+#[test]
+fn the_notice_s_x_dismisses_it_and_the_rest_shows_the_agent_s_workspace() {
+    let mut sidebar = heard(vec![ws("ada", None), ws("bo", None)]);
+    assert_eq!(sidebar.notice_targets(WINDOW), [], "no notice, no targets");
+    sidebar.update(Ok(vec![ws("ada", None), noted("bo", Status::Blocked, "which key?")]));
+    let labels = sidebar.notice(&T, WINDOW);
+    let targets = sidebar.notice_targets(WINDOW);
+    let close = (labels[1].frame, Tap::Run(crate::commands::Command::DismissNotice));
+    assert_eq!(targets, [close, (labels[0].frame, Tap::Workspace(1))]);
 }
 
 #[test]
@@ -212,11 +272,15 @@ fn each_workspace_s_lines_are_a_target_a_tap_shows_its_panes() {
 fn a_change_to_blocked_gives_a_notice_with_the_note() {
     let mut sidebar = heard(vec![ws("ada", Some(Status::Working))]);
     assert!(sidebar.update(Ok(vec![noted("ada", Status::Blocked, "which key?")])));
-    let label = sidebar.notice(&T, WINDOW).unwrap();
+    let labels = sidebar.notice(&T, WINDOW);
+    let (label, close) = (&labels[0], &labels[1]);
     assert_eq!(label.text, "ada is blocked: which key?");
     assert_eq!((label.colour, label.fill), (T.background, Some(T.focus)));
-    assert!(label.frame.y + label.frame.height <= WINDOW.height);
-    assert!(label.frame.width <= NOTICE_WIDTH);
+    assert_eq!(close.text, notice::CLOSE, "its ✕ at its end");
+    assert_eq!(close.frame.x, label.frame.x + label.frame.width);
+    let bottom = close.frame.y + close.frame.height;
+    assert!(bottom <= WINDOW.height - status::HEIGHT, "above the footers");
+    assert!(close.frame.x + close.frame.width - label.frame.x <= notice::WIDTH);
 }
 
 #[test]
@@ -298,8 +362,9 @@ fn the_notice_sits_in_the_panes_area() {
     let mut sidebar = heard(vec![ws("ada", None)]);
     sidebar.update(Ok(vec![ws("ada", Some(Status::Done))]));
     let panes = sidebar.panes(WINDOW);
-    let frame = sidebar.notice(&T, panes).unwrap().frame;
-    assert!(frame.x >= panes.x && frame.x + frame.width <= panes.x + panes.width);
+    let labels = sidebar.notice(&T, panes);
+    let (text, close) = (labels[0].frame, labels[1].frame);
+    assert!(text.x >= panes.x && close.x + close.width <= panes.x + panes.width);
     let narrow = Rect { width: 10.0, ..WINDOW };
-    assert!(sidebar.notice(&T, narrow).unwrap().frame.width.abs() < f64::EPSILON);
+    assert!(sidebar.notice(&T, narrow).iter().all(|l| l.frame.width.abs() < f64::EPSILON));
 }

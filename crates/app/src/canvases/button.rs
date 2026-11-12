@@ -3,7 +3,7 @@
 //! agents' statuses. Runs on the main thread and never waits.
 //!
 //! A tap on a button slings what is new on its page after the last sling
-//! (R1) with no prompt, through [`Canvases::sling_now`]: the same
+//! (R1) with `[sling] prompt`, through [`Canvases::sling_now`]: the same
 //! `sling_send` as the `sling` command, with nothing selected. While the
 //! sling's entry is open, a tap sends it, as return does: the `sling`
 //! command with nothing selected opens the entry beside the focused page's
@@ -17,17 +17,10 @@ use crate::layout::{PaneId, Point, Rect, Viewport};
 use crate::panes::Panes;
 use crate::scene::ink::Change;
 use crate::scene::select::Selection;
-use crate::scene::sidebar::Status;
 
 pub(super) use crate::scene::button::{shown, under};
 
 impl Canvases {
-    /// Each open workspace's canvas and its agent's status, as the sidebar
-    /// last heard: what the buttons on those canvases show.
-    pub fn agents(&mut self, statuses: Vec<(String, Option<Status>)>) {
-        self.statuses = statuses;
-    }
-
     /// A tap on the button at `button` (canvas points) on the page `here`,
     /// seen through `viewport` in a pane laid at `frame`: sends the open
     /// entry, or slings what is new with no prompt. False while a sling is
@@ -80,12 +73,6 @@ impl Canvases {
         self.ink.push(Change::Put { canvas, page: shown, colour, shape });
         self.send();
     }
-}
-
-/// The status of the agent whose workspace's canvas is `canvas`, in
-/// `statuses`; `None` for a canvas no open workspace has.
-pub(super) fn status(statuses: &[(String, Option<Status>)], canvas: &str) -> Option<Status> {
-    statuses.iter().find(|(c, _)| c == canvas).and_then(|(_, s)| *s)
 }
 
 /// `r`, canvas points seen through `viewport` in a pane laid at `frame`,

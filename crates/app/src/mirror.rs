@@ -72,6 +72,12 @@ impl Mirror {
         &self.items
     }
 
+    /// Who made the item at index `at` of [`Mirror::items`]: `user`, or
+    /// `agent:<name>`.
+    pub fn by(&self, at: usize) -> Option<&str> {
+        self.objects.get(at)?.get("by")?.as_str()
+    }
+
     /// The canvas's pages, in order.
     pub fn pages(&self) -> &[Page] {
         &self.pages
@@ -117,7 +123,14 @@ impl Mirror {
     fn apply_one(&mut self, op: &Value) -> Applied {
         let text = |key: &str| op.get(key).and_then(Value::as_str);
         let changed = match text("op").unwrap_or_default() {
-            "add" | "restore" => op.get("item").is_some_and(|item| self.put(item)),
+            // The feed says who added an item on the operation, `canvas_show` on the item.
+            "add" | "restore" => op.get("item").is_some_and(|item| {
+                let mut item = item.clone();
+                if let (Some(o), Some(by)) = (item.as_object_mut(), op.get("by")) {
+                    o.entry("by").or_insert_with(|| by.clone());
+                }
+                self.put(&item)
+            }),
             "remove" => ids(op).fold(false, |any, id| self.remove(id) | any),
             "move" => {
                 let zero = Value::from(0);

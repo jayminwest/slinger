@@ -118,6 +118,7 @@ const BAR: [(&str, &[Action]); 8] = [
             R(Command::PickTool),
             R(Command::PickWidth),
             R(Command::Sling),
+            R(Command::SlingNow),
             R(Command::Dictate),
             R(Command::PlaceButton),
         ],

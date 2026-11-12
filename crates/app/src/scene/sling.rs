@@ -15,14 +15,15 @@
 //! the user saw. Ink drawn after the selection was made is never in it (only
 //! the server's items can be selected), but it goes in the packet's new ink
 //! like any other. While it waits and while it goes, a muted line stands
-//! where the entry was. The answer arrives on the canvas through the change
-//! feed and the agent's status in the sidebar, so a sling that went simply
-//! closes. A sling that failed opens the entry again with its prompt, and
-//! the error's message and hint under it: return tries again, escape gives up.
+//! where the entry was. What the agent does next is [`crate::scene::slung`]'s
+//! to show, so a sling that went simply closes. A typed sling that failed
+//! opens the entry again with its prompt, and the error's message and hint
+//! under it: return tries again, escape gives up.
 //!
 //! [`Sling::send_now`] is the one entry point for slings that need no
-//! typing (a tap on the "send to agent" button). A sling with nothing
-//! selected sends what is new on its page.
+//! typing (a tap on a "Sling" button). A sling with nothing selected sends
+//! what is new on its page. One that fails closes, and says why where the
+//! pen tapped ([`crate::scene::slung`]): the pen cannot press escape.
 
 use crate::backend::Problem;
 use crate::commands::Chord;
@@ -32,6 +33,8 @@ use crate::scene::canvas::ItemId;
 use crate::scene::select::Selection;
 use crate::scene::sidebar::{Font, Row};
 use crate::scene::{Border, Label, style};
+
+pub mod buttons;
 
 /// The entry's box, in points.
 pub const WIDTH: f64 = 360.0;
@@ -111,9 +114,21 @@ enum Stage {
     /// The entry is open, with why the last try failed, if it did.
     Typing(Option<Problem>),
     /// Sent by the user; waits for its canvas's ink to reach the daemon.
-    Waiting,
+    /// `typed`: it came from the entry, which a failure opens again.
+    Waiting { typed: bool },
     /// With the daemon.
-    Sending,
+    Sending { typed: bool },
+}
+
+/// What became of the sling the daemon answered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Answered {
+    /// No sling was on its way.
+    Not,
+    /// It went, or it failed with no entry to open: it closed.
+    Closed,
+    /// A typed sling failed: its entry is open again, with why.
+    Reopened,
 }
 
 /// The sling being made, if any.
@@ -128,7 +143,7 @@ impl Sling {
     /// again on the new selection, with its text; one on its way is left
     /// alone (false).
     pub fn open(&mut self, selection: &Selection, around: Rect, within: Rect) -> bool {
-        if matches!(self.open, Some((_, _, Stage::Waiting | Stage::Sending))) {
+        if matches!(self.open, Some((_, _, Stage::Waiting { .. } | Stage::Sending { .. }))) {
             return false;
         }
         let prompt = self.open.take().map(|(ask, ..)| ask.prompt).unwrap_or_default();
@@ -147,11 +162,11 @@ impl Sling {
         around: Rect,
         within: Rect,
     ) -> bool {
-        if matches!(self.open, Some((_, _, Stage::Waiting | Stage::Sending))) {
+        if matches!(self.open, Some((_, _, Stage::Waiting { .. } | Stage::Sending { .. }))) {
             return false;
         }
         let ask = ask(selection, prompt.to_string());
-        self.open = Some((ask, place(around, within), Stage::Waiting));
+        self.open = Some((ask, place(around, within), Stage::Waiting { typed: false }));
         true
     }
 
@@ -177,7 +192,7 @@ impl Sling {
     /// False when the entry is closed.
     pub fn send(&mut self) -> bool {
         let Some((_, _, stage @ Stage::Typing(_))) = &mut self.open else { return false };
-        *stage = Stage::Waiting;
+        *stage = Stage::Waiting { typed: true };
         true
     }
 
@@ -193,24 +208,31 @@ impl Sling {
     /// The waiting sling, now going, once `settled` says its canvas's ink
     /// is in the daemon.
     pub fn ready(&mut self, settled: impl Fn(&str) -> bool) -> Option<Ask> {
-        let Some((ask, _, stage @ Stage::Waiting)) = &mut self.open else { return None };
+        let Some((ask, _, stage)) = &mut self.open else { return None };
+        let Stage::Waiting { typed } = *stage else { return None };
         if !settled(&ask.canvas) {
             return None;
         }
-        *stage = Stage::Sending;
+        *stage = Stage::Sending { typed };
         Some(ask.clone())
     }
 
     /// The daemon's answer to the sling going: it went, and closes, or it
-    /// failed, and the entry opens again with its prompt and the problem.
-    /// Returns whether anything shown changed.
-    pub fn answered(&mut self, answer: Result<(), Problem>) -> bool {
-        let Some((_, _, stage @ Stage::Sending)) = &mut self.open else { return false };
+    /// failed: a typed sling's entry opens again with its prompt and the
+    /// problem, and any other closes.
+    pub fn answered(&mut self, answer: Result<(), Problem>) -> Answered {
+        let Some((_, _, stage)) = &mut self.open else { return Answered::Not };
+        let Stage::Sending { typed } = *stage else { return Answered::Not };
         match answer {
-            Ok(()) => self.open = None,
-            Err(problem) => *stage = Stage::Typing(Some(problem)),
+            Err(problem) if typed => {
+                *stage = Stage::Typing(Some(problem));
+                Answered::Reopened
+            }
+            _ => {
+                self.open = None;
+                Answered::Closed
+            }
         }
-        true
     }
 
     /// The canvas the sling is from, while one is open or on its way.
@@ -260,7 +282,7 @@ impl Sling {
                 lines.extend(problem.hint.clone().map(|hint| line(2.0, hint, theme.muted)));
                 lines
             }
-            Stage::Waiting | Stage::Sending => {
+            Stage::Waiting { .. } | Stage::Sending { .. } => {
                 let text = match ask.prompt.trim() {
                     "" => format!("slinging {}…", count(ask)),
                     prompt => format!("slinging {}: {prompt}", count(ask)),

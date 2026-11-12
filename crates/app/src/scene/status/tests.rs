@@ -25,6 +25,8 @@ fn canvas(frame: Rect, keys: &Keymap, pen: Pen, sidebar: bool) -> Footer {
         zoom: Some(100),
         sidebar,
         close: true,
+        sling: false,
+        agent: None,
     };
     footer(frame, &T, keys, &shows)
 }
@@ -215,6 +217,8 @@ fn an_agent_ui_pane_s_footer_has_its_name_the_pane_buttons_and_the_keys() {
         zoom: None,
         sidebar: false,
         close: false,
+        sling: false,
+        agent: None,
     };
     let footer = footer(PANE, &T, &keys, &shows);
     assert_eq!(footer.marks, [], "no swatch, no width bars");
@@ -272,8 +276,16 @@ fn the_pane_shows_its_content_above_the_footer() {
     assert_eq!(content(PANE), Rect { height: 400.0 - HEIGHT, ..PANE });
     let short = Rect { height: 10.0, ..PANE };
     assert_eq!(content(short).height, 0.0);
-    let shows =
-        Shows { pen: None, centre: "", pages: false, zoom: None, sidebar: false, close: false };
+    let shows = Shows {
+        pen: None,
+        centre: "",
+        pages: false,
+        zoom: None,
+        sidebar: false,
+        close: false,
+        sling: false,
+        agent: None,
+    };
     let footer = footer(short, &T, &Keymap::default(), &shows);
     assert_eq!(footer.frame, short, "a pane shorter than a footer is all footer");
 }
@@ -283,4 +295,60 @@ fn each_tool_is_named_by_its_command() {
     let tools = [Tool::Pen, Tool::Eraser, Tool::Lasso, Tool::Text, Tool::Box, Tool::Arrow];
     let names: Vec<&str> = tools.iter().map(|&t| command(t).title()).collect();
     assert_eq!(names, ["Pen", "Eraser", "Lasso", "Text", "Box", "Arrow"]);
+}
+
+/// A canvas pane's footer with the sling's button, to `agent`.
+fn slinging(width: f64, agent: Option<(&str, Option<Status>)>) -> Footer {
+    let shows = Shows {
+        pen: Some(pen(Tool::Lasso, State::Selected(3))),
+        centre: "ideas · 2/3",
+        pages: true,
+        zoom: Some(100),
+        sidebar: false,
+        close: true,
+        sling: true,
+        agent,
+    };
+    footer(Rect { width, ..PANE }, &T, &Keymap::default(), &shows)
+}
+
+/// The sling button's run.
+fn sling_run(footer: &Footer) -> &Run {
+    let parts = footer.parts.iter().flat_map(|p| &p.runs);
+    parts.into_iter().find(|r| r.text == SLING).expect("a sling button")
+}
+
+#[test]
+fn a_canvas_footer_names_its_agent_and_slings_in_one_tap() {
+    let footer = slinging(1200.0, Some(("scout", Some(Status::Working))));
+    let said = said(&footer);
+    let agent = said.iter().position(|s| s == "● scout · working").expect("the agent");
+    assert_eq!(said[agent + 1], SLING, "the button beside it");
+    assert!(taps(&footer).contains(&run(Command::SlingNow)));
+    let button = sling_run(&footer);
+    assert_eq!((button.colour, button.bold), (T.focus, true), "it can sling");
+
+    let quiet = slinging(1200.0, Some(("scout", None)));
+    assert!(said_has(&quiet, "○ scout"), "{:?}", said_of(&quiet));
+    let stopped = slinging(1200.0, Some(("scout", Some(Status::Stopped))));
+    assert!(said_has(&stopped, "○ scout · not running"));
+    assert_eq!(sling_run(&stopped).colour, T.muted, "nothing takes a sling");
+    let alone = slinging(1200.0, None);
+    assert_eq!(sling_run(&alone).colour, T.muted, "no agent");
+    assert!(!said_of(&alone).iter().any(|s| s.contains("scout")));
+}
+
+#[test]
+fn a_narrow_canvas_footer_keeps_the_sling_button() {
+    let footer = slinging(330.0, Some(("scout", Some(Status::Done))));
+    assert!(taps(&footer).contains(&run(Command::SlingNow)), "{:?}", said_of(&footer));
+    assert!(!said_has(&footer, "● scout · done"), "the agent goes before it");
+}
+
+fn said_of(footer: &Footer) -> Vec<String> {
+    said(footer)
+}
+
+fn said_has(footer: &Footer, text: &str) -> bool {
+    said(footer).iter().any(|s| s == text)
 }

@@ -212,6 +212,7 @@ impl Panes {
             | Command::WidthDown
             | Command::ToggleSidebar
             | Command::DismissNotice
+            | Command::SlingNow
             | Command::PanLeft
             | Command::PanRight
             | Command::PanUp

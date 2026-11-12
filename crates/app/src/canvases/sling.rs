@@ -133,26 +133,28 @@ impl Canvases {
         scene.labels.extend(self.dictation_labels(theme));
     }
 
-    /// Takes the daemon's answers to the sling and the feedback, and sends a waiting one once
-    /// the ink of its canvas is in the daemon. Returns whether anything
-    /// shown changed.
+    /// Takes the daemon's answers to the sling and the feedback, and what
+    /// it says of the agent since, and sends a waiting sling once the ink
+    /// of its canvas is in the daemon. Returns whether anything shown
+    /// changed.
     pub(super) fn poll_sling(&mut self) -> bool {
-        let mut changed = self.poll_feedback();
-        for answer in self.slinger.answers() {
-            changed |= self.sling.answered(answer);
-        }
+        let changed = self.poll_feedback() | self.poll_slung();
         let (ink, sling) = (&self.ink, &mut self.sling);
         // A lost daemon would hold the ink, and the sling, for ever: the
         // sling goes and says so.
         if let Some(ask) = sling.ready(|c| ink.settled(c) || ink.problem().is_some()) {
-            self.slinger.send(ask);
+            self.going(ask);
         }
         changed
     }
 
     /// The selection, when the focused pane of `panes` laid in `area` shows
     /// it, with its box and the pane's frame, in the window.
-    fn selection_in(&self, panes: &Panes, area: Rect) -> Option<(&Selection, Rect, Rect)> {
+    pub(super) fn selection_in(
+        &self,
+        panes: &Panes,
+        area: Rect,
+    ) -> Option<(&Selection, Rect, Rect)> {
         let (selection, pane) = (self.selection()?, panes.focus());
         let placed = panes.place(area).into_iter().find(|(id, _, _)| *id == pane);
         let frame =
