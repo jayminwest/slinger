@@ -113,26 +113,14 @@ const BAR: f64 = 3.0;
 /// What a row's chip says when the command has no key.
 const NO_KEY: &str = "no key";
 const CLOSE: &str = "✕";
+/// The most columns, and the least width of one: room for the longest
+/// title and its chip.
 const COLUMNS: u32 = 3;
+const MIN_COLUMN: f64 = 220.0;
 
 const ESCAPE: Chord = Chord::new(0, '\u{1b}');
 const UP: Chord = Chord::new(0, '\u{f700}');
 const DOWN: Chord = Chord::new(0, '\u{f701}');
-
-/// The column a group shows in: tools, pop-ups and sling, then the canvas
-/// and its pages, then the panes and the window.
-const fn column(group: Group) -> u32 {
-    match group {
-        Group::Tools | Group::PopUps | Group::Sling => 0,
-        Group::Canvas | Group::Pages => 1,
-        Group::Panes | Group::Window => 2,
-    }
-}
-
-/// The groups of column `n`, in the registry's order.
-fn groups(n: u32) -> impl Iterator<Item = Group> {
-    Group::ALL.into_iter().filter(move |&g| column(g) == n)
-}
 
 /// The commands of `group`, in the registry's order.
 fn commands(group: Group) -> impl Iterator<Item = Command> {
@@ -144,10 +132,30 @@ fn tall(group: Group) -> f64 {
     HEADING + commands(group).map(|_| ROW).sum::<f64>()
 }
 
-/// The tallest column's height: its groups, a gap between two.
-fn content() -> f64 {
-    let column = |n| groups(n).map(|g| tall(g) + GROUP_GAP).sum::<f64>() - GROUP_GAP;
-    (0..COLUMNS).map(column).fold(0.0, f64::max)
+/// How many columns fit across `width` with `gap` between two: the most,
+/// up to [`COLUMNS`], that keeps each at least [`MIN_COLUMN`] wide, and
+/// never fewer than one.
+fn columns(width: f64, gap: f64) -> u32 {
+    let wide = |n: u32| f64::from(n) * MIN_COLUMN + f64::from(n - 1) * gap;
+    (1..=COLUMNS).rev().find(|&n| wide(n) <= width).unwrap_or(1)
+}
+
+/// `groups`, in order, cut into at most `n` runs, a column each, so the
+/// tallest column is as short as it can be (the earliest cut on a tie):
+/// the tallest's height, and the columns.
+fn split(groups: &[Group], n: u32) -> (f64, Vec<Vec<Group>>) {
+    let high = |run: &[Group]| run.iter().map(|&g| tall(g) + GROUP_GAP).sum::<f64>() - GROUP_GAP;
+    let whole = (high(groups), vec![groups.to_vec()]);
+    if n <= 1 {
+        return whole;
+    }
+    (1..groups.len()).fold(whole, |best, cut| {
+        let (first, rest) = groups.split_at(cut);
+        let (tallest, mut runs) = split(rest, n - 1);
+        runs.insert(0, first.to_vec());
+        let next = (high(first).max(tallest), runs);
+        if next.0 < best.0 { next } else { best }
+    })
 }
 
 /// Where the overlay's parts sit in a window, scrolled.
@@ -166,27 +174,29 @@ struct Place {
 }
 
 /// The panel in a window of `size`, centred, as tall as its rows or the
-/// window allows, with its rows scrolled by `scroll` (kept in range).
+/// window allows, with its rows scrolled by `scroll` (kept in range). Its
+/// groups fill as many columns as fit, left to right.
 fn place(size: Size, scroll: f64) -> Place {
     let width = (size.width - 2.0 * MARGIN).clamp(0.0, MAX_WIDTH);
     let (pad, gap) = if width < 600.0 { (NARROW_PAD, NARROW_GAP) } else { (PAD, GAP) };
+    let across = (width - 2.0 * pad).max(0.0);
+    let n = columns(across, gap);
+    let (content, runs) = split(&Group::ALL, n);
     let room = (size.height - 2.0 * MARGIN).max(0.0);
-    let height = (2.0 * PAD_Y + HEADER + UNDER_HEADER + content()).min(room);
+    let height = (2.0 * PAD_Y + HEADER + UNDER_HEADER + content).min(room);
     let (x, y) = ((size.width - width) / 2.0, (size.height - height) / 2.0);
     let panel = Rect { x, y, width, height };
     let close = Rect { x: x + width - pad / 2.0 - ROW, y: y + PAD_Y, width: ROW, height: HEADER };
     let top = y + PAD_Y + HEADER + UNDER_HEADER;
     let body_high = (y + height - PAD_Y - top).max(0.0);
-    let body = Rect { x: x + pad, y: top, width: (width - 2.0 * pad).max(0.0), height: body_high };
-    let most = (content() - body.height).max(0.0);
+    let body = Rect { x: x + pad, y: top, width: across, height: body_high };
+    let most = (content - body.height).max(0.0);
     let scroll = scroll.clamp(0.0, most);
-    let columns = f64::from(COLUMNS);
-    let column = ((body.width - gap * (columns - 1.0)) / columns).max(0.0);
+    let column = ((body.width - gap * f64::from(n - 1)) / f64::from(n)).max(0.0);
     let (mut headings, mut rows) = (Vec::new(), Vec::new());
-    for n in 0..COLUMNS {
-        let x = body.x + f64::from(n) * (column + gap);
+    for (x, groups) in (0_u32..).map(|i| body.x + f64::from(i) * (column + gap)).zip(runs) {
         let mut y = body.y - scroll;
-        for group in groups(n) {
+        for group in groups {
             headings.push((group, Rect { x, y, width: column, height: HEADING }));
             y += HEADING;
             for command in commands(group) {

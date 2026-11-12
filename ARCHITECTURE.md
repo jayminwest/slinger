@@ -619,8 +619,9 @@ scene/overlay.rs  the key overlay (`show-keys`): open or closed, its
              its ✕ closes it; a tap on a row (down and up on it, no drag)
              closes it and runs the command; a drag or a scroll moves rows
              that do not fit. Its rounded panel lists Command::ALL by Group
-             in three columns, each row 28 pt with a chip of the live key
-             from the Keymap. Line (a label, its font, its corners and edge)
+             in up to three columns (as many as fit 220 pt each, the groups
+             cut in order so the tallest is shortest), each row 28 pt with
+             a chip of the live key from the Keymap. Line (a label, its font, its corners and edge)
              is shared with the palette. Pure.
 scene/palette.rs  the command palette (`show-commands`): open or closed,
              what is typed and the selected row. Typing is scene-drawn: it
