@@ -32,6 +32,7 @@ fn parses_every_key() {
         workspace: Some("My Notes".into()),
         keys: Keymap::default(),
         palette: Palette::default(),
+        widths: Widths::default(),
         sidebar: Shown::Open,
     };
     assert_eq!(config, expected);
@@ -113,6 +114,7 @@ fn every_error_names_its_line_and_has_a_hint() {
         ErrorKind::NotAString,
         ErrorKind::BadColour,
         ErrorKind::BadPalette,
+        ErrorKind::BadWidths,
         ErrorKind::BadSidebar,
         ErrorKind::UnknownCommand,
         ErrorKind::BadChord,
@@ -133,6 +135,7 @@ fn every_error_names_its_line_and_has_a_hint() {
             "line 7: the value is not a quoted string / quote the value: key = \"value\"",
             "line 7: the value is not a colour / write a colour as \"#rrggbb\"",
             "line 7: the value is not one to nine colours / write the colours as \"#rrggbb #rrggbb\", split by spaces or commas",
+            "line 7: the value is not one to nine widths from 0.1 to 50 / write the widths in points as \"2 4 8 16\", split by spaces or commas",
             "line 7: the value is not open or closed / write \"open\" or \"closed\"",
             "line 7: unknown command / config.example.toml lists every table and key",
             "line 7: the value is not a key chord / write a chord as \"cmd+shift+k\", or \"\" for none",
@@ -161,6 +164,7 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
         socket: all.socket.clone(),
         workspace: Some("notes".into()),
         palette: Some(Palette::default()),
+        widths: Some(Widths::default()),
         sidebar: Some(Shown::Open),
         // The defaults, each written out.
         keys: [
@@ -169,6 +173,7 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
             "cmd+shift+c",
             "cmd+shift+s",
             "cmd+shift+t",
+            "cmd+shift+w",
             "cmd+d",
             "cmd+shift+d",
             "cmd+w",
@@ -196,6 +201,8 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
             "cmd+4",
             "cmd+5",
             "cmd+6",
+            "alt+]",
+            "alt+[",
             "cmd+return",
             "cmd+[",
             "cmd+n",
@@ -218,6 +225,17 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
         "the example's chords are the defaults"
     );
     assert!(all.socket.is_some());
+}
+
+#[test]
+fn pen_widths_parse_and_a_bad_list_is_an_error_at_its_line() {
+    let config = parse("[pen]\nwidths = \"1 3\"\n").unwrap().resolve();
+    assert_eq!(config.widths.widths().iter().map(|w| w.text()).collect::<Vec<_>>(), ["1", "3"]);
+    assert_eq!(kind("[pen]\n\nwidths = \"0 3\"\n"), (3, ErrorKind::BadWidths));
+    assert_eq!(kind("[pen]\nwidths = \"\"\n"), (2, ErrorKind::BadWidths));
+    let base = parse("[pen]\nwidths = \"1 3\"\n").unwrap();
+    let top = parse("[pen]\nwidths = \"5\"\n").unwrap();
+    assert_eq!(base.over(top).resolve().widths.widths().len(), 1, "the overlay wins");
 }
 
 #[test]

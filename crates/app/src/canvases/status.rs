@@ -13,9 +13,15 @@ use crate::scene::status::{self, Footer, Pen, State};
 use crate::scene::tools::Tool;
 
 impl Canvases {
+    /// The pen's line width, in canvas units: new strokes take it, and the
+    /// footers show it.
+    pub fn set_pen_width(&mut self, width: f64) {
+        self.ink.set_width(width);
+    }
+
     /// The footer of each pane of `panes` laid in `area`, in `theme`'s
-    /// colours, with the pen's `tool` and `colour` and the live keys of
-    /// `keys`.
+    /// colours, with the pen's `tool`, `colour` and width and the live keys
+    /// of `keys`.
     pub fn footers(
         &self,
         panes: &Panes,
@@ -41,7 +47,13 @@ impl Canvases {
                 _ => State::Idle,
             };
             let centre = page.map(|(_, list, at)| pages::line(&list, &at)).unwrap_or_default();
-            status::footer(frame, theme, keys, Some(Pen { tool, colour, state }), &centre)
+            status::footer(
+                frame,
+                theme,
+                keys,
+                Some(Pen { tool, colour, width: self.ink.width(), state }),
+                &centre,
+            )
         };
         panes.place(area).into_iter().map(footer).collect()
     }

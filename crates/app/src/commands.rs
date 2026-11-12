@@ -21,6 +21,8 @@ pub enum Command {
     PickShape,
     /// Open the tool pop-up (pen, eraser, lasso, text) at the pen.
     PickTool,
+    /// Open the width pop-up (`[pen] widths`) at the pen.
+    PickWidth,
     /// Split the focused pane; the new pane, on the right, shows the same.
     SplitRight,
     /// Split the focused pane; the new pane, below, shows the same.
@@ -62,6 +64,10 @@ pub enum Command {
     ToolText,
     ToolBox,
     ToolArrow,
+    /// Make the pen's line the next width of `[pen] widths`, or the one
+    /// before, without a pop-up. At either end it stays.
+    WidthUp,
+    WidthDown,
     /// Sling the selection: a one-line prompt opens at it.
     Sling,
     /// Turn the focused pane to the page before, before the first to the last.
@@ -96,12 +102,13 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 44] = [
+    pub const ALL: [(Command, &str); 47] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
         (Command::PickShape, "pick-shape"),
         (Command::PickTool, "pick-tool"),
+        (Command::PickWidth, "pick-width"),
         (Command::SplitRight, "split-right"),
         (Command::SplitDown, "split-down"),
         (Command::ClosePane, "close-pane"),
@@ -129,6 +136,8 @@ impl Command {
         (Command::ToolText, "tool-text"),
         (Command::ToolBox, "tool-box"),
         (Command::ToolArrow, "tool-arrow"),
+        (Command::WidthUp, "width-up"),
+        (Command::WidthDown, "width-down"),
         (Command::Sling, "sling"),
         (Command::PreviousPage, "previous-page"),
         (Command::NewPage, "new-page"),
@@ -265,6 +274,7 @@ impl Default for Keymap {
             on(CMD | SHIFT, 'c'),
             on(CMD | SHIFT, 's'),
             on(CMD | SHIFT, 't'),
+            on(CMD | SHIFT, 'w'),
             on(CMD, 'd'),
             on(CMD | SHIFT, 'd'),
             on(CMD, 'w'),
@@ -292,6 +302,8 @@ impl Default for Keymap {
             on(CMD, '4'),
             on(CMD, '5'),
             on(CMD, '6'),
+            on(ALT, ']'),
+            on(ALT, '['),
             on(CMD, '\r'),
             on(CMD, '['),
             on(CMD, 'n'),

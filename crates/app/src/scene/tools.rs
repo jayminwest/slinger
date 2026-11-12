@@ -1,8 +1,9 @@
-//! The pen's current tool and colour, and the pop-up at the pen that changes
-//! them (SPEC section 11). Pure: `main` hands in where the pen is, presses and
-//! keys, and reads back the [`Tool`], the colour and the labels to draw. A
-//! canvas pane reads [`Tools::tool`] and [`Tools::colour`] to know what the
-//! pen does.
+//! The pen's current tool, colour and width, and the pop-up at the pen that
+//! changes them (SPEC section 11). Pure: `main` hands in where the pen is,
+//! presses and keys, and reads back the [`Tool`], the colour, the width and
+//! the labels to draw. A canvas pane reads [`Tools::tool`], [`Tools::colour`]
+//! and [`Tools::width`] to know what the pen does. The width is the pen's
+//! line alone: boxes and arrows keep their one line width.
 //!
 //! A tablet pen's eraser end erases whatever tool is chosen: while it is
 //! the end in use ([`Tools::set_eraser_end`]), [`Tools::tool`] is the eraser
@@ -14,8 +15,10 @@
 //! move the highlight and return (or space) picks it. A pick, escape, a press
 //! outside the pop-up, or the same command again closes it.
 
-use crate::commands::{Chord, Command};
-use crate::config::{Palette, Rgb, Theme};
+use std::time::Instant;
+
+use crate::commands::{Chord, Command, Keymap};
+use crate::config::{Palette, Rgb, Theme, Width, Widths};
 use crate::layout::{self, Point, Rect};
 use crate::scene::Label;
 use crate::scene::flash::Flash;
@@ -47,7 +50,7 @@ impl Tool {
     }
 }
 
-/// The three pop-ups.
+/// The four pop-ups.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     /// The palette's colours.
@@ -56,6 +59,21 @@ pub enum Kind {
     Shape,
     /// The tools that are not shapes: pen, eraser, lasso and text.
     Tool,
+    /// The pen's widths.
+    Width,
+}
+
+impl Kind {
+    /// The pop-up a command opens: `pick-colour` to `pick-width`.
+    pub fn opened_by(command: Command) -> Option<Kind> {
+        match command {
+            Command::PickColour => Some(Kind::Colour),
+            Command::PickShape => Some(Kind::Shape),
+            Command::PickTool => Some(Kind::Tool),
+            Command::PickWidth => Some(Kind::Width),
+            _ => None,
+        }
+    }
 }
 
 const SHAPES: [Tool; 2] = [Tool::Box, Tool::Arrow];
@@ -69,32 +87,67 @@ pub struct Popup {
     lit: usize,
 }
 
-/// The pen's state: its tool, its colour, the palette it picks from, where
-/// it last was, the open pop-up, if any, the flash that names a new tool,
-/// and whether the pen's eraser end is the one in use.
+/// The pen's state: its tool, its colour and width, the lists it picks
+/// them from, where it last was, the open pop-up, if any, the flash that
+/// names a new tool or width, and whether the pen's eraser end is the one in use.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tools {
     tool: Tool,
     eraser_end: bool,
     colour: Rgb,
     palette: Palette,
+    width: Width,
+    widths: Widths,
     pen: Point,
     popup: Option<Popup>,
     flash: Flash,
 }
 
 impl Tools {
-    /// The pen with the palette's first colour, and no pop-up. Until the pen
-    /// or pointer moves, a pop-up opens at `pen`.
+    /// The pen with the palette's first colour and the default widths'
+    /// first width, and no pop-up. Until the pen or pointer moves, a pop-up
+    /// opens at `pen`.
     pub fn new(palette: Palette, pen: Point) -> Self {
         let colour = palette.colours()[0];
         let flash = Flash::new(Tool::Pen);
-        Self { tool: Tool::Pen, eraser_end: false, colour, palette, pen, popup: None, flash }
+        let widths = Widths::default();
+        let width = widths.widths()[0];
+        Self {
+            tool: Tool::Pen,
+            eraser_end: false,
+            colour,
+            palette,
+            width,
+            widths,
+            pen,
+            popup: None,
+            flash,
+        }
     }
 
-    /// The flash that names a new tool, [`Flash::follow`]ing [`Tools::chosen`].
+    /// The pen with `widths` to pick from and their first width: the start.
+    #[must_use]
+    pub fn with_widths(mut self, widths: Widths) -> Self {
+        self.width = widths.widths()[0];
+        self.widths = widths;
+        self
+    }
+
+    /// The flash that names a new tool ([`Tools::chosen`]) or width.
     pub fn flash(&self) -> &Flash {
         &self.flash
+    }
+
+    /// The window is drawn at `now`: a new tool or width since the last
+    /// draw flashes, with its key in `keys`.
+    pub fn follow(&self, keys: &Keymap, now: Instant) {
+        self.flash.follow(self.tool, keys, now);
+        self.flash.follow_width(self.width, keys, now);
+    }
+
+    /// The pen's line width.
+    pub fn width(&self) -> Width {
+        self.width
     }
 
     /// What the pen does: the eraser while the pen's eraser end is in use,
@@ -116,8 +169,23 @@ impl Tools {
 
     /// Runs a tool command (`tool-pen` to `tool-arrow`): the tool it names
     /// is what the pen does now. An open tool or shape pop-up closes, since
-    /// its lit cell no longer matches. False for any other command.
+    /// its lit cell no longer matches. `width-up` and `width-down` step the
+    /// width along the list, and close an open width pop-up. False for any
+    /// other command.
     pub fn command(&mut self, command: Command) -> bool {
+        if matches!(command, Command::WidthUp | Command::WidthDown) {
+            let widths = self.widths.widths();
+            let at = widths.iter().position(|&w| w == self.width).unwrap_or(0);
+            let to = match command {
+                Command::WidthUp => (at + 1).min(widths.len() - 1),
+                _ => at.saturating_sub(1),
+            };
+            self.width = widths[to];
+            if self.open_kind() == Some(Kind::Width) {
+                self.popup = None;
+            }
+            return true;
+        }
         self.tool = match command {
             Command::ToolPen => Tool::Pen,
             Command::ToolEraser => Tool::Eraser,
@@ -152,6 +220,15 @@ impl Tools {
         self.palette = palette;
     }
 
+    /// New widths, from a reloaded config. The pen keeps its width; an open
+    /// width pop-up closes, since its cells no longer match.
+    pub fn set_widths(&mut self, widths: Widths) {
+        if widths != self.widths && self.open_kind() == Some(Kind::Width) {
+            self.popup = None;
+        }
+        self.widths = widths;
+    }
+
     /// The pen or pointer is at `at`, in the window's points.
     pub fn moved(&mut self, at: Point) {
         self.pen = at;
@@ -169,11 +246,13 @@ impl Tools {
             Kind::Colour => (self.palette.colours().len(), layout::SWATCH),
             Kind::Shape => (SHAPES.len(), layout::WORD),
             Kind::Tool => (TOOLS.len(), layout::WORD),
+            Kind::Width => (self.widths.widths().len(), layout::WORD),
         };
         let lit = match kind {
             Kind::Colour => self.palette.colours().iter().position(|&c| c == self.colour),
             Kind::Shape => SHAPES.iter().position(|&t| t == self.tool),
             Kind::Tool => TOOLS.iter().position(|&t| t == self.tool),
+            Kind::Width => self.widths.widths().iter().position(|&w| w == self.width),
         };
         let place = layout::popup(self.pen, count, cell, within);
         self.popup = Some(Popup { kind, place, lit: lit.unwrap_or(0) });
@@ -232,12 +311,14 @@ impl Tools {
             Kind::Colour => self.colour = self.palette.colours()[i],
             Kind::Shape => self.tool = SHAPES[i],
             Kind::Tool => self.tool = TOOLS[i],
+            Kind::Width => self.width = self.widths.widths()[i],
         }
     }
 
     /// The open pop-up as labels in `theme`'s colours, to draw on top of
     /// everything else: a panel with a border, then each cell. A colour is
-    /// a swatch, with a ring when lit; a word is lit by swapping its colours.
+    /// a swatch, with a ring when lit; a word is lit by swapping its colours;
+    /// a width is a line that wide in the pen's colour, framed when lit.
     pub fn labels(&self, theme: &Theme) -> Vec<Label> {
         let Some(popup) = &self.popup else { return Vec::new() };
         let fill = |frame: Rect, colour: Rgb| Label {
@@ -265,11 +346,33 @@ impl Tools {
                 }
                 Kind::Shape => labels.push(word(SHAPES[i])),
                 Kind::Tool => labels.push(word(TOOLS[i])),
+                Kind::Width => {
+                    if lit {
+                        labels.push(fill(cell, theme.text));
+                        labels.push(fill(cell.outset(-1.0), theme.background));
+                    }
+                    labels.push(fill(line(cell, self.widths.widths()[i]), self.colour));
+                }
             }
         }
         labels
     }
 }
+
+/// A line `width` wide across the middle of `cell`, inside its edges: as
+/// wide as the cell leaves room for, at least one point.
+fn line(cell: Rect, width: Width) -> Rect {
+    let high = width.points().clamp(1.0, cell.height - 2.0 * LINE_INSET);
+    Rect {
+        x: cell.x + LINE_INSET,
+        y: cell.y + (cell.height - high) / 2.0,
+        width: cell.width - 2.0 * LINE_INSET,
+        height: high,
+    }
+}
+
+/// The room between a width's line and the edges of its cell, in points.
+const LINE_INSET: f64 = 4.0;
 
 const ESCAPE: Chord = Chord::new(0, '\u{1b}');
 const RETURN: Chord = Chord::new(0, '\r');

@@ -45,8 +45,8 @@ fn the_search_is_a_subsequence_of_title_and_group_in_any_case() {
     type_in(&mut palette, "split");
     assert_eq!(palette.matches(), [Command::SplitRight, Command::SplitDown]);
     let mut palette = open();
-    type_in(&mut palette, "PEN TOOLS");
-    assert_eq!(palette.matches(), [Command::ToolPen]);
+    type_in(&mut palette, "ERASER TOOLS");
+    assert_eq!(palette.matches(), [Command::ToolEraser]);
     let mut palette = open();
     type_in(&mut palette, "zz");
     assert_eq!(palette.matches(), []);

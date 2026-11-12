@@ -112,7 +112,6 @@ fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
         Event::Tick | Event::Moved(_) | Event::Painted(_) | Event::Typed(_) | Event::Paste(_) => {
             Step::Stay
         }
-        // Keys, the pen and the pointer go on to the UI.
         _ => Step::Pass,
     };
     match platform::run(&scene, answer) {
@@ -130,7 +129,8 @@ fn window(mut settings: Settings) -> ExitCode {
     let mut sidebar = Sidebar::new(shown == Shown::Open);
     sidebar.show(settings.config.workspace.clone());
     let centre = Point { x: layout::WINDOW.width / 2.0, y: layout::WINDOW.height / 2.0 };
-    let mut tools = Tools::new(settings.config.palette.clone(), centre);
+    let widths = settings.config.widths.clone();
+    let mut tools = Tools::new(settings.config.palette.clone(), centre).with_widths(widths);
     let mut shared = Shared::default();
     let mut canvases = Canvases::new(control::Client::new(&socket));
     let first = view(&settings, &shared, &tools, &sidebar, &mut canvases);
@@ -193,6 +193,7 @@ fn window(mut settings: Settings) -> ExitCode {
         }
         if reloaded {
             tools.set_palette(settings.config.palette.clone());
+            tools.set_widths(settings.config.widths.clone());
             if settings.config.sidebar != shown {
                 shown = settings.config.sidebar;
                 sidebar.set_open(shown == Shown::Open);
@@ -284,9 +285,10 @@ fn run(
 ) -> bool {
     let area = sidebar.panes(shared.size.rect());
     match command {
-        Command::PickColour => tools.open(Kind::Colour, focused(&shared.panes, area)),
-        Command::PickShape => tools.open(Kind::Shape, focused(&shared.panes, area)),
-        Command::PickTool => tools.open(Kind::Tool, focused(&shared.panes, area)),
+        c if Kind::opened_by(c).is_some_and(|kind| {
+            tools.open(kind, focused(&shared.panes, area));
+            true
+        }) => {}
         c if !selection(canvases, shared, tools, area, c) => return false,
         Command::ToggleSidebar => sidebar.set_open(!sidebar.is_open()),
         Command::DismissNotice => sidebar.dismiss(),
@@ -397,6 +399,7 @@ fn pointer(
         Event::Press(pen) => {
             tools.set_eraser_end(pen.eraser);
             let tool = (tools.tool(), tools.colour());
+            canvases.set_pen_width(tools.width().points());
             pane_at(panes, area, pen.at).is_some_and(|u| canvases.pen_down(panes, u, pen, tool))
         }
         Event::Drag(pen) => {
@@ -478,6 +481,7 @@ fn view(
     canvases.show_sling(&mut scene, theme, &settings.config.keys, sidebar);
     scene.labels.splice(0..0, canvases.labels(&shared.panes, area, theme));
     let pen = (tools.tool(), tools.colour());
+    canvases.set_pen_width(tools.width().points());
     scene.footers = canvases.footers(&shared.panes, area, theme, pen, &settings.config.keys);
     scene.labels.extend(tools.labels(theme));
     let keys = &settings.config.keys;
@@ -485,7 +489,7 @@ fn view(
     scene.overlay = overlay.or_else(|| shared.palette.shown(keys, theme, size)).map(Box::new);
     scene.cursor = cursor::over_canvas(tools, theme);
     let now = Instant::now();
-    tools.flash().follow(tools.chosen(), keys, now);
+    tools.follow(keys, now);
     let said = canvases.said();
     if let Some(text) = canvases.take_flash().or(said) {
         tools.flash().say(text, now);

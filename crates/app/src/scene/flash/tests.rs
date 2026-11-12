@@ -85,3 +85,21 @@ fn said_text_flashes_in_place_of_the_last_and_goes_after_its_time() {
     assert!(flash.fade(now + SHOWN));
     assert_eq!(text(&flash, now + SHOWN), None);
 }
+
+#[test]
+fn the_first_width_does_not_flash_and_a_new_one_does_with_the_pop_up_key() {
+    let (keys, now) = (Keymap::default(), Instant::now());
+    let widths = crate::config::parse("[pen]\nwidths = \"2 4.5\"\n").unwrap().resolve().widths;
+    let [thin, thick] = widths.widths() else { panic!() };
+    let flash = Flash::new(Tool::Pen);
+    flash.follow_width(*thin, &keys, now);
+    assert_eq!(text(&flash, now), None);
+    flash.follow_width(*thin, &keys, now);
+    assert_eq!(text(&flash, now), None, "the same width again");
+    flash.follow_width(*thick, &keys, now);
+    assert_eq!(text(&flash, now).as_deref(), Some("Width 4.5 ⇧⌘W"));
+    let mut unbound = keys;
+    unbound.bind(Command::PickWidth, None);
+    flash.follow_width(*thin, &unbound, now);
+    assert_eq!(text(&flash, now).as_deref(), Some("Width 2"));
+}
