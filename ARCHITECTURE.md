@@ -334,6 +334,9 @@ canvases.rs  the canvas panes: one follower and mirror per page shown, each
              page turned to arrives); the pen's ink, the eraser's and
              lasso's work and the text, box and arrow tools' over each page,
              and the outbox they share. A selection no pane shows clears.
+             A press on a canvas closes the open entry (the sling's, the
+             feedback's, a page's new name's), but one on a button sends
+             the sling's.
 canvases/live.rs  the live items' pages: each showing a pane draws fetched
              once on a thread of its own, put over its item; a press on an
              item whose page shows goes to the page unless it grabs the
@@ -436,7 +439,9 @@ scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              focuses it first). A UI pane's has its name and the pane
              buttons. A narrow pane drops whole groups, the lowest rank
              first. `strip`: the open sidebar's foot, its hide button.
-             `light`: the button under the pen. A hairline tops each. Pure.
+             `light`: the button under the pen. `tip`: a lit button that
+             is only a glyph or a mark names its command and key just
+             above the footer. A hairline tops each. Pure.
 scene/status/cells.rs  how a footer's cells are laid: groups that stay or
              go together on the left, in the middle or on the right; the
              middle centred on the footer when there is room. Pure.
@@ -449,7 +454,9 @@ scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
              above the name, one 28 pt row per page (the shown one ✓ and
              bold), then New page, Rename page… and Remove page. It takes
              every press while open; the lift on the row pressed picks it,
-             a press outside or escape closes it. No dim. Pure.
+             a press outside or escape closes it. Pages that do not fit
+             scroll a row at a time with a scroll or a drag on the panel
+             (a drag taps nothing). No dim. Pure.
 scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
              `<Tool> <key>` (a new width: `Width <n> <pick-width key>`),
              reload-config its title and key, a saved note "Feedback saved",
@@ -621,9 +628,10 @@ scene/palette.rs  the command palette (`show-commands`): open or closed,
              a subsequence (a paste goes in too), ranked: title prefix,
              word start, title subsequence, then group. Empty, the command
              it last ran leads, then by Group::ALL with Quit last. 44 pt
-             high, each with the group and the live key's chip. While open it takes every key and press; return or
-             a press on a row gives back the command, which main runs as
-             its key would. It draws as the key overlay's Overlay: a
+             high, each with the group and the live key's chip. While open it takes every key and press; return, or
+             a lift on the row the press held, gives back the command,
+             which main runs as its key would (as the key overlay's and
+             the page menu's rows do). It draws as the key overlay's Overlay: a
              rounded panel, the search with a count, the selected row on a
              filled slab. Pure.
 scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
@@ -661,7 +669,8 @@ layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
              about a point or to a level, limits, the level as people read it,
              how far a scroll zooms; the canvas has no edge; a pane's view
              starts with the origin in by a margin) and where a pop-up
-             opens (at the pen, kept inside the window). Pure. 100% coverage floor.
+             opens (at the pen, kept inside the window; each cell at least
+             28 pt high, what a pen taps). Pure. 100% coverage floor.
 layout/tree.rs  the pane tree: binary splits with ratios to rectangles (no
              negative or oversized one at any size), split, close (the sibling
              takes the space), grow, next, and the pane beside one in a
@@ -764,8 +773,10 @@ did not get stays on screen and goes again before any after it; one it
 refuses (its canvas is gone) is dropped and shown as the problem. Local
 ink and the server's echo: a stroke draws from the ink until its canvas's
 feed has passed the line its `add` was written under; from then on the
-mirror holds it. So it never blinks out between the reply and the echo,
-and for that moment both draw it in the same place. Touch (a palm on a
+mirror holds it. So it never blinks out between the reply and the echo.
+The daemon's reply to an add says the ids it made, and the ink shows the
+item under that id from then on (and not at all once the mirror holds
+it), so it never draws twice. Touch (a palm on a
 tablet display) never draws. Each stroke's pen-to-paint delays go to
 stderr as one `ink:` line (SPEC O2). Ink not yet sent is lost if the app
 quits. The app binary has a size budget, and the release
@@ -775,7 +786,8 @@ profile builds it at `opt-level = "z"`, so it adds no async runtime.
 mirror with the ink laid over) and answer under the pen from the app's own
 copy, by the core's rules (`scene/select/hit.rs`): a round trip to the
 daemon per pen event would make the main thread wait or the eraser trail
-the pen. Only the server's items count, so ink still on its way is never
+the pen. Only the server's items count: ink shows under its server id as
+soon as the daemon has written it, so only ink not yet written is never
 erased or selected. A finished erase, move or delete joins the ink's queue
 as one `canvas_apply`, in turn with the strokes, and shows from there until
 the feed brings it. The user may erase, move and delete any item, an

@@ -27,6 +27,11 @@
 //!   right, split down, close (only with two panes or more); the keys of
 //!   the key overlay and the command palette, each left out while unbound.
 //!
+//! A button that is only a glyph or a mark (the sidebar's, the swatch, the
+//! width, undo, redo, the page arrows, zoom out and in, split and close)
+//! names its command and its key in a tip just above the footer while it
+//! is lit: under the pointer, or held by the pen ([`tip`]).
+//!
 //! An agent UI pane's footer has its UI's name in the middle and the
 //! right's pane buttons and keys. Groups of buttons sit [`cells::GAP`]
 //! apart, the parts at least [`cells::SPACE`]. A narrow pane drops whole
@@ -44,6 +49,7 @@ use self::cells::{Cell, Face, Side, Unit};
 use crate::commands::{Command, Keymap};
 use crate::config::{Rgb, Theme};
 use crate::layout::Rect;
+use crate::scene::Label;
 use crate::scene::sidebar::{self, Status};
 use crate::scene::style::{self, Rule};
 use crate::scene::taps::{Tap, Target};
@@ -61,6 +67,9 @@ const SWATCH: f64 = 10.0;
 const PAD: f64 = 10.0;
 /// The width button's three bars: how wide, how thick each, and the gap.
 const BARS: (f64, [f64; 3], f64) = (12.0, [1.0, 2.0, 3.0], 2.0);
+/// A tip: how high, the room either side of its words, and its gap above
+/// the footer and from the window's edge.
+const TIP: (f64, f64, f64, f64) = (22.0, 8.0, 4.0, 8.0);
 /// How far a lit button's fill sits in from its target, and its corners.
 const LIT_INSET: f64 = 2.0;
 pub const LIT_RADIUS: f64 = 6.0;
@@ -126,6 +135,7 @@ pub struct Part {
 /// hairline along its top (`rule`), the filled `marks` (the pen's swatch,
 /// the width's bars), the texts, and the buttons' `targets`. `lit` is the
 /// button under the pen and its fill, drawn under its text ([`light`]).
+/// `tips` are the buttons with no words, each with the command a tip names.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Footer {
     pub frame: Rect,
@@ -135,6 +145,7 @@ pub struct Footer {
     pub parts: Vec<Part>,
     pub targets: Vec<Target>,
     pub lit: Option<(Rect, Rgb)>,
+    pub tips: Vec<(Rect, Command)>,
 }
 
 /// What a pane laid at `frame` shows above its footer: the hit-testing,
@@ -244,9 +255,10 @@ fn build(frame: Rect, theme: &Theme, units: Vec<Unit>) -> Footer {
         width: (bar.width - 2.0 * PAD).max(0.0),
         height: LINE,
     };
-    let (mut marks, mut parts, mut targets) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut marks, mut parts, mut targets, mut tips) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     let middle = bar.y + bar.height / 2.0;
-    for (cell, face, tap) in cells::lay(units, line, bar) {
+    for (cell, face, tap, tip) in cells::lay(units, line, bar) {
         let centre = cell.x + cell.width / 2.0;
         match face {
             Face::Text(runs) => {
@@ -269,10 +281,40 @@ fn build(frame: Rect, theme: &Theme, units: Vec<Unit>) -> Footer {
             }
         }
         targets.extend(tap.map(|tap| (cell, tap)));
+        if let (true, Some(Tap::Run(command))) = (tip, tap) {
+            tips.push((cell, command));
+        }
     }
     let rule = Rule { frame: Rect { height: style::HAIRLINE, ..bar }, colour: style::edge(theme) };
     let fill = style::footer(theme);
-    Footer { frame: bar, fill, rule, marks, parts, targets, lit: None }
+    Footer { frame: bar, fill, rule, marks, parts, targets, lit: None, tips }
+}
+
+/// The tip of the lit button at `lit`, if it is one of `footers`' buttons
+/// with no words: its command's title and live key from `keys`, on a
+/// panel in `theme`'s colours, just above its footer, centred on it and
+/// kept inside `window`.
+pub fn tip(
+    footers: &[Footer],
+    lit: Rect,
+    theme: &Theme,
+    keys: &Keymap,
+    window: Rect,
+) -> Option<Label> {
+    let (footer, command) = footers
+        .iter()
+        .find_map(|f| f.tips.iter().find(|(t, _)| *t == lit).map(|&(_, c)| (f, c)))?;
+    let (high, inset, gap, edge) = TIP;
+    let text = match keys.chord(command) {
+        Some(chord) => format!("{}  {}", command.title(), chord.glyphs()),
+        None => command.title().to_string(),
+    };
+    let width = (cells::width(&text) + 2.0 * inset).min(window.width - 2.0 * edge).max(0.0);
+    let centre = lit.x + lit.width / 2.0;
+    let x = (centre - width / 2.0).min(window.x + window.width - edge - width).max(window.x + edge);
+    let y = (footer.frame.y - gap - high).max(window.y);
+    let frame = Rect { x, y, width, height: high };
+    Some(Label { text, colour: theme.text, fill: Some(style::panel(theme)), frame })
 }
 
 /// Lights the button at `lit` (its target, and the fill `main` gives

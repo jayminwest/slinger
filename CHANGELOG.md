@@ -84,6 +84,13 @@ bullet with the area in bold.
 - **App:** the sidebar says "not running" for an agent whose session is
   stopped, and "working" as soon as a sling is waiting for it, so a sling
   to a stopped agent no longer looks like nothing happened.
+- **App:** the footer's glyph buttons (undo, redo, the page arrows, zoom,
+  split, close, the swatch, the width) say what they do: hover over one, or
+  hold the pen on it, and a tip above the footer names its command and key.
+- **App:** the colour, shape, tool and width pop-ups' cells are 28 pt
+  high, the same as every other button the pen taps.
+- **App:** the page menu scrolls. With more pages than fit, scroll or drag
+  the pen on it to reach the rest; a drag picks no page.
 
 ### Removed
 
@@ -93,6 +100,13 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** ink is smoother. The pen's small wobbles no longer show as bumps
+  along a line's edges, most of all at the bold and marker widths; a line
+  still starts and ends where the pen did, and fine writing keeps its shape.
+- **App:** the eraser, the lasso and the select tool take a stroke, a text,
+  a box or an arrow as soon as the daemon has written it, instead of only
+  once the canvas's feed has echoed it back. A stroke no longer draws twice
+  for that moment either.
 - **Daemon:** a second `slingerd` started on another socket but the same
   data directory now stops with exit 4 and `✗ data directory <path> is in
   use by another slingerd`, instead of writing to the same record as the
@@ -116,6 +130,12 @@ bullet with the area in bold.
 - **App:** the key overlay, the command palette and the page menu now draw
   over an open sling prompt (and the feedback and rename fields), dimming
   it with the rest of the window, instead of leaving the prompt on top.
+- **App:** a tap on a command palette row runs it when you lift, as on
+  the key overlay and the page menu, so a press that slides off runs
+  nothing. The row lights while you hold it.
+- **App:** a press on the canvas closes an open sling prompt or feedback
+  field, as it already closed a page's new name. A tap on a button on the
+  canvas still sends the sling prompt.
 - **App:** return on a just-opened command palette no longer quits. The
   palette now opens on the command you last ran from it, then the tools,
   with Quit at the bottom. Typed, the best match comes first: a title that
