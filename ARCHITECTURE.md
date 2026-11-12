@@ -263,7 +263,7 @@ server/session.rs  the session verbs on the wire, each session with its process.
 server/sling.rs  `sling_send`: the workspace of the canvas, the marker, the
              packet, `sling::message` with the verbs this daemon serves
              (VERBS), delivery to the agent's process, then the blobs and
-             `sling_sent`. Nothing is stored when delivery fails. One sling at a
+             `sling_sent`. The reply carries the message's token estimate. Nothing is stored when delivery fails. One sling at a
              time (`Sessions::slinging`), so packets never overlap.
 server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
              agent's latest sling on the canvas (`sling::landed`), if any,

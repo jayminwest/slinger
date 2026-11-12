@@ -11,6 +11,8 @@ bullet with the area in bold.
 
 ### Added
 
+- **CLI:** `slinger sling send --json` reports `tokens`: about how many
+  tokens the agent reads for the sling, its note and prompt included.
 - **App:** rename a page and leave feedback with the pen alone. Their
   entries have buttons beside them: ✓ Rename or ✓ Save does what return
   does, ✕ what escape does, and Dictate has Flick write the text in, as

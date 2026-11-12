@@ -56,6 +56,20 @@ fn a_later_sling_matches_its_snapshot() {
 }
 
 #[test]
+fn a_message_counts_its_wrapper_and_its_images_by_the_packets_rule() {
+    let mut p = packet();
+    p.count();
+    let selection = ids(&["c51"]);
+    let first = message(&sling(&p, &selection, true));
+    let later = message(&sling(&p, &selection, false));
+    let chars = show(&first).chars().count() - "<image c42.png>\n<image c51.png>\n".len();
+    // Each stand-in image is 8 pixels: one token.
+    assert_eq!(first.tokens(), (chars as u64).div_ceil(4) + 2);
+    assert!(first.tokens() > later.tokens(), "the whole note costs more");
+    assert!(later.tokens() > p.tokens(), "the wrapper counts");
+}
+
+#[test]
 fn a_later_sling_gets_one_line_of_note() {
     let p = packet();
     let m = show(&message(&sling(&p, &[], false)));
