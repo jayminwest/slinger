@@ -251,7 +251,11 @@ server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
 ```
 main.rs      wires the modules below. The only caller of platform. With
              `--preview UI [--data JSON]` it shows one agent UI alone and
-             writes each reply's `ui_reply` line to stdout instead.
+             writes each reply's `ui_reply` line to stdout instead. It routes
+             each event: keys, the pen, the mouse, the trackpad.
+window.rs    runs a command on the focused pane, builds the window's scene
+             (`view`), and finds the canvas pane under a point and the
+             focused pane's frame.
 shared.rs    the window's panes as the server keeps them for its workspace,
              the window's size, the agent UIs the panes show and their notes,
              and the key overlay and the command palette over them:
