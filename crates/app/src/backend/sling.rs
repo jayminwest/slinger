@@ -163,7 +163,9 @@ fn progress(session: &Session) -> Progress {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::testing::{fake_claude, user_stroke, wait_until, waiting_claude};
+    use crate::backend::testing::{
+        delivered, fake_claude, user_stroke, wait_until, waiting_claude,
+    };
     use crate::backend::tests::{open_notes, with_store};
     use crate::scene::canvas::ItemId;
     use crate::scene::sidebar::Status;
@@ -209,13 +211,7 @@ mod tests {
             daemon.session_start("notes").unwrap();
             slinger.send(ask(vec![ItemId(1)], "what is missing?"));
             assert_eq!(wait(&slinger, got), Heard::Went("scout".into()));
-            let file = home.path().join("in.txt");
-            let mut message = String::new();
-            // The agent may still be writing it: wait for the prompt, its end.
-            wait_until(|| {
-                message = std::fs::read_to_string(&file).unwrap_or_default();
-                message.contains("what is missing?")
-            });
+            let message = delivered(home.path(), "what is missing?");
             assert!(message.contains("slinger-sling 1 canvas=notes selected=c1"), "{message}");
             assert!(message.contains("what is missing?"), "{message}");
 
