@@ -21,14 +21,22 @@ use crate::store::SLINGER;
 /// agent's home and leaves its evidence there: its arguments (`args.txt`, one
 /// run per line), its environment (`env.txt`, and its `PATH` in `path.txt`)
 /// and each line it was sent
-/// (`in.txt`). For each line it names its session and answers.
+/// (`in.txt`). Its store of conversations is `known.txt`, one id per line: a
+/// resume of an id not there fails, as Claude Code's does. For each line it
+/// names its session and answers.
 const FAKE_CLAUDE: &str = r#"#!/bin/sh
 printf '%s\n' "$*" >> args.txt
 printf '%s %s\n' "$SLINGER_AGENT" "$SLINGER_SOCKET" > env.txt
 printf '%s\n' "$PATH" > path.txt
 id=
 while [ $# -gt 0 ]; do
-  case "$1" in --session-id|--resume) id="$2"; shift ;; esac
+  case "$1" in
+    --session-id) id="$2"; printf '%s\n' "$id" >> known.txt; shift ;;
+    --resume)
+      id="$2"; shift
+      grep -qx "$id" known.txt 2>/dev/null || {
+        printf 'No conversation found with session ID: %s\n' "$id" >&2; exit 1; } ;;
+  esac
   shift
 done
 n=0
@@ -237,14 +245,75 @@ fn the_cli_the_hooks_run_comes_first_on_the_agents_path() {
     let daemons = std::env::var("PATH").unwrap();
 
     // A bare name is looked up on the daemon's PATH, as it is.
-    processes.start("scout", home.path(), &Limits::default()).unwrap();
+    processes.start("scout", home.path(), &Limits::default(), false).unwrap();
     assert_eq!(wait_lines(&home.path().join("path.txt"), 1), std::slice::from_ref(&daemons));
     processes.stop("scout");
 
     std::fs::remove_file(home.path().join("path.txt")).unwrap();
     processes.set_slinger(PathBuf::from("/opt/slinger/bin/slinger"));
-    processes.start("scout", home.path(), &Limits::default()).unwrap();
+    processes.start("scout", home.path(), &Limits::default(), false).unwrap();
     let path = wait_lines(&home.path().join("path.txt"), 1);
     assert_eq!(path, [format!("/opt/slinger/bin:{daemons}")]);
     processes.stop("scout");
+}
+
+#[test]
+fn a_session_that_cannot_be_resumed_is_dropped_and_the_next_start_is_new() {
+    let (data, projects, bin) =
+        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
+    let claude = fake_claude(bin.path());
+    let daemon = Daemon::start_with_claude(data.path(), &claude);
+    let client = daemon.client();
+    let home = open_with_agent(&client, &projects, "notes", "scout");
+    let old = client.session_start("notes").unwrap().session_id.unwrap();
+    client.session_send("notes", "one").unwrap();
+    wait_for(&client, "scout", |s| s.pending == Some(0));
+    client.session_stop("notes").unwrap();
+
+    // Claude Code no longer has the conversation: the resume fails.
+    std::fs::remove_file(home.join("known.txt")).unwrap();
+    client.session_start("notes").unwrap();
+    let exited = wait_for(&client, "scout", |s| s.process.as_deref() == Some("exited"));
+    assert_eq!(exited.session_id.as_deref(), Some(old.as_str()));
+    assert!(wait_lines(&home.join("args.txt"), 2)[1].ends_with(&format!("--resume {old}")));
+    assert_eq!(client.session_send("notes", "lost").unwrap_err().code(), "unavailable");
+
+    let new = client.session_start("notes").unwrap();
+    let id = new.session_id.unwrap();
+    assert_ne!(id, old, "a new session");
+    assert!(wait_lines(&home.join("args.txt"), 3)[2].ends_with(&format!("--session-id {id}")));
+    client.session_send("notes", "two").unwrap();
+    let answered = wait_for(&client, "scout", |s| s.pending == Some(0));
+    assert_eq!(answered.session_id.as_deref(), Some(id.as_str()));
+    daemon.stop();
+
+    // The new id is the one kept: a restart resumes it.
+    let daemon = Daemon::start_with_claude(data.path(), &claude);
+    let client = daemon.client();
+    client.session_start("notes").unwrap();
+    assert!(wait_lines(&home.join("args.txt"), 4)[3].ends_with(&format!("--resume {id}")));
+    client.session_send("notes", "three").unwrap();
+    let answered = wait_for(&client, "scout", |s| s.pending == Some(0));
+    assert_eq!(answered.process.as_deref(), Some("running"));
+    daemon.stop();
+}
+
+#[test]
+fn a_fresh_start_ends_the_running_process_and_begins_a_new_session() {
+    let (data, projects, bin) =
+        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude(bin.path()));
+    let client = daemon.client();
+    let home = open_with_agent(&client, &projects, "notes", "scout");
+    let old = client.session_start("notes").unwrap();
+    let fresh = client.session_start_fresh("notes").unwrap();
+    assert!(!alive(old.pid.unwrap()), "the running one ended");
+    assert_ne!(fresh.pid, old.pid);
+    let id = fresh.session_id.unwrap();
+    assert_ne!(Some(&id), old.session_id.as_ref());
+    assert!(wait_lines(&home.join("args.txt"), 2)[1].ends_with(&format!("--session-id {id}")));
+    client.session_send("notes", "hi").unwrap();
+    let answered = wait_for(&client, "scout", |s| s.pending == Some(0));
+    assert_eq!(answered.session_id.as_deref(), Some(id.as_str()));
+    daemon.stop();
 }

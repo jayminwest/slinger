@@ -18,6 +18,8 @@
 //!   and when the window becomes key: a canvas view's cursor over a canvas,
 //!   the arrow over the chrome. `AppKit`'s cursor rects alone leave a stale
 //!   cursor after the window was in the background, or past a canvas's edge.
+//!   Where the scene says the pointer is on a divider between panes, or
+//!   holds one, it is the divider's cursor over whatever view is there.
 
 use std::cell::Cell;
 
@@ -32,6 +34,7 @@ use objc2_foundation::NSPoint;
 use super::keys::{chord, typed};
 use super::{CanvasView, Event, STATE, dispatch};
 use crate::layout::{Point, scroll_zoom};
+use crate::scene::cursor::Cursor;
 use crate::scene::ink::Pen;
 
 /// How far one line of a mouse wheel scrolls, in points. A trackpad gives points.
@@ -46,6 +49,8 @@ thread_local! {
     /// The right-button drag under way, if any: where it was pressed and
     /// where it was last, in the window from its top left.
     static RIGHT: Cell<Option<(Point, Point)>> = const { Cell::new(None) };
+    /// The scene's cursor over a divider between panes, if any.
+    pub(super) static DIVIDER: Cell<Option<Cursor>> = const { Cell::new(None) };
 }
 
 /// Hands `event`, sent to `window`, to the app as an [`Event`]. True when
@@ -115,13 +120,16 @@ pub(super) fn send(window: &NSWindow, event: &NSEvent, mtm: MainThreadMarker) ->
 }
 
 /// Sets the cursor for the pointer at `at`, in `window`'s base coordinates:
-/// over a canvas view its cursor, also where chrome that takes no press (the
+/// on a divider the scene's cursor for it ([`divider`]); over a canvas view its cursor, also where chrome that takes no press (the
 /// focus border, a label, the flash) lies over the canvas; over the rest of
 /// the chrome, the bare window and all of it under the key overlay or the
 /// palette, the arrow. Over anything else (an agent UI, the sling's entry)
 /// that view sets its own. A box is hit as its content view, so the chrome
 /// is told by descent, not by being the view hit.
 pub(super) fn cursor(window: &NSWindow, at: NSPoint) {
+    if divider() {
+        return;
+    }
     let Some(state) = STATE.get() else { return };
     let Some(content) = window.contentView() else { return };
     // The content view's superview has the window's base coordinates.
@@ -142,6 +150,12 @@ pub(super) fn cursor(window: &NSWindow, at: NSPoint) {
     } else if chrome {
         NSCursor::arrowCursor().set();
     }
+}
+
+/// Sets the scene's cursor over a divider between panes, while it has one.
+/// Returns whether it had.
+pub(super) fn divider() -> bool {
+    DIVIDER.get().map(super::canvas::ns_cursor).inspect(|cursor| cursor.set()).is_some()
 }
 
 /// The window became key: its canvases' cursor rects are made again, as a

@@ -19,7 +19,7 @@ kind\tarrow\tpts (two or more pairs); optional from, to (the item ids it points 
 kind\tstroke\twidth, pts (one or more pairs)
 kind\tbutton\tx, y, w, h (above 0): the send-to-agent button
 kind\tlive\tx, y, w, h, ui, hash, open: an agent UI, made by 'slinger ui open --as item'
-op\tadd\titem: an item without id
+op\tadd\titem: an item without id; an arrow's from or to may be $n: the item made[n] names, from an add before it in this apply
 op\tremove\tids: a list of item ids; ids already gone are fine
 op\tmove\tids, dx, dy
 op\tset\tid, fields: item fields laid over the item's current ones

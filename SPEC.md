@@ -85,7 +85,7 @@ First set. Each is one CLI verb. Each follows the CLI contract (section 15).
 
 - canvas read: the packet for a canvas, or the changes after a given point.
 - canvas crop: an image of one item or one box.
-- canvas put: add text, a box or an arrow, placed beside a given item id.
+- canvas put: add text, a box, ink or an arrow, placed beside a given item id or where the agent says, in a colour it may choose.
 - canvas edit, canvas remove: only for items the agent made. An agent cannot change the user's ink.
 - pane open, pane close.
 - ui open: show an agent UI as a pane or as a canvas item (section 8).

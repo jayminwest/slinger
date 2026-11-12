@@ -3,7 +3,7 @@
 //! `canvas_remove`.
 
 use slinger_control::{self as control, AgentAsk, RemoteError, Reply};
-use slinger_core::canvas::file::{Edit, Placed, Put};
+use slinger_core::canvas::file::{Edit, How, Placed, Put};
 use slinger_core::record::{Event, Tags};
 use slinger_core::{session, sling};
 
@@ -16,9 +16,11 @@ pub(super) fn answer(store: &Store, ask: AgentAsk) -> Result<Reply, RemoteError>
             let what = match put.what {
                 control::Put::Text(text) => Put::Text(text),
                 control::Put::Box([w, h]) => Put::Box { w, h },
+                control::Put::Ink(pts) => Put::Ink(pts),
                 control::Put::Arrow([from, to]) => Put::Arrow { from, to },
             };
-            canvas_put(store, &put.canvas, &put.agent, &put.beside, &what)
+            let how = How { colour: put.color, at: put.at };
+            canvas_put(store, &put.canvas, &put.agent, &put.beside, (&what, &how))
         }
         AgentAsk::CanvasEdit(ask) => {
             session::check_agent(&ask.agent).map_err(|e| remote(&e))?;
@@ -45,10 +47,10 @@ fn canvas_put(
     canvas: &str,
     agent: &str,
     beside: &str,
-    what: &Put,
+    (what, how): (&Put, &How),
 ) -> Result<Reply, RemoteError> {
     session::check_agent(agent).map_err(|e| remote(&e))?;
-    let placed = store.canvases().put(canvas, agent, beside, what).map_err(|e| drawn(&e))?;
+    let placed = store.canvases().put(canvas, agent, beside, what, how).map_err(|e| drawn(&e))?;
     let Placed { written, item, page, frame: [x, y, w, h] } = placed;
     let tags = Tags { agent: Some(agent.into()), canvas: Some(canvas.into()), ..Tags::on("") };
     let query = Query {

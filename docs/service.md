@@ -161,10 +161,10 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_list` | none | `sessions`: list of sessions, sorted by agent |
 | `session_show` | `agent`: string | `session` |
 | `status_set` | `agent`: string, `status`: `working`, `blocked` or `done`, `note`: string (optional) | `agent`, `status`, `note` (absent when none), `event`: the number of the event appended (absent for `working`) |
-| `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `arrow`: `[from, to]` item ids | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
+| `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `ink`: a `pts` list in tenths, `arrow`: `[from, to]` item ids; optional `color`: `#rrggbb` or `#rrggbbaa`, `at`: `[x, y]` in tenths | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
 | `canvas_edit` | `canvas`: canvas id, `agent`: string, `item`: an item id, then any of `text`: string, `box`: `[w, h]` in tenths, `move`: `[x, y]` in tenths | `item`, `page`, `x`, `y`, `w`, `h`: its box now, `seq`: the numbers written (empty when nothing changed) |
 | `canvas_remove` | `canvas`: canvas id, `agent`: string, `item`: an item id | `seq`: the numbers written (empty when it was already gone) |
-| `session_start` | `workspace`: string, its name or the directory of its file | `session` |
+| `session_start` | `workspace`: string, its name or the directory of its file, `fresh`: bool (default `false`) | `session` |
 | `session_stop` | `workspace`: string | `session` |
 | `session_send` | `workspace`: string, `text`: string | `session` |
 | `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` |
@@ -323,7 +323,7 @@ tenths of a unit.
 
 | `op` | fields |
 |---|---|
-| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000`. A `text` without `w` or `h` gets a frame that fits its words (the rule is in `docs/design/canvas-file.md`); a given size is kept |
+| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000`. A `text` without `w` or `h` gets a frame that fits its words (the rule is in `docs/design/canvas-file.md`); a given size is kept. An arrow's `from` or `to` may be `$n` (`$0`, `$1`, ...): the item that `made[n]` of this same request names, made by an `add` before it, so items and the arrows between them are added in one step |
 | `remove` | `ids`: list of item ids. Ids already gone are fine |
 | `move` | `ids`, `dx`, `dy` |
 | `set` | `id`, `fields`: item fields to replace, laid over the item's current ones. New `text` without `w` or `h` reads the missing one as 0, so the frame fits the new words by the same rule |
@@ -607,7 +607,12 @@ workspace and still applies, so the owner can widen a session there too.
 start gives it a new session id (`--session-id`); once its output names that
 id, the daemon keeps it in `sessions.json`, and every later start, after a
 restart too, resumes it (`--resume`). Starting one that runs changes nothing;
-one that exited is started again. **`session_stop`** closes the process's
+one that exited is started again. A resume that fails (the process exits
+with an error code before its output names the id, as Claude Code does when
+it no longer has the conversation) drops the kept id: that process shows as
+`exited`, and the next start begins a new session. With `fresh` a start
+always begins a new session: the kept id is dropped and a running process
+is stopped first. **`session_stop`** closes the process's
 input, waits up to 3 seconds and then kills it; stopping one that is not
 running succeeds. **`session_send`** writes `text` to the process as one user
 message and returns: the answer is the agent's to deliver, through the CLI.
@@ -742,6 +747,8 @@ runs, and a person or an agent reads it with any tool.
   and one resolution resolves both.
 - A file the daemon cannot write or read is `invalid`, with a hint to start
   it with a `--feedback` it can write.
+- The app's entry lists the five newest open notes under it, from one
+  `feedback_list` each time it opens; it needs no other verb.
 
 ```json
 { "v": 1, "op": "feedback_add", "text": "the lasso is slow", "canvas": "notes", "page": "Page 1", "tool": "lasso", "selected": 3 }
@@ -756,21 +763,28 @@ An agent answers on the canvas, not in chat (SPEC section 7). Each answer
 is an item the agent makes, with its name and the time, as one undo step of
 its own.
 
-**`canvas_put`** adds text, a box or an arrow, placed beside the item
+**`canvas_put`** adds text, a box, ink or an arrow, placed beside the item
 `beside` names (ids as for crops, above: `c<n>` on the user's ink is its
-whole cluster) on that item's page. Text is black, wrapped at 40 characters
-a line, in a frame that holds it; a box is `w` by `h` tenths. Either goes in
-free space: 24 units right of the item, top-aligned; else below it, left of
-it or above it; else further right, past whatever is in the way. It never
-comes within 12 units of another item. An arrow joins `from` and `to`, two
+whole cluster) on that item's page. Text is wrapped at 40 characters a
+line, in a frame that holds it; a box is `w` by `h` tenths; ink is a pen
+stroke 2 units wide through `pts` (as an item's, under "Canvas operations":
+the first pair where it starts, each next the step from the one before),
+and only its shape counts. Each goes in free space: 24 units right of the
+item, top-aligned; else below it, left of it or above it; else further
+right, past whatever is in the way. It never comes within 12 units of
+another item. With `at`, the top-left corner of its box goes at `[x, y]`
+instead, wherever that is on the page. An arrow joins `from` and `to`, two
 items on that page, from the edge of one to the edge of the other, and
-points at both. The reply gives the new item's id and its box. When a
+points at both; it takes no `at`. `color` draws any of them in that colour;
+without it they are black. The reply gives the new item's id and its box. When a
 `sling_sent` tagged with the agent and the canvas is in the record, the put
 answers the latest such sling: the daemon appends `reply_landed` (`sling`,
 `items`: the new item) with the agent as source and tags it with the agent
 and the canvas. A canvas or item that is not there is `not_found`; a blank
-agent, an id that is not one, blank text, a negative size, or an arrow to an
-item on another page is `invalid`.
+agent, an id that is not one, blank text, a negative size, `ink` that is not
+pairs, a `color` that is not one, an `at` on an arrow, or an arrow to an
+item on another page is `invalid`; a line with none or two of `text`, `box`,
+`ink` and `arrow` is `bad_request`.
 
 ```json
 { "v": 1, "op": "canvas_put", "canvas": "idea", "agent": "scout", "beside": "c12", "text": "the date is wrong" }
@@ -780,8 +794,10 @@ item on another page is `invalid`.
 **`canvas_edit`** changes an item the agent made, as one undo step: `text`
 gives a text item new words (its frame grows or shrinks to hold them),
 `box` gives a text or a box a new size `[w, h]`, and `move` puts the top-left
-corner of the item's box at `[x, y]`. What it leaves out stays; an edit that
-leaves the item as it was writes nothing. **`canvas_remove`** takes an item
+corner of the item's box at `[x, y]`. A move takes along the end of each
+arrow bound to the item, in the same step, as a move in the app does; only
+arrows the agent made: another author's arrow stays as it is. What it
+leaves out stays; an edit that leaves the item as it was writes nothing. **`canvas_remove`** takes an item
 the agent made off the canvas; an item already gone (or never there)
 succeeds and writes nothing (SPEC B4). Ids are as for `canvas_put`. The
 author rule (above, "Authors") is checked first: an agent naming the user's

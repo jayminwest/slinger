@@ -15,8 +15,9 @@ use std::io::{BufRead, BufReader};
 use std::net::TcpListener;
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, mpsc};
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -43,7 +44,8 @@ fn escapes_nothing(more: &[&str], host: &str) {
         }
     });
     // A daemon of the test's own.
-    let socket = std::env::temp_dir().join(format!("sb-{}-{host}.sock", std::process::id()));
+    let sockets = tempfile::tempdir().unwrap();
+    let socket = sockets.path().join("d.sock");
     let data = tempfile::tempdir().unwrap();
     let store = slingerd::Store::open(data.path(), "my-laptop").unwrap();
     let server = slingerd::Server::bind(&socket).unwrap();
@@ -80,11 +82,17 @@ fn escapes_nothing(more: &[&str], host: &str) {
         app.kill().unwrap();
         let status = app.wait().unwrap();
         let said = said.join().unwrap();
-        line.unwrap_or_else(|e| panic!("no reply within 60 s ({e}; {status}): {said}"))
+        // The app dies only by this test's kill, after the reply: a signal
+        // before it came from another process (a `pkill -f slinger-app`).
+        line.unwrap_or_else(|e| match e {
+            RecvTimeoutError::Disconnected => {
+                panic!("the app exited before it replied ({status}): {said}")
+            }
+            RecvTimeoutError::Timeout => panic!("no reply within 60 s ({status}): {said}"),
+        })
     };
     stopper.stop();
     serving.join().unwrap().unwrap();
-    let _ = std::fs::remove_file(format!("{}.lock", socket.display()));
     let reply: Value = serde_json::from_str(&reply).unwrap();
     assert_eq!(
         (&reply["kind"], &reply["ui"], &reply["version"]),

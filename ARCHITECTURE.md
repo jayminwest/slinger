@@ -60,6 +60,8 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              Log holds a file open for the daemon: requests (ops as JSON, the
              author, the time) in, numbered lines to append out, with the
              History beside it. Canvas ids (check_id) never name a path.
+             An arrow added in a request may name an item an `add` before
+             it makes (`$n`, its place in `made`): ids are given in order.
              Log::import stores a whole canvas (an import) as a new file
              that replays to it, ids, makers and times included.
              Log keeps every op it applied with its line's number, so
@@ -71,12 +73,15 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              look.rs: what an agent asks beyond the packet (R5, R6): crop (an
              item, a cluster c<n> or a box, as render images, at most MAX_CROP
              units a side) and strokes (a stroke's or a cluster's points).
-             put.rs: an agent's answer (SPEC section 7): text, a box, an arrow
-             or a live item (an agent UI's showing, kind `live`) beside an
-             item, placed by free_beside, as one undo step; check_put says
-             first whether a put would go.
+             put.rs: an agent's answer (SPEC section 7): text, a box, ink, an
+             arrow or a live item (an agent UI's showing, kind `live`) beside
+             an item, placed by free_beside or at the agent's `How::at`, in
+             `How::colour`, as one undo step; check_put says first whether a
+             put would go.
              edit.rs: the agent changes (text, size, place) or removes what it
-             put. The author rule stays in Canvas (may_change), checked first.
+             put; a move takes along the bound ends of the agent's arrows, in
+             the same step. The author rule stays in Canvas (may_change),
+             checked first.
 packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
              canvas page, the clusters of the user's ink and what changed, and gives
              the `new`, `made` and `page` lines in reading order, plus the render list:
@@ -228,7 +233,8 @@ processes.rs the agents' processes, one per agent: spawned in the agent's
              home within its limits, with `SLINGER_AGENT` and `SLINGER_SOCKET`,
              written to under one lock, read by a thread each so a pipe never
              fills. Keeps each session id in `sessions.json` once the output
-             names it. Dropping one closes its input, waits a grace period,
+             names it; drops it when a resume fails (an error exit before the
+             output names it) or on a `fresh` start. Dropping one closes its input, waits a grace period,
              then kills it; `serve` ends them all when it stops. No restart on death (D20).
              Each starts with the core's hooks in `--settings`, running the
              CLI at `--slinger` (default: beside slingerd).
@@ -333,12 +339,14 @@ mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              glyphs fill (scene/glyphs.rs), never the stored width, so every
              hit test, the lasso, the selection and the caret follow the
              glyphs, texts saved earlier included. Keeps the canvas's pages,
-             with their names. Pure.
+             with their names. Items carried to another page are `add`s
+             there, an arrow carried with its ends still bound to them. Pure.
 mirror/clip.rs  the selection's items on the clipboard: their file objects
-             as a JSON array, as a carry writes them (no id, maker, time,
-             page or arrow's bound ends), and its texts' plain text, one a
-             line; a paste reads the objects back as a carry's items for a
-             page, centred on a point. Pure.
+             as a JSON array, as a carry writes them (no id, maker, time
+             or page; an end bound to an item copied with it as `$n`), and
+             its texts' plain text, one a line; a paste reads the objects
+             back as a carry's items for a page, centred on a point, every
+             arrow's ends let go. Pure.
 canvases.rs  the canvas panes: one follower and mirror per page shown, each
              pane's page, viewport and last scene (kept on screen until a
              page turned to arrives); the pen's ink, the eraser's and
@@ -397,8 +405,9 @@ canvases/sling.rs  the sling from the window: opens the entry at the
 canvases/feedback.rs  the `leave-feedback` command: opens the feedback
              entry in the focused pane with its workspace, canvas, page
              name, tool and selection count, closing an open sling's entry;
-             saves it through the Noter. It takes the keys and the sling's
-             place in the scene while open.
+             saves it through the Noter, and asks it for the recent open
+             notes (`feedback_list`) to list under the entry. It takes the
+             keys and the sling's place in the scene while open.
 canvases/dictation.rs  the `dictate` command: opens the entry when it is
              closed, then starts or stops Flick's dictation into it; the
              entry closing cancels one going. Flick types the text into the
@@ -498,7 +507,8 @@ scene/paste.rs  the clipboard as the app sees it (`Clip`: plain text, a
 scene/cursor.rs  the pointer over a canvas pane, per tool: the pen a ring in
              its colour, the eraser a ring its width, the lasso and the
              shapes cross hairs, text an I-beam, the select tool and an open
-             pop-up the arrow. The arrow elsewhere (sidebar, agent UI, chrome). Pure.
+             pop-up the arrow. The arrow elsewhere (sidebar, agent UI, chrome).
+             On a divider between panes, the resize cursor across it. Pure.
 ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
              slinger-ui://<hex>/ with the policy), the sandbox's constants
              (the policy and the shim in ui/policy.txt and ui/shim.js, the
@@ -641,7 +651,8 @@ scene/select/scale.rs  a drag of a corner handle scales the selection
 scene/resize.rs  the pen on a divider between panes: the press grabs it,
              each drag resizes the panes at once, the lift names it (the
              number of the pane before it, and its share) for
-             `pane_resize`. Pure.
+             `pane_resize`. The pointer within reach of one, or holding
+             one, gets its resize cursor. Pure.
 scene/overlay.rs  the key overlay (`show-keys`): open or closed, its
              scroll, the row under the pen and the press. While open it
              takes every key (escape and the show-keys key close it, the
@@ -940,9 +951,11 @@ Each boundary has something that fails when it is broken:
 | A crop is limited in size; an empty box is a white image; an unknown id is `not_found` | `crates/core/tests/canvas_look.rs`, and `crates/daemon/src/tests/look.rs` through a real socket |
 | A status set shows in the session list and the record; blocked and done survive a restart | `crates/daemon/src/tests/session.rs`, through a real socket |
 | A put covers nothing: right of the item, else below, left, above, else further right | `crates/core/tests/canvas_put.rs` |
+| A put takes a colour and a place; ink goes where any put goes; an arrow takes no place | `crates/core/tests/canvas_put.rs`, `crates/cli/src/tests/put.rs` |
 | A put shows with its author; after a sling it lands `reply_landed`; an unknown item is `not_found` | `crates/daemon/src/tests/put.rs`, through a real socket |
 | An agent edits and removes only its own items; removing twice succeeds twice | `crates/core/tests/canvas_edit.rs`, and `crates/daemon/src/tests/edit.rs` through a real socket |
-| Three sends reach one process under one session id and their answers are read; a restart resumes it; a dead process makes a send `unavailable`; a daemon stop ends it | `crates/daemon/src/tests/process.rs`, with a stand-in for Claude Code |
+| An agent's move takes its bound arrows' ends along in one step, not another author's | `crates/core/tests/canvas_edit.rs` |
+| Three sends reach one process under one session id and their answers are read; a restart resumes it; a dead process makes a send `unavailable`; a daemon stop ends it; a resume that fails drops the id and the next start is new; a fresh start ends the running process and begins a new session | `crates/daemon/src/tests/process.rs`, with a stand-in for Claude Code |
 | A session starts with the exact limits its workspace sets: by default its roots, the `slinger` CLI and no user config; wider with the agent's `dirs`, `tools` and `user_config` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
 | Three slings go into one conversation, each with its packet blob and `sling_sent`; old ink is not sent again; no running agent is `unavailable` and stores nothing; each verb the note names is served | `crates/daemon/src/tests/sling.rs`, with a stand-in for Claude Code |
 | An agent verb takes its agent from `--agent` or `SLINGER_AGENT`, else exits 2 | `crates/cli/tests/agent_env.rs`, against the real binary |
