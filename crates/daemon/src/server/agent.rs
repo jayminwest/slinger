@@ -19,12 +19,13 @@ pub(super) fn answer(store: &Store, ask: AgentAsk) -> Result<Reply, RemoteError>
                 control::Put::Ink(pts) => Put::Ink(pts),
                 control::Put::Arrow([from, to]) => Put::Arrow { from, to },
             };
-            let how = How { colour: put.color, at: put.at };
+            let how = How { colour: put.color, at: put.at, text_size: put.text_size };
             canvas_put(store, &put.canvas, &put.agent, &put.beside, (&what, &how))
         }
         AgentAsk::CanvasEdit(ask) => {
             session::check_agent(&ask.agent).map_err(|e| remote(&e))?;
-            let edit = Edit { text: ask.text, size: ask.size, to: ask.to };
+            let edit =
+                Edit { text: ask.text, text_size: ask.text_size, size: ask.size, to: ask.to };
             let edited = store.canvases().edit(&ask.canvas, &ask.agent, &ask.item, &edit);
             let Placed { written, item, page, frame: [x, y, w, h] } =
                 edited.map_err(|e| drawn(&e))?;

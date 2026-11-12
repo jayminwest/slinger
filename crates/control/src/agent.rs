@@ -41,6 +41,10 @@ pub struct CanvasPut {
     /// unit, in place of the free space beside `beside`. Not for an arrow.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub at: Option<[i64; 2]>,
+    /// The size of a text's characters, in tenths of a unit (40 to 4000);
+    /// 240 when absent. Only for text.
+    #[serde(default, rename = "size", skip_serializing_if = "Option::is_none")]
+    pub text_size: Option<i64>,
 }
 
 /// A put as the line holds it: exactly one of `text`, `box`, `ink` and `arrow`.
@@ -56,6 +60,7 @@ struct PutLine {
     arrow: Option<[String; 2]>,
     color: Option<String>,
     at: Option<[i64; 2]>,
+    size: Option<i64>,
 }
 
 impl TryFrom<PutLine> for CanvasPut {
@@ -69,8 +74,9 @@ impl TryFrom<PutLine> for CanvasPut {
             (None, None, None, Some(ends)) => Put::Arrow(ends),
             _ => return Err("a put takes exactly one of `text`, `box`, `ink` and `arrow`"),
         };
-        let (color, at) = (line.color, line.at);
-        Ok(Self { canvas: line.canvas, agent: line.agent, beside: line.beside, what, color, at })
+        let (color, at, text_size) = (line.color, line.at, line.size);
+        let (canvas, agent, beside) = (line.canvas, line.agent, line.beside);
+        Ok(Self { canvas, agent, beside, what, color, at, text_size })
     }
 }
 
@@ -118,6 +124,10 @@ pub struct CanvasEdit {
     /// New words for a text item.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
+    /// A new size for a text item's characters, in tenths of a unit (40 to
+    /// 4000). Its frame refits the words.
+    #[serde(default, rename = "size", skip_serializing_if = "Option::is_none")]
+    pub text_size: Option<i64>,
     /// A new `[w, h]` for a text or a box, in tenths of a unit.
     #[serde(default, rename = "box", skip_serializing_if = "Option::is_none")]
     pub size: Option<[i64; 2]>,
@@ -174,7 +184,8 @@ impl Client {
         what: Put,
     ) -> Result<CanvasPlaced, RemoteError> {
         let (canvas, agent, beside) = (canvas.into(), agent.into(), beside.into());
-        self.canvas_put_as(CanvasPut { canvas, agent, beside, what, color: None, at: None })
+        let (color, at, text_size) = (None, None, None);
+        self.canvas_put_as(CanvasPut { canvas, agent, beside, what, color, at, text_size })
     }
 
     /// Puts what `put` asks for.
@@ -234,6 +245,7 @@ mod tests {
             what,
             color: None,
             at: None,
+            text_size: None,
         })
     }
 
@@ -255,6 +267,16 @@ mod tests {
                 },
                 r##""box":[1,2],"color":"#ffd400","at":[10,20]}"##,
             ),
+            (
+                {
+                    let AgentAsk::CanvasPut(mut ask) = put(Put::Text("hi".into())) else {
+                        unreachable!()
+                    };
+                    ask.text_size = Some(480);
+                    AgentAsk::CanvasPut(ask)
+                },
+                r#""text":"hi","size":480}"#,
+            ),
         ] {
             let line = format!("{head},{tail}");
             assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
@@ -270,6 +292,7 @@ mod tests {
             agent: "scout".into(),
             item: "i2".into(),
             text: Some("hi".into()),
+            text_size: Some(480),
             to: Some([10, 20]),
             ..CanvasEdit::default()
         };
@@ -279,7 +302,7 @@ mod tests {
         for (ask, line) in [
             (
                 AgentAsk::CanvasEdit(edit),
-                r#""canvas_edit","canvas":"idea","agent":"scout","item":"i2","text":"hi","move":[10,20]}"#,
+                r#""canvas_edit","canvas":"idea","agent":"scout","item":"i2","text":"hi","size":480,"move":[10,20]}"#,
             ),
             (
                 AgentAsk::CanvasRemove(remove),

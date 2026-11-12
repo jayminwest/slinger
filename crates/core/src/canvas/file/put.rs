@@ -8,7 +8,8 @@
 //! arrow joins two items on that page instead, from the edge of one to the
 //! edge of the other, and points at both. [`How`] gives the item a colour
 //! (black by default) and, for all but an arrow, a place of the agent's
-//! choosing: the top-left corner of its box. Lengths are in tenths of a
+//! choosing: the top-left corner of its box, and text a size other than
+//! [`TEXT_SIZE`]. Lengths are in tenths of a
 //! unit, as everywhere in a request. The put is one undo step of its
 //! author, and the item carries the author and the time, as every item does.
 //!
@@ -16,7 +17,8 @@
 
 use super::{Log, Written, json};
 use crate::canvas::{
-    Action, Author, Colour, End, Item, ItemId, PageId, Point, Rect, Shape, TEXT_SIZE, Time,
+    Action, Author, Colour, End, Item, ItemId, PageId, Point, Rect, Shape, TEXT_SIZE, TEXT_SIZES,
+    Time,
 };
 use crate::render;
 use crate::{Error, Result};
@@ -30,7 +32,7 @@ pub const INK_WIDTH: f64 = 2.0;
 /// What a put adds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Put {
-    /// Text at [`TEXT_SIZE`], wrapped to at most [`TEXT_COLUMNS`] characters a line.
+    /// Text at [`TEXT_SIZE`] (or [`How::text_size`]), wrapped to at most [`TEXT_COLUMNS`] characters a line.
     Text(String),
     /// An empty box, `w` by `h` tenths of a unit.
     Box { w: i64, h: i64 },
@@ -54,6 +56,10 @@ pub struct How {
     /// of a unit, in place of the free space beside the item. Not for an
     /// arrow, whose ends are its items'.
     pub at: Option<[i64; 2]>,
+    /// The size of a text's characters, in tenths of a unit as the file
+    /// stores it ([`TEXT_SIZES`] in tenths); [`TEXT_SIZE`] when absent. Only
+    /// for text: its frame fits the words at this size.
+    pub text_size: Option<i64>,
 }
 
 /// What a put made.
@@ -98,13 +104,13 @@ impl Log {
         what: &Put,
         how: &How,
     ) -> Result<Placed> {
-        let colour = self.check_put_how(beside, what, how)?;
+        let (colour, size) = self.check_put_how(beside, what, how)?;
         let (_, near, page) = self.named(beside)?;
         let origin = |w, h| Rect::new(0.0, 0.0, w, h);
         let shape = match what {
             Put::Text(text) => {
-                let (w, h) = render::text_size(text, TEXT_COLUMNS, TEXT_SIZE);
-                Shape::Text { text: text.clone(), frame: origin(w, h), colour, size: TEXT_SIZE }
+                let (w, h) = render::text_size(text, TEXT_COLUMNS, size);
+                Shape::Text { text: text.clone(), frame: origin(w, h), colour, size }
             }
             Put::Box { w, h } => {
                 Shape::Box { frame: origin(json::units(*w), json::units(*h)), colour }
@@ -156,8 +162,9 @@ impl Log {
         self.check_put_how(beside, what, &How::default()).map(|_| ())
     }
 
-    /// [`Log::check_put`], and that `how` fits `what`; the colour to draw in.
-    fn check_put_how(&self, beside: &str, what: &Put, how: &How) -> Result<Colour> {
+    /// [`Log::check_put`], and that `how` fits `what`; the colour to draw in
+    /// and the size of a text's characters, in canvas units.
+    fn check_put_how(&self, beside: &str, what: &Put, how: &How) -> Result<(Colour, f64)> {
         self.named(beside)?;
         match what {
             Put::Text(text) if text.trim().is_empty() => {
@@ -180,14 +187,21 @@ impl Log {
                 let hint = "an arrow goes from its item to its item; leave out the place";
                 return Err(invalid("an arrow takes no place", hint));
             }
+            Put::Text(_) => {}
+            _ if how.text_size.is_some() => {
+                let hint = "leave out the size; it is for text";
+                return Err(invalid("only text has a text size", hint));
+            }
             _ => {}
         }
-        match &how.colour {
-            None => Ok(Colour::BLACK),
+        let size = how.text_size.map_or(Ok(TEXT_SIZE), text_size)?;
+        let colour = match &how.colour {
+            None => Colour::BLACK,
             Some(c) => Colour::parse(c).ok_or_else(|| {
                 invalid(&format!("{c:?} is not a colour"), "give #rrggbb or #rrggbbaa")
-            }),
-        }
+            })?,
+        };
+        Ok((colour, size))
     }
 
     /// The item an id names, the box around what it names (a whole cluster
@@ -202,6 +216,26 @@ impl Log {
             _ => Err(Error::NotFound { what: format!("item {id}"), hint: None }),
         }
     }
+}
+
+/// A text size of `tenths` tenths of a unit, in canvas units.
+///
+/// # Errors
+///
+/// `invalid` for one out of [`TEXT_SIZES`].
+pub(super) fn text_size(tenths: i64) -> Result<f64> {
+    let size = json::units(tenths);
+    if TEXT_SIZES.contains(&size) {
+        return Ok(size);
+    }
+    let [min, max] = [*TEXT_SIZES.start(), *TEXT_SIZES.end()].map(json::tenths);
+    Err(invalid(
+        &format!("the text size {tenths} is not from {min} to {max} tenths"),
+        &format!(
+            "give a size from {min} to {max} tenths of a unit, or leave it out for {}",
+            json::tenths(TEXT_SIZE)
+        ),
+    ))
 }
 
 /// `shape` moved so the top-left corner of its box is at `to`.

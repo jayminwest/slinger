@@ -34,6 +34,9 @@ pub struct Put {
     /// Put the top-left corner of its box here, in tenths, not beside the item; not for an arrow
     #[arg(long, value_name = "X,Y", value_parser = point, conflicts_with = "arrow", allow_hyphen_values = true)]
     at: Option<[i64; 2]>,
+    /// Size the text's characters, in tenths like --at and --box: 40 to 4000 (default 240); only with --text
+    #[arg(long = "size", value_name = "TENTHS")]
+    text_size: Option<i64>,
     #[arg(long, value_name = "NAME", help = AGENT_HELP)]
     agent: Option<String>,
 }
@@ -55,6 +58,7 @@ pub fn put(args: &Put, daemon: &control::Client) -> anyhow::Result<Output> {
         what,
         color: args.color.clone(),
         at: args.at,
+        text_size: args.text_size,
     })?;
     let human = format!("{}\t{},{},{},{}", placed.item, placed.x, placed.y, placed.w, placed.h);
     Ok(Output::new(serde_json::to_value(placed)?, human))
