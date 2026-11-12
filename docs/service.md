@@ -622,11 +622,12 @@ answer. `session_id` names its conversation.
 
 - reads its home and the workspace's other roots on this machine, and
   nothing else (`--add-dir` for each root that is not the home);
-- has the built-in tools that read and run commands (`--tools
-  Read,Glob,Grep,Bash`), and runs only the `slinger` CLI
-  (`--allowedTools 'Bash(slinger *)'`) and read-only commands inside those
-  directories. It cannot write. Whatever else would need a permission is
-  denied, since nobody is there to ask (`--permission-mode dontAsk`);
+- has the built-in tools that read, run commands and write files (`--tools
+  Read,Glob,Grep,Bash,Edit,Write`). It runs only the `slinger` CLI and
+  read-only commands inside those directories, and it writes files
+  (`--allowedTools 'Bash(slinger *)' Edit Write`). Whatever else would need
+  a permission is denied, since nobody is there to ask (`--permission-mode
+  dontAsk`);
 - loads the settings and the instructions (`CLAUDE.md`) of its home, but not
   the owner's own (`--setting-sources project,local`), and no MCP server
   (`--strict-mcp-config`).
@@ -641,9 +642,10 @@ workspace and still applies, so the owner can widen a session there too.
 workspace's file, docs/workspace.md): named limits it runs under when a
 start names one. A profile runs the process in its `dir` (the home when
 it has none), which then reads the home and the other directories too,
-and its `tools` take the place of the agent's: the `slinger` CLI stays,
-the agent's `dirs` and `user_config` stay, and nothing else is added. So
-a profile with no `tools` is narrower than the agent, never wider. A
+and its `tools` take the place of the agent's and of the default `Edit`
+and `Write`: the `slinger` CLI stays, the agent's `dirs` and `user_config`
+stay, and nothing else is added. So a profile with no `tools` cannot
+write, and is narrower than the agent, never wider. A
 start under no profile runs within the agent's own limits. Claude Code
 loads the settings of the directory it runs in (`.claude/settings.json`
 there), as it does the home's: a profile's directory brings its own.

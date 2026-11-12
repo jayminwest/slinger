@@ -204,7 +204,7 @@ fn a_session_starts_within_its_workspaces_limits() {
         wait_lines(&plain.join("args.txt"), 1),
         [format!(
             "{fixed} --setting-sources project,local --strict-mcp-config {denied} \
-         Read,Glob,Grep,Bash --allowedTools Bash(slinger *) --verbose --session-id {id}"
+         Read,Glob,Grep,Bash,Edit,Write --allowedTools Bash(slinger *) Edit Write --verbose --session-id {id}"
         )]
     );
 
@@ -227,7 +227,7 @@ fn a_session_starts_within_its_workspaces_limits() {
         wait_lines(&wide.join("args.txt"), 1),
         [format!(
             "{fixed} --setting-sources user,project,local --strict-mcp-config {denied} \
-         Read,Glob,Grep,Bash,Edit --allowedTools Bash(slinger *) Edit Bash(git *) \
+         Read,Glob,Grep,Bash,Edit,Write --allowedTools Bash(slinger *) Edit Write Bash(git *) \
          --add-dir /srv/data /srv/docs --verbose --session-id {id}"
         )]
     );

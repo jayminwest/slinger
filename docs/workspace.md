@@ -89,26 +89,29 @@ with version 1. Other fields in a version 1 `[layout]` are kept.
 
 A session runs within limits (slinger-a33c; docs/service.md, "Limits"). With
 no limit fields it reads only the workspace's roots on slingerd's machine,
-runs only the `slinger` CLI and read-only commands, writes nothing, and does
-not load the owner's own agent instructions. The three `agent` fields above
-widen it:
+runs only the `slinger` CLI and read-only commands, writes files (the
+`Edit` and `Write` rules, slinger-05ad22), and does not load the owner's own
+agent instructions. Nobody answers a permission prompt, so a file it writes
+is not reviewed first. The three `agent` fields above widen it:
 
 ```toml
 [agent]
 name = "scout"
 user_config = true
 dirs = ["/Users/me/reference"]
-tools = ["Edit", "Write", "Bash(git *)"]
+tools = ["Bash(git *)", "Bash(cargo *)"]
 ```
 
 ## Profiles
 
 A profile (slinger-c8359a) is named limits the agent runs under when a
 session start names it (docs/service.md, "Profiles"): it runs in the
-profile's `dir`, and its `tools` take the place of `agent.tools`. The
-`slinger` CLI, `agent.dirs` and `agent.user_config` stay. A start with no
-profile runs within the agent's own limits, so a profile never widens a
-session unless it is asked for by name. `slinger profile set` writes them;
+profile's `dir`, and its `tools` take the place of `agent.tools` and of the
+default `Edit` and `Write`. The `slinger` CLI, `agent.dirs` and
+`agent.user_config` stay. A start with no profile runs within the agent's
+own limits, so a profile never changes a session unless it is asked for by
+name. A profile with no `tools` (`look` below) cannot write: use one for a
+session that only reads. `slinger profile set` writes them;
 the user may edit them here too.
 
 ```toml

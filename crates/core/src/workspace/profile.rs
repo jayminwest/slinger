@@ -3,9 +3,10 @@
 //! (docs/workspace.md, "Profiles").
 //!
 //! A profile names a working directory and the Claude Code permission rules
-//! its session may use. It never widens a session by itself: a session runs
-//! under a profile only when a start names it, its rules take the place of
-//! the agent's `tools` (the `slinger` CLI stays). Each rule, a profile's or
+//! its session may use. It never changes a session by itself: a session runs
+//! under a profile only when a start names it. Its rules take the place of
+//! the agent's `tools` and of the rules that write files (the `slinger` CLI
+//! stays), so a profile with no rules is one that cannot write. Each rule, a profile's or
 //! the agent's own, must name a tool this module knows or an MCP tool
 //! ([`check_rule`]). A rule it cannot read is refused, never passed on.
 

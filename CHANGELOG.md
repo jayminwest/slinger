@@ -166,6 +166,11 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Agents:** an agent can now edit and create files without any setup, so
+  a sling can ask for a code change. Nobody reviews a file before it is
+  written. Commands other than `slinger` and read-only ones still need a
+  rule in `agent.tools` (`"Bash(git *)"`). For an agent that only reads,
+  sling under a profile with no `tools`.
 - **Agents:** a workspace's `agent.tools` must now be rules slinger knows,
   as a profile's are: a tool such as `Edit`, `Bash(git *)` or
   `Bash(git:*)`, or an MCP tool (`mcp__server__tool`). A file with another

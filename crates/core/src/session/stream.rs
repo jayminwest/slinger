@@ -25,6 +25,9 @@ const TOOLS: [&str; 4] = ["Read", "Glob", "Grep", "Bash"];
 /// The permission rule every session has: running the `slinger` CLI.
 const SLINGER: &str = "Bash(slinger *)";
 
+/// The permission rules a session under no profile has too: writing files.
+const EDITS: [&str; 2] = ["Edit", "Write"];
+
 /// How a session's process starts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Start<'a> {
@@ -39,10 +42,11 @@ pub enum Start<'a> {
 /// It reads its home (the working directory) and [`Limits::dirs`]; it uses
 /// the built-in tools that read and run commands, but runs only what
 /// [`Limits::tools`] allows (the `slinger` CLI, at least, and read-only
-/// commands in those directories); it loads the settings and instructions of
-/// its home, and the owner's own only with [`Limits::user_config`]. No MCP
-/// server loads. Under a profile it runs in the profile's directory
-/// ([`Limits::dir`]), with the profile's rules in place of the agent's.
+/// commands in those directories); under no profile it writes files too
+/// ([`EDITS`]); it loads the settings and instructions of its home, and the
+/// owner's own only with [`Limits::user_config`]. No MCP server loads. Under
+/// a profile it runs in the profile's directory ([`Limits::dir`]), with the
+/// profile's rules in place of the agent's and of [`EDITS`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Limits {
     /// The working directory, when it is not the agent's home: a profile's.
@@ -57,9 +61,10 @@ pub struct Limits {
 
 impl Limits {
     /// The limits of `workspace`'s agent on `machine`: its roots on this
-    /// machine and the agent's `dirs`, the `slinger` CLI and the agent's
-    /// `tools`, and its `user_config`. A workspace with no agent gets the
-    /// roots and the CLI.
+    /// machine and the agent's `dirs`, the `slinger` CLI, the rules that
+    /// write files ([`EDITS`]) and the agent's `tools`, and its
+    /// `user_config`. A workspace with no agent gets the roots, the CLI and
+    /// those rules.
     #[must_use]
     pub fn of(workspace: &Workspace, machine: &str) -> Self {
         let agent = workspace.agent.as_ref();
@@ -68,7 +73,9 @@ impl Limits {
         let rules = agent.map(|a| a.tools.as_slice()).unwrap_or_default();
         Self {
             dirs: unique(roots.map(|r| r.path.as_str()).chain(more.iter().map(String::as_str))),
-            tools: unique([SLINGER].into_iter().chain(rules.iter().map(String::as_str))),
+            tools: unique(
+                [SLINGER].into_iter().chain(EDITS).chain(rules.iter().map(String::as_str)),
+            ),
             user_config: agent.is_some_and(|a| a.user_config),
             dir: None,
         }
@@ -76,7 +83,8 @@ impl Limits {
 
     /// The limits of `workspace`'s agent on `machine` under the profile
     /// `profile` names, or [`Limits::of`] with none. A profile's rules take
-    /// the place of the agent's `tools` (the `slinger` CLI stays). A profile
+    /// the place of the agent's `tools` and of [`EDITS`] (the `slinger` CLI
+    /// stays), so a profile with no rules cannot write. A profile
     /// with a directory runs there, and still reads the home (the primary
     /// root, when it is on `machine`) and the other directories.
     ///
@@ -258,7 +266,7 @@ mod tests {
     }
 
     #[test]
-    fn a_default_session_reads_its_local_roots_and_runs_only_the_cli() {
+    fn a_default_session_reads_its_local_roots_runs_only_the_cli_and_edits_files() {
         let ws = workspace(
             "[agent]\nname = \"a\"\n\
              [[root]]\nmachine = \"here\"\npath = \"/home/ws\"\nprimary = true\n\
@@ -266,16 +274,16 @@ mod tests {
              [[root]]\nmachine = \"there\"\npath = \"/remote\"\n",
         );
         let limits = Limits::of(&ws, "here");
-        let want =
-            Limits { dirs: vec!["/data".into()], tools: vec![SLINGER.into()], ..Limits::default() };
+        let tools = vec![SLINGER.into(), "Edit".into(), "Write".into()];
+        let want = Limits { dirs: vec!["/data".into()], tools, ..Limits::default() };
         assert_eq!(limits, want);
         assert_eq!(
             args(Start::Fresh("id"), &limits).join(" "),
             [
                 "--print --input-format stream-json --output-format stream-json",
                 "--setting-sources project,local --strict-mcp-config",
-                "--permission-mode dontAsk --tools Read,Glob,Grep,Bash",
-                "--allowedTools Bash(slinger *) --add-dir /data --verbose --session-id id",
+                "--permission-mode dontAsk --tools Read,Glob,Grep,Bash,Edit,Write",
+                "--allowedTools Bash(slinger *) Edit Write --add-dir /data --verbose --session-id id",
             ]
             .join(" ")
         );
@@ -295,8 +303,9 @@ mod tests {
             args[at + 1..].iter().take_while(|a| !a.starts_with("--")).cloned().collect::<Vec<_>>()
         };
         assert_eq!(after("--setting-sources"), ["user,project,local"]);
-        assert_eq!(after("--tools"), ["Read,Glob,Grep,Bash,Edit,WebFetch"]);
-        let rules = [SLINGER, "Edit(/docs/**)", "Bash(git *)", "WebFetch", "mcp__gh"];
+        assert_eq!(after("--tools"), ["Read,Glob,Grep,Bash,Edit,Write,WebFetch"]);
+        let rules =
+            [SLINGER, "Edit", "Write", "Edit(/docs/**)", "Bash(git *)", "WebFetch", "mcp__gh"];
         assert_eq!(after("--allowedTools"), rules, "an MCP rule is no built-in tool");
         assert_eq!(after("--add-dir"), ["/docs"]);
         assert_eq!(args[args.len() - 2..], ["--resume", "id"]);
@@ -321,7 +330,11 @@ mod tests {
         assert_eq!(dev, want);
         assert_eq!(Limits::under(&ws, "elsewhere", Some("dev")).unwrap().dirs, ["/docs"]);
         let look = Limits::under(&ws, "here", Some("look")).unwrap();
-        assert_eq!((look.dir, look.tools), (None, vec![SLINGER.to_string()]), "never wider");
+        assert_eq!(
+            (look.dir, look.tools),
+            (None, vec![SLINGER.to_string()]),
+            "no rules: it cannot write"
+        );
         assert_eq!(Limits::under(&ws, "here", Some("nope")).unwrap_err().code(), "not_found");
     }
 

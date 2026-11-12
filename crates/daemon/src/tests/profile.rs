@@ -126,7 +126,7 @@ fn a_session_under_a_profile_runs_in_its_dir_with_its_rules_and_its_own_conversa
     assert_eq!(plain.profile, None);
     assert!(
         wait_lines(&home.join("args.txt"), 1)[0]
-            .contains("--allowedTools Bash(slinger *) WebFetch --verbose")
+            .contains("--allowedTools Bash(slinger *) Edit Write WebFetch --verbose")
     );
     // A conversation is kept once the process names it: after its first answer.
     client.session_send("notes", "one").unwrap();
