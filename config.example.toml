@@ -208,3 +208,11 @@
 # Show the dotted grid on every canvas pane, or hide it ([canvas] background is the start).
 # It flashes "Dotted grid on" or "Dotted grid off".
 #toggle-grid = "cmd+'"
+# Say where the focused pane's canvas is saved. slingerd writes every change to the
+# canvas's file as you make it, so there is nothing to save by hand: this flashes the file
+# ("Saved to ~/…/main.canvas"), or why the last change has not reached it. The window's
+# title names the focused pane's canvas, with its file under it; cmd-click the title for
+# the folders that hold it.
+#save = "cmd+s"
+# Show the focused pane's canvas file in the Finder.
+#show-canvas-file = "cmd+alt+r"

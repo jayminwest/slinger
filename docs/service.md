@@ -134,7 +134,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `ui_reply` | `open`: a showing's id, `value`: any JSON | `event`: the `ui_reply` appended, `agent`, `delivered`: whether its session took it |
 | `canvas_create` | `canvas`: canvas id | `canvas`: the id |
 | `canvas_list` | none | `canvases`: list of `{canvas}`, sorted by id |
-| `canvas_show` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `canvas`, `next`: the next operation's number, `page`: the page's id, `pages`: list of `{id, name}`, `items`: list of items |
+| `canvas_show` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `canvas`, `next`: the next operation's number, `page`: the page's id, `pages`: list of `{id, name}`, `items`: list of items, `path`: the absolute path of the canvas's file |
 | `canvas_apply` | `canvas`: canvas id, `by`: author (default `user`), `ops`: one operation or a list | `seq`: list of numbers, `made`: list of ids |
 | `canvas_undo`, `canvas_redo` | `canvas`: canvas id, `by`: author (default `user`) | `seq`, `made` (always empty) |
 | `canvas_import` | `path`: absolute path of a tldraw file, `canvas`: canvas id (optional, default made from the file's name) | `canvas`, `pages`: number, `items`: count by kind, `skipped`: count by tldraw shape type |

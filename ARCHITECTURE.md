@@ -360,7 +360,9 @@ canvases/paging.rs  the canvas commands on a pane: pan, zoom (in, out, to
              dotted grid on every canvas pane, flashing "Dotted grid
              on/off"; the config's `[canvas]` is its start), the page
              commands (each turns only that pane) and undo and redo, each
-             through the ink's queue; each pane's page line.
+             through the ink's queue; each pane's page line; `save`, which
+             flashes where the pane's canvas is saved (canvases/status.rs
+             knows each pane's canvas file, from `canvas_show`'s `path`).
 canvases/sling.rs  the sling from the window: opens the entry at the
              focused pane's selection, sends it once the ink of its canvas
              is written (`Ink::settled`), takes the answer. `sling_now` is
@@ -509,6 +511,10 @@ scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport
              paint is cut off at the pane's edges (`clip`). Chrome over a page
              is two more shapes no server item has: a panel (a box with a
              fill, dashed or not) and a text's caret. Pure.
+scene/title.rs  the title bar: the focused pane's canvas, its file under
+             it (`~` for home) and that file as the proxy icon; what `save`
+             flashes. Nothing to save by hand: the daemon writes each change
+             as it is made (SPEC K5). Pure.
 scene/grid.rs  the dotted grid: display only, never an item (nothing
              selects, erases, slings or stores it; the core's images never
              show it). Dots fixed to the canvas, a quiet mix of the
@@ -667,6 +673,9 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              layout::SMALLEST) and says its new size as Event::Resized; main
              lays the scene out again at it. All unsafe, objc2 and AppKit
              code. No decisions.
+platform/files.rs  sets the title bar a scene's Title says (title, subtitle,
+             represented file), and shows a file in the Finder
+             (`show-canvas-file`, from main).
 platform/menu.rs  makes the menu bar a scene's menus say, again when they
              change. A command item chosen by its key goes to main as that
              key press, so the keymap runs it once; chosen with the pointer,

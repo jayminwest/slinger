@@ -233,7 +233,8 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
             let (shown, next) =
                 store.canvases().show(&canvas, page.as_deref()).map_err(|e| drawn(&e))?;
             let (page, pages, items) = (shown.page, shown.pages, shown.items);
-            Ok(Reply::CanvasShow(CanvasPage { canvas, next, page, pages, items }))
+            let path = Some(store.canvases().path(&canvas).to_string_lossy().into_owned());
+            Ok(Reply::CanvasShow(CanvasPage { canvas, next, page, pages, items, path }))
         }
         Request::CanvasApply(o) => {
             let lines = store.canvases().apply(&o.canvas, &o.by, &o.ops).map_err(|e| drawn(&e))?;

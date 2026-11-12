@@ -260,6 +260,32 @@ fn remembering(
     }
 }
 
+/// What `event` asks ([`ask`]); `show-canvas-file` is done here, as only
+/// `platform` reaches the Finder: the focused pane's canvas file shows
+/// there, or the flash says why it cannot.
+fn asked(
+    event: &Event,
+    shared: &mut Shared,
+    canvases: &mut Canvases,
+    tools: &mut Tools,
+    settings: &Settings,
+) -> Ask {
+    let asked = ask(event, shared, canvases, tools, settings);
+    if !matches!(asked, Ask::Run(Command::ShowCanvasFile)) {
+        return asked;
+    }
+    let said = match canvases.file(&shared.panes, shared.panes.focus()) {
+        None => Some(scene::title::NO_CANVAS.to_string()),
+        Some((canvas, None)) => Some(format!("slingerd has not said where {canvas} is saved")),
+        Some((_, Some(file))) if platform::reveal(file) => None,
+        Some((_, Some(file))) => Some(format!("The Finder cannot show {file}")),
+    };
+    if let Some(said) = said {
+        tools.flash().say(said, Instant::now());
+    }
+    Ask::Draw
+}
+
 /// What a key or a press asks of the window.
 enum Ask {
     /// Run a command, as its key does.
@@ -281,7 +307,7 @@ enum Ask {
 /// menu item's key comes as that key. A press on a button (or an open
 /// overlay's or menu's row) is theirs; the lift on it taps it: a pop-up
 /// opens where the pen lifted, another closes, and undo and redo flash.
-fn asked(
+fn ask(
     event: &Event,
     shared: &mut Shared,
     canvases: &mut Canvases,

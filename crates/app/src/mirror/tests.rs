@@ -14,6 +14,7 @@ fn shown(items: Vec<Value>) -> CanvasPage {
         page: "p1".into(),
         pages: vec![json!({"id": "p1", "name": "one"}), json!({"id": "p2", "name": "two"})],
         items,
+        path: None,
     }
 }
 
