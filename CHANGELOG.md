@@ -95,6 +95,12 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** a drawing reaches the agent as one image when its strokes
+  touch, instead of one image per long stroke (an airplane arrived as
+  fuselage, wings and belly). An underline joins the words it touches. A
+  frame or arrow that touches nothing still stays apart.
+- **Agents:** a handwritten line with wide gaps between its words reaches
+  the agent as one image, instead of one image per few words.
 - **App:** ink is smoother. The pen's small wobbles no longer show as bumps
   along a line's edges, most of all at the bold and marker widths; a line
   still starts and ends where the pen did, and fine writing keeps its shape.
