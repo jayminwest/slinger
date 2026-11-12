@@ -178,6 +178,7 @@ server.rs    the control socket and `answer`, one arm per verb. `serve` takes th
 store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
              the event log and the blobs. The only module that knows its
              layout. Stores each event as the line `record::encode` wrote.
+             Locks the data directory, so one store owns the record.
              Hands out the canvases, the workspaces and the sessions, so
              `answer` reaches all data one way.
 canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,

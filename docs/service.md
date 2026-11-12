@@ -37,7 +37,7 @@ slingerd [--socket <PATH>] [--data-dir <PATH>] [--claude <PATH>] [--slinger <PAT
 | 0 | ok | Stopped by a signal |
 | 1 | error | Unexpected failure, such as a socket path or data directory that cannot be created |
 | 2 | usage | Bad arguments |
-| 4 | conflict | Another daemon serves the socket, or the record was laid out by a newer slingerd |
+| 4 | conflict | Another daemon serves the socket or the data directory, or the record was laid out by a newer slingerd |
 
 ## Data directory
 
@@ -51,6 +51,12 @@ writer; other programs reach the record through the socket.
 - The daemon creates the directory (mode `0700`) and the file at startup,
   after it takes the socket. A directory it cannot create stops it with
   exit 1 and a hint.
+- **One daemon per data directory.** The daemon holds a lock on
+  `record.lock` in the directory for its whole life, so two daemons on
+  different sockets never share one record. A second daemon exits 4 with
+  `✗ data directory <path> is in use by another slingerd` and a hint. The
+  lock ends with the process, so a daemon that died leaves none; the empty
+  file stays.
 - The event log is append-only: the file refuses updates and deletes. The
   daemon gives each event its number and time and tags it with this
   machine's name, the host name up to its first dot. An event the writer

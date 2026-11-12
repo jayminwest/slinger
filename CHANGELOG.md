@@ -73,6 +73,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Daemon:** a second `slingerd` started on another socket but the same
+  data directory now stops with exit 4 and `✗ data directory <path> is in
+  use by another slingerd`, instead of writing to the same record as the
+  first.
 - **App:** the sling's pill (`● scout working · 4s` and what follows it)
   and the ➤ Sling and + prompt buttons centre their words top to bottom,
   instead of sitting them at the top of their fill.
