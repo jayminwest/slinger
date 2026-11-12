@@ -5,13 +5,14 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::Shutdown;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::thread::JoinHandle;
 
 use serde_json::json;
 use slinger_control::{Client, EventFilter, MAX_LINE, NewEvent, NewTags};
 use tempfile::TempDir;
 
+use crate::StoreError;
+use crate::testing::when_free;
 use crate::{Server, StartError, Stopper, Store, run};
 
 mod canvas;
@@ -33,24 +34,39 @@ mod workspace;
 
 const DAEMON: &str = "slingerd";
 
-/// A socket path that no other test uses. Short: socket paths have a length limit.
-fn socket_path() -> PathBuf {
-    static NEXT: AtomicU32 = AtomicU32::new(0);
-    let n = NEXT.fetch_add(1, Ordering::Relaxed);
-    std::env::temp_dir().join(format!("d-{}-{n}.sock", std::process::id()))
+/// A socket path in a new directory of its own, so no other test, process or
+/// leftover from an earlier run shares it, and it is removed on drop even
+/// when the test fails. Short: socket paths have a length limit.
+fn socket_path() -> (TempDir, PathBuf) {
+    let dir = TempDir::new().unwrap();
+    let socket = dir.path().join("d.sock");
+    (dir, socket)
+}
+
+/// Takes `socket`, waiting out a lock a test released a moment ago.
+fn bind(socket: &Path) -> Server {
+    when_free(|| Server::bind(socket), |e| matches!(e, StartError::Taken(_))).unwrap()
+}
+
+/// Opens the record in `data`, waiting out a lock a store or daemon that
+/// stopped a moment ago released.
+fn open(data: &Path) -> Store {
+    when_free(|| Store::open(data, "test-machine"), |e| matches!(e, StoreError::Taken(_))).unwrap()
 }
 
 /// Serves `server` with the record in `data` on a new thread. An agent's
 /// process cannot start: its program is not there, so no test runs the real
 /// Claude Code by accident.
 fn serving(server: Server, data: &Path) -> JoinHandle<std::io::Result<()>> {
-    let store = Store::open(data, "test-machine").unwrap().with_claude("/nonexistent/claude");
+    let store = open(data).with_claude("/nonexistent/claude");
     std::thread::spawn(move || server.serve(&store))
 }
 
 /// A daemon on its own socket for one test.
 struct Daemon {
     socket: PathBuf,
+    /// The socket's directory: removed on drop.
+    socket_dir: TempDir,
     stopper: Stopper,
     thread: JoinHandle<std::io::Result<()>>,
     /// The record's directory when the daemon made it: removed on drop.
@@ -66,20 +82,20 @@ impl Daemon {
     }
 
     fn start_in(data: &Path) -> Self {
-        let socket = socket_path();
+        let (socket_dir, socket) = socket_path();
         let server = Server::bind(&socket).unwrap();
         let stopper = server.stopper();
-        Self { socket, stopper, thread: serving(server, data), data: None }
+        Self { socket, socket_dir, stopper, thread: serving(server, data), data: None }
     }
 
     /// A daemon on the record in `data` whose agents' processes run `claude`.
     fn start_with_claude(data: &Path, claude: &Path) -> Self {
-        let socket = socket_path();
+        let (socket_dir, socket) = socket_path();
         let server = Server::bind(&socket).unwrap();
         let stopper = server.stopper();
-        let store = Store::open(data, "test-machine").unwrap().with_claude(claude);
+        let store = open(data).with_claude(claude);
         let thread = std::thread::spawn(move || server.serve(&store));
-        Self { socket, stopper, thread, data: None }
+        Self { socket, socket_dir, stopper, thread, data: None }
     }
 
     fn client(&self) -> Client {
@@ -90,8 +106,7 @@ impl Daemon {
     fn stop(self) {
         self.stopper.stop();
         self.thread.join().unwrap().unwrap();
-        assert!(!self.socket.exists());
-        std::fs::remove_file(format!("{}.lock", self.socket.display())).unwrap();
+        assert_eq!(left_in(self.socket_dir.path()), ["d.sock.lock"]);
         drop(self.data);
     }
 
@@ -99,11 +114,25 @@ impl Daemon {
     fn raw(&self, request: &[u8]) -> String {
         let mut stream = UnixStream::connect(&self.socket).unwrap();
         stream.write_all(request).unwrap();
-        stream.shutdown(Shutdown::Write).unwrap();
+        // A daemon that has the whole line can reply and close first, and
+        // macOS then refuses the shutdown; the reply is still there to read.
+        match stream.shutdown(Shutdown::Write) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotConnected => panic!("{e}"),
+            _ => {}
+        }
         let mut reply = String::new();
         BufReader::new(stream).read_line(&mut reply).unwrap();
         reply
     }
+}
+
+/// The names of the files in `dir`, sorted.
+fn left_in(dir: &Path) -> Vec<String> {
+    let entries = std::fs::read_dir(dir).unwrap();
+    let mut names: Vec<String> =
+        entries.map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    names.sort();
+    names
 }
 
 #[test]
@@ -155,15 +184,15 @@ fn one_instance_per_socket_path() {
 
 #[test]
 fn a_socket_file_left_by_a_dead_daemon_is_replaced() {
-    let socket = socket_path();
+    let (socket_dir, socket) = socket_path();
     drop(Server::bind(&socket).unwrap());
     assert!(socket.exists());
-    let server = Server::bind(&socket).unwrap();
+    let server = bind(&socket);
     let stopper = server.stopper();
     let data = TempDir::new().unwrap();
     let thread = serving(server, data.path());
     assert_eq!(Client::new(&socket).canvas_list().unwrap(), Vec::<String>::new());
-    Daemon { socket, stopper, thread, data: Some(data) }.stop();
+    Daemon { socket, socket_dir, stopper, thread, data: Some(data) }.stop();
 }
 
 #[test]
@@ -419,16 +448,14 @@ fn a_socket_path_it_cannot_create_is_an_error() {
 
 #[test]
 fn a_data_dir_it_cannot_create_is_an_error() {
-    let socket = socket_path();
+    let (_socket_dir, socket) = socket_path();
     let args = ["--socket", socket.to_str().unwrap(), "--data-dir", "/dev/null/slinger"];
     let (code, out, err) = daemon(&args);
     assert_eq!((code, out.as_str()), (1, ""));
     assert!(err.starts_with("✗ cannot create data directory /dev/null/slinger"), "{err}");
     assert!(err.contains("\n  pass another --data-dir"), "{err}");
     // The lock is free again: a daemon with a good data dir can take the socket.
-    drop(Server::bind(&socket).unwrap());
-    std::fs::remove_file(&socket).unwrap();
-    std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();
+    drop(bind(&socket));
 }
 
 #[test]

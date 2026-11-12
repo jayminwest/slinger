@@ -274,7 +274,11 @@ window.rs    runs a command on the focused pane, does a tap on a button that
              its panes), builds the window's scene (`view`: the footers,
              the sidebar's foot, the lit button, the tap targets), and
              finds the canvas pane under a point and the focused pane's
-             frame.
+             frame. A cut, copy or paste no text field took (`edit`), and
+             whether one would do anything (`can_edit`, which greys its
+             Edit menu item): under the key overlay or the page menu
+             nothing; the open palette's search takes pasted text; else the
+             canvases (canvases/clip.rs).
 shared.rs    the window's panes as the server keeps them for its workspace,
              the window's size, the agent UIs the panes show and their notes,
              the footers' and the sidebar's tap targets (scene/taps.rs), and
@@ -331,6 +335,11 @@ mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              hit test, the lasso, the selection and the caret follow the
              glyphs, texts saved earlier included. Keeps the canvas's pages,
              with their names. Pure.
+mirror/clip.rs  the selection's items on the clipboard: their file objects
+             as a JSON array, as a carry writes them (no id, maker, time,
+             page or arrow's bound ends), and its texts' plain text, one a
+             line; a paste reads the objects back as a carry's items for a
+             page, centred on a point. Pure.
 canvases.rs  the canvas panes: one follower and mirror per page shown, each
              pane's page, viewport and last scene (kept on screen until a
              page turned to arrives); the pen's ink, the eraser's and
@@ -357,6 +366,13 @@ canvases/slung.rs  the one-tap sling and what follows it: `sling-now` (the
              The pill's progress from the Slinger, a tap on the pill, and
              the sling's marks: the buttons beside the selection, the pill
              and the answer's panel.
+canvases/clip.rs  cut, copy and paste on the canvas panes: copy takes the
+             selection the focused pane shows (cut then removes it, one
+             step); paste puts text into the text being typed or a page
+             command's question, else items onto the focused pane's page,
+             centred in it, one step, selected once there. A text being
+             typed has no selection inside it (its caret is at its end), so
+             copy and cut grey out while one is.
 canvases/find.rs  which page, canvas and items each pane shows; a window
              point in canvas points.
 canvases/drag.rs  the pen's drag and lift on the canvas panes: a drag of the
@@ -473,9 +489,12 @@ scene/glyphs.rs  the box a text's glyphs fill, laid out in its column as a
              canvas view draws it: measured by a function platform hands in
              on the main thread (kept per text, size and column), else an
              estimate of the system font (tests). Pure.
-scene/paste.rs  pasted text made fit to type: line ends as `\n` (or a
-             space, on one line), tabs as spaces, no other control or
-             function-key character, so a paste is text, never keys. Pure.
+scene/paste.rs  the clipboard as the app sees it (`Clip`: plain text, a
+             canvas's items) and the edits no text field takes (`Edit`:
+             cut, copy, paste); pasted text made fit to type: line ends as
+             `\n` (or a space, on one line), tabs as spaces, no other
+             control or function-key character, so a paste is text, never
+             keys. Pure.
 scene/cursor.rs  the pointer over a canvas pane, per tool: the pen a ring in
              its colour, the eraser a ring its width, the lasso and the
              shapes cross hairs, text an I-beam, the select tool and an open
@@ -582,15 +601,19 @@ scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
 scene/select/hit.rs  which items an eraser's path touches, which items a
              lasso holds and which the select tool's box touches: the core's
              geometry rules (canvas/geometry.rs: `items_erased`,
-             `items_in_lasso`, `items_in_box`), kept here too so they answer
-             at every pen event without the socket (P7). Keep the two alike.
-             Which item a press picks is the app's alone. Pure.
+             `items_in_lasso`), kept here too so they answer at every pen
+             event without the socket (P7). Keep the two alike. Which item
+             a press picks and which a drawn box takes are the app's alone:
+             a drawn box takes a box by its outline (the core's
+             `items_in_box` by its whole frame), else the innermost box it
+             lies inside. Pure.
 scene/select/pick.rs  the select tool: a press picks the topmost item (a
              stroke or an arrow by its line, a box by its outline, a text, a
              live item or the button by its frame, 6 screen points of reach)
              and selects it alone, or drags the selection when inside its
              box; a press on empty canvas draws a box that selects what it
-             touches; shift adds or takes out. The lasso's selection, so
+             touches (or the innermost box it lies inside, so a box in a box
+             can be picked); shift adds or takes out. The lasso's selection, so
              delete, sling, escape and moves act on it alike. Pure.
 scene/select/carry.rs  a drag of the selection goes by the canvas pane
              under the pen, read through that pane's own view, at every pen
@@ -662,8 +685,9 @@ scene/dictation.rs  the dictation into the entry: start, then stop, one
              the entry; an answer overtaken by the entry closing is ignored.
              Pure.
 scene/tools.rs  the pen's tool, colour and width, and the pop-up at the pen (colour,
-             shape, tool, width) that changes them: opens, picks by pen or
-             key, closes. The tool commands pick a tool without it, and
+             shape, tool, width) that changes them: opens (at the focused
+             pane's centre until the pen or pointer has been in the window),
+             picks by pen or key, closes. The tool commands pick a tool without it, and
              `width-up`/`width-down` step the width. The width is the pen's
              line alone: boxes and arrows keep one line width. Canvases
              hold it for new strokes (`set_pen_width`). While a tablet pen's
@@ -709,16 +733,21 @@ platform/menu.rs  makes the menu bar a scene's menus say, again when they
              as Event::Command. Cut, copy, paste, select all, minimise and
              about go along the responder chain.
 platform/keys.rs  a key press as a chord and the text it types (none with
-             cmd held), and the clipboard's plain text. With no text field
-             focused, the window answers paste: (cmd+V, Edit > Paste) and
-             hands that text to main as Event::Paste: the palette's search,
-             then a text being typed or a page name asked, takes it; else
-             nothing. Flick's dictation pastes, so it lands there too.
+             cmd held), and the clipboard as a Clip: its plain text and a
+             canvas's items under the app's own type
+             (`com.github.jayminwest.slinger.items`). With no text field
+             focused, the window answers cut:, copy: and paste: (the Edit
+             menu and its keys) as Event::Edit, and puts the clip of a
+             Step::Copy on the clipboard; its validateMenuItem: asks main
+             (Event::Can) and greys the item on a pass. Flick's dictation
+             pastes, so it lands there too.
 platform/overlay.rs  draws a scene's Overlay over the chrome: a box that
              dims the window, then per line a rounded box for its fill and
              edge and a text field centred top to bottom.
 platform/chrome.rs  the focus border, and the flash's pill (a rounded box
-             with its text) with the one-shot timer that ticks when it goes.
+             with its text) with the one-shot timer that ticks when it goes;
+             the plain label, the flip to AppKit's coordinates and the
+             colour every view is made with.
              Each canvas view sets the scene's cursor over itself (a ring is
              drawn once).
 platform/entry.rs  the open entry (sling, feedback, rename): a native text
@@ -848,12 +877,16 @@ fires for a key hands main that key press, so a command never runs twice
 and the entry, the overlay and a pop-up still take their keys first. A key
 that types (no cmd or ctrl) stays off the menus, which would take it from a
 text field. Cut, copy, paste and select all keep their usual keys unless the
-keymap binds them (the window's close button quits too). Paste with no text
-field focused comes to main as text (platform/keys.rs); cut and copy then do
-nothing, and a key with cmd held never types.
+keymap binds them (the window's close button quits too). Cut, copy and paste
+with no text field focused come to main as Event::Edit (platform/keys.rs,
+window.rs's `edit`), greyed when they would do nothing, and a key with cmd
+held never types.
 The sling's open entry takes every key before the keymap but the `dictate`
-chord: return and escape are its, and any other key goes on to the text
-field (delete deletes a character there, not the selection).
+chord and the keymap's other chords with cmd or ctrl that a text field does
+not use (`scene::sling::edits`): return and escape are its, a key that types,
+an edit (cmd+X/C/V/A/Z, cmd or ctrl with an arrow or delete, ctrl with a
+letter) or a chord the keymap leaves free goes on to the text field (delete
+deletes a character there, not the selection), and cmd+Q still quits.
 An open pop-up at the pen takes its own keys first (escape, return, space,
 the arrows, 1 to 9); any other key goes to the keymap. These keys act only
 inside a pop-up a command opened, so they are not commands themselves.

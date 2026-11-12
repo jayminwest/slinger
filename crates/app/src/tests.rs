@@ -7,7 +7,6 @@ use crate::backend::ConfigFiles;
 use crate::backend::testing::wait_until;
 use crate::backend::tests::{open_notes, with_store};
 use crate::commands::{CMD, Chord};
-use crate::layout::WINDOW;
 use crate::panes::{Kind as PaneKind, Pane};
 use crate::scene::ink::Pen;
 use crate::scene::tools::Tool;
@@ -30,8 +29,10 @@ impl World {
         if let Event::Press(pen) = *event {
             window::press(&mut w.shared, &mut w.sidebar, &w.canvases, &w.tools, pen);
         }
-        let used = match asked(event, &mut w.shared, &mut w.canvases, &mut w.tools, &w.settings) {
-            Ask::Draw | Ask::Tap(_) => true,
+        let asked = asked(event, &mut w.shared, &mut w.canvases, &mut w.tools, &w.settings, area);
+        let used = match asked {
+            Ask::Draw(_) | Ask::Tap(_) => true,
+            Ask::Step(step) => !matches!(step, Step::Pass),
             Ask::Pass => false,
             Ask::Run(command) => run(
                 command,
@@ -71,9 +72,8 @@ fn count(daemon: &control::Client, kind: &str) -> usize {
 fn world(daemon: &control::Client, config: &Path) -> World {
     let settings = Settings::load(ConfigFiles::at(config.join("config.toml")));
     let panes = Panes::new(Pane { kind: PaneKind::Canvas, name: "notes".into() });
-    let centre = Point { x: WINDOW.width / 2.0, y: WINDOW.height / 2.0 };
     let mut w = World {
-        tools: Tools::new(settings.config.palette.clone(), centre),
+        tools: Tools::new(settings.config.palette.clone()),
         settings,
         shared: Shared { panes, ..Shared::default() },
         sidebar: Sidebar::new(false),

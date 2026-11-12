@@ -234,6 +234,26 @@ fn dictation_s_lines_stand_under_the_entry_after_its_own() {
 }
 
 #[test]
+fn a_text_field_keeps_its_edits_and_the_keymap_gets_the_rest() {
+    use crate::commands::{ALT, CMD, CTRL, SHIFT};
+    for (mods, key) in [
+        (CMD, 'v'),
+        (CMD, 'C'),
+        (CMD | SHIFT, 'z'),
+        (CMD, '\u{f702}'),
+        (CMD | SHIFT, '\u{7f}'),
+        (CTRL, 'a'),
+        (ALT, '\u{f703}'),
+        (0, 'q'),
+    ] {
+        assert!(edits(Chord::new(mods, key)), "{mods} {key:?} is the field's");
+    }
+    for (mods, key) in [(CMD, 'q'), (CMD, 'k'), (CMD, '\r'), (CMD | SHIFT, 'b'), (CTRL, '\t')] {
+        assert!(!edits(Chord::new(mods, key)), "{mods} {key:?} is the keymap's");
+    }
+}
+
+#[test]
 fn the_selection_s_buttons_sling_prompt_and_delete_in_a_row_inside_the_pane() {
     use crate::commands::Command;
     use crate::scene::taps::Tap;
