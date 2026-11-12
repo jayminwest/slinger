@@ -1,8 +1,8 @@
-//! The pen's buttons beside an open entry that has no other way to send
-//! (a page's new name, a note of feedback; SPEC P6: the pen reaches every
-//! common action with no keyboard): "✓ Rename" or "✓ Save" does what
-//! return does, "Dictate" starts Flick's dictation into the entry, the
-//! sling prompt's way, and "Stop" ends it, and "✕" does what escape does.
+//! The pen's buttons beside an open entry (the sling's prompt, a page's new
+//! name, a note of feedback; SPEC P6: the pen reaches every common action
+//! with no keyboard): "✓ Sling", "✓ Rename" or "✓ Save" does what return
+//! does, "Dictate" starts Flick's dictation into the entry, the
+//! way the dictate key does, and "Stop" ends it, and "✕" does what escape does.
 //! They stand to the right of the entry's box, level with it; the box
 //! makes room for them ([`beside`]). Each is a tap target that acts when
 //! the pen lifts on it ([`crate::scene::taps`]).
@@ -25,7 +25,7 @@ const DICTATE_WIDE: f64 = 68.0;
 /// The space between the box and the buttons, and between two buttons.
 const BETWEEN: f64 = 4.0;
 /// The room the buttons take beside the box.
-const ROOM: f64 = GAP + DONE_WIDE + DICTATE_WIDE + style::TAP + 2.0 * BETWEEN;
+pub const ROOM: f64 = GAP + DONE_WIDE + DICTATE_WIDE + style::TAP + 2.0 * BETWEEN;
 
 /// An entry's box in `within` (a pane) with its buttons beside it: as
 /// [`centred`], narrower by the buttons' room when the pane is, the box

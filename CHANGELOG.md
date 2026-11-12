@@ -18,13 +18,18 @@ bullet with the area in bold.
   pen draws over it. When the agent did not take a live item's reply, the
   item says so along its top.
 
+- **App:** the sling's pill says about how many tokens the agent reads
+  for it while it works, as in "● scout working · 4s · ~12k". An answer
+  opened under the pill now wraps its lines to the panel's real width.
 - **CLI:** `slinger sling send --json` reports `tokens`: about how many
   tokens the agent reads for the sling, its note and prompt included.
 - **App:** rename a page and leave feedback with the pen alone. Their
   entries have buttons beside them: ✓ Rename or ✓ Save does what return
   does, ✕ what escape does, and Dictate has Flick write the text in, as
   in the sling's prompt (tap it again, ● Stop, when done). The dictate
-  key works in these entries too.
+  key works in these entries too, and shows beneath them.
+- **App:** the sling's prompt has the same pen buttons beside it: ✓ Sling
+  sends, Dictate dictates and ✕ cancels, with no keyboard.
 
 - **Agents:** profiles per workspace. `slinger profile set <workspace> dev
   --dir ~/Projects/app --tool Edit --tool 'Bash(git *)'` gives the
@@ -195,6 +200,9 @@ bullet with the area in bold.
   slingerd is down) can be erased, selected, moved and deleted at once,
   like any other item. Each change still goes to slingerd in order, as one
   undo step.
+- **App:** tapping the "send to agent" button while the feedback entry
+  or a page's new name is open closes it and slings, instead of doing
+  nothing.
 - **Canvas:** zero-width characters (a joiner, a zero-width space, an emoji
   variation selector) no longer take a blank cell in a text's picture or
   widen its frame.
@@ -213,7 +221,9 @@ bullet with the area in bold.
   wide as its words: a pill with symbols or wide letters no longer cuts
   them off or leaves a gap.
 - **App:** ⌘Z and ⇧⌘Z undo and redo your typing in the sling's prompt
-  (and a note of feedback or a page's new name) instead of doing nothing.
+  (and a note of feedback or a page's new name) instead of doing nothing,
+  and so do Edit > Undo and Redo chosen with the pointer, instead of
+  undoing the canvas.
 - **App:** the pointer turns into the resize cursor within reach of the
   divider between two panes, and keeps it while you drag the divider, so
   you can see where a press resizes the panes.

@@ -139,3 +139,26 @@ fn a_text_left_open_ends_and_the_first_box_drag_after_cmd_5_reaches_the_daemon()
         w.until(|_| count(daemon, "text") == 1 && count(daemon, "box") == 1);
     });
 }
+
+/// slinger-e8d72a: Edit > Undo or Redo chosen with the pointer while an
+/// entry is open passes on to its field (as cmd+Z does), not to the canvas.
+#[test]
+fn undo_by_the_pointer_with_an_entry_open_is_the_field_s() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        w.drag_box(400.0, 10.0);
+        w.until(|_| count(daemon, "box") == 1);
+        assert!(w.send(Event::Command(Command::LeaveFeedback)));
+        assert!(w.canvases.typing());
+        assert!(!w.send(Event::Command(Command::Undo)), "the field's");
+        assert!(!w.send(Event::Command(Command::Redo)), "the field's");
+        assert!(!w.send(Event::Key(Chord::new(CMD, 'z'))), "as the key");
+        assert!(w.canvases.typing(), "still open");
+        w.key(Chord::new(0, '\u{1b}'), "\u{1b}");
+        assert!(!w.canvases.typing());
+        assert!(w.send(Event::Command(Command::Undo)), "the canvas's");
+        w.until(|_| count(daemon, "box") == 0);
+    });
+}

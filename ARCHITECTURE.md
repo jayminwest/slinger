@@ -566,8 +566,9 @@ scene/sidebar/notice.rs  the notice: a 28 pt bar above the footers (it
              its status moves on. Pure.
 scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
              made (a page's sling at its top left), inside its pane, what
-             the agent is doing: "● scout working · 4s", "■ scout blocked:
-             <note>", "✓ scout answered · N new items" (a tap brings them
+             the agent is doing: "● scout working · 4s · ~12k", "■ scout
+             blocked: <note> · ~12k" (the sling's tokens, when the daemon's
+             Slung reply counts them), "✓ scout answered · N new items" (a tap brings them
              into view, the next clears it), "✓ scout answered in text · tap
              to read" (a tap opens the answer's panel), "✓ scout is done,
              with nothing on the canvas", a failure's "✗ <message>" and hint,
@@ -577,7 +578,8 @@ scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
              goes 30 s later. The pill is a Line with a field's round
              corners, as wide as its words measure (scene/glyphs.rs). `out`:
              a sling is on its way or worked on. `slung/words.rs`: the
-             elapsed time, the arrow to the items, the answer's lines. Pure.
+             elapsed time, the tokens, the arrow to the items, the answer's
+             lines (wrapped as scene/glyphs.rs measures them). Pure.
 scene/button.rs  the "send to agent" button: an item of kind `button`, drawn
              as an outline with the agent's status mark (the sidebar's) and
              its label; which button is under a point; where a new one goes.
@@ -723,10 +725,12 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              beside a selection's box, ➤ Sling (`sling-now`), + prompt
              (`sling`) and Delete (`delete-selection`), each a 28 pt target
              inside the pane; while a sling is out, Delete alone.
-             `sling/pen.rs`: the pen's buttons beside a
-             note's or a new name's box, ✓ Save or ✓ Rename (Tap::Send, as
-             return), Dictate (`dictate`; ● Stop while Flick listens) and ✕
-             (Tap::Cancel, as escape); the box narrows to make room.
+             `sling/pen.rs`: the pen's buttons beside every entry's box
+             (the prompt's, a note's, a new name's), ✓ Sling, ✓ Save or ✓
+             Rename (Tap::Send, as return), Dictate (`dictate`; ● Stop while
+             Flick listens) and ✕ (Tap::Cancel, as escape); the box narrows
+             or moves to make room. Every entry shows the live dictate key
+             beneath its box (Entry::dictated).
 scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
              sling's labelled field (Entry::framed), "Feedback" above and
              "↩ saves · esc cancels" beneath, centred in the focused pane

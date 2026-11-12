@@ -1,10 +1,12 @@
-//! The pill's words: how long the agent has worked, the way to its items,
-//! and its answer in lines that fit the panel under the pill.
+//! The pill's words: how long the agent has worked, what the sling costs,
+//! the way to its items, and its answer in lines that fit the panel under
+//! the pill.
 
 use std::time::Duration;
 
-use super::{CHAR, MOST, PAD, View};
-use crate::layout::{Rect, Size};
+use super::{MOST, PAD, TEXT, View};
+use crate::layout::{Point, Rect, Size};
+use crate::scene::glyphs;
 
 /// "4s", "59s", then "1m", "12m": how long the agent has worked.
 pub(super) fn elapsed(time: Duration) -> String {
@@ -12,17 +14,28 @@ pub(super) fn elapsed(time: Duration) -> String {
     if s < 60 { format!("{s}s") } else { format!("{}m", s / 60) }
 }
 
-/// The answer's lines in a panel `width` wide: its words wrapped, at most
-/// [`MOST`] of them, then where the rest is, then how to close it.
+/// " · ~840", " · ~4.2k", " · ~12k", " · ~1.3M": about how many tokens
+/// the agent reads for the sling; nothing when the daemon does not count.
+pub(super) fn cost(tokens: Option<u64>) -> String {
+    let Some(n) = tokens else { return String::new() };
+    let tenths = |unit: u64| (n + unit / 20) / (unit / 10);
+    let about = match n {
+        0..1_000 => n.to_string(),
+        1_000..9_950 => format!("{}.{}k", tenths(1_000) / 10, tenths(1_000) % 10),
+        9_950..999_500 => format!("{}k", (n + 500) / 1_000),
+        _ => format!("{}.{}M", tenths(1_000_000) / 10, tenths(1_000_000) % 10),
+    };
+    format!(" · ~{about}")
+}
+
+/// The answer's lines in a panel `width` wide: its words wrapped as the
+/// window measures them, at most [`MOST`] of them, then where the rest is,
+/// then how to close it.
 pub(super) fn page(answer: &str, width: f64, agent: &str) -> Vec<String> {
-    let room = ((width - 2.0 * PAD) / CHAR).floor().max(8.0);
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "a small, positive width"
-    )]
-    let room = room as usize;
-    let mut lines = wrap(answer, room);
+    let room = width - 2.0 * PAD;
+    let at = Point { x: 0.0, y: 0.0 };
+    let fits = |line: &str| glyphs::frame(at, line, TEXT, glyphs::UNWRAPPED).width <= room;
+    let mut lines = wrap(answer, fits);
     if lines.len() > MOST {
         lines.truncate(MOST - 1);
         lines.push(format!("… the rest: slinger session show {agent}"));
@@ -31,24 +44,28 @@ pub(super) fn page(answer: &str, width: f64, agent: &str) -> Vec<String> {
     lines
 }
 
-/// `text` in lines of at most `room` characters, broken between words
-/// where it can be, each of its own lines kept.
-pub fn wrap(text: &str, room: usize) -> Vec<String> {
+/// `text` in lines that each `fits`, broken between words where it can
+/// be (a word too wide alone is cut, a character at least a line), each of
+/// its own lines kept.
+pub fn wrap(text: &str, fits: impl Fn(&str) -> bool) -> Vec<String> {
     let mut lines = Vec::new();
     for paragraph in text.trim().lines() {
         let mut line = String::new();
         for word in paragraph.split_whitespace() {
             let mut word = word.to_string();
-            while word.chars().count() > room {
-                let rest =
-                    word.split_off(word.char_indices().nth(room).map_or(word.len(), |(i, _)| i));
+            while !fits(&word) {
+                let ends = word.char_indices().map(|(i, _)| i).skip(1);
+                let cut = ends.take_while(|&i| fits(&word[..i])).last();
+                let Some(cut) = cut.or_else(|| word.char_indices().nth(1).map(|(i, _)| i)) else {
+                    break;
+                };
+                let rest = word.split_off(cut);
                 if !line.is_empty() {
                     lines.push(std::mem::take(&mut line));
                 }
                 lines.push(std::mem::replace(&mut word, rest));
             }
-            let fits = line.chars().count() + 1 + word.chars().count() <= room;
-            if !line.is_empty() && !fits {
+            if !line.is_empty() && !fits(&format!("{line} {word}")) {
                 lines.push(std::mem::take(&mut line));
             }
             if !line.is_empty() {
