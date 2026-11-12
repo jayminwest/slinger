@@ -18,6 +18,9 @@ bullet with the area in bold.
   pen draws over it. When the agent did not take a live item's reply, the
   item says so along its top.
 
+- **App:** the sling's pill says about how many tokens the agent reads
+  for it while it works, as in "● scout working · 4s · ~12k". An answer
+  opened under the pill now wraps its lines to the panel's real width.
 - **CLI:** `slinger sling send --json` reports `tokens`: about how many
   tokens the agent reads for the sling, its note and prompt included.
 - **App:** rename a page and leave feedback with the pen alone. Their
