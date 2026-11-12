@@ -13,12 +13,15 @@ use slinger_control::{Client, FeedbackNote};
 struct Daemon {
     child: Option<Child>,
     socket: PathBuf,
+    /// The socket's own directory, so no other run shares the path.
+    _socket_dir: tempfile::TempDir,
     data: tempfile::TempDir,
 }
 
 impl Daemon {
-    fn start(tag: &str, cwd: &Path, args: &[&str]) -> std::io::Result<Self> {
-        let socket = std::env::temp_dir().join(format!("f{tag}-{}.sock", std::process::id()));
+    fn start(cwd: &Path, args: &[&str]) -> std::io::Result<Self> {
+        let socket_dir = tempfile::tempdir()?;
+        let socket = socket_dir.path().join("f.sock");
         let data = tempfile::tempdir()?;
         let child = Command::new(env!("CARGO_BIN_EXE_slingerd"))
             .current_dir(cwd)
@@ -30,7 +33,7 @@ impl Daemon {
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()?;
-        let daemon = Self { child: Some(child), socket, data };
+        let daemon = Self { child: Some(child), socket, _socket_dir: socket_dir, data };
         let deadline = Instant::now() + Duration::from_secs(10);
         while let Err(e) = daemon.client().canvas_list() {
             assert!(Instant::now() < deadline, "the daemon never answered: {e}");
@@ -51,14 +54,13 @@ impl Drop for Daemon {
             let _ = Command::new("kill").arg("-TERM").arg(pid).status();
             let _ = child.wait();
         }
-        let _ = std::fs::remove_file(format!("{}.lock", self.socket.display()));
     }
 }
 
 #[test]
 fn a_relative_feedback_file_is_from_where_slingerd_started() {
     let work = tempfile::tempdir().unwrap();
-    let daemon = Daemon::start("rel", work.path(), &["--feedback", "notes/fb.jsonl"]).unwrap();
+    let daemon = Daemon::start(work.path(), &["--feedback", "notes/fb.jsonl"]).unwrap();
     let client = daemon.client();
 
     let path = client.feedback_path().unwrap();
@@ -74,7 +76,7 @@ fn a_relative_feedback_file_is_from_where_slingerd_started() {
 #[test]
 fn without_feedback_notes_go_to_the_checkout_slingerd_was_built_from() {
     let work = tempfile::tempdir().unwrap();
-    let daemon = Daemon::start("def", work.path(), &[]).unwrap();
+    let daemon = Daemon::start(work.path(), &[]).unwrap();
 
     // Only asks where: a note here would land in the real checkout.
     let path = daemon.client().feedback_path().unwrap();
