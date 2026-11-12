@@ -7,8 +7,6 @@
 //! one still naming an id of the ink's own when it goes names an item
 //! never made (its add was refused): that id is dropped.
 
-use std::collections::HashMap;
-
 use super::{Change, LOCAL, PENDING};
 use crate::scene::canvas::{Item, ItemId, Shape};
 
@@ -18,17 +16,38 @@ pub(super) fn pending(id: ItemId) -> bool {
     (PENDING..LOCAL).contains(&id.0)
 }
 
-/// `id`, or the id the daemon made it under, by `made`: an item it has
-/// not made yet keeps its id.
-pub(super) fn known(made: &HashMap<ItemId, ItemId>, id: ItemId) -> ItemId {
-    made.get(&id).copied().unwrap_or(id)
-}
+/// Each id of the ink's own the daemon made an item of, and the id it made,
+/// in the order of the ink's ids (nearly always the order made, so each
+/// goes at the end).
+#[derive(Debug, Default)]
+pub(super) struct Made(Vec<(ItemId, ItemId)>);
 
-/// `id` as the server names it, by `made` (the ink's own ids the daemon
-/// made, and the ids it made them under); `None` for an id of the ink's
-/// own it never made.
-pub(super) fn sent(made: &HashMap<ItemId, ItemId>, id: ItemId) -> Option<ItemId> {
-    if pending(id) { made.get(&id).copied() } else { Some(id) }
+impl Made {
+    /// The daemon made the items that showed under the first id of each of
+    /// `ids` under the second.
+    pub(super) fn add(&mut self, ids: &[(ItemId, ItemId)]) {
+        for &(was, now) in ids {
+            let at = self.0.partition_point(|(id, _)| *id < was);
+            self.0.insert(at, (was, now));
+        }
+    }
+
+    fn get(&self, id: ItemId) -> Option<ItemId> {
+        let at = self.0.binary_search_by_key(&id, |(was, _)| *was).ok()?;
+        Some(self.0[at].1)
+    }
+
+    /// `id`, or the id the daemon made it under: an item it has not made
+    /// yet keeps its id.
+    pub(super) fn known(&self, id: ItemId) -> ItemId {
+        self.get(id).unwrap_or(id)
+    }
+
+    /// `id` as the server names it; `None` for an id of the ink's own it
+    /// never made.
+    pub(super) fn sent(&self, id: ItemId) -> Option<ItemId> {
+        if pending(id) { self.get(id) } else { Some(id) }
+    }
 }
 
 impl Change {

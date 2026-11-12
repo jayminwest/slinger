@@ -33,7 +33,7 @@
 //! end of a stroke gives the log line for SPEC O2 ([`Ink::delay_log`]).
 
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use crate::backend::Problem;
 use crate::config::Rgb;
@@ -231,7 +231,7 @@ pub struct Ink {
     /// Each id of the ink's own the daemon made an item of, and the id it
     /// made. Kept for the app's life (a few bytes a change), so a gesture
     /// still holding an old id names the item made ([`ids`]).
-    made: HashMap<ItemId, ItemId>,
+    made: ids::Made,
     /// What this run's keys for applying once start with ([`once`]).
     run: String,
 }
@@ -311,7 +311,7 @@ impl Ink {
     /// that the daemon has made under the ids it made; its key. A carry's
     /// items each show under a key of their own.
     fn queue(&mut self, mut change: Change, after: Option<u64>) -> u64 {
-        change.rename(|id| Some(ids::known(&self.made, id)));
+        change.rename(|id| Some(self.made.known(id)));
         let key = self.next_key;
         let keys = match &change {
             Change::Carry { items, .. } => u64::try_from(items.len()).unwrap_or(1).max(1),
@@ -335,7 +335,7 @@ impl Ink {
             let at = self.pending.iter().position(|p| p.state == State::Waiting)?;
             let made = &self.made;
             let first = &mut self.pending[at];
-            if first.change.rename(|id| ids::sent(made, id)) {
+            if first.change.rename(|id| made.sent(id)) {
                 first.state = State::Sending;
                 return Some((first.key, first.change.clone()));
             }
@@ -353,10 +353,10 @@ impl Ink {
                 let mine = (0..).map(|n| self.pending[at].id(n));
                 let renamed: Vec<_> = mine.zip(ids.iter().copied()).collect();
                 (self.pending[at].state, self.pending[at].made) = (State::Sent(seq), ids);
-                self.made.extend(renamed.iter().copied());
+                self.made.add(&renamed);
                 let made = &self.made;
                 for pending in &mut self.pending {
-                    pending.change.rename(|id| Some(ids::known(made, id)));
+                    pending.change.rename(|id| Some(made.known(id)));
                 }
                 self.problem = None;
                 return renamed;
