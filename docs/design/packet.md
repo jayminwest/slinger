@@ -199,7 +199,9 @@ tiles of at most 1568 px a side that overlap by 64 px, named `<id>-1.png`,
 holds these numbers as constants. A line is never thinner than 1 px. A crop
 (below) draws every kind: boxes, arrows, live items' and buttons' boxes as 2-unit
 lines (a live item with its UI's name inside, a button with `send to agent`), text in an 8 by 8
-bitmap font at 24 canvas units a character, wrapped at spaces to its frame.
+bitmap font at 24 canvas units a character, wrapped at spaces to its frame
+(ASCII, Latin-1, Greek, box drawing, blocks, hiragana and common typography
+such as dashes, curly quotes and arrows; any other character is drawn as `?`).
 
 **Nothing new** (B4): both `new` and `made` are empty and `from` is greater
 than `to`. It is a valid packet.

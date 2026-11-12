@@ -35,9 +35,59 @@ fn texts(palette: &Palette, size: Size) -> Vec<String> {
 }
 
 #[test]
-fn opened_empty_it_matches_every_command_in_the_registry_order() {
-    let all: Vec<Command> = Command::ALL.into_iter().map(|(c, _)| c).collect();
-    assert_eq!(open().matches(), all);
+fn opened_empty_it_lists_every_command_by_group_tools_first_and_quit_last() {
+    let matches = open().matches();
+    assert_eq!(matches.len(), Command::ALL.len());
+    assert_eq!(matches[..2], [Command::ToolPen, Command::ToolEraser]);
+    assert_eq!(matches.last(), Some(&Command::Quit));
+    let groups: Vec<usize> =
+        matches.iter().map(|c| Group::ALL.iter().position(|&g| g == c.group()).unwrap()).collect();
+    assert!(groups.is_sorted(), "by group, in the surfaces' order");
+}
+
+#[test]
+fn return_on_a_just_opened_palette_never_quits() {
+    let keys = Keymap::default();
+    let taken = open().key(key("return"), &keys);
+    assert_eq!(taken, Taken::Run(Command::ToolPen));
+}
+
+#[test]
+fn opened_again_it_lists_the_command_it_last_ran_first_but_never_quit() {
+    let keys = Keymap::default();
+    let mut palette = open();
+    type_in(&mut palette, "zoom out");
+    assert_eq!(palette.key(key("return"), &keys), Taken::Run(Command::ZoomOut));
+    palette.toggle();
+    let matches = palette.matches();
+    assert_eq!(matches[..2], [Command::ZoomOut, Command::ToolPen]);
+    assert_eq!(matches.len(), Command::ALL.len(), "listed once");
+    type_in(&mut palette, "split");
+    assert_eq!(palette.matches()[0], Command::SplitRight, "typed, the ranking leads");
+
+    let mut palette = open();
+    palette.last = Some(Command::ZoomOut);
+    type_in(&mut palette, "quit");
+    assert_eq!(palette.key(key("return"), &keys), Taken::Run(Command::Quit));
+    palette.toggle();
+    assert_eq!(palette.matches()[0], Command::ZoomOut, "quit is not remembered");
+}
+
+#[test]
+fn a_title_prefix_ranks_over_a_word_start_over_a_subsequence_over_the_group() {
+    let mut palette = open();
+    type_in(&mut palette, "sp");
+    let matches = palette.matches();
+    let at = |c| matches.iter().position(|&m| m == c).unwrap();
+    assert_eq!(matches[..2], [Command::SplitRight, Command::SplitDown]);
+    assert!(at(Command::SplitDown) < at(Command::PickShape), "prefix before subsequence");
+
+    let mut palette = open();
+    type_in(&mut palette, "pane");
+    let matches = palette.matches();
+    let at = |c| matches.iter().position(|&m| m == c).unwrap();
+    assert!(at(Command::ShrinkPane) < at(Command::PanLeft), "word start before subsequence");
+    assert!(at(Command::PanLeft) < at(Command::SplitRight), "the title before the group");
 }
 
 #[test]
@@ -131,6 +181,24 @@ fn escape_or_its_own_key_closes_it_and_runs_nothing() {
 }
 
 #[test]
+fn a_menu_choice_closes_it_and_runs_except_its_own_which_only_closes() {
+    let mut palette = Palette::default();
+    assert_eq!(palette.chosen(Command::Undo), Taken::No, "closed, the menu runs it");
+    palette.toggle();
+    type_in(&mut palette, "split");
+    assert_eq!(palette.chosen(Command::Undo), Taken::Run(Command::Undo));
+    assert!(!palette.is_open());
+    palette.toggle();
+    assert_eq!(
+        palette.matches()[0],
+        open().matches()[0],
+        "not the palette's run: not listed first"
+    );
+    assert_eq!(palette.chosen(Command::ShowCommands), Taken::Yes);
+    assert!(!palette.is_open(), "show-commands from the menu does not open it again");
+}
+
+#[test]
 fn a_press_on_a_row_runs_it_and_one_outside_closes_it() {
     let size = layout::WINDOW;
     let mut palette = Palette::default();
@@ -172,9 +240,9 @@ fn rows_are_tall_enough_for_the_pen_and_the_panel_fits_every_window() {
 #[test]
 fn a_row_shows_title_group_and_key_and_the_footer_says_the_keys() {
     let texts = texts(&open(), layout::WINDOW);
-    let at = texts.iter().position(|t| t == Command::Quit.title()).unwrap();
-    assert_eq!(texts[at + 1], "Window");
-    assert_eq!(texts[at + 2], "⌘Q");
+    let at = texts.iter().position(|t| t == Command::ToolPen.title()).unwrap();
+    assert_eq!(texts[at + 1], "Tools");
+    assert_eq!(texts[at + 2], "⌘1");
     assert_eq!(texts[1], PLACEHOLDER);
     assert_eq!(texts[2], format!("{n} of {n}", n = Command::ALL.len()));
     assert_eq!(texts[texts.len() - 2..], [FOOTER, PEN]);
@@ -189,9 +257,9 @@ fn the_selection_stays_in_view_and_is_filled() {
         palette.key(key("down"), &keys);
     }
     let texts = texts(&palette, layout::WINDOW);
-    let selected = Command::ALL[rows].0.title();
-    assert!(texts.contains(&selected.to_string()));
-    assert!(!texts.contains(&Command::ALL[0].0.title().to_string()), "the first scrolled off");
+    let matches = palette.matches();
+    assert!(texts.contains(&matches[rows].title().to_string()));
+    assert!(!texts.contains(&matches[0].title().to_string()), "the first scrolled off");
     let shown = palette.shown(&keys, &T, layout::WINDOW).unwrap();
     let filled = shown.lines.iter().filter(|l| l.label.fill == Some(style::selected(&T)));
     assert_eq!(filled.map(|l| l.radius).collect::<Vec<_>>(), [style::ROW_RADIUS]);
@@ -204,8 +272,8 @@ fn the_selected_row_reads_on_its_fill_and_the_panel_is_rounded_with_a_hairline()
     let panel = &shown.lines[0];
     assert_eq!((panel.label.fill, panel.edge), (Some(style::panel(&T)), Some(style::edge(&T))));
     assert_eq!(panel.radius, style::PANEL_RADIUS);
-    let first = Command::ALL[0].0;
-    let group = first.group().title();
+    let matches = open().matches();
+    let group = matches[0].group().title();
     let label = |n: usize| {
         let row = place(layout::WINDOW).row(u32::try_from(n).unwrap());
         let lines = shown.lines.iter().filter(|l| l.label.frame.y >= row.y);
@@ -219,7 +287,7 @@ fn the_selected_row_reads_on_its_fill_and_the_panel_is_rounded_with_a_hairline()
     let other = label(1);
     let chip = other.iter().find(|l| l.radius == style::CHIP_RADIUS).unwrap();
     assert_eq!(chip.label.fill, Some(style::chip(&T)));
-    let title = other.iter().find(|l| l.label.text == Command::ALL[1].0.title()).unwrap();
+    let title = other.iter().find(|l| l.label.text == matches[1].title()).unwrap();
     let middle = |f: Rect| f.y + f.height / 2.0;
     assert!((middle(chip.label.frame) - middle(title.label.frame)).abs() < 1e-9, "centred");
 }

@@ -51,6 +51,9 @@ bullet with the area in bold.
 - **App:** a button to hide the sidebar at its foot, and one to show it in
   the bottom-left footer while it is hidden, at the same spot. Tap a
   workspace in the sidebar to show its panes.
+- **App:** the window opens where you left it, at the size you left it,
+  and the sidebar opens or stays hidden as you last left it. A `[window]
+  sidebar` setting in the config still wins.
 
 ### Changed
 
@@ -70,6 +73,21 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** the picture an agent sees of your canvas draws em and en
+  dashes, curly quotes, an ellipsis, bullets, arrows, check marks, box
+  drawing and blocks as themselves, instead of as `?`. A character the
+  picture still has no glyph for (most emoji, Chinese) is drawn as `?`.
+- **Feedback:** each note names the commit `slingerd` was built from
+  (with `-dirty` for uncommitted changes) instead of always `dev`.
+- **App:** choosing a menu bar item while the command palette is open now
+  closes the palette before the command runs, instead of leaving it over
+  the window. Choosing Show commands only closes it.
+- **App:** return on a just-opened command palette no longer quits. The
+  palette now opens on the command you last ran from it, then the tools,
+  with Quit at the bottom. Typed, the best match comes first: a title that
+  starts with what you typed, then a word that does, then looser matches,
+  then matches on the group name only ("sp" puts Split right above Pick a
+  shape).
 - **App:** a failed tap on the "send to agent" button shows why in the
   pill, instead of opening an entry the pen cannot close.
 - **Daemon:** an agent can answer when `slingerd` was started with a

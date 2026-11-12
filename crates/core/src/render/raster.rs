@@ -2,13 +2,14 @@
 //! (lines) or by area (glyph cells), so edges are smooth, and each item is
 //! laid down once over what is under it, in its own colour.
 
-use font8x8::UnicodeFonts as _;
-
 use super::{SCALE, png};
 use crate::canvas::{Colour, Item, Point, Rect, Shape};
 
+mod glyph;
 #[cfg(test)]
 mod tests;
+
+use glyph::glyph;
 
 /// The pen width, in canvas units, of a box's edge and an arrow.
 const LINE_WIDTH: f64 = 2.0;
@@ -290,18 +291,6 @@ pub(super) fn wrap(text: &str, columns: usize) -> Vec<Vec<char>> {
         rows.push(row);
     }
     rows
-}
-
-/// The 8 by 8 bitmap of a character: each byte is a row from the top, bit 0
-/// the leftmost pixel. A character the font lacks is drawn as `?`.
-fn glyph(c: char) -> [u8; 8] {
-    let fonts = [
-        font8x8::BASIC_FONTS.get(c),
-        font8x8::LATIN_FONTS.get(c),
-        font8x8::GREEK_FONTS.get(c),
-        font8x8::BASIC_FONTS.get('?'),
-    ];
-    fonts.into_iter().flatten().next().unwrap_or_default()
 }
 
 #[expect(clippy::cast_precision_loss, reason = "pixel and character counts are far below 2^52")]

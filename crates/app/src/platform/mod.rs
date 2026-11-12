@@ -15,7 +15,8 @@
 //! text field; `overlay` dims the window under the key overlay; `chrome`
 //! the focus border and the flash's pill. `text` sets styled text: the
 //! sidebar's rows and the panes' footers. The window
-//! resizes, down to [`layout::SMALLEST`], and says its new size.
+//! resizes, down to [`layout::SMALLEST`], and says its new size; `remember`
+//! keeps its frame, and whether the sidebar was open, for the next launch.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
 //! that touches `AppKit` takes a `MainThreadMarker`, which only the main thread
@@ -30,6 +31,7 @@ mod input;
 mod keys;
 mod menu;
 mod overlay;
+mod remember;
 mod text;
 mod web;
 
@@ -46,6 +48,7 @@ use objc2_app_kit::{
 use objc2_foundation::{NSNotification, NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
 use self::canvas::CanvasView;
+pub use self::remember::{remember_sidebar, sidebar as remembered_sidebar};
 use crate::commands::{Chord, Command};
 use crate::config::Rgb;
 use crate::layout::{self, PaneId, Point, Rect, Size};
@@ -304,8 +307,15 @@ pub fn run(
     // The app ends in `exit`, so the state lives as long as it does.
     let state = Box::leak(Box::new(State { window, answer, shown }));
     draw(state, scene, mtm);
-    state.window.makeKeyAndOrderFront(None);
     STATE.set(Some(state));
+    // The window opens at its saved size: the first scene follows it.
+    let opened = state.window.contentView().map(|view| view.frame().size);
+    if let Some(size) =
+        opened.filter(|s| (s.width, s.height) != (scene.size.width, scene.size.height))
+    {
+        dispatch(Event::Resized(Size { width: size.width, height: size.height }), mtm);
+    }
+    state.window.makeKeyAndOrderFront(None);
     app.activate();
     app.run();
     Ok(())
@@ -336,6 +346,7 @@ fn window(mtm: MainThreadMarker, scene: &Scene) -> Retained<KeyWindow> {
     // The delegate is weak: the window lives as long as the app.
     window.setDelegate(Some(ProtocolObject::from_ref(&*window)));
     window.center();
+    remember::frame(&window);
     window
 }
 
