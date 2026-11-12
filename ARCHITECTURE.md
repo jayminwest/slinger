@@ -264,7 +264,9 @@ server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
 main.rs      wires the modules below. The only caller of platform. With
              `--preview UI [--data JSON]` it shows one agent UI alone and
              writes each reply's `ui_reply` line to stdout instead. It routes
-             each event: keys, the pen, the mouse, the trackpad. A pen or
+             each event (route.rs, which the window's answer and the tests
+             both call; the answer adds a tick's news): keys, the pen, the
+             mouse, the trackpad. A pen or
              mouse press first focuses the pane under it (its content or its
              footer; not a touch, a divider, or under the key overlay or the
              palette), then does its work there; a press an agent UI's page
