@@ -118,6 +118,13 @@ impl CanvasView {
         unsafe { msg_send![super(this), initWithFrame: frame] }
     }
 
+    /// Makes the pointer this view's cursor, if it has one yet.
+    pub fn set_cursor(&self) {
+        if let Some((_, cursor)) = self.ivars().cursor.borrow().as_ref() {
+            cursor.set();
+        }
+    }
+
     /// Shows `scene` at `frame`, with `cursor` over it. A view that moved,
     /// or that showed nothing, repaints whole; otherwise only the box the
     /// scene says changed. Texts no longer drawn are let go.

@@ -3,9 +3,9 @@
 //! sees it (the server's copy with the ink laid over, [`Ink::shown`]); the
 //! finished gesture goes to the [`Ink`] as one [`Change`], so one undo step.
 //!
-//! - The eraser: each stroke its path touches hides at once, and the lift
-//!   removes them all in one `remove`. Its radius is [`ERASER`] screen
-//!   points at any zoom.
+//! - The eraser: each stroke, text, box (by its outline) or arrow its path
+//!   touches hides at once, and the lift removes them all in one `remove`.
+//!   Its radius is [`ERASER`] screen points at any zoom.
 //! - The lasso: the loop draws as the pen goes, and the lift selects the
 //!   items it holds whole. A press inside the selection's box drags the
 //!   selection instead, and the lift moves it in one `move`, with the
@@ -70,7 +70,7 @@ pub struct Selection {
 /// The gesture under the pen.
 #[derive(Debug, Clone, PartialEq)]
 enum Gesture {
-    /// The strokes hit so far, hidden until the lift removes them; the last
+    /// The items hit so far, hidden until the lift removes them; the last
     /// point of the path, and the radius in canvas units.
     Erase { ids: Vec<ItemId>, last: Point, radius: f64 },
     /// The loop so far.
@@ -213,7 +213,7 @@ impl Select {
     }
 
     /// `items`, the page shown of `canvas`, with the gesture laid over it at
-    /// `zoom` in `theme`'s colours: the strokes being erased hidden, the
+    /// `zoom` in `theme`'s colours: the items being erased hidden, the
     /// selection where it is being dragged, then the selection's box, its
     /// handles and its count, and the lasso's loop, thin and muted.
     pub fn shown<'a>(

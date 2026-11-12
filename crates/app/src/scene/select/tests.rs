@@ -85,9 +85,10 @@ fn the_eraser_hides_what_it_touches_at_once_and_removes_it_in_one_change() {
         ids(&select.shown(("main", "p2"), shown(&page), 1.0, &THEME)),
         [1, 2, 3, 4, LOCAL_INK]
     );
-    assert!(select.drag(pt(25.0, 0.0), &items), "over the box: only strokes are erased");
+    assert!(select.drag(pt(25.0, 0.0), &items), "across the box's left side");
     assert!(select.up(Some(pt(25.0, 1.0)), &items, &mut ink));
-    let remove = Change::Remove { canvas: "main".into(), page: "p1".into(), ids: vec![ItemId(1)] };
+    let ids = vec![ItemId(1), ItemId(2)];
+    let remove = Change::Remove { canvas: "main".into(), page: "p1".into(), ids };
     assert_eq!(ink.next().map(|(_, c)| c), Some(remove));
     assert!(!select.up(None, &items, &mut ink), "no gesture is under the pen now");
     assert!(!select.drag(pt(0.0, 0.0), &items));
@@ -240,6 +241,38 @@ fn an_eraser_crossing_a_stroke_between_its_points_touches_it() {
     assert!(!hit::erases(&line, pt(0.0, 20.0), pt(20.0, 20.0), 0.0));
     assert!(hit::erases(&line, pt(0.0, 20.0), pt(20.0, 20.0), 9.0), "the end is 10 away, width 2");
     assert!(hit::erases(&line, pt(5.0, 5.0), pt(5.0, 5.0), -1.0), "a dab on it; no reach is none");
+}
+
+#[test]
+fn the_eraser_takes_text_boxes_and_arrows_but_not_ink_on_its_way() {
+    let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
+    let path = [(45.0, -20.0), (45.0, 60.0)];
+    gesture(&mut select, &mut ink, Tool::Eraser, &path, &page);
+    let removed = |ink: &mut Ink| match ink.next() {
+        Some((_, Change::Remove { ids, .. })) => ids.iter().map(|i| i.0).collect::<Vec<_>>(),
+        other => panic!("expected one remove, got {other:?}"),
+    };
+    assert_eq!(removed(&mut ink), [3, 4], "the text and the arrow; ink is not erased");
+    let mut ink = Ink::default();
+    gesture(&mut select, &mut ink, Tool::Eraser, &[(25.0, 0.0), (25.0, 30.0)], &page);
+    assert_eq!(removed(&mut ink), [2], "from inside the box across its bottom side");
+}
+
+#[test]
+fn an_eraser_reaches_a_text_frame_a_box_outline_and_an_arrow_by_their_width() {
+    let text = Shape::Text { frame: frame(0.0, 0.0, 10.0, 10.0), text: "hi".into(), size: 24.0 };
+    assert!(hit::erases(&text, pt(5.0, 5.0), pt(5.0, 5.0), 0.0), "a dab inside");
+    assert!(hit::erases(&text, pt(-3.0, -10.0), pt(-3.0, 20.0), 3.0), "past its side, in reach");
+    assert!(!hit::erases(&text, pt(-4.0, -10.0), pt(-4.0, 20.0), 3.0));
+    let boxed = Shape::Box { frame: frame(0.0, 0.0, 10.0, 10.0), width: 2.0 };
+    assert!(hit::erases(&boxed, pt(-3.0, 5.0), pt(-3.0, 5.0), 2.0), "2 + half its width");
+    assert!(!hit::erases(&boxed, pt(5.0, 5.0), pt(5.0, 5.0), 2.0), "its middle is empty");
+    let arrow =
+        Shape::Arrow { from: pt(0.0, 0.0), to: pt(10.0, 0.0), width: 4.0, bound: [None; 2] };
+    assert!(hit::erases(&arrow, pt(5.0, 3.0), pt(5.0, 3.0), 1.0));
+    assert!(!hit::erases(&arrow, pt(5.0, 4.0), pt(5.0, 4.0), 1.0));
+    let button = Shape::Button { frame: frame(0.0, 0.0, 10.0, 10.0), status: None };
+    assert!(!hit::erases(&button, pt(5.0, 5.0), pt(5.0, 5.0), 9.0), "the button is not ink");
 }
 
 #[test]

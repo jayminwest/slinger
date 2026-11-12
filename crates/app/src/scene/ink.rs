@@ -58,6 +58,9 @@ pub struct Pen {
     /// Whether a finger made it (a touch the system turned into a mouse
     /// event): a palm on a tablet display. Touch never draws.
     pub touch: bool,
+    /// Whether a tablet pen's eraser end made it: it erases with any tool
+    /// ([`crate::scene::tools::Tools::set_eraser_end`]).
+    pub eraser: bool,
 }
 
 /// A pen line on a page, in canvas units.

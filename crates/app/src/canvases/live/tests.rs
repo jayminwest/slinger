@@ -25,7 +25,7 @@ fn webs(canvases: &mut Canvases, panes: &Panes) -> Vec<Web> {
 }
 
 fn pen(x: f64, y: f64) -> Pen {
-    Pen { at: Point { x, y }, when: 0.0, touch: false }
+    Pen { at: Point { x, y }, when: 0.0, touch: false, eraser: false }
 }
 
 #[test]

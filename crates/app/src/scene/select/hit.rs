@@ -1,13 +1,16 @@
-//! Which strokes an eraser's path touches, and which items a lasso holds.
-//! These are the core's rules (`canvas/geometry.rs`: `strokes_erased` and
+//! Which items an eraser's path touches, and which items a lasso holds.
+//! These are the core's rules (`canvas/geometry.rs`: `items_erased` and
 //! `items_in_lasso`), kept here as well because the eraser and the lasso
 //! answer under the pen at every pen event, from the page the app already
 //! holds. Asking the daemon each time would make the main thread wait on
 //! the socket, or the eraser trail behind the pen (P7). Keep the two alike:
 //!
-//! - An eraser of `radius` takes a stroke when the stroke's line, thickened
-//!   by half its width, comes within `radius` of the path. Only strokes are
-//!   erased; a stroke of one point is a dot.
+//! - An eraser of `radius` takes a stroke, an arrow or a box when its line
+//!   (a box's is its outline), thickened by half its width, comes within
+//!   `radius` of the path, and a text when its path comes within `radius`
+//!   of the text's frame. A stroke of one point is a dot. Erasing the ink
+//!   inside a box keeps the box. A live item and the button are never
+//!   erased: they are not ink.
 //! - A lasso, a closed polygon, holds an item when it winds around every
 //!   point that defines the item (the nonzero rule): a stroke's points, an
 //!   arrow's ends, a frame's corners. A lasso of fewer than three points
@@ -18,9 +21,22 @@ use crate::scene::canvas::Shape;
 
 /// Whether an eraser of `radius` moving from `a` to `b` touches `shape`.
 pub fn erases(shape: &Shape, a: Point, b: Point, radius: f64) -> bool {
-    let Shape::Stroke { points, width } = shape else { return false };
-    let reach = radius.max(0.0) + width / 2.0;
-    segments(points).any(|(p, q)| segment_distance(p, q, a, b) <= reach)
+    let radius = radius.max(0.0);
+    let near = |points: &[Point], width: f64| {
+        segments(points).any(|(p, q)| segment_distance(p, q, a, b) <= radius + width / 2.0)
+    };
+    match shape {
+        Shape::Stroke { points, width } => near(points, *width),
+        Shape::Arrow { from, to, width, .. } => near(&[*from, *to], *width),
+        Shape::Box { frame, width } => {
+            let [tl, tr, br, bl] = corners(frame);
+            near(&[tl, tr, br, bl, tl], *width)
+        }
+        Shape::Text { frame, .. } => segment_rect_distance(a, b, frame) <= radius,
+        Shape::Live { .. } | Shape::Button { .. } | Shape::Panel { .. } | Shape::Caret { .. } => {
+            false
+        }
+    }
 }
 
 /// Whether `lasso` holds the whole of `shape`.
@@ -28,15 +44,6 @@ pub fn holds(lasso: &[Point], shape: &Shape) -> bool {
     if lasso.len() < 3 {
         return false;
     }
-    let corners = |r: &Rect| {
-        let (x2, y2) = (r.x + r.width, r.y + r.height);
-        vec![
-            Point { x: r.x, y: r.y },
-            Point { x: x2, y: r.y },
-            Point { x: x2, y: y2 },
-            Point { x: r.x, y: y2 },
-        ]
-    };
     let vertices = match shape {
         Shape::Stroke { points, .. } => points.clone(),
         Shape::Arrow { from, to, .. } => vec![*from, *to],
@@ -45,7 +52,7 @@ pub fn holds(lasso: &[Point], shape: &Shape) -> bool {
         | Shape::Live { frame, .. }
         | Shape::Button { frame, .. }
         | Shape::Panel { frame, .. }
-        | Shape::Caret { frame, .. } => corners(frame),
+        | Shape::Caret { frame, .. } => corners(frame).to_vec(),
     };
     !vertices.is_empty() && vertices.into_iter().all(|p| winding(lasso, p) != 0)
 }
@@ -94,6 +101,29 @@ fn segment_distance(a: Point, b: Point, c: Point, d: Point) -> f64 {
     ]
     .into_iter()
     .fold(f64::INFINITY, f64::min)
+}
+
+/// The distance from a segment to a solid rectangle; zero when it touches.
+fn segment_rect_distance(a: Point, b: Point, r: &Rect) -> f64 {
+    if r.contains(a) || r.contains(b) {
+        return 0.0;
+    }
+    let [tl, tr, br, bl] = corners(r);
+    [(tl, tr), (tr, br), (br, bl), (bl, tl)]
+        .into_iter()
+        .map(|(c, d)| segment_distance(a, b, c, d))
+        .fold(f64::INFINITY, f64::min)
+}
+
+/// A rectangle's corners, clockwise from the top left.
+fn corners(r: &Rect) -> [Point; 4] {
+    let (x2, y2) = (r.x + r.width, r.y + r.height);
+    [
+        Point { x: r.x, y: r.y },
+        Point { x: x2, y: r.y },
+        Point { x: x2, y: y2 },
+        Point { x: r.x, y: y2 },
+    ]
 }
 
 /// How many times the closed polygon winds around `p` (nonzero rule).

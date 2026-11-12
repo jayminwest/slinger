@@ -1,5 +1,5 @@
 //! Geometry queries on a page: the item under a point, the items inside a
-//! lasso, the strokes an eraser touches, the items a box touches, the box
+//! lasso, the items an eraser touches, the items a box touches, the box
 //! around a set of items, and free space beside an item. Pure: no drawing and no input. The app asks them as
 //! the pen moves; the packet asks them for what the user selected.
 //!
@@ -13,6 +13,10 @@
 //!   of one point is a dot.
 //! - An arrow is the line between its ends.
 //! - Text and a box are solid: their whole frame counts, not only its edge.
+//!
+//! The eraser is the exception: it takes a box by its outline only, so
+//! erasing the ink inside a box keeps the box. It takes strokes, text,
+//! boxes and arrows, never a live item or the button: those are not ink.
 
 use std::borrow::Cow;
 
@@ -55,20 +59,21 @@ impl Canvas {
             .collect()
     }
 
-    /// The strokes on `page` that an eraser of `radius` touches as it moves
-    /// along `path`. A path of one point is a dab. Only strokes are erased.
+    /// The items on `page` that an eraser of `radius` touches as it moves
+    /// along `path`: strokes, text, boxes (by their outline) and arrows. A
+    /// path of one point is a dab.
     #[must_use]
-    pub fn strokes_erased(&self, page: PageId, path: &[Point], radius: f64) -> Vec<ItemId> {
+    pub fn items_erased(&self, page: PageId, path: &[Point], radius: f64) -> Vec<ItemId> {
         let radius = radius.max(0.0);
         let Some(swept) = Rect::around(path.iter().copied()).map(|r| grown(r, radius)) else {
             return Vec::new();
         };
         self.items(page)
-            .filter(|i| matches!(i.shape(), Shape::Stroke { .. }))
             .filter(|i| overlaps(i.bounds(), swept))
             .filter(|i| {
-                let stroke = Geometry::of(i.shape());
-                segments(path).any(|(a, b)| stroke.distance_to(a, b) <= radius)
+                Geometry::erased(i.shape()).is_some_and(|shape| {
+                    segments(path).any(|(a, b)| shape.distance_to(a, b) <= radius)
+                })
             })
             .map(Item::id)
             .collect()
@@ -145,6 +150,21 @@ impl<'a> Geometry<'a> {
             | Shape::Box { frame, .. }
             | Shape::Live { frame, .. }
             | Shape::Button { frame } => Geometry::Area(*frame),
+        }
+    }
+
+    /// The shape as the eraser sees it: a box is its outline; a live item
+    /// and the button are not erased (`None`).
+    fn erased(shape: &'a Shape) -> Option<Self> {
+        match shape {
+            Shape::Box { frame, .. } => {
+                let [tl, tr, br, bl] = corners(*frame);
+                Some(Geometry::Line { points: Cow::Owned(vec![tl, tr, br, bl, tl]), radius: 0.0 })
+            }
+            Shape::Live { .. } | Shape::Button { .. } => None,
+            Shape::Stroke { .. } | Shape::Text { .. } | Shape::Arrow { .. } => {
+                Some(Self::of(shape))
+            }
         }
     }
 

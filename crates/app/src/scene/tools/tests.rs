@@ -240,3 +240,19 @@ fn a_tool_command_picks_its_tool_and_closes_a_tool_pop_up() {
     assert!(!tools.command(Command::Quit));
     assert_eq!(tools.tool(), Tool::Box);
 }
+
+#[test]
+fn the_eraser_end_erases_with_any_tool_and_the_tip_brings_the_tool_back() {
+    let mut tools = tools();
+    assert!(tools.command(Command::ToolLasso));
+    assert!(tools.set_eraser_end(true), "the pen turned over");
+    assert_eq!(tools.tool(), Tool::Eraser);
+    assert_eq!(tools.chosen(), Tool::Lasso, "the choice is kept");
+    assert!(!tools.set_eraser_end(true), "no change");
+    assert!(tools.command(Command::ToolText), "a choice made meanwhile");
+    assert_eq!(tools.tool(), Tool::Eraser, "still the eraser end");
+    tools.open(Kind::Tool, WITHIN);
+    assert_eq!(lit(&tools), 3, "the pop-up lights the chosen tool: text");
+    assert!(tools.set_eraser_end(false), "the tip again");
+    assert_eq!(tools.tool(), Tool::Text);
+}

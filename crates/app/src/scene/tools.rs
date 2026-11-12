@@ -4,6 +4,11 @@
 //! canvas pane reads [`Tools::tool`] and [`Tools::colour`] to know what the
 //! pen does.
 //!
+//! A tablet pen's eraser end erases whatever tool is chosen: while it is
+//! the end in use ([`Tools::set_eraser_end`]), [`Tools::tool`] is the eraser
+//! (so the footer and the cursor say so), and the chosen tool
+//! ([`Tools::chosen`]) comes back with the tip.
+//!
 //! A pop-up opens from a key command where the pen or pointer last was. The
 //! pen picks a cell; a digit picks the cell with that number; the arrow keys
 //! move the highlight and return (or space) picks it. A pick, escape, a press
@@ -65,10 +70,12 @@ pub struct Popup {
 }
 
 /// The pen's state: its tool, its colour, the palette it picks from, where
-/// it last was, the open pop-up, if any, and the flash that names a new tool.
+/// it last was, the open pop-up, if any, the flash that names a new tool,
+/// and whether the pen's eraser end is the one in use.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tools {
     tool: Tool,
+    eraser_end: bool,
     colour: Rgb,
     palette: Palette,
     pen: Point,
@@ -82,17 +89,29 @@ impl Tools {
     pub fn new(palette: Palette, pen: Point) -> Self {
         let colour = palette.colours()[0];
         let flash = Flash::new(Tool::Pen);
-        Self { tool: Tool::Pen, colour, palette, pen, popup: None, flash }
+        Self { tool: Tool::Pen, eraser_end: false, colour, palette, pen, popup: None, flash }
     }
 
-    /// The flash that names a new tool, [`Flash::follow`]ing [`Tools::tool`].
+    /// The flash that names a new tool, [`Flash::follow`]ing [`Tools::chosen`].
     pub fn flash(&self) -> &Flash {
         &self.flash
     }
 
-    /// What the pen does.
+    /// What the pen does: the eraser while the pen's eraser end is in use,
+    /// else the chosen tool.
     pub fn tool(&self) -> Tool {
+        if self.eraser_end { Tool::Eraser } else { self.tool }
+    }
+
+    /// The tool chosen with a key, a menu or a pop-up: what the pen's tip does.
+    pub fn chosen(&self) -> Tool {
         self.tool
+    }
+
+    /// The pen's eraser end is the end in use (`true`), or its tip, a mouse
+    /// or a trackpad is (`false`). Returns whether that changed.
+    pub fn set_eraser_end(&mut self, eraser: bool) -> bool {
+        std::mem::replace(&mut self.eraser_end, eraser) != eraser
     }
 
     /// Runs a tool command (`tool-pen` to `tool-arrow`): the tool it names

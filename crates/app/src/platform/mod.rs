@@ -1,9 +1,11 @@
 //! The macOS layer. Every `unsafe` block and every objc2 or `AppKit` call in the
 //! project is in this directory (gate check:layers, rule `platform-owns-ffi`).
-//! It exposes safe functions and makes no decisions: it turns a key press
-//! into a [`Chord`], a pen or mouse event into a [`Pen`] (every point: mouse
-//! coalescing is off) and a trackpad scroll or pinch into a pan or a zoom,
-//! and hands them on, and it draws what a [`Scene`] says. A canvas view
+//! It exposes safe functions and makes no decisions: `input` turns a key
+//! press into a [`Chord`], a pen or mouse event into a [`Pen`] (every point:
+//! mouse coalescing is off), a trackpad scroll, a right-button drag or a
+//! pinch into a pan or a zoom, and a tablet pen's proximity into the end in
+//! use, and hands them on, and keeps the pointer's cursor; and it draws what
+//! a [`Scene`] says. A canvas view
 //! says how long after its pen event it painted new ink (SPEC O2). Each
 //! canvas pane is a view of its own (`canvas`) that lives as long as its
 //! pane, so a new scene repaints only what changed.
@@ -24,6 +26,7 @@
 mod canvas;
 mod chrome;
 mod entry;
+mod input;
 mod keys;
 mod menu;
 mod overlay;
@@ -37,13 +40,12 @@ use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSColor, NSEvent,
-    NSEventSubtype, NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment, NSTextField,
-    NSView, NSWindow, NSWindowDelegate, NSWindowOrderingMode, NSWindowStyleMask,
+    NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment, NSTextField, NSView, NSWindow,
+    NSWindowDelegate, NSWindowOrderingMode, NSWindowStyleMask,
 };
 use objc2_foundation::{NSNotification, NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
 use self::canvas::CanvasView;
-use self::keys::{chord, typed};
 use crate::commands::{Chord, Command};
 use crate::config::Rgb;
 use crate::layout::{self, PaneId, Point, Rect, Size};
@@ -79,13 +81,16 @@ pub enum Event {
     /// The pen or pointer moved to a point in the window (top-left origin),
     /// with no button down.
     Moved(Point),
+    /// A tablet pen came near the tablet with its eraser end (true), or
+    /// with its tip, or left it (false).
+    EraserEnd(bool),
     /// The pen or the mouse button went down.
     Press(Pen),
     /// The pen or the mouse moved while down.
     Drag(Pen),
     /// The pen lifted, or the mouse button came up.
     Lift(Pen),
-    /// A two-finger scroll (or a mouse wheel) over a point in the window:
+    /// A two-finger scroll (a mouse wheel, a right-button drag) over a point in the window:
     /// drag what is under it by `dx`, `dy` points.
     Scroll { at: Point, dx: f64, dy: f64 },
     /// A pinch over a point in the window: zoom by `factor` about it.
@@ -118,9 +123,6 @@ pub enum Step {
     /// The reply cannot go on, and why.
     Refuse(String),
 }
-
-/// How far one line of a mouse wheel scrolls, in points. A trackpad gives points.
-const WHEEL_LINE: f64 = 16.0;
 
 /// The running app's state: the window, what answers its events, and what
 /// it shows.
@@ -160,8 +162,14 @@ define_class!(
 
     unsafe impl NSObjectProtocol for KeyWindow {}
 
-    // The window is its own delegate, for this one call.
+    // The window is its own delegate, for these calls.
     unsafe impl NSWindowDelegate for KeyWindow {
+        /// The window came to the front: the pointer's cursor is set again.
+        #[unsafe(method(windowDidBecomeKey:))]
+        fn did_become_key(&self, _note: &NSNotification) {
+            input::became_key(self);
+        }
+
         /// The window's content changed size: the scene follows it.
         #[unsafe(method(windowDidResize:))]
         fn did_resize(&self, _note: &NSNotification) {
@@ -197,55 +205,21 @@ define_class!(
 
         /// Every event for the window comes through here first. A key press,
         /// pen or mouse event, scroll or pinch the app uses stops here;
-        /// everything else, moves included, goes on as usual.
+        /// everything else, moves included, goes on as usual. After a move
+        /// the pointer gets the cursor of what is under it.
         #[unsafe(method(sendEvent:))]
         fn send_event(&self, event: &NSEvent) {
-            let kind = event.r#type();
-            let used = if kind == NSEventType::KeyDown {
-                chord(event).is_some_and(|chord| dispatch(Event::Key(chord), self.mtm()))
-                    || typed(event).is_some_and(|text| dispatch(Event::Text(text), self.mtm()))
-            } else if kind == NSEventType::LeftMouseDown {
-                dispatch(Event::Press(self.pen(event)), self.mtm())
-            } else if kind == NSEventType::LeftMouseDragged {
-                dispatch(Event::Drag(self.pen(event)), self.mtm())
-            } else if kind == NSEventType::LeftMouseUp {
-                dispatch(Event::Lift(self.pen(event)), self.mtm())
-            } else if kind == NSEventType::ScrollWheel {
-                let unit = if event.hasPreciseScrollingDeltas() { 1.0 } else { WHEEL_LINE };
-                let (dx, dy) = (event.scrollingDeltaX() * unit, event.scrollingDeltaY() * unit);
-                dispatch(Event::Scroll { at: self.point(event), dx, dy }, self.mtm())
-            } else if kind == NSEventType::Magnify {
-                let factor = 1.0 + event.magnification();
-                dispatch(Event::Zoom { at: self.point(event), factor }, self.mtm())
-            } else {
-                if kind == NSEventType::MouseMoved {
-                    dispatch(Event::Moved(self.point(event)), self.mtm());
-                }
-                false
-            };
-            if used {
+            if input::send(self, event, self.mtm()) {
                 return;
             }
             // SAFETY: `NSWindow`'s own `sendEvent:`, with the event it was given.
             let () = unsafe { msg_send![super(self), sendEvent: event] };
+            if event.r#type() == NSEventType::MouseMoved {
+                input::cursor(self, event.locationInWindow());
+            }
         }
     }
 );
-
-impl KeyWindow {
-    /// Where a pen or mouse event is in the window's content, from the top left.
-    fn point(&self, event: &NSEvent) -> Point {
-        let at = event.locationInWindow();
-        let height = self.contentView().map_or(0.0, |v| v.frame().size.height);
-        Point { x: at.x, y: height - at.y }
-    }
-
-    /// A pen or mouse event: where, when, and whether a finger made it.
-    fn pen(&self, event: &NSEvent) -> Pen {
-        let touch = event.subtype() == NSEventSubtype::Touch;
-        Pen { at: self.point(event), when: event.timestamp(), touch }
-    }
-}
 
 /// Hands `event` to the app's answer and does what it says. Returns false
 /// when the answer is [`Step::Pass`].
