@@ -1,6 +1,6 @@
 //! `slinger canvas ...` against a real daemon.
 
-use super::{cli, cli_each, cli_on, cli_raw, json, with_daemon};
+use super::{cli, cli_bare, cli_each, cli_on, cli_raw, json, with_daemon};
 use crate::output::exit;
 
 const BOX: &str = r#"{"op":"add","item":{"page":"p1","kind":"box","x":10,"y":20,"w":100,"h":50}}"#;
@@ -120,4 +120,35 @@ fn import_of_a_missing_or_wrong_file_fails_with_its_code() {
     assert_eq!((runs[0].code, runs[0].out.as_str()), (exit::NOT_FOUND, ""));
     assert_eq!(runs[1].code, exit::INVALID);
     assert_eq!(json(&runs[1])["code"], "invalid");
+}
+
+#[test]
+fn schema_needs_no_daemon_and_names_every_kind_apply_takes() {
+    let text = cli_bare(&["canvas", "schema"]);
+    assert_eq!((text.code, text.err.as_str()), (exit::OK, ""));
+    assert!(text.out.lines().all(|l| l.split('\t').count() == 3), "{}", text.out);
+    let doc = json(&cli_bare(&["canvas", "schema", "--json"]));
+    let kinds: Vec<&String> = doc["kinds"].as_object().unwrap().keys().collect();
+    assert_eq!(kinds, ["arrow", "box", "button", "live", "stroke", "text"]);
+    assert!(doc["ops"]["page.remove"].is_string() && doc["units"]["pts"].is_string());
+    let help = cli_bare(&["canvas", "apply", "--help"]);
+    assert!(help.out.contains("kind\tarrow\tpts"), "{}", help.out);
+
+    // Each kind as the schema gives its fields applies (a live item comes from 'ui open').
+    let add = |item: &str| format!(r#"{{"op":"add","item":{{"page":"p1",{item}}}}}"#);
+    let items = [
+        r#""kind":"text","x":0,"y":0,"text":"plan""#,
+        r#""kind":"box","x":0,"y":0,"w":100,"h":50"#,
+        r#""kind":"arrow","pts":[0,0,100,0],"from":"i1","to":"i2""#,
+        r#""kind":"stroke","width":20,"pts":[500,500,10,10,0,10]"#,
+        r#""kind":"button","x":0,"y":900,"w":1600,"h":400"#,
+    ];
+    let ops = format!("[{}]", items.map(add).join(","));
+    let runs = cli_each(&[&["canvas", "create", "main"], &["canvas", "apply", "main", &ops]]);
+    assert_eq!(
+        (runs[1].code, runs[1].out.as_str()),
+        (exit::OK, "i1\ni2\ni3\ni4\ni5\n"),
+        "{}",
+        runs[1].err
+    );
 }

@@ -11,6 +11,10 @@ bullet with the area in bold.
 
 ### Added
 
+- **CLI:** `slinger canvas schema` prints the item kinds (text, box,
+  arrow, stroke, button, live) with their fields and the operations
+  `canvas apply` takes, without a daemon; `canvas apply --help` shows the
+  same table.
 - **App:** see where a canvas is saved. The window's title names the
   focused pane's canvas, with its file under it
   (`~/Library/Application Support/slinger/canvases/<id>.canvas` by

@@ -16,7 +16,8 @@ use crate::session::{AGENT_OR_USER_HELP, named_agent};
 /// Help for `canvas apply`'s operations: a string, because a doc comment wants the JSON bare.
 const OPS_HELP: &str = "One operation as a JSON object, or a list of them; - reads standard \
      input. Example: '{\"op\":\"add\",\"item\":{\"page\":\"p1\",\"kind\":\"box\",\"x\":0,\"y\":0,\
-     \"w\":100,\"h\":50}}' (lengths in tenths of a unit)";
+     \"w\":100,\"h\":50}}' (lengths in tenths of a unit). 'slinger canvas schema' lists the \
+     item kinds and operations";
 
 #[derive(Subcommand)]
 pub enum Canvas {
@@ -35,6 +36,7 @@ pub enum Canvas {
         page: Option<String>,
     },
     /// Apply operations as one undo step; prints the ids of what they made
+    #[command(after_long_help = crate::schema::SCHEMA)]
     Apply {
         canvas: String,
         #[arg(help = OPS_HELP)]
@@ -42,6 +44,8 @@ pub enum Canvas {
         #[arg(long, value_name = "NAME", help = AGENT_OR_USER_HELP)]
         agent: Option<String>,
     },
+    /// Print the item kinds and operations 'canvas apply' takes: section, name and fields per line
+    Schema,
     /// Undo your last step on the canvas
     Undo {
         canvas: String,
@@ -102,6 +106,7 @@ impl Canvas {
             Self::List => "canvas list",
             Self::Show { .. } => "canvas show",
             Self::Apply { .. } => "canvas apply",
+            Self::Schema => "canvas schema",
             Self::Undo { .. } => "canvas undo",
             Self::Redo { .. } => "canvas redo",
             Self::Import { .. } => "canvas import",
@@ -154,6 +159,7 @@ pub fn execute(
                 control::CanvasOps { canvas: canvas.clone(), by: by(agent.as_deref()), ops };
             change(&daemon.canvas_apply(request)?)
         }
+        Canvas::Schema => Ok(crate::schema::schema()),
         Canvas::Undo { canvas, agent } => {
             change(&daemon.canvas_undo(step(canvas, agent.as_deref()))?)
         }

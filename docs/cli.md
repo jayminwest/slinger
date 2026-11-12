@@ -33,6 +33,7 @@ a "did you mean" suggestion.
 | `canvas list` | One canvas id per line. `--json`: `canvases` (list of ids) |
 | `canvas show <ID> [--page PAGE]` | One line per item on the page, in drawing order: id, kind, maker and the item as JSON, separated by tabs. `--json`: `canvas`, `next`, `page`, `pages`, `items`, `path` (the canvas's file) |
 | `canvas apply <ID> <OPS\|-> [--agent NAME]` | The ids the operations made, one per line. `--json`: `seq`, `made` |
+| `canvas schema` | The item kinds and operations `canvas apply` takes, one per line: section (`unit`, `item`, `kind` or `op`), name and fields, separated by tabs. Needs no daemon. `--json`: `units`, `item`, `kinds`, `ops` (each name to its fields) |
 | `canvas undo <ID> [--agent NAME]`, `canvas redo <ID> [--agent NAME]` | Nothing. `--json`: `seq`, `made` |
 | `canvas read <ID> [--page PAGE] [--after NUMBER] [--select IDS] [--out DIR]` | The packet's text (`docs/design/packet.md`), its header naming the directory that holds the images (`at=`). `--json`: `packet`, `dir`, `text`, `images` |
 | `canvas import <FILE> [--name ID]` | The new canvas's id, then one count per line, tab separated: `pages`, each item kind, and `skipped` with each tldraw shape type. `--json`: `canvas`, `pages`, `items`, `skipped` |
@@ -107,7 +108,9 @@ there exits 3 (`not_found`). A refused open records nothing.
 
 `canvas apply` takes one operation as a JSON object, or a list of them, as
 one undo step (the operations are in `docs/service.md`, "Canvas
-operations"); `-` reads them from stdin. An `add` of kind `button` places
+operations"); `-` reads them from stdin. `canvas schema` (and `canvas apply
+--help`) prints the item kinds and operations, for an agent that cannot read
+the docs. An `add` of kind `button` places
 the "send to agent" button, which needs no UI put first:
 `slinger canvas apply notes '{"op":"add","item":{"page":"p1","kind":"button","x":0,"y":0,"w":1600,"h":400}}'`.
 `canvas apply`, `canvas undo` and `canvas redo` act as the agent `--agent`
