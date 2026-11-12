@@ -92,22 +92,22 @@ One connection carries one request and one reply. Each is one line of JSON
 (UTF-8, ended by a newline). Try it:
 
 ```bash
-echo '{"v":1,"op":"hello","name":"ada"}' | nc -U "$SOCKET"
+echo '{"v":1,"op":"canvas_create","canvas":"main"}' | nc -U "$SOCKET"
 ```
 
 **Request:** `v` is the protocol version, `op` names the verb, and the other
 fields are the verb's arguments.
 
 ```json
-{ "v": 1, "op": "hello", "name": "ada" }
+{ "v": 1, "op": "canvas_create", "canvas": "main" }
 ```
 
 **Reply:** `ok` and then the verb's result, or the error. `code` is stable
 and `error` is for people. Branch on `code`, never on `error`.
 
 ```json
-{ "ok": true, "greeting": "hello, ada" }
-{ "ok": false, "code": "invalid", "error": "name is empty", "hint": "pass a non-empty name" }
+{ "ok": true, "canvas": "main" }
+{ "ok": false, "code": "invalid", "error": "\"Main\" is not a canvas id", "hint": "use 1 to 64 of a-z, 0-9, '-', '_' and '.', not starting with '.'" }
 ```
 
 - A request line is at most 65536 bytes. The daemon reads a longer line to
@@ -120,7 +120,6 @@ and `error` is for people. Branch on `code`, never on `error`.
 
 | `op` | Arguments | Result |
 |---|---|---|
-| `hello` | `name`: string | `greeting`: string |
 | `record_append` | `kind`: string, `source`: string, `tags`: object (optional), `payload`: object (default `{}`) | `event`: the event as stored |
 | `record_list` | `kind`, `machine`, `workspace`, `agent`, `canvas`: string (each optional); `after`: number (optional) | `events`: list of events, lowest number first |
 | `blob_put` | `path`: absolute path of a file | `id`: the blob id |
@@ -279,6 +278,7 @@ is not a showing id is `invalid`.
 { "ok": true, "open": "pick-slot#14", "ui": { "name": "pick-slot", "version": 1, … }, "workspace": "notes", "item": { "canvas": "notes", "item": "i15", "page": "p1", "x": 1240, "y": 0, "w": 3200, "h": 2400, "seq": 9 }, "event": 14 }
 { "v": 1, "op": "ui_reply", "open": "pick-slot#12", "value": { "slot": "Wed 14:00" } }
 { "ok": true, "event": 13, "agent": "scout", "delivered": true }
+```
 
 #### Canvases
 
@@ -351,6 +351,27 @@ is `conflict`.
 { "ok": true, "canvas": "idea", "pages": 5, "items": { "arrow": 57, "box": 80, "stroke": 7563, "text": 125 }, "skipped": { "group": 8, "line": 4 } }
 ```
 
+**`canvas_read`** builds the packet of one page (`docs/design/packet.md`):
+the user's ink drawn after operation `after` as images, an index of what
+is new and an outline of the rest. Without `after`, the marker is the
+canvas's last sling: the `to` of the packet that the latest `sling_sent`
+event tagged with the canvas names, and 0 (everything is new) before the
+first. A read never moves it; a sling does. `after` at or past the last
+operation is a valid packet with nothing new. `select` takes ids as the
+file (`i12`) or a packet (`c12`, `t12`) writes them, and keeps only those
+items in the `page` section. The text, without `at`, is stored as a blob,
+so the same page gives the same id; each image is a blob too. The daemon
+writes `packet.txt` and the images into `out` (made if missing), or into
+`packets/<hex>/` in its data directory, and `text` carries
+`at=<that directory>`. A canvas or page that is not there is `not_found`;
+a selected id that is not one, a directory it cannot write, or a last
+sling whose packet it cannot read is `invalid`, with a hint.
+
+```json
+{ "v": 1, "op": "canvas_read", "canvas": "idea", "after": 41 }
+{ "ok": true, "packet": "sha256:5e1f…", "dir": "/data/slinger/packets/5e1f…", "text": "slinger-packet 1 canvas=idea page=Page%201 from=42 to=58 scale=0.35 at=/data/slinger/packets/5e1f…\n# new\n…", "images": [{ "name": "c42.png", "id": "sha256:9a0c…" }] }
+```
+
 #### Workspaces
 
 A workspace is defined by its file, `slinger-workspace.toml`
@@ -389,25 +410,6 @@ its agent stay.
 ```json
 { "v": 1, "op": "workspace_open", "dir": "/Users/me/notes" }
 { "ok": true, "workspace": { "name": "notes", "tag": "notes", "canvas": "notes", "dir": "/Users/me/notes", "roots": [{ "machine": "my-laptop", "path": "/Users/me/notes", "primary": true }] }, "new": true }
-**`canvas_read`** builds the packet of one page (`docs/design/packet.md`):
-the user's ink drawn after operation `after` as images, an index of what
-is new and an outline of the rest. Without `after`, the marker is the
-canvas's last sling: the `to` of the packet that the latest `sling_sent`
-event tagged with the canvas names, and 0 (everything is new) before the
-first. A read never moves it; a sling does. `after` at or past the last
-operation is a valid packet with nothing new. `select` takes ids as the
-file (`i12`) or a packet (`c12`, `t12`) writes them, and keeps only those
-items in the `page` section. The text, without `at`, is stored as a blob,
-so the same page gives the same id; each image is a blob too. The daemon
-writes `packet.txt` and the images into `out` (made if missing), or into
-`packets/<hex>/` in its data directory, and `text` carries
-`at=<that directory>`. A canvas or page that is not there is `not_found`;
-a selected id that is not one, a directory it cannot write, or a last
-sling whose packet it cannot read is `invalid`, with a hint.
-
-```json
-{ "v": 1, "op": "canvas_read", "canvas": "idea", "after": 41 }
-{ "ok": true, "packet": "sha256:5e1f…", "dir": "/data/slinger/packets/5e1f…", "text": "slinger-packet 1 canvas=idea page=Page%201 from=42 to=58 scale=0.35 at=/data/slinger/packets/5e1f…\n# new\n…", "images": [{ "name": "c42.png", "id": "sha256:9a0c…" }] }
 ```
 
 #### Panes

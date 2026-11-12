@@ -123,7 +123,7 @@ pub(crate) fn request_line<R: serde::Serialize>(request: &R) -> io::Result<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Greeting;
+    use crate::{CanvasInfo, Canvases};
 
     fn read(input: &[u8]) -> Result<Option<Request>, RemoteError> {
         read_request(&mut io::BufReader::with_capacity(16, input))
@@ -135,18 +135,16 @@ mod tests {
 
     #[test]
     fn reads_what_a_client_writes() {
-        let request = Request::Hello { name: "ada".into() };
+        let request = Request::UiShow { name: "ada".into() };
         let line = request_line(&request).unwrap();
-        assert_eq!(line, "{\"v\":1,\"op\":\"hello\",\"name\":\"ada\"}\n");
+        assert_eq!(line, "{\"v\":1,\"op\":\"ui_show\",\"name\":\"ada\"}\n");
         assert_eq!(read(line.as_bytes()).unwrap(), Some(request));
-        let hello = crate::client::Hello { name: "ada" };
-        assert_eq!(request_line(&hello).unwrap(), line);
     }
 
     #[test]
     fn ignores_unknown_fields_and_a_missing_newline() {
-        let line = br#"{"v":1,"op":"hello","name":"ada","later":true}"#;
-        assert_eq!(read(line).unwrap(), Some(Request::Hello { name: "ada".into() }));
+        let line = br#"{"v":1,"op":"ui_show","name":"ada","later":true}"#;
+        assert_eq!(read(line).unwrap(), Some(Request::UiShow { name: "ada".into() }));
     }
 
     #[test]
@@ -212,11 +210,11 @@ mod tests {
             b"not json\n",
             b"\xff\xfe\n",
             b"[1]\n",
-            br#"{"op":"hello","name":"ada"}"#,
+            br#"{"op":"ui_show","name":"ada"}"#,
             br#"{"v":1}"#,
             br#"{"v":1,"op":"nope"}"#,
-            br#"{"v":1,"op":"hello"}"#,
-            br#"{"v":1,"op":"hello","name":7}"#,
+            br#"{"v":1,"op":"ui_show"}"#,
+            br#"{"v":1,"op":"ui_show","name":7}"#,
             br#"{"v":1,"op":"record_append","source":"cli"}"#,
             br#"{"v":1,"op":"record_list","after":-1}"#,
             br#"{"v":1,"op":"blob_get","path":"/tmp/b"}"#,
@@ -229,8 +227,8 @@ mod tests {
 
     #[test]
     fn rejects_other_versions() {
-        assert_eq!(code(br#"{"v":2,"op":"hello","name":"ada"}"#), "unsupported_version");
-        assert_eq!(code(br#"{"v":"1","op":"hello","name":"ada"}"#), "unsupported_version");
+        assert_eq!(code(br#"{"v":2,"op":"ui_show","name":"ada"}"#), "unsupported_version");
+        assert_eq!(code(br#"{"v":"1","op":"ui_show","name":"ada"}"#), "unsupported_version");
     }
 
     #[test]
@@ -244,7 +242,7 @@ mod tests {
 
     #[test]
     fn accepts_a_line_of_exactly_the_limit() {
-        let line = |name: &str| format!("{{ \"v\":1,\"op\":\"hello\",\"name\":\"{name}\" }}\n");
+        let line = |name: &str| format!("{{ \"v\":1,\"op\":\"ui_show\",\"name\":\"{name}\" }}\n");
         let padding = "a".repeat(MAX_LINE + 1 - line("").len());
         assert_eq!(line(&padding).len(), MAX_LINE + 1);
         assert!(read(line(&padding).as_bytes()).unwrap().is_some());
@@ -254,12 +252,12 @@ mod tests {
     #[test]
     fn writes_success_and_failure_as_one_line_each() {
         let mut out = Vec::new();
-        let greeting = Greeting { greeting: "hello, ada".into() };
-        write_reply(&mut out, &Ok(Reply::Hello(greeting))).unwrap();
+        let canvases = Canvases { canvases: vec![CanvasInfo { canvas: "ada".into() }] };
+        write_reply(&mut out, &Ok(Reply::CanvasList(canvases))).unwrap();
         write_reply(&mut out, &Err(RemoteError::new("invalid", "name is empty", None))).unwrap();
         assert_eq!(
             String::from_utf8(out).unwrap(),
-            "{\"greeting\":\"hello, ada\",\"ok\":true}\n\
+            "{\"canvases\":[{\"canvas\":\"ada\"}],\"ok\":true}\n\
              {\"code\":\"invalid\",\"error\":\"name is empty\",\"ok\":false}\n"
         );
     }

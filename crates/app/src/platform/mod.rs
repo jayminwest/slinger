@@ -42,8 +42,8 @@ use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSColor, NSEvent,
-    NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment, NSTextField, NSView, NSWindow,
-    NSWindowDelegate, NSWindowOrderingMode, NSWindowStyleMask,
+    NSEventType, NSResponder, NSTextAlignment, NSTextField, NSView, NSWindow, NSWindowDelegate,
+    NSWindowOrderingMode, NSWindowStyleMask,
 };
 use objc2_foundation::{NSNotification, NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
@@ -140,14 +140,17 @@ struct State {
     shown: RefCell<Shown>,
 }
 
-/// The views a window shows: one per canvas pane, under the chrome (the
-/// sidebar, the footers, the focus border, the labels and the overlay), and
-/// what the chrome was made from, so an unchanged one is kept.
+/// The views a window shows, lowest first: one per canvas pane, the chrome
+/// (the sidebar, the footers, the focus border, the labels, the flash), the
+/// sling's entry, then the overlay (the key overlay, the palette, the page
+/// menu), which dims everything under it; and what the chrome and the
+/// overlay were made from, so unchanged ones are kept.
 #[derive(Default)]
 struct Shown {
     canvases: Vec<(PaneId, Retained<CanvasView>)>,
     chrome: Vec<Retained<NSView>>,
     entry: Option<entry::Kept>,
+    overlay: Vec<Retained<NSView>>,
     made_from: Option<Chrome>,
 }
 
@@ -362,7 +365,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     window.setBackgroundColor(Some(&color(scene.background)));
     menu::show(&scene.menus, mtm);
     let Some(view) = window.contentView() else { return };
-    let mut shown = state.shown.borrow_mut();
+    let shown = &mut *state.shown.borrow_mut();
     let height = scene.size.height;
 
     shown.canvases.retain(|(pane, canvas)| {
@@ -391,7 +394,9 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
         found.map(|(_, canvas)| Retained::into_super(canvas.clone()))
     };
     web::place(&view, &scene.webs, height, canvas, mtm);
-    entry::place(window, &view, &mut shown.entry, scene.entry.as_deref(), height, mtm);
+    let under = shown.overlay.first().cloned();
+    let entry = scene.entry.as_deref();
+    entry::place(window, &view, &mut shown.entry, entry, under.as_deref(), height, mtm);
 
     let made_from = Some((
         scene.rules.clone(),
@@ -405,7 +410,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     if shown.made_from == made_from {
         return;
     }
-    for old in shown.chrome.drain(..) {
+    for old in shown.chrome.drain(..).chain(shown.overlay.drain(..)) {
         old.removeFromSuperview();
     }
     for rule in &scene.rules {
@@ -428,17 +433,13 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     // The border first, so a pop-up at the pen draws over it.
     shown.chrome.push(Retained::into_super(chrome::border(&scene.focus, height, mtm)));
     for line in &scene.labels {
-        let field = label(line, height, NSTextAlignment::Center, mtm);
-        // A line longer than its frame keeps both ends: paths end in the part that matters.
-        field.setLineBreakMode(NSLineBreakMode::ByTruncatingMiddle);
-        shown.chrome.push(Retained::into_super(Retained::into_super(field)));
+        shown.chrome.extend(text::line(line, height, mtm));
     }
     if let Some(pill) = &scene.flash {
         shown.chrome.push(Retained::into_super(chrome::pill(window, pill, height, mtm)));
     }
-    shown.chrome.extend(scene.overlay.iter().flat_map(|o| overlay::views(o, height, mtm)));
     for chrome in &shown.chrome {
-        // Under the sling's entry, if it is up: it stays on top.
+        // Under the sling's entry, if it is up: only the overlay is over it.
         match &shown.entry {
             Some(entry) => {
                 view.addSubview_positioned_relativeTo(
@@ -450,6 +451,8 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
             None => view.addSubview(chrome),
         }
     }
+    shown.overlay = scene.overlay.iter().flat_map(|o| overlay::views(o, height, mtm)).collect();
+    shown.overlay.iter().for_each(|over| view.addSubview(over));
     shown.made_from = made_from;
 }
 

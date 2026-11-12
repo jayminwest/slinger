@@ -181,6 +181,24 @@ fn escape_or_its_own_key_closes_it_and_runs_nothing() {
 }
 
 #[test]
+fn a_menu_choice_closes_it_and_runs_except_its_own_which_only_closes() {
+    let mut palette = Palette::default();
+    assert_eq!(palette.chosen(Command::Undo), Taken::No, "closed, the menu runs it");
+    palette.toggle();
+    type_in(&mut palette, "split");
+    assert_eq!(palette.chosen(Command::Undo), Taken::Run(Command::Undo));
+    assert!(!palette.is_open());
+    palette.toggle();
+    assert_eq!(
+        palette.matches()[0],
+        open().matches()[0],
+        "not the palette's run: not listed first"
+    );
+    assert_eq!(palette.chosen(Command::ShowCommands), Taken::Yes);
+    assert!(!palette.is_open(), "show-commands from the menu does not open it again");
+}
+
+#[test]
 fn a_press_on_a_row_runs_it_and_one_outside_closes_it() {
     let size = layout::WINDOW;
     let mut palette = Palette::default();
