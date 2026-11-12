@@ -84,30 +84,30 @@ pub fn crop(canvas: &Canvas, page: PageId, area: Rect, id: &str) -> Vec<Image> {
     draw(&found, area, id, false)
 }
 
-/// The frame size, in canvas units, that holds `text` as it is drawn when
-/// wrapped to at most `columns` characters a line (at least one): one
-/// character cell per character, a line per row.
+/// The frame size, in canvas units, that holds `text` as it is drawn at
+/// `size` when wrapped to at most `columns` characters a line (at least
+/// one): one character cell of `size` per character, a line per row.
 #[must_use]
-pub fn text_size(text: &str, columns: usize) -> (f64, f64) {
+pub fn text_size(text: &str, columns: usize, size: f64) -> (f64, f64) {
     let rows = raster::wrap(text, columns.max(1));
     let longest = rows.iter().map(Vec::len).max().unwrap_or(0);
     let cells = |n: usize| u32::try_from(n).map_or(f64::from(u32::MAX), f64::from);
-    (cells(longest) * raster::TEXT_SIZE, cells(rows.len()) * raster::TEXT_SIZE)
+    (cells(longest) * size, cells(rows.len()) * size)
 }
 
-/// The frame size, in canvas units, that text drawn in a frame `w` by `h`
-/// has. A frame at least a character wide and with a height is kept as it
+/// The frame size, in canvas units, that text drawn at `size` in a frame
+/// `w` by `h` has. A frame at least a character wide and with a height is kept as it
 /// is. One with no height keeps its width and gets the height of the text
 /// wrapped to it. One narrower than a character is drawn unwrapped, so it
 /// gets the unwrapped text's size, at least one character wide.
 #[must_use]
-pub fn text_frame(text: &str, w: f64, h: f64) -> (f64, f64) {
-    match (w >= raster::TEXT_SIZE, h > 0.0) {
+pub fn text_frame(text: &str, w: f64, h: f64, size: f64) -> (f64, f64) {
+    match (w >= size, h > 0.0) {
         (true, true) => (w, h),
-        (true, false) => (w, text_size(text, raster::columns(w)).1),
+        (true, false) => (w, text_size(text, raster::columns(w, size), size).1),
         (false, _) => {
-            let (w, h) = text_size(text, usize::MAX);
-            (w.max(raster::TEXT_SIZE), h)
+            let (w, h) = text_size(text, usize::MAX, size);
+            (w.max(size), h)
         }
     }
 }

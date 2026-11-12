@@ -34,7 +34,11 @@ fn stroke(id: u64, points: Vec<Point>) -> Item {
 }
 
 fn text(id: u64, r: Rect) -> Item {
-    item(id, Shape::Text { frame: r, text: "hi".into(), size: 24.0 })
+    sized(id, r, 24.0)
+}
+
+fn sized(id: u64, r: Rect, size: f64) -> Item {
+    item(id, Shape::Text { frame: r, text: "hi".into(), size })
 }
 
 fn arrow(id: u64, from: Point, to: Point, bound: [Option<ItemId>; 2]) -> Item {
@@ -82,12 +86,12 @@ fn a_drag_of_a_corner_handle_scales_the_selection_about_the_opposite_corner_in_o
     let after = [
         boxed(1, frame(0.0, 0.0, 40.0, 20.0)),
         stroke(2, vec![pt(0.0, 0.0), pt(40.0, 20.0)]),
-        text(3, frame(20.0, 10.0, 4.0, 4.0)),
+        sized(3, frame(20.0, 10.0, 8.0, 8.0), 48.0),
         arrow(4, pt(40.0, 10.0), pt(60.0, 5.0), [Some(ItemId(1)), None]),
     ];
     let over = select.shown(HERE, shown(&page), 1.0, &THEME);
     let scaled: Vec<Item> = over[..4].iter().map(|i| (**i).clone()).collect();
-    assert_eq!(scaled, after, "a text keeps its size; the bound arrow end follows");
+    assert_eq!(scaled, after, "a text's size scales; the bound arrow end follows");
     let chrome = over.iter().find(|i| i.id == BOX).unwrap();
     let Shape::Panel { frame: b, .. } = chrome.shape else { panic!() };
     assert_eq!(b, frame(-6.0, -6.0, 52.0, 32.0), "the box follows the scale");
@@ -164,4 +168,29 @@ fn shift_scales_a_selection_with_no_height_by_its_width_alone() {
     let next = ink.next();
     let Some((_, Change::Reshape { items: after, .. })) = next else { panic!("{next:?}") };
     assert_eq!(after[0], stroke(1, vec![pt(0.0, 0.0), pt(40.0, 0.0)]), "twice as long, still flat");
+}
+
+#[test]
+fn a_text_scales_evenly_by_the_mean_of_the_sides_and_within_the_sizes() {
+    let page = vec![text(1, frame(0.0, 0.0, 20.0, 10.0))];
+    let resize = |to: Point| {
+        let (mut select, mut ink) = (Select::default(), Ink::default());
+        let items = shown(&page);
+        select.pick(HERE, pt(10.0, 5.0), 1.0, false, &items);
+        assert!(select.up(None, &items, &mut ink));
+        assert!(select.down(Tool::Lasso, HERE, pt(26.0, 16.0), 1.0, &items), "bottom right");
+        assert!(select.up(Some(to), &items, &mut ink));
+        let next = ink.next();
+        let Some((_, Change::Reshape { items: after, .. })) = next else { panic!("{next:?}") };
+        after[0].clone()
+    };
+    // Four times as wide and as tall as it was: twice the size, evenly.
+    assert_eq!(resize(pt(86.0, 16.0)), sized(1, frame(0.0, 0.0, 40.0, 20.0), 48.0));
+    let Shape::Text { frame: big, size, .. } = resize(pt(10_000.0, 10_000.0)).shape else {
+        panic!()
+    };
+    assert!((size - 400.0).abs() < 1e-9, "never above the largest: {size}");
+    assert!((big.width - 20.0 * 400.0 / 24.0).abs() < 1e-9, "the frame grows with the size");
+    let Shape::Text { size, .. } = resize(pt(-100.0, -100.0)).shape else { panic!() };
+    assert!((size - 4.0).abs() < 1e-9, "never below the smallest: {size}");
 }

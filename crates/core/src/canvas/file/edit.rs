@@ -48,14 +48,14 @@ impl Log {
         let shape = self.canvas().may_change(item, by)?.shape().clone();
         let mut new = shape.clone();
         if let Some(text) = &edit.text {
-            let Shape::Text { text: words, frame, .. } = &mut new else {
+            let Shape::Text { text: words, frame, size, .. } = &mut new else {
                 return Err(invalid("only a text item has text", "edit a text item's text"));
             };
             if text.trim().is_empty() {
                 let hint = "pass the new words, or remove the item";
                 return Err(invalid("the text is blank", hint));
             }
-            let (w, h) = render::text_size(text, TEXT_COLUMNS);
+            let (w, h) = render::text_size(text, TEXT_COLUMNS, *size);
             (*words, frame.w, frame.h) = (text.clone(), w, h);
         }
         if let Some([w, h]) = edit.size {

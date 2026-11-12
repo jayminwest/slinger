@@ -7,7 +7,8 @@ use serde_json::Value;
 
 use super::{Import, Report, path};
 use crate::canvas::{
-    Action, Applied, Author, Canvas, Colour, End, ItemId, Op, PageId, Point, Rect, Shape, Time,
+    Action, Applied, Author, Canvas, Colour, End, ItemId, Op, PageId, Point, Rect, Shape,
+    TEXT_SIZE, TEXT_SIZES, Time,
 };
 
 static NULL: Value = Value::Null;
@@ -285,13 +286,23 @@ fn rectangle(n: &Node, own: Place) -> Vec<Shape> {
 fn label(n: &Node, own: Place, colour: &str, w: f64, frame: Option<Rect>) -> Shape {
     let text = plain(n.props);
     let frame = frame.unwrap_or_else(|| {
-        let scale = n.num("scale", 1.0);
-        let size = font(self::text(n.props, "size")) * scale;
+        let (scale, size) = (n.num("scale", 1.0), font_size(n));
         let longest = text.split('\n').map(|l| l.chars().count()).max().unwrap_or(0);
         let w = if w > 0.0 { w * scale } else { chars(longest) * size * 0.55 };
         own.rect(w, lines(&text, w, size) * size * 1.35)
     });
-    Shape::Text { text, frame, colour: n.colour(colour) }
+    let size = font_size(n);
+    let size = if size.is_finite() {
+        size.clamp(*TEXT_SIZES.start(), *TEXT_SIZES.end())
+    } else {
+        TEXT_SIZE
+    };
+    Shape::Text { text, frame, colour: n.colour(colour), size }
+}
+
+/// A shape's font size, scaled, in canvas units.
+fn font_size(n: &Node) -> f64 {
+    font(text(n.props, "size")) * n.num("scale", 1.0)
 }
 
 /// About how many lines `text` takes when wrapped to `w` at font size `size`.

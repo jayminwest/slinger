@@ -60,14 +60,18 @@ pub fn ops(change: &Change) -> Value {
 }
 
 /// A `set` that makes item `id` the shape `shape`, every field of it given
-/// (an arrow end bound to nothing as `null`, which clears it).
+/// (an arrow end bound to nothing as `null`, which clears it, and a text of
+/// the usual size with a `null` size).
 fn set(id: ItemId, shape: &Shape) -> Value {
     let mut fields = fields(shape);
     fields.remove("kind");
-    if matches!(shape, Shape::Arrow { .. }) {
-        for end in ["from", "to"] {
-            fields.entry(end).or_insert(Value::Null);
-        }
+    let optional: &[&str] = match shape {
+        Shape::Arrow { .. } => &["from", "to"],
+        Shape::Text { .. } => &["size"],
+        _ => &[],
+    };
+    for &key in optional {
+        fields.entry(key).or_insert(Value::Null);
     }
     serde_json::json!({"op": "set", "id": format!("i{}", id.0), "fields": fields})
 }
@@ -98,10 +102,14 @@ fn fields(shape: &Shape) -> Map<String, Value> {
     };
     match shape {
         // The file keeps the core's cells, whatever the glyphs fill.
-        Shape::Text { frame: r, text, .. } => {
+        Shape::Text { frame: r, text, size } => {
             o.insert("kind".into(), "text".into());
-            frame(&mut o, &text_frame_at(Point { x: r.x, y: r.y }, text));
+            frame(&mut o, &text_frame_at(Point { x: r.x, y: r.y }, text, *size));
             o.insert("text".into(), text.as_str().into());
+            // The usual size is left out, as the core writes it.
+            if tenths(*size) != tenths(TEXT_SIZE) {
+                o.insert("size".into(), tenths(*size).into());
+            }
         }
         Shape::Box { frame: r, .. } => {
             o.insert("kind".into(), "box".into());
@@ -128,19 +136,19 @@ fn fields(shape: &Shape) -> Map<String, Value> {
     o
 }
 
-/// The frame of `text` set with its top left at `at`, as the canvas file
-/// stores it: a character cell of [`TEXT_SIZE`] a character of its longest
-/// line (the core's render cell, so the text never wraps there), and a line
-/// of [`LINE_HEIGHT`] a line, on whole tenths. Empty text is one cell.
-pub fn text_frame_at(at: Point, text: &str) -> Rect {
+/// The frame of `text` of `size` set with its top left at `at`, as the
+/// canvas file stores it: a character cell of `size` a character of its
+/// longest line (the core's render cell, so the text never wraps there), and
+/// a line of [`LINE_HEIGHT`] a line, on whole tenths. Empty text is one cell.
+pub fn text_frame_at(at: Point, text: &str, size: f64) -> Rect {
     let count = |n: usize| u32::try_from(n).map_or(f64::from(u32::MAX), f64::from);
     let longest = text.split('\n').map(|l| l.chars().count()).max().unwrap_or(0).max(1);
     let lines = count(text.split('\n').count());
     Rect {
         x: at.x,
         y: at.y,
-        width: count(longest) * TEXT_SIZE,
-        height: (lines * TEXT_SIZE * LINE_HEIGHT * 10.0).round() / 10.0,
+        width: count(longest) * size,
+        height: (lines * size * LINE_HEIGHT * 10.0).round() / 10.0,
     }
 }
 

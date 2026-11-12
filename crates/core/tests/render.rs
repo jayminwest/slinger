@@ -56,7 +56,7 @@ fn small() -> (Board, Vec<ItemId>) {
     b.add(agent.clone(), Shape::Box { frame, colour: BLUE });
     let text = "Hello, ink: 0.35 scale".into();
     let frame = Rect::new(170.0, 30.0, 180.0, 60.0);
-    b.add(agent.clone(), Shape::Text { text, frame, colour: Colour::BLACK });
+    b.add(agent.clone(), Shape::Text { text, frame, colour: Colour::BLACK, size: 24.0 });
     let (from, to) = (End::free(Point::new(100.0, 60.0)), End::free(Point::new(155.0, 60.0)));
     b.add(agent, Shape::Arrow { from, to, colour: BLUE });
     (b, ink)

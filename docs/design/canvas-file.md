@@ -196,7 +196,7 @@ kind:
 | `kind` | fields (lengths and positions in tenths of a unit) |
 |---|---|
 | `stroke` | `width`, `pts` (delta array, above, at least one pair) |
-| `text` | `x`, `y`, `w`, `h` (the frame the text is laid out in; `w` and `h` read as 0 when missing), `text`. A frame narrower than one character cell (24 units) gets the size of the text unwrapped; one with no height keeps its width and gets the height of the text wrapped to it. Zero-width characters (U+200B, U+200C, U+200D, U+2060, U+FE0F, U+FEFF) take no cell. Readers and writers apply this rule, so a line written without a size replays to the same frame. |
+| `text` | `x`, `y`, `w`, `h` (the frame the text is laid out in; `w` and `h` read as 0 when missing), `text`, then optional `size`: the text's size, one character cell, from 40 to 4000 tenths (4 to 400 units). A missing or `null` `size` is 240 (24 units), and a writer leaves it out at 240, so a file from before sizes reads and writes the same bytes. A frame narrower than one character cell gets the size of the text unwrapped; one with no height keeps its width and gets the height of the text wrapped to it. Zero-width characters (U+200B, U+200C, U+200D, U+2060, U+FE0F, U+FEFF) take no cell. Readers and writers apply this rule, so a line written without a frame size replays to the same frame. A `set` of a text carries `"size":null` for the usual size, which clears an earlier one. |
 | `box` | `x`, `y`, `w`, `h` |
 | `arrow` | `pts` (delta array, two or more pairs); optional `from`, `to` (item ids it points at) |
 | `live` | `x`, `y`, `w`, `h` (both above 0), `ui` (the UI's name), `hash` (the blob id of the version shown), `open` (the showing, `pick-slot#12`) |
@@ -228,6 +228,8 @@ string as black.
   `null`, which clears it. Keys inside `fields` are written sorted.
 - A v1 reader reads `page.move` as a line it does not know and skips it: the model
   cannot reorder pages yet.
+- A text's `size` is a new optional field: a reader from before it ignores it and
+  draws the text at 24 units, so nothing else of the file reads differently.
 - A live item (an agent UI on the canvas, `docs/design/live-items.md`) is a new item
   kind in `add`, not a new operation: a reader from before it keeps that `add` as a
   line it does not know, its counter still moves past the id, and a later `move`,

@@ -94,6 +94,8 @@ struct Editing {
     at: Point,
     text: String,
     colour: Rgb,
+    /// The text's size: an edited text's own, a new one's [`TEXT_SIZE`].
+    size: f64,
     /// The text item edited and its text before; `None` for a new text.
     item: Option<(ItemId, String)>,
 }
@@ -102,7 +104,7 @@ impl Editing {
     /// The box its glyphs fill, unwrapped: the caret, the dashed frame and
     /// a press inside follow the glyphs. The file stores its own frame.
     fn frame(&self) -> Rect {
-        glyphs::frame(self.at, &self.text, TEXT_SIZE, glyphs::UNWRAPPED)
+        glyphs::frame(self.at, &self.text, self.size, glyphs::UNWRAPPED)
     }
 }
 
@@ -156,13 +158,14 @@ impl Shapes {
         }
         let edits = tool == Tool::Text || (double && tool != Tool::Pen);
         if let Some(item) = text_at(items, press.at, reach).filter(|_| edits) {
-            let Shape::Text { frame, text, .. } = &item.shape else { return true };
+            let Shape::Text { frame, text, size } = &item.shape else { return true };
             let editing = Editing {
                 canvas: canvas.to_string(),
                 page: page.to_string(),
                 at: Point { x: frame.x, y: frame.y },
                 text: text.clone(),
                 colour: item.colour,
+                size: *size,
                 item: Some((item.id, text.clone())),
             };
             if matches!(tool, Tool::Select | Tool::Lasso) {
@@ -182,6 +185,7 @@ impl Shapes {
                     at: snap(Point { x: press.at.x, y: press.at.y - half }),
                     text: String::new(),
                     colour,
+                    size: TEXT_SIZE,
                     item: None,
                 });
                 return true;
@@ -289,7 +293,8 @@ impl Shapes {
     pub fn end(&mut self, ink: &mut Ink) -> bool {
         let Some(editing) = self.editing.take() else { return false };
         let blank = editing.text.trim().is_empty();
-        let shape = Shape::Text { frame: editing.frame(), text: editing.text, size: TEXT_SIZE };
+        let (frame, size) = (editing.frame(), editing.size);
+        let shape = Shape::Text { frame, text: editing.text, size };
         let (canvas, page) = (editing.canvas, editing.page);
         match editing.item {
             None if blank => {}
@@ -325,11 +330,11 @@ impl Shapes {
             if let Some((id, _)) = &editing.item {
                 items.retain(|i| i.id != *id);
             }
-            let (frame, text) = (editing.frame(), editing.text.clone());
-            let shape = Shape::Text { frame, text: text.clone(), size: TEXT_SIZE };
+            let (frame, text, size) = (editing.frame(), editing.text.clone(), editing.size);
+            let shape = Shape::Text { frame, text: text.clone(), size };
             items.push(Cow::Owned(Item { id: EDITING, colour: editing.colour, shape }));
             let width = CARET / zoom;
-            let shape = Shape::Caret { frame, text, size: TEXT_SIZE, width };
+            let shape = Shape::Caret { frame, text, size, width };
             items.push(Cow::Owned(Item { id: CARET_ID, colour: theme.focus, shape }));
             let around = frame.outset(FRAME_PAD / zoom);
             let shape =

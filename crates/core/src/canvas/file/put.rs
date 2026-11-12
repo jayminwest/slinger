@@ -15,7 +15,9 @@
 //! [`Canvas::free_beside`]: crate::canvas::Canvas::free_beside
 
 use super::{Log, Written, json};
-use crate::canvas::{Action, Author, Colour, End, Item, ItemId, PageId, Point, Rect, Shape, Time};
+use crate::canvas::{
+    Action, Author, Colour, End, Item, ItemId, PageId, Point, Rect, Shape, TEXT_SIZE, Time,
+};
 use crate::render;
 use crate::{Error, Result};
 
@@ -28,7 +30,7 @@ pub const INK_WIDTH: f64 = 2.0;
 /// What a put adds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Put {
-    /// Text, wrapped to at most [`TEXT_COLUMNS`] characters a line.
+    /// Text at [`TEXT_SIZE`], wrapped to at most [`TEXT_COLUMNS`] characters a line.
     Text(String),
     /// An empty box, `w` by `h` tenths of a unit.
     Box { w: i64, h: i64 },
@@ -101,8 +103,8 @@ impl Log {
         let origin = |w, h| Rect::new(0.0, 0.0, w, h);
         let shape = match what {
             Put::Text(text) => {
-                let (w, h) = render::text_size(text, TEXT_COLUMNS);
-                Shape::Text { text: text.clone(), frame: origin(w, h), colour }
+                let (w, h) = render::text_size(text, TEXT_COLUMNS, TEXT_SIZE);
+                Shape::Text { text: text.clone(), frame: origin(w, h), colour, size: TEXT_SIZE }
             }
             Put::Box { w, h } => {
                 Shape::Box { frame: origin(json::units(*w), json::units(*h)), colour }
