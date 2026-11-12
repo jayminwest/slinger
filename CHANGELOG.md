@@ -76,6 +76,9 @@ bullet with the area in bold.
   picture still has no glyph for (most emoji, Chinese) is drawn as `?`.
 - **Feedback:** each note names the commit `slingerd` was built from
   (with `-dirty` for uncommitted changes) instead of always `dev`.
+- **App:** choosing a menu bar item while the command palette is open now
+  closes the palette before the command runs, instead of leaving it over
+  the window. Choosing Show commands only closes it.
 - **App:** return on a just-opened command palette no longer quits. The
   palette now opens on the command you last ran from it, then the tools,
   with Quit at the bottom. Typed, the best match comes first: a title that
