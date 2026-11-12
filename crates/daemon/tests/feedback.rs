@@ -32,7 +32,7 @@ impl Daemon {
             .spawn()?;
         let daemon = Self { child: Some(child), socket, data };
         let deadline = Instant::now() + Duration::from_secs(10);
-        while let Err(e) = daemon.client().hello("ada") {
+        while let Err(e) = daemon.client().canvas_list() {
             assert!(Instant::now() < deadline, "the daemon never answered: {e}");
             std::thread::sleep(Duration::from_millis(20));
         }

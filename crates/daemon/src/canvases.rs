@@ -368,7 +368,8 @@ impl Canvases {
         Ok(Arc::clone(slots.entry(id.to_owned()).or_default()))
     }
 
-    fn path(&self, id: &str) -> PathBuf {
+    /// The file of canvas `id`, whether or not it exists.
+    pub fn path(&self, id: &str) -> PathBuf {
         self.dir.join(format!("{id}.{EXTENSION}"))
     }
 }

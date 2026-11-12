@@ -54,6 +54,46 @@ fn the_machine_name_is_on_every_stored_event() {
 }
 
 #[test]
+fn the_record_keeps_its_machine_name_when_the_host_is_renamed() {
+    let dir = tempfile::tempdir().unwrap();
+    drop(Store::open(dir.path(), MACHINE).unwrap());
+    let store = Store::open(dir.path(), "renamed-host").unwrap();
+    assert_eq!(store.machine(), MACHINE);
+    let added = store.append(event("agent_done", None)).unwrap();
+    assert_eq!(added.tags.machine, MACHINE);
+    let mine = Query { machine: Some(MACHINE.into()), ..Query::default() };
+    assert_eq!(numbers(&store.events(&mine).unwrap()), [1]);
+}
+
+/// A data directory with a record laid out by a layout-1 slingerd, which
+/// kept no machine name, holding one event per name in `machines`.
+fn layout_1_record(machines: &[&str]) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Connection::open(dir.path().join(FILE)).unwrap();
+    db.execute_batch(super::schema::V1).unwrap();
+    db.pragma_update(None, "user_version", 1).unwrap();
+    for (number, machine) in (1..).zip(machines) {
+        db.execute(
+            "INSERT INTO events (number, time, kind, machine, event) VALUES (?1, 0, 'k', ?2, '{}')",
+            rusqlite::params![number, machine],
+        )
+        .unwrap();
+    }
+    dir
+}
+
+#[test]
+fn a_layout_1_record_keeps_the_name_on_its_first_event() {
+    let dir = layout_1_record(&["old-host", "other"]);
+    let store = Store::open(dir.path(), MACHINE).unwrap();
+    assert_eq!(store.machine(), "old-host");
+    drop(store);
+    assert_eq!(Store::open(dir.path(), "third").unwrap().machine(), "old-host");
+    let empty = layout_1_record(&[]);
+    assert_eq!(Store::open(empty.path(), MACHINE).unwrap().machine(), MACHINE);
+}
+
+#[test]
 fn reads_by_range_kind_tag_and_limit() {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path(), MACHINE).unwrap();
@@ -163,6 +203,39 @@ fn a_data_dir_that_cannot_be_made_is_an_error_with_a_hint() {
     assert_eq!(err.code(), "internal");
     assert!(err.to_string().starts_with("cannot create data directory /dev/null/slinger"));
     assert!(err.hint().unwrap().contains("--data-dir"));
+}
+
+#[test]
+fn a_held_data_dir_is_a_conflict_until_its_store_is_gone() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = Store::open(dir.path(), MACHINE).unwrap();
+    let err = Store::open(dir.path(), MACHINE).unwrap_err();
+    assert!(matches!(err, StoreError::Taken(_)), "{err:?}");
+    assert_eq!(err.code(), "conflict");
+    let message = format!("data directory {} is in use by another slingerd", dir.path().display());
+    assert_eq!(err.to_string(), message);
+    assert_eq!(err.hint().unwrap(), "stop that daemon, or pass another --data-dir");
+    drop(first);
+    let again = Store::open(dir.path(), MACHINE).unwrap();
+    assert_eq!(again.events(&Query::default()).unwrap(), []);
+}
+
+#[test]
+fn a_second_slingerd_on_a_held_data_dir_exits_4_and_leaves_the_record_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path(), MACHINE).unwrap();
+    store.append(event("agent_done", None)).unwrap();
+    // Its own socket, so only the data directory is shared.
+    let socket = dir.path().join("other.sock");
+    let args = ["slingerd", "--socket", socket.to_str().unwrap(), "--data-dir"];
+    let args = args.into_iter().chain([dir.path().to_str().unwrap()]);
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    assert_eq!(crate::run(args, &mut out, &mut err), 4);
+    let err = String::from_utf8(err).unwrap();
+    assert_eq!(String::from_utf8(out).unwrap(), "");
+    assert!(err.starts_with("✗ data directory "), "{err}");
+    assert!(err.contains(" is in use by another slingerd\n  stop that daemon"), "{err}");
+    assert_eq!(numbers(&store.events(&Query::default()).unwrap()), [1]);
 }
 
 #[test]

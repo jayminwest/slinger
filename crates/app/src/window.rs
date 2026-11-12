@@ -18,7 +18,7 @@ use crate::scene::sidebar::Row;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::taps::{Tap, Target};
 use crate::scene::tools::{Kind, Tools};
-use crate::scene::{self, Label, Scene, cursor, status};
+use crate::scene::{self, Label, Scene, cursor, status, title};
 use crate::shared::Shared;
 
 /// Runs `command` (not `quit` or `reload-config`) on the focused pane of
@@ -153,7 +153,8 @@ pub fn focus(panes: &Panes, area: Rect) -> (PaneId, Rect) {
 /// daemon, a canvas or the config (each said once), the notice, the
 /// sling's buttons and what became of it, the pop-up at the pen and the
 /// flash of a new tool, a page command, a sling or a saved note, the key
-/// overlay, the palette or the page menu on top, and the tool's cursor.
+/// overlay, the palette or the page menu on top, the tool's cursor, and the
+/// focused pane's canvas and its file in the title bar.
 pub fn view(
     settings: &Settings,
     shared: &mut Shared,
@@ -223,6 +224,8 @@ pub fn view(
         tools.flash().say(text, now);
     }
     scene.flash = tools.flash().pill(focused(&shared.panes, area), theme, now).map(Box::new);
+    let file = canvases.file(&shared.panes, shared.panes.focus());
+    scene.title = title::window(file, std::env::home_dir().as_deref());
     scene.menus = commands::menu::bar(keys, status::command(tools.chosen()));
     Box::new(scene)
 }

@@ -15,7 +15,8 @@
 //! text field; `overlay` dims the window under the key overlay; `chrome`
 //! the focus border and the flash's pill. `text` sets styled text: the
 //! sidebar's rows and the panes' footers. The window
-//! resizes, down to [`layout::SMALLEST`], and says its new size; `remember`
+//! resizes, down to [`layout::SMALLEST`], and says its new size; `files`
+//! sets its title bar and shows a canvas's file in the Finder; `remember`
 //! keeps its frame, and whether the sidebar was open, for the next launch.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
@@ -27,6 +28,7 @@
 mod canvas;
 mod chrome;
 mod entry;
+mod files;
 mod input;
 mod keys;
 mod menu;
@@ -42,12 +44,13 @@ use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSColor, NSEvent,
-    NSEventType, NSLineBreakMode, NSResponder, NSTextAlignment, NSTextField, NSView, NSWindow,
-    NSWindowDelegate, NSWindowOrderingMode, NSWindowStyleMask,
+    NSEventType, NSResponder, NSTextAlignment, NSTextField, NSView, NSWindow, NSWindowDelegate,
+    NSWindowOrderingMode, NSWindowStyleMask,
 };
 use objc2_foundation::{NSNotification, NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
 
 use self::canvas::CanvasView;
+pub use self::files::reveal;
 pub use self::remember::{remember_sidebar, sidebar as remembered_sidebar};
 use crate::commands::{Chord, Command};
 use crate::config::Rgb;
@@ -358,10 +361,7 @@ fn window(mtm: MainThreadMarker, scene: &Scene) -> Retained<KeyWindow> {
 /// to scene; the chrome is made again only when it changed.
 fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     let window = &state.window;
-    let title = NSString::from_str(&scene.title);
-    if window.title() != title {
-        window.setTitle(&title);
-    }
+    files::title(window, &scene.title);
     window.setBackgroundColor(Some(&color(scene.background)));
     menu::show(&scene.menus, mtm);
     let Some(view) = window.contentView() else { return };
@@ -433,10 +433,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     // The border first, so a pop-up at the pen draws over it.
     shown.chrome.push(Retained::into_super(chrome::border(&scene.focus, height, mtm)));
     for line in &scene.labels {
-        let field = label(line, height, NSTextAlignment::Center, mtm);
-        // A line longer than its frame keeps both ends: paths end in the part that matters.
-        field.setLineBreakMode(NSLineBreakMode::ByTruncatingMiddle);
-        shown.chrome.push(Retained::into_super(Retained::into_super(field)));
+        shown.chrome.extend(text::line(line, height, mtm));
     }
     if let Some(pill) = &scene.flash {
         shown.chrome.push(Retained::into_super(chrome::pill(window, pill, height, mtm)));

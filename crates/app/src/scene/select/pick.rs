@@ -2,6 +2,7 @@
 //! makes and moves the same selection as the lasso, so delete, sling and
 //! escape act on it alike.
 //!
+//! - A press on a corner handle of the selection resizes it ([`super::scale`]).
 //! - A press on an item selects it alone and drags it: the topmost item the
 //!   press picks ([`hit::picks`]; a box by its outline). A press inside the selection's box drags the
 //!   selection, as the lasso's does; if it was on an item and the pen lifts
@@ -35,6 +36,9 @@ impl Select {
         shift: bool,
         items: &[Cow<'_, Item>],
     ) {
+        if self.grip((canvas, page), at, zoom, items) {
+            return;
+        }
         let hit = topmost(items, at, REACH / zoom);
         self.arriving = None;
         let gesture = match hit {

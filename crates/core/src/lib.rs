@@ -17,36 +17,3 @@ pub mod ui;
 pub mod workspace;
 
 pub use error::{Error, Result};
-
-/// Placeholder capability: replace it with the first real one.
-///
-/// # Errors
-///
-/// [`Error::Invalid`] when `name` is blank.
-pub fn greet(name: &str) -> Result<String> {
-    let name = name.trim();
-    if name.is_empty() {
-        return Err(Error::Invalid {
-            message: "name is empty".into(),
-            hint: Some("pass a non-empty name".into()),
-        });
-    }
-    Ok(format!("hello, {name}"))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn greets_a_trimmed_name() {
-        assert_eq!(greet("  ada ").unwrap(), "hello, ada");
-    }
-
-    #[test]
-    fn rejects_a_blank_name_as_invalid() {
-        let err = greet("   ").unwrap_err();
-        assert_eq!(err.code(), "invalid");
-        assert!(err.hint().is_some());
-    }
-}

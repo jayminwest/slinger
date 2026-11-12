@@ -27,8 +27,8 @@ use slinger_control as control;
 
 use control::{
     Appended, CanvasChange, CanvasFeed, CanvasImage, CanvasImages, CanvasInfo, CanvasPage,
-    CanvasStrokes, Canvases, EventFilter, Events, Exported, Greeting, NewEvent, RemoteError, Reply,
-    Request, Stored, Uis, Written,
+    CanvasStrokes, Canvases, EventFilter, Events, Exported, NewEvent, RemoteError, Reply, Request,
+    Stored, Uis, Written,
 };
 use slinger_core::canvas::file::Written as Lines;
 use slinger_core::record::{self, BlobId, Body, Event, Tags};
@@ -191,9 +191,6 @@ fn converse(stream: &UnixStream, store: &Store) -> io::Result<()> {
 /// Request in, core call, reply out. One arm per verb, and no logic of its own.
 fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
     match request {
-        Request::Hello { name } => slinger_core::greet(&name)
-            .map(|greeting| Reply::Hello(Greeting { greeting }))
-            .map_err(|e| remote(&e)),
         Request::RecordAppend(new) => {
             let event =
                 store.append(event(new).map_err(|e| remote(&e))?).map_err(|e| stored(&e))?;
@@ -233,7 +230,8 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
             let (shown, next) =
                 store.canvases().show(&canvas, page.as_deref()).map_err(|e| drawn(&e))?;
             let (page, pages, items) = (shown.page, shown.pages, shown.items);
-            Ok(Reply::CanvasShow(CanvasPage { canvas, next, page, pages, items }))
+            let path = Some(store.canvases().path(&canvas).to_string_lossy().into_owned());
+            Ok(Reply::CanvasShow(CanvasPage { canvas, next, page, pages, items, path }))
         }
         Request::CanvasApply(o) => {
             let lines = store.canvases().apply(&o.canvas, &o.by, &o.ops).map_err(|e| drawn(&e))?;
