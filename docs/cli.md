@@ -108,7 +108,7 @@ there exits 3 (`not_found`). A refused open records nothing.
 
 `canvas apply` takes one operation as a JSON object, or a list of them, as
 one undo step (the operations are in `docs/service.md`, "Canvas
-operations"); `-` reads them from stdin. `canvas schema` (and `canvas apply
+operations"; arrows bound to what they move or resize follow); `-` reads them from stdin. `canvas schema` (and `canvas apply
 --help`) prints the item kinds and operations, for an agent that cannot read
 the docs. An `add` of kind `button` places
 the "send to agent" button, which needs no UI put first:
@@ -213,7 +213,7 @@ text or a colour that is not one exits 5 (`invalid`).
 `canvas edit` and `canvas remove` are agent verbs for items the agent made:
 `edit` gives a text new words, a text or a box a new size (`--box W,H`), or
 moves the item's top-left corner to `--move X,Y`, all in tenths (the ends
-of the agent's arrows bound to it follow); `remove`
+of the agent's arrows bound to it follow a move or a resize); `remove`
 takes the item off the canvas, and an item already gone succeeds. Naming
 the user's ink or another agent's item exits 5 (`invalid`) with a hint. An
 edit with none of `--text`, `--box` and `--move`, or a pair that is not two

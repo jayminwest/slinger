@@ -139,6 +139,9 @@ bullet with the area in bold.
 - **CLI:** when an agent moves its item with `slinger canvas edit --move`,
   its arrows bound to the item follow, as they do when you move it in the
   app; they no longer point at where the item was.
+- **CLI:** the same holds for a move with `slinger canvas apply`, and when
+  an agent resizes its item (`canvas edit --box`, or new words that resize
+  a text), its arrows' ends stay on the same spot of the item's edge.
 
 - **App:** a colour, shape, tool or width pop-up opened from a key before
   the pen or pointer has been in the window opens at the middle of the

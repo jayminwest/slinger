@@ -225,7 +225,8 @@ impl Log {
     }
 
     /// Applies `ops` (one operation object or a list of them) as one undo
-    /// step of `by`. Every operation applies or none does.
+    /// step of `by`. Every operation applies or none does. The arrows bound
+    /// to what the ops move or resize follow, as [`Log::followed`] says.
     ///
     /// # Errors
     ///
@@ -241,6 +242,7 @@ impl Log {
             let op = op.as_object().ok_or_else(|| bad("an operation is not an object".into()))?;
             self.read_op(op, &mut actions)?;
         }
+        let actions = self.followed(by, actions);
         self.step(by, at, actions)
     }
 
