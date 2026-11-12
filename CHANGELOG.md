@@ -11,6 +11,10 @@ bullet with the area in bold.
 
 ### Added
 
+- **CLI:** `slinger canvas put` takes `--color` (`#rrggbb`, so an agent can
+  answer in yellow), `--at x,y` to put the item exactly where it wants
+  instead of beside the item, and `--ink` to draw a pen stroke (a bracket,
+  an underline, a check mark). The note in a first sling tells the agent.
 - **CLI:** `slinger canvas schema` prints the item kinds (text, box,
   arrow, stroke, button, live) with their fields and the operations
   `canvas apply` takes, without a daemon; `canvas apply --help` shows the

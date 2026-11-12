@@ -161,7 +161,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_list` | none | `sessions`: list of sessions, sorted by agent |
 | `session_show` | `agent`: string | `session` |
 | `status_set` | `agent`: string, `status`: `working`, `blocked` or `done`, `note`: string (optional) | `agent`, `status`, `note` (absent when none), `event`: the number of the event appended (absent for `working`) |
-| `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `arrow`: `[from, to]` item ids | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
+| `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `ink`: a `pts` list in tenths, `arrow`: `[from, to]` item ids; optional `color`: `#rrggbb` or `#rrggbbaa`, `at`: `[x, y]` in tenths | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
 | `canvas_edit` | `canvas`: canvas id, `agent`: string, `item`: an item id, then any of `text`: string, `box`: `[w, h]` in tenths, `move`: `[x, y]` in tenths | `item`, `page`, `x`, `y`, `w`, `h`: its box now, `seq`: the numbers written (empty when nothing changed) |
 | `canvas_remove` | `canvas`: canvas id, `agent`: string, `item`: an item id | `seq`: the numbers written (empty when it was already gone) |
 | `session_start` | `workspace`: string, its name or the directory of its file | `session` |
@@ -753,21 +753,28 @@ An agent answers on the canvas, not in chat (SPEC section 7). Each answer
 is an item the agent makes, with its name and the time, as one undo step of
 its own.
 
-**`canvas_put`** adds text, a box or an arrow, placed beside the item
+**`canvas_put`** adds text, a box, ink or an arrow, placed beside the item
 `beside` names (ids as for crops, above: `c<n>` on the user's ink is its
-whole cluster) on that item's page. Text is black, wrapped at 40 characters
-a line, in a frame that holds it; a box is `w` by `h` tenths. Either goes in
-free space: 24 units right of the item, top-aligned; else below it, left of
-it or above it; else further right, past whatever is in the way. It never
-comes within 12 units of another item. An arrow joins `from` and `to`, two
+whole cluster) on that item's page. Text is wrapped at 40 characters a
+line, in a frame that holds it; a box is `w` by `h` tenths; ink is a pen
+stroke 2 units wide through `pts` (as an item's, under "Canvas operations":
+the first pair where it starts, each next the step from the one before),
+and only its shape counts. Each goes in free space: 24 units right of the
+item, top-aligned; else below it, left of it or above it; else further
+right, past whatever is in the way. It never comes within 12 units of
+another item. With `at`, the top-left corner of its box goes at `[x, y]`
+instead, wherever that is on the page. An arrow joins `from` and `to`, two
 items on that page, from the edge of one to the edge of the other, and
-points at both. The reply gives the new item's id and its box. When a
+points at both; it takes no `at`. `color` draws any of them in that colour;
+without it they are black. The reply gives the new item's id and its box. When a
 `sling_sent` tagged with the agent and the canvas is in the record, the put
 answers the latest such sling: the daemon appends `reply_landed` (`sling`,
 `items`: the new item) with the agent as source and tags it with the agent
 and the canvas. A canvas or item that is not there is `not_found`; a blank
-agent, an id that is not one, blank text, a negative size, or an arrow to an
-item on another page is `invalid`.
+agent, an id that is not one, blank text, a negative size, `ink` that is not
+pairs, a `color` that is not one, an `at` on an arrow, or an arrow to an
+item on another page is `invalid`; a line with none or two of `text`, `box`,
+`ink` and `arrow` is `bad_request`.
 
 ```json
 { "v": 1, "op": "canvas_put", "canvas": "idea", "agent": "scout", "beside": "c12", "text": "the date is wrong" }

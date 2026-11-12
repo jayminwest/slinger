@@ -49,7 +49,7 @@ mod whole;
 pub use edit::Edit;
 pub use log::{Log, Shown, Span, Written, check_id, id_from_name, lines, parse_author};
 pub use look::MAX_CROP;
-pub use put::{Placed, Put, TEXT_COLUMNS};
+pub use put::{How, INK_WIDTH, Placed, Put, TEXT_COLUMNS};
 use serde_json::{Map, Value};
 
 use super::{Action, Applied, Author, Item, ItemId, Op, Page, PageId, Point, Shape, Time};
