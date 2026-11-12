@@ -38,7 +38,8 @@ pub struct Theme {
     pub text: Rgb,
     pub muted: Rgb,
     pub error: Rgb,
-    /// The focus border: the one line the window draws around a pane.
+    /// The accent: the focus border (only with two or more panes), the caret,
+    /// the selection, the sling field's edge and a working agent's mark.
     pub focus: Rgb,
 }
 
