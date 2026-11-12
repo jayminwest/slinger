@@ -17,11 +17,13 @@ impl Canvases {
     /// The `sling` command: opens the entry at the selection, when the
     /// focused pane of `panes` laid in `area` shows it; else beside the
     /// first button on that pane's page, to sling what is new there. False
-    /// when it shows neither, a sling is on its way, or feedback is open.
+    /// when it shows neither, a sling is on its way, or feedback is open. A
+    /// page's new name's entry closes.
     pub fn open_sling(&mut self, panes: &Panes, area: Rect) -> bool {
         if self.notes.is_typing() {
             return false;
         }
+        self.asks.cancel_rename();
         let selected = self.selection_in(panes, area).map(|(s, a, w)| (s.clone(), a, w));
         let Some((selection, around, within)) = selected.or_else(|| self.button_in(panes, area))
         else {
@@ -46,10 +48,17 @@ impl Canvases {
         sent
     }
 
-    /// Whether the sling's entry, or the feedback entry, is open: it takes
-    /// the keys.
+    /// Whether an entry is open (the sling's, the feedback's or a page's new
+    /// name's): it takes the keys.
     pub fn typing(&self) -> bool {
-        self.sling.is_typing() || self.notes.is_typing()
+        self.sling.is_typing() || self.notes.is_typing() || self.asks.renaming()
+    }
+
+    /// Closes whichever entry is open: one shows at a time.
+    pub(super) fn close_entries(&mut self) {
+        if self.sling.cancel() | self.notes.cancel() | self.asks.cancel_rename() {
+            self.entry_closed();
+        }
     }
 
     /// Whether a key no command took is a text's: every key while the entry
@@ -68,6 +77,17 @@ impl Canvases {
         if let Some(closed) = self.feedback_key(chord) {
             return closed;
         }
+        if self.asks.renaming() {
+            let answer = match Key::of(chord) {
+                Key::Send => "\r",
+                Key::Cancel => "\u{1b}",
+                Key::Type => return false,
+            };
+            if let Some((canvas, op)) = self.asks.typed(answer) {
+                self.change_pages(canvas, op);
+            }
+            return true;
+        }
         let closed = match self.sling.key(chord) {
             Some(Key::Send) => {
                 self.sling.send();
@@ -84,7 +104,9 @@ impl Canvases {
     /// The entry's text is now `text`. Nothing more to draw (false): the
     /// entry shows it already.
     pub fn sling_typed(&mut self, text: &str) -> bool {
-        if !self.feedback_typed(text) {
+        if self.asks.renaming() {
+            self.asks.named(text);
+        } else if !self.feedback_typed(text) {
             self.sling.typed(text);
         }
         false
@@ -93,18 +115,19 @@ impl Canvases {
     /// Whether `at`, a point in the window, is on the open entry: a press
     /// there is the entry's.
     pub fn sling_covers(&self, at: Point) -> bool {
-        self.sling.covers(at) || self.notes.covers(at)
+        self.sling.covers(at) || self.notes.covers(at) || self.asks.covers(at)
     }
 
     /// Lays the sling over `scene` in `theme`'s colours: its entry, to the
     /// agent `sidebar` names for its canvas, with `keys`' dictate key; or
-    /// its line while it goes, or why it failed; the feedback entry in its
-    /// place while that is open, and its lines; and what dictation says.
+    /// its line while it goes, or why it failed; the feedback entry or a
+    /// page's new name's in its place while that is open, and the
+    /// feedback's lines; and what dictation says.
     pub fn show_sling(&self, scene: &mut Scene, theme: &Theme, keys: &Keymap, sidebar: &Sidebar) {
         let agent = self.sling.canvas().and_then(|canvas| sidebar.agent(canvas));
         let entry = self.sling.entry(theme, agent, keys.chord(Command::Dictate));
         let (note, lines) = self.notes.shown(theme);
-        scene.entry = note.or(entry).map(Box::new);
+        scene.entry = note.or_else(|| self.asks.entry(theme)).or(entry).map(Box::new);
         scene.labels.extend(self.sling.labels(theme));
         scene.labels.extend(lines);
         scene.labels.extend(self.dictation_labels(theme));

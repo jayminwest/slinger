@@ -39,8 +39,9 @@ fn a_canvas_pane_s_footer_says_the_pen_its_page_and_the_two_keys() {
     assert_eq!((name.colour, name.bold), (T.text, true), "the tool is bold in the text colour");
     assert!(footer.parts[1..].iter().flat_map(|p| &p.runs).all(|r| r.colour == T.muted));
     assert_eq!(footer.frame, Rect { y: 400.0 - HEIGHT, height: HEIGHT, ..PANE });
-    assert_eq!(footer.fill, sidebar::lighter(&T));
+    assert_eq!(footer.fill, style::footer(&T));
     assert_ne!(footer.fill, T.background, "the footer is lighter than the pane");
+    assert_eq!(footer.rule.frame, Rect { height: 1.0, ..footer.frame }, "a hairline on top");
     let (swatch, colour) = footer.swatch.unwrap();
     assert_eq!((swatch.width, swatch.height, colour), (SWATCH, SWATCH, RED));
     assert!(swatch.x > PANE.x && swatch.x + swatch.width < footer.parts[0].frame.x);
@@ -124,4 +125,34 @@ fn each_tool_is_named_by_its_command() {
     let tools = [Tool::Pen, Tool::Eraser, Tool::Lasso, Tool::Text, Tool::Box, Tool::Arrow];
     let names: Vec<&str> = tools.iter().map(|&t| command(t).title()).collect();
     assert_eq!(names, ["Pen", "Eraser", "Lasso", "Text", "Box", "Arrow"]);
+}
+
+#[test]
+fn the_key_hints_are_targets_the_pen_taps_to_open_the_overlay_and_the_palette() {
+    use crate::layout::Point;
+    let mut keys = Keymap::default();
+    let footer = footer(PANE, &T, &keys, Some(pen(Tool::Pen, State::Idle)), "");
+    let [(keys_at, first), (commands_at, second)] = footer.targets[..] else { panic!() };
+    assert_eq!((first, second), (Command::ShowKeys, Command::ShowCommands));
+    for target in [keys_at, commands_at] {
+        assert!(
+            target.height >= style::TAP && (target.y - footer.frame.y).abs() < 1e-9,
+            "{target:?}"
+        );
+    }
+    assert!((commands_at.x + commands_at.width - (PANE.x + PANE.width)).abs() < 1e-9);
+    assert!((keys_at.x + keys_at.width - commands_at.x).abs() < 1e-9, "side by side");
+    let right = footer.parts.last().unwrap().frame;
+    let at = |x: f64| Point { x, y: footer.frame.y + 2.0 };
+    assert!(
+        commands_at.contains(at(right.x + right.width - 5.0)),
+        "the last word opens the palette"
+    );
+    assert!(keys_at.x < right.x + right.width - width("⌘/ keys · ⌘K commands"));
+
+    keys.bind(Command::ShowKeys, None);
+    let footer = super::footer(PANE, &T, &keys, None, "");
+    assert_eq!(footer.targets.iter().map(|t| t.1).collect::<Vec<_>>(), [Command::ShowCommands]);
+    let narrow = Rect { width: 120.0, ..PANE };
+    assert_eq!(super::footer(narrow, &T, &keys, None, "").targets, [], "no hint, no target");
 }

@@ -244,7 +244,8 @@ fn asked(
     let keys = &settings.config.keys;
     let palette = match *event {
         Event::Key(chord) => shared.palette.key(chord, keys),
-        Event::Press(pen) => shared.palette.press(pen.at, shared.size),
+        Event::Press(pen) => shared.press(pen.at, canvases.hint(pen.at)),
+        Event::Lift(pen) => shared.lift(pen.at),
         Event::Command(command) => return Ask::Run(command),
         _ => return Ask::Not,
     };
@@ -278,9 +279,9 @@ fn taken(
 /// resize; a moved divider goes to the daemon on `socket`. A resized window
 /// lays its panes out again. A paste goes to the open palette's search,
 /// else to the text being typed or the page name asked; under the key
-/// overlay, or with neither open, it does nothing. The open key overlay takes every press (one
-/// outside it closes it) and every other pen, mouse or trackpad event and
-/// typed text. Any other event goes on to [`pointer`]. False when nothing
+/// overlay, or with neither open, it does nothing. The open key overlay lights the row under
+/// the pen, scrolls with a drag or a scroll, and with the palette takes every other pen, mouse
+/// or trackpad event and typed text. Any other event goes on to [`pointer`]. False when nothing
 /// used it.
 fn pen(
     event: &Event,
@@ -296,16 +297,10 @@ fn pen(
         Event::Paste(ref text) => {
             !shared.overlay.is_open() && (shared.palette.pasted(text) || canvases.pasted(text))
         }
-        Event::Press(pen) if shared.overlay.press(pen.at, shared.size) => true,
-        Event::Drag(_)
-        | Event::Lift(_)
-        | Event::Scroll { .. }
-        | Event::Zoom { .. }
-        | Event::Text(_)
-            if shared.overlay.is_open() || shared.palette.is_open() =>
-        {
-            true
-        }
+        Event::Moved(at) if shared.hover(at) => true,
+        Event::Drag(pen) if shared.drag(pen.at) => true,
+        Event::Scroll { dy, .. } if shared.scroll(dy) => true,
+        Event::Lift(_) | Event::Zoom { .. } | Event::Text(_) if shared.modal() => true,
         Event::Press(pen) if free && shared.dividers.down(&shared.panes, area, pen.at) => true,
         Event::Drag(pen) if shared.dividers.drag(&mut shared.panes, pen.at) => true,
         Event::Lift(pen) if shared.dividers.held() => {

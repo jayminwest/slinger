@@ -60,7 +60,7 @@ fn gesture(canvases: &mut Canvases, panes: &Panes, tool: Tool, path: &[(f64, f64
 }
 
 /// What the one pane's footer says, part by part, with `tool`.
-fn footer(canvases: &Canvases, panes: &Panes, tool: Tool) -> Vec<String> {
+fn footer(canvases: &mut Canvases, panes: &Panes, tool: Tool) -> Vec<String> {
     let (theme, keys) = (Config::default().theme, crate::commands::Keymap::default());
     let footers = canvases.footers(panes, WINDOW.rect(), &theme, (tool, GREY), &keys);
     let part = |p: &crate::scene::status::Part| p.runs.iter().map(|r| r.text.as_str()).collect();
@@ -110,7 +110,7 @@ fn the_first_press_of_any_tool_after_a_text_left_open_ends_it_and_is_that_tool_s
         };
 
         let n = word(&mut canvases, 10.0);
-        let said = footer(&canvases, &panes, Tool::Text);
+        let said = footer(&mut canvases, &panes, Tool::Text);
         assert!(said[0].starts_with("Text") && said[0].ends_with(" · typing"), "{said:?}");
         assert!(said[1].ends_with(" · 1/1"), "the page: {said:?}");
         gesture(&mut canvases, &panes, Tool::Box, &[(400.0, 400.0), (500.0, 480.0)], 12.0);
@@ -126,7 +126,7 @@ fn the_first_press_of_any_tool_after_a_text_left_open_ends_it_and_is_that_tool_s
         let around = [(80.0, 80.0), (130.0, 80.0), (130.0, 130.0), (80.0, 130.0), (80.0, 81.0)];
         gesture(&mut canvases, &panes, Tool::Lasso, &around, 32.0);
         assert_eq!(canvases.selection().map(|s| s.ids.len()), Some(1), "the stroke is selected");
-        assert!(footer(&canvases, &panes, Tool::Lasso)[0].ends_with(" · 1 selected"));
+        assert!(footer(&mut canvases, &panes, Tool::Lasso)[0].ends_with(" · 1 selected"));
         until(&mut canvases, &panes, daemon, |d| count(d, "text") == 3);
         assert!(canvases.clear_selection(&panes, panes.focus()));
 
@@ -165,7 +165,7 @@ fn a_paste_types_into_the_text_and_each_page_command_says_what_it_did() {
         assert_eq!(canvases.said().as_deref(), Some("New page: Page 2 · 2/2"));
         wait_until(|| {
             shown(&mut canvases, &panes);
-            footer(&canvases, &panes, Tool::Pen)[1].ends_with("Page 2 · 2/2")
+            footer(&mut canvases, &panes, Tool::Pen)[1].ends_with("Page 2 · 2/2")
         });
         assert!(canvases.command(&panes, pane, Command::NextPage));
         assert_eq!(canvases.said().as_deref(), Some("Page 1 · 1/2"));

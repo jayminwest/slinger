@@ -1,14 +1,16 @@
 //! Pages (SPEC D6): which page a page command turns a pane to, the name a
 //! new page gets, where a pane goes when its page is removed, the line
 //! that names a pane's page in its footer, and the two questions a page command
-//! asks: a rename's new name, typed or pasted, and whether to remove a page
+//! asks: a rename's new name, in an entry like the sling's, and whether to remove a page
 //! that has items, asked once; and what a page command did, for the flash
 //! (SPEC P6: the footer's line alone is easy to miss). Pure: `canvases` hands in the canvas's pages and the
 //! typed keys, and sends the [`PageOp`] that comes out through the ink's
 //! queue, in turn with the pen's changes.
 
-use crate::layout::PaneId;
+use crate::config::Theme;
+use crate::layout::{PaneId, Point, Rect};
 use crate::scene::paste;
+use crate::scene::sling::{Entry, SEND, centred};
 
 /// A canvas page as the app knows it: its id and its name.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,10 +76,10 @@ pub fn line(pages: &[Page], at: &str) -> String {
 }
 
 /// A question a page command asks, in the pane it was asked in.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 enum Ask {
-    /// The new name of `page`, as typed so far.
-    Rename { pane: PaneId, canvas: String, page: String, text: String },
+    /// The new name of `page`, as typed so far, in its entry's box `frame`.
+    Rename { pane: PaneId, canvas: String, page: String, text: String, frame: Rect },
     /// Whether to remove `page`, which has `items` items.
     Remove { pane: PaneId, canvas: String, page: Page, items: usize },
 }
@@ -91,12 +93,51 @@ pub struct Pages {
 }
 
 impl Pages {
-    /// Asks for a new name for page `shown` of `canvas`, in `pane`: typed keys
-    /// change its name, return keeps it, escape keeps the old one.
-    pub fn rename(&mut self, pane: PaneId, canvas: &str, shown: &Page) {
-        let (canvas, text) = (canvas.to_string(), shown.name.clone());
-        self.ask = Some(Ask::Rename { pane, canvas, page: shown.id.clone(), text });
+    /// Asks for a new name for page `shown` of `canvas`, in `pane`, whose
+    /// frame is `within`: an entry ([`Pages::entry`]) starts from the old
+    /// name; return keeps the new one, escape keeps the old one.
+    pub fn rename(&mut self, (pane, within): (PaneId, Rect), canvas: &str, shown: &Page) {
+        let (canvas, text, frame) = (canvas.to_string(), shown.name.clone(), centred(within));
+        self.ask = Some(Ask::Rename { pane, canvas, page: shown.id.clone(), text, frame });
         self.said = Some(format!("Rename “{}”", shown.name));
+    }
+
+    /// Closes the new name's entry, the old name kept. False when none is
+    /// asked.
+    pub fn cancel_rename(&mut self) -> bool {
+        let renaming = self.renaming();
+        if renaming {
+            self.ask = None;
+        }
+        renaming
+    }
+
+    /// Whether a new name is being typed: its entry has the keys.
+    pub fn renaming(&self) -> bool {
+        matches!(self.ask, Some(Ask::Rename { .. }))
+    }
+
+    /// The new name's entry is now `text`. Ignored when none is asked.
+    pub fn named(&mut self, text: &str) {
+        if let Some(Ask::Rename { text: name, .. }) = &mut self.ask {
+            *name = text.to_string();
+        }
+    }
+
+    /// The new name's entry, while it is asked, in `theme`'s colours: the
+    /// look of every entry ([`Entry::framed`]).
+    pub fn entry(&self, theme: &Theme) -> Option<Entry> {
+        let Some(Ask::Rename { text, frame, .. }) = &self.ask else { return None };
+        let keys = format!("{} renames · esc cancels", SEND.glyphs());
+        let mut entry = Entry::framed(*frame, theme, "Rename page".into(), keys);
+        entry.text.clone_from(text);
+        entry.placeholder = "a name for the page".into();
+        Some(entry)
+    }
+
+    /// Whether `at`, a point in the window, is on the new name's entry.
+    pub fn covers(&self, at: Point) -> bool {
+        matches!(&self.ask, Some(Ask::Rename { frame, .. }) if frame.contains(at))
     }
 
     /// The remove-page command on page `shown` of `canvas`, in `pane`, with
@@ -203,12 +244,10 @@ impl Pages {
         }
     }
 
-    /// What `pane` says in place of its page's line while it asks.
+    /// What `pane` says in place of its page's line while it asks whether to
+    /// remove a page (a new name has its entry).
     pub fn prompt(&self, pane: PaneId) -> Option<String> {
         match self.ask.as_ref()? {
-            Ask::Rename { pane: p, text, .. } if *p == pane => {
-                Some(format!("page name: {text}▏ (return: keep, escape: cancel)"))
-            }
             Ask::Remove { pane: p, page, items, .. } if *p == pane => {
                 let s = if *items == 1 { "" } else { "s" };
                 Some(format!(

@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** the feedback, sling and rename entries take the keyboard each
+  time they open, and get it back after you click elsewhere or switch apps,
+  so what you type lands in them. Their caret now shows on the dark box.
+  Opening feedback while the sling is open shows feedback's own entry.
+
 - **App:** a pane's footer no longer draws its page and key hints on top of
   the tool name: each part sits at its own place (left, middle, right).
 
@@ -51,6 +56,20 @@ bullet with the area in bold.
   selection. A box is picked by its outline: press inside an empty box, or
   draw a box inside it, to select it. Delete, sling and escape work as they
   do on a lasso's selection. The pointer is the normal arrow.
+
+- **App:** the key overlay (⌘/) works with the pen: tap a row to run its
+  command, tap ✕ or outside the panel to close it, and drag or scroll when
+  the rows do not fit. The row under the pen lights up.
+
+- **App:** tap a key hint in a pane's footer to open the key overlay or the
+  command palette.
+
+- **App:** a quieter look: the sidebar has its own fill and a hairline
+  edge, panes are split by hairlines and the focus border is 1 pt. The
+  sling, feedback and rename entries, the key overlay and the command
+  palette have rounded panels, key chips and a filled selected row. Renaming
+  a page now opens an entry like the sling's in its pane, not a line in the
+  footer.
 
 - **Feedback:** leave a note about slinger without leaving it. In the app,
   `leave-feedback` (⌘⇧F, or Help → Leave feedback…) opens an entry in the

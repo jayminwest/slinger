@@ -355,7 +355,8 @@ panes.rs     the window's panes: what each shows (a canvas or an agent UI, by
 scene.rs     decides what the window shows: each pane's placeholder, an
              agent UI pane's page (a Web) or its name and why it cannot
              show, a note over a UI pane whose agent did not take its reply,
-             one focus border (only with two panes or more), problems in the
+             one 1 pt focus border (only with two panes or more), the
+             sidebar's fill and the hairlines (scene/style.rs), problems in the
              focused pane, the sidebar's rows (each with its font) and
              notice, the sling's labelled entry (scene/sling.rs), each
              pane's footer (scene/status.rs) and the key overlay (an
@@ -365,13 +366,20 @@ scene.rs     decides what the window shows: each pane's placeholder, an
              decided with its gestures: the selection's box, handles and
              count (`select`), a text being typed's caret, frame and hint
              (`shapes`). Every state shows, nothing else (SPEC P6). Pure.
+scene/style.rs  the window's look in one place: corner radii, the 28 pt
+             least target for the pen, the hairline, and the surface colours
+             (sidebar, footer, panel, hover, chip, edge, selected), each
+             mixed from the Theme so a theme change follows. `rules`: the
+             sidebar's fill and edge, the line under the title bar and a
+             divider on each edge two panes share. Pure.
 scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              under which nothing of the pane shows (`content`: hit-testing,
              paint and the pan and zoom centre use it): the pen's colour
              and width (a swatch line that thick, up to a square), its
              tool and live key and `· typing` or `· N selected`; the page
              and `i/n`; the `show-keys` and `show-commands` keys, each only
-             when bound. A UI pane's has no tool part. A narrow pane drops
+             when bound, each a target the pen taps to run it. A hairline
+             tops it. A UI pane's has no tool part. A narrow pane drops
              the right part, then the middle. Pure.
 scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
              `<Tool> <key>` (a new width: `Width <n> <pick-width key>`),
@@ -422,8 +430,9 @@ scene/ink.rs  the pen's ink: the stroke under the pen and the finished changes
 scene/pages.rs  pages (SPEC D6): the next and previous page, a new page's
              name, where a pane goes when its page is removed, the page
              line, and the two questions a page command asks (a rename's
-             typed or pasted name; a removal of a page with items, asked
-             once); what each page command did, said once for the flash
+             typed or pasted name, in an entry like the sling's centred in
+             its pane; a removal of a page with items, asked once in the
+             footer); what each page command did, said once for the flash
              (`Page 2 · 2/3`, `New page: Page 3 · 3/3`, `Renamed: plan`,
              `Removed: ideas`, `The last page stays`). Pure.
 scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
@@ -470,11 +479,16 @@ scene/resize.rs  the pen on a divider between panes: the press grabs it,
              each drag resizes the panes at once, the lift names it (the
              number of the pane before it, and its share) for
              `pane_resize`. Pure.
-scene/overlay.rs  the key overlay (`show-keys`): open or closed; while
-             open it takes every key (escape and the show-keys key close it)
-             and every press (one outside the panel closes it). Its panel
-             lists Command::ALL by Group in three columns, each row a title
-             and a chip of the live key from the Keymap. Pure.
+scene/overlay.rs  the key overlay (`show-keys`): open or closed, its
+             scroll, the row under the pen and the press. While open it
+             takes every key (escape and the show-keys key close it, the
+             arrows scroll) and every press: one outside the panel or on
+             its ✕ closes it; a tap on a row (down and up on it, no drag)
+             closes it and runs the command; a drag or a scroll moves rows
+             that do not fit. Its rounded panel lists Command::ALL by Group
+             in three columns, each row 28 pt with a chip of the live key
+             from the Keymap. Line (a label, its font, its corners and edge)
+             is shared with the palette. Pure.
 scene/palette.rs  the command palette (`show-commands`): open or closed,
              what is typed and the selected row. Typing is scene-drawn: it
              reads each character from the key's Chord (no NSTextField).
@@ -482,10 +496,13 @@ scene/palette.rs  the command palette (`show-commands`): open or closed,
              a subsequence (a paste goes in too), 44 pt high, each with the group and the live
              key's chip. While open it takes every key and press; return or
              a press on a row gives back the command, which main runs as
-             its key would. It draws as the key overlay's Overlay. Pure.
+             its key would. It draws as the key overlay's Overlay: a
+             rounded panel, the search with a count, the selected row on a
+             filled slab. Pure.
 scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              selection's box (inside its pane), a labelled field: "Sling to
-             <agent>" above a 44 pt box with a focus-coloured border, and
+             <agent>" above a 44 pt rounded box with a focus-coloured
+             border on the panel colour, and
              beneath it "↩ sends · esc cancels" and the live dictate key.
              Return sends and escape cancels, the wait for the ink, the line
              while it goes, and a failure's message and hint under the entry
@@ -549,14 +566,19 @@ platform/keys.rs  a key press as a chord and the text it types (none with
              then a text being typed or a page name asked, takes it; else
              nothing. Flick's dictation pastes, so it lands there too.
 platform/overlay.rs  draws a scene's Overlay over the chrome: a box that
-             dims the window, then a text field per line.
+             dims the window, then per line a rounded box for its fill and
+             edge and a text field centred top to bottom.
 platform/chrome.rs  the focus border, and the flash's pill (a rounded box
              with its text) with the one-shot timer that ticks when it goes.
              Each canvas view sets the scene's cursor over itself (a ring is
              drawn once).
-platform/entry.rs  the sling's entry: a native text field in its box, with
-             its label and keys, kept while the scene has one, over every view; it takes the keyboard when it
-             appears, and each edit goes to main as Event::Typed. The Edit
+platform/entry.rs  the open entry (sling, feedback, rename): a native text
+             field in its box, with its label and keys, kept while the scene
+             has one, over every view; a new field for each kind of entry.
+             One focus path: each draw, and the window becoming key again,
+             give it the keyboard if it lost it, and each time it takes the
+             keyboard its caret is set to the text colour. Each edit goes to
+             main as Event::Typed. The Edit
              menu's cut, copy, paste and select all reach it along the
              responder chain: Flick's dictation pastes with cmd+V.
 platform/web.rs  agent UIs in WKWebViews: the scheme handler, navigation and

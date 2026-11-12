@@ -10,10 +10,10 @@ use slinger_control::{self as control, PaneLayout};
 
 use crate::backend::{self, Problem};
 use crate::commands::Command;
-use crate::layout::{self, Rect, Size};
+use crate::layout::{self, Point, Rect, Size};
 use crate::panes::{self, Pane, Panes};
 use crate::scene::overlay::KeyOverlay;
-use crate::scene::palette::Palette;
+use crate::scene::palette::{Palette, Taken};
 use crate::scene::resize::Dividers;
 use crate::scene::{Notes, Uis};
 use crate::ui;
@@ -79,6 +79,49 @@ impl Shared {
             self.uis.insert(name, page);
         }
         any
+    }
+
+    /// A press at `at`, a point in the window: the open palette's, else
+    /// the open key overlay's (each takes every press); with neither open,
+    /// a press on a footer's key hint (`hint`, the command under it) runs
+    /// that command, so the pen opens them with no keyboard.
+    pub fn press(&mut self, at: Point, hint: Option<Command>) -> Taken {
+        match self.palette.press(at, self.size) {
+            Taken::No => match self.overlay.press(at, self.size) {
+                Taken::No => hint.map_or(Taken::No, Taken::Run),
+                taken => taken,
+            },
+            taken => taken,
+        }
+    }
+
+    /// Whether the key overlay or the palette is open: either takes every
+    /// pen, mouse and trackpad event.
+    pub fn modal(&self) -> bool {
+        self.overlay.is_open() || self.palette.is_open()
+    }
+
+    /// The pen or the pointer, up, moved to `at`: over the open key
+    /// overlay, the row under it lights up. True when that changed.
+    pub fn hover(&mut self, at: Point) -> bool {
+        self.overlay.hover(at, self.size)
+    }
+
+    /// The pen, down, moved to `at`: the open key overlay scrolls with it.
+    /// True while the overlay or the palette is open: they take it.
+    pub fn drag(&mut self, at: Point) -> bool {
+        self.overlay.drag(at, self.size) || self.palette.is_open()
+    }
+
+    /// A scroll by `dy` points: the open key overlay's rows follow it. True
+    /// while the overlay or the palette is open: they take it.
+    pub fn scroll(&mut self, dy: f64) -> bool {
+        self.overlay.scroll(dy, self.size) || self.palette.is_open()
+    }
+
+    /// The pen lifted at `at`: a tap on a key overlay's row runs it.
+    pub fn lift(&mut self, at: Point) -> Taken {
+        self.overlay.lift(at, self.size)
     }
 
     /// Sends an agent UI's reply `line` to the daemon on `socket`, which

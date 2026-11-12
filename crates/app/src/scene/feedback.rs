@@ -15,7 +15,7 @@ use crate::commands::Chord;
 use crate::config::Theme;
 use crate::layout::{Point, Rect};
 use crate::scene::Label;
-use crate::scene::sling::{Entry, GAP, HEIGHT, Key, SEND, SMALL, WIDTH, line};
+use crate::scene::sling::{Entry, Key, SEND, centred, line};
 
 /// What the window showed when the note was left. The daemon leaves out
 /// what is absent.
@@ -64,7 +64,7 @@ impl Feedback {
             return false;
         }
         let text = self.open.take().map(|(note, ..)| note.text).unwrap_or_default();
-        self.open = Some((Note { text, context }, place(within), Stage::Typing(None)));
+        self.open = Some((Note { text, context }, centred(within), Stage::Typing(None)));
         true
     }
 
@@ -156,19 +156,6 @@ impl Feedback {
             }
         }
     }
-}
-
-/// The room the flash takes at the top of a pane: its gap and its height.
-const FLASH: f64 = 40.0;
-
-/// The entry's box in `within`: centred across it, a third of the way
-/// down, and never over the flash, which says when the note is saved.
-fn place(within: Rect) -> Rect {
-    let width = WIDTH.min(within.width - 2.0 * GAP).max(0.0);
-    let x = within.x + (within.width - width) / 2.0;
-    let top = within.y + FLASH + GAP + SMALL;
-    let y = (within.y + (within.height - HEIGHT) / 3.0).max(top);
-    Rect { x, y, width, height: HEIGHT }
 }
 
 #[cfg(test)]

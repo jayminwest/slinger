@@ -1,4 +1,5 @@
 use super::*;
+use crate::config::Rgb;
 use crate::layout;
 
 const T: Theme = Theme {
@@ -174,8 +175,9 @@ fn a_row_shows_title_group_and_key_and_the_footer_says_the_keys() {
     let at = texts.iter().position(|t| t == Command::Quit.title()).unwrap();
     assert_eq!(texts[at + 1], "Window");
     assert_eq!(texts[at + 2], "⌘Q");
-    assert_eq!(texts[2], PLACEHOLDER);
-    assert_eq!(texts.last().unwrap(), FOOTER);
+    assert_eq!(texts[1], PLACEHOLDER);
+    assert_eq!(texts[2], format!("{n} of {n}", n = Command::ALL.len()));
+    assert_eq!(texts[texts.len() - 2..], [FOOTER, PEN]);
 }
 
 #[test]
@@ -191,6 +193,33 @@ fn the_selection_stays_in_view_and_is_filled() {
     assert!(texts.contains(&selected.to_string()));
     assert!(!texts.contains(&Command::ALL[0].0.title().to_string()), "the first scrolled off");
     let shown = palette.shown(&keys, &T, layout::WINDOW).unwrap();
-    let filled = shown.lines.iter().filter(|l| l.label.fill == Some(T.focus)).count();
-    assert_eq!(filled, 1);
+    let filled = shown.lines.iter().filter(|l| l.label.fill == Some(style::selected(&T)));
+    assert_eq!(filled.map(|l| l.radius).collect::<Vec<_>>(), [style::ROW_RADIUS]);
+}
+
+#[test]
+fn the_selected_row_reads_on_its_fill_and_the_panel_is_rounded_with_a_hairline() {
+    let keys = Keymap::default();
+    let shown = open().shown(&keys, &T, layout::WINDOW).unwrap();
+    let panel = &shown.lines[0];
+    assert_eq!((panel.label.fill, panel.edge), (Some(style::panel(&T)), Some(style::edge(&T))));
+    assert_eq!(panel.radius, style::PANEL_RADIUS);
+    let first = Command::ALL[0].0;
+    let group = first.group().title();
+    let label = |n: usize| {
+        let row = place(layout::WINDOW).row(u32::try_from(n).unwrap());
+        let lines = shown.lines.iter().filter(|l| l.label.frame.y >= row.y);
+        lines.filter(|l| l.label.frame.y < row.y + row.height).cloned().collect::<Vec<_>>()
+    };
+    let selected = label(0);
+    let named = selected.iter().find(|l| l.label.text == group).unwrap();
+    assert_eq!(named.label.colour, style::selected_label(&T), "the group reads on the blue");
+    let chip = selected.iter().find(|l| l.radius == style::CHIP_RADIUS).unwrap();
+    assert_eq!(chip.label.fill, Some(T.background));
+    let other = label(1);
+    let chip = other.iter().find(|l| l.radius == style::CHIP_RADIUS).unwrap();
+    assert_eq!(chip.label.fill, Some(style::chip(&T)));
+    let title = other.iter().find(|l| l.label.text == Command::ALL[1].0.title()).unwrap();
+    let middle = |f: Rect| f.y + f.height / 2.0;
+    assert!((middle(chip.label.frame) - middle(title.label.frame)).abs() < 1e-9, "centred");
 }
