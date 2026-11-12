@@ -28,6 +28,7 @@ fn canvas(frame: Rect, keys: &Keymap, pen: Pen, sidebar: bool) -> Footer {
         close: true,
         sling: false,
         agent: None,
+        profiles: false,
     };
     footer(frame, &T, keys, &shows)
 }
@@ -220,6 +221,7 @@ fn an_agent_ui_pane_s_footer_has_its_name_the_pane_buttons_and_the_keys() {
         close: false,
         sling: false,
         agent: None,
+        profiles: false,
     };
     let footer = footer(PANE, &T, &keys, &shows);
     assert_eq!(footer.marks, [], "no swatch, no width bars");
@@ -286,6 +288,7 @@ fn the_pane_shows_its_content_above_the_footer() {
         close: false,
         sling: false,
         agent: None,
+        profiles: false,
     };
     let footer = footer(short, &T, &Keymap::default(), &shows);
     assert_eq!(footer.frame, short, "a pane shorter than a footer is all footer");
@@ -309,6 +312,7 @@ fn slinging(width: f64, agent: Option<(&str, Option<Status>)>) -> Footer {
         close: true,
         sling: true,
         agent,
+        profiles: false,
     };
     footer(Rect { width, ..PANE }, &T, &Keymap::default(), &shows)
 }
@@ -337,6 +341,30 @@ fn a_canvas_footer_names_its_agent_and_slings_in_one_tap() {
     let alone = slinging(1200.0, None);
     assert_eq!(sling_run(&alone).colour, T.muted, "no agent");
     assert!(!said_of(&alone).iter().any(|s| s.contains("scout")));
+}
+
+#[test]
+fn an_agent_with_profiles_opens_them_with_a_tap_on_its_name() {
+    let agent = Some(("scout (dev)", Some(Status::Working)));
+    let none = slinging(1200.0, agent);
+    assert!(said_has(&none, "● scout (dev) · working"), "{:?}", said_of(&none));
+    assert!(!taps(&none).contains(&Tap::Profiles), "nothing to pick");
+    let shows = |profiles| Shows {
+        pen: None,
+        centre: "",
+        pages: false,
+        zoom: None,
+        sidebar: false,
+        close: false,
+        sling: true,
+        agent,
+        profiles,
+    };
+    let picks = footer(PANE, &T, &Keymap::default(), &shows(true));
+    let at = picks.targets.iter().find(|t| t.1 == Tap::Profiles).expect("a target").0;
+    let name = picks.parts.iter().find(|p| p.runs.iter().any(|r| r.text.contains("scout")));
+    let x = name.map(|p| (p.frame.x, p.frame.width));
+    assert_eq!(x, Some((at.x, at.width)), "the agent's name is the target");
 }
 
 #[test]

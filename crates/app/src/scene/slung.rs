@@ -11,11 +11,12 @@
 //! held inside the pane when that place is off screen; a sling of the whole
 //! page from the footer pins it to the pane's top left. It says, in turn:
 //!
-//! - `● scout working · 4s · ~12k` from the moment the sling is in the
+//! - `● scout working · 4s · ~12k` (`● scout (dev) working …` under a
+//!   profile) from the moment the sling is in the
 //!   agent's process until it answers, the time counting each second (each
 //!   minute past one, so the window is drawn at most once a second), then
 //!   about how many tokens the agent reads for it, when the daemon counts;
-//! - `■ scout blocked: <note> · ~12k` while the agent says it waits;
+//! - `■ scout blocked: <note> · ~12k` (its profile named too) while the agent says it waits;
 //! - `✓ scout answered · 2 new items` once it answered, with an arrow
 //!   toward them (`→`) when none of them shows in the pane: a tap pans
 //!   there, and the next tap clears it;
@@ -25,7 +26,8 @@
 //! - `✗ <why>` with the hint under it when a tapped sling did not go, the
 //!   agent's process ended before it answered, or the daemon went away.
 //!
-//! The sling going flashes "Slung to scout", its answer "scout answered"
+//! The sling going flashes "Slung to scout" ("Slung to scout (dev)" under
+//! a profile), its answer "scout answered"
 //! (or "scout answered in text"). The agent's items can land after the
 //! daemon says it answered: an answer with none yet waits [`SETTLE`] for
 //! them before it says "in text", and its pill says only `✓ scout
@@ -41,7 +43,7 @@ use crate::scene::canvas::ItemId;
 use crate::scene::overlay::{Align, Line, Overlay};
 use crate::scene::taps::{Tap, Target};
 use crate::scene::{Label, glyphs, style};
-use words::{arrow, cost, count, elapsed, page};
+use words::{cost, count, elapsed, page};
 
 /// How long an answer or a failure stays untapped.
 pub const CLEAR: Duration = Duration::from_secs(30);
@@ -71,6 +73,8 @@ pub struct Progress {
     pub blocked: Option<String>,
     /// The text of its last answer.
     pub answer: Option<String>,
+    /// The profile its process runs under, when it runs under one.
+    pub profile: Option<String>,
 }
 
 /// One canvas pane as the pill sees it: its frame in the window (above its
@@ -140,6 +144,9 @@ struct Out {
     /// it are its answer.
     newest: ItemId,
     agent: String,
+    /// The profile it goes under, when the agent runs under one: as aimed,
+    /// then as the agent's session says while it works.
+    under: Option<String>,
     /// About how many tokens the agent reads for it, when the daemon said.
     tokens: Option<u64>,
     went: Instant,
@@ -162,12 +169,13 @@ pub struct Slung {
 
 impl Slung {
     /// A sling of `page` of `canvas` leaves from `at` (canvas units; `None`:
-    /// the page as a whole) at `now`, with `newest` the newest item there.
-    /// What showed for the last sling goes.
+    /// the page as a whole) at `now`, under the profile `under`, with
+    /// `newest` the newest item there. What showed for the last sling goes.
     pub fn aim(
         &mut self,
         (canvas, page): (&str, &str),
         at: Option<Rect>,
+        under: Option<&str>,
         newest: ItemId,
         now: Instant,
     ) {
@@ -180,6 +188,7 @@ impl Slung {
             at,
             newest,
             agent,
+            under: under.map(str::to_string),
             tokens: None,
             went: now,
             stage,
@@ -199,7 +208,7 @@ impl Slung {
         let Some(out) = self.out.as_mut().filter(|o| o.stage == Stage::Aimed) else { return false };
         (out.agent, out.tokens, out.went) = (agent.to_string(), tokens, now);
         out.to(Stage::Working, now);
-        self.flash = Some(format!("Slung to {agent}"));
+        self.flash = Some(format!("Slung to {}", out.who()));
         true
     }
 
@@ -228,6 +237,12 @@ impl Slung {
         if !matches!(out.stage, Stage::Working | Stage::Blocked(_)) {
             return false;
         }
+        // The sidebar's last poll may predate a restart: the running
+        // process's own profile is the one it works under.
+        let renamed = progress.running && out.under != progress.profile;
+        if renamed {
+            out.under.clone_from(&progress.profile);
+        }
         let next = if !progress.running {
             Stage::Stopped
         } else if progress.pending == 0 {
@@ -242,7 +257,7 @@ impl Slung {
             out.to(next, now);
         }
         self.tell(now);
-        changed
+        changed || renamed
     }
 
     /// Flashes the answer once what it brought is known: its items landed,
@@ -355,16 +370,16 @@ impl Slung {
     pub fn marks(&self, theme: &Theme, views: &[View], now: Instant) -> Marks {
         let Some(out) = &self.out else { return Marks::default() };
         let Some((_, view)) = out.view(views) else { return Marks::default() };
-        let (agent, cost) = (&out.agent, cost(out.tokens));
+        let (who, cost) = (out.who(), cost(out.tokens));
         let (text, colour, under) = match &out.stage {
             Stage::Aimed => return Marks::default(),
             Stage::Working => {
                 let time = elapsed(now.saturating_duration_since(out.went));
-                (format!("● {agent} working · {time}{cost}"), theme.text, Vec::new())
+                (format!("● {who} working · {time}{cost}"), theme.text, Vec::new())
             }
             Stage::Blocked(note) => {
                 let note = if note.is_empty() { String::new() } else { format!(": {note}") };
-                (format!("■ {agent} blocked{note}{cost}"), theme.error, Vec::new())
+                (format!("■ {who} blocked{note}{cost}"), theme.error, Vec::new())
             }
             Stage::Answered(answer) => {
                 (out.answered(answer.is_some(), &view), theme.text, Vec::new())
@@ -429,69 +444,7 @@ impl Slung {
     }
 }
 
-impl Out {
-    /// Moves to `stage` at `now`; an answer opened closes.
-    fn to(&mut self, stage: Stage, now: Instant) {
-        (self.stage, self.since, self.reading) = (stage, now, false);
-    }
-
-    /// The pane of `views` to show the pill in, with its index: the focused
-    /// one when it shows the sling's page, else the first that does, else
-    /// the focused one.
-    fn view<'v>(&self, views: &[View<'v>]) -> Option<(usize, View<'v>)> {
-        let here = |v: &View| v.canvas == self.canvas && v.page == self.page;
-        let found = views.iter().position(|v| here(v) && v.focused);
-        let found = found.or_else(|| views.iter().position(here));
-        let found = found.or_else(|| views.iter().position(|v| v.focused))?;
-        Some((found, views[found]))
-    }
-
-    /// Whether `view` shows the sling's page.
-    fn shows(&self, view: &View) -> bool {
-        view.canvas == self.canvas && view.page == self.page
-    }
-
-    /// The box of the agent's new items when `view` shows none of them.
-    fn away(&self, view: &View) -> Option<Rect> {
-        let seen =
-            view.viewport.visible(Size { width: view.frame.width, height: view.frame.height });
-        let all = self.items.iter().map(|(_, frame)| *frame).reduce(Rect::union)?;
-        let shown =
-            self.shows(view) && self.items.iter().any(|(_, f)| f.intersection(seen).is_some());
-        (!shown).then_some(all)
-    }
-
-    /// What the pill says once the agent answered (`text`: with words).
-    fn answered(&self, text: bool, view: &View) -> String {
-        let agent = &self.agent;
-        match self.items.len() {
-            0 if !self.told => format!("✓ {agent} answered"),
-            0 if text => format!("✓ {agent} answered in text · tap to read"),
-            0 => format!("✓ {agent} is done, with nothing on the canvas"),
-            n => {
-                let items =
-                    if n == 1 { "1 new item".to_string() } else { format!("{n} new items") };
-                let arrow = self.away(view).map(|away| arrow(away, view)).unwrap_or_default();
-                format!("✓ {agent} answered · {items}{arrow}")
-            }
-        }
-    }
-
-    /// The pill's frame, `size` with the lines under it, in `view`: under
-    /// where the sling was made, or at the pane's top left; inside the pane.
-    fn place(&self, view: &View, size: Size) -> Rect {
-        let frame = view.frame;
-        let at = self.at.filter(|_| self.shows(view)).map(|at| view.viewport.rect_to_screen(at));
-        let (x, y) = match at {
-            Some(at) => (frame.x + at.x, frame.y + at.y + at.height + GAP),
-            None => (frame.x + GAP, frame.y + GAP),
-        };
-        let x = x.min(frame.x + frame.width - size.width - GAP).max(frame.x + GAP);
-        let y = y.min(frame.y + frame.height - size.height - GAP).max(frame.y + GAP);
-        Rect { x, y, width: size.width, height: HIGH }
-    }
-}
-
+mod out;
 mod words;
 
 #[cfg(test)]

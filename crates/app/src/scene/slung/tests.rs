@@ -20,17 +20,18 @@ fn view(focused: bool) -> View<'static> {
 }
 
 fn working(pending: u32) -> Progress {
-    Progress { running: true, pending, blocked: None, answer: None }
+    Progress { running: true, pending, blocked: None, answer: None, profile: None }
 }
 
 fn answered(answer: Option<&str>) -> Progress {
-    Progress { running: true, pending: 0, blocked: None, answer: answer.map(str::to_string) }
+    let answer = answer.map(str::to_string);
+    Progress { running: true, pending: 0, blocked: None, answer, profile: None }
 }
 
 /// A sling of page p1 of notes made at [`AT`] at `now`, gone to scout.
 fn out(now: Instant) -> Slung {
     let mut slung = Slung::default();
-    slung.aim(("notes", "p1"), Some(AT), ItemId(5), now);
+    slung.aim(("notes", "p1"), Some(AT), None, ItemId(5), now);
     assert_eq!(slung.marks(&T, &[view(true)], now), Marks::default(), "the entry's line says it");
     assert!(slung.went("scout", None, now));
     slung
@@ -43,6 +44,41 @@ fn said(slung: &Slung, views: &[View], now: Instant) -> Vec<String> {
 
 fn agent_item(id: u64, frame: Rect) -> (ItemId, Rect, Option<&'static str>) {
     (ItemId(id), frame, Some("agent:scout"))
+}
+
+#[test]
+fn a_sling_under_a_profile_names_it_when_it_goes() {
+    let (now, mut slung) = (Instant::now(), Slung::default());
+    slung.aim(("notes", "p1"), Some(AT), Some("dev"), ItemId(5), now);
+    assert!(slung.went("scout", None, now));
+    assert_eq!(slung.flash().as_deref(), Some("Slung to scout (dev)"));
+    let dev = || Progress { profile: Some("dev".into()), ..working(1) };
+    assert!(!slung.heard(&dev(), now), "the same profile");
+    assert_eq!(said(&slung, &[view(true)], now), ["● scout (dev) working · 0s"]);
+    let blocked = Progress { blocked: Some("which key?".into()), ..dev() };
+    assert!(slung.heard(&blocked, now));
+    assert_eq!(said(&slung, &[view(true)], now), ["■ scout (dev) blocked: which key?"]);
+}
+
+#[test]
+fn the_pill_names_the_profile_the_agent_s_process_says_it_runs_under() {
+    let now = Instant::now();
+    let mut slung = Slung::default();
+    slung.aim(("notes", "p1"), Some(AT), Some("old"), ItemId(5), now);
+    assert!(slung.went("scout", None, now));
+    let plain = slung.marks(&T, &[view(true)], now).all()[0].frame.width;
+    let look = Progress { profile: Some("look".into()), ..working(1) };
+    assert!(slung.heard(&look, now), "restarted under another since the sidebar heard");
+    let line = &slung.marks(&T, &[view(true)], now).all()[0];
+    assert_eq!(line.text, "● scout (look) working · 0s");
+    let measured = glyphs::frame(Point { x: 0.0, y: 0.0 }, &line.text, TEXT, glyphs::UNWRAPPED);
+    assert_eq!(line.frame.width, (measured.width + 2.0 * PAD).max(HIGH), "as wide as it says");
+    assert!(line.frame.width > plain, "{} after {plain}", line.frame.width);
+    assert!(slung.heard(&working(1), now), "under none now");
+    assert_eq!(said(&slung, &[view(true)], now), ["● scout working · 0s"]);
+    let gone = Progress { running: false, profile: None, ..look };
+    assert!(slung.heard(&gone, now));
+    assert_eq!(said(&slung, &[view(true)], now)[0], "✗ scout stopped before it answered");
 }
 
 #[test]
@@ -166,7 +202,7 @@ fn a_long_answer_shows_its_start_and_where_the_rest_is() {
 fn the_pill_says_what_the_sling_costs_when_the_daemon_counts_it() {
     let now = Instant::now();
     let mut slung = Slung::default();
-    slung.aim(("notes", "p1"), Some(AT), ItemId(5), now);
+    slung.aim(("notes", "p1"), Some(AT), None, ItemId(5), now);
     assert!(slung.went("scout", Some(12_345), now));
     assert_eq!(said(&slung, &[view(true)], now), ["● scout working · 0s · ~12k"]);
     let blocked = Progress { blocked: Some("which key?".into()), ..working(1) };
@@ -213,13 +249,13 @@ fn a_sling_that_did_not_go_says_why_unless_its_entry_does() {
     let now = Instant::now();
     let problem = Problem { message: "scout is not running".into(), hint: Some("start it".into()) };
     let mut slung = Slung::default();
-    slung.aim(("notes", "p1"), Some(AT), ItemId(5), now);
+    slung.aim(("notes", "p1"), Some(AT), None, ItemId(5), now);
     assert!(slung.failed(problem.clone(), now));
     assert_eq!(said(&slung, &[view(true)], now), ["✗ scout is not running", "start it"]);
     assert_eq!(slung.tapped(&[view(true)]), Tapped::Changed, "a tap clears it");
     assert!(!slung.failed(problem, now), "nothing out");
 
-    slung.aim(("notes", "p1"), Some(AT), ItemId(5), now);
+    slung.aim(("notes", "p1"), Some(AT), None, ItemId(5), now);
     slung.forget();
     assert_eq!(slung.watching(), None);
     assert_eq!(slung.marks(&T, &[view(true)], now), Marks::default());
@@ -239,13 +275,13 @@ fn a_lost_daemon_while_the_agent_works_says_so() {
 fn a_page_sling_pins_the_pill_and_it_stays_inside_its_pane() {
     let now = Instant::now();
     let mut slung = Slung::default();
-    slung.aim(("notes", "p1"), None, ItemId(0), now);
+    slung.aim(("notes", "p1"), None, None, ItemId(0), now);
     slung.went("scout", None, now);
     let pill = slung.marks(&T, &[view(true)], now).all()[0].frame;
     assert_eq!((pill.x, pill.y), (PANE.x + GAP, PANE.y + GAP), "the pane's top left");
 
     let mut low = Slung::default();
-    low.aim(("notes", "p1"), Some(Rect { x: 790.0, y: 590.0, ..AT }), ItemId(0), now);
+    low.aim(("notes", "p1"), Some(Rect { x: 790.0, y: 590.0, ..AT }), None, ItemId(0), now);
     low.went("scout", None, now);
     let pill = low.marks(&T, &[view(true)], now).all()[0].frame;
     assert!(pill.x + pill.width <= PANE.x + PANE.width - GAP, "{pill:?}");
@@ -257,7 +293,7 @@ fn a_sling_at_the_pane_s_top_left_puts_the_pill_under_it_its_text_on_its_fill() 
     let now = Instant::now();
     let mut slung = Slung::default();
     let corner = Rect { x: 0.0, y: 0.0, width: 40.0, height: 30.0 };
-    slung.aim(("notes", "p1"), Some(corner), ItemId(0), now);
+    slung.aim(("notes", "p1"), Some(corner), None, ItemId(0), now);
     slung.went("scout", None, now);
     let line = slung.marks(&T, &[view(true)], now).pill.expect("the pill");
     let pill = &line.label;
@@ -289,7 +325,7 @@ fn a_new_sling_takes_the_last_one_s_place() {
     let now = Instant::now();
     let mut slung = out(now);
     slung.heard(&answered(Some("ok")), now);
-    slung.aim(("notes", "p2"), None, ItemId(9), now);
+    slung.aim(("notes", "p2"), None, None, ItemId(9), now);
     assert_eq!(slung.marks(&T, &[view(true)], now), Marks::default());
     assert_eq!(slung.watching(), None, "on its way");
 }
