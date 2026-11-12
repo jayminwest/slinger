@@ -11,6 +11,8 @@ bullet with the area in bold.
 
 ### Added
 
+- **CLI:** `slinger sling send --json` reports `tokens`: about how many
+  tokens the agent reads for the sling, its note and prompt included.
 - **App:** rename a page and leave feedback with the pen alone. Their
   entries have buttons beside them: ✓ Rename or ✓ Save does what return
   does, ✕ what escape does, and Dictate has Flick write the text in, as
@@ -24,7 +26,8 @@ bullet with the area in bold.
   dev` runs the agent under it, in a conversation of its own, and `slinger
   sling send --profile dev` sends only to an agent running under it. A
   start with no profile keeps the agent's own narrow limits, and a tool
-  slinger does not know is refused rather than passed on. `profile list`
+  slinger does not know is refused rather than passed on; MCP tools
+  (`mcp__server__tool`) are taken. `profile list`
   and `profile remove` show and drop them; they live in
   `slinger-workspace.toml` under `[[agent.profile]]`.
 - **Canvas:** `canvas apply` can add items and the arrows between them in
@@ -127,6 +130,11 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Agents:** a workspace's `agent.tools` must now be rules slinger knows,
+  as a profile's are: a tool such as `Edit`, `Bash(git *)` or
+  `Bash(git:*)`, or an MCP tool (`mcp__server__tool`). A file with another
+  rule, or an agent name with a `#`, is refused with a hint naming it, so
+  fix or drop that entry in `slinger-workspace.toml`.
 - **App:** a page menu with more pages than fit shows ▲ or ▼ at the end of
   its top or bottom page row while more pages are above or below.
 - **App:** a footer button's tip now sits on a small panel with rounded

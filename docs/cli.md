@@ -54,7 +54,7 @@ a "did you mean" suggestion.
 | `profile list <WORKSPACE>` | One line per profile, in its file's order: name, directory (`-` for the agent's home) and rules joined by `, ` (`-` for none), separated by tabs. `--json`: `workspace`, `profiles` |
 | `profile set <WORKSPACE> <NAME> [--dir DIR] [--tool RULE]...`, `profile remove <WORKSPACE> <NAME>` | Nothing. `--json`: `workspace`, `profiles` |
 | `session send <WORKSPACE> <TEXT\|->` | Nothing. `--json`: `session` |
-| `sling send <ID> [--page PAGE] [--select IDS] [--prompt TEXT\|-] [--profile NAME]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id` |
+| `sling send <ID> [--page PAGE] [--select IDS] [--prompt TEXT\|-] [--profile NAME]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id`, `tokens` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
 | `file touched (<PATH> \| --hook) [--agent NAME]` | Nothing. `--json`: `agent`, `path`, `hash`, `event` |
 | `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --ink PTS \| --arrow FROM TO) [--color COLOR] [--at X,Y] [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
@@ -71,7 +71,8 @@ Code permission rules a session under it may use, in place of the agent's
 own. `profile set` replaces a profile of that name whole; `--tool` takes one
 rule and repeats (`--tool Edit --tool 'Bash(git *)'`), and `--dir` is taken
 from the current directory when relative. A name, a rule or a tool slinger
-does not know exits 5 (`invalid`) with a hint listing the tools; a `--dir`
+does not know exits 5 (`invalid`) with a hint listing the tools (an MCP
+tool, `mcp__server__tool`, is taken too); a `--dir`
 that is not there, or a profile `remove` does not find, exits 3
 (`not_found`). `session start --profile NAME` starts the agent under that
 profile, in its own conversation. `sling send --profile NAME` sends only if
