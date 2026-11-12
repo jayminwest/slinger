@@ -36,7 +36,7 @@ pub use processes::{ProcessError, Processes, Shown};
 pub use server::{Server, StartError, Stopper};
 pub use sessions::{SessionError, Sessions};
 pub use store::{CLAUDE, Query, SLINGER, Store, StoreError, default_data_dir, machine_name};
-pub use workspaces::{Opened, WorkspaceError, Workspaces};
+pub use workspaces::{Broken, Listed, Opened, WorkspaceError, Workspaces};
 
 const HELP_HINT: &str = "run 'slingerd --help'";
 /// Help for `--socket`: a string, because a doc comment may not hold `$XDG_RUNTIME_DIR` bare.
@@ -110,7 +110,7 @@ fn report(
             let socket = args.socket.unwrap_or_else(control::default_socket);
             let slinger = args.slinger.unwrap_or_else(beside_me);
             let programs = (args.claude, slinger);
-            match serve(&socket, args.data_dir, programs, args.feedback) {
+            match serve(&socket, args.data_dir, programs, args.feedback, err) {
                 Ok(()) => return Ok(exit::OK),
                 Err(failure) => failure,
             }
@@ -133,6 +133,19 @@ fn report(
     Ok(code)
 }
 
+/// Writes one warning per open workspace whose file cannot be used: the
+/// file, what is wrong and the hint. The others serve; so does the daemon.
+fn warn_broken(workspaces: &Workspaces, err: &mut dyn Write) -> io::Result<()> {
+    let Ok(all) = workspaces.list() else { return Ok(()) };
+    for broken in all.into_iter().filter_map(Listed::broken) {
+        writeln!(err, "slingerd: workspace not loaded: {}", broken.error)?;
+        if let Some(hint) = broken.error.hint() {
+            writeln!(err, "  {hint}")?;
+        }
+    }
+    Ok(())
+}
+
 /// The `slinger` installed beside this `slingerd`, else the name alone, to
 /// look up on `PATH`.
 fn beside_me() -> PathBuf {
@@ -142,12 +155,14 @@ fn beside_me() -> PathBuf {
 
 /// Serves the record in `data_dir` on `socket`, with the agents' `claude`
 /// and `slinger` programs, writing feedback to `feedback` (by default
-/// [`feedback::default_file`]).
+/// [`feedback::default_file`]). Names each open workspace whose file it
+/// cannot use on `err`, once, before it serves.
 fn serve(
     socket: &Path,
     data_dir: Option<PathBuf>,
     (claude, slinger): (PathBuf, PathBuf),
     feedback: Option<PathBuf>,
+    err: &mut dyn Write,
 ) -> Result<(), Failure> {
     let internal = |e: io::Error| (exit::ERROR, e.to_string(), None);
     let code = |code: &str| if code == "conflict" { exit::CONFLICT } else { exit::ERROR };
@@ -165,6 +180,7 @@ fn serve(
         .with_claude(claude)
         .with_slinger(slinger)
         .with_feedback(feedback.unwrap_or_else(|| feedback::default_file(&dir)));
+    warn_broken(store.workspaces(), err).map_err(internal)?;
     let stopper = server.stopper();
     let mut signals = Signals::new([SIGTERM, SIGINT]).map_err(internal)?;
     std::thread::spawn(move || {

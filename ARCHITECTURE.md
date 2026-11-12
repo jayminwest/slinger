@@ -142,7 +142,10 @@ workspace.rs workspaces (SPEC section 10): the definition file's format
              (docs/workspace.md), the rules a set of them keeps (one primary
              root, name and canvas each), what a new one gets (slug of its
              name) and which workspace an event's canvas or agent tags. No IO;
-             callers read and write the bytes.
+             callers read and write the bytes. `peek` reads the name and
+             canvas of a file that breaks a rule, for listing it only.
+workspace/rules.rs  the rules: one workspace's (`Workspace::read` refuses
+             with a `Rejected` that names the field) and a set's (`check`).
 workspace/panes.rs  a workspace's panes (SPEC section 7): the tree of panes
              (a canvas or a UI each) and splits, numbered in order; open
              beside a pane or the window, close (the sibling takes the
@@ -211,7 +214,10 @@ server/import.rs  `canvas_import`: reads the client's file, calls the tldraw
              importer, stores the canvas, replies with the counts.
 workspaces.rs the open workspaces: the list of directories that hold their
              files (`workspaces/open.json`), written whole; the files are read
-             on every request and checked by the core's rules. The store asks
+             on every request and checked by the core's rules, each on its
+             own: a file that breaks one is listed `Broken` with its error
+             (`slingerd` names it on stderr at startup) and every verb on
+             that workspace fails with it; the others serve. The store asks
              it for the workspace tag of each event it appends. `panes`
              changes a workspace's layout under the list's lock and writes
              the file whole when it changed; `edit` does the same for any
@@ -1004,7 +1010,7 @@ Each boundary has something that fails when it is broken:
 | A canvas survives a restart; concurrent changes are numbered with no gap | `crates/daemon/src/tests/canvas.rs`, through a real socket |
 | `canvas read`: only ink after the marker is new; each packet and image is a blob; the stored text has no `at` | `crates/core/tests/canvas_packet.rs` and `crates/daemon/src/tests/read.rs`, through a real socket |
 | An imported canvas reads back with the importer's pages, ids and arrow ends | `crates/core/tests/canvas_import.rs` and `crates/daemon/src/tests/import.rs`, on the real board |
-| Open workspaces survive a restart; each has its canvas; one primary root per workspace | `crates/daemon/src/tests/workspace.rs`, through a real socket |
+| Open workspaces survive a restart; each has its canvas; one primary root per workspace; a broken file is listed with its error, fails every verb on it, and leaves the others served | `crates/daemon/src/tests/workspace.rs`, through a real socket; `crates/cli/src/tests/workspace.rs` |
 | The change feed wakes a waiting client on another's change; a stop ends a wait | `crates/daemon/src/tests/feed.rs`, through a real socket |
 | SIGTERM ends the daemon cleanly, with a client waiting on a feed | `crates/daemon/tests/signals.rs`, against the real binary |
 | A crop is limited in size; an empty box is a white image; an unknown id is `not_found` | `crates/core/tests/canvas_look.rs`, and `crates/daemon/src/tests/look.rs` through a real socket |
