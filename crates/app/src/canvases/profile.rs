@@ -118,6 +118,10 @@ mod tests {
             assert!(canvases.sling_under(&panes, WINDOW.rect(), 1));
             let message = delivered(dev.path(), "canvas=notes");
             assert!(message.contains("c1 ink"), "{message}");
+            wait_until(|| {
+                canvases.poll();
+                canvases.said().as_deref() == Some("Slung to scout (dev)")
+            });
             assert_eq!(daemon.session_show("scout").unwrap().profile, Some("dev".into()));
             daemon.session_stop("notes").unwrap();
         });

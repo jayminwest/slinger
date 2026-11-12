@@ -94,7 +94,11 @@ impl Canvases {
             ask.prompt.clone_from(&self.prompt);
         }
         let (at, newest) = self.made_at(&ask);
-        self.slung.aim((&ask.canvas, &ask.page), at, newest, Instant::now());
+        let under = match &ask.profile {
+            Profile::Picked(picked) => picked.clone(),
+            Profile::Running => self.agent_of(&ask.canvas).and_then(|a| a.profile.clone()),
+        };
+        self.slung.aim((&ask.canvas, &ask.page), at, under.as_deref(), newest, Instant::now());
         self.slinger.send(ask);
     }
 

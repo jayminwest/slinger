@@ -25,7 +25,8 @@
 //! - `✗ <why>` with the hint under it when a tapped sling did not go, the
 //!   agent's process ended before it answered, or the daemon went away.
 //!
-//! The sling going flashes "Slung to scout", its answer "scout answered"
+//! The sling going flashes "Slung to scout" ("Slung to scout (dev)" under
+//! a profile), its answer "scout answered"
 //! (or "scout answered in text"). The agent's items can land after the
 //! daemon says it answered: an answer with none yet waits [`SETTLE`] for
 //! them before it says "in text", and its pill says only `✓ scout
@@ -140,6 +141,8 @@ struct Out {
     /// it are its answer.
     newest: ItemId,
     agent: String,
+    /// The profile it goes under, when the agent runs under one.
+    under: Option<String>,
     /// About how many tokens the agent reads for it, when the daemon said.
     tokens: Option<u64>,
     went: Instant,
@@ -162,12 +165,13 @@ pub struct Slung {
 
 impl Slung {
     /// A sling of `page` of `canvas` leaves from `at` (canvas units; `None`:
-    /// the page as a whole) at `now`, with `newest` the newest item there.
-    /// What showed for the last sling goes.
+    /// the page as a whole) at `now`, under the profile `under`, with
+    /// `newest` the newest item there. What showed for the last sling goes.
     pub fn aim(
         &mut self,
         (canvas, page): (&str, &str),
         at: Option<Rect>,
+        under: Option<&str>,
         newest: ItemId,
         now: Instant,
     ) {
@@ -180,6 +184,7 @@ impl Slung {
             at,
             newest,
             agent,
+            under: under.map(str::to_string),
             tokens: None,
             went: now,
             stage,
@@ -199,7 +204,8 @@ impl Slung {
         let Some(out) = self.out.as_mut().filter(|o| o.stage == Stage::Aimed) else { return false };
         (out.agent, out.tokens, out.went) = (agent.to_string(), tokens, now);
         out.to(Stage::Working, now);
-        self.flash = Some(format!("Slung to {agent}"));
+        let under = out.under.as_ref().map(|p| format!(" ({p})")).unwrap_or_default();
+        self.flash = Some(format!("Slung to {agent}{under}"));
         true
     }
 
