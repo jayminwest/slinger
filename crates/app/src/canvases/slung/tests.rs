@@ -1,7 +1,7 @@
 use slinger_control::{Client, Put};
 
 use super::*;
-use crate::backend::testing::{fake_claude, user_stroke, wait_until, waiting_claude};
+use crate::backend::testing::{delivered, fake_claude, user_stroke, wait_until, waiting_claude};
 use crate::backend::tests::{open_notes, with_store};
 use crate::commands::Command;
 use crate::config::{Config, Rgb};
@@ -47,16 +47,6 @@ fn select_the_stroke(canvases: &mut Canvases, panes: &Panes) {
     }
     canvases.pen_up(panes, pen(50.0, 50.0), Some((panes.focus(), area)));
     assert!(canvases.selection().is_some());
-}
-
-/// What the agent's process read, once it holds `want`.
-fn delivered(home: &std::path::Path, want: &str) -> String {
-    let mut message = String::new();
-    wait_until(|| {
-        message = std::fs::read_to_string(home.join("in.txt")).unwrap_or_default();
-        message.contains(want)
-    });
-    message
 }
 
 /// The texts of the sling's marks, polling until one starts with `start`.
