@@ -596,8 +596,10 @@ scene/palette.rs  the command palette (`show-commands`): open or closed,
              what is typed and the selected row. Typing is scene-drawn: it
              reads each character from the key's Chord (no NSTextField).
              Rows are Command::ALL whose title and group hold the typing as
-             a subsequence (a paste goes in too), 44 pt high, each with the group and the live
-             key's chip. While open it takes every key and press; return or
+             a subsequence (a paste goes in too), ranked: title prefix,
+             word start, title subsequence, then group. Empty, the command
+             it last ran leads, then by Group::ALL with Quit last. 44 pt
+             high, each with the group and the live key's chip. While open it takes every key and press; return or
              a press on a row gives back the command, which main runs as
              its key would. It draws as the key overlay's Overlay: a
              rounded panel, the search with a count, the selected row on a
