@@ -8,7 +8,8 @@
 //! viewport and the pen's ink), `scene` decides what the window shows (the
 //! agents' statuses in `scene::sidebar`), `ui` holds an agent UI's page and
 //! its bridge, `layout` does the geometry, `window` runs a command and builds the
-//! window's scene, and `platform` draws.
+//! window's scene, `route` routes each event the window hears, and
+//! `platform` draws.
 //! Only `platform` touches `AppKit`, and only this file starts it (gate
 //! check:layers).
 //!
@@ -26,6 +27,7 @@ mod layout;
 mod mirror;
 mod panes;
 mod platform;
+mod route;
 mod scene;
 mod shared;
 mod ui;
@@ -46,12 +48,13 @@ use crate::config::Shown;
 use crate::layout::{Point, Rect};
 use crate::panes::Panes;
 use crate::platform::{Event, Step};
+use crate::route::{Routed, route};
 use crate::scene::paste::Clip;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::taps::{Tap, Target, Took};
 use crate::scene::tools::{Kind, Tools};
 use crate::shared::Shared;
-use crate::window::{Edited, grabs, pane_at, run, tap, view};
+use crate::window::{Edited, grabs, pane_at, view};
 
 fn main() -> ExitCode {
     let settings = backend::Settings::load(backend::ConfigFiles::locate());
@@ -152,60 +155,15 @@ fn window(mut settings: Settings) -> ExitCode {
     // Any pen or mouse press first focuses the pane under it; one an agent
     // UI's page takes still draws the new focus.
     let step = move |event, sidebar: &mut Sidebar| {
-        let area = sidebar.panes(shared.size.rect());
-        // A press focuses the pane under it first, so the press works there.
-        let refocused = match event {
-            Event::Press(pen) => window::press(&mut shared, sidebar, &canvases, &tools, pen),
-            _ => false,
-        };
-        let asked = asked(&event, &mut shared, &mut canvases, &mut tools, &settings, area);
-        let force = match (asked, event) {
-            (Ask::Draw(clip), _) => {
-                let scene = view(&settings, &mut shared, &tools, sidebar, &mut canvases);
-                return match clip {
-                    Some(clip) => Step::Copy(clip, scene),
-                    None => Step::Draw(scene),
-                };
+        let routed =
+            route(event, &mut shared, &mut canvases, &mut tools, &settings, &socket, sidebar);
+        let force = match routed {
+            Routed::Answer(step) => return step,
+            Routed::Watch(name, step) => {
+                watch.want(Some(name));
+                return step;
             }
-            (Ask::Step(step), _) => return step,
-            (Ask::Not, Event::Tick) => false,
-            (Ask::Not, Event::Reply(line)) => {
-                return match shared.reply(&line, &socket) {
-                    Ok(false) => Step::Stay,
-                    Ok(true) => {
-                        Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases))
-                    }
-                    Err(why) => Step::Refuse(why),
-                };
-            }
-            (Ask::Tap(target), _) => {
-                if let Some(name) = tap(target, &mut canvases, &mut shared, sidebar) {
-                    watch.want(Some(name));
-                }
-                return Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases));
-            }
-            (Ask::Run(Command::Quit), _) => return Step::Quit,
-            // It flashes, and the window is drawn whether or not the files changed.
-            (Ask::Run(Command::ReloadConfig), _) => {
-                tools.flash().command(Command::ReloadConfig, &settings.config.keys, Instant::now());
-                true
-            }
-            (Ask::Run(command), _) => {
-                if !run(command, &mut tools, &mut canvases, sidebar, &mut shared, &socket) {
-                    return Step::Pass;
-                }
-                return Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases));
-            }
-            // The pen, the mouse, the trackpad, typed text and a resize.
-            (Ask::Not, event)
-                if pen(&event, &mut tools, &mut canvases, &mut shared, area, &socket) =>
-            {
-                return Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases));
-            }
-            (Ask::Pass | Ask::Not, _) if refocused => {
-                return Step::Through(view(&settings, &mut shared, &tools, sidebar, &mut canvases));
-            }
-            (Ask::Pass | Ask::Not, _) => return Step::Pass,
+            Routed::News(force) => force,
         };
         let heard = watch.latest().is_some_and(|now| sidebar.update(now));
         let moved = watch.layout().map(|news| shared.follow(news)).is_some();
