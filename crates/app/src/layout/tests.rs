@@ -174,6 +174,29 @@ fn a_zoom_that_is_not_a_number_or_about_no_point_changes_nothing() {
 }
 
 #[test]
+fn zoom_to_sets_the_zoom_about_a_point_and_says_it() {
+    let view = moved().zoom_about(pt(0.0, 0.0), 1.37);
+    let about = pt(300.0, 200.0);
+    let back = view.zoom_to(about, 1.0);
+    assert_eq!(back.zoom(), 1.0, "exactly, not by a factor");
+    assert!(near(back.to_screen(view.to_canvas(about)), about));
+    assert_eq!(view.zoom_to(about, 99.0).zoom(), MAX_ZOOM);
+    assert_eq!(view.zoom_to(about, f64::NAN), view);
+    assert_eq!(back.zoom_label(), "Zoom 100%");
+    assert_eq!(back.zoom_to(about, 1.505).zoom_label(), "Zoom 151%");
+    assert_eq!(back.zoom_to(about, 0.0).zoom_label(), "Zoom 10%");
+}
+
+#[test]
+fn a_scroll_away_zooms_in_and_one_back_zooms_out_as_much() {
+    assert!(scroll_zoom(16.0) > 1.1 && scroll_zoom(16.0) < 1.25, "a wheel's line");
+    assert!((scroll_zoom(16.0) * scroll_zoom(-16.0) - 1.0).abs() < 1e-12);
+    assert_eq!(scroll_zoom(0.0), 1.0);
+    assert_eq!(scroll_zoom(f64::NAN), 1.0);
+    assert_eq!(scroll_zoom(f64::INFINITY), 1.0);
+}
+
+#[test]
 fn lines_sit_inside_their_area() {
     let rects = lines(rect(100.0, 50.0, 400.0, 200.0), 1);
     assert_eq!(rects, [rect(124.0, 139.0, 352.0, 22.0)]);

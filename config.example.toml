@@ -112,9 +112,12 @@
 #pan-right = "alt+right"
 #pan-up = "alt+up"
 #pan-down = "alt+down"
-# Zoom the focused pane's canvas in or out about its centre. The trackpad pinches too.
+# Zoom the focused pane's canvas in or out about its centre, or back to 100%. Each zoom
+# flashes its level. The trackpad pinches too, and a scroll (wheel or two fingers) with
+# cmd or ctrl held zooms about the pointer: away from you zooms in.
 #zoom-in = "alt+="
 #zoom-out = "alt+-"
+#zoom-reset = "alt+0"
 # Pages: each pane shows its own page of its canvas, named at its foot. Turn the
 # focused pane to the next page (after the last, the first) or the one before.
 #next-page = "cmd+]"

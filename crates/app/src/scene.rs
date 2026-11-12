@@ -9,7 +9,8 @@
 //! one-line entry, and how it goes. [`overlay`] holds the key overlay and
 //! [`palette`] the command palette. [`paste`] makes pasted text fit to type.
 //! [`flash`] holds the flash that names a new tool or what a page command
-//! did; [`cursor`] the pointer over a canvas pane.
+//! did; [`cursor`] the pointer over a canvas pane. [`glyphs`] measures the
+//! room a text's glyphs take, the frame its hit tests use.
 //!
 //! No chrome, but every state is visible (SPEC P6): the panes, each with
 //! what it shows above its footer ([`status`]), one focus border around the
@@ -27,6 +28,7 @@ pub mod cursor;
 pub mod dictation;
 pub mod feedback;
 pub mod flash;
+pub mod glyphs;
 pub mod ink;
 pub mod live;
 pub mod overlay;

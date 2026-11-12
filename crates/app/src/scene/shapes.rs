@@ -26,8 +26,9 @@ use std::collections::HashSet;
 
 use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect};
-use crate::mirror::{LINE_WIDTH, TEXT_SIZE, text_frame_at};
+use crate::mirror::{LINE_WIDTH, TEXT_SIZE};
 use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::glyphs;
 use crate::scene::ink::{Change, Ink, on_server};
 use crate::scene::paste;
 use crate::scene::tools::Tool;
@@ -95,8 +96,10 @@ struct Editing {
 }
 
 impl Editing {
+    /// The box its glyphs fill, unwrapped: the caret, the dashed frame and
+    /// a press inside follow the glyphs. The file stores its own frame.
     fn frame(&self) -> Rect {
-        text_frame_at(self.at, &self.text)
+        glyphs::frame(self.at, &self.text, TEXT_SIZE, glyphs::UNWRAPPED)
     }
 }
 
@@ -161,7 +164,7 @@ impl Shapes {
         let arrow = match tool {
             Tool::Text => {
                 // The tap is at the middle of the first line's left end.
-                let half = text_frame_at(press.at, "").height / 2.0;
+                let half = glyphs::frame(press.at, "", TEXT_SIZE, glyphs::UNWRAPPED).height / 2.0;
                 self.editing = Some(Editing {
                     canvas: canvas.to_string(),
                     page: page.to_string(),

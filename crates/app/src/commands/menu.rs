@@ -127,6 +127,7 @@ const BAR: [(&str, &[Action]); 8] = [
         &[
             R(Command::ZoomIn),
             R(Command::ZoomOut),
+            R(Command::ZoomReset),
             R(Command::PanLeft),
             R(Command::PanRight),
             R(Command::PanUp),

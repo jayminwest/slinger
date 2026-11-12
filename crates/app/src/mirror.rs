@@ -15,6 +15,7 @@ use slinger_control::{CanvasFeed, CanvasPage};
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::glyphs;
 use crate::scene::ink::{Carried, Change, Stroke};
 use crate::scene::pages::{Page, PageOp};
 
@@ -23,9 +24,7 @@ use crate::scene::pages::{Page, PageOp};
 pub const TEXT_SIZE: f64 = 24.0;
 /// The line width of boxes and arrows, in canvas units, as the packet draws them.
 pub const LINE_WIDTH: f64 = 2.0;
-/// About how wide a character of text is, and how tall a line, as a part of
-/// [`TEXT_SIZE`]: for text whose stored frame is too narrow to wrap in.
-const CHAR_WIDTH: f64 = 0.6;
+/// How tall a line of text is in a stored frame, as a part of [`TEXT_SIZE`].
 const LINE_HEIGHT: f64 = 1.3;
 
 /// One page of a canvas, and where in the canvas's operations it stands.
@@ -274,7 +273,7 @@ fn read(o: &Map<String, Value>) -> Option<Item> {
         "stroke" => Shape::Stroke { points: points(o.get("pts")?)?, width: units("width")? },
         "text" => {
             let text = o.get("text")?.as_str()?.to_string();
-            Shape::Text { frame: text_frame(frame()?, &text), text, size: TEXT_SIZE }
+            Shape::Text { frame: drawn_frame(frame()?, &text), text, size: TEXT_SIZE }
         }
         "box" => Shape::Box { frame: frame()?, width: LINE_WIDTH },
         "button" => Shape::Button { frame: frame()?, status: None },
@@ -377,9 +376,10 @@ fn fields(shape: &Shape) -> Map<String, Value> {
         }
     };
     match shape {
+        // The file keeps the core's cells, whatever the glyphs fill.
         Shape::Text { frame: r, text, .. } => {
             o.insert("kind".into(), "text".into());
-            frame(&mut o, r);
+            frame(&mut o, &text_frame_at(Point { x: r.x, y: r.y }, text));
             o.insert("text".into(), text.as_str().into());
         }
         Shape::Box { frame: r, .. } => {
@@ -451,21 +451,13 @@ fn stroke_object(stroke: &Stroke) -> Value {
     })
 }
 
-/// The frame text is drawn in. A stored frame narrower than one character
-/// would wrap the text a character a line; such text is drawn unwrapped, in
-/// a frame as big as it is likely to be.
-fn text_frame(frame: Rect, text: &str) -> Rect {
-    if frame.width >= TEXT_SIZE {
-        return frame;
-    }
-    let count = |n: usize| u32::try_from(n).map_or(f64::from(u32::MAX), f64::from);
-    let longest = text.split('\n').map(|l| l.chars().count()).max().unwrap_or(0);
-    let lines = count(text.split('\n').count());
-    Rect {
-        width: count(longest) * TEXT_SIZE * CHAR_WIDTH,
-        height: lines * TEXT_SIZE * LINE_HEIGHT,
-        ..frame
-    }
+/// The frame a stored text is drawn in, and hit in: the box its glyphs
+/// fill ([`glyphs::frame`]), wrapped to its stored width, never the stored
+/// width itself. A stored frame narrower than one character would wrap the
+/// text a character a line; such text is drawn unwrapped.
+fn drawn_frame(frame: Rect, text: &str) -> Rect {
+    let column = if frame.width >= TEXT_SIZE { frame.width } else { glyphs::UNWRAPPED };
+    glyphs::frame(Point { x: frame.x, y: frame.y }, text, TEXT_SIZE, column)
 }
 
 /// `#rrggbb`, or `#rrggbbaa` with its alpha dropped; `None` for anything else.

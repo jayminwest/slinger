@@ -94,7 +94,8 @@ pub enum Event {
     /// A two-finger scroll (a mouse wheel, a right-button drag) over a point in the window:
     /// drag what is under it by `dx`, `dy` points.
     Scroll { at: Point, dx: f64, dy: f64 },
-    /// A pinch over a point in the window: zoom by `factor` about it.
+    /// A pinch, or a scroll with command or control held, over a point in
+    /// the window: zoom by `factor` about it.
     Zoom { at: Point, factor: f64 },
     /// An agent UI replied: its `ui_reply` line, for the daemon to hand to
     /// the agent. Answer [`Step::Refuse`] when it cannot go on.
@@ -272,6 +273,8 @@ pub fn run(
     answer: impl FnMut(Event) -> Step + 'static,
 ) -> Result<(), NotMainThread> {
     let mtm = MainThreadMarker::new().ok_or(NotMainThread)?;
+    // Texts are hit where their glyphs are, as this thread lays them out.
+    crate::scene::glyphs::set_measure(canvas::measure);
     let app = NSApplication::sharedApplication(mtm);
     app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
     // Every pen point, not one per frame: a fast stroke keeps its shape.

@@ -37,7 +37,7 @@ use objc2_foundation::{
 
 use super::{Event, color, dispatch};
 use crate::config::Rgb;
-use crate::layout::{Point, Rect};
+use crate::layout::{Point, Rect, Size};
 use crate::scene::canvas::{Draw, ItemId, Mark, Scene};
 use crate::scene::cursor::Cursor;
 
@@ -357,6 +357,17 @@ fn lay_out(from: TextOf) -> Laid {
     manager.addTextContainer(&container);
     storage.addLayoutManager(&manager);
     Laid { from, manager, container, _storage: storage }
+}
+
+/// The box the glyphs of `text` fill, laid out `size` high in a column
+/// `column` wide, as a canvas view lays it out to draw it: the
+/// [`glyphs::Measure`](crate::scene::glyphs::Measure) the scene's text
+/// frames come from.
+pub(super) fn measure(text: &str, size: f64, column: f64) -> Size {
+    let laid = lay_out((text.to_string(), column, size, Rgb { r: 0, g: 0, b: 0 }));
+    laid.manager.ensureLayoutForTextContainer(&laid.container);
+    let used = laid.manager.usedRectForTextContainer(&laid.container);
+    Size { width: used.size.width, height: used.size.height }
 }
 
 /// Draws laid-out text from `at`, `zoom` times its laid-out size.

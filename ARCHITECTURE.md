@@ -300,8 +300,12 @@ mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              feed reply applied in order; reads the canvas file's items
              (tenths, delta points, `#rrggbb`, an arrow's bound ends) into
              scene items, and writes the pen's changes as `canvas_apply`
-             operations, and the frame a typed text is stored with. Keeps
-             the canvas's pages, with their names. Pure.
+             operations, and the frame a typed text is stored with (the
+             core's render cells). A text item reads in with the frame its
+             glyphs fill (scene/glyphs.rs), never the stored width, so every
+             hit test, the lasso, the selection and the caret follow the
+             glyphs, texts saved earlier included. Keeps the canvas's pages,
+             with their names. Pure.
 canvases.rs  the canvas panes: one follower and mirror per page shown, each
              pane's page, viewport and last scene (kept on screen until a
              page turned to arrives); the pen's ink, the eraser's and
@@ -318,7 +322,9 @@ canvases/button.rs  the "send to agent" button (SPEC section 8): a tap slings
              status of its canvas's agent (`agents`, from the sidebar).
 canvases/find.rs  which page, canvas and items each pane shows; a window
              point in canvas points.
-canvases/paging.rs  the canvas commands on a pane: pan, zoom, the page
+canvases/paging.rs  the canvas commands on a pane: pan, zoom (in, out, to
+             100%; a pinch and a cmd- or ctrl-scroll come here too, and each
+             zoom flashes its level, "Zoom 150%"), the page
              commands (each turns only that pane) and undo and redo, each
              through the ink's queue; each pane's page line.
 canvases/sling.rs  the sling from the window: opens the entry at the
@@ -384,11 +390,16 @@ scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
 scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
              `<Tool> <key>` (a new width: `Width <n> <pick-width key>`),
              reload-config its title and key, a saved note "Feedback saved",
-             and a page command what it did (scene/pages.rs's words),
+             a page command what it did (scene/pages.rs's words) and a
+             zoom its level,
              in a 14 pt pill, a step lighter than the pane, at
              the top centre of the focused pane for 0.8 s. The pill says when
              it goes; platform sets one timer for then (no repeating
              redraw). Pure.
+scene/glyphs.rs  the box a text's glyphs fill, laid out in its column as a
+             canvas view draws it: measured by a function platform hands in
+             on the main thread (kept per text, size and column), else an
+             estimate of the system font (tests). Pure.
 scene/paste.rs  pasted text made fit to type: line ends as `\n` (or a
              space, on one line), tabs as spaces, no other control or
              function-key character, so a paste is text, never keys. Pure.
@@ -529,7 +540,8 @@ scene/tools.rs  the pen's tool, colour and width, and the pop-up at the pen (col
              gesture); the chosen tool (menu check, flash, pop-up) comes
              back with the tip. Pure.
 layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
-             about a point, limits; the canvas has no edge; a pane's view
+             about a point or to a level, limits, the level as people read it,
+             how far a scroll zooms; the canvas has no edge; a pane's view
              starts with the origin in by a margin) and where a pop-up
              opens (at the pen, kept inside the window). Pure. 100% coverage floor.
 layout/tree.rs  the pane tree: binary splits with ratios to rectangles (no
@@ -543,14 +555,16 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              passes the chord on, into the text it types) and a pen or mouse
              event into a point, a time, whether a finger made it and whether
              a tablet pen's eraser end did (mouse coalescing off: every
-             point); `input` does this. A right-button drag is a scroll at
+             point); `input` does this. A scroll with cmd or ctrl held is a
+             zoom about the pointer, as a pinch. A right-button drag is a scroll at
              its press point, so it pans as two fingers do. A tablet
              proximity event says which end of the pen is near
              (Event::EraserEnd). The pointer's cursor is set again from the
              view under it on each move and when the window becomes key
              (a canvas's cursor, the arrow over the chrome). One view per canvas pane repaints
              only the box its scene says changed, and says how long after
-             the pen event it painted. The window resizes (down to
+             the pen event it painted; its text layout also measures texts
+             for scene/glyphs.rs. The window resizes (down to
              layout::SMALLEST) and says its new size as Event::Resized; main
              lays the scene out again at it. All unsafe, objc2 and AppKit
              code. No decisions.

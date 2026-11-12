@@ -1,6 +1,11 @@
+use std::borrow::Cow;
+
 use serde_json::json;
 
 use super::*;
+use crate::scene::ink::Ink;
+use crate::scene::select::Select;
+use crate::scene::tools::Tool;
 
 fn shown(items: Vec<Value>) -> CanvasPage {
     CanvasPage {
@@ -55,7 +60,8 @@ fn a_shown_page_reads_every_kind_in_units() {
     let frame = Rect { x: 1.0, y: 2.0, width: 30.0, height: 40.0 };
     assert_eq!(items[1].shape, Shape::Box { frame, width: LINE_WIDTH });
     assert_eq!(items[1].colour, Rgb { r: 0, g: 255, b: 0 });
-    let frame = Rect { x: 0.0, y: 0.0, width: 200.0, height: 30.0 };
+    // Drawn and hit in its glyphs' frame, wrapped to its stored 200.
+    let frame = glyphs::frame(pt(0.0, 0.0), "plan", TEXT_SIZE, 200.0);
     assert_eq!(items[2].shape, Shape::Text { frame, text: "plan".into(), size: TEXT_SIZE });
     assert_eq!(items[2].colour, Rgb { r: 0, g: 0, b: 255 });
     let arrow = Shape::Arrow {
@@ -88,13 +94,34 @@ fn text_too_narrow_to_wrap_gets_a_frame_its_size() {
     let m = Mirror::new(&shown(vec![json!({"id": "i1", "page": "p1", "kind": "text",
         "x": 50, "y": 60, "w": 80, "h": 99999, "text": "abcd\nab"})]));
     let Shape::Text { frame, .. } = &m.items()[0].shape else { panic!() };
-    let expected = Rect {
-        x: 5.0,
-        y: 6.0,
-        width: 4.0 * TEXT_SIZE * CHAR_WIDTH,
-        height: 2.0 * TEXT_SIZE * LINE_HEIGHT,
-    };
+    let expected = glyphs::frame(pt(5.0, 6.0), "abcd\nab", TEXT_SIZE, glyphs::UNWRAPPED);
     assert_eq!(*frame, expected);
+}
+
+#[test]
+fn a_text_is_hit_where_its_glyphs_are_not_where_its_stored_frame_reaches() {
+    // slinger-48e246: a text stored 24 a character (here 96 wide) is drawn
+    // about half that. An eraser along an arrow at x 80, past the glyphs but
+    // inside the stored width, takes the arrow and not the text.
+    let m = Mirror::new(&shown(vec![
+        json!({"id": "i1", "page": "p1", "kind": "text", "x": 0, "y": 0, "w": 960, "h": 312,
+               "text": "note"}),
+        json!({"id": "i2", "page": "p1", "kind": "arrow", "pts": [800, -400, 0, 1200]}),
+    ]));
+    let Shape::Text { frame, .. } = &m.items()[0].shape else { panic!() };
+    assert!(frame.width < 60.0, "the glyphs' width, not the stored 96: {frame:?}");
+    let items: Vec<Cow<'_, Item>> = m.items().iter().map(Cow::Borrowed).collect();
+    let (mut select, mut ink) = (Select::default(), Ink::default());
+    assert!(select.down(Tool::Eraser, ("main", "p1"), pt(80.0, -40.0), 1.0, &items));
+    assert!(select.drag(pt(80.0, 80.0), &items));
+    assert!(select.up(None, &items, &mut ink));
+    let erased = ink.next().map(|(_, c)| c);
+    assert!(matches!(erased, Some(Change::Remove { ids, .. }) if ids == [ItemId(2)]));
+    let (mut select, mut ink) = (Select::default(), Ink::default());
+    assert!(select.down(Tool::Eraser, ("main", "p1"), pt(20.0, 10.0), 1.0, &items));
+    assert!(select.up(None, &items, &mut ink), "a dab on the glyphs");
+    let erased = ink.next().map(|(_, c)| c);
+    assert!(matches!(erased, Some(Change::Remove { ids, .. }) if ids == [ItemId(1)]));
 }
 
 #[test]
@@ -278,11 +305,9 @@ fn a_text_a_box_and_an_arrow_are_written_as_they_read_back() {
         colour: Rgb { r: 0, g: 0x80, b: 0xff },
         shape,
     };
-    let text = Shape::Text {
-        frame: Rect { x: 1.0, y: -2.5, width: 48.0, height: 31.2 },
-        text: "hi".into(),
-        size: TEXT_SIZE,
-    };
+    // A text shows in its glyphs' frame; the file keeps the core's cells.
+    let glyphs = glyphs::frame(pt(1.0, -2.5), "hi", TEXT_SIZE, glyphs::UNWRAPPED);
+    let text = Shape::Text { frame: glyphs, text: "hi".into(), size: TEXT_SIZE };
     let boxed = Shape::Box {
         frame: Rect { x: 0.0, y: 0.0, width: 30.0, height: 40.04 },
         width: LINE_WIDTH,

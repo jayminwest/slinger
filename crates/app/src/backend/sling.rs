@@ -110,6 +110,7 @@ mod tests {
             assert_eq!(wait(&slinger), Ok(()));
             let file = home.path().join("in.txt");
             let mut message = String::new();
+            // The agent may still be writing it: wait for the prompt, its end.
             wait_until(|| {
                 message = std::fs::read_to_string(&file).unwrap_or_default();
                 message.contains("what is missing?")

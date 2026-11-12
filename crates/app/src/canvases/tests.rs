@@ -5,7 +5,7 @@ use super::*;
 use crate::backend::testing::{user_stroke, wait_until};
 use crate::backend::tests::{open_notes, with_store};
 use crate::config::Config;
-use crate::layout::WINDOW;
+use crate::layout::{Point, WINDOW};
 use crate::panes::Pane;
 use crate::scene::ink::Pen;
 
@@ -170,5 +170,33 @@ fn a_paste_types_into_the_text_and_each_page_command_says_what_it_did() {
         assert!(canvases.command(&panes, pane, Command::NextPage));
         assert_eq!(canvases.said().as_deref(), Some("Page 1 · 1/2"));
         assert_eq!(canvases.said(), None, "said once");
+    });
+}
+
+/// slinger-5578a4: a zoom key, a pinch and a scroll with cmd held all zoom the
+/// pane's canvas, the scene draws at the new zoom, and each zoom flashes it.
+#[test]
+fn a_zoom_reaches_the_scene_and_flashes_its_level() {
+    use crate::commands::Command;
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+        wait_until(|| shown(&mut canvases, &panes) == 1);
+        let zoom = |canvases: &mut Canvases| {
+            let theme = Config::default().theme;
+            canvases.show(&panes, WINDOW.rect(), &theme)[0].scene.viewport.zoom()
+        };
+        let pane = (panes.focus(), WINDOW.rect());
+        assert!(canvases.command(&panes, pane, Command::ZoomIn));
+        assert_eq!((zoom(&mut canvases), canvases.said().as_deref()), (1.25, Some("Zoom 125%")));
+        canvases.zoom(panes.focus(), Point { x: 10.0, y: 10.0 }, 2.0);
+        assert_eq!((zoom(&mut canvases), canvases.said().as_deref()), (2.5, Some("Zoom 250%")));
+        assert!(canvases.command(&panes, pane, Command::ZoomReset));
+        assert_eq!((zoom(&mut canvases), canvases.said().as_deref()), (1.0, Some("Zoom 100%")));
+        assert_eq!(canvases.said(), None, "said once");
+
+        let ui = Panes::new(Pane { kind: Kind::Ui, name: "board".into() });
+        assert!(canvases.command(&ui, (ui.focus(), WINDOW.rect()), Command::ZoomIn));
+        assert_eq!(canvases.said().as_deref(), Some("No canvas in this pane to zoom"));
     });
 }

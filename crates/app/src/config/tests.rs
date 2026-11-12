@@ -192,6 +192,7 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
             "alt+down",
             "alt+=",
             "alt+-",
+            "alt+0",
             "cmd+]",
             "delete",
             "escape",

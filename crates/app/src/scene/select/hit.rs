@@ -8,7 +8,9 @@
 //! - An eraser of `radius` takes a stroke, an arrow or a box when its line
 //!   (a box's is its outline), thickened by half its width, comes within
 //!   `radius` of the path, and a text when its path comes within `radius`
-//!   of the text's frame. A stroke of one point is a dot. Erasing the ink
+//!   of the text's frame. A stroke of one point is a dot. In the app a
+//!   text's frame is the box its glyphs fill (`scene::glyphs`), not the
+//!   wider frame the file stores for the core's render cells. Erasing the ink
 //!   inside a box keeps the box. A live item and the button are never
 //!   erased: they are not ink.
 //! - A lasso, a closed polygon, holds an item when it winds around every

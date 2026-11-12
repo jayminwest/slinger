@@ -49,6 +49,8 @@ pub enum Command {
     /// Zoom the focused pane's canvas in or out about the pane's centre.
     ZoomIn,
     ZoomOut,
+    /// Zoom the focused pane's canvas to 100% about the pane's centre.
+    ZoomReset,
     /// Turn the focused pane to the next page of its canvas, after the last
     /// to the first. Other panes keep their page.
     NextPage,
@@ -103,7 +105,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 48] = [
+    pub const ALL: [(Command, &str); 49] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -128,6 +130,7 @@ impl Command {
         (Command::PanDown, "pan-down"),
         (Command::ZoomIn, "zoom-in"),
         (Command::ZoomOut, "zoom-out"),
+        (Command::ZoomReset, "zoom-reset"),
         (Command::NextPage, "next-page"),
         (Command::DeleteSelection, "delete-selection"),
         (Command::ClearSelection, "clear-selection"),
@@ -295,6 +298,7 @@ impl Default for Keymap {
             on(ALT, DOWN),
             on(ALT, '='),
             on(ALT, '-'),
+            on(ALT, '0'),
             on(CMD, ']'),
             on(0, '\u{7f}'),
             on(0, '\u{1b}'),
