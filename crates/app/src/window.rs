@@ -15,11 +15,10 @@ use crate::commands::{self, Command};
 use crate::layout::{PaneId, Point, Rect};
 use crate::panes::{self, Panes};
 use crate::scene::ink::Pen;
-use crate::scene::pages::menu::List;
 use crate::scene::paste::{Clip, Edit};
 use crate::scene::sidebar::Row;
 use crate::scene::sidebar::Sidebar;
-use crate::scene::sling::{CANCEL, Profile, SEND};
+use crate::scene::sling::{CANCEL, SEND};
 use crate::scene::taps::{Tap, Target};
 use crate::scene::tools::{Kind, Tools};
 use crate::scene::{self, Label, Scene, cursor, status, title};
@@ -55,8 +54,7 @@ pub fn run(
 
 /// A tap on `target` (a press already focused its pane in `shared`): the
 /// page name opens the page menu over it, a page menu's page turns the
-/// focused pane to it, the footer's agent opens its profiles over it and
-/// one of them slings under it, a workspace in `sidebar` shows its panes (that
+/// focused pane to it, a workspace in `sidebar` shows its panes (that
 /// workspace's name, for the watch to follow), and the sling's pill does
 /// what a tap there does; the open entry's "✓" and "✕" do what return and
 /// escape do in it. A command's tap does nothing here.
@@ -74,15 +72,6 @@ pub fn tap(
             }
         }
         Tap::Page(index) => canvases.turn_to(&shared.panes, pane, index),
-        Tap::Profiles => {
-            if let Some(profiles) = canvases.profile_names(&shared.panes, pane) {
-                shared.menu.open_profiles(pane, frame, profiles);
-            }
-        }
-        Tap::Profile(index) => {
-            let area = sidebar.panes(shared.size.rect());
-            canvases.sling_under(&shared.panes, area, index);
-        }
         Tap::Workspace(index) => return sidebar.pick(index),
         Tap::Slung => {
             let area = sidebar.panes(shared.size.rect());
@@ -115,7 +104,7 @@ pub fn selection(
         Command::DeleteSelection => canvases.delete_selection(panes, panes.focus()),
         Command::ClearSelection => canvases.clear_selection(panes, panes.focus()),
         Command::Sling | Command::Dictate => canvases.sling_command(command, panes, area),
-        Command::SlingNow => canvases.sling_now_command(panes, area, Profile::Running),
+        Command::SlingNow => canvases.sling_now_command(panes, area),
         _ => true,
     }
 }
@@ -301,11 +290,8 @@ pub fn view(
     }
     scene.footers = footers;
     scene.labels.extend(tools.labels(theme));
-    let rows = shared.menu.pane().and_then(|(pane, list)| match list {
-        List::Pages => canvases.page_names(&shared.panes, pane).map(|(n, at)| (n, Some(at))),
-        List::Profiles => canvases.profile_names(&shared.panes, pane),
-    });
-    shared.menu.refresh(rows);
+    let pages = shared.menu.pane().and_then(|pane| canvases.page_names(&shared.panes, pane));
+    shared.menu.refresh(pages);
     let overlay = shared.overlay.shown(keys, theme, size);
     let overlay = overlay.or_else(|| shared.palette.shown(keys, theme, size));
     let overlay = overlay.or_else(|| shared.menu.shown(theme, size));

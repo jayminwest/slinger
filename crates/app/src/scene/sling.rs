@@ -63,27 +63,14 @@ const FLASH: f64 = 40.0;
 pub const SEND: Chord = Chord::new(0, '\r');
 pub const CANCEL: Chord = Chord::new(0, '\u{1b}');
 
-/// What a sling sends: a page's selected items, by the server's ids, the
-/// prompt, and the profile it goes under.
+/// What a sling sends: a page's selected items, by the server's ids, and
+/// the prompt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ask {
     pub canvas: String,
     pub page: String,
     pub ids: Vec<ItemId>,
     pub prompt: String,
-    pub profile: Profile,
-}
-
-/// The profile a sling goes under (docs/service.md, "Profiles").
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum Profile {
-    /// Whichever the agent's process runs under.
-    #[default]
-    Running,
-    /// This one (`None`: the agent's own limits), picked with a tap: the
-    /// agent starts under it first when its process runs under another,
-    /// or does not run.
-    Picked(Option<String>),
 }
 
 /// The one-line entry the window shows: the box and the text it starts
@@ -171,20 +158,20 @@ impl Sling {
         true
     }
 
-    /// Sends `selection` with `prompt` under `profile` at once, with no
-    /// entry; its line, and a failure's entry, stand under `around` inside
-    /// `within`. False, and nothing goes, while another sling is on its way.
+    /// Sends `selection` with `prompt` at once, with no entry; its line,
+    /// and a failure's entry, stand under `around` inside `within`. False,
+    /// and nothing goes, while another sling is on its way.
     pub fn send_now(
         &mut self,
         selection: &Selection,
-        (prompt, profile): (&str, Profile),
+        prompt: &str,
         around: Rect,
         within: Rect,
     ) -> bool {
         if matches!(self.open, Some((_, _, Stage::Waiting { .. } | Stage::Sending { .. }))) {
             return false;
         }
-        let ask = Ask { profile, ..ask(selection, prompt.to_string()) };
+        let ask = ask(selection, prompt.to_string());
         self.open = Some((ask, place(around, within), Stage::Waiting { typed: false }));
         true
     }
@@ -213,16 +200,6 @@ impl Sling {
         let Some((_, _, stage @ Stage::Typing(_))) = &mut self.open else { return false };
         *stage = Stage::Waiting { typed: true };
         true
-    }
-
-    /// The user sent the entry's prompt under `profile`: a picked one
-    /// takes the place of the one it had. False when the entry is closed.
-    pub fn send_under(&mut self, profile: Profile) -> bool {
-        let Some((ask, _, Stage::Typing(_))) = &mut self.open else { return false };
-        if profile != Profile::Running {
-            ask.profile = profile;
-        }
-        self.send()
     }
 
     /// Closes the entry. False when it is closed.
@@ -436,7 +413,7 @@ pub fn under(frame: Rect, after: usize, theme: &Theme, lines: Vec<(String, Rgb)>
 /// What a sling of `selection` with `prompt` sends.
 fn ask(selection: &Selection, prompt: String) -> Ask {
     let Selection { canvas, page, ids } = selection.clone();
-    Ask { canvas, page, ids, prompt, profile: Profile::Running }
+    Ask { canvas, page, ids, prompt }
 }
 
 /// "1 item", "3 items"; "what is new" for none (a button's sling).

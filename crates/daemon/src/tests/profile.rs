@@ -82,20 +82,6 @@ fn profiles_are_set_listed_and_removed_in_the_workspace_file() {
     daemon.stop();
 }
 
-#[test]
-fn the_workspace_list_names_each_agent_s_profiles() {
-    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
-    let daemon = Daemon::start_in(data.path());
-    let client = daemon.client();
-    open_with_agent(&client, &projects, "notes", "scout");
-    let agent = |client: &Client| client.workspace_list().unwrap()[0].agent.clone().unwrap();
-    assert_eq!(agent(&client).profiles, Vec::<String>::new());
-    client.profile_set("notes", profile("look", None, &[])).unwrap();
-    client.profile_set("notes", profile("dev", None, &["Edit"])).unwrap();
-    assert_eq!(agent(&client).profiles, ["look", "dev"], "in the file's order");
-    daemon.stop();
-}
-
 /// Opens a workspace `notes` whose agent `scout` may also fetch the web, at
 /// home in its primary root, with a profile `dev` in `src`.
 fn open_with_profile(client: &Client, projects: &TempDir) -> (PathBuf, PathBuf) {

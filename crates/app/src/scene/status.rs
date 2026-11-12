@@ -103,8 +103,7 @@ pub struct Pen {
 /// percent; an agent UI pane's has its UI's name. `sidebar` puts the
 /// sidebar's button first (the sidebar is collapsed); `close` adds the
 /// close button (there is another pane). `sling` adds "➤ Sling" (a canvas
-/// pane), and `agent` names the agent its sling goes to, with its status;
-/// with `profiles` (it has some) a tap there opens them.
+/// pane), and `agent` names the agent its sling goes to, with its status.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[expect(clippy::struct_excessive_bools, reason = "each says whether one part of the footer shows")]
 pub struct Shows<'a> {
@@ -116,7 +115,6 @@ pub struct Shows<'a> {
     pub close: bool,
     pub sling: bool,
     pub agent: Option<(&'a str, Option<Status>)>,
-    pub profiles: bool,
 }
 
 /// What the footer's sling button says.
@@ -211,8 +209,7 @@ pub fn footer(frame: Rect, theme: &Theme, keys: &Keymap, shows: &Shows) -> Foote
         let mut runs = vec![Run { text: glyph.to_string(), colour, bold: false }];
         let word = status.map(|s| format!(" · {}", s.word())).unwrap_or_default();
         runs.extend(muted(&format!(" {name}{word}")));
-        let tap = shows.profiles.then_some(Tap::Profiles);
-        units.push(Unit::new(Side::Right, 80, vec![Cell::words(runs, tap)]));
+        units.push(Unit::new(Side::Right, 80, vec![Cell::words(runs, None)]));
     }
     if shows.sling {
         let reaches = shows.agent.is_some_and(|(_, s)| s != Some(Status::Stopped));

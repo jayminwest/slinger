@@ -137,9 +137,9 @@ fn many_pages_keep_the_shown_one_in_view_and_the_menu_follows_the_pages() {
     assert!(shown.contains(&"p31".to_string()) && !shown.contains(&"p1".to_string()), "{shown:?}");
     let panel = menu.shown(&T, SIZE).unwrap().lines[0].label.frame;
     assert!(panel.y >= EDGE, "inside the window");
-    menu.refresh(Some((vec!["only".into()], Some(0))));
+    menu.refresh(Some((vec!["only".into()], 0)));
     assert_eq!(rows(&menu)[..2], ["✓", "only"]);
-    assert_eq!(menu.pane(), Some((pane(), List::Pages)));
+    assert_eq!(menu.pane(), Some(pane()));
     menu.refresh(None);
     assert!(!menu.is_open() && menu.shown(&T, SIZE).is_none(), "its pane shows no pages: closed");
     assert!(!menu.pointer(Point { x: 400.0, y: 580.0 }, SIZE, false));
@@ -236,26 +236,4 @@ fn a_sign_says_when_more_pages_are_above_or_below() {
     menu.scroll(-ROW * 100.0, SIZE);
     let (up, down) = signs(&menu);
     assert!(up.is_some() && down.is_none(), "at the end: only more above");
-}
-
-#[test]
-fn the_profile_menu_lists_the_profiles_with_the_running_one_marked_and_no_commands() {
-    let names = || ["no profile", "dev", "look"].map(String::from).to_vec();
-    let mut menu = PageMenu::default();
-    menu.open_profiles(pane(), ANCHOR, (names(), Some(1)));
-    assert_eq!(rows(&menu), ["no profile", "✓", "dev", "look"]);
-    assert_eq!(menu.pane(), Some((pane(), List::Profiles)));
-    let lines = menu.shown(&T, SIZE).unwrap().lines;
-    let fills = lines.iter().skip(1).filter(|l| l.label.fill.is_some()).count();
-    assert_eq!(fills, 0, "no hairline: no commands under them");
-    let look = row(&menu, "look");
-    menu.press(look, SIZE);
-    let Took::Tap((_, tap)) = menu.lift(look, SIZE) else { panic!() };
-    assert_eq!(tap, Tap::Profile(2));
-    assert!(!menu.is_open());
-
-    menu.open_profiles(pane(), ANCHOR, (names(), None));
-    assert_eq!(rows(&menu), ["no profile", "dev", "look"], "not running: none marked");
-    menu.refresh(None);
-    assert!(!menu.is_open(), "no profiles left");
 }

@@ -27,11 +27,6 @@ pub enum Tap {
     Pages,
     /// Turns the focused pane to its page with this index.
     Page(usize),
-    /// Opens the focused pane's profile menu, over the target: its
-    /// agent's profiles to sling under.
-    Profiles,
-    /// Slings under the profile menu's row with this index.
-    Profile(usize),
     /// Shows the panes of the sidebar's workspace with this index.
     Workspace(usize),
     /// The pill that says what became of the last sling, or the answer
