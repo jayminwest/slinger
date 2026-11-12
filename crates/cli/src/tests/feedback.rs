@@ -20,7 +20,7 @@ fn add_and_path_print_the_ts_and_the_file() {
     assert_eq!(none.out, "", "none yet");
     assert_eq!((added.code, added.err.as_str()), (exit::OK, ""));
     let ts = added.out.trim_end();
-    assert!(ts.len() == 25 && !ts.contains('\t'), "the ts alone: {ts}");
+    assert!(ts.len() == 29 && !ts.contains('\t'), "the ts alone: {ts}");
     let doc = json(doc);
     let (command, text) = (doc["command"].as_str(), doc["entry"]["text"].as_str());
     assert_eq!((command, text), (Some("feedback add"), Some("second")));

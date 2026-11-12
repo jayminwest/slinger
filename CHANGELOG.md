@@ -124,6 +124,9 @@ bullet with the area in bold.
 - **CLI:** `canvas apply`, `canvas undo` and `canvas redo` act as the agent
   named by `SLINGER_AGENT` when there is no `--agent`, as `canvas put` does.
   What an agent applies no longer lands in your undo history as yours.
+- **Feedback:** notes left in the same second can be resolved one at a
+  time. Each note's `ts` is now to the millisecond and unique in the file;
+  notes already saved to the second still list and resolve as before.
 - **Agents:** a drawing reaches the agent as one image when its strokes
   touch, instead of one image per long stroke (an airplane arrived as
   fuselage, wings and belly). An underline joins the words it touches. A
