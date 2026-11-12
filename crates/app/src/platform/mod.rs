@@ -270,6 +270,8 @@ pub fn run(
     answer: impl FnMut(Event) -> Step + 'static,
 ) -> Result<(), NotMainThread> {
     let mtm = MainThreadMarker::new().ok_or(NotMainThread)?;
+    // Texts are hit where their glyphs are, as this thread lays them out.
+    crate::scene::glyphs::set_measure(canvas::measure);
     let app = NSApplication::sharedApplication(mtm);
     app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
     // Every pen point, not one per frame: a fast stroke keeps its shape.

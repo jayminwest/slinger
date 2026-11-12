@@ -296,8 +296,12 @@ mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              feed reply applied in order; reads the canvas file's items
              (tenths, delta points, `#rrggbb`, an arrow's bound ends) into
              scene items, and writes the pen's changes as `canvas_apply`
-             operations, and the frame a typed text is stored with. Keeps
-             the canvas's pages, with their names. Pure.
+             operations, and the frame a typed text is stored with (the
+             core's render cells). A text item reads in with the frame its
+             glyphs fill (scene/glyphs.rs), never the stored width, so every
+             hit test, the lasso, the selection and the caret follow the
+             glyphs, texts saved earlier included. Keeps the canvas's pages,
+             with their names. Pure.
 canvases.rs  the canvas panes: one follower and mirror per page shown, each
              pane's page, viewport and last scene (kept on screen until a
              page turned to arrives); the pen's ink, the eraser's and
@@ -377,6 +381,10 @@ scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
              the top centre of the focused pane for 0.8 s. The pill says when
              it goes; platform sets one timer for then (no repeating
              redraw). Pure.
+scene/glyphs.rs  the box a text's glyphs fill, laid out in its column as a
+             canvas view draws it: measured by a function platform hands in
+             on the main thread (kept per text, size and column), else an
+             estimate of the system font (tests). Pure.
 scene/paste.rs  pasted text made fit to type: line ends as `\n` (or a
              space, on one line), tabs as spaces, no other control or
              function-key character, so a paste is text, never keys. Pure.
@@ -519,7 +527,8 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              view under it on each move and when the window becomes key
              (a canvas's cursor, the arrow over the chrome). One view per canvas pane repaints
              only the box its scene says changed, and says how long after
-             the pen event it painted. The window resizes (down to
+             the pen event it painted; its text layout also measures texts
+             for scene/glyphs.rs. The window resizes (down to
              layout::SMALLEST) and says its new size as Event::Resized; main
              lays the scene out again at it. All unsafe, objc2 and AppKit
              code. No decisions.
