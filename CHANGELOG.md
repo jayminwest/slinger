@@ -67,6 +67,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** the sling's pill (`● scout working · 4s` and what follows it)
+  and the ➤ Sling and + prompt buttons centre their words top to bottom,
+  instead of sitting them at the top of their fill.
 - **Agents:** the picture an agent sees of your canvas draws em and en
   dashes, curly quotes, an ellipsis, bullets, arrows, check marks, box
   drawing and blocks as themselves, instead of as `?`. A character the
