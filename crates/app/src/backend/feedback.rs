@@ -1,6 +1,7 @@
 //! Saving feedback (docs/service.md, "Feedback"): each [`Note`] goes as one
 //! `feedback_add` on a thread of its own, and the daemon's answer comes
-//! back to the main thread, which never waits on the socket.
+//! back to the main thread, which never waits on the socket. The recent
+//! open notes come the same way, from one `feedback_list`.
 
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
@@ -8,21 +9,25 @@ use std::thread;
 use slinger_control::{Client, FeedbackNote};
 
 use crate::backend::Problem;
-use crate::scene::feedback::Note;
+use crate::scene::feedback::{Note, RECENT, Recent};
 
-/// Sends notes and hands back what the daemon said to each.
+/// Sends notes and hands back what the daemon said to each, and lists the
+/// recent ones.
 #[derive(Debug)]
 pub struct Noter {
     daemon: Client,
     answer: Sender<Result<(), Problem>>,
     answers: Receiver<Result<(), Problem>>,
+    list: Sender<Vec<Recent>>,
+    lists: Receiver<Vec<Recent>>,
 }
 
 impl Noter {
     /// Sends through `daemon`. Starts no thread until a note goes.
     pub fn new(daemon: Client) -> Self {
         let (answer, answers) = mpsc::channel();
-        Self { daemon, answer, answers }
+        let (list, lists) = mpsc::channel();
+        Self { daemon, answer, answers, list, lists }
     }
 
     /// Sends through `daemon` from the next note on.
@@ -42,6 +47,36 @@ impl Noter {
     /// The answers since the last call, oldest first. Never waits.
     pub fn answers(&self) -> Vec<Result<(), Problem>> {
         self.answers.try_iter().collect()
+    }
+
+    /// Asks a thread for the most recent open notes. Never waits. A daemon
+    /// that does not answer lists nothing: saving a note says why.
+    pub fn list(&self) {
+        let (daemon, list) = (self.daemon.clone(), self.list.clone());
+        thread::spawn(move || {
+            let limit = Some(RECENT as u64);
+            let Ok(listed) = daemon.feedback_list(false, limit) else { return };
+            // As in `send`: nobody waits for it.
+            let recent = listed.entries.into_iter();
+            let _ = list.send(recent.map(|e| Recent { when: when(&e.ts), text: e.text }).collect());
+        });
+    }
+
+    /// The newest list since the last call, if one came. Never waits.
+    pub fn listed(&self) -> Option<Vec<Recent>> {
+        self.lists.try_iter().last()
+    }
+}
+
+/// When a note was saved, as the entry lists it: `11-11 14:02` from its
+/// `ts` (`2026-11-11T14:02:09-08:00`), or the whole `ts` when it is not
+/// that shape.
+fn when(ts: &str) -> String {
+    match (ts.get(5..10), ts.get(11..16)) {
+        (Some(day), Some(time)) if ts.as_bytes().get(10) == Some(&b'T') => {
+            format!("{day} {time}")
+        }
+        _ => ts.to_string(),
     }
 }
 
@@ -96,5 +131,41 @@ mod tests {
         gone.reconnect(Client::new("/nonexistent/y.sock"));
         gone.send(note("x"));
         assert!(wait(&gone).unwrap_err().message.contains("y.sock"), "the new socket");
+    }
+
+    /// The next list, waiting for it.
+    fn listed(noter: &Noter) -> Vec<Recent> {
+        let mut got = None;
+        wait_until(|| {
+            got = noter.listed();
+            got.is_some()
+        });
+        got.unwrap()
+    }
+
+    #[test]
+    fn the_recent_open_notes_list_newest_first_with_when() {
+        with_store(None, |daemon| {
+            let noter = Noter::new(daemon.clone());
+            noter.list();
+            assert_eq!(listed(&noter), []);
+            for text in ["one", "two", "three", "four", "five", "six"] {
+                noter.send(note(text));
+                assert_eq!(wait(&noter), Ok(()));
+            }
+            noter.list();
+            let got = listed(&noter);
+            let texts: Vec<_> = got.iter().map(|r| r.text.as_str()).collect();
+            assert_eq!(texts, ["six", "five", "four", "three", "two"]);
+            let when = &got[0].when;
+            assert!(when.len() == 11 && when.as_bytes()[2] == b'-', "{when}");
+        });
+    }
+
+    #[test]
+    fn when_shows_the_day_and_minute_or_a_ts_of_another_shape_whole() {
+        assert_eq!(when("2026-11-11T14:02:09-08:00"), "11-11 14:02");
+        assert_eq!(when("2026-11-11T14:02:09.123-08:00"), "11-11 14:02");
+        assert_eq!(when("yesterday"), "yesterday");
     }
 }
