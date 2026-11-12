@@ -64,6 +64,14 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Feedback:** each note names the commit `slingerd` was built from
+  (with `-dirty` for uncommitted changes) instead of always `dev`.
+- **App:** return on a just-opened command palette no longer quits. The
+  palette now opens on the command you last ran from it, then the tools,
+  with Quit at the bottom. Typed, the best match comes first: a title that
+  starts with what you typed, then a word that does, then looser matches,
+  then matches on the group name only ("sp" puts Split right above Pick a
+  shape).
 - **App:** a failed tap on the "send to agent" button shows why in the
   pill, instead of opening an entry the pen cannot close.
 - **Daemon:** an agent can answer when `slingerd` was started with a
