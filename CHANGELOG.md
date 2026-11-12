@@ -11,6 +11,16 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** see where a canvas is saved. The window's title names the
+  focused pane's canvas, with its file under it
+  (`~/Library/Application Support/slinger/canvases/<id>.canvas` by
+  default); cmd-click the title for the folders that hold it. There is
+  nothing to save by hand, as slingerd writes every change as you make it:
+  Save (`save`, ⌘S) says where it went, or why the last change has not
+  reached the file yet. Show canvas file in Finder (`show-canvas-file`,
+  ⌥⌘R) shows it there. Both are in the File menu and the palette.
+- **CLI:** `canvas show --json` gives the canvas's file as `path`.
+
 - **App:** a dotted grid on the canvas, like grid paper. Set `[canvas]
   background = "dots"` in the config to start with it, or run Dotted grid
   (`toggle-grid`, ⌘', also in the Canvas menu and the palette) to show or
@@ -57,6 +67,11 @@ bullet with the area in bold.
 
 ### Changed
 
+- **App:** the selection's corner handles resize it, with the lasso or
+  the select tool: drag one and the selection scales about the opposite
+  corner. Strokes, boxes and arrows stretch; texts and agent UIs keep their
+  size and move with the rest; arrows pointing at the items follow. One
+  undo puts it back.
 - **App:** the "<agent> is done" bar goes on its own: 5 s after it shows,
   or at the pen's next press. A blocked agent's bar stays until you tap its
   ✕ (or ⌘.). The bar sits above the footers, so it hides no button, and a
@@ -65,11 +80,21 @@ bullet with the area in bold.
   stopped, and "working" as soon as a sling is waiting for it, so a sling
   to a stopped agent no longer looks like nothing happened.
 
+### Removed
+
+- **CLI and daemon:** the `hello` command and the `hello` verb, a
+  placeholder from the first build. To check that the daemon answers, run
+  `slinger canvas list`. `--verbose` now names the command and the socket.
+
 ### Fixed
 
 - **App:** ink is smoother. The pen's small wobbles no longer show as bumps
   along a line's edges, most of all at the bold and marker widths; a line
   still starts and ends where the pen did, and fine writing keeps its shape.
+- **Daemon:** a second `slingerd` started on another socket but the same
+  data directory now stops with exit 4 and `✗ data directory <path> is in
+  use by another slingerd`, instead of writing to the same record as the
+  first.
 - **App:** the sling's pill (`● scout working · 4s` and what follows it)
   and the ➤ Sling and + prompt buttons centre their words top to bottom,
   instead of sitting them at the top of their fill.

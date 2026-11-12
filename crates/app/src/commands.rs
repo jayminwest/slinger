@@ -103,6 +103,11 @@ pub enum Command {
     /// Sling at once, with no prompt: the selection, or with nothing
     /// selected what is new on the focused pane's page.
     SlingNow,
+    /// Say where the focused pane's canvas is saved: the daemon writes
+    /// every change as it is made, so there is nothing more to do.
+    Save,
+    /// Show the focused pane's canvas file in the Finder.
+    ShowCanvasFile,
 }
 
 /// How many commands there are.
@@ -110,7 +115,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 51] = [
+    pub const ALL: [(Command, &str); 53] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -162,6 +167,8 @@ impl Command {
         (Command::LeaveFeedback, "leave-feedback"),
         (Command::ToggleGrid, "toggle-grid"),
         (Command::SlingNow, "sling-now"),
+        (Command::Save, "save"),
+        (Command::ShowCanvasFile, "show-canvas-file"),
     ];
 
     /// The command called `name` in the config file.
@@ -332,6 +339,8 @@ impl Default for Keymap {
             on(CMD | SHIFT, 'f'),
             on(CMD, '\''),
             on(ALT, '\r'),
+            on(CMD, 's'),
+            on(CMD | ALT, 'r'),
         ])
     }
 }

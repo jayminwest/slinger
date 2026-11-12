@@ -118,30 +118,30 @@ fn json(r: &Run) -> Value {
 }
 
 #[test]
-fn hello_prints_the_greeting_and_nothing_else() {
-    let r = cli(&["hello", "ada"]);
-    assert_eq!((r.code, r.out.as_str(), r.err.as_str()), (exit::OK, "hello, ada\n", ""));
+fn success_prints_the_result_and_nothing_else() {
+    let r = cli(&["canvas", "list"]);
+    assert_eq!((r.code, r.out.as_str(), r.err.as_str()), (exit::OK, "", ""));
 }
 
 #[test]
-fn hello_json_is_one_envelope() {
-    let doc = json(&cli(&["hello", "ada", "--json"]));
+fn json_success_is_one_envelope() {
+    let doc = json(&cli(&["canvas", "list", "--json"]));
     assert_eq!(doc["success"], true);
-    assert_eq!(doc["command"], "hello");
-    assert_eq!(doc["greeting"], "hello, ada");
+    assert_eq!(doc["command"], "canvas list");
+    assert_eq!(doc["canvases"], serde_json::json!([]));
 }
 
 #[test]
 fn invalid_input_maps_to_its_exit_code_and_hint() {
-    let r = cli(&["hello", " "]);
+    let r = cli(&["canvas", "create", "Main"]);
     assert_eq!(r.code, exit::INVALID);
     assert_eq!(r.out, "");
-    assert!(r.err.starts_with("✗ name is empty\n  "), "{}", r.err);
+    assert!(r.err.starts_with("✗ \"Main\" is not a canvas id\n  "), "{}", r.err);
 }
 
 #[test]
 fn json_errors_go_to_stdout_with_a_code() {
-    let r = cli(&["hello", " ", "--json"]);
+    let r = cli(&["canvas", "create", "Main", "--json"]);
     let doc = json(&r);
     assert_eq!(r.code, exit::INVALID);
     assert_eq!(doc["success"], false);
@@ -153,11 +153,11 @@ fn json_errors_go_to_stdout_with_a_code() {
 #[test]
 fn no_daemon_is_unavailable_with_a_start_hint() {
     let socket = socket_path();
-    let r = cli_on(&socket, &["hello", "ada"]);
+    let r = cli_on(&socket, &["canvas", "list"]);
     assert_eq!((r.code, r.out.as_str()), (exit::UNAVAILABLE, ""));
     assert!(r.err.contains(" does not answer on "), "{}", r.err);
     assert!(r.err.contains("\n  start it with '"), "{}", r.err);
-    let doc = json(&cli_on(&socket, &["hello", "ada", "--json"]));
+    let doc = json(&cli_on(&socket, &["canvas", "list", "--json"]));
     assert_eq!(doc["code"], "unavailable");
 }
 
@@ -365,7 +365,7 @@ fn ui_put_list_show_and_export() {
 #[test]
 fn version_and_help_need_no_daemon() {
     assert_eq!(cli_bare(&["--version"]).code, exit::OK);
-    assert_eq!(cli_bare(&["hello", "--help"]).code, exit::OK);
+    assert_eq!(cli_bare(&["canvas", "list", "--help"]).code, exit::OK);
 }
 
 #[test]
@@ -405,15 +405,15 @@ fn no_args_and_help_print_help_and_succeed() {
         let r = cli(args);
         assert_eq!(r.code, exit::OK);
         assert!(r.out.contains("Usage:"), "{}", r.out);
-        assert!(r.out.contains("hello"), "{}", r.out);
+        assert!(r.out.contains("canvas"), "{}", r.out);
     }
 }
 
 #[test]
 fn verbose_writes_diagnostics_to_stderr_only() {
-    let r = cli(&["--verbose", "hello", "ada"]);
-    assert_eq!(r.out, "hello, ada\n");
-    assert!(r.err.contains("greeting"), "{}", r.err);
+    let r = cli(&["--verbose", "canvas", "list"]);
+    assert_eq!((r.code, r.out.as_str()), (exit::OK, ""));
+    assert!(r.err.starts_with("canvas list on "), "{}", r.err);
 }
 
 #[test]

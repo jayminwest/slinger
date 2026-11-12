@@ -14,8 +14,8 @@
 //!   empty canvas draws a box that selects what it touches, and a drag
 //!   inside the selection's box moves it, as the lasso's does.
 //! - The selection: one page's items, in a box with a faint fill of the
-//!   focus colour, a square handle at each corner (only a mark for now: a
-//!   drag on one moves the selection) and the number of items above it. It
+//!   focus colour, a square handle at each corner (a drag on one resizes
+//!   the selection, [`scale`]) and the number of items above it. It
 //!   is app state, read by what acts on it ([`Select::selection`]); delete
 //!   removes it in one `remove`. It is of a page, not of a pane: every pane
 //!   on its page shows it, and its move, as the items themselves do.
@@ -31,6 +31,7 @@
 mod carry;
 mod hit;
 mod pick;
+mod scale;
 
 pub use carry::Landing;
 use carry::{Arriving, Target};
@@ -90,6 +91,8 @@ enum Gesture {
     /// The select tool's box, from `from` to `to`; `adding` (shift) adds
     /// what it touches to the selection.
     Marquee { from: Point, to: Point, adding: bool },
+    /// A corner handle dragged: the selection resizing.
+    Scale(scale::Grip),
 }
 
 impl Gesture {
@@ -113,8 +116,9 @@ impl Select {
     /// The pen went down at `at` on `page` of `canvas` with `tool`, at
     /// `zoom`, over `items`. Returns false, and nothing starts, for a tool
     /// that is neither the eraser nor the lasso (the select tool's press is
-    /// [`Select::pick`]). A lasso pressed outside
-    /// the selection's box clears the selection and starts a loop.
+    /// [`Select::pick`]). A lasso pressed on a handle resizes the
+    /// selection; pressed outside the selection's box it clears the
+    /// selection and starts a loop.
     pub fn down(
         &mut self,
         tool: Tool,
@@ -123,6 +127,9 @@ impl Select {
         zoom: f64,
         items: &[Cow<'_, Item>],
     ) -> bool {
+        if tool == Tool::Lasso && self.grip((canvas, page), at, zoom, items) {
+            return true;
+        }
         self.arriving = None;
         let gesture = match tool {
             Tool::Eraser => Gesture::Erase { ids: Vec::new(), last: at, radius: ERASER / zoom },
@@ -159,6 +166,7 @@ impl Select {
                 *to = Target::Here;
             }
             Gesture::Marquee { to, .. } => *to = at,
+            Gesture::Scale(grip) => grip.drag(at),
         }
         true
     }
@@ -166,7 +174,8 @@ impl Select {
     /// The pen lifted, at `at` if it said where, over `items`: an erase that
     /// hit anything, or a move that went anywhere, goes to `ink` as one
     /// change; a loop selects what it holds (nothing, when it holds
-    /// nothing), and the select tool's box what it touches; a press on an
+    /// nothing), and the select tool's box what it touches; a resize that
+    /// went anywhere goes to `ink` as one change; a press on an
     /// item that did not move selects that item alone. Returns false when no gesture was under the pen.
     pub fn up(&mut self, at: Option<Point>, items: &[Cow<'_, Item>], ink: &mut Ink) -> bool {
         if let Some(at) = at {
@@ -183,6 +192,11 @@ impl Select {
                     items.iter().filter(|i| on_server(i.id) && hit::holds(&points, &i.shape));
                 let ids: Vec<ItemId> = held.map(|i| i.id).collect();
                 self.selection = (!ids.is_empty()).then_some(Selection { canvas, page, ids });
+            }
+            Gesture::Scale(grip) => {
+                if let Some(selection) = &self.selection {
+                    scale::lift(&grip, (canvas, page), items, &selection.ids, ink);
+                }
             }
             Gesture::Marquee { from, to, adding } => {
                 self.boxed((canvas, page), pick::spanned(from, to), adding, items);
@@ -266,6 +280,9 @@ impl Select {
         let selection = self.selection.as_ref().filter(|s| here(&s.canvas, &s.page));
         match (gesture, selection) {
             (Some(Gesture::Erase { ids, .. }), _) => items.retain(|i| !ids.contains(&i.id)),
+            (Some(Gesture::Scale(grip)), Some(selection)) => {
+                scale::show(grip, &mut items, &selection.ids);
+            }
             (Some(Gesture::Move { to: Target::Away { .. }, .. }), Some(selection)) => {
                 items.retain(|i| !selection.ids.contains(&i.id));
             }
@@ -311,7 +328,7 @@ impl Select {
     }
 
     /// Whether a press at `at` on `page` of `canvas` is inside the
-    /// selection's box at `zoom`, over `items`.
+    /// selection's box or on one of its handles at `zoom`, over `items`.
     pub fn grabs(
         &self,
         (canvas, page): (&str, &str),
@@ -321,7 +338,9 @@ impl Select {
     ) -> bool {
         let Some(selection) = &self.selection else { return false };
         let here = selection.canvas == canvas && selection.page == page;
-        here && bounds(items, &selection.ids).is_some_and(|b| b.outset(MARGIN / zoom).contains(at))
+        let inside =
+            bounds(items, &selection.ids).is_some_and(|b| b.outset(MARGIN / zoom).contains(at));
+        here && (inside || self.handle((canvas, page), at, zoom, items).is_some())
     }
 }
 

@@ -98,6 +98,8 @@ impl Command {
             Command::ShowCommands => "Show commands",
             Command::LeaveFeedback => "Leave feedback…",
             Command::ToggleGrid => "Dotted grid",
+            Command::Save => "Save",
+            Command::ShowCanvasFile => "Show canvas file in Finder",
         }
     }
 
@@ -130,7 +132,9 @@ impl Command {
             | Command::ClearSelection
             | Command::Undo
             | Command::Redo
-            | Command::ToggleGrid => Group::Canvas,
+            | Command::ToggleGrid
+            | Command::Save
+            | Command::ShowCanvasFile => Group::Canvas,
             Command::NextPage
             | Command::PreviousPage
             | Command::NewPage

@@ -93,6 +93,9 @@ pub enum Change {
     Put { canvas: String, page: String, colour: Rgb, shape: Shape },
     /// Item `id` drawn as `shape` from now on: one edit of a text.
     Set { canvas: String, page: String, id: ItemId, shape: Shape },
+    /// Each of `items` drawn as it is there from now on, by its id: one
+    /// resize of a selection, with the arrows that follow it.
+    Reshape { canvas: String, page: String, items: Vec<Item> },
     /// Items carried in from another page, one `add` each: a selection
     /// dragged into this page's pane. From a page of the same canvas,
     /// `gone` names the items it takes from there, in the same step;
@@ -123,6 +126,7 @@ impl Change {
             | Change::Move { canvas, .. }
             | Change::Put { canvas, .. }
             | Change::Set { canvas, .. }
+            | Change::Reshape { canvas, .. }
             | Change::Carry { canvas, .. }
             | Change::Page { canvas, .. }
             | Change::Step { canvas, .. } => canvas,
@@ -138,6 +142,7 @@ impl Change {
             | Change::Move { page, .. }
             | Change::Put { page, .. }
             | Change::Set { page, .. }
+            | Change::Reshape { page, .. }
             | Change::Carry { page, .. } => Some(page),
             Change::Page { .. } | Change::Step { .. } => None,
         }
@@ -366,6 +371,13 @@ impl Ink {
                     for item in shown.iter_mut().filter(|i| i.id == *id) {
                         let colour = item.colour;
                         *item = Cow::Owned(Item { id: *id, colour, shape: shape.clone() });
+                    }
+                }
+                Change::Reshape { items: after, .. } => {
+                    for item in &mut shown {
+                        if let Some(after) = after.iter().find(|a| a.id == item.id) {
+                            *item = Cow::Owned(after.clone());
+                        }
                     }
                 }
                 Change::Page { .. } | Change::Step { .. } => {}

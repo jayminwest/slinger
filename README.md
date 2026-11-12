@@ -17,7 +17,7 @@ Start the daemon, then use the CLI. The protocol is in [docs/service.md](docs/se
 
 ```bash
 cargo run --release --bin slingerd &
-cargo run --release --bin slinger -- hello ada
+cargo run --release --bin slinger -- canvas create main
 ```
 
 Build and open the macOS app (it shows the daemon's answer):

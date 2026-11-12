@@ -166,6 +166,39 @@ fn a_data_dir_that_cannot_be_made_is_an_error_with_a_hint() {
 }
 
 #[test]
+fn a_held_data_dir_is_a_conflict_until_its_store_is_gone() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = Store::open(dir.path(), MACHINE).unwrap();
+    let err = Store::open(dir.path(), MACHINE).unwrap_err();
+    assert!(matches!(err, StoreError::Taken(_)), "{err:?}");
+    assert_eq!(err.code(), "conflict");
+    let message = format!("data directory {} is in use by another slingerd", dir.path().display());
+    assert_eq!(err.to_string(), message);
+    assert_eq!(err.hint().unwrap(), "stop that daemon, or pass another --data-dir");
+    drop(first);
+    let again = Store::open(dir.path(), MACHINE).unwrap();
+    assert_eq!(again.events(&Query::default()).unwrap(), []);
+}
+
+#[test]
+fn a_second_slingerd_on_a_held_data_dir_exits_4_and_leaves_the_record_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path(), MACHINE).unwrap();
+    store.append(event("agent_done", None)).unwrap();
+    // Its own socket, so only the data directory is shared.
+    let socket = dir.path().join("other.sock");
+    let args = ["slingerd", "--socket", socket.to_str().unwrap(), "--data-dir"];
+    let args = args.into_iter().chain([dir.path().to_str().unwrap()]);
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    assert_eq!(crate::run(args, &mut out, &mut err), 4);
+    let err = String::from_utf8(err).unwrap();
+    assert_eq!(String::from_utf8(out).unwrap(), "");
+    assert!(err.starts_with("✗ data directory "), "{err}");
+    assert!(err.contains(" is in use by another slingerd\n  stop that daemon"), "{err}");
+    assert_eq!(numbers(&store.events(&Query::default()).unwrap()), [1]);
+}
+
+#[test]
 fn a_file_that_is_not_a_database_is_an_error() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join(FILE), vec![b'x'; 4096]).unwrap();
