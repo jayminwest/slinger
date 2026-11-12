@@ -211,3 +211,26 @@ fn authors_are_the_user_or_a_named_agent() {
         assert_eq!(parse_author(bad).unwrap_err().code(), "invalid", "{bad}");
     }
 }
+
+#[test]
+fn a_change_sent_again_under_its_key_is_written_once_and_says_the_same() {
+    use slinger_core::canvas::file::ONCES;
+    let (mut log, mut file) = new_canvas();
+    let first = log.apply_once(&Author::User, AT, &bx(0), "app.1").unwrap();
+    file.push_str(&first.bytes);
+    assert_eq!(
+        (first.seq.as_slice(), first.made.as_slice()),
+        ([1].as_slice(), ["i1".into()].as_slice())
+    );
+    let again = log.apply_once(&Author::User, AT, &bx(0), "app.1").unwrap();
+    assert_eq!((again.bytes.as_str(), &again.seq, &again.made), ("", &first.seq, &first.made));
+    assert_eq!(items(&log).len(), 1, "not applied twice");
+    assert!(log.apply_once(&Author::User, AT, &json!({ "op": "fly" }), "app.2").is_err());
+    let second = log.apply_once(&Author::User, AT, &bx(500), "app.2").unwrap();
+    assert_eq!(second.made, ["i2"], "a key whose change failed may go again");
+    for n in 0..ONCES {
+        log.apply_once(&Author::User, AT, &bx(0), &format!("more.{n}")).unwrap();
+    }
+    let forgotten = log.apply_once(&Author::User, AT, &bx(0), "app.1").unwrap();
+    assert!(!forgotten.bytes.is_empty(), "only the last {ONCES} keys are kept");
+}

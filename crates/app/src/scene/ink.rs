@@ -17,9 +17,11 @@
 //! ([`Ink::heard`]). From then on the page's mirror holds it, so it never
 //! blinks out between the daemon's reply and the echo. An item added shows
 //! under an id of the ink's own until the daemon says the id it made
-//! ([`Answer::Made`]), and under that id from then on, so the eraser, the
-//! lasso and the select tool can take it before the echo; once the mirror
-//! holds that id it draws from there alone. A removal or a move laid over a
+//! ([`Answer::Made`]), and under that id from then on; once the mirror
+//! holds that id it draws from there alone. The eraser, the lasso and the
+//! select tool take it under either: a change that names it is renamed to
+//! the server's id before it goes ([`ids`]), so it is still one step. A
+//! removal or a move laid over a
 //! mirror that already has it changes nothing more, since the mirror takes
 //! the feed and the change leaves in the same poll.
 //!
@@ -31,7 +33,7 @@
 //! end of a stroke gives the log line for SPEC O2 ([`Ink::delay_log`]).
 
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::backend::Problem;
 use crate::config::Rgb;
@@ -39,17 +41,25 @@ use crate::layout::Point;
 use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::pages::PageOp;
 
+mod delay;
+mod ids;
+mod once;
+
 /// The pen's line width until one is set ([`Ink::set_width`]), in canvas
 /// units: tldraw's small pen.
 pub const PEN_WIDTH: f64 = 2.0;
 /// Ink's item ids start here, far above any id the server hands out, so
-/// local ink and the page's items never share an id. An item the daemon
-/// has made shows under the server's id instead.
+/// ink and the page's items never share an id: the stroke under the pen,
+/// and the items changes not yet written add, until the daemon makes them
+/// (then they show under the server's id).
+pub const PENDING: u64 = 1 << 61;
+/// No item is ever taken under an id from here up: the marks drawn over a
+/// page are.
 pub const LOCAL: u64 = 1 << 62;
 
-/// Whether `id` is the server's, not local ink's or a mark's drawn over
-/// the page: only the server's items can be erased, selected or moved
-/// (ink the daemon has written shows under the server's id).
+/// Whether `id` is the server's, or will be once a change on its way there
+/// is written ([`PENDING`]); not a mark's drawn over the page. Only these
+/// items can be erased, selected or moved.
 pub fn on_server(id: ItemId) -> bool {
     id.0 < LOCAL
 }
@@ -189,13 +199,19 @@ struct Pending {
     after: Option<u64>,
     /// The ids the daemon made for the items it adds, once it said.
     made: Vec<ItemId>,
+    /// The key it is applied once under, when not this run's ([`once`]).
+    once: Option<String>,
 }
 
 impl Pending {
+    fn new(key: u64, change: Change, after: Option<u64>) -> Self {
+        Self { key, change, state: State::Waiting, after, made: Vec::new(), once: None }
+    }
+
     /// The id the `n`th item it adds shows under: the server's once made.
     fn id(&self, n: u64) -> ItemId {
         let made = usize::try_from(n).ok().and_then(|n| self.made.get(n));
-        made.copied().unwrap_or(ItemId(LOCAL + self.key + n))
+        made.copied().unwrap_or(ItemId(PENDING + self.key + n))
     }
 }
 
@@ -212,6 +228,12 @@ pub struct Ink {
     delays: Vec<f64>,
     /// The width a new stroke takes; none is [`PEN_WIDTH`].
     width: Option<f64>,
+    /// Each id of the ink's own the daemon made an item of, and the id it
+    /// made. Kept for the app's life (a few bytes a change), so a gesture
+    /// still holding an old id names the item made ([`ids`]).
+    made: HashMap<ItemId, ItemId>,
+    /// What this run's keys for applying once start with ([`once`]).
+    run: String,
 }
 
 impl Ink {
@@ -259,9 +281,7 @@ impl Ink {
             self.drag(at);
         }
         let Some((key, stroke)) = self.drawing.take() else { return false };
-        let change = Change::Add(stroke);
-        let made = Vec::new();
-        self.pending.push(Pending { key, change, state: State::Waiting, after: None, made });
+        self.pending.push(Pending::new(key, Change::Add(stroke), None));
         true
     }
 
@@ -287,38 +307,59 @@ impl Ink {
         key
     }
 
-    /// Queues `change` after every change before it; its key. A carry's
+    /// Queues `change` after every change before it, the items it names
+    /// that the daemon has made under the ids it made; its key. A carry's
     /// items each show under a key of their own.
-    fn queue(&mut self, change: Change, after: Option<u64>) -> u64 {
+    fn queue(&mut self, mut change: Change, after: Option<u64>) -> u64 {
+        change.rename(|id| Some(ids::known(&self.made, id)));
         let key = self.next_key;
         let keys = match &change {
             Change::Carry { items, .. } => u64::try_from(items.len()).unwrap_or(1).max(1),
             _ => 1,
         };
-        self.pending.push(Pending { key, change, state: State::Waiting, after, made: Vec::new() });
+        self.pending.push(Pending::new(key, change, after));
         self.next_key += keys;
         key
     }
 
     /// The next change to send, and its key, now marked as sending. `None`
     /// while one is sending: changes go one at a time, oldest first, so a
-    /// change sent again stays ahead of every change after it.
+    /// change sent again stays ahead of every change after it. It names
+    /// items by the server's ids: one naming only items never made (their
+    /// add was refused) is dropped unsent.
     pub fn next(&mut self) -> Option<(u64, Change)> {
         if self.pending.iter().any(|p| p.state == State::Sending) {
             return None;
         }
-        let first = self.pending.iter_mut().find(|p| p.state == State::Waiting)?;
-        first.state = State::Sending;
-        Some((first.key, first.change.clone()))
+        loop {
+            let at = self.pending.iter().position(|p| p.state == State::Waiting)?;
+            let made = &self.made;
+            let first = &mut self.pending[at];
+            if first.change.rename(|id| ids::sent(made, id)) {
+                first.state = State::Sending;
+                return Some((first.key, first.change.clone()));
+            }
+            self.pending.remove(at);
+        }
     }
 
-    /// The daemon's answer to the change sent under `key`.
-    pub fn answered(&mut self, key: u64, answer: Answer) {
-        let Some(at) = self.pending.iter().position(|p| p.key == key) else { return };
+    /// The daemon's answer to the change sent under `key`. Returns the
+    /// items it made that showed under an id of the ink's own: that id,
+    /// and the one each shows under from now on.
+    pub fn answered(&mut self, key: u64, answer: Answer) -> Vec<(ItemId, ItemId)> {
+        let Some(at) = self.pending.iter().position(|p| p.key == key) else { return Vec::new() };
         match answer {
             Answer::Made { seq, ids } => {
+                let mine = (0..).map(|n| self.pending[at].id(n));
+                let renamed: Vec<_> = mine.zip(ids.iter().copied()).collect();
                 (self.pending[at].state, self.pending[at].made) = (State::Sent(seq), ids);
+                self.made.extend(renamed.iter().copied());
+                let made = &self.made;
+                for pending in &mut self.pending {
+                    pending.change.rename(|id| Some(ids::known(made, id)));
+                }
                 self.problem = None;
+                return renamed;
             }
             Answer::Applied(seq) | Answer::NewPage { seq, .. } => {
                 self.pending[at].state = State::Sent(seq);
@@ -334,6 +375,7 @@ impl Ink {
                 self.problem = Some(problem);
             }
         }
+        Vec::new()
     }
 
     /// The change feed of `canvas` has passed line `upto`: every change
@@ -413,7 +455,7 @@ impl Ink {
             }
         }
         let drawing = self.drawing.iter().filter(|(_, s)| here(&s.canvas, &s.page));
-        shown.extend(drawing.map(|(key, stroke)| Cow::Owned(local(ItemId(LOCAL + key), stroke))));
+        shown.extend(drawing.map(|(key, stroke)| Cow::Owned(local(ItemId(PENDING + key), stroke))));
         shown
     }
 
@@ -436,38 +478,6 @@ impl Ink {
     /// Why the last change sent did not go, until one goes.
     pub fn problem(&self) -> Option<&Problem> {
         self.problem.as_ref()
-    }
-
-    /// A paint showed ink `delay` seconds after its pen event.
-    pub fn painted(&mut self, delay: f64) {
-        if self.drawing.is_some() && delay.is_finite() {
-            self.delays.push(delay);
-        }
-    }
-
-    /// The pen-to-paint delays of the stroke last drawn as one line, and
-    /// then forgets them; `None` without any.
-    pub fn delay_log(&mut self) -> Option<String> {
-        if self.delays.is_empty() {
-            return None;
-        }
-        let mut ms: Vec<f64> = self.delays.drain(..).map(|s| s * 1000.0).collect();
-        ms.sort_by(f64::total_cmp);
-        let at = |part: f64| {
-            #[expect(clippy::cast_precision_loss, reason = "a stroke has far fewer paints")]
-            let last = (ms.len() - 1) as f64;
-            #[expect(
-                clippy::cast_possible_truncation,
-                clippy::cast_sign_loss,
-                reason = "a rounded index into the list"
-            )]
-            ms[(last * part).round() as usize]
-        };
-        let (median, high, most) = (at(0.5), at(0.95), at(1.0));
-        Some(format!(
-            "ink: pen to paint over {} paints, ms: median {median:.1}, 95th {high:.1}, most {most:.1}",
-            ms.len()
-        ))
     }
 }
 

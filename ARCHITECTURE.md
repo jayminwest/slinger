@@ -218,7 +218,9 @@ workspaces.rs the open workspaces: the list of directories that hold their
              on every request and checked by the core's rules, each on its
              own: a file that breaks one is listed `Broken` with its error
              (`slingerd` names it on stderr at startup) and every verb on
-             that workspace fails with it; the others serve. The store asks
+             that workspace fails with it; the others serve, and a new one
+             may not take the name or canvas a broken file states
+             (`workspace::check_reserved`). The store asks
              it for the workspace tag of each event it appends. `panes`
              changes a workspace's layout under the list's lock and writes
              the file whole when it changed; `edit` does the same for any
@@ -914,16 +916,25 @@ stderr as one `ink:` line (SPEC O2). Strokes not yet written are kept in
 whole each time they change, removed when none are left) and queued first
 at the next start, so a stroke drawn while the daemon is down survives a
 quit; erases, moves and the other changes not yet sent are lost if the app
-quits. The app binary has a size budget, and the release
+quits. One app at a time keeps the file: it holds a lock on
+`unsent-ink.json.lock` while it runs, and a second app started beside it
+keeps nothing and says so, rather than write over the first's strokes. Every `canvas_apply` goes
+with `once`, a key of this run and the change (`scene/ink/once.rs`), and a
+kept stroke keeps its key in the file: the daemon applies a request sent
+again under a key it applied lately only once, so a stroke written as the
+app quit, or a change whose answer was lost, is not written twice. The app binary has a size budget, and the release
 profile builds it at `opt-level = "z"`, so it adds no async runtime.
 
 **Eraser, lasso and select tool:** they work on the page as the user sees it (the
 mirror with the ink laid over) and answer under the pen from the app's own
 copy, by the core's rules (`scene/select/hit.rs`): a round trip to the
 daemon per pen event would make the main thread wait or the eraser trail
-the pen. Only the server's items count: ink shows under its server id as
-soon as the daemon has written it, so only ink not yet written is never
-erased or selected. A finished erase, move or delete joins the ink's queue
+the pen. Ink not yet written counts too: it shows under an id of the ink's
+own until the daemon says the id it made, and a change that names it is
+renamed to that id before it goes (`scene/ink/ids.rs`), so it is still one
+`canvas_apply` and one undo step; the selection follows the rename. A
+change left naming only items never made (their add was refused) is
+dropped unsent. A finished erase, move or delete joins the ink's queue
 as one `canvas_apply`, in turn with the strokes, and shows from there until
 the feed brings it. The user may erase, move and delete any item, an
 agent's too. The eraser takes strokes, text, boxes (by their outline, so
@@ -1059,7 +1070,9 @@ Each boundary has something that fails when it is broken:
 | A follower shows the page, hands on each change, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
 | A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |
 | Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |
-| Strokes not yet written survive a quit and are sent first after the next start; a refused one leaves the file | `crates/app/src/canvases/kept/tests.rs` and `crates/app/src/backend/unsent.rs`, against a real daemon |
+| Ink not yet written is selected, moved and erased at once; each change goes in turn by the ids the daemon made, one undo step each | `crates/app/src/scene/ink/tests.rs`, and `crates/app/src/canvases/tests.rs` against a real daemon |
+| Strokes not yet written survive a quit and are sent first after the next start; a refused one leaves the file; one written as the app quit is not written twice; two apps keep a file each | `crates/app/src/canvases/kept/tests.rs` and `crates/app/src/backend/unsent/tests.rs`, against a real daemon |
+| A `canvas_apply` sent again under its `once` key is applied once and answered the same | `crates/core/tests/canvas_log.rs`, and `crates/daemon/src/tests/canvas.rs` through a real socket |
 | An erase, a move and a delete are one change each and show at once; a lasso selects what it holds whole; the selection clears | `crates/app/src/scene/select/tests.rs` |
 | The select tool picks the topmost item under a press, a drawn box selects what it touches, shift adds or takes out, a drag moves the selection | `crates/app/src/scene/select/pick/tests.rs` |
 | A drag of a corner handle scales the selection about the opposite corner in one change, a text's size scales evenly within its range, bound arrows follow, no side turns over, shift keeps the shape | `crates/app/src/scene/select/scale/tests.rs` |

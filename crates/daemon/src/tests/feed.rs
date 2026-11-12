@@ -13,7 +13,7 @@ const LONG: Duration = Duration::from_secs(30);
 
 fn bx(x: i64) -> CanvasOps {
     let op = json!({ "op": "add", "item": { "page": "p1", "kind": "box", "x": x, "y": 0, "w": 10, "h": 10 } });
-    CanvasOps { canvas: "main".into(), by: "user".into(), ops: op }
+    CanvasOps { canvas: "main".into(), by: "user".into(), ops: op, once: None }
 }
 
 fn numbers(ops: &[Value]) -> Vec<u64> {

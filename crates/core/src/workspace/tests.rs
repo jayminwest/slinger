@@ -221,6 +221,19 @@ fn rule_a_name_and_a_default_canvas_belong_to_one_workspace() {
 }
 
 #[test]
+fn rule_a_broken_file_keeps_the_name_and_canvas_it_states() {
+    let ws = Workspace::named("notes");
+    let err = check_reserved(&ws, "/w/old", Some("notes"), None).unwrap_err();
+    assert_eq!(err.code(), "conflict");
+    assert!(err.to_string().contains("name \"notes\"") && err.to_string().contains("/w/old"));
+    assert!(err.hint().unwrap().contains("workspace close /w/old"), "{:?}", err.hint());
+    let err = check_reserved(&ws, "/w/old", Some("old"), Some("notes")).unwrap_err();
+    assert!(err.to_string().contains("canvas \"notes\""), "{err}");
+    check_reserved(&ws, "/w/old", Some("old"), Some("old")).unwrap();
+    check_reserved(&ws, "/w/old", None, None).unwrap();
+}
+
+#[test]
 fn a_named_workspace_opens_on_a_canvas_of_its_own() {
     let ws = Workspace::named("My Notes!");
     assert_eq!(

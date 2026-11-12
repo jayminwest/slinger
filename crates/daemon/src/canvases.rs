@@ -223,14 +223,18 @@ impl Canvases {
     }
 
     /// Applies `ops` as `by` (`user` or `agent:<name>`) and returns what it
-    /// wrote, after the lines are on disk.
+    /// wrote, after the lines are on disk. Under `once`, a key it applied
+    /// under lately applies nothing again ([`Log::apply_once`]).
     ///
     /// # Errors
     ///
     /// The errors of [`Log::apply`] and of reading and writing the file.
-    pub fn apply(&self, id: &str, by: &str, ops: &Value) -> Result<Written> {
+    pub fn apply(&self, id: &str, by: &str, ops: &Value, once: Option<&str>) -> Result<Written> {
         let by = parse_author(by)?;
-        self.change(id, |log| Ok(log.apply(&by, now(), ops)?))
+        self.change(id, |log| match once {
+            Some(once) => Ok(log.apply_once(&by, now(), ops, once)?),
+            None => Ok(log.apply(&by, now(), ops)?),
+        })
     }
 
     /// Puts `what` beside the item `beside` names, as `agent`, drawn as

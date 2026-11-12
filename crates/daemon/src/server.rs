@@ -236,8 +236,8 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
             Ok(Reply::CanvasShow(CanvasPage { canvas, next, page, pages, items, path }))
         }
         Request::CanvasApply(o) => {
-            let lines = store.canvases().apply(&o.canvas, &o.by, &o.ops).map_err(|e| drawn(&e))?;
-            Ok(Reply::CanvasApply(change(lines)))
+            let applied = store.canvases().apply(&o.canvas, &o.by, &o.ops, o.once.as_deref());
+            Ok(Reply::CanvasApply(change(applied.map_err(|e| drawn(&e))?)))
         }
         Request::CanvasUndo(s) => {
             let lines = store.canvases().undo(&s.canvas, &s.by).map_err(|e| drawn(&e))?;

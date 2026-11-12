@@ -10,7 +10,9 @@ use super::Daemon;
 fn idea(client: &Client) {
     client.canvas_create("idea").unwrap();
     let ink = json!({ "op": "add", "item": { "page": "p1", "kind": "stroke", "width": 10, "pts": [0, 0, 100, 100] } });
-    client.canvas_apply(CanvasOps { canvas: "idea".into(), by: "user".into(), ops: ink }).unwrap();
+    client
+        .canvas_apply(CanvasOps { canvas: "idea".into(), by: "user".into(), ops: ink, once: None })
+        .unwrap();
     client.canvas_put("idea", "scout", "i1", Put::Text("looks right".into())).unwrap();
 }
 

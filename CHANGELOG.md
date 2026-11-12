@@ -214,6 +214,25 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a stroke on its way to slingerd as the app quit is no longer
+  added twice when the app starts again, and a change sent again after
+  slingerd's answer was lost is not applied twice. A second copy of the
+  app started while one runs no longer writes over the first's unsent
+  strokes: it keeps none of its own and says so.
+- **Control:** `canvas_apply` takes `once`, a key the caller makes unique:
+  a request sent again under the same key is applied once and answered
+  the same.
+- **App:** ink slingerd has not written yet (just drawn, or drawn while
+  slingerd is down) can be erased, selected, moved and deleted at once,
+  like any other item. Each change still goes to slingerd in order, as one
+  undo step.
+- **Daemon:** opening a canvas whose last line was torn by a crash no
+  longer hangs that request; `slingerd` cuts the line, says so on stderr
+  and answers.
+- **Workspaces:** an open workspace whose file is broken keeps its name
+  and canvas: opening another workspace with the same name or canvas is
+  refused with a conflict that says to fix or close the broken one, so
+  fixing its file never leaves two workspaces with one name.
 - **Workspaces:** one open workspace whose `slinger-workspace.toml` breaks
   a rule (say an `agent.tools` rule slinger does not know) no longer stops
   every other workspace from loading. The others work as before; the broken

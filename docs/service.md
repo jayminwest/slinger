@@ -85,7 +85,8 @@ Canvases live beside the record, one file per canvas:
 daemon is their only writer (SPEC K5). It makes the directory (mode `0700`)
 with the first canvas, reads a canvas on first use and keeps it open. A torn
 last line (a crash in the middle of a write) is cut off the file, with a line
-on stderr; nothing acknowledged is lost.
+on stderr; nothing acknowledged is lost. `slingerd` takes stderr's lock one
+write at a time, so any thread may write to it while the daemon serves.
 
 ## Socket
 
@@ -143,7 +144,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_create` | `canvas`: canvas id | `canvas`: the id |
 | `canvas_list` | none | `canvases`: list of `{canvas}`, sorted by id |
 | `canvas_show` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `canvas`, `next`: the next operation's number, `page`: the page's id, `pages`: list of `{id, name}`, `items`: list of items, `path`: the absolute path of the canvas's file |
-| `canvas_apply` | `canvas`: canvas id, `by`: author (default `user`), `ops`: one operation or a list | `seq`: list of numbers, `made`: list of ids |
+| `canvas_apply` | `canvas`: canvas id, `by`: author (default `user`), `ops`: one operation or a list, `once`: string (optional) | `seq`: list of numbers, `made`: list of ids |
 | `canvas_undo`, `canvas_redo` | `canvas`: canvas id, `by`: author (default `user`) | `seq`, `made` (always empty) |
 | `canvas_import` | `path`: absolute path of a tldraw file, `canvas`: canvas id (optional, default made from the file's name) | `canvas`, `pages`: number, `items`: count by kind, `skipped`: count by tldraw shape type |
 | `canvas_changes` | `canvas`: canvas id, `after`: number (default 0), `wait`: milliseconds (default 0, at most 60000) | `next`: the number after the last op given, `ops`: list of operation lines |
@@ -337,6 +338,15 @@ tenths of a unit.
 | `page.rename` | `page`, `name` |
 | `page.remove` | `page`. Its items go with it; the last page stays |
 
+**Applied once.** A caller that cannot tell whether a `canvas_apply` was
+written (its answer was lost, or it quit before the answer came) sends it
+again with the same `once`, a key it makes unique (the app uses its process
+and start time and a count). A request whose `once` is the key of one of
+the last 1024 changes applied to that canvas under a key applies nothing
+and writes nothing, and answers that change's `seq` and `made`. The keys
+live in the daemon's memory, as the undo history does: a restart forgets
+them. A request that failed keeps no key.
+
 `made` lists the ids the `add` and `page.add` operations made, in order. An
 operation of another kind, or one whose fields do not fit, is `invalid` with
 a hint. `slinger canvas schema` prints this table and the item kinds
@@ -428,7 +438,9 @@ hint, file, field}`: the stable code (`invalid` for a rule or text,
 a rule (`agent.tools`), when one did. Every verb on a broken workspace (show,
 the panes, the profiles, the session verbs, a sling on its canvas) fails with
 that same error and hint; none falls back to defaults. The others serve as
-before. At startup `slingerd` writes each broken file's error and hint to
+before. A broken workspace keeps the name and the canvas its file states:
+opening another workspace with either is `conflict`, with a hint to fix or
+close the broken one. At startup `slingerd` writes each broken file's error and hint to
 stderr, once.
 
 **`workspace_show`** and **`workspace_close`** take the workspace's name, or

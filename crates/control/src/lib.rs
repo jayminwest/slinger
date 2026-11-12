@@ -331,6 +331,10 @@ pub struct CanvasOps {
     pub by: String,
     /// One operation object, or a list of them.
     pub ops: Value,
+    /// A key the caller makes unique: sent again under it, the operations
+    /// are not applied twice (docs/service.md, "Canvas operations").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub once: Option<String>,
 }
 
 /// Who takes an undo or redo step on which canvas.

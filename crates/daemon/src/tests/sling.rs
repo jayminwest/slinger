@@ -20,7 +20,7 @@ fn draw(client: &Client, x: i64) -> u64 {
     let item = json!({ "page": "p1", "kind": "stroke", "width": 20,
         "pts": [x, 0, 100, 50, 100, -50] });
     let ops = json!({ "op": "add", "item": item });
-    let ops = CanvasOps { canvas: "notes".into(), by: "user".into(), ops };
+    let ops = CanvasOps { canvas: "notes".into(), by: "user".into(), ops, once: None };
     client.canvas_apply(ops).unwrap().seq[0]
 }
 
