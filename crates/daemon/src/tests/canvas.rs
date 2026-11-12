@@ -47,6 +47,18 @@ fn a_canvas_survives_a_restart_with_every_item_and_page() {
 }
 
 #[test]
+fn a_shown_canvas_names_the_file_that_holds_it() {
+    let data = TempDir::new().unwrap();
+    let daemon = Daemon::start_in(data.path());
+    let client = daemon.client();
+    client.canvas_create("main").unwrap();
+    let path = client.canvas_show("main", None).unwrap().path.unwrap();
+    assert_eq!(std::path::Path::new(&path), data.path().join("canvases/main.canvas"));
+    assert!(std::fs::metadata(&path).unwrap().is_file());
+    daemon.stop();
+}
+
+#[test]
 fn clients_that_apply_at_once_all_succeed_and_the_numbers_have_no_gap() {
     let data = TempDir::new().unwrap();
     let daemon = Daemon::start_in(data.path());

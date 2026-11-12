@@ -37,7 +37,7 @@ slingerd [--socket <PATH>] [--data-dir <PATH>] [--claude <PATH>] [--slinger <PAT
 | 0 | ok | Stopped by a signal |
 | 1 | error | Unexpected failure, such as a socket path or data directory that cannot be created |
 | 2 | usage | Bad arguments |
-| 4 | conflict | Another daemon serves the socket, or the record was laid out by a newer slingerd |
+| 4 | conflict | Another daemon serves the socket or the data directory, or the record was laid out by a newer slingerd |
 
 ## Data directory
 
@@ -51,9 +51,18 @@ writer; other programs reach the record through the socket.
 - The daemon creates the directory (mode `0700`) and the file at startup,
   after it takes the socket. A directory it cannot create stops it with
   exit 1 and a hint.
+- **One daemon per data directory.** The daemon holds a lock on
+  `record.lock` in the directory for its whole life, so two daemons on
+  different sockets never share one record. A second daemon exits 4 with
+  `✗ data directory <path> is in use by another slingerd` and a hint. The
+  lock ends with the process, so a daemon that died leaves none; the empty
+  file stays.
 - The event log is append-only: the file refuses updates and deletes. The
   daemon gives each event its number and time and tags it with this
-  machine's name, the host name up to its first dot. An event the writer
+  machine's name. The record keeps that name from when it was created: the
+  host name up to its first dot then (for a record made by an older
+  daemon, the name on its first event). Renaming the host later does not
+  change it, so one machine's events keep one tag. An event the writer
   gave no workspace tag gets the tag of the open workspace whose canvas is
   its `canvas` tag, else of the one whose agent is its `agent` tag; none
   when no open workspace, or more than one, matches.
@@ -133,7 +142,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `ui_reply` | `open`: a showing's id, `value`: any JSON | `event`: the `ui_reply` appended, `agent`, `delivered`: whether its session took it |
 | `canvas_create` | `canvas`: canvas id | `canvas`: the id |
 | `canvas_list` | none | `canvases`: list of `{canvas}`, sorted by id |
-| `canvas_show` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `canvas`, `next`: the next operation's number, `page`: the page's id, `pages`: list of `{id, name}`, `items`: list of items |
+| `canvas_show` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `canvas`, `next`: the next operation's number, `page`: the page's id, `pages`: list of `{id, name}`, `items`: list of items, `path`: the absolute path of the canvas's file |
 | `canvas_apply` | `canvas`: canvas id, `by`: author (default `user`), `ops`: one operation or a list | `seq`: list of numbers, `made`: list of ids |
 | `canvas_undo`, `canvas_redo` | `canvas`: canvas id, `by`: author (default `user`) | `seq`, `made` (always empty) |
 | `canvas_import` | `path`: absolute path of a tldraw file, `canvas`: canvas id (optional, default made from the file's name) | `canvas`, `pages`: number, `items`: count by kind, `skipped`: count by tldraw shape type |

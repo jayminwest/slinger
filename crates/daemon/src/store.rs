@@ -14,10 +14,11 @@
 //! same way. And it holds `packets/`, where `canvas read` writes each packet
 //! for agents to read ([`Store::packet_dir`]): derived files, safe to delete.
 
+mod schema;
 #[cfg(test)]
 mod tests;
 
-use std::fs::DirBuilder;
+use std::fs::{DirBuilder, File, TryLockError};
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
@@ -35,6 +36,8 @@ use crate::workspaces::Workspaces;
 
 /// The store's file inside the data directory.
 const FILE: &str = "record.sqlite";
+/// The lock file inside the data directory: whoever holds it owns the directory.
+const LOCK: &str = "record.lock";
 /// The directory of canvas files inside the data directory.
 const CANVASES: &str = "canvases";
 /// The directory of the open workspaces' list inside the data directory.
@@ -48,34 +51,6 @@ const SESSION_IDS: &str = "sessions.json";
 pub const CLAUDE: &str = "claude";
 /// The CLI each agent's hooks run, unless the daemon is told another.
 pub const SLINGER: &str = "slinger";
-/// The layout this code writes, kept in SQLite's `user_version`.
-const SCHEMA_VERSION: i64 = 1;
-const SCHEMA: &str = "
-CREATE TABLE events (
-    number    INTEGER PRIMARY KEY,
-    time      INTEGER NOT NULL,
-    kind      TEXT NOT NULL,
-    machine   TEXT NOT NULL,
-    workspace TEXT,
-    agent     TEXT,
-    canvas    TEXT,
-    event     TEXT NOT NULL
-) STRICT;
-CREATE INDEX events_by_kind      ON events (kind, number);
-CREATE INDEX events_by_workspace ON events (workspace, number);
-CREATE INDEX events_by_agent     ON events (agent, number);
-CREATE INDEX events_by_canvas    ON events (canvas, number);
-CREATE TRIGGER events_no_update BEFORE UPDATE ON events
-    BEGIN SELECT RAISE(ABORT, 'the record is append-only'); END;
-CREATE TRIGGER events_no_delete BEFORE DELETE ON events
-    BEGIN SELECT RAISE(ABORT, 'the record is append-only'); END;
-CREATE TABLE blobs (
-    id    TEXT PRIMARY KEY,
-    bytes BLOB NOT NULL
-) STRICT, WITHOUT ROWID;
-CREATE TRIGGER blobs_no_update BEFORE UPDATE ON blobs
-    BEGIN SELECT RAISE(ABORT, 'a blob never changes'); END;
-";
 
 /// Why the store failed.
 #[derive(Debug, thiserror::Error)]
@@ -85,10 +60,15 @@ pub enum StoreError {
     NoDataDir,
     #[error("cannot create data directory {}: {source}", path.display())]
     Dir { path: PathBuf, source: std::io::Error },
+    /// Another store, in this process or another, holds the directory.
+    #[error("data directory {} is in use by another slingerd", .0.display())]
+    Taken(PathBuf),
+    #[error("cannot lock data directory {}: {source}", path.display())]
+    Lock { path: PathBuf, source: std::io::Error },
     #[error("cannot open the record {}: {source}", path.display())]
     Open { path: PathBuf, source: rusqlite::Error },
     /// The file was laid out by a newer slingerd.
-    #[error("the record {} has layout {found}, newer than this slingerd reads ({SCHEMA_VERSION})", path.display())]
+    #[error("the record {} has layout {found}, newer than this slingerd reads ({})", path.display(), schema::VERSION)]
     Newer { path: PathBuf, found: i64 },
     #[error("record database error: {0}")]
     Sqlite(#[from] rusqlite::Error),
@@ -103,10 +83,12 @@ impl StoreError {
     pub fn code(&self) -> &'static str {
         match self {
             Self::NoDataDir => "invalid",
-            Self::Newer { .. } => "conflict",
-            Self::Dir { .. } | Self::Open { .. } | Self::Sqlite(_) | Self::Unreadable { .. } => {
-                "internal"
-            }
+            Self::Taken(_) | Self::Newer { .. } => "conflict",
+            Self::Dir { .. }
+            | Self::Lock { .. }
+            | Self::Open { .. }
+            | Self::Sqlite(_)
+            | Self::Unreadable { .. } => "internal",
         }
     }
 
@@ -115,7 +97,10 @@ impl StoreError {
     pub fn hint(&self) -> Option<String> {
         match self {
             Self::NoDataDir => Some("set HOME, or pass --data-dir".into()),
-            Self::Dir { .. } | Self::Open { .. } => Some("pass another --data-dir".into()),
+            Self::Dir { .. } | Self::Lock { .. } | Self::Open { .. } => {
+                Some("pass another --data-dir".into())
+            }
+            Self::Taken(_) => Some("stop that daemon, or pass another --data-dir".into()),
             Self::Newer { .. } => Some("run a newer slingerd, or pass another --data-dir".into()),
             Self::Sqlite(_) | Self::Unreadable { .. } => None,
         }
@@ -156,45 +141,43 @@ pub struct Store {
     packets: PathBuf,
     sessions: Sessions,
     feedback: Feedback,
+    /// Held for the store's life: two stores never share one directory.
+    _lock: File,
 }
 
 impl Store {
     /// Opens the record in `dir`, creating the directory (mode 0700) and the
-    /// file when they do not exist. Every event appended is tagged `machine`.
+    /// file when they do not exist. A new record keeps `machine` as its name,
+    /// and every event appended is tagged with the name the record keeps, so
+    /// a host rename does not change it.
     ///
     /// # Errors
     ///
     /// [`StoreError::Dir`] or [`StoreError::Open`] when the directory or the
-    /// file cannot be made or read, and [`StoreError::Newer`] when a newer
-    /// slingerd laid the file out.
+    /// file cannot be made or read, [`StoreError::Taken`] when another store
+    /// holds `dir`, and [`StoreError::Newer`] when a newer slingerd laid the
+    /// file out.
     pub fn open(dir: &Path, machine: impl Into<String>) -> Result<Self> {
         DirBuilder::new()
             .recursive(true)
             .mode(0o700)
             .create(dir)
             .map_err(|source| StoreError::Dir { path: dir.to_owned(), source })?;
+        let lock = lock(dir)?;
         let path = dir.join(FILE);
         let opened = |source| StoreError::Open { path: path.clone(), source };
         let mut db = Connection::open(&path).map_err(opened)?;
         db.pragma_update(None, "journal_mode", "WAL").map_err(opened)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate).map_err(opened)?;
-        let found: i64 = tx.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        match found {
-            0 => {
-                tx.execute_batch(SCHEMA)?;
-                tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
-            }
-            SCHEMA_VERSION => {}
-            _ => return Err(StoreError::Newer { path, found }),
-        }
+        let machine = schema::prepare(&tx, &path, machine.into())?;
         tx.commit()?;
-        let machine = machine.into();
         let canvases = Canvases::new(dir.join(CANVASES));
         let workspaces = Workspaces::new(dir.join(WORKSPACES), machine.clone());
         let packets = dir.join(PACKETS);
         let sessions = Sessions::new(CLAUDE.into(), dir.join(SESSION_IDS));
         let feedback = Feedback::new(dir.join(slinger_core::feedback::FILE));
-        Ok(Self { db: Mutex::new(db), machine, canvases, workspaces, packets, sessions, feedback })
+        let db = Mutex::new(db);
+        Ok(Self { db, machine, canvases, workspaces, packets, sessions, feedback, _lock: lock })
     }
 
     /// Appends `event` to the log and returns it as stored: with the next
@@ -310,7 +293,7 @@ impl Store {
     }
 
     /// This machine's name, as the `machine` tag and the workspaces' roots
-    /// give it.
+    /// give it: the one the record kept when it was created.
     #[must_use]
     pub fn machine(&self) -> &str {
         &self.machine
@@ -410,6 +393,18 @@ fn select(db: &Connection, query: &Query) -> Result<Vec<Event>> {
     .collect()
 }
 
+/// Takes the lock on `dir`, so no other store opens the record while this one
+/// has it. The lock ends with the process, so a daemon that died leaves none.
+fn lock(dir: &Path) -> Result<File> {
+    let locking = |source| StoreError::Lock { path: dir.to_owned(), source };
+    let lock = File::options().create(true).append(true).open(dir.join(LOCK)).map_err(locking)?;
+    match lock.try_lock() {
+        Ok(()) => Ok(lock),
+        Err(TryLockError::WouldBlock) => Err(StoreError::Taken(dir.to_owned())),
+        Err(TryLockError::Error(e)) => Err(locking(e)),
+    }
+}
+
 /// Where the record lives when `--data-dir` is not given:
 /// `$XDG_DATA_HOME/slinger`, else `~/Library/Application Support/slinger` on
 /// macOS and `~/.local/share/slinger` elsewhere.
@@ -437,8 +432,8 @@ fn data_dir_in(xdg: Option<PathBuf>, home: Option<PathBuf>, macos: bool) -> Opti
     Some(base.join("slinger"))
 }
 
-/// This machine's name for the `machine` tag: the host name up to its first
-/// dot, so `my-laptop.local` and `my-laptop` are the same machine.
+/// The name a new record keeps for the `machine` tag: the host name up to
+/// its first dot, so `my-laptop.local` and `my-laptop` are the same machine.
 #[must_use]
 pub fn machine_name() -> String {
     machine_from(&gethostname::gethostname().to_string_lossy())

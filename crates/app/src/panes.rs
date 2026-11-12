@@ -242,7 +242,9 @@ impl Panes {
             | Command::ShowKeys
             | Command::ShowCommands
             | Command::LeaveFeedback
-            | Command::ToggleGrid => {}
+            | Command::ToggleGrid
+            | Command::Save
+            | Command::ShowCanvasFile => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),

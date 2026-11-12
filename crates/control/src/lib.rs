@@ -359,6 +359,10 @@ pub struct CanvasPage {
     pub pages: Vec<Value>,
     /// The page's items in drawing order, as the canvas file writes them.
     pub items: Vec<Value>,
+    /// The absolute path of the canvas's file; none from a daemon older
+    /// than the field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
 }
 
 /// What a change to a canvas wrote: the reply to apply, undo and redo.

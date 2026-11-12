@@ -244,3 +244,30 @@ fn the_grid_follows_the_config_and_the_toggle_and_flashes() {
         assert_eq!(grid(&mut canvases), Some(28.35));
     });
 }
+
+/// slinger-174eda: a canvas pane knows its canvas's file once the daemon has
+/// shown it, and `save` says where every change went.
+#[test]
+fn a_pane_knows_its_canvas_file_and_save_says_where_it_went() {
+    use crate::commands::Command;
+    use crate::scene::title;
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+        wait_until(|| shown(&mut canvases, &panes) == 1);
+        let (canvas, file) = canvases.file(&panes, panes.focus()).unwrap();
+        let file = file.unwrap().to_string();
+        assert_eq!(canvas, "notes");
+        assert!(file.ends_with("/canvases/notes.canvas"), "{file}");
+        assert!(std::fs::metadata(&file).unwrap().is_file());
+        assert!(canvases.command(&panes, (panes.focus(), WINDOW.rect()), Command::Save));
+        let home = std::env::home_dir();
+        let said = format!("Saved to {}", title::tilde(&file, home.as_deref()));
+        assert_eq!(canvases.said(), Some(said));
+
+        let ui = Panes::new(Pane { kind: Kind::Ui, name: "board".into() });
+        assert_eq!(canvases.file(&ui, ui.focus()), None);
+        assert!(canvases.command(&ui, (ui.focus(), WINDOW.rect()), Command::Save));
+        assert_eq!(canvases.said().as_deref(), Some(title::NO_CANVAS));
+    });
+}

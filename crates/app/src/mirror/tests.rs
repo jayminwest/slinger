@@ -2,8 +2,10 @@ use std::borrow::Cow;
 
 use serde_json::json;
 
+use super::write::stroke_object;
 use super::*;
 use crate::scene::ink::Ink;
+use crate::scene::ink::{Change, Stroke};
 use crate::scene::select::Select;
 use crate::scene::tools::Tool;
 
@@ -14,6 +16,7 @@ fn shown(items: Vec<Value>) -> CanvasPage {
         page: "p1".into(),
         pages: vec![json!({"id": "p1", "name": "one"}), json!({"id": "p2", "name": "two"})],
         items,
+        path: None,
     }
 }
 
@@ -410,4 +413,43 @@ fn carried_items_are_add_objects_on_the_other_page_moved_and_without_this_canvas
     assert_eq!(written.as_array().map(Vec::len), Some(2), "one canvas_apply, one add each");
     assert_eq!(written[1]["op"], "add");
     assert_eq!(written[1]["item"]["kind"], "arrow");
+}
+
+#[test]
+fn a_resize_sets_each_item_a_stroke_by_its_points_and_an_agent_ui_by_its_place() {
+    let mut m = Mirror::new(&shown(vec![stroke("i1", "p1")]));
+    let red = Rgb { r: 255, g: 0, b: 0 };
+    let scaled = Item {
+        id: ItemId(1),
+        colour: red,
+        shape: Shape::Stroke { points: vec![pt(10.0, 20.0), pt(12.0, 16.0)], width: 2.0 },
+    };
+    let ui = Item {
+        id: ItemId(2),
+        colour: red,
+        shape: Shape::Live {
+            frame: Rect { x: 1.5, y: 2.0, width: 30.0, height: 20.0 },
+            name: "pick".into(),
+            open: "pick-slot#1".into(),
+        },
+    };
+    let boxed = Item {
+        id: ItemId(3),
+        colour: red,
+        shape: Shape::Box { frame: Rect { x: 0.0, y: 0.0, width: 4.0, height: 2.0 }, width: 2.0 },
+    };
+    let (canvas, page) = ("main".to_string(), "p1".to_string());
+    let written = ops(&Change::Reshape { canvas, page, items: vec![scaled.clone(), ui, boxed] });
+    assert_eq!(
+        written,
+        json!([
+            {"op": "set", "id": "i1", "fields": {"pts": [100, 200, 20, -40]}},
+            {"op": "set", "id": "i2", "fields": {"x": 15, "y": 20}},
+            {"op": "set", "id": "i3", "fields": {"x": 0, "y": 0, "w": 40, "h": 20}},
+        ]),
+        "an agent UI keeps its size: only an agent sizes it"
+    );
+    let ops = written.as_array().unwrap()[..1].to_vec();
+    assert_eq!(m.apply(&feed(7, ops)), Applied::Changed);
+    assert_eq!(m.items()[0].shape, scaled.shape, "the feed brings the stroke back as shown");
 }

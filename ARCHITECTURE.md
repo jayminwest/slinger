@@ -179,8 +179,12 @@ server.rs    the control socket and `answer`, one arm per verb. `serve` takes th
 store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
              the event log and the blobs. The only module that knows its
              layout. Stores each event as the line `record::encode` wrote.
+             Locks the data directory, so one store owns the record.
              Hands out the canvases, the workspaces and the sessions, so
              `answer` reaches all data one way.
+store/schema.rs  the file's layout, its version and the steps that bring
+             an older file up to date. The file keeps the machine name it
+             was created under, so a host rename keeps the tag.
 canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,
              so changes are numbered in the order they apply; append, sync,
              then reply. A failed write closes the canvas; the next request
@@ -361,7 +365,9 @@ canvases/paging.rs  the canvas commands on a pane: pan, zoom (in, out, to
              dotted grid on every canvas pane, flashing "Dotted grid
              on/off"; the config's `[canvas]` is its start), the page
              commands (each turns only that pane) and undo and redo, each
-             through the ink's queue; each pane's page line.
+             through the ink's queue; each pane's page line; `save`, which
+             flashes where the pane's canvas is saved (canvases/status.rs
+             knows each pane's canvas file, from `canvas_show`'s `path`).
 canvases/sling.rs  the sling from the window: opens the entry at the
              focused pane's selection, sends it once the ink of its canvas
              is written (`Ink::settled`), takes the answer. `sling_now` is
@@ -510,6 +516,10 @@ scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport
              paint is cut off at the pane's edges (`clip`). Chrome over a page
              is two more shapes no server item has: a panel (a box with a
              fill, dashed or not) and a text's caret. Pure.
+scene/title.rs  the title bar: the focused pane's canvas, its file under
+             it (`~` for home) and that file as the proxy icon; what `save`
+             flashes. Nothing to save by hand: the daemon writes each change
+             as it is made (SPEC K5). Pure.
 scene/grid.rs  the dotted grid: display only, never an item (nothing
              selects, erases, slings or stores it; the core's images never
              show it). Dots fixed to the canvas, a quiet mix of the
@@ -539,9 +549,10 @@ scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
              hides the strokes, text, boxes and arrows it touches at once and
              removes them on the lift (one change, one undo step); a loop
              selects the items it holds whole, drawn as a tinted box with four
-             corner handles (marks only, no resize) and its item count above
+             corner handles and its item count above
              it, all in the focus colour, at screen size; a drag inside
-             the box moves them (with the lasso or the select tool); delete
+             the box moves them, and a drag of a handle resizes them
+             (with the lasso or the select tool); delete
              removes them. Each is one change, so
              one undo step. The selection (canvas, page, server ids) is app
              state the sling and moves between panes read. Pure.
@@ -582,6 +593,14 @@ scene/select/carry.rs  a drag of the selection goes by the canvas pane
              step on each, a refused add taking the remove with it), and
              are selected there once the server's ids arrive; outside every
              canvas pane they show home and nothing moves. Pure.
+scene/select/scale.rs  a drag of a corner handle scales the selection
+             about the opposite corner, width and height apart, never below
+             5% or turned over: a stroke's points, a box's corners and an
+             arrow's ends scale (line widths do not); a text, a button and
+             an agent UI keep their size and only their place moves; arrows
+             bound to it follow. It shows as the pen goes; the lift writes
+             it as one `set` an item, in one `canvas_apply`, so one undo
+             step. Pure.
 scene/resize.rs  the pen on a divider between panes: the press grabs it,
              each drag resizes the panes at once, the lift names it (the
              number of the pane before it, and its share) for
@@ -668,6 +687,9 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              layout::SMALLEST) and says its new size as Event::Resized; main
              lays the scene out again at it. All unsafe, objc2 and AppKit
              code. No decisions.
+platform/files.rs  sets the title bar a scene's Title says (title, subtitle,
+             represented file), and shows a file in the Finder
+             (`show-canvas-file`, from main).
 platform/menu.rs  makes the menu bar a scene's menus say, again when they
              change. A command item chosen by its key goes to main as that
              key press, so the keymap runs it once; chosen with the pointer,
@@ -743,8 +765,10 @@ did not get stays on screen and goes again before any after it; one it
 refuses (its canvas is gone) is dropped and shown as the problem. Local
 ink and the server's echo: a stroke draws from the ink until its canvas's
 feed has passed the line its `add` was written under; from then on the
-mirror holds it. So it never blinks out between the reply and the echo,
-and for that moment both draw it in the same place. Touch (a palm on a
+mirror holds it. So it never blinks out between the reply and the echo.
+The daemon's reply to an add says the ids it made, and the ink shows the
+item under that id from then on (and not at all once the mirror holds
+it), so it never draws twice. Touch (a palm on a
 tablet display) never draws. Each stroke's pen-to-paint delays go to
 stderr as one `ink:` line (SPEC O2). Ink not yet sent is lost if the app
 quits. The app binary has a size budget, and the release
@@ -754,7 +778,8 @@ profile builds it at `opt-level = "z"`, so it adds no async runtime.
 mirror with the ink laid over) and answer under the pen from the app's own
 copy, by the core's rules (`scene/select/hit.rs`): a round trip to the
 daemon per pen event would make the main thread wait or the eraser trail
-the pen. Only the server's items count, so ink still on its way is never
+the pen. Only the server's items count: ink shows under its server id as
+soon as the daemon has written it, so only ink not yet written is never
 erased or selected. A finished erase, move or delete joins the ink's queue
 as one `canvas_apply`, in turn with the strokes, and shows from there until
 the feed brings it. The user may erase, move and delete any item, an
@@ -884,6 +909,7 @@ Each boundary has something that fails when it is broken:
 | Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |
 | An erase, a move and a delete are one change each and show at once; a lasso selects what it holds whole; the selection clears | `crates/app/src/scene/select/tests.rs` |
 | The select tool picks the topmost item under a press, a drawn box selects what it touches, shift adds or takes out, a drag moves the selection | `crates/app/src/scene/select/pick/tests.rs` |
+| A drag of a corner handle scales the selection about the opposite corner in one change, texts keep their size, bound arrows follow, no side turns over | `crates/app/src/scene/select/scale/tests.rs` |
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |
