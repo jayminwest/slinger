@@ -107,6 +107,14 @@ pub enum Shown {
     Closed,
 }
 
+impl Shown {
+    /// Whether the sidebar is open: as the config `set`s it, else as it
+    /// was `last` left (open or not), else open.
+    pub fn starts_open(set: Option<Self>, last: Option<bool>) -> bool {
+        set.map_or(last.unwrap_or(true), |set| set == Self::Open)
+    }
+}
+
 /// Every setting, resolved: what the file says, else the default.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Config {
@@ -120,7 +128,9 @@ pub struct Config {
     pub keys: Keymap,
     pub palette: Palette,
     pub widths: Widths,
-    pub sidebar: Shown,
+    /// `None` when the files do not say: the sidebar starts as it was last
+    /// left ([`Shown::starts_open`]).
+    pub sidebar: Option<Shown>,
     pub canvas: Canvas,
     pub prompt: Prompt,
 }
@@ -228,7 +238,7 @@ impl Layer {
             keys,
             palette: self.palette.unwrap_or_default(),
             widths: self.widths.unwrap_or_default(),
-            sidebar: self.sidebar.unwrap_or_default(),
+            sidebar: self.sidebar,
             canvas: Canvas {
                 background: self.paper.unwrap_or_default(),
                 grid: self.grid.unwrap_or_default(),

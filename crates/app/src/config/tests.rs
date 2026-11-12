@@ -33,7 +33,7 @@ fn parses_every_key() {
         keys: Keymap::default(),
         palette: Palette::default(),
         widths: Widths::default(),
-        sidebar: Shown::Open,
+        sidebar: None,
         canvas: Canvas::default(),
         prompt: Prompt::default(),
     };
@@ -360,12 +360,21 @@ fn the_overlay_replaces_the_whole_palette() {
 #[test]
 fn the_sidebar_is_open_or_closed_at_start() {
     let sidebar = |text: &str| parse(text).map(|l| l.resolve().sidebar).map_err(|e| e.kind);
-    assert_eq!(sidebar(""), Ok(Shown::Open));
-    assert_eq!(sidebar("[window]\nsidebar = \"closed\"\n"), Ok(Shown::Closed));
-    assert_eq!(sidebar("[window]\nsidebar = \"open\"\n"), Ok(Shown::Open));
+    assert_eq!(sidebar(""), Ok(None));
+    assert_eq!(sidebar("[window]\nsidebar = \"closed\"\n"), Ok(Some(Shown::Closed)));
+    assert_eq!(sidebar("[window]\nsidebar = \"open\"\n"), Ok(Some(Shown::Open)));
     assert_eq!(sidebar("[window]\nsidebar = \"no\"\n"), Err(ErrorKind::BadSidebar));
     let base = parse("[window]\nsidebar = \"closed\"\n").unwrap();
-    assert_eq!(base.over(Layer::default()).resolve().sidebar, Shown::Closed);
+    assert_eq!(base.over(Layer::default()).resolve().sidebar, Some(Shown::Closed));
+}
+
+#[test]
+fn the_config_then_the_last_launch_says_whether_the_sidebar_starts_open() {
+    assert!(Shown::starts_open(None, None));
+    assert!(!Shown::starts_open(None, Some(false)));
+    assert!(Shown::starts_open(None, Some(true)));
+    assert!(Shown::starts_open(Some(Shown::Open), Some(false)));
+    assert!(!Shown::starts_open(Some(Shown::Closed), Some(true)));
 }
 
 #[test]
