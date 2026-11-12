@@ -79,7 +79,8 @@ pub struct Canvases {
     /// Each open workspace's canvas and its agent, as the sidebar last
     /// heard: for the buttons, the footers and `sling-now`.
     agents: Option<Vec<(String, Option<Agent>)>>,
-    /// What to flash once: a pane's new zoom ("Zoom 150%") or the grid's toggle.
+    /// What to flash once: a pane's new zoom ("Zoom 150%"), the grid's
+    /// toggle or where `save` said the canvas went.
     zoomed: Option<String>,
     /// Whether every canvas pane shows the dotted grid.
     paper: Paper,
@@ -95,6 +96,8 @@ struct Open {
     mirror: Option<Mirror>,
     heard: u64,
     problem: Option<Problem>,
+    /// The canvas's file, as the daemon last said.
+    file: Option<String>,
 }
 
 /// One canvas pane: where it looks, the page it shows (by canvas and page
@@ -169,7 +172,7 @@ impl Canvases {
                 changed = true;
                 match news {
                     News::Shown(page) => {
-                        open.heard = page.next.saturating_sub(1);
+                        (open.heard, open.file) = (page.next.saturating_sub(1), page.path.clone());
                         (open.mirror, open.problem) = (Some(Mirror::new(&page)), None);
                     }
                     News::Problem(problem) => open.problem = Some(problem),
@@ -398,8 +401,8 @@ impl Canvases {
                 let follower =
                     Follower::start(self.daemon.clone(), (*canvas).to_string(), page.clone());
                 let (canvas, asked) = ((*canvas).to_string(), page.clone());
-                let (mirror, problem) = (None, None);
-                self.open.push(Open { canvas, asked, follower, mirror, heard: 0, problem });
+                let (mirror, problem, file) = (None, None, None);
+                self.open.push(Open { canvas, asked, follower, mirror, heard: 0, problem, file });
             }
         }
         self.views.retain(|(id, _)| placed.iter().any(|(p, _, _)| p == id));
