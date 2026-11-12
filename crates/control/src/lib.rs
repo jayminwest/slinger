@@ -52,8 +52,6 @@ pub use workspace::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Request {
-    /// Ask for a greeting.
-    Hello { name: String },
     /// Append an event to this machine's record.
     RecordAppend(NewEvent),
     /// Read events from this machine's record.
@@ -170,7 +168,6 @@ pub enum Request {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum Reply {
-    Hello(Greeting),
     RecordAppend(Appended),
     RecordList(Events),
     BlobPut(Stored),
@@ -213,12 +210,6 @@ pub enum Reply {
     FeedbackList(FeedbackEntries),
     FeedbackResolve(FeedbackResolution),
     FeedbackPath(FeedbackFile),
-}
-
-/// The reply to [`Request::Hello`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Greeting {
-    pub greeting: String,
 }
 
 /// An event to append. The daemon sets its number, time and machine tag,

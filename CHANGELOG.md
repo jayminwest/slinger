@@ -62,6 +62,12 @@ bullet with the area in bold.
   stopped, and "working" as soon as a sling is waiting for it, so a sling
   to a stopped agent no longer looks like nothing happened.
 
+### Removed
+
+- **CLI and daemon:** the `hello` command and the `hello` verb, a
+  placeholder from the first build. To check that the daemon answers, run
+  `slinger canvas list`. `--verbose` now names the command and the socket.
+
 ### Fixed
 
 - **App:** a failed tap on the "send to agent" button shows why in the

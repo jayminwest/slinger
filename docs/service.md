@@ -92,22 +92,22 @@ One connection carries one request and one reply. Each is one line of JSON
 (UTF-8, ended by a newline). Try it:
 
 ```bash
-echo '{"v":1,"op":"hello","name":"ada"}' | nc -U "$SOCKET"
+echo '{"v":1,"op":"canvas_create","canvas":"main"}' | nc -U "$SOCKET"
 ```
 
 **Request:** `v` is the protocol version, `op` names the verb, and the other
 fields are the verb's arguments.
 
 ```json
-{ "v": 1, "op": "hello", "name": "ada" }
+{ "v": 1, "op": "canvas_create", "canvas": "main" }
 ```
 
 **Reply:** `ok` and then the verb's result, or the error. `code` is stable
 and `error` is for people. Branch on `code`, never on `error`.
 
 ```json
-{ "ok": true, "greeting": "hello, ada" }
-{ "ok": false, "code": "invalid", "error": "name is empty", "hint": "pass a non-empty name" }
+{ "ok": true, "canvas": "main" }
+{ "ok": false, "code": "invalid", "error": "\"Main\" is not a canvas id", "hint": "use 1 to 64 of a-z, 0-9, '-', '_' and '.', not starting with '.'" }
 ```
 
 - A request line is at most 65536 bytes. The daemon reads a longer line to
@@ -120,7 +120,6 @@ and `error` is for people. Branch on `code`, never on `error`.
 
 | `op` | Arguments | Result |
 |---|---|---|
-| `hello` | `name`: string | `greeting`: string |
 | `record_append` | `kind`: string, `source`: string, `tags`: object (optional), `payload`: object (default `{}`) | `event`: the event as stored |
 | `record_list` | `kind`, `machine`, `workspace`, `agent`, `canvas`: string (each optional); `after`: number (optional) | `events`: list of events, lowest number first |
 | `blob_put` | `path`: absolute path of a file | `id`: the blob id |
