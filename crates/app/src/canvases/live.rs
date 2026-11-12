@@ -3,21 +3,26 @@
 //! by its id, on a thread of its own ([`Lives`]), and shows over its item
 //! once it has come ([`scene::live`]). A press on an item whose page shows
 //! goes to the page, unless it grabs the selection: a live item is selected
-//! with the lasso around it, then moved or deleted like any other.
+//! with the lasso around it, then moved or deleted like any other. An item
+//! too small on the screen takes no presses, and one off the screen keeps
+//! its view a while ([`live::Away`]).
 
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
+use std::time::Instant;
 
 use slinger_control::Client;
 
 use super::Canvases;
 use crate::backend::{Problem, ui::fetch};
+use crate::config::Theme;
 use crate::layout::Point;
 use crate::scene::canvas::{Item, Shape};
-use crate::scene::{Scene, live};
+use crate::scene::live::{Away, Shows};
+use crate::scene::{Notes, Scene, live};
 use crate::ui::{Page, Shown};
 
 /// The live items' pages: asked for, and come.
@@ -26,6 +31,7 @@ pub(super) struct Lives {
     heard: Receiver<(String, Result<Shown, Problem>)>,
     asked: HashSet<String>,
     pages: HashMap<String, Arc<Page>>,
+    away: Away,
 }
 
 impl Lives {
@@ -43,12 +49,13 @@ impl Lives {
         });
         // Without the thread no page comes: each item keeps its box and name.
         drop(spawned);
-        Self { ask, heard, asked: HashSet::new(), pages: HashMap::new() }
+        let (asked, pages, away) = (HashSet::new(), HashMap::new(), Away::default());
+        Self { ask, heard, asked, pages, away }
     }
 
-    /// Takes the pages fetched. Returns whether any came. A showing that
-    /// cannot show (gone, or a bridge this app does not speak) keeps its
-    /// box and name.
+    /// Takes the pages fetched. Returns whether any came, or a view kept
+    /// off the screen is due to close. A showing that cannot show (gone, or
+    /// a bridge this app does not speak) keeps its box and name.
     pub(super) fn poll(&mut self) -> bool {
         let mut came = false;
         for (open, shown) in self.heard.try_iter() {
@@ -57,13 +64,18 @@ impl Lives {
                 came = true;
             }
         }
-        came
+        came || self.away.due(Instant::now())
     }
 
-    /// Whether `at`, a canvas point, is on an item of `items` whose page shows.
-    pub(super) fn under(&self, items: &[Cow<'_, Item>], at: Point) -> bool {
+    /// Whether `at`, a canvas point, is on an item of `items` whose page
+    /// shows and, at `zoom`, takes presses ([`Shows::at`]).
+    pub(super) fn under(&self, items: &[Cow<'_, Item>], at: Point, zoom: f64) -> bool {
         items.iter().any(|i| match &i.shape {
-            Shape::Live { frame, open, .. } => frame.contains(at) && self.pages.contains_key(open),
+            Shape::Live { frame, open, .. } => {
+                frame.contains(at)
+                    && self.pages.contains_key(open)
+                    && Shows::at(frame.width * zoom) == Shows::Page
+            }
             _ => false,
         })
     }
@@ -71,8 +83,10 @@ impl Lives {
 
 impl Canvases {
     /// Puts the page of each live item `scene`'s canvas panes draw over it,
-    /// and asks for each page not yet asked for.
-    pub fn show_live(&mut self, scene: &mut Scene) {
+    /// with its note from `notes` in `theme`'s colours, keeps the views of
+    /// those just gone off the screen, and asks for each page not yet asked
+    /// for.
+    pub fn show_live(&mut self, scene: &mut Scene, notes: &Notes, theme: &Theme) {
         let lives = &mut self.lives;
         for open in live::showings(&scene.canvases) {
             if lives.asked.insert(open.to_string()) {
@@ -80,7 +94,10 @@ impl Canvases {
                 let _ = lives.ask.send(open.to_string());
             }
         }
-        scene.webs.extend(live::webs(&scene.canvases, &lives.pages));
+        let mut webs = live::webs(&scene.canvases, &lives.pages);
+        lives.away.keep(&mut webs, Instant::now());
+        scene.labels.extend(live::notes(&webs, notes, theme));
+        scene.webs.extend(webs);
     }
 }
 

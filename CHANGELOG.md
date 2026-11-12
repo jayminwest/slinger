@@ -11,6 +11,13 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a live item panned off the screen keeps its page for 30
+  seconds, so panning away and back no longer resets what you entered;
+  after that its page closes and loads again when it returns. Zoomed out
+  until it is under 48 points wide, a live item takes no clicks, so the
+  pen draws over it. When the agent did not take a live item's reply, the
+  item says so along its top.
+
 - **App:** rename a page and leave feedback with the pen alone. Their
   entries have buttons beside them: ✓ Rename or ✓ Save does what return
   does, ✕ what escape does, and Dictate has Flick write the text in, as
