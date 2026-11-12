@@ -276,7 +276,7 @@ mod tests {
         with_store(Some(&waiting_claude(bin.path())), |d| {
             let home = open_notes(d);
             d.status_set("scout", "done", None).unwrap();
-            assert_eq!(shown(d), (Some(Status::Stopped), None), "no process");
+            assert_eq!(shown(d), (Some(Status::Done), None), "never started: its hooks say");
             d.session_start("notes").unwrap();
             assert_eq!(shown(d), (Some(Status::Done), None), "it said so");
             let ask = SlingAsk {
@@ -293,6 +293,7 @@ mod tests {
             std::fs::write(home.path().join("go"), "").unwrap();
             wait_until(|| shown(d).0 == Some(Status::Done));
             d.session_stop("notes").unwrap();
+            assert_eq!(shown(d).0, Some(Status::Stopped), "stopped, whatever it said");
         });
     }
 }
