@@ -197,7 +197,8 @@ mod tests {
             canvases.poll();
             !canvases.show(panes, area, &theme).is_empty()
         });
-        let pen = |x, y| Pen { at: Point { x, y }, when: 0.0, touch: false, eraser: false };
+        let pen =
+            |x, y| Pen { at: Point { x, y }, when: 0.0, touch: false, eraser: false, shift: false };
         let lasso = (Tool::Lasso, Rgb { r: 0, g: 0, b: 0 });
         assert!(canvases.pen_down(panes, (panes.focus(), area), pen(50.0, 50.0), lasso));
         for (x, y) in [(200.0, 50.0), (200.0, 200.0), (50.0, 200.0)] {

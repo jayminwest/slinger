@@ -201,6 +201,7 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
             "cmd+4",
             "cmd+5",
             "cmd+6",
+            "cmd+7",
             "alt+]",
             "alt+[",
             "cmd+return",

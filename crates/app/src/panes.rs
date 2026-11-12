@@ -210,6 +210,7 @@ impl Panes {
             | Command::ToolText
             | Command::ToolBox
             | Command::ToolArrow
+            | Command::ToolSelect
             | Command::Sling
             | Command::PreviousPage
             | Command::NewPage

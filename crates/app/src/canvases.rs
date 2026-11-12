@@ -219,9 +219,9 @@ impl Canvases {
     /// window, with `tool` and `colour`: a press outside a text being typed
     /// ends it, and only the text tool's tap does nothing more; the pen
     /// starts a stroke on the page the pane shows, the eraser an erase,
-    /// the lasso a loop or a drag of the selection, the
-    /// text tool a text, the box and arrow tools a drag. Returns false, and
-    /// nothing starts, for touch (a palm), a pane whose canvas page has
+    /// the lasso a loop or a drag of the selection, the select tool a pick,
+    /// a box or a drag of the selection ([`Select::pick`]), the text tool a
+    /// text, the box and arrow tools a drag. Returns false, and nothing starts, for touch (a palm), a pane whose canvas page has
     /// not arrived, or a press on a live item's page outside the selection.
     /// A press on a button outside the selection slings ([`button`]).
     pub fn pen_down(
@@ -253,6 +253,8 @@ impl Canvases {
             self.send();
         } else if tool == Tool::Pen {
             self.ink.down(canvas, &shown, colour, at);
+        } else if tool == Tool::Select {
+            self.select.pick(here, at, viewport.zoom(), pen.shift, &items);
         } else if !self.select.down(tool, here, at, viewport.zoom(), &items) {
             return false;
         }

@@ -20,7 +20,8 @@ use std::cell::Cell;
 use objc2::MainThreadMarker;
 use objc2::rc::Retained;
 use objc2_app_kit::{
-    NSCursor, NSEvent, NSEventSubtype, NSEventType, NSPointingDeviceType, NSView, NSWindow,
+    NSCursor, NSEvent, NSEventModifierFlags, NSEventSubtype, NSEventType, NSPointingDeviceType,
+    NSView, NSWindow,
 };
 use objc2_foundation::NSPoint;
 
@@ -137,12 +138,13 @@ fn point(window: &NSWindow, event: &NSEvent) -> Point {
     Point { x: at.x, y: height - at.y }
 }
 
-/// A left-button or pen event: where, when, whether a finger made it, and
-/// whether a tablet pen's eraser end did.
+/// A left-button or pen event: where, when, whether a finger made it,
+/// whether a tablet pen's eraser end did, and whether shift was held.
 fn pen(window: &NSWindow, event: &NSEvent) -> Pen {
     let subtype = event.subtype();
     let touch = subtype == NSEventSubtype::Touch;
     let tablet = matches!(subtype, NSEventSubtype::TabletPoint | NSEventSubtype::TabletProximity);
     let eraser = tablet && ERASER.get();
-    Pen { at: point(window, event), when: event.timestamp(), touch, eraser }
+    let shift = event.modifierFlags().contains(NSEventModifierFlags::Shift);
+    Pen { at: point(window, event), when: event.timestamp(), touch, eraser, shift }
 }

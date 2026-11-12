@@ -10,13 +10,16 @@
 //!   items it holds whole. A press inside the selection's box drags the
 //!   selection instead, and the lift moves it in one `move`, with the
 //!   arrows bound to it following ([`shapes::follow`]).
+//! - The select tool ([`pick`]): a press on an item selects it, a drag from
+//!   empty canvas draws a box that selects what it touches, and a drag
+//!   inside the selection's box moves it, as the lasso's does.
 //! - The selection: one page's items, in a box with a faint fill of the
 //!   focus colour, a square handle at each corner (only a mark for now: a
 //!   drag on one moves the selection) and the number of items above it. It
 //!   is app state, read by what acts on it ([`Select::selection`]); delete
 //!   removes it in one `remove`.
 //!
-//! Which items a path touches or a loop holds is [`hit`]'s, the core's rules
+//! Which items a path touches, a loop holds or a press picks is [`hit`]'s, the core's rules
 //! kept here so the answer comes at every pen event without the socket.
 //! Only the server's items count: ink still on its way has no server id yet.
 //! Any of them can be erased or moved, an agent's too: the user may change
@@ -24,6 +27,7 @@
 
 mod carry;
 mod hit;
+mod pick;
 
 pub use carry::Landing;
 
@@ -75,8 +79,12 @@ enum Gesture {
     Erase { ids: Vec<ItemId>, last: Point, radius: f64 },
     /// The loop so far.
     Lasso { points: Vec<Point> },
-    /// The selection dragged from `from`, `by` so far.
-    Move { from: Point, by: Point },
+    /// The selection dragged from `from`, `by` so far. `click` is the item
+    /// the select tool pressed on, selected alone if the pen lifts unmoved.
+    Move { from: Point, by: Point, click: Option<ItemId> },
+    /// The select tool's box, from `from` to `to`; `adding` (shift) adds
+    /// what it touches to the selection.
+    Marquee { from: Point, to: Point, adding: bool },
 }
 
 /// The gesture under the pen, if any, and the selection, if any.
@@ -90,7 +98,8 @@ pub struct Select {
 impl Select {
     /// The pen went down at `at` on `page` of `canvas` with `tool`, at
     /// `zoom`, over `items`. Returns false, and nothing starts, for a tool
-    /// that is neither the eraser nor the lasso. A lasso pressed outside
+    /// that is neither the eraser nor the lasso (the select tool's press is
+    /// [`Select::pick`]). A lasso pressed outside
     /// the selection's box clears the selection and starts a loop.
     pub fn down(
         &mut self,
@@ -103,13 +112,13 @@ impl Select {
         let gesture = match tool {
             Tool::Eraser => Gesture::Erase { ids: Vec::new(), last: at, radius: ERASER / zoom },
             Tool::Lasso if self.grabs((canvas, page), at, zoom, items) => {
-                Gesture::Move { from: at, by: Point { x: 0.0, y: 0.0 } }
+                Gesture::Move { from: at, by: Point { x: 0.0, y: 0.0 }, click: None }
             }
             Tool::Lasso => {
                 self.selection = None;
                 Gesture::Lasso { points: vec![at] }
             }
-            Tool::Pen | Tool::Text | Tool::Box | Tool::Arrow => return false,
+            Tool::Pen | Tool::Text | Tool::Box | Tool::Arrow | Tool::Select => return false,
         };
         self.gesture = Some((canvas.to_string(), page.to_string(), gesture));
         self.drag(at, items)
@@ -132,7 +141,8 @@ impl Select {
                     points.push(at);
                 }
             }
-            Gesture::Move { from, by } => *by = Point { x: at.x - from.x, y: at.y - from.y },
+            Gesture::Move { from, by, .. } => *by = Point { x: at.x - from.x, y: at.y - from.y },
+            Gesture::Marquee { to, .. } => *to = at,
         }
         true
     }
@@ -140,7 +150,8 @@ impl Select {
     /// The pen lifted, at `at` if it said where, over `items`: an erase that
     /// hit anything, or a move that went anywhere, goes to `ink` as one
     /// change; a loop selects what it holds (nothing, when it holds
-    /// nothing). Returns false when no gesture was under the pen.
+    /// nothing), and the select tool's box what it touches; a press on an
+    /// item that did not move selects that item alone. Returns false when no gesture was under the pen.
     pub fn up(&mut self, at: Option<Point>, items: &[Cow<'_, Item>], ink: &mut Ink) -> bool {
         if let Some(at) = at {
             self.drag(at, items);
@@ -157,12 +168,19 @@ impl Select {
                 let ids: Vec<ItemId> = held.map(|i| i.id).collect();
                 self.selection = (!ids.is_empty()).then_some(Selection { canvas, page, ids });
             }
-            Gesture::Move { by, .. } => {
+            Gesture::Marquee { from, to, adding } => {
+                self.boxed((canvas, page), pick::spanned(from, to), adding, items);
+            }
+            Gesture::Move { by, click, .. } => {
                 // Whole tenths, as the canvas file stores them, so the
                 // server's echo lands where the move showed.
                 let tenth = |v: f64| (v * 10.0).round() / 10.0;
                 let by = Point { x: tenth(by.x), y: tenth(by.y) };
                 let moved = by.x != 0.0 || by.y != 0.0;
+                if let Some(id) = click.filter(|_| !moved) {
+                    self.selection = Some(Selection { canvas, page, ids: vec![id] });
+                    return true;
+                }
                 if let Some(selection) = self.selection.as_ref().filter(|_| moved) {
                     let ids = selection.ids.clone();
                     let follow = shapes::follow(items, &ids, by);
@@ -215,7 +233,8 @@ impl Select {
     /// `items`, the page shown of `canvas`, with the gesture laid over it at
     /// `zoom` in `theme`'s colours: the items being erased hidden, the
     /// selection where it is being dragged, then the selection's box, its
-    /// handles and its count, and the lasso's loop, thin and muted.
+    /// handles and its count, and the lasso's loop or the select tool's
+    /// box, thin and muted.
     pub fn shown<'a>(
         &self,
         (canvas, page): (&str, &str),
@@ -255,6 +274,11 @@ impl Select {
                 colour: theme.muted,
                 shape: Shape::Stroke { points, width },
             }));
+        }
+        if let Some(&Gesture::Marquee { from, to, .. }) = gesture {
+            let frame = pick::spanned(from, to);
+            let shape = Shape::Panel { frame, fill: None, width, dashed: false };
+            items.push(Cow::Owned(Item { id: LOOP, colour: theme.muted, shape }));
         }
         items
     }

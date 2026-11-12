@@ -42,6 +42,16 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a select tool (cmd+7, "Select" in the Tools menu, the pick-tool
+  pop-up and the command palette) does what the lasso does without drawing a
+  loop. Press an item to select it, or drag from empty canvas to draw a box
+  that selects everything it touches. Shift+press adds an item to the
+  selection or takes it out; shift+drag adds what the box touches. Drag a
+  selected item, or anywhere inside the selection's box, to move the
+  selection. A box is picked by its outline: press inside an empty box, or
+  draw a box inside it, to select it. Delete, sling and escape work as they
+  do on a lasso's selection. The pointer is the normal arrow.
+
 - **Feedback:** leave a note about slinger without leaving it. In the app,
   `leave-feedback` (⌘⇧F, or Help → Leave feedback…) opens an entry in the
   focused pane: return saves the note with the workspace, canvas, page,

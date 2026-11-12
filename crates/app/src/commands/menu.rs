@@ -110,6 +110,7 @@ const BAR: [(&str, &[Action]); 8] = [
             R(Command::ToolText),
             R(Command::ToolBox),
             R(Command::ToolArrow),
+            R(Command::ToolSelect),
             R(Command::WidthUp),
             R(Command::WidthDown),
             R(Command::PickColour),

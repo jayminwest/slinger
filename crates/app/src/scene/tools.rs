@@ -34,6 +34,8 @@ pub enum Tool {
     Box,
     /// Draws an arrow.
     Arrow,
+    /// Picks items with a press or a drawn box, and moves the selection.
+    Select,
 }
 
 impl Tool {
@@ -46,6 +48,7 @@ impl Tool {
             Tool::Text => "text",
             Tool::Box => "box",
             Tool::Arrow => "arrow",
+            Tool::Select => "select",
         }
     }
 }
@@ -57,7 +60,7 @@ pub enum Kind {
     Colour,
     /// The shapes: box and arrow.
     Shape,
-    /// The tools that are not shapes: pen, eraser, lasso and text.
+    /// The tools that are not shapes: pen, eraser, lasso, text and select.
     Tool,
     /// The pen's widths.
     Width,
@@ -77,7 +80,7 @@ impl Kind {
 }
 
 const SHAPES: [Tool; 2] = [Tool::Box, Tool::Arrow];
-const TOOLS: [Tool; 4] = [Tool::Pen, Tool::Eraser, Tool::Lasso, Tool::Text];
+const TOOLS: [Tool; 5] = [Tool::Pen, Tool::Eraser, Tool::Lasso, Tool::Text, Tool::Select];
 
 /// An open pop-up: what it offers, where its cells are, and which is lit.
 #[derive(Debug, Clone, PartialEq)]
@@ -167,7 +170,7 @@ impl Tools {
         std::mem::replace(&mut self.eraser_end, eraser) != eraser
     }
 
-    /// Runs a tool command (`tool-pen` to `tool-arrow`): the tool it names
+    /// Runs a tool command (`tool-pen` to `tool-select`): the tool it names
     /// is what the pen does now. An open tool or shape pop-up closes, since
     /// its lit cell no longer matches. `width-up` and `width-down` step the
     /// width along the list, and close an open width pop-up. False for any
@@ -193,6 +196,7 @@ impl Tools {
             Command::ToolText => Tool::Text,
             Command::ToolBox => Tool::Box,
             Command::ToolArrow => Tool::Arrow,
+            Command::ToolSelect => Tool::Select,
             _ => return false,
         };
         if matches!(self.open_kind(), Some(Kind::Tool | Kind::Shape)) {

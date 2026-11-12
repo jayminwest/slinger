@@ -80,6 +80,7 @@ impl Command {
             Command::ToolText => "Text",
             Command::ToolBox => "Box",
             Command::ToolArrow => "Arrow",
+            Command::ToolSelect => "Select",
             Command::WidthUp => "Thicker pen",
             Command::WidthDown => "Thinner pen",
             Command::Sling => "Sling selection",
@@ -106,6 +107,7 @@ impl Command {
             | Command::ToolText
             | Command::ToolBox
             | Command::ToolArrow
+            | Command::ToolSelect
             | Command::WidthUp
             | Command::WidthDown => Group::Tools,
             Command::PickColour | Command::PickShape | Command::PickTool | Command::PickWidth => {

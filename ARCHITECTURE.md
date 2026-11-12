@@ -251,7 +251,11 @@ server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
 ```
 main.rs      wires the modules below. The only caller of platform. With
              `--preview UI [--data JSON]` it shows one agent UI alone and
-             writes each reply's `ui_reply` line to stdout instead.
+             writes each reply's `ui_reply` line to stdout instead. It routes
+             each event: keys, the pen, the mouse, the trackpad.
+window.rs    runs a command on the focused pane, builds the window's scene
+             (`view`), and finds the canvas pane under a point and the
+             focused pane's frame.
 shared.rs    the window's panes as the server keeps them for its workspace,
              the window's size, the agent UIs the panes show and their notes,
              and the key overlay and the command palette over them:
@@ -382,8 +386,8 @@ scene/paste.rs  pasted text made fit to type: line ends as `\n` (or a
              function-key character, so a paste is text, never keys. Pure.
 scene/cursor.rs  the pointer over a canvas pane, per tool: the pen a ring in
              its colour, the eraser a ring its width, the lasso and the
-             shapes cross hairs, text an I-beam, the arrow while a pop-up is
-             open. The arrow elsewhere (sidebar, agent UI, chrome). Pure.
+             shapes cross hairs, text an I-beam, the select tool and an open
+             pop-up the arrow. The arrow elsewhere (sidebar, agent UI, chrome). Pure.
 ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
              slinger-ui://<hex>/ with the policy), the sandbox's constants
              (the policy and the shim in ui/policy.txt and ui/shim.js, the
@@ -428,7 +432,8 @@ scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
              selects the items it holds whole, drawn as a tinted box with four
              corner handles (marks only, no resize) and its item count above
              it, all in the focus colour, at screen size; a drag inside
-             the box moves them; delete removes them. Each is one change, so
+             the box moves them (with the lasso or the select tool); delete
+             removes them. Each is one change, so
              one undo step. The selection (canvas, page, server ids) is app
              state the sling and moves between panes read. Pure.
 scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
@@ -443,10 +448,19 @@ scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
              follows it (`follow`): the move's change carries the arrow's
              new ends, so it is still one `canvas_apply`. Each text, shape
              or edit is one change. Pure.
-scene/select/hit.rs  which items an eraser's path touches and which items a
-             lasso holds: the core's geometry rules (canvas/geometry.rs), kept
-             here too so they answer at every pen event without the socket
-             (P7). Keep the two alike. Pure.
+scene/select/hit.rs  which items an eraser's path touches, which items a
+             lasso holds and which the select tool's box touches: the core's
+             geometry rules (canvas/geometry.rs: `items_erased`,
+             `items_in_lasso`, `items_in_box`), kept here too so they answer
+             at every pen event without the socket (P7). Keep the two alike.
+             Which item a press picks is the app's alone. Pure.
+scene/select/pick.rs  the select tool: a press picks the topmost item (a
+             stroke or an arrow by its line, a box by its outline, a text, a
+             live item or the button by its frame, 6 screen points of reach)
+             and selects it alone, or drags the selection when inside its
+             box; a press on empty canvas draws a box that selects what it
+             touches; shift adds or takes out. The lasso's selection, so
+             delete, sling, escape and moves act on it alike. Pure.
 scene/select/carry.rs  a drag of the selection that lifts over another
              pane: on the same page it moves; on another page its items go
              there (an `add` there, then a `remove` here, one undo step on
@@ -600,7 +614,7 @@ stderr as one `ink:` line (SPEC O2). Ink not yet sent is lost if the app
 quits. The app binary has a size budget, and the release
 profile builds it at `opt-level = "z"`, so it adds no async runtime.
 
-**Eraser and lasso:** they work on the page as the user sees it (the
+**Eraser, lasso and select tool:** they work on the page as the user sees it (the
 mirror with the ink laid over) and answer under the pen from the app's own
 copy, by the core's rules (`scene/select/hit.rs`): a round trip to the
 daemon per pen event would make the main thread wait or the eraser trail
@@ -733,6 +747,7 @@ Each boundary has something that fails when it is broken:
 | A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |
 | Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |
 | An erase, a move and a delete are one change each and show at once; a lasso selects what it holds whole; the selection clears | `crates/app/src/scene/select/tests.rs` |
+| The select tool picks the topmost item under a press, a drawn box selects what it touches, shift adds or takes out, a drag moves the selection | `crates/app/src/scene/select/pick/tests.rs` |
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |

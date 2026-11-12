@@ -210,7 +210,7 @@ fn items_removed_elsewhere_leave_the_selection() {
 fn only_the_eraser_and_the_lasso_start_a_gesture_and_a_selection_is_per_page() {
     let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
     let items = shown(&page);
-    for tool in [Tool::Pen, Tool::Text, Tool::Box, Tool::Arrow] {
+    for tool in [Tool::Pen, Tool::Text, Tool::Box, Tool::Arrow, Tool::Select] {
         assert!(!select.down(tool, HERE, pt(0.0, 0.0), 1.0, &items));
     }
     gesture(&mut select, &mut ink, Tool::Lasso, &AROUND, &page);

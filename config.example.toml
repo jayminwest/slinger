@@ -81,7 +81,7 @@
 #pick-colour = "cmd+shift+c"
 # A shape to draw: box or arrow.
 #pick-shape = "cmd+shift+s"
-# A tool: pen, eraser, lasso or text.
+# A tool: pen, eraser, lasso, text or select.
 #pick-tool = "cmd+shift+t"
 # The pen's line width, from [pen] widths: each shown as a line of that width in the pen's
 # colour.
@@ -118,8 +118,8 @@
 # Pages: each pane shows its own page of its canvas, named at its foot. Turn the
 # focused pane to the next page (after the last, the first) or the one before.
 #next-page = "cmd+]"
-# Remove the items the lasso selected, in one undo step. With nothing selected on the
-# focused pane's canvas the key goes on as usual.
+# Remove the selected items (the lasso's or the select tool's), in one undo step. With
+# nothing selected on the focused pane's canvas the key goes on as usual.
 #delete-selection = "delete"
 # Select nothing. With nothing selected on the focused pane's canvas the key goes on.
 #clear-selection = "escape"
@@ -131,6 +131,7 @@
 #tool-text = "cmd+4"
 #tool-box = "cmd+5"
 #tool-arrow = "cmd+6"
+#tool-select = "cmd+7"
 # The next width of [pen] widths for the pen, or the one before; at either end it stays.
 #width-up = "alt+]"
 #width-down = "alt+["

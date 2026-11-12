@@ -160,6 +160,7 @@ pub fn command(tool: Tool) -> Command {
         Tool::Text => Command::ToolText,
         Tool::Box => Command::ToolBox,
         Tool::Arrow => Command::ToolArrow,
+        Tool::Select => Command::ToolSelect,
     }
 }
 
