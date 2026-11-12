@@ -433,7 +433,9 @@ scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              focuses it first). A UI pane's has its name and the pane
              buttons. A narrow pane drops whole groups, the lowest rank
              first. `strip`: the open sidebar's foot, its hide button.
-             `light`: the button under the pen. A hairline tops each. Pure.
+             `light`: the button under the pen. `tip`: a lit button that
+             is only a glyph or a mark names its command and key just
+             above the footer. A hairline tops each. Pure.
 scene/status/cells.rs  how a footer's cells are laid: groups that stay or
              go together on the left, in the middle or on the right; the
              middle centred on the footer when there is room. Pure.
@@ -446,7 +448,9 @@ scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
              above the name, one 28 pt row per page (the shown one ✓ and
              bold), then New page, Rename page… and Remove page. It takes
              every press while open; the lift on the row pressed picks it,
-             a press outside or escape closes it. No dim. Pure.
+             a press outside or escape closes it. Pages that do not fit
+             scroll a row at a time with a scroll or a drag on the panel
+             (a drag taps nothing). No dim. Pure.
 scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
              `<Tool> <key>` (a new width: `Width <n> <pick-width key>`),
              reload-config its title and key, a saved note "Feedback saved",
@@ -658,7 +662,8 @@ layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
              about a point or to a level, limits, the level as people read it,
              how far a scroll zooms; the canvas has no edge; a pane's view
              starts with the origin in by a margin) and where a pop-up
-             opens (at the pen, kept inside the window). Pure. 100% coverage floor.
+             opens (at the pen, kept inside the window; each cell at least
+             28 pt high, what a pen taps). Pure. 100% coverage floor.
 layout/tree.rs  the pane tree: binary splits with ratios to rectangles (no
              negative or oversized one at any size), split, close (the sibling
              takes the space), grow, next, and the pane beside one in a

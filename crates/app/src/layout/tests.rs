@@ -212,12 +212,12 @@ fn the_window_fits_two_lines_inside_its_margins() {
 #[test]
 fn a_popup_is_centred_on_the_pen_with_its_cells_in_a_row() {
     let pop = popup(pt(200.0, 100.0), 3, SWATCH, SCREEN.rect());
-    // 3 cells of 24 and 4 pads of 6 wide; 24 and 2 pads high.
-    assert_eq!(pop.panel, rect(200.0 - 48.0, 100.0 - 18.0, 96.0, 36.0));
+    // 3 cells of 28 and 4 pads of 6 wide; 28 and 2 pads high.
+    assert_eq!(pop.panel, rect(200.0 - 54.0, 100.0 - 20.0, 108.0, 40.0));
     let xs: Vec<f64> = pop.cells.iter().map(|c| c.x).collect();
-    assert_eq!(xs, [158.0, 188.0, 218.0]);
+    assert_eq!(xs, [152.0, 186.0, 220.0]);
     for cell in &pop.cells {
-        assert_eq!((cell.y, cell.width, cell.height), (88.0, 24.0, 24.0));
+        assert_eq!((cell.y, cell.width, cell.height), (86.0, 28.0, 28.0));
         assert!(pop.panel.contains(pt(cell.x, cell.y)));
         assert!(pop.panel.contains(pt(cell.x + cell.width, cell.y + cell.height)));
     }
@@ -255,7 +255,7 @@ fn a_popup_too_big_for_its_space_keeps_its_top_left_in() {
 fn a_popup_of_no_cells_is_an_empty_panel() {
     let pop = popup(pt(100.0, 100.0), 0, SWATCH, SCREEN.rect());
     assert_eq!(pop.cells, []);
-    assert_eq!(pop.panel, rect(97.0, 82.0, 6.0, 36.0));
+    assert_eq!(pop.panel, rect(97.0, 80.0, 6.0, 40.0));
 }
 
 #[test]

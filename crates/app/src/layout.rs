@@ -210,10 +210,11 @@ pub struct Popup {
     pub cells: Vec<Rect>,
 }
 
-/// A colour's cell in a pop-up.
-pub const SWATCH: Size = Size { width: 24.0, height: 24.0 };
-/// A word's cell in a pop-up.
-pub const WORD: Size = Size { width: 64.0, height: 24.0 };
+/// A colour's cell in a pop-up: square, the least a pen taps (as
+/// `scene::style::TAP`).
+pub const SWATCH: Size = Size { width: 28.0, height: 28.0 };
+/// A word's cell in a pop-up: as tall as a pen taps.
+pub const WORD: Size = Size { width: 64.0, height: 28.0 };
 
 /// The space between a pop-up's panel and its cells, and between cells.
 const POPUP_PAD: f64 = 6.0;

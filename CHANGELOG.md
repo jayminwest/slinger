@@ -79,6 +79,13 @@ bullet with the area in bold.
 - **App:** the sidebar says "not running" for an agent whose session is
   stopped, and "working" as soon as a sling is waiting for it, so a sling
   to a stopped agent no longer looks like nothing happened.
+- **App:** the footer's glyph buttons (undo, redo, the page arrows, zoom,
+  split, close, the swatch, the width) say what they do: hover over one, or
+  hold the pen on it, and a tip above the footer names its command and key.
+- **App:** the colour, shape, tool and width pop-ups' cells are 28 pt
+  high, the same as every other button the pen taps.
+- **App:** the page menu scrolls. With more pages than fit, scroll or drag
+  the pen on it to reach the rest; a drag picks no page.
 
 ### Removed
 
