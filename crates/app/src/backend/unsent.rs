@@ -6,12 +6,13 @@
 //! ```json
 //! {"version": 1, "strokes": [{"canvas": "notes", "page": "p1",
 //!   "colour": [0, 0, 255], "width": 2.0, "points": [x0, y0, x1, y1],
-//!   "once": "4021-1762790400000000000.7"}]}
+//!   "once": "4021-1762790400.250000000.7"}]}
 //! ```
 //!
 //! Points are canvas units, as the ink holds them; `once` is the key the
-//! stroke is applied once under, so one that was on its way when the app
-//! quit is not written twice (slinger-1d05ae). No stroke left: no file.
+//! stroke is applied once under (`null` for none), so one that was on its
+//! way when the app quit is not written twice (slinger-1d05ae). No stroke
+//! left: no file.
 //!
 //! Each app running keeps a file of its own (slinger-1d05ae): the first is
 //! `unsent-ink.json`, the others `unsent-ink.2.json` and up, to [`FILES`].
@@ -79,11 +80,7 @@ impl Unsent {
             Ok(None) => None,
             Err(e) => Some(Err(problem(&path, &e))),
         });
-        let Some((path, lock)) = free.transpose()? else {
-            let message =
-                format!("{}: all {FILES} files are held by running apps", self.first.display());
-            return Err(Problem::new(message, Some("quit another slinger app, then this one")));
-        };
+        let Some((path, lock)) = free.transpose()? else { return Err(self.unheld()) };
         (self.path, self.lock) = (path, Some(lock));
         let mut kept = self.load()?;
         let mut taken = Vec::new();
@@ -123,8 +120,7 @@ impl Unsent {
     /// overwrites another app's.
     pub fn save(&self, kept: &[KeptStroke]) -> Result<(), Problem> {
         if self.lock.is_none() {
-            let message = format!("{}: not this app's file", self.path.display());
-            return Err(Problem::new(message, Some("quit another slinger app, then this one")));
+            return Err(self.unheld());
         }
         if kept.is_empty() {
             return match fs::remove_file(&self.path) {
@@ -140,6 +136,13 @@ impl Unsent {
             .and_then(|()| fs::write(&beside, text))
             .and_then(|()| fs::rename(&beside, &self.path))
             .map_err(|e| problem(&self.path, &e))
+    }
+
+    /// Why no file is this app's: every one is held by an app running.
+    fn unheld(&self) -> Problem {
+        let message =
+            format!("{}: all {FILES} files are held by running apps", self.first.display());
+        Problem::new(message, Some("quit another slinger app, then this one"))
     }
 
     /// The `n`th file, from 1: the first, or `<name>.<n>.json` beside it.
@@ -174,12 +177,8 @@ fn write(kept: &KeptStroke) -> Value {
     let stroke = &kept.stroke;
     let Rgb { r, g, b } = stroke.colour;
     let points: Vec<f64> = stroke.points.iter().flat_map(|p| [p.x, p.y]).collect();
-    let mut o = json!({"canvas": stroke.canvas, "page": stroke.page, "colour": [r, g, b],
-        "width": stroke.width, "points": points});
-    if let Some(once) = &kept.once {
-        o["once"] = once.as_str().into();
-    }
-    o
+    json!({"canvas": stroke.canvas, "page": stroke.page, "colour": [r, g, b],
+        "width": stroke.width, "points": points, "once": kept.once})
 }
 
 fn read(o: &Value) -> Option<KeptStroke> {

@@ -29,7 +29,7 @@ const RETRY: Duration = Duration::from_secs(1);
 /// and when it started, for the keys its changes are applied once under.
 pub fn run() -> String {
     let since = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
-    format!("{}-{}", std::process::id(), since.as_nanos())
+    format!("{}-{}.{}", std::process::id(), since.as_secs(), since.subsec_nanos())
 }
 
 /// The thread that sends changes. Dropping it ends the thread once the
