@@ -9,6 +9,17 @@ use slinger_control::{Client, EventFilter};
 
 const USAGE: i32 = 2;
 
+/// Runs `slinger` on the socket with `SLINGER_AGENT` set to `agent`, or unset.
+#[expect(clippy::unwrap_used, reason = "a test helper: a binary that cannot run fails the test")]
+fn slinger(socket: &Path, agent: Option<&str>, args: &[&str]) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_slinger"));
+    command.args(args).arg("--socket").arg(socket).env_remove("SLINGER_AGENT");
+    if let Some(agent) = agent {
+        command.env("SLINGER_AGENT", agent);
+    }
+    command.output().unwrap()
+}
+
 #[test]
 fn agent_verbs_take_the_agent_from_the_flag_or_the_environment_or_fail_as_usage() {
     let data = tempfile::tempdir().unwrap();
@@ -17,16 +28,6 @@ fn agent_verbs_take_the_agent_from_the_flag_or_the_environment_or_fail_as_usage(
     let server = slingerd::Server::bind(&socket).unwrap();
     let stopper = server.stopper();
     let serving = std::thread::spawn(move || server.serve(&store));
-    // Runs `slinger` on the socket with `SLINGER_AGENT` set to `agent`, or unset.
-    let slinger = |socket: &Path, agent: Option<&str>, args: &[&str]| -> Output {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_slinger"));
-        command.args(args).arg("--socket").arg(socket).env_remove("SLINGER_AGENT");
-        if let Some(agent) = agent {
-            command.env("SLINGER_AGENT", agent);
-        }
-        command.output().unwrap()
-    };
-
     let none = slinger(&socket, None, &["status", "set", "done"]);
     assert_eq!(none.status.code(), Some(USAGE));
     let err = String::from_utf8_lossy(&none.stderr);
@@ -52,6 +53,8 @@ fn agent_verbs_take_the_agent_from_the_flag_or_the_environment_or_fail_as_usage(
     let shown = client.canvas_show("main", None).unwrap();
     assert_eq!(shown.items[1]["by"], "agent:scout");
 
+    apply_undo_and_redo_take_the_agent_from_the_environment(&socket, &client);
+
     // An agent's process finds the daemon that started it by SLINGER_SOCKET.
     let mut list = Command::new(env!("CARGO_BIN_EXE_slinger"));
     let list = list.args(["canvas", "list"]).env("SLINGER_SOCKET", &socket).output().unwrap();
@@ -65,4 +68,33 @@ fn agent_verbs_take_the_agent_from_the_flag_or_the_environment_or_fail_as_usage(
     stopper.stop();
     serving.join().unwrap().unwrap();
     std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();
+}
+
+/// `canvas apply`, `undo` and `redo` act as `$SLINGER_AGENT` too, and as the
+/// user without it. The canvas `main` holds a user's box and scout's text.
+fn apply_undo_and_redo_take_the_agent_from_the_environment(socket: &Path, client: &Client) {
+    let text = r#"{"op":"add","item":{"page":"p1","kind":"text","x":0,"y":900,"text":"a"}}"#;
+    assert_eq!(
+        slinger(socket, Some("scout"), &["canvas", "apply", "main", text]).status.code(),
+        Some(0)
+    );
+    assert_eq!(slinger(socket, None, &["canvas", "apply", "main", text]).status.code(), Some(0));
+    // The makers of the page's items, in drawing order; none when the show fails.
+    let makers = |client: &Client| -> Vec<String> {
+        let shown = client.canvas_show("main", None).map(|shown| shown.items);
+        shown
+            .unwrap_or_default()
+            .iter()
+            .map(|i| i["by"].as_str().unwrap_or_default().to_string())
+            .collect()
+    };
+    assert_eq!(makers(client), ["user", "agent:scout", "agent:scout", "user"]);
+    assert_eq!(slinger(socket, Some("scout"), &["canvas", "undo", "main"]).status.code(), Some(0));
+    assert_eq!(
+        makers(client),
+        ["user", "agent:scout", "user"],
+        "the agent's undo takes its own step"
+    );
+    assert_eq!(slinger(socket, Some("scout"), &["canvas", "redo", "main"]).status.code(), Some(0));
+    assert_eq!(makers(client).iter().filter(|by| *by == "agent:scout").count(), 2);
 }

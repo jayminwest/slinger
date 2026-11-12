@@ -6,9 +6,9 @@
 //! the workspace's panes, and the code of each agent UI they show
 //! ([`ui`]), on its own thread; the window sends only its own pane changes
 //! ([`panes`]). A canvas is followed on a thread of its own ([`Follower`]),
-//! the pen's strokes are sent on another ([`Outbox`]), slings on a
-//! third ([`Slinger`]) and notes of feedback on their own ([`Noter`]). It also asks Flick to dictate ([`Flick`]), on a
-//! fourth.
+//! the pen's strokes are sent on another ([`Outbox`]) and kept on disk until
+//! sent ([`Unsent`]), slings on a third ([`Slinger`]) and notes of feedback
+//! on their own ([`Noter`]). It also asks Flick to dictate ([`Flick`]), on a fourth.
 
 use std::fs;
 use std::io::ErrorKind;
@@ -32,12 +32,14 @@ mod sling;
 #[cfg(test)]
 pub(crate) mod testing;
 pub mod ui;
+mod unsent;
 
 pub use feedback::Noter;
 pub use flick::Flick;
 pub use follow::{Follower, News};
 pub use outbox::Outbox;
 pub use sling::{Heard, Slinger};
+pub use unsent::Unsent;
 
 /// A failure as the window shows it: the message and what to do about it.
 #[derive(Debug, Clone, PartialEq, Eq)]

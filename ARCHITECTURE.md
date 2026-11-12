@@ -453,7 +453,8 @@ scene/taps.rs  the footers' and the sidebar's buttons as last drawn: the
              workspace); a lift off it does nothing. Pure.
 scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
              above the name, one 28 pt row per page (the shown one ✓ and
-             bold), then New page, Rename page… and Remove page. It takes
+             bold), then New page, Rename page…, Place send button and
+             Remove page. It takes
              every press while open; the lift on the row pressed picks it,
              a press outside or escape closes it. Pages that do not fit
              scroll a row at a time with a scroll or a drag on the panel
@@ -619,8 +620,9 @@ scene/overlay.rs  the key overlay (`show-keys`): open or closed, its
              its ✕ closes it; a tap on a row (down and up on it, no drag)
              closes it and runs the command; a drag or a scroll moves rows
              that do not fit. Its rounded panel lists Command::ALL by Group
-             in three columns, each row 28 pt with a chip of the live key
-             from the Keymap. Line (a label, its font, its corners and edge)
+             in up to three columns (as many as fit 220 pt each, the groups
+             cut in order so the tallest is shortest), each row 28 pt with
+             a chip of the live key from the Keymap. Line (a label, its font, its corners and edge)
              is shared with the palette. Pure.
 scene/palette.rs  the command palette (`show-commands`): open or closed,
              what is typed and the selected row. Typing is scene-drawn: it
@@ -642,9 +644,10 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              beneath it "↩ sends · esc cancels" and the live dictate key.
              Return sends and escape cancels, the wait for the ink, the line
              while it goes, and a failure's message and hint under the entry
-             opened again. Pure. `sling/buttons.rs`: the two buttons beside
-             a selection's box, ➤ Sling (`sling-now`) and + prompt
-             (`sling`), each a 28 pt target inside the pane.
+             opened again. Pure. `sling/buttons.rs`: the three buttons
+             beside a selection's box, ➤ Sling (`sling-now`), + prompt
+             (`sling`) and Delete (`delete-selection`), each a 28 pt target
+             inside the pane.
 scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
              sling's labelled field (Entry::framed), "Feedback" above and
              "↩ saves · esc cancels" beneath, centred in the focused pane
@@ -779,7 +782,11 @@ The daemon's reply to an add says the ids it made, and the ink shows the
 item under that id from then on (and not at all once the mirror holds
 it), so it never draws twice. Touch (a palm on a
 tablet display) never draws. Each stroke's pen-to-paint delays go to
-stderr as one `ink:` line (SPEC O2). Ink not yet sent is lost if the app
+stderr as one `ink:` line (SPEC O2). Strokes not yet written are kept in
+`unsent-ink.json` beside the daemon's record (`backend::Unsent`, rewritten
+whole each time they change, removed when none are left) and queued first
+at the next start, so a stroke drawn while the daemon is down survives a
+quit; erases, moves and the other changes not yet sent are lost if the app
 quits. The app binary has a size budget, and the release
 profile builds it at `opt-level = "z"`, so it adds no async runtime.
 
@@ -916,6 +923,7 @@ Each boundary has something that fails when it is broken:
 | A follower shows the page, hands on each change, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
 | A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |
 | Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |
+| Strokes not yet written survive a quit and are sent first after the next start; a refused one leaves the file | `crates/app/src/canvases/kept/tests.rs` and `crates/app/src/backend/unsent.rs`, against a real daemon |
 | An erase, a move and a delete are one change each and show at once; a lasso selects what it holds whole; the selection clears | `crates/app/src/scene/select/tests.rs` |
 | The select tool picks the topmost item under a press, a drawn box selects what it touches, shift adds or takes out, a drag moves the selection | `crates/app/src/scene/select/pick/tests.rs` |
 | A drag of a corner handle scales the selection about the opposite corner in one change, texts keep their size, bound arrows follow, no side turns over | `crates/app/src/scene/select/scale/tests.rs` |
