@@ -345,8 +345,8 @@ mirror/clip.rs  the selection's items on the clipboard: their file objects
              as a JSON array, as a carry writes them (no id, maker, time
              or page; an end bound to an item copied with it as `$n`), and
              its texts' plain text, one a line; a paste reads the objects
-             back as a carry's items for a page, centred on a point, every
-             arrow's ends let go. Pure.
+             back as a carry's items for a page, centred on a point, an
+             arrow still bound to the items pasted before it. Pure.
 canvases.rs  the canvas panes: one follower and mirror per page shown, each
              pane's page, viewport and last scene (kept on screen until a
              page turned to arrives); the pen's ink, the eraser's and
