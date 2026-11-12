@@ -16,7 +16,7 @@ use slinger_control::{Client, Session, SlingAsk};
 
 use crate::backend::Problem;
 use crate::mirror;
-use crate::scene::sling::Ask;
+use crate::scene::sling::{Ask, Profile};
 use crate::scene::slung::Progress;
 
 /// How often the agent's session is read while a sling is out.
@@ -141,12 +141,27 @@ fn follow(
 }
 
 /// Sends `ask` as one `sling_send`: the canvas, the page, the selected
-/// items by the canvas file's ids, and the prompt. Returns the agent it
-/// went to.
+/// items by the canvas file's ids, and the prompt. Under a picked profile
+/// it first starts the agent of the canvas's workspace under it (the
+/// daemon leaves a process running under it as it is, and restarts one
+/// under another), and the sling goes only to that profile. Returns the
+/// agent it went to.
 fn sling(daemon: &Client, ask: Ask) -> Result<String, Problem> {
+    let profile = match ask.profile {
+        Profile::Running => None,
+        Profile::Picked(profile) => {
+            let open = daemon.workspace_list()?;
+            let workspace = open.iter().find(|w| w.canvas == ask.canvas);
+            // A canvas no open workspace has: the sling says so itself.
+            if let Some(workspace) = workspace {
+                daemon.session_start_with(&workspace.name, profile.as_deref(), false)?;
+            }
+            profile
+        }
+    };
     let select = ask.ids.into_iter().map(mirror::item_ref).collect();
     let (canvas, page, prompt) = (ask.canvas, Some(ask.page), ask.prompt);
-    let request = SlingAsk { canvas, page, select, prompt, profile: None };
+    let request = SlingAsk { canvas, page, select, prompt, profile };
     daemon.sling_send(request).map(|slung| slung.agent).map_err(Problem::from)
 }
 
@@ -188,7 +203,8 @@ mod tests {
     }
 
     fn ask(ids: Vec<ItemId>, prompt: &str) -> Ask {
-        Ask { canvas: "notes".into(), page: "p1".into(), ids, prompt: prompt.into() }
+        let (canvas, page, prompt) = ("notes".into(), "p1".into(), prompt.into());
+        Ask { canvas, page, ids, prompt, profile: Profile::Running }
     }
 
     #[test]
@@ -260,6 +276,47 @@ mod tests {
                 }
             };
             assert!(!stopped.running, "{stopped:?}");
+        });
+    }
+
+    #[test]
+    fn a_sling_under_a_picked_profile_starts_the_agent_under_it_first() {
+        let (bin, dev) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        with_store(Some(&fake_claude(bin.path())), |daemon| {
+            let home = open_notes(daemon);
+            user_stroke(daemon, "notes");
+            let dir = Some(dev.path().to_string_lossy().into_owned());
+            let profile = slinger_control::Profile { name: "dev".into(), dir, tools: vec![] };
+            daemon.profile_set("notes", profile).unwrap();
+            let slinger = Slinger::start(daemon.clone());
+            let got = &mut Vec::new();
+            let under = |profile: Option<&str>, prompt: &str| Ask {
+                profile: Profile::Picked(profile.map(str::to_string)),
+                ..ask(vec![ItemId(1)], prompt)
+            };
+            let running = || daemon.session_show("scout").unwrap().profile;
+
+            slinger.send(under(Some("dev"), "not running yet"));
+            assert_eq!(wait(&slinger, got), Heard::Went("scout".into()));
+            delivered(dev.path(), "not running yet");
+            assert_eq!(running(), Some("dev".into()));
+            let agent = crate::backend::workspaces(daemon).unwrap()[0].agent.clone().unwrap();
+            assert_eq!((agent.profile, agent.profiles), (Some("dev".into()), vec!["dev".into()]));
+
+            slinger.send(under(None, "back to its own"));
+            while wait(&slinger, got) != Heard::Went("scout".into()) {}
+            delivered(home.path(), "back to its own");
+            assert_eq!(running(), None, "restarted within its own limits");
+
+            slinger.send(under(Some("gone"), "nowhere"));
+            let gone = loop {
+                if let Heard::Failed(problem) = wait(&slinger, got) {
+                    break problem;
+                }
+            };
+            assert!(gone.hint.unwrap_or_default().contains("dev"), "{}", gone.message);
+            assert_eq!(running(), None, "the running process stays");
+            daemon.session_stop("notes").unwrap();
         });
     }
 

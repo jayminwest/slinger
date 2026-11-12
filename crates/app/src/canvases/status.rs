@@ -54,6 +54,7 @@ impl Canvases {
                     close,
                     sling: false,
                     agent: None,
+                    profiles: false,
                 };
                 return status::footer(frame, theme, keys, &shows);
             }
@@ -71,7 +72,8 @@ impl Canvases {
             };
             let centre = page.map(|(_, list, at)| pages::line(&list, &at)).unwrap_or_default();
             let zoom = self.views.iter().find(|(p, _)| *p == id).map(|(_, v)| v.viewport);
-            let agent = self.agent_of(&pane.name).map(|a| (a.name.as_str(), a.status));
+            let agent = self.agent_of(&pane.name);
+            let (label, profiles) = agent.map(|a| (a.label(), !a.profiles.is_empty())).unzip();
             let shows = Shows {
                 pen: Some(Pen { tool, colour, width: self.ink.width(), state }),
                 centre: &centre,
@@ -80,7 +82,8 @@ impl Canvases {
                 sidebar,
                 close,
                 sling: true,
-                agent,
+                agent: label.as_deref().zip(agent.map(|a| a.status)),
+                profiles: profiles.unwrap_or(false),
             };
             status::footer(frame, theme, keys, &shows)
         };

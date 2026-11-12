@@ -130,6 +130,7 @@ fn typing_sets_the_prompt_and_send_waits_for_the_ink_then_goes() {
             page: "p1".into(),
             ids: vec![ItemId(1), ItemId(4)],
             prompt: "what is missing?".into(),
+            profile: Profile::Running,
         }
     );
     assert_eq!(sling.ready(|_| true), None, "it goes once");
@@ -205,9 +206,9 @@ fn a_failure_shows_its_message_and_hint_under_the_entry_and_return_tries_again()
 #[test]
 fn send_now_skips_the_entry() {
     let mut sling = Sling::default();
-    assert!(sling.send_now(&selection(), "from a button", BOX, PANE));
+    assert!(sling.send_now(&selection(), ("from a button", Profile::Running), BOX, PANE));
     assert!(!sling.is_typing());
-    assert!(!sling.send_now(&selection(), "again", BOX, PANE), "one at a time");
+    assert!(!sling.send_now(&selection(), ("again", Profile::Running), BOX, PANE), "one at a time");
     assert_eq!(sling.ready(|_| true).unwrap().prompt, "from a button");
     assert_eq!(sling.answered(Err(no_session())), Answered::Closed);
     assert_eq!((entry(&sling), texts(&sling)), (None, vec![]), "no entry for the pen to escape");
@@ -278,4 +279,18 @@ fn the_selection_s_buttons_sling_prompt_and_delete_in_a_row_inside_the_pane() {
     assert_eq!(labels.len(), 1, "a sling is out: only Delete");
     assert_eq!((labels[0].text.as_str(), out[0].1), (buttons::DELETE, runs[2]));
     assert_eq!(out[0].0, frames[0], "in the first place");
+}
+
+#[test]
+fn a_typed_sling_sent_under_a_picked_profile_goes_under_it() {
+    let mut sling = Sling::default();
+    assert!(!sling.send_under(Profile::Picked(None)), "no entry open");
+    let mut sling = typed("check the tests");
+    let dev = Profile::Picked(Some("dev".into()));
+    assert!(sling.send_under(dev.clone()));
+    let ask = sling.ready(|_| true).unwrap();
+    assert_eq!((ask.prompt.as_str(), ask.profile), ("check the tests", dev));
+    let mut sling = typed("as it runs");
+    assert!(sling.send_under(Profile::Running));
+    assert_eq!(sling.ready(|_| true).unwrap().profile, Profile::Running);
 }

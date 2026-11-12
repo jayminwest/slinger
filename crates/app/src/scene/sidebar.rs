@@ -114,13 +114,29 @@ pub struct Workspace {
 }
 
 /// The agent of a workspace.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Agent {
     pub name: String,
     /// `None` until the agent sets one.
     pub status: Option<Status>,
     /// What the agent said with its status.
     pub note: Option<String>,
+    /// The profile its running process runs under; `None` while it runs
+    /// within its own limits or does not run.
+    pub profile: Option<String>,
+    /// The names of its profiles, in its workspace file's order.
+    pub profiles: Vec<String>,
+}
+
+impl Agent {
+    /// How the window names it: `scout`, or `scout (dev)` while it runs
+    /// under the profile `dev`.
+    pub fn label(&self) -> String {
+        match &self.profile {
+            Some(profile) => format!("{} ({profile})", self.name),
+            None => self.name.clone(),
+        }
+    }
 }
 
 /// The sidebar's width, in points, when it is open.
@@ -253,8 +269,8 @@ impl Sidebar {
     /// The sidebar's lines in `window`, read from their left edge: the
     /// heading, then each workspace's name (bold, on a lighter row, when the
     /// window shows it), under it its agent's mark with `<agent> · <status>`
-    /// or `no agent`, and a blocked agent's note under that. Nothing when it
-    /// is collapsed. Lines that do not fit above its foot ([`Sidebar::foot`])
+    /// (`<agent> (<profile>) · <status>` under a profile) or `no agent`, and
+    /// a blocked agent's note under that. Nothing when it is collapsed. Lines that do not fit above its foot ([`Sidebar::foot`])
     /// are left out.
     pub fn rows(&self, theme: &Theme, window: Rect) -> Vec<Row> {
         self.laid(theme, window).0
@@ -404,8 +420,8 @@ fn block(workspace: &Workspace, shown: bool, theme: &Theme) -> Vec<Line> {
             .push(Line { under: true, ..Line::new("no agent".into(), theme.muted, Font::PLAIN) }),
         Some(agent) => {
             let text = match agent.status {
-                Some(status) => format!("{} · {}", agent.name, status.word()),
-                None => agent.name.clone(),
+                Some(status) => format!("{} · {}", agent.label(), status.word()),
+                None => agent.label(),
             };
             let mark = Some(mark(agent.status, theme));
             lines.push(Line { under: true, mark, ..Line::new(text, theme.muted, Font::PLAIN) });

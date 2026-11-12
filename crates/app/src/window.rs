@@ -15,6 +15,7 @@ use crate::commands::{self, Command};
 use crate::layout::{PaneId, Point, Rect};
 use crate::panes::{self, Panes};
 use crate::scene::ink::Pen;
+use crate::scene::pages::menu::List;
 use crate::scene::paste::{Clip, Edit};
 use crate::scene::sidebar::Row;
 use crate::scene::sidebar::Sidebar;
@@ -54,7 +55,8 @@ pub fn run(
 
 /// A tap on `target` (a press already focused its pane in `shared`): the
 /// page name opens the page menu over it, a page menu's page turns the
-/// focused pane to it, a workspace in `sidebar` shows its panes (that
+/// focused pane to it, the footer's agent opens its profiles over it and
+/// one of them slings under it, a workspace in `sidebar` shows its panes (that
 /// workspace's name, for the watch to follow), and the sling's pill does
 /// what a tap there does; the open entry's "✓" and "✕" do what return and
 /// escape do in it. A command's tap does nothing here.
@@ -72,6 +74,15 @@ pub fn tap(
             }
         }
         Tap::Page(index) => canvases.turn_to(&shared.panes, pane, index),
+        Tap::Profiles => {
+            if let Some(profiles) = canvases.profile_names(&shared.panes, pane) {
+                shared.menu.open_profiles(pane, frame, profiles);
+            }
+        }
+        Tap::Profile(index) => {
+            let area = sidebar.panes(shared.size.rect());
+            canvases.sling_under(&shared.panes, area, index);
+        }
         Tap::Workspace(index) => return sidebar.pick(index),
         Tap::Slung => {
             let area = sidebar.panes(shared.size.rect());
@@ -286,8 +297,11 @@ pub fn view(
     }
     scene.footers = footers;
     scene.labels.extend(tools.labels(theme));
-    let pages = shared.menu.pane().and_then(|pane| canvases.page_names(&shared.panes, pane));
-    shared.menu.refresh(pages);
+    let rows = shared.menu.pane().and_then(|(pane, list)| match list {
+        List::Pages => canvases.page_names(&shared.panes, pane).map(|(n, at)| (n, Some(at))),
+        List::Profiles => canvases.profile_names(&shared.panes, pane),
+    });
+    shared.menu.refresh(rows);
     let overlay = shared.overlay.shown(keys, theme, size);
     let overlay = overlay.or_else(|| shared.palette.shown(keys, theme, size));
     let overlay = overlay.or_else(|| shared.menu.shown(theme, size));
