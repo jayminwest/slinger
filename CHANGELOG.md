@@ -11,6 +11,16 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** see where a canvas is saved. The window's title names the
+  focused pane's canvas, with its file under it
+  (`~/Library/Application Support/slinger/canvases/<id>.canvas` by
+  default); cmd-click the title for the folders that hold it. There is
+  nothing to save by hand, as slingerd writes every change as you make it:
+  Save (`save`, ⌘S) says where it went, or why the last change has not
+  reached the file yet. Show canvas file in Finder (`show-canvas-file`,
+  ⌥⌘R) shows it there. Both are in the File menu and the palette.
+- **CLI:** `canvas show --json` gives the canvas's file as `path`.
+
 - **App:** a dotted grid on the canvas, like grid paper. Set `[canvas]
   background = "dots"` in the config to start with it, or run Dotted grid
   (`toggle-grid`, ⌘', also in the Canvas menu and the palette) to show or
@@ -57,6 +67,11 @@ bullet with the area in bold.
 
 ### Changed
 
+- **App:** the selection's corner handles resize it, with the lasso or
+  the select tool: drag one and the selection scales about the opposite
+  corner. Strokes, boxes and arrows stretch; texts and agent UIs keep their
+  size and move with the rest; arrows pointing at the items follow. One
+  undo puts it back.
 - **App:** the "<agent> is done" bar goes on its own: 5 s after it shows,
   or at the pen's next press. A blocked agent's bar stays until you tap its
   ✕ (or ⌘.). The bar sits above the footers, so it hides no button, and a

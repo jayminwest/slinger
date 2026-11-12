@@ -12,7 +12,8 @@
 //! [`flash`] holds the flash that names a new tool or what a page command
 //! did; [`cursor`] the pointer over a canvas pane. [`glyphs`] measures the
 //! room a text's glyphs take, the frame its hit tests use. [`grid`] holds
-//! the dotted grid on the canvas panes' paper.
+//! the dotted grid on the canvas panes' paper. [`title`] names the focused
+//! pane's canvas and where it is saved.
 //!
 //! No chrome, but every state is visible (SPEC P6): the panes, each with
 //! what it shows above its footer ([`status`]), one focus border around the
@@ -47,6 +48,7 @@ pub mod slung;
 pub mod status;
 pub mod style;
 pub mod taps;
+pub mod title;
 pub mod tools;
 
 use std::collections::HashMap;
@@ -109,7 +111,8 @@ pub type Notes = HashMap<String, Problem>;
 /// One window, fully decided.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scene {
-    pub title: String,
+    /// The title bar: the focused pane's canvas and its file.
+    pub title: title::Title,
     /// The menu bar; none leaves the bar as it is.
     pub menus: Vec<Menu>,
     pub size: Size,
@@ -209,7 +212,7 @@ pub fn build(
     }
     labels.extend(sidebar.notice(theme, area));
     Scene {
-        title: "slinger".to_string(),
+        title: title::Title::plain("slinger"),
         menus: Vec::new(),
         size,
         background: theme.background,
@@ -231,7 +234,7 @@ pub fn build(
 /// page fills it, with no border; as a live `item`, it shows at the default
 /// item's size, zoomed by half again.
 pub fn preview(page: Arc<Page>, theme: &Theme, item: bool, size: Size) -> Scene {
-    let title = format!("slinger: {}", page.code.name);
+    let title = title::Title::plain(format!("slinger: {}", page.code.name));
     let web = if item {
         live::alone(page, size, 1.5)
     } else {
@@ -300,7 +303,7 @@ mod tests {
     #[test]
     fn one_pane_shows_its_kind_and_name_with_no_focus_border() {
         let scene = build(&main(), &T, &[], &Sidebar::new(false), Vec::new());
-        assert_eq!(scene.title, "slinger");
+        assert_eq!(scene.title, title::Title::plain("slinger"));
         assert_eq!(scene.sidebar, []);
         assert_eq!(scene.background, T.background);
         assert_eq!(shown(&scene), [("canvas main", T.text)]);
@@ -370,7 +373,7 @@ mod tests {
         assert!(noted.labels[2].frame.x >= half, "each pane says it over its own page");
 
         let alone = preview(page, &T, false, layout::WINDOW);
-        assert_eq!((alone.title.as_str(), alone.labels.len()), ("slinger: board", 0));
+        assert_eq!((alone.title.text.as_str(), alone.labels.len()), ("slinger: board", 0));
         assert_eq!(alone.webs[0].frame, layout::WINDOW.rect());
 
         let why = Problem { message: "ui \"board\" not found".into(), hint: Some("put it".into()) };

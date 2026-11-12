@@ -3,7 +3,8 @@
 //! previous page, a new page, a rename and a removal, which turn only that
 //! pane; and undo and redo, the user's own steps on its canvas. Changes go
 //! through the ink's queue, in turn with the pen's, so an undo pressed
-//! right after a stroke undoes that stroke. The decisions are
+//! right after a stroke undoes that stroke; and `save`, which says where
+//! the pane's canvas is saved. The decisions are
 //! `scene::pages`'s; this module finds the pane's canvas and page.
 
 use super::{Canvases, canvas_of, find, pane_shown, wanted};
@@ -57,6 +58,9 @@ impl Canvases {
             Command::Undo | Command::Redo => self.step(panes, pane, command == Command::Redo),
             Command::PlaceButton => self.place_button(panes, pane, frame),
             Command::ToggleGrid => self.zoomed = Some(self.paper.toggle().to_string()),
+            Command::Save => {
+                self.zoomed = Some(self.saved(panes, pane, std::env::home_dir().as_deref()));
+            }
             _ => return false,
         }
         true
