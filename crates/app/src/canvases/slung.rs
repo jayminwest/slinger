@@ -12,15 +12,12 @@ use crate::backend::Heard;
 use crate::config::{Prompt, Theme};
 use crate::layout::{PaneId, Rect, Viewport};
 use crate::panes::{Kind, Panes};
-use crate::scene::Label;
 use crate::scene::canvas::{ItemId, Shape};
-use crate::scene::overlay::Overlay;
 use crate::scene::select::Selection;
 use crate::scene::sidebar::Agent;
 use crate::scene::sling::{Answered, Ask, buttons};
-use crate::scene::slung::{Tapped, View};
+use crate::scene::slung::{Marks, Tapped, View};
 use crate::scene::status;
-use crate::scene::taps::Target;
 
 /// What `sling-now` flashes on a canvas whose workspace has no agent.
 pub const NO_AGENT: &str = "No agent in this workspace";
@@ -176,13 +173,9 @@ impl Canvases {
     /// What the window draws for the sling over the canvas panes of
     /// `panes` laid in `area`, in `theme`'s colours: "➤ Sling" and "+
     /// prompt" beside the selection while no sling is out, "Delete" beside
-    /// it, and the pill; their labels, tap targets, and the answer's panel.
-    pub fn sling_marks(
-        &self,
-        panes: &Panes,
-        area: Rect,
-        theme: &Theme,
-    ) -> (Vec<Label>, Vec<Target>, Option<Overlay>) {
+    /// it, and the pill; their labels (the buttons' first), tap targets,
+    /// and the answer's panel.
+    pub fn sling_marks(&self, panes: &Panes, area: Rect, theme: &Theme) -> Marks {
         let (mut labels, mut targets) = (Vec::new(), Vec::new());
         let idle = self.sling.canvas().is_none() && !self.typing();
         let selected = self.selection_in(panes, area).filter(|(s, ..)| idle && !s.ids.is_empty());
@@ -190,10 +183,10 @@ impl Canvases {
             (labels, targets) = buttons::buttons(around, within, theme, self.slung.out());
         }
         let seen = self.seen(panes, area);
-        let marks = self.slung.marks(theme, &views(&seen), Instant::now());
-        labels.extend(marks.labels);
-        targets.extend(marks.target);
-        (labels, targets, marks.panel)
+        let mut marks = self.slung.marks(theme, &views(&seen), Instant::now());
+        labels.append(&mut marks.labels);
+        targets.append(&mut marks.targets);
+        Marks { labels, targets, ..marks }
     }
 
     /// The canvas panes of `panes` laid in `area` whose page has arrived.

@@ -476,6 +476,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     for line in &scene.labels {
         shown.chrome.extend(text::line(line, height, mtm));
     }
+    shown.chrome.extend(overlay::lines(&scene.pills, height, mtm));
     if let Some(pill) = &scene.flash {
         shown.chrome.push(Retained::into_super(chrome::pill(window, pill, height, mtm)));
     }

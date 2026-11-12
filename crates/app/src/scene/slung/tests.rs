@@ -38,7 +38,7 @@ fn out(now: Instant) -> Slung {
 
 /// The pill's text and lines, top first.
 fn said(slung: &Slung, views: &[View], now: Instant) -> Vec<String> {
-    slung.marks(&T, views, now).labels.into_iter().map(|l| l.text).collect()
+    slung.marks(&T, views, now).all().into_iter().map(|l| l.text).collect()
 }
 
 fn agent_item(id: u64, frame: Rect) -> (ItemId, Rect, Option<&'static str>) {
@@ -52,7 +52,7 @@ fn a_sling_says_it_went_and_counts_while_the_agent_works() {
     assert_eq!(slung.flash().as_deref(), Some("Slung to scout"));
     assert_eq!(slung.flash(), None, "once");
     assert_eq!(said(&slung, &[view(true)], now), ["● scout working · 0s"]);
-    let pill = slung.marks(&T, &[view(true)], now).labels[0].clone();
+    let pill = slung.marks(&T, &[view(true)], now).all()[0].clone();
     assert_eq!(pill.frame.y, PANE.y + AT.y + AT.height + GAP, "under where it was made");
     assert_eq!(pill.frame.x, PANE.x + AT.x);
     assert!(!slung.heard(&working(1), now), "still working");
@@ -73,8 +73,8 @@ fn a_blocked_agent_says_what_it_waits_for() {
     let blocked = Progress { blocked: Some("which key?".into()), ..working(1) };
     assert!(slung.heard(&blocked, now));
     let marks = slung.marks(&T, &[view(true)], now);
-    assert_eq!(marks.labels[0].text, "■ scout blocked: which key?");
-    assert_eq!(marks.labels[0].colour, T.error);
+    assert_eq!(marks.all()[0].text, "■ scout blocked: which key?");
+    assert_eq!(marks.all()[0].colour, T.error);
     assert!(slung.heard(&working(1), now), "back to work");
 }
 
@@ -133,17 +133,16 @@ fn an_answer_in_words_opens_under_the_pill_and_a_tap_closes_it() {
     assert!(slung.tick(now + SETTLE), "none landed");
     assert_eq!(slung.flash().as_deref(), Some("scout answered in text"));
     let marks = slung.marks(&T, &[view(true)], now);
-    assert_eq!(marks.labels[0].text, "✓ scout answered in text · tap to read");
+    assert_eq!(marks.all()[0].text, "✓ scout answered in text · tap to read");
     assert_eq!(marks.panel, None);
-    let (target, tap) = marks.target.unwrap();
-    assert_eq!((target, tap), (marks.labels[0].frame, Tap::Slung));
+    assert_eq!(marks.targets, [(marks.all()[0].frame, Tap::Slung)]);
     assert_eq!(slung.tapped(&[view(true)]), Tapped::Changed);
     let marks = slung.marks(&T, &[view(true)], now);
     let panel = marks.panel.expect("the answer");
     let texts = panel.lines.iter().map(|l| l.label.text.as_str()).filter(|t| !t.is_empty());
     let texts: Vec<&str> = texts.collect();
     assert_eq!(texts, ["It is two.", "And three.", "tap to close"]);
-    assert!(marks.target.unwrap().0.height > HIGH, "the answer takes the tap too");
+    assert!(marks.targets[0].0.height > HIGH, "the answer takes the tap too");
     assert!(!slung.tick(now + 2 * CLEAR), "an open answer stays");
     assert_eq!(slung.tapped(&[view(true)]), Tapped::Changed);
     assert_eq!(slung.marks(&T, &[view(true)], now), Marks::default());
@@ -177,12 +176,12 @@ fn an_agent_that_stops_says_how_to_start_it() {
     let mut slung = out(now);
     assert!(slung.heard(&Progress { running: false, ..working(1) }, now));
     let marks = slung.marks(&T, &[view(true)], now);
-    let texts: Vec<&str> = marks.labels.iter().map(|l| l.text.as_str()).collect();
+    let texts: Vec<String> = marks.all().into_iter().map(|l| l.text).collect();
     assert_eq!(
         texts,
         ["✗ scout stopped before it answered", "start it with 'slinger session start <WORKSPACE>'"]
     );
-    assert_eq!(marks.labels[0].colour, T.error);
+    assert_eq!(marks.all()[0].colour, T.error);
     assert!(slung.tick(now + CLEAR));
 }
 
@@ -219,13 +218,13 @@ fn a_page_sling_pins_the_pill_and_it_stays_inside_its_pane() {
     let mut slung = Slung::default();
     slung.aim(("notes", "p1"), None, ItemId(0), now);
     slung.went("scout", now);
-    let pill = slung.marks(&T, &[view(true)], now).labels[0].frame;
+    let pill = slung.marks(&T, &[view(true)], now).all()[0].frame;
     assert_eq!((pill.x, pill.y), (PANE.x + GAP, PANE.y + GAP), "the pane's top left");
 
     let mut low = Slung::default();
     low.aim(("notes", "p1"), Some(Rect { x: 790.0, y: 590.0, ..AT }), ItemId(0), now);
     low.went("scout", now);
-    let pill = low.marks(&T, &[view(true)], now).labels[0].frame;
+    let pill = low.marks(&T, &[view(true)], now).all()[0].frame;
     assert!(pill.x + pill.width <= PANE.x + PANE.width - GAP, "{pill:?}");
     assert!(pill.y + pill.height <= PANE.y + PANE.height - GAP, "{pill:?}");
 }
@@ -237,13 +236,16 @@ fn a_sling_at_the_pane_s_top_left_puts_the_pill_under_it_its_text_on_its_fill() 
     let corner = Rect { x: 0.0, y: 0.0, width: 40.0, height: 30.0 };
     slung.aim(("notes", "p1"), Some(corner), ItemId(0), now);
     slung.went("scout", now);
-    let labels = slung.marks(&T, &[view(true)], now).labels;
-    let pill = &labels[0];
+    let line = slung.marks(&T, &[view(true)], now).pill.expect("the pill");
+    let pill = &line.label;
     let under = (PANE.x + GAP, PANE.y + corner.height + GAP);
     assert_eq!((pill.frame.x, pill.frame.y), under, "under the selection, inside the pane");
     // One frame holds both the fill and the words: the window centres the
-    // words in it both ways.
+    // words in it both ways, and rounds its corners as a field's.
     assert_eq!((pill.fill, pill.frame.height), (Some(style::panel(&T)), HIGH));
+    assert_eq!((line.align, line.radius, line.size), (Align::Centre, style::FIELD_RADIUS, TEXT));
+    let words = glyphs::frame(Point { x: 0.0, y: 0.0 }, &pill.text, TEXT, glyphs::UNWRAPPED);
+    assert_eq!(pill.frame.width, words.width + 2.0 * PAD, "as wide as its words measure");
     assert!(pill.frame.width >= HIGH && pill.text.starts_with("● scout working"));
 }
 
@@ -252,9 +254,9 @@ fn the_pill_shows_in_the_pane_with_the_sling_s_page_else_the_focused_one() {
     let now = Instant::now();
     let slung = out(now);
     let left = View { frame: Rect { x: 0.0, width: 200.0, ..PANE }, page: "p2", ..view(true) };
-    let pill = slung.marks(&T, &[left, view(false)], now).labels[0].frame;
+    let pill = slung.marks(&T, &[left, view(false)], now).all()[0].frame;
     assert!(pill.x >= PANE.x, "the pane that shows p1: {pill:?}");
-    let pill = slung.marks(&T, &[left], now).labels[0].frame;
+    let pill = slung.marks(&T, &[left], now).all()[0].frame;
     assert_eq!((pill.x, pill.y), (GAP, GAP), "pinned in the focused pane: {pill:?}");
     assert_eq!(slung.marks(&T, &[], now), Marks::default(), "no canvas pane");
 }

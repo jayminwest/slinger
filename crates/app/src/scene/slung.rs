@@ -35,12 +35,12 @@ use std::time::{Duration, Instant};
 
 use crate::backend::Problem;
 use crate::config::Theme;
-use crate::layout::{Rect, Size, Viewport};
+use crate::layout::{Point, Rect, Size, Viewport};
 use crate::scene::canvas::ItemId;
 use crate::scene::overlay::{Align, Line, Overlay};
 use crate::scene::taps::{Tap, Target};
-use crate::scene::{Label, style};
-use words::{count, elapsed, page};
+use crate::scene::{Label, glyphs, style};
+use words::{arrow, count, elapsed, page};
 
 /// How long an answer or a failure stays untapped.
 pub const CLEAR: Duration = Duration::from_secs(30);
@@ -52,7 +52,7 @@ const HIGH: f64 = style::TAP;
 /// The room inside the pill's ends, and around it in its pane.
 const PAD: f64 = 10.0;
 const GAP: f64 = 8.0;
-/// About how wide a character of the pill's text is.
+/// About how wide a character of the answer's text is, to wrap it.
 const CHAR: f64 = 7.0;
 /// A line under the pill (a hint, the answer), its text size, and the
 /// answer panel's widest and most lines.
@@ -97,13 +97,24 @@ pub enum Tapped {
     Pan(usize, f64, f64),
 }
 
-/// What the window draws for the sling: labels, the answer's panel, and
-/// the tap target over both.
+/// What the window draws for the sling: the pill (its corners round, its
+/// text as wide as it measures), labels, the answer's panel, and the tap
+/// targets.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Marks {
+    pub pill: Option<Line>,
     pub labels: Vec<Label>,
     pub panel: Option<Overlay>,
-    pub target: Option<Target>,
+    pub targets: Vec<Target>,
+}
+
+#[cfg(test)]
+impl Marks {
+    /// The pill's label, then the labels.
+    pub fn all(&self) -> Vec<Label> {
+        let pill = self.pill.iter().map(|p| p.label.clone());
+        pill.chain(self.labels.iter().cloned()).collect()
+    }
 }
 
 /// Where the last sling is.
@@ -370,7 +381,8 @@ impl Slung {
             Stage::Answered(Some(answer)) if out.reading && out.items.is_empty() => Some(answer),
             _ => None,
         };
-        let wide = (count(text.chars().count()) * CHAR + 2.0 * PAD).max(HIGH);
+        let measured = glyphs::frame(Point { x: 0.0, y: 0.0 }, &text, TEXT, glyphs::UNWRAPPED);
+        let wide = (measured.width + 2.0 * PAD).max(HIGH);
         let block = if answer.is_some() { wide.max(PANEL) } else { wide };
         let block = block.min(view.frame.width - 2.0 * GAP).max(0.0);
         let lines = answer.map_or_else(|| under.clone(), |a| page(a, block, &out.agent));
@@ -378,8 +390,10 @@ impl Slung {
             HIGH + count(lines.len()) * LINE + if answer.is_some() { 2.0 * GAP } else { 0.0 };
         let pill = out.place(&view, Size { width: wide.min(block), height: tall });
         let fill = style::panel(theme);
-        let mut labels = vec![Label { text, colour, fill: Some(fill), frame: pill }];
-        let mut target = pill;
+        let label = Label { text, colour, fill: Some(fill), frame: pill };
+        let line = Line::text(String::new(), colour, pill, TEXT, Align::Centre);
+        let line = Line { label, radius: style::FIELD_RADIUS, ..line };
+        let (mut labels, mut target) = (Vec::new(), pill);
         let panel = answer.map(|_| {
             let frame = Rect { y: pill.y + HIGH, width: block, height: tall - HIGH, ..pill };
             target = target.union(frame);
@@ -409,7 +423,7 @@ impl Slung {
                 });
             }
         }
-        Marks { labels, panel, target: Some((target, Tap::Slung)) }
+        Marks { pill: Some(line), labels, panel, targets: vec![(target, Tap::Slung)] }
     }
 }
 
@@ -474,20 +488,6 @@ impl Out {
         let y = y.min(frame.y + frame.height - size.height - GAP).max(frame.y + GAP);
         Rect { x, y, width: size.width, height: HIGH }
     }
-}
-
-/// " →" (or ←, ↑, ↓): the way from what `view` shows to `away`.
-fn arrow(away: Rect, view: &View) -> String {
-    let seen = view.viewport.visible(Size { width: view.frame.width, height: view.frame.height });
-    let dx = (away.x + away.width / 2.0) - (seen.x + seen.width / 2.0);
-    let dy = (away.y + away.height / 2.0) - (seen.y + seen.height / 2.0);
-    let way = match (dx.abs() >= dy.abs(), dx >= 0.0, dy >= 0.0) {
-        (true, true, _) => '→',
-        (true, false, _) => '←',
-        (false, _, true) => '↓',
-        (false, _, false) => '↑',
-    };
-    format!(" {way}")
 }
 
 mod words;

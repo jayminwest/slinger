@@ -151,7 +151,7 @@ fn a_tap_with_no_agent_running_says_why_under_the_button() {
         let mut lines = Vec::new();
         wait_until(|| {
             canvases.poll();
-            lines = canvases.sling_marks(&panes, WINDOW.rect(), &theme).0;
+            lines = canvases.sling_marks(&panes, WINDOW.rect(), &theme).all();
             !lines.is_empty()
         });
         assert!(!canvases.typing(), "no entry: the pen cannot press escape");

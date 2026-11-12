@@ -432,8 +432,9 @@ scene.rs     decides what the window shows: each pane's placeholder, an
              notice, the sling's labelled entry (scene/sling.rs), each
              pane's footer (scene/status.rs) and the key overlay (an
              Overlay: a dim over the window and its lines, each with a font
-             and an alignment); the flash and the cursor over the canvas
-             panes. A canvas pane's chrome is
+             and an alignment); the pills over the labels (Lines with
+             round corners: the sling's); the flash and the cursor over the
+             canvas panes. A canvas pane's chrome is
              decided with its gestures: the selection's box, handles and
              count (`select`), a text being typed's caret, frame and hint
              (`shapes`). Every state shows, nothing else (SPEC P6). Pure.
@@ -535,8 +536,10 @@ scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
              "✗ scout stopped before it answered". An answer with no items
              yet waits 1 s for them to land (the pill says "✓ scout
              answered") before it says "in text" (`SETTLE`). An ending pill
-             goes 30 s later. `out`: a sling is on its way or worked on. `slung/words.rs`: the elapsed time, the answer's lines.
-             Pure.
+             goes 30 s later. The pill is a Line with a field's round
+             corners, as wide as its words measure (scene/glyphs.rs). `out`:
+             a sling is on its way or worked on. `slung/words.rs`: the
+             elapsed time, the arrow to the items, the answer's lines. Pure.
 scene/button.rs  the "send to agent" button: an item of kind `button`, drawn
              as an outline with the agent's status mark (the sidebar's) and
              its label; which button is under a point; where a new one goes.
@@ -745,7 +748,8 @@ platform/keys.rs  a key press as a chord and the text it types (none with
              pastes, so it lands there too.
 platform/overlay.rs  draws a scene's Overlay over the chrome: a box that
              dims the window, then per line a rounded box for its fill and
-             edge and a text field centred top to bottom.
+             edge and a text field centred top to bottom; the scene's pills
+             the same way, over the labels.
 platform/chrome.rs  the focus border, and the flash's pill (a rounded box
              with its text) with the one-shot timer that ticks when it goes;
              the plain label, the flip to AppKit's coordinates and the

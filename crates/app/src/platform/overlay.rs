@@ -1,5 +1,5 @@
-//! An overlay over the window (the key overlay, the palette): a box that
-//! dims the window, then per line a box for its fill and edge, with its
+//! An overlay over the window (the key overlay, the palette), and the
+//! scene's pills: a box that dims the window, then per line a box for its fill and edge, with its
 //! corners as round as the line says, and its text in its font, set as the
 //! line says and centred top to bottom in its frame.
 
@@ -26,7 +26,15 @@ pub(super) fn views(
     dim.setFillColor(&fill);
     dim.setFrame(flipped(height, overlay.frame));
     let mut views = vec![Retained::into_super(dim)];
-    for line in &overlay.lines {
+    views.extend(lines(&overlay.lines, height, mtm));
+    views
+}
+
+/// The views that draw `lines` in a view `height` tall, bottom first: each
+/// one's box, then its text.
+pub(super) fn lines(lines: &[Line], height: f64, mtm: MainThreadMarker) -> Vec<Retained<NSView>> {
+    let mut views = Vec::new();
+    for line in lines {
         if line.label.fill.is_some() || line.edge.is_some() {
             views.push(Retained::into_super(back(line, height, mtm)));
         }
