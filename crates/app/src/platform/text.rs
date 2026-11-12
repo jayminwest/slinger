@@ -31,8 +31,8 @@ pub(super) fn sidebar_row(row: &Row, height: f64, mtm: MainThreadMarker) -> Reta
     field
 }
 
-/// The views that show `footer` in a view `height` tall: its fill, the
-/// swatch, then one field per part.
+/// The views that show `footer` in a view `height` tall: its fill, its
+/// top hairline, the swatch, then one field per part.
 pub(super) fn footer(footer: &Footer, height: f64, mtm: MainThreadMarker) -> Vec<Retained<NSView>> {
     let filled = |frame, fill| {
         let block = Label { text: String::new(), colour: fill, fill: Some(fill), frame };
@@ -44,6 +44,7 @@ pub(super) fn footer(footer: &Footer, height: f64, mtm: MainThreadMarker) -> Vec
         )))
     };
     let mut views = vec![filled(footer.frame, footer.fill)];
+    views.push(filled(footer.rule.frame, footer.rule.colour));
     views.extend(footer.swatch.map(|(frame, colour)| filled(frame, colour)));
     for part in &footer.parts {
         let colour = part.runs.first().map_or(Rgb { r: 0, g: 0, b: 0 }, |r| r.colour);

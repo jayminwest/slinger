@@ -39,6 +39,7 @@ pub mod shapes;
 pub mod sidebar;
 pub mod sling;
 pub mod status;
+pub mod style;
 pub mod tools;
 
 use std::collections::HashMap;
@@ -115,6 +116,9 @@ pub struct Scene {
     pub sidebar: Vec<sidebar::Row>,
     /// Each pane's footer, under the labels and the border.
     pub footers: Vec<status::Footer>,
+    /// The sidebar's fill and the hairlines ([`style::rules`]), under the
+    /// sidebar's lines.
+    pub rules: Vec<style::Rule>,
     /// Around the focused pane: the window's one border; none, zero wide,
     /// when one pane fills the area.
     pub focus: Border,
@@ -129,7 +133,7 @@ pub struct Scene {
 }
 
 /// The focus border's width, in points.
-pub const BORDER: f64 = 2.0;
+pub const BORDER: f64 = 1.0;
 
 /// The window of `size` for `panes` in `theme`'s colours, beside `sidebar`:
 /// the panes share what the sidebar leaves of it. The panes
@@ -154,6 +158,10 @@ pub fn build(
     let area = sidebar.panes(size.rect());
     let (mut labels, mut webs) = (Vec::new(), Vec::new());
     let placed = panes.place(area);
+    let frames: Vec<Rect> = placed.iter().map(|(_, _, frame)| *frame).collect();
+    let window = size.rect();
+    let sidebar_frame = Rect { width: area.x - window.x, ..window };
+    let rules = style::rules(theme, window, sidebar_frame, area, &frames);
     let mut focus = match placed.len() {
         1 => Border { frame: area, width: 0.0, colour: theme.background },
         _ => Border { frame: area, width: BORDER, colour: theme.focus },
@@ -203,6 +211,7 @@ pub fn build(
         labels,
         sidebar: sidebar.rows(theme, size.rect()),
         footers: Vec::new(),
+        rules,
         focus,
         entry: None,
         overlay: None,
@@ -231,6 +240,7 @@ pub fn preview(page: Arc<Page>, theme: &Theme, item: bool, size: Size) -> Scene 
         labels: Vec::new(),
         sidebar: Vec::new(),
         footers: Vec::new(),
+        rules: Vec::new(),
         focus: Border { frame: size.rect(), width: 0.0, colour: theme.background },
         entry: None,
         overlay: None,
@@ -302,6 +312,9 @@ mod tests {
         assert_eq!(shown(&scene), [("canvas main", T.text), ("canvas main", T.text)]);
         let half = layout::WINDOW.width / 2.0;
         assert!(scene.labels[0].frame.x < half && scene.labels[1].frame.x > half);
+        let divider = Rect { x: half - 0.5, y: 0.0, width: 1.0, height: layout::WINDOW.height };
+        let rule = style::Rule { frame: divider, colour: style::edge(&T) };
+        assert!(scene.rules.contains(&rule), "a hairline on their shared edge");
         assert_eq!(
             scene.focus,
             Border {

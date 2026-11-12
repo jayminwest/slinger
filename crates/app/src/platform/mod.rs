@@ -53,6 +53,7 @@ use crate::scene::flash::Pill;
 use crate::scene::ink::Pen;
 use crate::scene::sidebar::Row;
 use crate::scene::status::Footer;
+use crate::scene::style::Rule;
 use crate::scene::{Border, Label, Scene, overlay::Overlay};
 
 /// How often the main thread looks for a new scene, in seconds.
@@ -143,9 +144,10 @@ struct Shown {
     made_from: Option<Chrome>,
 }
 
-/// What the chrome is made from: the sidebar, the footers, the labels, the
-/// border, the overlay and the flash.
-type Chrome = (Vec<Row>, Vec<Footer>, Vec<Label>, Border, Option<Box<Overlay>>, Option<Box<Pill>>);
+/// What the chrome is made from: the rules, the sidebar, the footers, the
+/// labels, the border, the overlay and the flash.
+type Chrome =
+    (Vec<Rule>, Vec<Row>, Vec<Footer>, Vec<Label>, Border, Option<Box<Overlay>>, Option<Box<Pill>>);
 
 thread_local! {
     /// Set once by [`run`], on the main thread, and kept for the app's life.
@@ -371,6 +373,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     entry::place(window, &view, &mut shown.entry, scene.entry.as_deref(), height, mtm);
 
     let made_from = Some((
+        scene.rules.clone(),
         scene.sidebar.clone(),
         scene.footers.clone(),
         scene.labels.clone(),
@@ -383,6 +386,16 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     }
     for old in shown.chrome.drain(..) {
         old.removeFromSuperview();
+    }
+    for rule in &scene.rules {
+        let block = Label {
+            text: String::new(),
+            colour: rule.colour,
+            fill: Some(rule.colour),
+            frame: rule.frame,
+        };
+        let field = label(&block, height, NSTextAlignment::Left, mtm);
+        shown.chrome.push(Retained::into_super(Retained::into_super(field)));
     }
     for row in &scene.sidebar {
         let field = text::sidebar_row(row, height, mtm);

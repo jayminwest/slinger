@@ -14,7 +14,7 @@
 use crate::commands::{Command, Keymap};
 use crate::config::{Rgb, Theme};
 use crate::layout::Rect;
-use crate::scene::sidebar;
+use crate::scene::style::{self, Rule};
 use crate::scene::tools::Tool;
 
 /// How high a footer is, in points.
@@ -78,14 +78,19 @@ pub struct Part {
     pub runs: Vec<Run>,
 }
 
-/// One pane's footer, fully decided: its `frame` filled with `fill`, the
-/// pen's swatch (its frame and colour) on a canvas pane, and the parts.
+/// One pane's footer, fully decided: its `frame` filled with `fill`, a
+/// hairline along its top (`rule`), the pen's swatch (its frame and colour)
+/// on a canvas pane, and the parts. A tap on one of its `targets` runs that
+/// command: the right part's key hints open the key overlay and the
+/// palette, so the pen can reach them with no keyboard.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Footer {
     pub frame: Rect,
     pub fill: Rgb,
+    pub rule: Rule,
     pub swatch: Option<(Rect, Rgb)>,
     pub parts: Vec<Part>,
+    pub targets: Vec<(Rect, Command)>,
 }
 
 /// What a pane laid at `frame` shows above its footer: the hit-testing,
@@ -126,11 +131,13 @@ pub fn footer(frame: Rect, theme: &Theme, keys: &Keymap, pen: Option<Pen>, centr
         }
     }
     let hints = [(Command::ShowKeys, "keys"), (Command::ShowCommands, "commands")];
-    let hints: Vec<String> = hints
+    let hints: Vec<(String, Command)> = hints
         .iter()
-        .filter_map(|&(c, word)| keys.chord(c).map(|chord| format!("{} {word}", chord.glyphs())))
+        .filter_map(|&(c, word)| {
+            keys.chord(c).map(|chord| (format!("{} {word}", chord.glyphs()), c))
+        })
         .collect();
-    let right = hints.join(" · ");
+    let right = hints.iter().map(|(text, _)| text.as_str()).collect::<Vec<_>>().join(" · ");
     let side = indent + left.iter().map(|r| width(&r.text)).sum::<f64>();
     // The middle is centred, so it fits beside the wider of the two sides.
     let fits = |side: f64| 2.0 * side + width(centre) + 2.0 * SPACE <= line.width;
@@ -143,11 +150,33 @@ pub fn footer(frame: Rect, theme: &Theme, keys: &Keymap, pen: Option<Pen>, centr
         let runs = vec![run(centre.to_string(), theme.muted, false)];
         parts.push(Part { frame: line, align: Align::Centre, runs });
     }
+    let mut targets = Vec::new();
     if !right.is_empty() && fits(side.max(width(&right))) {
+        targets = self::targets(bar, line.x + line.width, &hints);
         let runs = vec![run(right, theme.muted, false)];
         parts.push(Part { frame: line, align: Align::Right, runs });
     }
-    Footer { frame: bar, fill: sidebar::lighter(theme), swatch, parts }
+    let rule = Rule { frame: Rect { height: style::HAIRLINE, ..bar }, colour: style::edge(theme) };
+    Footer { frame: bar, fill: style::footer(theme), rule, swatch, parts, targets }
+}
+
+/// Where each of `hints` (its text and command), set right-aligned to
+/// `right` in `bar` and parted by " · ", takes a tap: the bar's full
+/// height, and across its share of the text's width, with the parting
+/// line's half on either side. The width is [`width`]'s, a little more
+/// than the text's, so a target reaches past the text's left end.
+fn targets(bar: Rect, right: f64, hints: &[(String, Command)]) -> Vec<(Rect, Command)> {
+    let mut x = right + PAD;
+    let mut targets = Vec::new();
+    for (n, (text, command)) in hints.iter().enumerate().rev() {
+        let (last, first) = (n + 1 == hints.len(), n == 0);
+        let spare = |end: bool| if end { PAD } else { width(" · ") / 2.0 };
+        let wide = width(text) + spare(last) + spare(first);
+        x -= wide;
+        targets.push((Rect { x, width: wide, ..bar }, *command));
+    }
+    targets.reverse();
+    targets
 }
 
 /// The command that picks `tool`: its title names the tool, its chord is

@@ -13,35 +13,40 @@
 //! row's command, a press outside closes it.
 
 use crate::commands::{Chord, Command, Keymap};
-use crate::config::{Rgb, Theme};
+use crate::config::Theme;
 use crate::layout::{Point, Rect, Size};
-use crate::scene::Label;
-use crate::scene::overlay::{Align, Line, Overlay};
-use crate::scene::paste;
+use crate::scene::overlay::{Align, CHIP_HIGH, Line, Overlay, chip_width};
+use crate::scene::{paste, style};
 
-/// How much of the window shows through the dim.
-const OPACITY: f64 = 0.7;
+/// How much of the window the dim hides.
+const OPACITY: f64 = 0.55;
 /// The panel's widest.
 const WIDTH: f64 = 520.0;
 /// The least space between the panel and the window's edge.
 const MARGIN: f64 = 16.0;
-/// The space inside the panel's edge.
-const PAD: f64 = 8.0;
+/// The space between the panel's edge and its rows.
+const PAD: f64 = 6.0;
+/// The space between the panel's edge and the search's and footer's text,
+/// and between a row's edge and its text.
+const INSET: f64 = 16.0;
+const TEXT_PAD: f64 = 10.0;
 /// The search line's height.
-const SEARCH: f64 = 36.0;
+const SEARCH: f64 = 48.0;
 /// A row's height: tall enough for the pen to tap.
 const ROW: f64 = 44.0;
 /// The footer's height.
-const FOOT: f64 = 24.0;
-/// A key chip's width.
+const FOOT: f64 = 30.0;
+/// A key chip's widest.
 const CHIP: f64 = 64.0;
 /// The group's column.
 const GROUP: f64 = 90.0;
 /// The most rows the panel shows at once.
 const MOST: u32 = 8;
 const FOOTER: &str = "↑↓ move · return runs · esc closes";
+const PEN: &str = "the pen can tap a row";
 const PLACEHOLDER: &str = "Search commands";
 const NONE: &str = "No command matches";
+const NO_KEY: &str = "no key";
 
 const ESCAPE: Chord = Chord::new(0, '\u{1b}');
 const RETURN: Chord = Chord::new(0, '\r');
@@ -164,72 +169,76 @@ impl Palette {
         self.open.then(|| self.overlay(keys, theme, size))
     }
 
-    /// The panel and its edge, the search line, a row per shown match (the
-    /// selected one filled) with its title, group and key chip, and the
-    /// footer.
+    /// The panel, the search line over a hairline with how many match, a
+    /// row per shown match (the selected one filled) with its title, group
+    /// and key chip, and the footer under a hairline.
     fn overlay(&self, keys: &Keymap, theme: &Theme, size: Size) -> Overlay {
         let place = place(size);
-        let mut lines =
-            vec![fill(theme.muted, place.panel), fill(theme.background, place.panel.outset(-1.0))];
-        let search = Rect { height: SEARCH, ..place.inside() };
+        let edge = style::edge(theme);
+        let panel = Line::fill(style::panel(theme), place.panel, style::PANEL_RADIUS);
+        let mut lines = vec![Line { edge: Some(edge), ..panel }];
+        let inside = place.panel.outset(-INSET);
+        let search = Rect { y: place.panel.y, height: SEARCH, ..inside };
         lines.push(if self.query.is_empty() {
-            line(PLACEHOLDER.into(), theme.muted, None, search, 15.0, Align::Left)
+            Line::text(PLACEHOLDER.into(), theme.muted, search, 16.0, Align::Left)
         } else {
-            line(self.query.clone() + "▏", theme.text, None, search, 15.0, Align::Left)
+            Line::text(self.query.clone() + "▏", theme.text, search, 16.0, Align::Left)
         });
         let matches = self.matches();
+        let count = format!("{} of {}", matches.len(), Command::ALL.len());
+        lines.push(Line::text(count, theme.muted, search, 12.0, Align::Right));
+        let rule = |y| Line::fill(edge, Rect { y, height: style::HAIRLINE, ..place.panel }, 0.0);
+        lines.push(rule(place.panel.y + SEARCH));
         if matches.is_empty() {
-            lines.push(line(NONE.into(), theme.muted, None, place.row(0), 13.0, Align::Left));
+            let none = Rect { x: inside.x, width: inside.width, ..place.row(0) };
+            lines.push(Line::text(NONE.into(), theme.muted, none, 13.0, Align::Left));
         }
         let first = self.first(place.rows);
         let shown = matches.iter().enumerate().skip(first).take(place.rows as usize);
         for (n, (at, &command)) in shown.enumerate() {
             let row = place.row(u32::try_from(n).unwrap_or(0));
-            if at == self.at {
-                lines.push(fill(theme.focus, row));
+            let selected = at == self.at;
+            if selected {
+                lines.push(Line::fill(style::selected(theme), row, style::ROW_RADIUS));
             }
-            lines.extend(self::row(command, keys, theme, row));
+            lines.extend(self::row(command, keys, theme, row, selected));
         }
-        let foot =
-            Rect { y: place.panel.y + place.panel.height - PAD - FOOT, height: FOOT, ..search };
-        lines.push(line(FOOTER.into(), theme.muted, None, foot, 11.0, Align::Centre));
+        let foot_y = place.panel.y + place.panel.height - FOOT;
+        lines.push(rule(foot_y));
+        let foot = Rect { y: foot_y, height: FOOT, ..inside };
+        lines.push(Line::text(FOOTER.into(), theme.muted, foot, 11.0, Align::Left));
+        lines.push(Line::text(PEN.into(), theme.muted, foot, 11.0, Align::Right));
         Overlay { frame: size.rect(), dim: theme.background, opacity: OPACITY, lines }
     }
 }
 
-/// A command's row in `frame`: its title, its group and its key's chip.
-fn row(command: Command, keys: &Keymap, theme: &Theme, frame: Rect) -> Vec<Line> {
-    let inset = Rect { x: frame.x + PAD, width: frame.width - 2.0 * PAD, ..frame };
+/// A command's row in `frame`, `selected` or not: its title, its group
+/// and its key's chip (on the selected row the group a lighter blue and
+/// the chip on the background, so both read on the fill).
+fn row(command: Command, keys: &Keymap, theme: &Theme, frame: Rect, selected: bool) -> Vec<Line> {
+    let inset = Rect { x: frame.x + TEXT_PAD, width: frame.width - 2.0 * TEXT_PAD, ..frame };
     let right = inset.x + inset.width;
-    let title = Rect { width: inset.width - CHIP - GROUP - 2.0 * PAD, ..inset };
-    let group = Rect { x: right - CHIP - PAD - GROUP, width: GROUP, ..inset };
+    let title = Rect { width: inset.width - CHIP - GROUP - 2.0 * TEXT_PAD, ..inset };
+    let group = Rect { x: right - CHIP - TEXT_PAD - GROUP, width: GROUP, ..inset };
+    let (label, chip) = if selected {
+        (style::selected_label(theme), theme.background)
+    } else {
+        (theme.muted, style::chip(theme))
+    };
     let mut lines = vec![
-        line(command.title().into(), theme.text, None, title, 14.0, Align::Left),
-        line(command.group().title().into(), theme.muted, None, group, 12.0, Align::Right),
+        Line::text(command.title().into(), theme.text, title, 14.0, Align::Left),
+        Line::text(command.group().title().into(), label, group, 12.0, Align::Right),
     ];
-    if let Some(chord) = keys.chord(command) {
-        let chip = Rect { x: right - CHIP, y: frame.y + 12.0, width: CHIP, height: ROW - 24.0 };
-        let fill = Some(theme.muted);
-        lines.push(line(chord.glyphs(), theme.background, fill, chip, 12.0, Align::Centre));
+    if let Some(glyphs) = keys.chord(command).map(Chord::glyphs) {
+        let wide = chip_width(&glyphs).min(CHIP);
+        let y = frame.y + (frame.height - CHIP_HIGH) / 2.0;
+        let at = Rect { x: right - wide, y, width: wide, height: CHIP_HIGH };
+        lines.push(Line::chip(glyphs, theme, chip, at));
+    } else {
+        let at = Rect { x: right - CHIP, width: CHIP, ..inset };
+        lines.push(Line::text(NO_KEY.into(), theme.muted, at, 12.0, Align::Right));
     }
     lines
-}
-
-/// A line of `text` in `colour` over `fill`, in a font of `size` points.
-fn line(
-    text: String,
-    colour: Rgb,
-    fill: Option<Rgb>,
-    frame: Rect,
-    size: f64,
-    align: Align,
-) -> Line {
-    Line { label: Label { text, colour, fill, frame }, size, bold: false, align }
-}
-
-/// A box of `colour` over `frame`.
-fn fill(colour: Rgb, frame: Rect) -> Line {
-    line(String::new(), colour, Some(colour), frame, 13.0, Align::Left)
 }
 
 /// The character a key types into the search, if it types one: no command
@@ -265,21 +274,17 @@ fn place(size: Size) -> Place {
     while rows > 1 && f64::from(rows) * ROW > room {
         rows -= 1;
     }
-    let height = 2.0 * PAD + SEARCH + f64::from(rows) * ROW + FOOT;
+    let height = SEARCH + 2.0 * PAD + f64::from(rows) * ROW + FOOT;
     let y = ((size.height - height) / 5.0).max(MARGIN.min((size.height - height) / 2.0));
     Place { panel: Rect { x: (size.width - width) / 2.0, y, width, height }, rows }
 }
 
 impl Place {
-    /// The panel inside its padding.
-    fn inside(&self) -> Rect {
-        self.panel.outset(-PAD)
-    }
-
-    /// The `n`th shown row's frame.
+    /// The `n`th shown row's frame: under the search, inside the padding.
     fn row(&self, n: u32) -> Rect {
-        let inside = self.inside();
-        Rect { y: inside.y + SEARCH + f64::from(n) * ROW, height: ROW, ..inside }
+        let inside = self.panel.outset(-PAD);
+        let y = self.panel.y + SEARCH + PAD + f64::from(n) * ROW;
+        Rect { y, height: ROW, ..inside }
     }
 }
 

@@ -40,6 +40,11 @@ impl Notes {
         self.entry.is_typing()
     }
 
+    /// Closes the entry. False when it is closed.
+    pub(super) fn cancel(&mut self) -> bool {
+        self.entry.cancel()
+    }
+
     /// Whether `at`, a point in the window, is on the open entry.
     pub(super) fn covers(&self, at: Point) -> bool {
         self.entry.covers(at)
@@ -54,8 +59,8 @@ impl Notes {
 impl Canvases {
     /// The `leave-feedback` command: opens the entry in `pane` of `panes`,
     /// whose frame is `frame`, for a note on what it shows: `workspace`,
-    /// its canvas and page, `tool` and the items selected there. An open
-    /// sling's entry closes. False while a note saves.
+    /// its canvas and page, `tool` and the items selected there. Another
+    /// open entry closes. False while a note saves.
     pub fn open_feedback(
         &mut self,
         panes: &Panes,
@@ -77,7 +82,7 @@ impl Canvases {
         if !self.notes.entry.open(frame, context) {
             return false;
         }
-        if self.sling.cancel() {
+        if self.sling.cancel() | self.asks.cancel_rename() {
             self.entry_closed();
         }
         true

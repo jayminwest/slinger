@@ -31,7 +31,7 @@ use crate::layout::{Point, Rect};
 use crate::scene::canvas::ItemId;
 use crate::scene::select::Selection;
 use crate::scene::sidebar::{Font, Row};
-use crate::scene::{Border, Label};
+use crate::scene::{Border, Label, style};
 
 /// The entry's box, in points.
 pub const WIDTH: f64 = 360.0;
@@ -45,11 +45,15 @@ const LINE: f64 = 22.0;
 pub const SMALL: f64 = 16.0;
 /// The label's and the keys' text size, in points.
 const SMALL_TEXT: Font = Font { size: Some(11.0), bold: false, spacing: 0.0 };
-/// The text inside the box: its height, and its space from the box's side.
+/// The text inside the box: its height, its size, and its space from the
+/// box's side.
 const TEXT: f64 = 20.0;
-const PAD: f64 = 10.0;
+const TEXT_SIZE: f64 = 15.0;
+const PAD: f64 = 12.0;
 /// The box's border width.
 const EDGE: f64 = 1.0;
+/// The room a pane keeps at its top for the flash, over a centred entry.
+const FLASH: f64 = 40.0;
 /// The key that sends.
 pub const SEND: Chord = Chord::new(0, '\r');
 
@@ -64,16 +68,23 @@ pub struct Ask {
 }
 
 /// The one-line entry the window shows: the box and the text it starts
-/// with, the label above it and the keys beneath.
+/// with, the label above it and the keys beneath. Every entry (the sling's
+/// prompt, a note of feedback, a page's new name) looks the same
+/// ([`Entry::framed`]), and the platform gives each the keyboard and its
+/// caret the same way.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Entry {
-    /// The box: filled with `fill`, inside `border`.
+    /// The box: filled with `fill`, inside `border`, its corners `radius`
+    /// round.
     pub frame: Rect,
     pub fill: Rgb,
     pub border: Border,
-    /// Where the text is typed, inside the box, and its colour.
+    pub radius: f64,
+    /// Where the text is typed, inside the box, its colour (the caret's
+    /// too) and its size in points.
     pub field: Rect,
     pub colour: Rgb,
+    pub size: f64,
     pub text: String,
     /// Shown while the text is empty.
     pub placeholder: String,
@@ -283,10 +294,12 @@ impl Entry {
         let fill = Some(theme.background);
         Entry {
             frame,
-            fill: theme.background,
+            fill: style::panel(theme),
             border: Border { frame, width: EDGE, colour: theme.focus },
+            radius: style::FIELD_RADIUS,
             field,
             colour: theme.text,
+            size: TEXT_SIZE,
             text: String::new(),
             placeholder: String::new(),
             title: small(theme, frame, title, frame.y - SMALL, fill),
@@ -294,6 +307,16 @@ impl Entry {
             dictate: None,
         }
     }
+}
+
+/// An entry's box centred across `within` (a pane), a third of the way
+/// down, and never over the flash, which says what the entry did.
+pub fn centred(within: Rect) -> Rect {
+    let width = WIDTH.min(within.width - 2.0 * GAP).max(0.0);
+    let x = within.x + (within.width - width) / 2.0;
+    let top = within.y + FLASH + GAP + SMALL;
+    let y = (within.y + (within.height - HEIGHT) / 3.0).max(top);
+    Rect { x, y, width, height: HEIGHT }
 }
 
 impl Key {

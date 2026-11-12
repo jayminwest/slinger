@@ -112,7 +112,7 @@ mod tests {
             let mut message = String::new();
             wait_until(|| {
                 message = std::fs::read_to_string(&file).unwrap_or_default();
-                !message.is_empty()
+                message.contains("what is missing?")
             });
             assert!(message.contains("slinger-sling 1 canvas=notes selected=c1"), "{message}");
             assert!(message.contains("what is missing?"), "{message}");

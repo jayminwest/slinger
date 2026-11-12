@@ -1,5 +1,7 @@
 use super::*;
 use crate::layout::Axis;
+
+const PANE: Rect = Rect { x: 0.0, y: 0.0, width: 600.0, height: 400.0 };
 use crate::panes::{Kind, Pane, Panes};
 
 fn pages(names: &[&str]) -> Vec<Page> {
@@ -100,19 +102,21 @@ fn a_rename_takes_typed_keys_and_return_keeps_a_new_name() {
     let page = &pages(&["Page 1"])[0];
     let mut asks = Pages::default();
     assert_eq!(asks.typed("x"), None, "no question, no answer");
-    asks.rename(here, "main", page);
-    assert!(asks.prompt(here).unwrap().contains("Page 1▏"), "it starts from the old name");
+    asks.rename((here, PANE), "main", page);
+    let entry = asks.entry(&Theme::default()).unwrap();
+    assert_eq!(entry.text, "Page 1", "it starts from the old name");
+    assert_eq!(asks.prompt(here), None, "the entry asks, not the footer");
     asks.typed("\u{7f}\u{7f}\u{7f}\u{7f}\u{7f}\u{7f}\u{f700}\u{1}");
     asks.typed("ideas");
-    assert!(asks.prompt(here).unwrap().contains("page name: ideas▏"));
+    assert_eq!(asks.entry(&Theme::default()).unwrap().text, "ideas");
     let renamed = Some(("main".into(), PageOp::Rename { page: "p1".into(), name: "ideas".into() }));
     assert_eq!(asks.typed(" \r"), renamed);
     assert!(!asks.asking());
 
-    asks.rename(here, "main", page);
+    asks.rename((here, PANE), "main", page);
     asks.typed("\u{7f}\u{7f}\u{7f}\u{7f}\u{7f}\u{7f}  ");
     assert_eq!(asks.typed("\r"), None, "a blank name changes nothing");
-    asks.rename(here, "main", page);
+    asks.rename((here, PANE), "main", page);
     assert_eq!(asks.typed("zz\u{1b}more"), None, "escape keeps the old name");
     assert!(!asks.asking());
 }
@@ -123,7 +127,7 @@ fn a_paste_goes_into_a_new_name_on_one_line_and_a_removal_waits() {
     let [a, b] = &pages(&["a", "b"])[..] else { unreachable!() };
     let mut asks = Pages::default();
     assert!(!asks.pasted("x"), "no question takes it");
-    asks.rename(here, "main", a);
+    asks.rename((here, PANE), "main", a);
     assert!(asks.pasted(" plan\r\nfor\u{1b} monday"), "a pasted escape is not a key");
     assert!(asks.asking(), "a pasted line end does not answer");
     let renamed = PageOp::Rename { page: "p1".into(), name: "a plan for monday".into() };
@@ -155,8 +159,35 @@ fn each_page_command_says_what_it_did_once() {
     asks.kept_last();
     assert_eq!(asks.said().as_deref(), Some("The last page stays"));
 
-    asks.rename(here, "main", &three[1]);
+    asks.rename((here, PANE), "main", &three[1]);
     assert_eq!(asks.said().as_deref(), Some("Rename “ideas”"));
     asks.remove(here, "main", &three[2], 4);
     assert_eq!(asks.said().as_deref(), Some("Remove “Page 3”?"));
+}
+
+#[test]
+fn a_new_name_is_typed_in_an_entry_like_the_sling_s_in_its_pane() {
+    let (here, _) = two_panes();
+    let page = &pages(&["Page 1"])[0];
+    let theme = Theme::default();
+    let mut asks = Pages::default();
+    assert_eq!((asks.entry(&theme), asks.renaming()), (None, false));
+    asks.rename((here, PANE), "main", page);
+    let entry = asks.entry(&theme).unwrap();
+    let same =
+        Entry::framed(entry.frame, &theme, "Rename page".into(), entry.keys.label.text.clone());
+    assert_eq!(Entry { text: String::new(), placeholder: String::new(), ..entry.clone() }, same);
+    assert_eq!(entry.frame, centred(PANE));
+    assert!(entry.keys.label.text.ends_with("renames · esc cancels"));
+    let inside = Point { x: entry.frame.x + 4.0, y: entry.frame.y + 4.0 };
+    assert!(asks.covers(inside) && !asks.covers(Point { x: 1.0, y: 1.0 }));
+
+    asks.named("plans");
+    let renamed = PageOp::Rename { page: "p1".into(), name: "plans".into() };
+    assert_eq!(asks.typed("\r"), Some(("main".into(), renamed)), "return keeps the new name");
+    assert!(!asks.renaming() && !asks.cancel_rename());
+    asks.rename((here, PANE), "main", page);
+    assert!(asks.cancel_rename() && !asks.asking(), "the old name stays");
+    asks.remove(here, "main", page, 3);
+    assert!(!asks.cancel_rename() && asks.asking(), "a removal's question is not an entry");
 }

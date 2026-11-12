@@ -4,9 +4,9 @@
 //! `scene::status`'s; this module finds the pane's page and state.
 
 use super::Canvases;
-use crate::commands::Keymap;
+use crate::commands::{Command, Keymap};
 use crate::config::{Rgb, Theme};
-use crate::layout::Rect;
+use crate::layout::{Point, Rect};
 use crate::panes::{Kind, Panes};
 use crate::scene::pages;
 use crate::scene::status::{self, Footer, Pen, State};
@@ -21,9 +21,9 @@ impl Canvases {
 
     /// The footer of each pane of `panes` laid in `area`, in `theme`'s
     /// colours, with the pen's `tool`, `colour` and width and the live keys
-    /// of `keys`.
+    /// of `keys`. Their targets are kept for [`Canvases::hint`].
     pub fn footers(
-        &self,
+        &mut self,
         panes: &Panes,
         area: Rect,
         theme: &Theme,
@@ -55,6 +55,15 @@ impl Canvases {
                 &centre,
             )
         };
-        panes.place(area).into_iter().map(footer).collect()
+        let footers: Vec<Footer> = panes.place(area).into_iter().map(footer).collect();
+        self.hints = footers.iter().flat_map(|f| f.targets.iter().copied()).collect();
+        footers
+    }
+
+    /// The command of the footer target under `at`, a point in the window,
+    /// as the footers were last laid: a tap on a key hint opens the key
+    /// overlay or the palette.
+    pub fn hint(&self, at: Point) -> Option<Command> {
+        self.hints.iter().find(|(frame, _)| frame.contains(at)).map(|&(_, command)| command)
     }
 }

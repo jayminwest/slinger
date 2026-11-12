@@ -120,11 +120,15 @@ pub(super) fn cursor(window: &NSWindow, at: NSPoint) {
 }
 
 /// The window became key: its canvases' cursor rects are made again, as a
-/// tool change does, and the pointer gets its cursor now, not on its next move.
+/// tool change does, and the pointer gets its cursor now, not on its next
+/// move; an open entry has the keyboard again.
 pub(super) fn became_key(window: &NSWindow) {
     if let Some(shown) = STATE.get().and_then(|state| state.shown.try_borrow().ok()) {
         for (_, canvas) in &shown.canvases {
             window.invalidateCursorRectsForView(canvas);
+        }
+        if let Some(entry) = &shown.entry {
+            entry.focus(window);
         }
     }
     cursor(window, window.mouseLocationOutsideOfEventStream());

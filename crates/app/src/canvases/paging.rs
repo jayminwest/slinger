@@ -43,7 +43,7 @@ impl Canvases {
                 self.turn(panes, pane, command == Command::NextPage);
             }
             Command::NewPage => self.new_page(panes, pane),
-            Command::RenamePage => self.rename_page(panes, pane),
+            Command::RenamePage => self.rename_page(panes, (pane, frame)),
             Command::RemovePage => self.remove_page(panes, pane),
             Command::Undo | Command::Redo => self.step(panes, pane, command == Command::Redo),
             Command::PlaceButton => self.place_button(panes, pane, frame),
@@ -89,12 +89,14 @@ impl Canvases {
         self.send();
     }
 
-    /// Asks for a new name for the page `pane` shows.
-    fn rename_page(&mut self, panes: &Panes, pane: PaneId) {
+    /// Asks for a new name for the page `pane` shows, in an entry in its
+    /// `frame`; an open entry closes.
+    fn rename_page(&mut self, panes: &Panes, (pane, frame): (PaneId, Rect)) {
         let Some((canvas, list, at)) = self.pages_of(panes, pane) else { return };
         let Some(shown) = list.iter().find(|p| p.id == at) else { return };
         self.shapes.end(&mut self.ink);
-        self.asks.rename(pane, &canvas, shown);
+        self.close_entries();
+        self.asks.rename((pane, frame), &canvas, shown);
         self.send();
     }
 
