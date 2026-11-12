@@ -124,6 +124,8 @@ pub struct Agent {
     /// The profile its running process runs under; `None` while it runs
     /// within its own limits or does not run.
     pub profile: Option<String>,
+    /// The names of its profiles, in its workspace file's order.
+    pub profiles: Vec<String>,
 }
 
 impl Agent {

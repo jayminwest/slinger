@@ -48,6 +48,7 @@ use find::{canvas_of, find, matches, pane_shown, to_canvas, wanted};
 
 mod dictation;
 mod feedback;
+mod profile;
 mod sling;
 mod slung;
 mod status;

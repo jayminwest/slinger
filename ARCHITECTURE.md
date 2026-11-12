@@ -300,8 +300,9 @@ main.rs      wires the modules below. The only caller of platform. With
              on it runs it.
 window.rs    runs a command on the focused pane, does a tap on a button that
              does more than run one (`tap`: the page name opens the page
-             menu, a page menu's page turns the pane, a workspace shows
-             its panes), builds the window's scene (`view`: the footers,
+             menu, a page menu's page turns the pane, the footer's agent
+             opens its profile menu and a profile slings under it, a
+             workspace shows its panes), builds the window's scene (`view`: the footers,
              the sidebar's foot, the lit button, the tap targets), and
              finds the canvas pane under a point and the focused pane's
              frame. A cut, copy or paste no text field took (`edit`), and
@@ -318,9 +319,9 @@ shared.rs    the window's panes as the server keeps them for its workspace,
              commands.
 backend.rs   the app's IO: the one module that talks to the daemon, and the
              one that reads and watches the config files. Its Watch asks the
-             daemon for the workspaces and their agents' statuses and the
-             profile each runs under (workspace_list, session_list:
-             backend/agents.rs) and for the window's workspace's
+             daemon for the workspaces and their agents' statuses, the
+             profile each runs under and the names of its profiles
+             (workspace_list, session_list: backend/agents.rs) and for the window's workspace's
              panes (pane_list: the config's, else the first open one) every
              second on a thread of its own, and the window's timer takes the
              news without blocking. When the layout changes it fetches the
@@ -337,6 +338,10 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
 backend/sling.rs  the Slinger: each sling as one `sling_send` (canvas, page,
              the selected ids, the prompt) on a thread of its own, and the
              daemon's answer back (`Heard`). The daemon picks the agent.
+             A sling under a picked profile first starts the agent under
+             it (`session_start` with `profile`: the daemon leaves one
+             running under it as it is and restarts one under another),
+             then sends with `profile`.
              After a sling goes it follows the agent's session
              (`session_show` every 0.5 s: process, pending, answer) until
              nothing is pending or the process stops, or the next sling.
@@ -400,6 +405,9 @@ canvases/slung.rs  the one-tap sling and what follows it: `sling-now` (the
              `[sling] prompt` when nothing is typed; no agent in the
              workspace flashes "No agent in this workspace" and sends
              nothing. Each workspace's agent (`agents`, from the sidebar).
+             canvases/profile.rs: the profile menu's rows (`no profile`,
+             then the agent's profiles, the running one marked) and a
+             sling under the row tapped, as `sling-now` sends.
              The pill's progress from the Slinger, a tap on the pill, and
              the sling's marks: the buttons beside the selection, the pill
              and the answer's panel.
@@ -496,9 +504,9 @@ scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              (while it is collapsed, in the bottom-left pane), the pen's
              swatch, width bars and tool, `· typing` or `· N selected`,
              undo and redo; ‹ the page name and `i/n` › (the name opens
-             the page menu); the canvas's agent (`<agent> (<profile>)`
-             under a profile) with its status, and ➤ Sling; − the zoom
-             +; split right, split down and
+             the page menu); a canvas pane's agent with its status (with
+             profiles, it opens the profile menu) and ➤ Sling; − the
+             zoom +; split right, split down and
              close; the `show-keys` and `show-commands` keys, each only
              when bound. Each runs its command on its pane (the press
              focuses it first). A UI pane's has its name and the pane
@@ -515,8 +523,9 @@ scene/status/cells.rs  how a footer's cells are laid: groups that stay or
 scene/taps.rs  the footers' and the sidebar's buttons as last drawn: the
              one under the pen lights, a press arms it and goes no further
              (no ink, no gesture), and the lift on it taps it (`Tap`: run
-             a command, open the page menu, turn to a page, show a
-             workspace); a lift off it does nothing. Pure.
+             a command, open the page menu, turn to a page, open the
+             profile menu, sling under a profile, show a workspace); a
+             lift off it does nothing. Pure.
 scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
              above the name, one 28 pt row per page (the shown one ✓ and
              bold), then New page, Rename page…, Place send button and
@@ -525,7 +534,10 @@ scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
              a press outside or escape closes it. Pages that do not fit
              scroll a row at a time with a scroll or a drag on the panel
              (a drag taps nothing); a ▲ or ▼ at a page row's end says
-             more pages are above or below. No dim. Pure.
+             more pages are above or below. No dim. The same panel is the
+             profile menu (`List::Profiles`): a tap on a footer's agent
+             opens it over the agent with a row per profile (the running
+             one ✓) and no commands. Pure.
 scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
              `<Tool> <key>` (a new width: `Width <n> <pick-width key>`),
              reload-config its title and key, a saved note "Feedback saved",

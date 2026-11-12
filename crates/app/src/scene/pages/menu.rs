@@ -15,6 +15,10 @@
 //! so it taps nothing) turns them a row at a time; the commands stay put.
 //! A ▲ at the end of the top page's row, or a ▼ at the bottom one's, says
 //! more pages are above or below.
+//!
+//! The same panel lists an agent's profiles to sling under, over the
+//! footer's agent ([`PageMenu::open_profiles`]): one row each, the one its
+//! process runs under marked, and no commands; a row slings under it.
 
 use crate::commands::{Chord, Command};
 use crate::config::Theme;
@@ -46,15 +50,44 @@ const COMMANDS: [(Command, &str); 4] = [
     (Command::RemovePage, "Remove page"),
 ];
 
-/// The open menu: the pane it is for, the page name it opened over, the
-/// pages' names and which one the pane shows; once scrolled, the first
-/// page shown, and the part of a row scrolled past it.
+/// What the menu lists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum List {
+    /// The pane's pages, then the page commands.
+    Pages,
+    /// The pane's agent's profiles.
+    Profiles,
+}
+
+impl List {
+    /// The commands under the rows.
+    fn commands(self) -> &'static [(Command, &'static str)] {
+        match self {
+            List::Pages => &COMMANDS,
+            List::Profiles => &[],
+        }
+    }
+
+    /// What a tap on the row with index `i` does.
+    fn tap(self, i: usize) -> Tap {
+        match self {
+            List::Pages => Tap::Page(i),
+            List::Profiles => Tap::Profile(i),
+        }
+    }
+}
+
+/// The open menu: the pane it is for, what it lists, the name it opened
+/// over, the rows' names and which one the pane shows (or runs under);
+/// once scrolled, the first row shown, and the part of a row scrolled past
+/// it.
 #[derive(Debug, Clone, PartialEq)]
 struct Open {
     pane: PaneId,
+    list: List,
     anchor: Rect,
     names: Vec<String>,
-    shown: usize,
+    shown: Option<usize>,
     first: Option<usize>,
     spill: f64,
 }
@@ -92,7 +125,30 @@ impl PageMenu {
     /// Opens the menu for `pane` above `anchor` (its footer's page name),
     /// listing `names` with the one at `shown` marked.
     pub fn open(&mut self, pane: PaneId, anchor: Rect, (names, shown): (Vec<String>, usize)) {
-        let open = Open { pane, anchor, names, shown, first: None, spill: 0.0 };
+        self.open_list(List::Pages, pane, anchor, (names, Some(shown)));
+    }
+
+    /// Opens the menu for `pane` above `anchor` (its footer's agent),
+    /// listing the profiles `names` with the one at `shown` (the one the
+    /// agent runs under, if it runs) marked.
+    pub fn open_profiles(
+        &mut self,
+        pane: PaneId,
+        anchor: Rect,
+        rows: (Vec<String>, Option<usize>),
+    ) {
+        self.open_list(List::Profiles, pane, anchor, rows);
+    }
+
+    fn open_list(
+        &mut self,
+        list: List,
+        pane: PaneId,
+        anchor: Rect,
+        rows: (Vec<String>, Option<usize>),
+    ) {
+        let (names, shown) = rows;
+        let open = Open { pane, list, anchor, names, shown, first: None, spill: 0.0 };
         *self = PageMenu { open: Some(open), ..PageMenu::default() };
     }
 
@@ -100,14 +156,15 @@ impl PageMenu {
         self.open.is_some()
     }
 
-    /// The pane the open menu is for.
-    pub fn pane(&self) -> Option<PaneId> {
-        self.open.as_ref().map(|o| o.pane)
+    /// The pane the open menu is for, and what it lists.
+    pub fn pane(&self) -> Option<(PaneId, List)> {
+        self.open.as_ref().map(|o| (o.pane, o.list))
     }
 
-    /// The pane's pages now (`None`: it shows none, and the menu closes).
-    pub fn refresh(&mut self, pages: Option<(Vec<String>, usize)>) {
-        match (pages, &mut self.open) {
+    /// The rows it lists now, and the marked one (`None`: the pane shows no
+    /// page or has no profiles now, and the menu closes).
+    pub fn refresh(&mut self, rows: Option<(Vec<String>, Option<usize>)>) {
+        match (rows, &mut self.open) {
             (Some((names, shown)), Some(open)) => (open.names, open.shown) = (names, shown),
             _ => *self = PageMenu::default(),
         }
@@ -230,8 +287,8 @@ impl PageMenu {
             }
             let text = Rect { x: frame.x + MARK, width: frame.width - MARK, ..frame };
             match tap {
-                Tap::Page(i) => {
-                    let (name, here) = (open.names[i].clone(), i == open.shown);
+                Tap::Page(i) | Tap::Profile(i) => {
+                    let (name, here) = (open.names[i].clone(), Some(i) == open.shown);
                     if here {
                         let mark = Rect { width: MARK, ..frame };
                         lines.push(Line::text("✓".into(), theme.text, mark, 13.0, Align::Centre));
@@ -252,6 +309,7 @@ impl PageMenu {
                     lines.push(Line::text(word.into(), theme.text, text, 13.0, Align::Left));
                 }
                 Tap::Pages
+                | Tap::Profiles
                 | Tap::Workspace(_)
                 | Tap::Slung
                 | Tap::Send
@@ -270,11 +328,13 @@ impl PageMenu {
     fn place(&self, size: Size) -> Option<Place> {
         let open = self.open.as_ref()?;
         let count = |n: usize| u32::try_from(n).map_or(f64::from(u32::MAX), f64::from);
-        let fixed = 2.0 * PAD + RULE + ROW * count(COMMANDS.len());
+        let commands = open.list.commands();
+        let ruled = if commands.is_empty() { 0.0 } else { RULE };
+        let fixed = 2.0 * PAD + ruled + ROW * count(commands.len());
         let room = open.anchor.y - GAP - EDGE - fixed;
         let fit = (0..open.names.len()).take_while(|&n| ROW * count(n + 1) <= room).count();
         let most = open.names.len() - fit;
-        let centred = open.shown.saturating_sub(fit.saturating_sub(1) / 2);
+        let centred = open.shown.unwrap_or(0).saturating_sub(fit.saturating_sub(1) / 2);
         let first = open.first.unwrap_or(centred).min(most);
         let height = fixed + ROW * count(fit);
         let centre = open.anchor.x + open.anchor.width / 2.0;
@@ -288,16 +348,16 @@ impl PageMenu {
             height: ROW,
         };
         let mut rows: Vec<(Rect, Tap)> =
-            (0..fit).map(|n| (row(n, y + PAD), Tap::Page(first + n))).collect();
+            (0..fit).map(|n| (row(n, y + PAD), open.list.tap(first + n))).collect();
         let below = y + PAD + ROW * count(fit);
-        let rule = (fit > 0).then_some(Rect {
+        let rule = (fit > 0 && !commands.is_empty()).then_some(Rect {
             x: x + PAD,
             y: below + RULE / 2.0,
             width: WIDTH - 2.0 * PAD,
             height: style::HAIRLINE,
         });
-        let after = below + RULE;
-        rows.extend(COMMANDS.iter().enumerate().map(|(n, &(c, _))| (row(n, after), Tap::Run(c))));
+        let after = below + ruled;
+        rows.extend(commands.iter().enumerate().map(|(n, &(c, _))| (row(n, after), Tap::Run(c))));
         Some(Place { panel, rows, rule, first, most })
     }
 }
@@ -306,7 +366,8 @@ impl PageMenu {
 /// on the first shown when there are pages above it, ▼ on the last shown
 /// when there are pages below it; else nothing.
 fn more(place: &Place, i: usize) -> &'static str {
-    let shown = place.rows.iter().filter(|(_, tap)| matches!(tap, Tap::Page(_))).count();
+    let listed = |tap: &Tap| matches!(tap, Tap::Page(_) | Tap::Profile(_));
+    let shown = place.rows.iter().filter(|(_, tap)| listed(tap)).count();
     let up = i == place.first && place.first > 0;
     let down = i + 1 == place.first + shown && place.first < place.most;
     match (up, down) {
