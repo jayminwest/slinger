@@ -47,7 +47,16 @@ fn it_lists_the_pages_with_the_shown_one_marked_then_the_page_commands() {
     let menu = open(&["ideas", "spec", "plan"], 1);
     assert_eq!(
         rows(&menu),
-        ["ideas", "✓", "spec", "plan", "New page", "Rename page…", "Remove page"]
+        [
+            "ideas",
+            "✓",
+            "spec",
+            "plan",
+            "New page",
+            "Rename page…",
+            "Place send button",
+            "Remove page"
+        ]
     );
     let overlay = menu.shown(&T, SIZE).unwrap();
     assert_eq!(overlay.opacity, 0.0, "the window is not dimmed");
@@ -164,6 +173,7 @@ fn a_scroll_turns_the_pages_a_row_at_a_time_and_stops_at_either_end() {
     assert!(rows(&menu).ends_with(&[
         "New page".into(),
         "Rename page…".into(),
+        "Place send button".into(),
         "Remove page".into()
     ]));
     let mut closed = PageMenu::default();

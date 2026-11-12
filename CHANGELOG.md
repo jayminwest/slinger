@@ -37,10 +37,13 @@ bullet with the area in bold.
   the page; − and + to zoom, and the zoom level to go back to 100%; split
   right, split down and close the pane. Tap the page name for a page menu:
   it lists the canvas's pages (tap one to show it) and offers New page,
-  Rename page… and Remove page. Each button acts on its own pane. A button
-  lights under the pen and runs when you lift on it, so a press that slides
-  off runs nothing. A narrow pane keeps the tool, colour, page and
-  commands, and drops the rest.
+  Rename page…, Place send button and Remove page. Each button acts on its
+  own pane. A button lights under the pen and runs when you lift on it, so
+  a press that slides off runs nothing. A narrow pane keeps the tool,
+  colour, page and commands, and drops the rest.
+- **App:** a Delete button beside the selection, after ➤ Sling and +
+  prompt, removes the selected items with the pen (one undo puts them
+  back). A tap on empty canvas still selects nothing.
 - **App:** slinging to an agent takes one tap. Select with the lasso and
   tap ➤ Sling beside the selection, or tap ➤ Sling in the footer (it slings
   the selection, else what is new on the page), or press ⌥↩ (`sling-now`,

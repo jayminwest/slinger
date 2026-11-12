@@ -452,7 +452,8 @@ scene/taps.rs  the footers' and the sidebar's buttons as last drawn: the
              workspace); a lift off it does nothing. Pure.
 scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
              above the name, one 28 pt row per page (the shown one ✓ and
-             bold), then New page, Rename page… and Remove page. It takes
+             bold), then New page, Rename page…, Place send button and
+             Remove page. It takes
              every press while open; the lift on the row pressed picks it,
              a press outside or escape closes it. Pages that do not fit
              scroll a row at a time with a scroll or a drag on the panel
@@ -641,9 +642,10 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              beneath it "↩ sends · esc cancels" and the live dictate key.
              Return sends and escape cancels, the wait for the ink, the line
              while it goes, and a failure's message and hint under the entry
-             opened again. Pure. `sling/buttons.rs`: the two buttons beside
-             a selection's box, ➤ Sling (`sling-now`) and + prompt
-             (`sling`), each a 28 pt target inside the pane.
+             opened again. Pure. `sling/buttons.rs`: the three buttons
+             beside a selection's box, ➤ Sling (`sling-now`), + prompt
+             (`sling`) and Delete (`delete-selection`), each a 28 pt target
+             inside the pane.
 scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
              sling's labelled field (Entry::framed), "Feedback" above and
              "↩ saves · esc cancels" beneath, centred in the focused pane
