@@ -106,6 +106,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** the key overlay (⌘/) fits a narrow window. It drops to two
+  columns, then one, instead of squeezing three until the titles and keys
+  overlap; the rows scroll as before.
 - **Agents:** a drawing reaches the agent as one image when its strokes
   touch, instead of one image per long stroke (an airplane arrived as
   fuselage, wings and belly). An underline joins the words it touches. A
