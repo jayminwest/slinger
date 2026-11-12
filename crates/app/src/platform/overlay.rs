@@ -1,5 +1,5 @@
-//! An overlay over the window (the key overlay, the palette): a box that
-//! dims the window, then per line a box for its fill and edge, with its
+//! An overlay over the window (the key overlay, the palette), and the
+//! scene's pills: a box that dims the window, then per line a box for its fill and edge, with its
 //! corners as round as the line says, and its text in its font, set as the
 //! line says and centred top to bottom in its frame.
 

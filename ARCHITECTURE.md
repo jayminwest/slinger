@@ -460,8 +460,9 @@ scene.rs     decides what the window shows: each pane's placeholder, an
              notice, the sling's labelled entry (scene/sling.rs), each
              pane's footer (scene/status.rs) and the key overlay (an
              Overlay: a dim over the window and its lines, each with a font
-             and an alignment); the flash and the cursor over the canvas
-             panes. A canvas pane's chrome is
+             and an alignment); the pills over the labels (Lines with
+             round corners: the sling's); the flash and the cursor over the
+             canvas panes. A canvas pane's chrome is
              decided with its gestures: the selection's box, handles and
              count (`select`), a text being typed's caret, frame and hint
              (`shapes`). Every state shows, nothing else (SPEC P6). Pure.
@@ -546,9 +547,10 @@ scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
              where the panes go beside it, and
              the one notice when an agent becomes blocked or done out. The
              first list is the baseline; a status that moves on clears its
-             notice. An agent whose session has no process is `not running`
-             (hollow, muted), and one with a message pending is working
-             though no hook said so (`Status::of`). `agents`: each
+             notice. An agent whose process exited or was stopped is `not
+             running` (hollow, muted), one slingerd never started (no
+             session id) shows what its hooks said, and one with a message
+             pending is working though no hook said so (`Status::of`). `agents`: each
              workspace's agent. Pure.
 scene/sidebar/notice.rs  the notice: a 28 pt bar above the footers (it
              hides none), "<agent> is blocked: <note>" or "is done", with a
@@ -563,9 +565,13 @@ scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
              into view, the next clears it), "✓ scout answered in text · tap
              to read" (a tap opens the answer's panel), "✓ scout is done,
              with nothing on the canvas", a failure's "✗ <message>" and hint,
-             "✗ scout stopped before it answered". An ending pill goes 30 s
-             later. `slung/words.rs`: the elapsed time, the answer's lines.
-             Pure.
+             "✗ scout stopped before it answered". An answer with no items
+             yet waits 1 s for them to land (the pill says "✓ scout
+             answered") before it says "in text" (`SETTLE`). An ending pill
+             goes 30 s later. The pill is a Line with a field's round
+             corners, as wide as its words measure (scene/glyphs.rs). `out`:
+             a sling is on its way or worked on. `slung/words.rs`: the
+             elapsed time, the arrow to the items, the answer's lines. Pure.
 scene/button.rs  the "send to agent" button: an item of kind `button`, drawn
              as an outline with the agent's status mark (the sidebar's) and
              its label; which button is under a point; where a new one goes.
@@ -703,7 +709,8 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              opened again. Pure. `sling/buttons.rs`: the three buttons
              beside a selection's box, ➤ Sling (`sling-now`), + prompt
              (`sling`) and Delete (`delete-selection`), each a 28 pt target
-             inside the pane. `sling/pen.rs`: the pen's buttons beside a
+             inside the pane; while a sling is out, Delete alone.
+             `sling/pen.rs`: the pen's buttons beside a
              note's or a new name's box, ✓ Save or ✓ Rename (Tap::Send, as
              return), Dictate (`dictate`; ● Stop while Flick listens) and ✕
              (Tap::Cancel, as escape); the box narrows to make room.
@@ -780,7 +787,8 @@ platform/keys.rs  a key press as a chord and the text it types (none with
              pastes, so it lands there too.
 platform/overlay.rs  draws a scene's Overlay over the chrome: a box that
              dims the window, then per line a rounded box for its fill and
-             edge and a text field centred top to bottom.
+             edge and a text field centred top to bottom; the scene's pills
+             the same way, over the labels.
 platform/chrome.rs  the focus border, and the flash's pill (a rounded box
              with its text) with the one-shot timer that ticks when it goes;
              the plain label, the flip to AppKit's coordinates and the

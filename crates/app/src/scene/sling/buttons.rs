@@ -2,9 +2,10 @@
 //! common action with no keyboard): "➤ Sling" sends the selection at once
 //! with no prompt, as the handwriting is the question, "+ prompt" opens
 //! the entry to add words first, and "Delete" removes the selection (a tap
-//! on empty canvas already selects nothing). They stand to the right of the selection's
-//! box, level with its top (its count is above its top left), inside its
-//! pane. Each is a tap target that runs its command when the pen lifts on
+//! on empty canvas already selects nothing). While a sling is out only
+//! "Delete" shows: one sling is followed at a time. They stand to the right
+//! of the selection's box, level with its top (its count is above its top
+//! left), inside its pane. Each is a tap target that runs its command when the pen lifts on
 //! it ([`crate::scene::taps`]); a press there never draws ink.
 
 use crate::commands::Command;
@@ -25,33 +26,27 @@ const GAP: f64 = 8.0;
 const BETWEEN: f64 = 4.0;
 
 /// The buttons for a selection whose box is `around`, in its pane's frame
-/// `within` (both in the window), in `theme`'s colours: their labels, and
-/// their targets ("➤ Sling" runs `sling-now`, "+ prompt" runs `sling`,
-/// "Delete" runs `delete-selection`).
-pub fn buttons(around: Rect, within: Rect, theme: &Theme) -> (Vec<Label>, Vec<Target>) {
+/// `within` (both in the window), in `theme`'s colours, the sling's two
+/// first unless `out` (a sling is out): their labels, and their targets
+/// ("➤ Sling" runs `sling-now`, "+ prompt" runs `sling`, "Delete" runs
+/// `delete-selection`).
+pub fn buttons(around: Rect, within: Rect, theme: &Theme, out: bool) -> (Vec<Label>, Vec<Target>) {
     let wide = 3.0 * WIDE + 2.0 * BETWEEN;
     let right = within.x + within.width - wide - GAP;
     let x = (around.x + around.width + GAP).min(right).max(within.x + GAP);
     let bottom = within.y + within.height - style::TAP - GAP;
     let y = around.y.min(bottom).max(within.y + GAP);
-    let sling = Rect { x, y, width: WIDE, height: style::TAP };
-    let prompt = Rect { x: x + WIDE + BETWEEN, ..sling };
-    let delete = Rect { x: prompt.x + WIDE + BETWEEN, ..sling };
     let fill = Some(style::panel(theme));
-    let labels = vec![
-        Label {
-            text: SLING.into(),
-            colour: theme.background,
-            fill: Some(theme.focus),
-            frame: sling,
-        },
-        Label { text: PROMPT.into(), colour: theme.text, fill, frame: prompt },
-        Label { text: DELETE.into(), colour: theme.text, fill, frame: delete },
-    ];
-    let targets = vec![
-        (sling, Tap::Run(Command::SlingNow)),
-        (prompt, Tap::Run(Command::Sling)),
-        (delete, Tap::Run(Command::DeleteSelection)),
-    ];
+    let sling = (SLING, theme.background, Some(theme.focus), Command::SlingNow);
+    let prompt = (PROMPT, theme.text, fill, Command::Sling);
+    let delete = (DELETE, theme.text, fill, Command::DeleteSelection);
+    let shown = if out { vec![delete] } else { vec![sling, prompt, delete] };
+    let (mut labels, mut targets, mut left) = (Vec::new(), Vec::new(), x);
+    for (text, colour, fill, command) in shown {
+        let frame = Rect { x: left, y, width: WIDE, height: style::TAP };
+        labels.push(Label { text: text.into(), colour, fill, frame });
+        targets.push((frame, Tap::Run(command)));
+        left += WIDE + BETWEEN;
+    }
     (labels, targets)
 }

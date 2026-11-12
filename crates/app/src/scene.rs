@@ -124,6 +124,8 @@ pub struct Scene {
     /// The agent UIs, under the labels and the border.
     pub webs: Vec<Web>,
     pub labels: Vec<Label>,
+    /// Over the labels: lines with round corners (the sling's pill).
+    pub pills: Vec<overlay::Line>,
     /// The sidebar's lines: labels read from their left edge, not centred.
     pub sidebar: Vec<sidebar::Row>,
     /// Each pane's footer, under the labels and the border.
@@ -222,6 +224,7 @@ pub fn build(
         canvases,
         webs,
         labels,
+        pills: Vec::new(),
         sidebar: sidebar.rows(theme, size.rect()),
         footers: Vec::new(),
         rules,
@@ -251,6 +254,7 @@ pub fn preview(page: Arc<Page>, theme: &Theme, item: bool, size: Size) -> Scene 
         canvases: Vec::new(),
         webs: vec![web],
         labels: Vec::new(),
+        pills: Vec::new(),
         sidebar: Vec::new(),
         footers: Vec::new(),
         rules: Vec::new(),

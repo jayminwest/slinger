@@ -25,28 +25,34 @@
 //!   agent's process ended before it answered, or the daemon went away.
 //!
 //! The sling going flashes "Slung to scout", its answer "scout answered"
-//! (or "scout answered in text"). A tap clears an answer or a failure, and
+//! (or "scout answered in text"). The agent's items can land after the
+//! daemon says it answered: an answer with none yet waits [`SETTLE`] for
+//! them before it says "in text", and its pill says only `✓ scout
+//! answered` meanwhile. A tap clears an answer or a failure, and
 //! so does [`CLEAR`] passing: nothing stays on the canvas for good.
 
 use std::time::{Duration, Instant};
 
 use crate::backend::Problem;
 use crate::config::Theme;
-use crate::layout::{Rect, Size, Viewport};
+use crate::layout::{Point, Rect, Size, Viewport};
 use crate::scene::canvas::ItemId;
 use crate::scene::overlay::{Align, Line, Overlay};
 use crate::scene::taps::{Tap, Target};
-use crate::scene::{Label, style};
-use words::{count, elapsed, page};
+use crate::scene::{Label, glyphs, style};
+use words::{arrow, count, elapsed, page};
 
 /// How long an answer or a failure stays untapped.
 pub const CLEAR: Duration = Duration::from_secs(30);
+/// How long an answer with nothing on the canvas yet waits for the agent's
+/// items to land before it says it answered in text.
+pub const SETTLE: Duration = Duration::from_secs(1);
 /// The pill's height: the pen taps it.
 const HIGH: f64 = style::TAP;
 /// The room inside the pill's ends, and around it in its pane.
 const PAD: f64 = 10.0;
 const GAP: f64 = 8.0;
-/// About how wide a character of the pill's text is.
+/// About how wide a character of the answer's text is, to wrap it.
 const CHAR: f64 = 7.0;
 /// A line under the pill (a hint, the answer), its text size, and the
 /// answer panel's widest and most lines.
@@ -91,13 +97,24 @@ pub enum Tapped {
     Pan(usize, f64, f64),
 }
 
-/// What the window draws for the sling: labels, the answer's panel, and
-/// the tap target over both.
+/// What the window draws for the sling: the pill (its corners round, its
+/// text as wide as it measures), labels, the answer's panel, and the tap
+/// targets.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Marks {
+    pub pill: Option<Line>,
     pub labels: Vec<Label>,
     pub panel: Option<Overlay>,
-    pub target: Option<Target>,
+    pub targets: Vec<Target>,
+}
+
+#[cfg(test)]
+impl Marks {
+    /// The pill's label, then the labels.
+    pub fn all(&self) -> Vec<Label> {
+        let pill = self.pill.iter().map(|p| p.label.clone());
+        pill.chain(self.labels.iter().cloned()).collect()
+    }
 }
 
 /// Where the last sling is.
@@ -129,6 +146,8 @@ struct Out {
     since: Instant,
     items: Vec<(ItemId, Rect)>,
     reading: bool,
+    /// Its answer was flashed: the items it brought are known.
+    told: bool,
     /// The time the pill last said.
     drawn: String,
 }
@@ -165,6 +184,7 @@ impl Slung {
             since: now,
             items,
             reading: false,
+            told: false,
             drawn,
         };
         self.out = Some(out);
@@ -208,12 +228,6 @@ impl Slung {
         let next = if !progress.running {
             Stage::Stopped
         } else if progress.pending == 0 {
-            let flash = match (&progress.answer, out.items.is_empty()) {
-                (_, false) => "answered",
-                (Some(_), true) => "answered in text",
-                (None, true) => "is done",
-            };
-            self.flash = Some(format!("{} {flash}", out.agent));
             Stage::Answered(progress.answer.clone())
         } else if let Some(note) = &progress.blocked {
             Stage::Blocked(note.clone())
@@ -224,7 +238,30 @@ impl Slung {
         if changed {
             out.to(next, now);
         }
+        self.tell(now);
         changed
+    }
+
+    /// Flashes the answer once what it brought is known: its items landed,
+    /// or [`SETTLE`] passed with none. Returns whether it did.
+    fn tell(&mut self, now: Instant) -> bool {
+        let Some(out) = self.out.as_mut().filter(|o| !o.told) else { return false };
+        let Stage::Answered(answer) = &out.stage else { return false };
+        let flash = match (answer, out.items.is_empty()) {
+            (_, false) => "answered",
+            _ if out.since + SETTLE > now => return false,
+            (Some(_), true) => "answered in text",
+            (None, true) => "is done",
+        };
+        self.flash = Some(format!("{} {flash}", out.agent));
+        out.told = true;
+        true
+    }
+
+    /// Whether a sling is out: on its way, or the agent works on it.
+    pub fn out(&self) -> bool {
+        let out = self.out.as_ref().map(|o| &o.stage);
+        matches!(out, Some(Stage::Aimed | Stage::Working | Stage::Blocked(_)))
     }
 
     /// The canvas page the agent's answer lands on, while the sling is out
@@ -255,10 +292,11 @@ impl Slung {
         changed
     }
 
-    /// The time is `now`: whether what the pill says changed (its time, or
-    /// an answer or a failure that has shown for [`CLEAR`] goes, unless its
+    /// The time is `now`: whether what the pill says changed (its time, an
+    /// answer settled ([`SETTLE`]), or an answer or a failure that has shown for [`CLEAR`] goes, unless its
     /// answer is open).
     pub fn tick(&mut self, now: Instant) -> bool {
+        let told = self.tell(now);
         let Some(out) = self.out.as_mut() else { return false };
         match out.stage {
             Stage::Working | Stage::Blocked(_) => {
@@ -273,7 +311,7 @@ impl Slung {
                 self.out = None;
                 true
             }
-            _ => false,
+            _ => told,
         }
     }
 
@@ -343,7 +381,8 @@ impl Slung {
             Stage::Answered(Some(answer)) if out.reading && out.items.is_empty() => Some(answer),
             _ => None,
         };
-        let wide = (count(text.chars().count()) * CHAR + 2.0 * PAD).max(HIGH);
+        let measured = glyphs::frame(Point { x: 0.0, y: 0.0 }, &text, TEXT, glyphs::UNWRAPPED);
+        let wide = (measured.width + 2.0 * PAD).max(HIGH);
         let block = if answer.is_some() { wide.max(PANEL) } else { wide };
         let block = block.min(view.frame.width - 2.0 * GAP).max(0.0);
         let lines = answer.map_or_else(|| under.clone(), |a| page(a, block, &out.agent));
@@ -351,8 +390,10 @@ impl Slung {
             HIGH + count(lines.len()) * LINE + if answer.is_some() { 2.0 * GAP } else { 0.0 };
         let pill = out.place(&view, Size { width: wide.min(block), height: tall });
         let fill = style::panel(theme);
-        let mut labels = vec![Label { text, colour, fill: Some(fill), frame: pill }];
-        let mut target = pill;
+        let label = Label { text, colour, fill: Some(fill), frame: pill };
+        let line = Line::text(String::new(), colour, pill, TEXT, Align::Centre);
+        let line = Line { label, radius: style::FIELD_RADIUS, ..line };
+        let (mut labels, mut target) = (Vec::new(), pill);
         let panel = answer.map(|_| {
             let frame = Rect { y: pill.y + HIGH, width: block, height: tall - HIGH, ..pill };
             target = target.union(frame);
@@ -382,7 +423,7 @@ impl Slung {
                 });
             }
         }
-        Marks { labels, panel, target: Some((target, Tap::Slung)) }
+        Marks { pill: Some(line), labels, panel, targets: vec![(target, Tap::Slung)] }
     }
 }
 
@@ -422,6 +463,7 @@ impl Out {
     fn answered(&self, text: bool, view: &View) -> String {
         let agent = &self.agent;
         match self.items.len() {
+            0 if !self.told => format!("✓ {agent} answered"),
             0 if text => format!("✓ {agent} answered in text · tap to read"),
             0 => format!("✓ {agent} is done, with nothing on the canvas"),
             n => {
@@ -446,20 +488,6 @@ impl Out {
         let y = y.min(frame.y + frame.height - size.height - GAP).max(frame.y + GAP);
         Rect { x, y, width: size.width, height: HIGH }
     }
-}
-
-/// " →" (or ←, ↑, ↓): the way from what `view` shows to `away`.
-fn arrow(away: Rect, view: &View) -> String {
-    let seen = view.viewport.visible(Size { width: view.frame.width, height: view.frame.height });
-    let dx = (away.x + away.width / 2.0) - (seen.x + seen.width / 2.0);
-    let dy = (away.y + away.height / 2.0) - (seen.y + seen.height / 2.0);
-    let way = match (dx.abs() >= dy.abs(), dx >= 0.0, dy >= 0.0) {
-        (true, true, _) => '→',
-        (true, false, _) => '←',
-        (false, _, true) => '↓',
-        (false, _, false) => '↑',
-    };
-    format!(" {way}")
 }
 
 mod words;
