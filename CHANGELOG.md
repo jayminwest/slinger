@@ -200,6 +200,10 @@ bullet with the area in bold.
 - **Daemon:** opening a canvas whose last line was torn by a crash no
   longer hangs that request; `slingerd` cuts the line, says so on stderr
   and answers.
+- **Workspaces:** an open workspace whose file is broken keeps its name
+  and canvas: opening another workspace with the same name or canvas is
+  refused with a conflict that says to fix or close the broken one, so
+  fixing its file never leaves two workspaces with one name.
 - **Workspaces:** one open workspace whose `slinger-workspace.toml` breaks
   a rule (say an `agent.tools` rule slinger does not know) no longer stops
   every other workspace from loading. The others work as before; the broken

@@ -427,7 +427,9 @@ hint, file, field}`: the stable code (`invalid` for a rule or text,
 a rule (`agent.tools`), when one did. Every verb on a broken workspace (show,
 the panes, the profiles, the session verbs, a sling on its canvas) fails with
 that same error and hint; none falls back to defaults. The others serve as
-before. At startup `slingerd` writes each broken file's error and hint to
+before. A broken workspace keeps the name and the canvas its file states:
+opening another workspace with either is `conflict`, with a hint to fix or
+close the broken one. At startup `slingerd` writes each broken file's error and hint to
 stderr, once.
 
 **`workspace_show`** and **`workspace_close`** take the workspace's name, or

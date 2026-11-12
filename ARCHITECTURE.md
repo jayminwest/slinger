@@ -217,7 +217,9 @@ workspaces.rs the open workspaces: the list of directories that hold their
              on every request and checked by the core's rules, each on its
              own: a file that breaks one is listed `Broken` with its error
              (`slingerd` names it on stderr at startup) and every verb on
-             that workspace fails with it; the others serve. The store asks
+             that workspace fails with it; the others serve, and a new one
+             may not take the name or canvas a broken file states
+             (`workspace::check_reserved`). The store asks
              it for the workspace tag of each event it appends. `panes`
              changes a workspace's layout under the list's lock and writes
              the file whole when it changed; `edit` does the same for any

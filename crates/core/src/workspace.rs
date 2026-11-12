@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
 pub use profile::Profile;
-pub use rules::{Rejected, check};
+pub use rules::{Rejected, check, check_reserved};
 
 /// The definition file's name, in a workspace's primary root.
 pub const FILE_NAME: &str = "slinger-workspace.toml";

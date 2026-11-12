@@ -154,3 +154,31 @@ pub fn check(workspaces: &[Workspace]) -> Result<()> {
     }
     Ok(())
 }
+
+/// Checks that `ws` may open beside an open workspace whose file cannot be
+/// used, in `dir`: the `name` and the `canvas` that file states, when it
+/// states them ([`super::peek`]), stay that workspace's.
+///
+/// # Errors
+///
+/// [`Error::Conflict`] when `ws` has that name or that default canvas.
+pub fn check_reserved(
+    ws: &Workspace,
+    dir: &str,
+    name: Option<&str>,
+    canvas: Option<&str>,
+) -> Result<()> {
+    let taken = if name == Some(ws.name.as_str()) {
+        format!("name {:?}", ws.name)
+    } else if canvas == Some(ws.canvas.as_str()) {
+        format!("canvas {:?}", ws.canvas)
+    } else {
+        return Ok(());
+    };
+    Err(Error::Conflict {
+        message: format!("{taken} belongs to the open workspace in {dir}, whose file is broken"),
+        hint: Some(format!(
+            "fix that file, or close it: 'slinger workspace close {dir}'; or open this one under another name"
+        )),
+    })
+}
