@@ -3,7 +3,7 @@
 #![cfg(test)]
 
 use serde_json::{Value, json};
-use slinger_core::canvas::file::{Log, Put, TEXT_COLUMNS};
+use slinger_core::canvas::file::{How, Log, Put, TEXT_COLUMNS};
 use slinger_core::canvas::{
     Action, Author, Canvas, Colour, GAP, ItemId, Op, PageId, Rect, Shape, Time,
 };
@@ -186,6 +186,35 @@ fn a_put_beside_nothing_or_of_nothing_fails_and_changes_nothing() {
     let blank = log.put(&Author::Agent(" ".into()), AT, "i1", &text).unwrap_err();
     assert_eq!(blank.code(), "invalid");
     assert_eq!(log.next(), next);
+}
+
+#[test]
+fn a_put_takes_a_colour_and_a_place_and_ink_goes_where_any_put_goes() {
+    let mut log = log_of(&bx(0, 0, 1000, 500));
+    let yellow = How { colour: Some("#ffd400".into()), at: Some([-300, 900]) };
+    let placed = log.put_how(&scout(), AT, "i1", &Put::Text("yes".into()), &yellow).unwrap();
+    assert_eq!(placed.frame[..2], [-300, 900], "the corner where the agent said");
+    let item = log.canvas().item(ItemId::new(2)).unwrap();
+    assert!(
+        matches!(item.shape(), Shape::Text { colour, .. } if *colour == Colour::rgb(255, 212, 0))
+    );
+    // A bracket: down, right, up. Its start does not matter, only its shape.
+    let ink = Put::Ink(vec![9000, 9000, 0, 300, 200, 0, 0, -300]);
+    let placed = log.put(&scout(), AT, "i1", &ink).unwrap();
+    assert_eq!(placed.frame, [1000 + 240, 0, 220, 320], "beside, its box half a width out");
+    let at = How { at: Some([0, 0]), ..How::default() };
+    let arrow = Put::Arrow { from: "i1".into(), to: "i2".into() };
+    let next = log.next();
+    for (what, how) in [
+        (&arrow, &at),
+        (&ink, &How { colour: Some("yellow".into()), at: None }),
+        (&Put::Ink(vec![1, 2, 3]), &How::default()),
+    ] {
+        let err = log.put_how(&scout(), AT, "i1", what, how).unwrap_err();
+        assert_eq!(err.code(), "invalid", "{what:?} {how:?}");
+        assert!(err.hint().is_some(), "{what:?}");
+    }
+    assert_eq!(log.next(), next, "a refused put writes nothing");
 }
 
 fn text(x: i64, y: i64, words: &str) -> Value {
