@@ -739,6 +739,8 @@ runs, and a person or an agent reads it with any tool.
   same second share a `ts`, and one resolution resolves both.
 - A file the daemon cannot write or read is `invalid`, with a hint to start
   it with a `--feedback` it can write.
+- The app's entry lists the five newest open notes under it, from one
+  `feedback_list` each time it opens; it needs no other verb.
 
 ```json
 { "v": 1, "op": "feedback_add", "text": "the lasso is slow", "canvas": "notes", "page": "Page 1", "tool": "lasso", "selected": 3 }
