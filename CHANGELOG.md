@@ -91,6 +91,10 @@ bullet with the area in bold.
 - **App:** ink is smoother. The pen's small wobbles no longer show as bumps
   along a line's edges, most of all at the bold and marker widths; a line
   still starts and ends where the pen did, and fine writing keeps its shape.
+- **App:** the eraser, the lasso and the select tool take a stroke, a text,
+  a box or an arrow as soon as the daemon has written it, instead of only
+  once the canvas's feed has echoed it back. A stroke no longer draws twice
+  for that moment either.
 - **Daemon:** a second `slingerd` started on another socket but the same
   data directory now stops with exit 4 and `✗ data directory <path> is in
   use by another slingerd`, instead of writing to the same record as the

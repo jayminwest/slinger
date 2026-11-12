@@ -24,7 +24,9 @@
 //!
 //! Which items a path touches, a loop holds or a press picks is [`hit`]'s, the core's rules
 //! kept here so the answer comes at every pen event without the socket.
-//! Only the server's items count: ink still on its way has no server id yet.
+//! Only the server's items count: ink shows under the server's id once the
+//! daemon has written it ([`Ink::shown`]), so only ink not yet written is
+//! out of reach.
 //! Any of them can be erased or moved, an agent's too: the user may change
 //! every item.
 

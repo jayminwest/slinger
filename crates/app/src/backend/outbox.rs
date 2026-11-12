@@ -88,7 +88,9 @@ fn apply(daemon: &Client, change: &Change) -> Answer {
                 (Change::Page { op: PageOp::Add { .. }, .. }, Some(page)) => {
                     Answer::NewPage { seq, page }
                 }
-                (Change::Carry { .. }, Some(first)) => {
+                // What adds says the ids it made, so the ink shows the
+                // items under them before the feed echoes them.
+                (Change::Add(_) | Change::Put { .. } | Change::Carry { .. }, Some(first)) => {
                     let made = std::iter::once(first).chain(made);
                     Answer::Made { seq, ids: made.filter_map(|id| mirror::item_id(&id)).collect() }
                 }
@@ -151,10 +153,8 @@ mod tests {
             }
             outbox.send(4, stroke("gone", 0.0));
             let answers = wait(&outbox, 4);
-            assert_eq!(
-                answers[..3],
-                [(1, Answer::Applied(1)), (2, Answer::Applied(2)), (3, Answer::Applied(3))]
-            );
+            let made = |seq, id| Answer::Made { seq, ids: vec![ItemId(id)] };
+            assert_eq!(answers[..3], [(1, made(1, 1)), (2, made(2, 2)), (3, made(3, 3))]);
             assert!(matches!(&answers[3], (4, Answer::Refused(p)) if p.message.contains("gone")));
             let page = daemon.canvas_show("main", None).unwrap();
             let xs: Vec<_> = page.items.iter().map(|i| i["pts"][0].clone()).collect();
@@ -224,7 +224,11 @@ mod tests {
             outbox.send(4, step(false));
             outbox.send(5, step(true));
             let answers = wait(&outbox, 4);
-            assert!(answers.iter().all(|(_, a)| matches!(a, Answer::Applied(n) if *n > 0)));
+            let written = |a: &Answer| match a {
+                Answer::Applied(n) | Answer::Made { seq: n, .. } => *n > 0,
+                _ => false,
+            };
+            assert!(answers.iter().all(|(_, a)| written(a)), "{answers:?}");
             let shown = daemon.canvas_show("main", None).unwrap();
             let left: Vec<_> = shown.items.iter().map(|i| i["kind"].clone()).collect();
             assert_eq!(
@@ -298,7 +302,10 @@ mod tests {
                 Change::Move { canvas, page, ids: vec![ItemId(1)], by: at(1.0, -1.0), follow },
             );
             let answers = wait(&outbox, 5);
-            assert!(answers.iter().all(|(_, a)| matches!(a, Answer::Applied(_))), "{answers:?}");
+            let made = |seq, id| Answer::Made { seq, ids: vec![ItemId(id)] };
+            assert_eq!(answers[..3], [(1, made(1, 1)), (2, made(2, 2)), (3, made(3, 3))]);
+            let rest = &answers[3..];
+            assert!(rest.iter().all(|(_, a)| matches!(a, Answer::Applied(_))), "{answers:?}");
             let shown = daemon.canvas_show("main", None).unwrap();
             let [boxed, text, arrow] = &shown.items[..] else { panic!("{shown:?}") };
             assert_eq!(
