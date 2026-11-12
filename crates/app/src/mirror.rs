@@ -95,22 +95,37 @@ impl Mirror {
     /// Items `ids` of this page as they would be carried to `page` (of this
     /// canvas or another) and moved by `by` canvas units: each item, and
     /// its object for an `add` there, without what the server gives an item
-    /// (its id, maker and time) or what names items of this canvas (an
-    /// arrow's ends). Ids not on this page are left out.
+    /// (its id, maker and time). An arrow's end bound to an item carried
+    /// with it stays bound to that item there, named by its place in the
+    /// adds (`$n`, docs/service.md), so such an arrow comes after every
+    /// other item; an end bound to an item left here is let go. Ids not on
+    /// this page are left out.
     pub fn carried(&self, ids: &[ItemId], page: &str, by: Point) -> Vec<Carried> {
         let (dx, dy) = (Value::from(tenths(by.x)), Value::from(tenths(by.y)));
         let found = self.items.iter().zip(&self.objects).filter(|(i, _)| ids.contains(&i.id));
+        let bound_here = |i: &Item| match i.shape {
+            Shape::Arrow { bound, .. } => bound.iter().flatten().any(|end| ids.contains(end)),
+            _ => false,
+        };
+        let (last, first): (Vec<_>, Vec<_>) = found.partition(|(i, _)| bound_here(i));
         let mut out = Vec::new();
-        for (_, object) in found {
+        let mut places = Vec::new();
+        for (old, object) in first.into_iter().chain(last) {
             let mut object = object.clone();
             shift(&mut object, &dx, &dy);
-            object.remove("from");
-            object.remove("to");
+            let ends = ["from", "to"].map(|key| object.remove(key));
             let Some(item) = read(&object) else { continue };
+            for (key, end) in ["from", "to"].into_iter().zip(ends) {
+                let end = end.as_ref().and_then(Value::as_str).and_then(item_id);
+                if let Some(n) = places.iter().position(|id| Some(*id) == end) {
+                    object.insert(key.into(), format!("${n}").into());
+                }
+            }
             for key in ["id", "by", "t"] {
                 object.remove(key);
             }
             object.insert("page".into(), page.into());
+            places.push(old.id);
             out.push(Carried { item, object: Value::Object(object) });
         }
         out
