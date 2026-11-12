@@ -111,6 +111,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** the select tool can pick a box drawn inside another box. A box
+  dragged inside a box takes the ink it touches, not the outer box; a tap,
+  or a drag over nothing, inside nested boxes selects the innermost one.
+  A drag across a box's outline still takes it.
 - **App:** the key overlay (⌘/) fits a narrow window. It drops to two
   columns, then one, instead of squeezing three until the titles and keys
   overlap; the rows scroll as before.

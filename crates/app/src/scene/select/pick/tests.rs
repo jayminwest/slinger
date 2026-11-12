@@ -122,7 +122,49 @@ fn a_press_on_empty_canvas_clears_the_selection_and_a_drag_selects_what_its_box_
     assert!(select.up(None, &items, &mut ink));
     assert_eq!(selected(&select), [3, 4], "the text and the arrow touch it; i5 is beyond it");
     press(&mut select, &mut ink, &[(30.0, 40.0), (40.0, 60.0)], false, 1.0);
-    assert_eq!(selected(&select), [1, 2], "a box drawn inside a box takes it, as the core's");
+    assert_eq!(selected(&select), [2], "a box drawn inside a box takes its ink, not the box");
+    press(&mut select, &mut ink, &[(-10.0, 40.0), (40.0, 60.0)], false, 1.0);
+    assert_eq!(selected(&select), [1, 2], "one across its outline takes the box too");
+}
+
+/// An outer box (i1) with an inner box (i2) in it, a stroke in the inner
+/// box (i3), and a box of the same size as the inner one drawn later (i4).
+fn nested() -> Vec<Item> {
+    let boxed =
+        |id, x, y, size| item(id, Shape::Box { frame: frame(x, y, size, size), width: 2.0 });
+    vec![
+        boxed(1, 0.0, 0.0, 200.0),
+        boxed(2, 50.0, 50.0, 100.0),
+        stroke(3, (70.0, 100.0), (130.0, 100.0)),
+        boxed(4, 300.0, 0.0, 100.0),
+        boxed(5, 300.0, 0.0, 100.0),
+    ]
+}
+
+#[test]
+fn a_box_inside_a_box_is_picked_not_the_outer_one() {
+    let page = nested();
+    let items = shown(&page);
+    let mut select = Select::default();
+    // Each from no selection: a press in the last one would grab it.
+    let mut drag = |path: &[(f64, f64)]| {
+        select.clear();
+        let (&(x, y), rest) = path.split_first().unwrap();
+        select.pick(HERE, pt(x, y), 1.0, false, &items);
+        for &(x, y) in rest {
+            assert!(select.drag(pt(x, y), &items));
+        }
+        select.up(None, &items, &mut Ink::default());
+        selected(&select)
+    };
+    assert_eq!(drag(&[(40.0, 40.0), (160.0, 160.0)]), [2, 3], "around the inner box");
+    assert_eq!(drag(&[(60.0, 60.0), (65.0, 65.0)]), [2], "inside it, on nothing: the inner box");
+    assert_eq!(drag(&[(60.0, 60.0)]), [2], "a press there that does not move: the inner box");
+    assert_eq!(drag(&[(20.0, 20.0)]), [1], "a press between the two: the outer box");
+    assert_eq!(drag(&[(20.0, 20.0), (25.0, 25.0)]), [1]);
+    assert_eq!(drag(&[(40.0, 40.0), (60.0, 60.0)]), [2], "across the inner outline only");
+    assert_eq!(drag(&[(350.0, 50.0)]), [5], "of equal boxes, the last drawn");
+    assert_eq!(drag(&[(250.0, 50.0)]), [] as [u64; 0], "outside every box: nothing");
 }
 
 #[test]
@@ -135,7 +177,7 @@ fn shift_adds_an_item_takes_one_out_and_adds_what_a_box_touches() {
     assert_eq!(selected(&select), [4]);
     press(&mut select, &mut ink, &[(150.0, 40.0), (130.0, 60.0)], true, 1.0);
     assert_eq!(selected(&select), [4], "a box on nothing adds nothing");
-    press(&mut select, &mut ink, &[(10.0, 40.0), (90.0, 60.0)], true, 1.0);
+    press(&mut select, &mut ink, &[(10.0, 40.0), (110.0, 60.0)], true, 1.0);
     assert_eq!(selected(&select), [4, 1, 2]);
     press(&mut select, &mut ink, &[(250.0, 100.0)], true, 1.0);
     press(&mut select, &mut ink, &[(50.0, 98.0)], true, 1.0);

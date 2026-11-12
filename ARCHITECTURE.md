@@ -580,15 +580,19 @@ scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
 scene/select/hit.rs  which items an eraser's path touches, which items a
              lasso holds and which the select tool's box touches: the core's
              geometry rules (canvas/geometry.rs: `items_erased`,
-             `items_in_lasso`, `items_in_box`), kept here too so they answer
-             at every pen event without the socket (P7). Keep the two alike.
-             Which item a press picks is the app's alone. Pure.
+             `items_in_lasso`), kept here too so they answer at every pen
+             event without the socket (P7). Keep the two alike. Which item
+             a press picks and which a drawn box takes are the app's alone:
+             a drawn box takes a box by its outline (the core's
+             `items_in_box` by its whole frame), else the innermost box it
+             lies inside. Pure.
 scene/select/pick.rs  the select tool: a press picks the topmost item (a
              stroke or an arrow by its line, a box by its outline, a text, a
              live item or the button by its frame, 6 screen points of reach)
              and selects it alone, or drags the selection when inside its
              box; a press on empty canvas draws a box that selects what it
-             touches; shift adds or takes out. The lasso's selection, so
+             touches (or the innermost box it lies inside, so a box in a box
+             can be picked); shift adds or takes out. The lasso's selection, so
              delete, sling, escape and moves act on it alike. Pure.
 scene/select/carry.rs  a drag of the selection goes by the canvas pane
              under the pen, read through that pane's own view, at every pen

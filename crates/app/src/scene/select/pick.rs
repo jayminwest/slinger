@@ -8,9 +8,9 @@
 //!   selection, as the lasso's does; if it was on an item and the pen lifts
 //!   without moving, that item alone is selected.
 //! - A press on empty canvas clears the selection and draws a box; the lift
-//!   selects every item the box touches ([`hit::touches`]). A press and lift
-//!   without a drag selects what the point touches: nothing, or the boxes
-//!   it is inside.
+//!   selects every item the box touches ([`hit::touches`]; a box by its
+//!   outline). A box that touches nothing, or a press and lift without a
+//!   drag, selects the innermost box it lies inside, if any.
 //! - With shift, a press on an item adds it to the selection or takes it
 //!   out, and a box adds what it touches.
 
@@ -81,8 +81,9 @@ impl Select {
     }
 
     /// Selects the server's items of `items` that touch `area` on `page` of
-    /// `canvas`, added to the selection there when `adding`; nothing
-    /// selected when none does and it is not adding.
+    /// `canvas`, or else the innermost box it lies inside, added to the
+    /// selection there when `adding`; nothing selected when there is none
+    /// and it is not adding.
     pub(super) fn boxed(
         &mut self,
         (canvas, page): (String, String),
@@ -92,6 +93,9 @@ impl Select {
     ) {
         let touched = items.iter().filter(|i| on_server(i.id) && hit::touches(&i.shape, &area));
         let mut ids: Vec<ItemId> = touched.map(|i| i.id).collect();
+        if ids.is_empty() {
+            ids.extend(innermost(items, &area));
+        }
         let here = |s: &Selection| s.canvas == canvas && s.page == page;
         if let Some(kept) = self.selection.take().filter(|s| adding && here(s)) {
             let new: Vec<ItemId> = ids.into_iter().filter(|id| !kept.ids.contains(id)).collect();
@@ -106,6 +110,18 @@ impl Select {
 fn topmost(items: &[Cow<'_, Item>], at: Point, radius: f64) -> Option<ItemId> {
     let mut ours = items.iter().rev().filter(|i| on_server(i.id));
     ours.find(|i| hit::picks(&i.shape, at, radius)).map(|i| i.id)
+}
+
+/// The smallest of the server's boxes in `items` that `area` lies inside,
+/// the last drawn of equals.
+fn innermost(items: &[Cow<'_, Item>], area: &Rect) -> Option<ItemId> {
+    let size = |i: &Item| i.shape.bounds().map_or(0.0, |f| f.width * f.height);
+    let ours = items.iter().filter(|i| on_server(i.id) && hit::inside(area, &i.shape));
+    ours.fold(None, |best: Option<&Cow<'_, Item>>, i| match best {
+        Some(b) if size(b) < size(i) => best,
+        _ => Some(i),
+    })
+    .map(|i| i.id)
 }
 
 /// The rectangle with corners `a` and `b`.
