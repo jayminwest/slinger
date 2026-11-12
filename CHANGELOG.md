@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** strokes drawn while slingerd is down are no longer lost when
+  the app quits. They are kept in `unsent-ink.json` next to slingerd's
+  data (`~/Library/Application Support/slinger` by default) and sent the
+  next time the app starts and reaches slingerd. Erases, moves and other
+  edits made while it is down are still lost on quit.
 - **App:** see where a canvas is saved. The window's title names the
   focused pane's canvas, with its file under it
   (`~/Library/Application Support/slinger/canvases/<id>.canvas` by
