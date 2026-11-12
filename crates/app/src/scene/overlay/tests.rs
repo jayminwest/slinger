@@ -7,6 +7,7 @@ const T: Theme = Theme {
     muted: Rgb { r: 2, g: 2, b: 2 },
     error: Rgb { r: 3, g: 3, b: 3 },
     focus: Rgb { r: 4, g: 4, b: 250 },
+    done: Rgb { r: 5, g: 5, b: 5 },
 };
 /// A window tall enough for every row.
 const TALL: Size = Size { width: 1600.0, height: 1000.0 };

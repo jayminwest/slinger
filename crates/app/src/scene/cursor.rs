@@ -4,7 +4,6 @@
 //! the chrome) it keeps the system's arrow.
 
 use crate::config::{Rgb, Theme};
-use crate::scene::ink::PEN_WIDTH;
 use crate::scene::select::ERASER;
 use crate::scene::tools::{Tool, Tools};
 
@@ -21,20 +20,31 @@ pub enum Cursor {
     IBeam,
 }
 
-/// How far across the pen's ring is, in points: wider than its line, so it
-/// shows round the point.
-pub const PEN_RING: f64 = PEN_WIDTH * 4.0;
+/// The narrowest the pen's ring is, in screen points: a thin line's ring
+/// still shows round the point.
+pub const PEN_RING_LEAST: f64 = 8.0;
+/// The widest the pen's ring is, in screen points: the system's cursors
+/// stay small.
+pub const PEN_RING_MOST: f64 = 128.0;
 
-/// The pointer over a canvas pane for `tools` in `theme`: the pen is a ring
-/// in its colour, the eraser a ring as wide as it erases, the lasso and the
-/// shapes cross hairs, text an I-beam, the select tool the arrow. An open pop-up takes a press, not the
-/// pen, so it has the arrow.
-pub fn over_canvas(tools: &Tools, theme: &Theme) -> Cursor {
+/// The pointer over a canvas pane seen at `zoom`, for `tools` in `theme`:
+/// the pen is a ring in its colour as wide as the line it draws there (no
+/// narrower than [`PEN_RING_LEAST`], no wider than [`PEN_RING_MOST`]), the
+/// eraser a ring as wide as it erases, the lasso and the shapes cross
+/// hairs, text an I-beam, the select tool the arrow. An open pop-up takes a
+/// press, not the pen, so it has the arrow.
+pub fn over_canvas(tools: &Tools, theme: &Theme, zoom: f64) -> Cursor {
     if tools.open_kind().is_some() {
         return Cursor::Arrow;
     }
     match tools.tool() {
-        Tool::Pen => Cursor::Ring { colour: tools.colour(), diameter: PEN_RING },
+        Tool::Pen => {
+            let line = tools.width().points() * zoom;
+            Cursor::Ring {
+                colour: tools.colour(),
+                diameter: line.clamp(PEN_RING_LEAST, PEN_RING_MOST),
+            }
+        }
         Tool::Eraser => Cursor::Ring { colour: theme.muted, diameter: ERASER * 2.0 },
         Tool::Lasso | Tool::Box | Tool::Arrow => Cursor::Crosshair,
         Tool::Text => Cursor::IBeam,
@@ -55,6 +65,7 @@ mod tests {
         muted: Rgb { r: 2, g: 2, b: 2 },
         error: Rgb { r: 3, g: 3, b: 3 },
         focus: Rgb { r: 4, g: 4, b: 4 },
+        done: Rgb { r: 5, g: 5, b: 5 },
     };
 
     #[test]
@@ -62,8 +73,8 @@ mod tests {
         let palette = crate::config::Palette::default();
         let ink = palette.colours()[0];
         let mut tools = Tools::new(palette, Point { x: 10.0, y: 10.0 });
-        let pen = Cursor::Ring { colour: ink, diameter: PEN_RING };
-        assert_eq!(over_canvas(&tools, &T), pen);
+        let pen = Cursor::Ring { colour: ink, diameter: PEN_RING_LEAST };
+        assert_eq!(over_canvas(&tools, &T, 1.0), pen);
         let each = [
             (Command::ToolEraser, Cursor::Ring { colour: T.muted, diameter: ERASER * 2.0 }),
             (Command::ToolLasso, Cursor::Crosshair),
@@ -75,10 +86,10 @@ mod tests {
         ];
         for (command, cursor) in each {
             assert!(tools.command(command));
-            assert_eq!(over_canvas(&tools, &T), cursor, "{command:?}");
+            assert_eq!(over_canvas(&tools, &T, 1.0), cursor, "{command:?}");
         }
         tools.open(Kind::Colour, Rect { x: 0.0, y: 0.0, width: 400.0, height: 300.0 });
-        assert_eq!(over_canvas(&tools, &T), Cursor::Arrow);
+        assert_eq!(over_canvas(&tools, &T, 1.0), Cursor::Arrow);
     }
 
     #[test]
@@ -88,8 +99,28 @@ mod tests {
         assert!(tools.command(Command::ToolLasso));
         tools.set_eraser_end(true);
         let ring = Cursor::Ring { colour: T.muted, diameter: ERASER * 2.0 };
-        assert_eq!(over_canvas(&tools, &T), ring);
+        assert_eq!(over_canvas(&tools, &T, 1.0), ring);
         tools.set_eraser_end(false);
-        assert_eq!(over_canvas(&tools, &T), Cursor::Crosshair);
+        assert_eq!(over_canvas(&tools, &T, 1.0), Cursor::Crosshair);
+    }
+
+    #[test]
+    fn the_pen_s_ring_is_as_wide_as_its_line_at_the_zoom_within_its_bounds() {
+        let palette = crate::config::Palette::default();
+        let ink = palette.colours()[0];
+        // The default widths: 2, 4, 8 and 16 points.
+        let mut tools = Tools::new(palette, Point { x: 10.0, y: 10.0 });
+        let ring = |diameter| Cursor::Ring { colour: ink, diameter };
+        assert_eq!(over_canvas(&tools, &T, 1.0), ring(PEN_RING_LEAST), "a thin line");
+        for _ in 0..3 {
+            assert!(tools.command(Command::WidthUp));
+        }
+        assert_eq!(over_canvas(&tools, &T, 1.0), ring(16.0));
+        assert_eq!(over_canvas(&tools, &T, 2.0), ring(32.0), "zoomed in");
+        assert_eq!(over_canvas(&tools, &T, 0.25), ring(PEN_RING_LEAST), "zoomed out");
+        assert_eq!(over_canvas(&tools, &T, 10.0), ring(PEN_RING_MOST), "too wide");
+        let eraser = Cursor::Ring { colour: T.muted, diameter: ERASER * 2.0 };
+        assert!(tools.command(Command::ToolEraser));
+        assert_eq!(over_canvas(&tools, &T, 4.0), eraser, "the eraser's reach is on screen");
     }
 }
