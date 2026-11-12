@@ -10,7 +10,8 @@
 //! lowercase and matches any case; a paste goes in lowercase too. While
 //! open the palette takes every key and every press: escape or the
 //! `show-commands` key closes it, return or a press on a row runs that
-//! row's command, a press outside closes it.
+//! row's command, a press outside closes it. A command chosen from the menu
+//! bar closes it too, and then runs (`show-commands` only closes it).
 //!
 //! Opened empty it lists the command it last ran first, then the commands
 //! by [`Group::ALL`] (the tools first) with Quit last, so return on a
@@ -167,6 +168,18 @@ impl Palette {
             Some(n) => self.run(self.first(place.rows) + n as usize),
             None => Taken::Yes,
         }
+    }
+
+    /// A command chosen from the menu bar while open: the palette closes,
+    /// and the command runs, except `show-commands`, which only closed it.
+    /// It is not the palette's run, so it is not listed first next time.
+    /// Closed, [`Taken::No`].
+    pub fn chosen(&mut self, command: Command) -> Taken {
+        if !self.open {
+            return Taken::No;
+        }
+        self.toggle();
+        if command == Command::ShowCommands { Taken::Yes } else { Taken::Run(command) }
     }
 
     /// Closes to run the `n`th match; with none there, stays open.
