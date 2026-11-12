@@ -232,6 +232,9 @@ feedback.rs  the feedback file (`--feedback`, default `feedback.jsonl` in
              lock, each note and resolution appended as one line, the
              file read back for a list or a resolve; the time from `date
              +%z` and the build from `SLINGER_BUILD_SHA` at build time.
+build.rs     stamps that build: `SLINGER_BUILD_SHA` and `SLINGER_BUILD_DIRTY`
+             from git (`HEAD`, tracked changes), unless the environment
+             sets them; neither without git, so notes say `dev`.
 server/feedback.rs  the four feedback verbs on the wire.
 server/session.rs  the session verbs on the wire, each session with its process.
 server/sling.rs  `sling_send`: the workspace of the canvas, the marker, the
@@ -596,8 +599,10 @@ scene/palette.rs  the command palette (`show-commands`): open or closed,
              what is typed and the selected row. Typing is scene-drawn: it
              reads each character from the key's Chord (no NSTextField).
              Rows are Command::ALL whose title and group hold the typing as
-             a subsequence (a paste goes in too), 44 pt high, each with the group and the live
-             key's chip. While open it takes every key and press; return or
+             a subsequence (a paste goes in too), ranked: title prefix,
+             word start, title subsequence, then group. Empty, the command
+             it last ran leads, then by Group::ALL with Quit last. 44 pt
+             high, each with the group and the live key's chip. While open it takes every key and press; return or
              a press on a row gives back the command, which main runs as
              its key would. It draws as the key overlay's Overlay: a
              rounded panel, the search with a count, the selected row on a
