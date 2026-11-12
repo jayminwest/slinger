@@ -6,6 +6,7 @@ use crate::config::Config;
 use crate::layout::WINDOW;
 use crate::panes::{Kind, Pane};
 use crate::scene::Scene;
+use crate::scene::ink::Pen;
 use crate::scene::sidebar::Sidebar;
 
 const RETURN: Chord = Chord::new(0, '\r');
@@ -89,6 +90,15 @@ fn escape_cancels_and_a_lost_daemon_opens_the_entry_again() {
     assert!(open(&mut canvases, &panes));
     assert!(canvases.sling_key(ESCAPE));
     assert!(!canvases.typing() && !canvases.sling_key(ESCAPE), "closed: the keymap's");
+
+    assert!(open(&mut canvases, &panes));
+    let pen =
+        Pen { at: Point { x: 9.0, y: 9.0 }, when: 0.0, touch: true, eraser: false, shift: false };
+    let (here, ink) = ((panes.focus(), WINDOW.rect()), (Tool::Pen, Config::default().theme.text));
+    canvases.pen_down(&panes, here, pen, ink);
+    assert!(canvases.typing(), "a palm on the canvas leaves it open");
+    canvases.pen_down(&panes, here, Pen { touch: false, ..pen }, ink);
+    assert!(!canvases.typing(), "a press on the canvas closes it");
 
     assert!(open(&mut canvases, &panes));
     canvases.sling_typed("slow");
