@@ -294,7 +294,11 @@ fn kept(error: &WorkspaceError) -> RemoteError {
 }
 
 fn wire_ws(Opened { dir, workspace: ws }: Opened) -> control::Workspace {
-    let agent = ws.agent.map(|a| control::WorkspaceAgent { name: a.name, durable: a.durable });
+    let agent = ws.agent.map(|a| control::WorkspaceAgent {
+        profiles: a.profiles.into_iter().map(|p| p.name).collect(),
+        name: a.name,
+        durable: a.durable,
+    });
     let roots = ws.roots.into_iter();
     let roots = roots.map(|r| control::WorkspaceRoot {
         machine: r.machine,

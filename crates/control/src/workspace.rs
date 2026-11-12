@@ -55,6 +55,10 @@ pub struct WorkspaceAgent {
     pub name: String,
     #[serde(default)]
     pub durable: bool,
+    /// The names of its profiles, in its file's order (`profile_list` has
+    /// the rest of each).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub profiles: Vec<String>,
 }
 
 /// One directory of a workspace.

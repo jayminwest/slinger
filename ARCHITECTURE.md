@@ -310,9 +310,8 @@ shared.rs    the window's panes as the server keeps them for its workspace,
 backend.rs   the app's IO: the one module that talks to the daemon, and the
              one that reads and watches the config files. Its Watch asks the
              daemon for the workspaces and their agents' statuses, the
-             profile each runs under and the profiles each has
-             (workspace_list, session_list, profile_list: backend/agents.rs)
-             and for the window's workspace's
+             profile each runs under and the names of its profiles
+             (workspace_list, session_list: backend/agents.rs) and for the window's workspace's
              panes (pane_list: the config's, else the first open one) every
              second on a thread of its own, and the window's timer takes the
              news without blocking. When the layout changes it fetches the
