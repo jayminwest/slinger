@@ -102,10 +102,16 @@ fn a_stroke_written_as_the_app_quit_is_not_written_twice() {
         drop(quit);
 
         let mut canvases = Canvases::new(daemon.clone()).keeping(Unsent::at(path.clone()));
+        // Each step its own check, so a failure names the one that failed.
+        let problem = canvases.kept.as_ref().and_then(|k| k.problem().cloned());
+        assert_eq!(problem, None, "the quit app let go of the file");
+        assert_eq!(canvases.ink.unsent().count(), 1, "the kept stroke queued");
         wait_until(|| {
             canvases.poll();
-            canvases.ink.settled("notes") && !path.exists()
+            canvases.ink.settled("notes")
         });
+        assert_eq!(canvases.problems().next(), None, "sent again and answered, not refused");
+        assert!(!path.exists(), "the file goes in the poll that hears the answer");
         assert_eq!(strokes(daemon), [10], "written once");
     });
 }
