@@ -19,7 +19,7 @@ pub enum Command {
     PickColour,
     /// Open the shape pop-up (box, arrow) at the pen.
     PickShape,
-    /// Open the tool pop-up (pen, eraser, lasso, text) at the pen.
+    /// Open the tool pop-up (pen, eraser, lasso, text, select) at the pen.
     PickTool,
     /// Open the width pop-up (`[pen] widths`) at the pen.
     PickWidth,
@@ -52,18 +52,19 @@ pub enum Command {
     /// Turn the focused pane to the next page of its canvas, after the last
     /// to the first. Other panes keep their page.
     NextPage,
-    /// Remove the lasso's selection, in one undo step.
+    /// Remove the selection, in one undo step.
     DeleteSelection,
     /// Select nothing.
     ClearSelection,
-    /// Make the pen draw, erase, select, place text, draw boxes or draw
-    /// arrows, without a pop-up.
+    /// Make the pen draw, erase, lasso, place text, draw boxes, draw
+    /// arrows or select, without a pop-up.
     ToolPen,
     ToolEraser,
     ToolLasso,
     ToolText,
     ToolBox,
     ToolArrow,
+    ToolSelect,
     /// Make the pen's line the next width of `[pen] widths`, or the one
     /// before, without a pop-up. At either end it stays.
     WidthUp,
@@ -102,7 +103,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 47] = [
+    pub const ALL: [(Command, &str); 48] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -136,6 +137,7 @@ impl Command {
         (Command::ToolText, "tool-text"),
         (Command::ToolBox, "tool-box"),
         (Command::ToolArrow, "tool-arrow"),
+        (Command::ToolSelect, "tool-select"),
         (Command::WidthUp, "width-up"),
         (Command::WidthDown, "width-down"),
         (Command::Sling, "sling"),
@@ -302,6 +304,7 @@ impl Default for Keymap {
             on(CMD, '4'),
             on(CMD, '5'),
             on(CMD, '6'),
+            on(CMD, '7'),
             on(ALT, ']'),
             on(ALT, '['),
             on(CMD, '\r'),

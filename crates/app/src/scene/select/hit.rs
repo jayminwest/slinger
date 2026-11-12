@@ -15,6 +15,17 @@
 //!   point that defines the item (the nonzero rule): a stroke's points, an
 //!   arrow's ends, a frame's corners. A lasso of fewer than three points
 //!   holds nothing.
+//! - The select tool's drawn box takes an item that touches it, edges
+//!   included (`items_in_box`): a stroke by its line thickened by half its
+//!   width, an arrow by its line, a text, a box, a live item or the button
+//!   by its frame (a box drawn inside a box takes it).
+//!
+//! The select tool's press is the app's alone: [`picks`] takes a stroke or
+//! an arrow by its line thickened by half its width, a box by its outline,
+//! and a text, a live item or the button by its frame, each within the
+//! reach. A press inside a box, off its outline, draws a box of its own, so
+//! the ink in a box can be boxed; a press there that does not move touches
+//! the box, and selects it.
 
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::Shape;
@@ -138,4 +149,42 @@ fn winding(polygon: &[Point], p: Point) -> i32 {
             w
         }
     })
+}
+
+/// Whether a press at `at` with a reach of `radius` picks `shape` (the
+/// select tool; see the module).
+pub fn picks(shape: &Shape, at: Point, radius: f64) -> bool {
+    let radius = radius.max(0.0);
+    let near = |points: &[Point], width: f64| {
+        segments(points).any(|(p, q)| point_segment_distance(at, p, q) <= radius + width / 2.0)
+    };
+    match shape {
+        Shape::Stroke { points, width } => near(points, *width),
+        Shape::Arrow { from, to, width, .. } => near(&[*from, *to], *width),
+        Shape::Box { frame, width } => {
+            let [tl, tr, br, bl] = corners(frame);
+            near(&[tl, tr, br, bl, tl], *width)
+        }
+        Shape::Text { frame, .. } | Shape::Live { frame, .. } | Shape::Button { frame, .. } => {
+            frame.outset(radius).contains(at)
+        }
+        Shape::Panel { .. } | Shape::Caret { .. } => false,
+    }
+}
+
+/// Whether `shape` touches `area`, edges included (the select tool's drawn
+/// box; the core's `items_in_box`).
+pub fn touches(shape: &Shape, area: &Rect) -> bool {
+    let near = |points: &[Point], radius: f64| {
+        segments(points).any(|(p, q)| segment_rect_distance(p, q, area) <= radius)
+    };
+    match shape {
+        Shape::Stroke { points, width } => near(points, width / 2.0),
+        Shape::Arrow { from, to, .. } => near(&[*from, *to], 0.0),
+        Shape::Text { frame, .. }
+        | Shape::Box { frame, .. }
+        | Shape::Live { frame, .. }
+        | Shape::Button { frame, .. } => frame.intersection(*area).is_some(),
+        Shape::Panel { .. } | Shape::Caret { .. } => false,
+    }
 }

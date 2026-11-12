@@ -212,6 +212,7 @@ fn a_word_popup_names_each_tool_and_lights_the_current_one() {
             ("eraser", T.text, None),
             ("lasso", T.text, None),
             ("text", T.text, None),
+            ("select", T.text, None),
         ]
     );
     tools.open(Kind::Shape, WITHIN);
@@ -227,6 +228,7 @@ fn a_tool_command_picks_its_tool_and_closes_a_tool_pop_up() {
         (Command::ToolText, Tool::Text),
         (Command::ToolBox, Tool::Box),
         (Command::ToolArrow, Tool::Arrow),
+        (Command::ToolSelect, Tool::Select),
         (Command::ToolEraser, Tool::Eraser),
         (Command::ToolLasso, Tool::Lasso),
         (Command::ToolPen, Tool::Pen),

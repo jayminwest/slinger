@@ -174,7 +174,7 @@ impl Shapes {
             }
             Tool::Box => false,
             Tool::Arrow => true,
-            Tool::Pen | Tool::Eraser | Tool::Lasso => return false,
+            Tool::Pen | Tool::Eraser | Tool::Lasso | Tool::Select => return false,
         };
         let start = if arrow { target(items, press.at, reach) } else { None };
         let (from, zoom) = (press.at, press.zoom);

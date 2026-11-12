@@ -30,7 +30,7 @@ Each decision has an id (D1, D2, ...). Each open item has an id (O1, O2, ...). R
 - D3. Client and server are both custom. herdr is an inspiration only. There is no herdr adapter.
 - D4. Client and server are separate from day one. They talk over a local socket. One server per machine.
 - D5. The canvas is a native rebuild. It does not embed tldraw.
-- D6. Canvas v1: pen at a constant width (no pressure), eraser, lasso, text, box, arrow, pages, undo, endless pan and zoom. Nothing else.
+- D6. Canvas v1: pen at a constant width (no pressure), eraser, lasso, select, text, box, arrow, pages, undo, endless pan and zoom. Nothing else.
 - D7. Canvas files use Slinger's own format. Slinger can import a tldraw file. It cannot export one.
 - D8. An agent gets a packet, not a screenshot (section 6).
 - D9. Handwriting recognition runs only when the user asks. It is never a layer between the canvas and the agent.

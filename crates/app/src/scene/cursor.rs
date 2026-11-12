@@ -27,7 +27,7 @@ pub const PEN_RING: f64 = PEN_WIDTH * 4.0;
 
 /// The pointer over a canvas pane for `tools` in `theme`: the pen is a ring
 /// in its colour, the eraser a ring as wide as it erases, the lasso and the
-/// shapes cross hairs, text an I-beam. An open pop-up takes a press, not the
+/// shapes cross hairs, text an I-beam, the select tool the arrow. An open pop-up takes a press, not the
 /// pen, so it has the arrow.
 pub fn over_canvas(tools: &Tools, theme: &Theme) -> Cursor {
     if tools.open_kind().is_some() {
@@ -38,6 +38,7 @@ pub fn over_canvas(tools: &Tools, theme: &Theme) -> Cursor {
         Tool::Eraser => Cursor::Ring { colour: theme.muted, diameter: ERASER * 2.0 },
         Tool::Lasso | Tool::Box | Tool::Arrow => Cursor::Crosshair,
         Tool::Text => Cursor::IBeam,
+        Tool::Select => Cursor::Arrow,
     }
 }
 
@@ -69,6 +70,7 @@ mod tests {
             (Command::ToolText, Cursor::IBeam),
             (Command::ToolBox, Cursor::Crosshair),
             (Command::ToolArrow, Cursor::Crosshair),
+            (Command::ToolSelect, Cursor::Arrow),
             (Command::ToolPen, pen),
         ];
         for (command, cursor) in each {

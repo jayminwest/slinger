@@ -62,6 +62,9 @@ pub struct Pen {
     /// Whether a tablet pen's eraser end made it: it erases with any tool
     /// ([`crate::scene::tools::Tools::set_eraser_end`]).
     pub eraser: bool,
+    /// Whether shift was held: the select tool's press adds to the
+    /// selection, or takes an item out of it.
+    pub shift: bool,
 }
 
 /// A pen line on a page, in canvas units.
