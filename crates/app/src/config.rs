@@ -17,10 +17,13 @@ use crate::commands::{Chord, Command, Keymap};
 
 pub mod canvas;
 mod sling;
+mod theme;
 mod widths;
 
 pub use canvas::Canvas;
 pub use sling::Prompt;
+pub use theme::Theme;
+use theme::rgb;
 pub use widths::{Width, Widths};
 
 /// A colour, written `"#rrggbb"` in the file.
@@ -29,34 +32,6 @@ pub struct Rgb {
     pub r: u8,
     pub g: u8,
     pub b: u8,
-}
-
-/// The one theme (SPEC P6).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Theme {
-    pub background: Rgb,
-    pub text: Rgb,
-    pub muted: Rgb,
-    pub error: Rgb,
-    /// The accent: the focus border (only with two or more panes), the caret,
-    /// the selection, the sling field's edge and a working agent's mark.
-    pub focus: Rgb,
-}
-
-impl Default for Theme {
-    fn default() -> Self {
-        Self {
-            background: rgb(0x1e, 0x1e, 0x1e),
-            text: rgb(0xe6, 0xe6, 0xe6),
-            muted: rgb(0x8c, 0x8c, 0x8c),
-            error: rgb(0xff, 0x6b, 0x6b),
-            focus: rgb(0x4c, 0x9a, 0xff),
-        }
-    }
-}
-
-const fn rgb(r: u8, g: u8, b: u8) -> Rgb {
-    Rgb { r, g, b }
 }
 
 /// The pen's colours, in the order the colour pop-up shows them: one to
@@ -144,6 +119,7 @@ pub struct Layer {
     muted: Option<Rgb>,
     error: Option<Rgb>,
     focus: Option<Rgb>,
+    done: Option<Rgb>,
     socket: Option<String>,
     workspace: Option<String>,
     palette: Option<Palette>,
@@ -170,6 +146,7 @@ impl Default for Layer {
             muted: None,
             error: None,
             focus: None,
+            done: None,
             socket: None,
             workspace: None,
             palette: None,
@@ -205,6 +182,7 @@ impl Layer {
             muted: top.muted.or(self.muted),
             error: top.error.or(self.error),
             focus: top.focus.or(self.focus),
+            done: top.done.or(self.done),
             socket: top.socket.or(self.socket),
             workspace: top.workspace.or(self.workspace),
             palette: top.palette.or(self.palette),
@@ -233,6 +211,7 @@ impl Layer {
                 muted: self.muted.unwrap_or(d.muted),
                 error: self.error.unwrap_or(d.error),
                 focus: self.focus.unwrap_or(d.focus),
+                done: self.done.unwrap_or(d.done),
             },
             socket: self.socket,
             workspace: self.workspace,
@@ -287,6 +266,7 @@ impl Layer {
             ("theme", "muted") => &mut self.muted,
             ("theme", "error") => &mut self.error,
             ("theme", "focus") => &mut self.focus,
+            ("theme", "done") => &mut self.done,
             _ => return Err(ErrorKind::UnknownKey),
         };
         put(slot, parse_colour(&value).ok_or(ErrorKind::BadColour)?)

@@ -428,7 +428,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
             shown.canvases.push((pane.pane, canvas.clone()));
             canvas
         };
-        canvas.show(frame, pane.scene.clone(), scene.cursor);
+        canvas.show(frame, pane.scene.clone(), pane.cursor);
     }
     let canvas = |pane| {
         let found = shown.canvases.iter().find(|(p, _)| *p == pane);

@@ -135,7 +135,7 @@ fn window(mut settings: Settings) -> ExitCode {
     let widths = settings.config.widths.clone();
     let mut tools = Tools::new(settings.config.palette.clone(), centre).with_widths(widths);
     let mut shared = Shared::default();
-    let mut canvases = Canvases::new(control::Client::new(&socket));
+    let mut canvases = canvases(&socket);
     let first = view(&settings, &mut shared, &tools, &sidebar, &mut canvases);
     // The workspace the config names, to tell when an edit changes it; a
     // tap on another in the sidebar shows that one until it does.
@@ -244,6 +244,13 @@ fn window(mut settings: Settings) -> ExitCode {
     }
 }
 
+/// The canvases of the window, through the daemon on `socket`, keeping
+/// the strokes not yet written on disk ([`backend::Unsent`]).
+fn canvases(socket: &Path) -> Canvases {
+    let canvases = Canvases::new(control::Client::new(socket));
+    backend::Unsent::locate().into_iter().fold(canvases, Canvases::keeping)
+}
+
 /// `step` with `sidebar`, which it may open or collapse: the sidebar starts
 /// the next launch as it is left.
 fn remembering(
@@ -263,8 +270,7 @@ fn remembering(
 /// What `event` asks ([`ask`]); `show-canvas-file` is done here, as only
 /// `platform` reaches the Finder: the focused pane's canvas file shows
 /// there, or the flash says why it cannot. A cut, copy or paste no text
-/// field took is [`window::edit`]'s on the panes laid in `area`, and asks
-/// whether it could be ([`window::can_edit`]: a pass greys its menu item).
+/// field took is [`window::edit`]'s in `area` (a pass greys its menu item).
 fn asked(
     event: &Event,
     shared: &mut Shared,
@@ -274,15 +280,14 @@ fn asked(
     area: Rect,
 ) -> Ask {
     let asked = match event {
-        Event::Can(edit) => {
-            let can = window::can_edit(edit, shared, canvases);
-            return Ask::Step(if can { Step::Stay } else { Step::Pass });
+        Event::Can(edit) if window::can_edit(edit, shared, canvases) => {
+            return Ask::Step(Step::Stay);
         }
+        Event::Can(_) => return Ask::Step(Step::Pass),
         Event::Edit(edit) => {
             return match window::edit(edit, shared, canvases, area) {
                 Edited::No => Ask::Step(Step::Stay),
-                Edited::Drawn => Ask::Draw(None),
-                Edited::Copied(clip) => Ask::Draw(Some(clip)),
+                Edited::Drawn(clip) => Ask::Draw(clip),
             };
         }
         _ => ask(event, shared, canvases, tools, settings),

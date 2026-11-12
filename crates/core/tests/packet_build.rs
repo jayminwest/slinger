@@ -70,6 +70,8 @@ fn the_whole_board_costs_under_half_the_screenshots() {
     let tokens: u64 = packets.iter().map(Packet::tokens).sum();
     assert!(tokens < SCREENSHOTS / 2, "{tokens} tokens");
     for p in &packets {
+        // The header's count is the packet's cost, its own digits included.
+        assert_eq!(p.header.tokens, Some(p.tokens()));
         // Everything is new, so all the ink is in `new` with its images,
         // named in order. The user's text, boxes and arrows are in `page`.
         assert!(p.made.is_empty() && p.page.iter().all(|e| e.kind != "ink"));
@@ -140,7 +142,7 @@ fn only_the_new_ink_has_images_and_the_header_names_the_range() {
     let (log, page, marker) = small();
     let p = build(&log, &ask(page, marker)).unwrap();
     let want = "\
-slinger-packet 1 canvas=idea page=Page%201 from=3 to=5 scale=0.35
+slinger-packet 1 canvas=idea page=Page%201 from=3 to=5 scale=0.35 tokens=68
 # new
 c3 ink 599,-1 22x32 colour=red strokes=1 to=c1 img=c3.png
 # made
@@ -150,6 +152,8 @@ b4 box -10,-10 100x60
 c1 ink -1,-1 52x32 colour=black strokes=2 in=b4
 ";
     assert_eq!(p.text(), want);
+    // Text and the one image, counted the way Packet::tokens counts.
+    assert_eq!(p.header.tokens, Some(p.tokens()));
     let names: Vec<&str> = p.images.iter().map(|i| i.name.as_str()).collect();
     assert_eq!(names, ["c3.png"]);
     assert!(p.images[0].png.starts_with(b"\x89PNG"));
@@ -206,6 +210,8 @@ fn a_packet_round_trips_through_its_text() {
     let text = p.text();
     assert!(text.starts_with("slinger-packet 1 canvas=my%20%22canvas%22%20100%25 page=Page%201"));
     let back = Packet::read(&text).unwrap();
+    // A packet read back has no images, but keeps the count it was sent with.
+    assert_eq!(back.header.tokens, p.header.tokens);
     assert_eq!(back, Packet { images: Vec::new(), ..p });
     assert_eq!(back.text(), text);
 }
@@ -220,6 +226,7 @@ fn the_stored_v1_packet_keeps_decoding() {
         from: 41,
         to: 58,
         scale: 0.35,
+        tokens: None,
         at: None,
     };
     assert_eq!(p.header, header);

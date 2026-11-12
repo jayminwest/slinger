@@ -105,16 +105,6 @@ pub fn selection(
     }
 }
 
-/// What a cut, a copy or a paste no text field took did.
-pub enum Edited {
-    /// Nothing: nothing took it.
-    No,
-    /// Something took it: draw again.
-    Drawn,
-    /// The clipboard is to hold this (a cut drew a change too).
-    Copied(Clip),
-}
-
 /// Whether `edit` would do anything in `shared` and `canvases`, so its
 /// Edit menu item is not grey: under the key overlay or the page menu,
 /// nothing; the open palette's search takes pasted text; else the
@@ -130,6 +120,15 @@ pub fn can_edit(edit: &Edit, shared: &Shared, canvases: &Canvases) -> bool {
         }
 }
 
+/// What a cut, a copy or a paste no text field took did.
+pub enum Edited {
+    /// Nothing: nothing took it.
+    No,
+    /// Something took it: draw again, and put the clip on the clipboard
+    /// (a copy's or a cut's).
+    Drawn(Option<Clip>),
+}
+
 /// Does `edit` where [`can_edit`] says, on the focused pane of `shared`
 /// laid in `area`.
 pub fn edit(edit: &Edit, shared: &mut Shared, canvases: &mut Canvases, area: Rect) -> Edited {
@@ -139,14 +138,14 @@ pub fn edit(edit: &Edit, shared: &mut Shared, canvases: &mut Canvases, area: Rec
     let took = match edit {
         Edit::Cut | Edit::Copy => {
             let clip = canvases.copy(&shared.panes, *edit == Edit::Cut);
-            return clip.map_or(Edited::No, Edited::Copied);
+            return clip.map_or(Edited::No, |clip| Edited::Drawn(Some(clip)));
         }
         Edit::Paste(Clip { text: Some(text), .. }) if shared.palette.is_open() => {
             shared.palette.pasted(text)
         }
         Edit::Paste(clip) => canvases.paste(clip, &shared.panes, area),
     };
-    if took { Edited::Drawn } else { Edited::No }
+    if took { Edited::Drawn(None) } else { Edited::No }
 }
 
 /// The canvas pane of `panes` laid in `area` under `at`, a point in the
@@ -195,7 +194,8 @@ pub fn focus(panes: &Panes, area: Rect) -> (PaneId, Rect) {
 }
 
 /// The window: the sidebar, the panes and their footers (their buttons kept
-/// in `shared` for the pen, the one under it lit), any problem with the
+/// in `shared` for the pen, the one under it lit, with its tip when it is
+/// a glyph), any problem with the
 /// daemon, a canvas or the config (each said once), the notice, the
 /// sling's buttons and what became of it, the pop-up at the pen and the
 /// flash of a new tool, a page command, a sling or a saved note, the key
@@ -239,9 +239,9 @@ pub fn view(
     targets.extend(footers.iter().flat_map(|f| f.targets.clone()));
     targets.extend(rows.map(|(frame, index)| (frame, Tap::Workspace(index))));
     shared.taps.set(targets);
-    if let Some(lit) =
-        shared.taps.lit(theme).filter(|&lit| !status::light(&mut footers, lit, theme))
-    {
+    let lit = shared.taps.lit(theme);
+    let tip = lit.and_then(|(at, _)| status::tip(&footers, at, theme, keys, size.rect()));
+    if let Some(lit) = lit.filter(|&lit| !status::light(&mut footers, lit, theme)) {
         let (frame, fill) = lit;
         if let Some(button) = scene.labels.iter_mut().find(|l| l.frame == frame && l.fill.is_some())
         {
@@ -256,13 +256,16 @@ pub fn view(
     }
     scene.footers = footers;
     scene.labels.extend(tools.labels(theme));
+    scene.labels.extend(tip);
     let pages = shared.menu.pane().and_then(|pane| canvases.page_names(&shared.panes, pane));
     shared.menu.refresh(pages);
     let overlay = shared.overlay.shown(keys, theme, size);
     let overlay = overlay.or_else(|| shared.palette.shown(keys, theme, size));
     let overlay = overlay.or_else(|| shared.menu.shown(theme, size));
     scene.overlay = overlay.or(answer).map(Box::new);
-    scene.cursor = cursor::over_canvas(tools, theme);
+    for pane in &mut scene.canvases {
+        pane.cursor = cursor::over_canvas(tools, theme, pane.scene.viewport.zoom());
+    }
     let now = Instant::now();
     tools.follow(keys, now);
     let said = canvases.said();

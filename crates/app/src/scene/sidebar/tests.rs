@@ -7,6 +7,7 @@ const T: Theme = Theme {
     muted: Rgb { r: 2, g: 2, b: 2 },
     error: Rgb { r: 3, g: 3, b: 3 },
     focus: Rgb { r: 4, g: 4, b: 4 },
+    done: Rgb { r: 5, g: 5, b: 5 },
 };
 
 const WINDOW: Rect = Rect { x: 0.0, y: 0.0, width: 960.0, height: 600.0 };
@@ -74,7 +75,7 @@ fn open_it_lists_each_workspace_under_a_heading_with_its_agents_mark_and_status(
             ("bo · blocked", T.muted),
             ("which key?", T.muted),
             ("cy-ws", T.text),
-            ("●", DONE),
+            ("●", T.done),
             ("cy · done", T.muted),
             ("idle", T.text),
             ("○", T.muted),

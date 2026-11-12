@@ -19,6 +19,20 @@ bullet with the area in bold.
   Paste grey out in the Edit menu when they would do nothing, such as
   Copy with nothing selected or while typing a text.
 
+- **CLI:** `slinger canvas schema` prints the item kinds (text, box,
+  arrow, stroke, button, live) with their fields and the operations
+  `canvas apply` takes, without a daemon; `canvas apply --help` shows the
+  same table.
+- **Packets:** the packet header shows about what it costs to read
+  (`tokens=`), its images included, so you and the agent both see what a
+  sling costs. It is a local estimate (a token per 4 characters, a token
+  per 750 pixels of an image), not a tokenizer's count.
+
+- **App:** strokes drawn while slingerd is down are no longer lost when
+  the app quits. They are kept in `unsent-ink.json` next to slingerd's
+  data (`~/Library/Application Support/slinger` by default) and sent the
+  next time the app starts and reaches slingerd. Erases, moves and other
+  edits made while it is down are still lost on quit.
 - **App:** see where a canvas is saved. The window's title names the
   focused pane's canvas, with its file under it
   (`~/Library/Application Support/slinger/canvases/<id>.canvas` by
@@ -45,10 +59,13 @@ bullet with the area in bold.
   the page; − and + to zoom, and the zoom level to go back to 100%; split
   right, split down and close the pane. Tap the page name for a page menu:
   it lists the canvas's pages (tap one to show it) and offers New page,
-  Rename page… and Remove page. Each button acts on its own pane. A button
-  lights under the pen and runs when you lift on it, so a press that slides
-  off runs nothing. A narrow pane keeps the tool, colour, page and
-  commands, and drops the rest.
+  Rename page…, Place send button and Remove page. Each button acts on its
+  own pane. A button lights under the pen and runs when you lift on it, so
+  a press that slides off runs nothing. A narrow pane keeps the tool,
+  colour, page and commands, and drops the rest.
+- **App:** a Delete button beside the selection, after ➤ Sling and +
+  prompt, removes the selected items with the pen (one undo puts them
+  back). A tap on empty canvas still selects nothing.
 - **App:** slinging to an agent takes one tap. Select with the lasso and
   tap ➤ Sling beside the selection, or tap ➤ Sling in the footer (it slings
   the selection, else what is new on the page), or press ⌥↩ (`sling-now`,
@@ -73,6 +90,9 @@ bullet with the area in bold.
   and the sidebar opens or stays hidden as you last left it. A `[window]
   sidebar` setting in the config still wins.
 
+- **App:** `[theme] done` sets the colour of a done agent's mark in the
+  sidebar (default `"#4cc36b"`, the green it always had).
+
 ### Changed
 
 - **App:** the selection's corner handles resize it, with the lasso or
@@ -87,6 +107,16 @@ bullet with the area in bold.
 - **App:** the sidebar says "not running" for an agent whose session is
   stopped, and "working" as soon as a sling is waiting for it, so a sling
   to a stopped agent no longer looks like nothing happened.
+- **App:** the pen's ring over a canvas is as wide as the line it will
+  draw: it grows with a wider pen and with the pane's zoom, and never gets
+  smaller than it was.
+- **App:** the footer's glyph buttons (undo, redo, the page arrows, zoom,
+  split, close, the swatch, the width) say what they do: hover over one, or
+  hold the pen on it, and a tip above the footer names its command and key.
+- **App:** the colour, shape, tool and width pop-ups' cells are 28 pt
+  high, the same as every other button the pen taps.
+- **App:** the page menu scrolls. With more pages than fit, scroll or drag
+  the pen on it to reach the rest; a drag picks no page.
 
 ### Removed
 
@@ -100,6 +130,18 @@ bullet with the area in bold.
   is open: ⌘Q quits, ⌘K opens the palette and so on, instead of doing
   nothing. Keys a text field uses itself (⌘X, ⌘C, ⌘V, ⌘A, the arrows
   and delete with ⌘ or ⌃) still edit the prompt.
+- **App:** the key overlay (⌘/) fits a narrow window. It drops to two
+  columns, then one, instead of squeezing three until the titles and keys
+  overlap; the rows scroll as before.
+- **CLI:** `canvas apply`, `canvas undo` and `canvas redo` act as the agent
+  named by `SLINGER_AGENT` when there is no `--agent`, as `canvas put` does.
+  What an agent applies no longer lands in your undo history as yours.
+- **Agents:** a drawing reaches the agent as one image when its strokes
+  touch, instead of one image per long stroke (an airplane arrived as
+  fuselage, wings and belly). An underline joins the words it touches. A
+  frame or arrow that touches nothing still stays apart.
+- **Agents:** a handwritten line with wide gaps between its words reaches
+  the agent as one image, instead of one image per few words.
 - **App:** ink is smoother. The pen's small wobbles no longer show as bumps
   along a line's edges, most of all at the bold and marker widths; a line
   still starts and ends where the pen did, and fine writing keeps its shape.

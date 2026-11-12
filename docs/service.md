@@ -333,7 +333,8 @@ tenths of a unit.
 
 `made` lists the ids the `add` and `page.add` operations made, in order. An
 operation of another kind, or one whose fields do not fit, is `invalid` with
-a hint. `canvas_show` gives a page's items in drawing order as the file's
+a hint. `slinger canvas schema` prints this table and the item kinds
+(`crates/cli/src/schema.rs`); change it with them. `canvas_show` gives a page's items in drawing order as the file's
 whole item objects: `id`, `page`, `by`, `t` (when it was made), `kind`,
 `color` and the kind's fields.
 
@@ -378,7 +379,7 @@ sling whose packet it cannot read is `invalid`, with a hint.
 
 ```json
 { "v": 1, "op": "canvas_read", "canvas": "idea", "after": 41 }
-{ "ok": true, "packet": "sha256:5e1f…", "dir": "/data/slinger/packets/5e1f…", "text": "slinger-packet 1 canvas=idea page=Page%201 from=42 to=58 scale=0.35 at=/data/slinger/packets/5e1f…\n# new\n…", "images": [{ "name": "c42.png", "id": "sha256:9a0c…" }] }
+{ "ok": true, "packet": "sha256:5e1f…", "dir": "/data/slinger/packets/5e1f…", "text": "slinger-packet 1 canvas=idea page=Page%201 from=42 to=58 scale=0.35 tokens=1840 at=/data/slinger/packets/5e1f…\n# new\n…", "images": [{ "name": "c42.png", "id": "sha256:9a0c…" }] }
 ```
 
 #### Workspaces

@@ -5,6 +5,7 @@ use crate::config::{Rgb, Theme};
 use crate::layout::Viewport;
 use crate::panes::{Kind, Pane, Panes};
 use crate::scene::canvas::{self, Item, Shape};
+use crate::scene::cursor::Cursor;
 use crate::ui::{Code, Shown};
 
 const SCREEN: Size = Size { width: 800.0, height: 600.0 };
@@ -31,7 +32,7 @@ fn page(open: &str) -> Arc<Page> {
 fn pane(items: &[Item], view: Viewport) -> (PaneId, Vec<CanvasPane>) {
     let id = Panes::new(Pane { kind: Kind::Canvas, name: "notes".into() }).focus();
     let scene = canvas::build(items, view, SCREEN, &Theme::default(), None);
-    (id, vec![CanvasPane { pane: id, frame: PANE, scene: Rc::new(scene) }])
+    (id, vec![CanvasPane { pane: id, frame: PANE, scene: Rc::new(scene), cursor: Cursor::Arrow }])
 }
 
 #[test]

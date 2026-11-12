@@ -7,6 +7,7 @@ const T: Theme = Theme {
     muted: Rgb { r: 2, g: 2, b: 2 },
     error: Rgb { r: 3, g: 3, b: 3 },
     focus: Rgb { r: 4, g: 4, b: 4 },
+    done: Rgb { r: 5, g: 5, b: 5 },
 };
 
 const PANE: Rect = Rect { x: 100.0, y: 0.0, width: 600.0, height: 400.0 };
@@ -250,4 +251,26 @@ fn a_text_field_keeps_its_edits_and_the_keymap_gets_the_rest() {
     for (mods, key) in [(CMD, 'q'), (CMD, 'k'), (CMD, '\r'), (CMD | SHIFT, 'b'), (CTRL, '\t')] {
         assert!(!edits(Chord::new(mods, key)), "{mods} {key:?} is the keymap's");
     }
+}
+
+#[test]
+fn the_selection_s_buttons_sling_prompt_and_delete_in_a_row_inside_the_pane() {
+    use crate::commands::Command;
+    use crate::scene::taps::Tap;
+    let (labels, targets) = buttons::buttons(BOX, PANE, &T);
+    let texts: Vec<&str> = labels.iter().map(|l| l.text.as_str()).collect();
+    assert_eq!(texts, [buttons::SLING, buttons::PROMPT, buttons::DELETE]);
+    let taps: Vec<Tap> = targets.iter().map(|t| t.1).collect();
+    let runs = [Command::SlingNow, Command::Sling, Command::DeleteSelection].map(Tap::Run);
+    assert_eq!(taps, runs);
+    let frames: Vec<Rect> = targets.iter().map(|t| t.0).collect();
+    assert!(
+        frames.windows(2).all(|w| (w[0].y - w[1].y).abs() < 1e-9 && w[0].x + w[0].width < w[1].x)
+    );
+    assert!(frames[0].x > BOX.x + BOX.width, "right of the selection: {frames:?}");
+
+    let corner = Rect { x: PANE.x + PANE.width - 20.0, ..BOX };
+    let (_, targets) = buttons::buttons(corner, PANE, &T);
+    let last = targets.last().unwrap().0;
+    assert!(last.x + last.width <= PANE.x + PANE.width, "kept in the pane: {last:?}");
 }

@@ -12,6 +12,7 @@ const T: Theme = Theme {
     muted: Rgb { r: 2, g: 2, b: 2 },
     error: Rgb { r: 3, g: 3, b: 3 },
     focus: Rgb { r: 4, g: 4, b: 4 },
+    done: Rgb { r: 5, g: 5, b: 5 },
 };
 
 fn rgb_palette() -> Palette {
@@ -64,6 +65,19 @@ fn opens_inside_the_window_near_its_edge() {
     tools.open(Kind::Tool, WITHIN);
     let panel = tools.popup.as_ref().unwrap().place.panel;
     assert!(panel.x + panel.width <= WITHIN.width && panel.y + panel.height <= WITHIN.height);
+}
+
+#[test]
+fn every_popup_cell_is_at_least_what_a_pen_taps() {
+    let mut tools = tools();
+    for kind in [Kind::Colour, Kind::Shape, Kind::Tool, Kind::Width] {
+        tools.open(kind, WITHIN);
+        for c in &tools.popup.as_ref().unwrap().place.cells {
+            assert!(c.width >= crate::scene::style::TAP, "{kind:?}: {c:?}");
+            assert!(c.height >= crate::scene::style::TAP, "{kind:?}: {c:?}");
+        }
+        tools.close();
+    }
 }
 
 #[test]

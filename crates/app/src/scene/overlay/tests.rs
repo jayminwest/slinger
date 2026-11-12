@@ -7,6 +7,7 @@ const T: Theme = Theme {
     muted: Rgb { r: 2, g: 2, b: 2 },
     error: Rgb { r: 3, g: 3, b: 3 },
     focus: Rgb { r: 4, g: 4, b: 250 },
+    done: Rgb { r: 5, g: 5, b: 5 },
 };
 /// A window tall enough for every row.
 const TALL: Size = Size { width: 1600.0, height: 1000.0 };
@@ -79,13 +80,51 @@ fn a_rebind_changes_the_row_and_an_unbound_command_says_no_key() {
     assert_eq!(texts(&keys, TALL)[2], "from config.toml · esc closes");
 }
 
+/// The left edge of each group's heading in a window of `size`.
+fn lefts(size: Size) -> Vec<f64> {
+    let place = place(size, 0.0);
+    Group::ALL.map(|g| place.headings.iter().find(|(h, _)| *h == g).unwrap().1.x).to_vec()
+}
+
+/// How many columns the groups fill in a window of `size`.
+fn columns_at(size: Size) -> usize {
+    let mut lefts = lefts(size);
+    lefts.dedup();
+    lefts.len()
+}
+
 #[test]
 fn the_groups_fill_three_columns_left_to_right() {
-    assert_eq!(Group::ALL.map(column), [0, 0, 0, 1, 1, 2, 2]);
-    let shown = open().shown(&Keymap::default(), &T, TALL).unwrap();
-    let x = |title: &str| shown.lines.iter().find(|l| l.label.text == title).unwrap().label.frame.x;
-    assert!(x("TOOLS") < x("CANVAS") && x("CANVAS") < x("PANES"));
-    assert_eq!(x("TOOLS"), x("SLING"));
+    let (_, runs) = split(&Group::ALL, 3);
+    let names = |run: &Vec<Group>| run.iter().map(|g| g.title()).collect::<Vec<_>>().join(" ");
+    let runs: Vec<String> = runs.iter().map(names).collect();
+    assert_eq!(runs, ["Tools Pop-ups Sling", "Canvas Pages", "Panes Window"]);
+    for size in [layout::WINDOW, TALL] {
+        let x = lefts(size);
+        assert!(x[0] < x[3] && x[3] < x[5], "{size:?}");
+        assert_eq!(x[0], x[2], "tools and sling share a column");
+    }
+}
+
+#[test]
+fn a_narrow_window_takes_fewer_columns_each_wide_enough_for_its_rows() {
+    let medium = Size { width: 700.0, height: 600.0 };
+    let sizes = [(layout::SMALLEST, 1), (medium, 2), (layout::WINDOW, 3), (TALL, 3)];
+    for (size, n) in sizes {
+        assert_eq!(columns_at(size), n, "{size:?}");
+        let place = place(size, 0.0);
+        assert!(place.rows.iter().all(|(_, f)| f.width >= MIN_COLUMN), "{size:?}");
+        let (tallest, _) = split(&Group::ALL, u32::try_from(n).unwrap());
+        assert!((place.most - (tallest - place.body.height).max(0.0)).abs() < 1e-9);
+    }
+    let place = place(layout::SMALLEST, 0.0);
+    let tops: Vec<f64> = place.headings.iter().map(|(_, f)| f.y).collect();
+    assert!(tops.windows(2).all(|w| w[0] < w[1]), "one column, top to bottom");
+    assert!(place.headings.iter().map(|(g, _)| *g).eq(Group::ALL), "in registry order");
+    let (one, _) = split(&Group::ALL, 1);
+    let (two, _) = split(&Group::ALL, 2);
+    let (three, _) = split(&Group::ALL, 3);
+    assert!(three < two && two < one, "each column more shortens the tallest");
 }
 
 #[test]
@@ -207,8 +246,7 @@ fn the_row_under_the_pen_lights_up() {
 fn rows_that_do_not_fit_scroll_by_drag_scroll_or_arrow_and_a_drag_runs_nothing() {
     let size = layout::SMALLEST;
     let keys = Keymap::default();
-    let last = Command::ALL.iter().map(|&(c, _)| c).rfind(|c| column(c.group()) == 0);
-    let last = last.unwrap();
+    let last = place(size, 0.0).rows.last().unwrap().0;
     let mut overlay = open();
     assert!(!texts_of(&overlay, &keys, size).contains(&last.title().to_string()), "below");
     let most = place(size, f64::MAX).scroll;
