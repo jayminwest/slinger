@@ -91,12 +91,8 @@ impl Ink {
         page: &'a str,
     ) -> impl Iterator<Item = (&'a Change, Vec<ItemId>)> + 'a {
         self.pending.iter().filter_map(move |p| {
-            let adds = match &p.change {
-                Change::Add(_) | Change::Put { .. } => 1,
-                Change::Carry { items, .. } => u64::try_from(items.len()).unwrap_or(0),
-                _ => return None,
-            };
-            let here = p.change.canvas() == canvas && p.change.page() == Some(page);
+            let adds = p.change.adds();
+            let here = adds > 0 && p.change.canvas() == canvas && p.change.page() == Some(page);
             here.then(|| (&p.change, (0..adds).map(|n| p.id(n)).collect()))
         })
     }

@@ -59,6 +59,38 @@ pub fn ops(change: &Change) -> Value {
     }
 }
 
+/// `item` as the canvas file's object, under its id: it reads back as
+/// `item` ([`super::item`]), to the tenth. Chrome (a panel, a caret) has none.
+pub fn object(item: &Item) -> Option<Value> {
+    let mut o = match &item.shape {
+        Shape::Stroke { points, width } => {
+            let mut o = Map::new();
+            o.insert("kind".into(), "stroke".into());
+            o.insert("width".into(), tenths(*width).max(1).into());
+            o.insert("pts".into(), deltas(points).into());
+            o
+        }
+        Shape::Live { frame, name, open } => {
+            let mut o = Map::new();
+            o.insert("kind".into(), "live".into());
+            for (key, v) in
+                [("x", frame.x), ("y", frame.y), ("w", frame.width), ("h", frame.height)]
+            {
+                o.insert(key.into(), tenths(v).into());
+            }
+            o.insert("ui".into(), name.as_str().into());
+            o.insert("open".into(), open.as_str().into());
+            o
+        }
+        Shape::Panel { .. } | Shape::Caret { .. } => return None,
+        shape => fields(shape),
+    };
+    let Rgb { r, g, b } = item.colour;
+    o.insert("id".into(), item_ref(item.id).into());
+    o.insert("color".into(), format!("#{r:02x}{g:02x}{b:02x}").into());
+    Some(Value::Object(o))
+}
+
 /// The item objects the `add`s of `change` write, in order, each under
 /// the id in `ids` at its place (the id the ink shows it under), and an
 /// end bound to another of its adds (`$n`) named by that one's id: as the

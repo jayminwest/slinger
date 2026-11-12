@@ -1,13 +1,15 @@
-//! Strokes drawn while the daemon is down survive the app quitting.
+//! Strokes drawn and changes made while the daemon is down survive the app
+//! quitting.
 
 use slinger_control::Client;
 
 use super::*;
-use crate::backend::KeptStroke;
 use crate::backend::testing::wait_until;
 use crate::backend::tests::{open_notes, with_store};
 use crate::config::Rgb;
 use crate::layout::Point;
+use crate::scene::canvas::{ItemId, Shape};
+use crate::scene::ink::{Kept, PENDING};
 
 const BLUE: Rgb = Rgb { r: 0, g: 0, b: 255 };
 
@@ -86,9 +88,9 @@ fn a_stroke_written_as_the_app_quit_is_not_written_twice() {
         draw(&mut quit, "notes", 1.0);
         quit.poll();
         let kept = Unsent::at(path.clone()).load().unwrap();
-        let [KeptStroke { once: Some(once), .. }] = kept.as_slice() else { panic!("{kept:?}") };
+        let [Kept { once: Some(once), change, .. }] = kept.as_slice() else { panic!("{kept:?}") };
         // What the outbox sent as the app quit, written, the answer lost.
-        let ops = crate::mirror::ops(&Change::Add(kept[0].stroke.clone()));
+        let ops = crate::mirror::ops(change);
         let by = "user".to_string();
         let sent = slinger_control::CanvasOps {
             canvas: "notes".into(),
@@ -128,6 +130,78 @@ fn a_second_app_keeps_nothing_and_says_so() {
     draw(&mut one, "notes", 4.0);
     one.poll();
     let kept = Unsent::at(path.clone()).load().unwrap();
-    let xs: Vec<f64> = kept.iter().map(|k| k.stroke.points[0].x).collect();
+    let x = |k: &Kept| match &k.change {
+        Change::Add(stroke) => stroke.points[0].x,
+        other => panic!("{other:?}"),
+    };
+    let xs: Vec<f64> = kept.iter().map(x).collect();
     assert_eq!(xs, [1.0, 4.0], "the first app's alone");
+}
+
+/// slinger-e7fc87: a move of a written stroke, an arrow bound to a stroke
+/// not yet written and the erase of another, all made while the daemon is
+/// down, are kept with the strokes and sent in order after the next start,
+/// naming the strokes by the ids the daemon makes then.
+#[test]
+fn changes_made_while_the_daemon_is_down_are_sent_after_the_next_start() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("unsent-ink.json");
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let mut quit = Canvases::new(daemon.clone()).keeping(Unsent::at(path.clone()));
+        draw(&mut quit, "notes", 1.0);
+        wait_until(|| {
+            quit.poll();
+            quit.ink.settled("notes")
+        });
+        let written = ItemId(1);
+        quit.outbox.reconnect(Client::new("/nonexistent/x.sock"));
+        let (canvas, page) = (String::from("notes"), String::from("p1"));
+        let by = Point { x: 10.0, y: 0.0 };
+        let ids = vec![written];
+        quit.ink.push(Change::Move {
+            canvas: canvas.clone(),
+            page: page.clone(),
+            ids,
+            by,
+            follow: vec![],
+        });
+        draw(&mut quit, "notes", 3.0);
+        let kept = PENDING + quit.ink.unsent().last().unwrap().0;
+        let (from, to) = (Point { x: 0.0, y: 0.0 }, Point { x: 3.0, y: 1.0 });
+        let bound = [None, Some(ItemId(kept))];
+        let shape = Shape::Arrow { from, to, width: 2.0, bound };
+        quit.ink.push(Change::Put {
+            canvas: canvas.clone(),
+            page: page.clone(),
+            colour: BLUE,
+            shape,
+        });
+        draw(&mut quit, "notes", 5.0);
+        let erased = PENDING + quit.ink.unsent().last().unwrap().0;
+        quit.ink.push(Change::Remove { canvas, page, ids: vec![ItemId(erased)] });
+        quit.poll();
+        assert_eq!(Unsent::at(path.clone()).load().unwrap().len(), 5, "kept before any answer");
+        drop(quit);
+        assert_eq!(strokes(daemon), [10], "nothing sent but the first stroke");
+
+        let mut canvases = Canvases::new(daemon.clone()).keeping(Unsent::at(path.clone()));
+        wait_until(|| {
+            canvases.poll();
+            canvases.ink.settled("notes") && !path.exists()
+        });
+        let items = daemon.canvas_show("notes", None).unwrap().items;
+        let kinds: Vec<_> = items.iter().map(|i| (i["id"].clone(), i["kind"].clone())).collect();
+        assert_eq!(
+            kinds,
+            [
+                (serde_json::json!("i1"), serde_json::json!("stroke")),
+                (serde_json::json!("i2"), serde_json::json!("stroke")),
+                (serde_json::json!("i3"), serde_json::json!("arrow")),
+            ],
+            "the erased stroke made and taken away again"
+        );
+        assert_eq!(items[0]["pts"][0], 110, "moved");
+        assert_eq!(items[2]["to"], "i2", "bound to the kept stroke, by the id it was made under");
+    });
 }

@@ -132,6 +132,18 @@ pub struct Carried {
     pub object: serde_json::Value,
 }
 
+/// A change not yet written, as it is kept to survive a quit
+/// ([`Ink::kept`], [`Ink::resume`]): the key it was queued under in its
+/// run (`None` when that was not kept), the key of the change it goes with
+/// ([`Ink::carry`]), the key it is applied once under, and the change.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Kept {
+    pub key: Option<u64>,
+    pub after: Option<u64>,
+    pub once: Option<String>,
+    pub change: Change,
+}
+
 impl Change {
     /// The canvas it changes.
     pub fn canvas(&self) -> &str {
@@ -145,6 +157,15 @@ impl Change {
             | Change::Carry { canvas, .. }
             | Change::Page { canvas, .. }
             | Change::Step { canvas, .. } => canvas,
+        }
+    }
+
+    /// How many items it adds: each shows under a key of its own.
+    fn adds(&self) -> u64 {
+        match self {
+            Change::Add(_) | Change::Put { .. } => 1,
+            Change::Carry { items, .. } => u64::try_from(items.len()).unwrap_or(1),
+            _ => 0,
         }
     }
 
@@ -313,10 +334,7 @@ impl Ink {
     fn queue(&mut self, mut change: Change, after: Option<u64>) -> u64 {
         change.rename(|id| Some(ids::known(&self.made, id)));
         let key = self.next_key;
-        let keys = match &change {
-            Change::Carry { items, .. } => u64::try_from(items.len()).unwrap_or(1).max(1),
-            _ => 1,
-        };
+        let keys = change.adds().max(1);
         self.pending.push(Pending::new(key, change, after));
         self.next_key += keys;
         key
@@ -393,13 +411,14 @@ impl Ink {
         !self.pending.iter().any(|p| p.change.canvas() == canvas && busy(p))
     }
 
-    /// The finished strokes the daemon has not written yet, oldest first,
-    /// each with its key: what is lost if the app quits now.
-    pub fn unsent(&self) -> impl Iterator<Item = (u64, &Stroke)> {
-        self.pending.iter().filter_map(|p| match (&p.change, p.state) {
-            (Change::Add(stroke), State::Waiting | State::Sending) => Some((p.key, stroke)),
-            _ => None,
-        })
+    /// The finished changes the daemon has not written yet, oldest first,
+    /// each with its key: what is lost if the app quits now ([`Ink::kept`]).
+    /// An undo or a redo is not among them: it is not applied once under a
+    /// key, so one sent again could undo twice.
+    pub fn unsent(&self) -> impl Iterator<Item = (u64, &Change)> {
+        let waiting = |p: &&Pending| matches!(p.state, State::Waiting | State::Sending);
+        let kept = |p: &&Pending| !matches!(p.change, Change::Step { .. });
+        self.pending.iter().filter(waiting).filter(kept).map(|p| (p.key, &p.change))
     }
 
     /// Why the last change sent did not go, until one goes.

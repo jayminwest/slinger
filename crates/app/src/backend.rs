@@ -41,7 +41,7 @@ pub use flick::Flick;
 pub use follow::{Follower, News};
 pub use outbox::{Outbox, run};
 pub use sling::{Heard, Slinger};
-pub use unsent::{KeptStroke, Unsent};
+pub use unsent::Unsent;
 
 /// A failure as the window shows it: the message and what to do about it.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -25,10 +25,10 @@ use crate::scene::pages::Page;
 pub mod clip;
 mod write;
 
-pub use write::ops;
 use write::tenths;
 #[cfg(test)]
 pub use write::text_frame_at;
+pub use write::{object, ops};
 
 /// The height of text, in canvas units: the packet's text size, so the pane
 /// and the images an agent reads agree.
@@ -319,6 +319,12 @@ fn sum(a: &Value, b: &Value) -> Value {
         (Some(a), Some(b)) => Value::from(a.saturating_add(b)),
         _ => Value::from(a.as_f64().unwrap_or(0.0) + b.as_f64().unwrap_or(0.0)),
     }
+}
+
+/// An item object as an [`Item`], as [`object`] writes it; `None` for a
+/// kind this app does not draw or an object without the fields it needs.
+pub fn item(object: &Value) -> Option<Item> {
+    read(object.as_object()?)
 }
 
 /// An item object as an [`Item`]; `None` for a kind this app does not draw
