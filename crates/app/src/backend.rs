@@ -20,9 +20,10 @@ use std::time::{Duration, SystemTime};
 use slinger_control::{self as control, Client, PaneKind, PaneLayout, RemoteError};
 
 use crate::config::{self, Config, Layer};
-use crate::scene::sidebar::{Agent, Process, Status, Workspace};
+use crate::scene::sidebar::Workspace;
 use crate::ui::Shown;
 
+mod agents;
 mod feedback;
 mod flick;
 mod follow;
@@ -34,6 +35,7 @@ pub(crate) mod testing;
 pub mod ui;
 mod unsent;
 
+pub use agents::workspaces;
 pub use feedback::Noter;
 pub use flick::Flick;
 pub use follow::{Follower, News};
@@ -58,36 +60,6 @@ impl From<RemoteError> for Problem {
     fn from(e: RemoteError) -> Self {
         Problem::new(e.to_string(), e.hint())
     }
-}
-
-/// The open workspaces, by name, each with its agent's status from the
-/// daemon's sessions: what the agent last said, read against its process
-/// ([`Status::of`]). Blocks until the daemon answers or its client gives up.
-pub fn workspaces(daemon: &Client) -> Result<Vec<Workspace>, Problem> {
-    let sessions = daemon.session_list()?;
-    let open = daemon.workspace_list()?;
-    let agent = |name: String| {
-        let session = sessions.iter().find(|s| s.agent == name);
-        let said = session.and_then(|s| Status::parse(s.status.as_deref()?));
-        let started = session.is_some_and(|s| s.session_id.is_some());
-        let process = Process::named(session.and_then(|s| s.process.as_deref()), started);
-        let pending = session.and_then(|s| s.pending).unwrap_or(0);
-        let answered = session.is_some_and(|s| s.answer.is_some());
-        Agent {
-            status: Status::of(said, process, pending, answered),
-            note: session.and_then(|s| s.note.clone()),
-            name,
-        }
-    };
-    Ok(open
-        .into_iter()
-        .map(|w| Workspace {
-            // Richer display of a broken file: slinger-44766e follow-up.
-            name: if w.error.is_some() { format!("{} (invalid file)", w.name) } else { w.name },
-            canvas: w.canvas,
-            agent: w.agent.map(|a| agent(a.name)),
-        })
-        .collect())
 }
 
 /// How often a [`Watch`] asks the daemon.
@@ -301,6 +273,7 @@ pub(crate) mod tests {
     use slingerd as daemon;
 
     use super::*;
+    use crate::scene::sidebar::{Agent, Status};
 
     /// Runs `f` against a daemon that lives for this one call.
     pub(crate) fn with_daemon<T>(f: impl FnOnce(&Client) -> T) -> T {
@@ -344,7 +317,8 @@ pub(crate) mod tests {
     }
 
     fn notes(status: Option<Status>, note: Option<&str>) -> Vec<Workspace> {
-        let agent = Agent { name: "scout".into(), status, note: note.map(str::to_string) };
+        let note = note.map(str::to_string);
+        let agent = Agent { name: "scout".into(), status, note, ..Agent::default() };
         vec![Workspace { name: "notes".into(), canvas: "notes".into(), agent: Some(agent) }]
     }
 

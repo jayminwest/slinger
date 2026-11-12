@@ -253,7 +253,7 @@ pub(crate) fn absolute(path: &Path) -> Result<PathBuf, RemoteError> {
 }
 
 /// The daemon sent a reply this client cannot read: the two disagree on the protocol.
-fn internal(what: impl std::fmt::Display) -> RemoteError {
+pub(crate) fn internal(what: impl std::fmt::Display) -> RemoteError {
     RemoteError::new("internal", format!("bad reply from {DAEMON}: {what}"), None)
 }
 

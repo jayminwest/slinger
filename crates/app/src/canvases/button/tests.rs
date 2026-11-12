@@ -124,7 +124,12 @@ fn a_placed_button_shows_its_agent_s_status_and_a_tap_slings_what_is_new() {
         daemon.session_start("notes").unwrap();
         let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
         let frame = place(&mut canvases, &panes, daemon);
-        let scout = Agent { name: "scout".into(), status: Some(Status::Working), note: None };
+        let scout = Agent {
+            name: "scout".into(),
+            status: Some(Status::Working),
+            note: None,
+            ..Agent::default()
+        };
         canvases.agents(Some(vec![("notes".into(), Some(scout))]));
         assert_eq!(button(&mut canvases, &panes, daemon).1, "● send to agent");
 

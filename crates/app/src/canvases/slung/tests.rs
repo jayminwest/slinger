@@ -23,7 +23,7 @@ fn agents(agent: Option<Agent>) -> Vec<(String, Option<Agent>)> {
 }
 
 fn scout() -> Agent {
-    Agent { name: "scout".into(), status: None, note: None }
+    Agent { name: "scout".into(), status: None, note: None, ..Agent::default() }
 }
 
 /// Waits for `notes` to arrive in `canvases`.

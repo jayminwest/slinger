@@ -69,8 +69,8 @@ impl Verb {
                  - `slinger canvas put {canvas} --beside <id> --text <text>` puts text beside \
                  item <id>; `--box w,h`, `--ink x,y,dx,dy,...` or `--arrow <from-id> <to-id>` \
                  in place of `--text` puts a box, a pen stroke or an arrow. `--color #rrggbb` \
-                 colours it; `--at x,y` puts its top-left corner there instead. Put lengths \
-                 are tenths: the packet's 120 is 1200.\n"
+                 colours it; `--at x,y` puts its top-left corner there instead; `--size n` \
+                 sizes text (default 240). Put lengths are tenths: the packet's 120 is 1200.\n"
             ),
             Self::Crop => format!(
                 "- `slinger canvas crop {canvas} --item <id>` gives an image of an item the \

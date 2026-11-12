@@ -11,11 +11,19 @@ bullet with the area in bold.
 
 ### Added
 
+- **Feedback:** each note listed under the app's feedback entry has a
+  "✓" at its end: tap it with the pen to resolve the note, as `slinger
+  feedback resolve` does. If it fails, the entry says why. A tall pane
+  lists more than five notes, up to 20.
 - **Canvas:** text can be any size. Drag a corner handle of a selection
   with text in it and the text grows or shrinks with it (from 4 to 400
   units). Agents give a text its size with `size` in `canvas apply`
   (`slinger canvas schema` shows it), and the pictures an agent reads draw
   each text at its own size. Canvases saved before read exactly as they did.
+- **CLI:** `slinger canvas put --text ... --size N` and `slinger canvas edit
+  --size N` set a text's size, in tenths of a unit like `--at` and `--box`
+  (40 to 4000; the default 240 is 24 units). The text's box fits the words
+  at the new size; a size out of range is refused with a hint.
 
 - **App:** a live item panned off the screen keeps its page for 30
   seconds, so panning away and back no longer resets what you entered;
@@ -37,6 +45,8 @@ bullet with the area in bold.
 - **App:** the sling's prompt has the same pen buttons beside it: ✓ Sling
   sends, Dictate dictates and ✕ cancels, with no keyboard.
 
+- **App:** the sidebar and each canvas footer name the profile the agent
+  runs under (`scout (dev) · working`).
 - **Agents:** profiles per workspace. `slinger profile set <workspace> dev
   --dir ~/Projects/app --tool Edit --tool 'Bash(git *)'` gives the
   workspace's agent a named profile: a working directory and the Claude
