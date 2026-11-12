@@ -67,6 +67,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Daemon:** a second `slingerd` started on another socket but the same
+  data directory now stops with exit 4 and `✗ data directory <path> is in
+  use by another slingerd`, instead of writing to the same record as the
+  first.
 - **Agents:** the picture an agent sees of your canvas draws em and en
   dashes, curly quotes, an ellipsis, bullets, arrows, check marks, box
   drawing and blocks as themselves, instead of as `?`. A character the
