@@ -147,9 +147,13 @@ impl Panes {
     /// when the panes fill `area`. Away from every pane, or on a divider
     /// between two (the pen grabs it), focus stays. Returns whether it moved.
     pub fn focus_at(&mut self, area: Rect, at: Point) -> bool {
-        if self.divider_at(area, at).is_some() {
-            return false;
-        }
+        self.divider_at(area, at).is_none() && self.focus_in(area, at)
+    }
+
+    /// Moves focus to the pane under `at`, as [`Panes::focus_at`], even
+    /// within reach of a divider: for a press that grabs something in the
+    /// pane (the selection) rather than the divider.
+    pub fn focus_in(&mut self, area: Rect, at: Point) -> bool {
         let Some((id, _)) = self.tree.rects(area).into_iter().find(|(_, f)| f.contains(at)) else {
             return false;
         };

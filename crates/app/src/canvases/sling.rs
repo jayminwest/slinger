@@ -225,7 +225,7 @@ mod tests {
         let lasso = (Tool::Lasso, Rgb { r: 0, g: 0, b: 0 });
         assert!(canvases.pen_down(panes, (panes.focus(), area), pen(50.0, 50.0), lasso));
         for (x, y) in [(200.0, 50.0), (200.0, 200.0), (50.0, 200.0)] {
-            canvases.pen_drag(panes, pen(x, y));
+            canvases.pen_drag(panes, pen(x, y), Some((panes.focus(), area)));
         }
         canvases.pen_up(panes, pen(50.0, 50.0), Some((panes.focus(), area)));
         assert!(canvases.selection().is_some());

@@ -10,7 +10,10 @@
 //!   to end it. A press outside with any other tool
 //!   also starts that tool's gesture: the first gesture after a text is
 //!   never lost. A tap with the text tool on a text,
-//!   or a double tap on one with any tool but the pen, edits it. The edit
+//!   or a double tap on one with any tool but the pen, edits it. With the
+//!   select tool or the lasso the second press may be a drag of what the
+//!   first tap selected, so the edit waits for the lift, and starts only
+//!   when the pen lifts where it went down ([`Shapes::tapped`]). The edit
 //!   is one change when it ends: an `add`, a `set`, or a `remove` when it
 //!   was emptied.
 //! - Box: a drag from corner to corner.
@@ -103,12 +106,15 @@ impl Editing {
     }
 }
 
-/// The box or arrow under the pen, the text being typed, and the last press.
+/// The box or arrow under the pen, the text being typed, the last press,
+/// and the edit a double tap with the select tool or the lasso asks for
+/// once the pen lifts where it went down, within the reach there.
 #[derive(Debug, Default)]
 pub struct Shapes {
     drag: Option<(String, String, Drag)>,
     editing: Option<Editing>,
     last: Option<(String, String, Press)>,
+    waiting: Option<(Editing, Point, f64)>,
 }
 
 impl Shapes {
@@ -128,6 +134,7 @@ impl Shapes {
         ink: &mut Ink,
     ) -> bool {
         let reach = REACH / press.zoom;
+        self.waiting = None;
         let last = self.last.replace((canvas.to_string(), page.to_string(), press));
         let double = last.is_some_and(|(c, p, last)| {
             c == canvas
@@ -149,16 +156,20 @@ impl Shapes {
         }
         let edits = tool == Tool::Text || (double && tool != Tool::Pen);
         if let Some(item) = text_at(items, press.at, reach).filter(|_| edits) {
-            if let Shape::Text { frame, text, .. } = &item.shape {
-                self.editing = Some(Editing {
-                    canvas: canvas.to_string(),
-                    page: page.to_string(),
-                    at: Point { x: frame.x, y: frame.y },
-                    text: text.clone(),
-                    colour: item.colour,
-                    item: Some((item.id, text.clone())),
-                });
+            let Shape::Text { frame, text, .. } = &item.shape else { return true };
+            let editing = Editing {
+                canvas: canvas.to_string(),
+                page: page.to_string(),
+                at: Point { x: frame.x, y: frame.y },
+                text: text.clone(),
+                colour: item.colour,
+                item: Some((item.id, text.clone())),
+            };
+            if matches!(tool, Tool::Select | Tool::Lasso) {
+                self.waiting = Some((editing, press.at, reach));
+                return false;
             }
+            self.editing = Some(editing);
             return true;
         }
         let arrow = match tool {
@@ -184,6 +195,18 @@ impl Shapes {
         let drag = Drag { arrow, from, to: from, colour, start, zoom };
         self.drag = Some((canvas.to_string(), page.to_string(), drag));
         true
+    }
+
+    /// The pen lifted at `at` after a double tap on a text with the select
+    /// tool or the lasso: the text is edited when the pen lifts where it
+    /// went down. Returns whether an edit started.
+    pub fn tapped(&mut self, at: Point) -> bool {
+        let Some((editing, down, reach)) = self.waiting.take() else { return false };
+        let still = distance(at, down) <= reach;
+        if still {
+            self.editing = Some(editing);
+        }
+        still
     }
 
     /// The pen moved to `at` while down. Returns false when no box or arrow

@@ -15,6 +15,7 @@
 //! page commands, undo and redo are in [`paging`], live items' pages in [`live`].
 
 mod button;
+mod drag;
 mod find;
 mod live;
 mod paging;
@@ -28,10 +29,9 @@ use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Rect, Size, Viewport};
 use crate::mirror::{Applied, Mirror};
 use crate::panes::{Kind, Panes};
-use crate::scene::canvas::ItemId;
 use crate::scene::ink::{Answer, Ink, Pen};
 use crate::scene::pages::{self, Pages};
-use crate::scene::select::{Landing, Select, Selection};
+use crate::scene::select::{Select, Selection};
 use crate::scene::shapes::{Press, Shapes};
 use crate::scene::sidebar::Status;
 use crate::scene::sling::Sling;
@@ -194,6 +194,9 @@ impl Canvases {
                     self.turning.remove(at);
                 }
             }
+            if let Answer::Made { ids, .. } = &answer {
+                self.select.made(key, ids);
+            }
             self.ink.answered(key, answer);
         }
         // Every page of a canvas hears the same numbers: the slowest decides.
@@ -264,54 +267,6 @@ impl Canvases {
         self.pen = Some((pane, frame));
         self.unshown = Some(pen.when);
         true
-    }
-
-    /// The pen moved while down: the stroke or the gesture under it goes on.
-    /// Returns false when none is under it.
-    pub fn pen_drag(&mut self, panes: &Panes, pen: Pen) -> bool {
-        let Some((pane, frame)) = self.pen else { return false };
-        let at = to_canvas(self.view(pane).viewport, frame, pen.at);
-        self.unshown = Some(self.unshown.map_or(pen.when, |t| t.min(pen.when)));
-        if self.ink.drag(at) || self.shapes.drag(at) {
-            return true;
-        }
-        let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
-        self.select.drag(at, &items)
-    }
-
-    /// The pen lifted over `under`, the canvas pane of `panes` there and its
-    /// frame, if any: the stroke, box, arrow, erase or move is finished and
-    /// goes to the daemon in its turn, or the loop selects. A drag of the
-    /// selection that lifts over a pane on another page carries the items
-    /// there; one that lifts outside every canvas pane moves nothing.
-    /// Returns false when nothing was under the pen.
-    pub fn pen_up(&mut self, panes: &Panes, pen: Pen, under: Option<(PaneId, Rect)>) -> bool {
-        let Some((pane, frame)) = self.pen.take() else { return false };
-        let at = to_canvas(self.view(pane).viewport, frame, pen.at);
-        let landing = under.and_then(|(to, frame)| {
-            let canvas = canvas_of(panes, to)?;
-            let open = find(&self.open, canvas, wanted(&self.views, to, canvas))?;
-            let shown = open.mirror.as_ref()?.page().to_string();
-            Some((canvas, shown, to_canvas(self.view(to).viewport, frame, pen.at)))
-        });
-        let ended = self.ink.up(Some(at)) || {
-            let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
-            self.shapes.up(Some(at), &items, &mut self.ink) || {
-                let landing =
-                    landing.as_ref().map(|(canvas, page, at)| Landing { canvas, page, at: *at });
-                let source = canvas_of(panes, pane)
-                    .and_then(|c| find(&self.open, c, wanted(&self.views, pane, c)));
-                let source = source.and_then(|o| o.mirror.as_ref());
-                let carry = |ids: &[ItemId], by| match (source, landing) {
-                    (Some(mirror), Some(to)) => mirror.carried(ids, to.page, by),
-                    _ => Vec::new(),
-                };
-                self.select.lift(at, landing, &items, &mut self.ink, carry)
-            }
-        };
-        self.unshown = None;
-        self.send();
-        ended
     }
 
     /// Whether a text is being typed, or a page command asks: the keys

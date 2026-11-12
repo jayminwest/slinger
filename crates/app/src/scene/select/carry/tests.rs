@@ -76,7 +76,7 @@ fn a_drag_that_ends_in_a_pane_on_another_canvas_carries_the_items_there() {
     assert!(there[0].id.0 >= crate::scene::ink::LOCAL, "{:?}", there[0].id);
 
     // The add there goes first, then the removal here: one step on each.
-    let Some((key, Change::Carry { canvas, page, items })) = ink.next() else { panic!() };
+    let Some((key, Change::Carry { canvas, page, items, .. })) = ink.next() else { panic!() };
     assert_eq!((canvas.as_str(), page.as_str(), items.len()), ("board", "p7", 1));
     assert_eq!(ink.next(), None, "the removal waits for the add");
     ink.answered(key, Answer::Applied(3));
@@ -147,4 +147,66 @@ fn any_other_gesture_ends_where_the_pen_lifted_on_its_own_page() {
     let Some((_, Change::Remove { ids, .. })) = ink.next() else { panic!() };
     assert_eq!(ids, [ItemId(2)]);
     assert!(!select.lift(pt(0.0, 0.0), None, &items, &mut ink, carried), "no gesture");
+}
+
+/// Where item `id` of `items` is: its box's top left.
+fn box_at(items: &[Cow<'_, Item>], id: u64) -> Option<(f64, f64)> {
+    items.iter().find(|i| i.id.0 == id).and_then(|i| i.shape.bounds()).map(|b| (b.x, b.y))
+}
+
+#[test]
+fn a_drag_shows_where_the_pane_under_the_pen_would_put_it() {
+    let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
+    let items = shown(&page);
+    grab(&mut select, &mut ink, &items);
+    let theme = crate::config::Theme::default();
+
+    // Over another pane on the same page, read through its own view.
+    let same = Landing { canvas: "main", page: "p1", at: pt(25.0, 35.0) };
+    assert!(select.hover(pt(900.0, 5.0), Some(same), &items));
+    let here = select.shown(HERE, shown(&page), 1.0, &theme);
+    assert_eq!(box_at(&here, 1), Some((19.0, 29.0)), "moved by (20, 30), not by the screen");
+
+    // Over a pane on another page: gone here, under the pen there, boxed.
+    let away = Landing { canvas: "main", page: "p2", at: pt(105.0, 5.0) };
+    assert!(select.hover(pt(900.0, 5.0), Some(away), &items));
+    let here = select.shown(HERE, shown(&page), 1.0, &theme);
+    assert_eq!(box_at(&here, 1), None);
+    assert_eq!(box_at(&here, super::super::BOX.0), None, "no box here");
+    let landed = select.shown(("main", "p2"), Vec::new(), 1.0, &theme);
+    assert_eq!(box_at(&landed, (1 << 63) | 1), Some((99.0, -1.0)));
+    assert!(box_at(&landed, super::super::BOX.0).is_some(), "the box goes with it");
+
+    // Over no canvas pane: home.
+    assert!(select.hover(pt(900.0, 5.0), None, &items));
+    let here = select.shown(HERE, shown(&page), 1.0, &theme);
+    assert_eq!(box_at(&here, 1), Some((-1.0, -1.0)));
+    let gone = select.shown(("main", "p2"), Vec::new(), 1.0, &theme);
+    assert_eq!(gone, Vec::<Cow<'_, Item>>::new(), "nothing there");
+}
+
+#[test]
+fn a_carry_within_the_canvas_is_one_change_and_selects_the_items_once_there() {
+    let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
+    let items = shown(&page);
+    grab(&mut select, &mut ink, &items);
+    let landing = Landing { canvas: "main", page: "p7", at: pt(100.04, 205.0) };
+    assert!(select.lift(pt(900.0, 5.0), Some(landing), &items, &mut ink, carried));
+    assert_eq!(select.selection(), None, "not selected until the items are there");
+    let here: Vec<u64> = ink.shown("main", "p1", &page).iter().map(|i| i.id.0).collect();
+    assert_eq!(here, [2], "gone from p1 at once");
+    assert_eq!(ink.shown("main", "p7", &[]).len(), 1, "on p7 at once");
+
+    let Some((key, Change::Carry { page: to, gone, .. })) = ink.next() else { panic!() };
+    assert_eq!((to.as_str(), gone), ("p7", vec![ItemId(1)]), "the add and the remove together");
+    ink.answered(key, Answer::Made { seq: 4, ids: vec![ItemId(9)] });
+    assert_eq!(ink.next(), None, "nothing more: one step");
+
+    select.made(key, &[ItemId(9)]);
+    select.keep(("main", "p7"), &[]);
+    assert_eq!(select.selection(), None, "not there yet");
+    let there = [Item { id: ItemId(9), ..page[0].clone() }];
+    select.keep(("main", "p7"), &shown(&there));
+    let selected = select.selection().map(|s| (s.page.clone(), s.ids.clone()));
+    assert_eq!(selected, Some(("p7".to_string(), vec![ItemId(9)])));
 }

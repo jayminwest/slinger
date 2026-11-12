@@ -1,7 +1,8 @@
 //! What the window does with a command (`run`, and the selection's commands
 //! in `selection`) or a tap on a button that does more (`tap`), and what it
 //! shows (`view`), and where its panes are: the canvas pane under a point
-//! (`pane_at`) and the focused pane (`focus`). Split from `main.rs`, which
+//! (`pane_at`), the focused pane (`focus`) and whether a press grabs the
+//! selection (`grabs`). Split from `main.rs`, which
 //! routes the events here.
 
 use std::path::Path;
@@ -12,6 +13,7 @@ use crate::canvases::Canvases;
 use crate::commands::{self, Command};
 use crate::layout::{PaneId, Point, Rect};
 use crate::panes::{self, Panes};
+use crate::scene::ink::Pen;
 use crate::scene::sidebar::Row;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::taps::{Tap, Target};
@@ -103,6 +105,28 @@ pub fn pane_at(panes: &Panes, area: Rect, at: Point) -> Option<(PaneId, Rect)> {
     let mut placed = panes.place(area).into_iter().map(|(id, p, f)| (id, p, status::content(f)));
     let found = placed.find(|(_, _, frame)| frame.contains(at));
     found.filter(|(_, pane, _)| pane.kind == panes::Kind::Canvas).map(|(id, _, frame)| (id, frame))
+}
+
+/// Whether a press of `pen` on the panes of `panes` laid in `area` grabs
+/// the selection with the tool of `tools` ([`Canvases::grabs`]): it drags
+/// the selection, and focuses its pane, even within reach of a divider.
+/// The pen's eraser end never grabs it.
+pub fn grabs(canvases: &Canvases, panes: &Panes, tools: &Tools, area: Rect, pen: Pen) -> bool {
+    !pen.eraser && canvases.grabs(panes, pane_at(panes, area, pen.at), pen, tools.tool())
+}
+
+/// A press of `pen` focuses the pane of `shared` laid in `area` under it
+/// ([`Shared::press_focus`]), even on a divider when it [`grabs`] the
+/// selection. Returns whether focus moved.
+pub fn press_focus(
+    shared: &mut Shared,
+    canvases: &Canvases,
+    tools: &Tools,
+    area: Rect,
+    pen: Pen,
+) -> bool {
+    let grabs = grabs(canvases, &shared.panes, tools, area, pen);
+    shared.press_focus(area, pen.at, pen.touch, grabs)
 }
 
 /// The frame of the focused pane of `panes` laid in `area`.

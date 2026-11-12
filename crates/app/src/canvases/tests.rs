@@ -53,7 +53,10 @@ fn gesture(canvases: &mut Canvases, panes: &Panes, tool: Tool, path: &[(f64, f64
     assert!(canvases.pen_down(panes, pane, pen(first.0, first.1, when), (tool, GREY)), "{tool:?}");
     for (i, &(x, y)) in path.iter().enumerate().skip(1) {
         let at = when + 0.01 * f64::from(u32::try_from(i).unwrap());
-        assert!(canvases.pen_drag(panes, pen(x, y, at)), "{tool:?}: the drag is the tool's");
+        assert!(
+            canvases.pen_drag(panes, pen(x, y, at), Some(pane)),
+            "{tool:?}: the drag is the tool's"
+        );
     }
     assert!(canvases.pen_up(panes, pen(last.0, last.1, when + 0.5), Some(pane)), "{tool:?}");
     shown(canvases, panes);

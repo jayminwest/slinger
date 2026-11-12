@@ -23,13 +23,13 @@ fn a_press_on_the_other_pane_focuses_it_and_its_commands_follow() {
     let mut shared = two();
     let first = shared.panes.focus();
     let in_b = Point { x: 600.0, y: 200.0 };
-    assert!(shared.press_focus(AREA, in_b, false));
+    assert!(shared.press_focus(AREA, in_b, false, false));
     let (pane, frame) = focus(&shared.panes, AREA);
     assert_ne!(pane, first);
     assert_eq!(frame.x, 400.0, "the focused pane's commands act on the pressed one");
     assert_eq!(shared.panes.number(), 2, "a split or a close names it to the server");
     let footer = Point { x: 100.0, y: 590.0 };
-    assert!(shared.press_focus(AREA, footer, false), "a press on a footer focuses its pane");
+    assert!(shared.press_focus(AREA, footer, false, false), "a press on a footer focuses its pane");
     assert_eq!(shared.panes.focus(), first);
 }
 
@@ -37,14 +37,14 @@ fn a_press_on_the_other_pane_focuses_it_and_its_commands_follow() {
 fn a_touch_or_a_press_under_the_key_overlay_or_palette_does_not_focus() {
     let mut shared = two();
     let in_b = Point { x: 600.0, y: 200.0 };
-    assert!(!shared.press_focus(AREA, in_b, true), "a palm on the trackpad");
+    assert!(!shared.press_focus(AREA, in_b, true, false), "a palm on the trackpad");
     shared.overlay.toggle();
-    assert!(!shared.press_focus(AREA, in_b, false));
+    assert!(!shared.press_focus(AREA, in_b, false, false));
     shared.overlay.toggle();
     shared.palette.toggle();
-    assert!(!shared.press_focus(AREA, in_b, false));
+    assert!(!shared.press_focus(AREA, in_b, false, false));
     shared.palette.toggle();
-    assert!(shared.press_focus(AREA, in_b, false));
+    assert!(shared.press_focus(AREA, in_b, false, false));
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn the_open_page_menu_takes_every_press_and_its_rows_tap() {
     let pane = shared.panes.focus();
     shared.menu.open(pane, anchor, (vec!["a".into(), "b".into()], 0));
     assert!(shared.modal() && shared.scroll(4.0));
-    assert!(!shared.press_focus(AREA, Point { x: 600.0, y: 200.0 }, false), "focus stays");
+    assert!(!shared.press_focus(AREA, Point { x: 600.0, y: 200.0 }, false, false), "focus stays");
     // The commands' rows sit at the panel's foot, just above the page name.
     let remove = Point { x: 200.0, y: anchor.y - 12.0 };
     assert_eq!(shared.press(remove), Took::Yes);

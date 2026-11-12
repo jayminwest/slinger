@@ -404,7 +404,8 @@ fn carried_items_are_add_objects_on_the_other_page_moved_and_without_this_canvas
     assert_eq!((from, to), (pt(1.0, -0.5), pt(11.0, -0.5)), "drawn where it will land");
     assert_eq!(bound, [None, None], "bound to nothing there");
 
-    let change = Change::Carry { canvas: "board".into(), page: "p4".into(), items: carried };
+    let change =
+        Change::Carry { canvas: "board".into(), page: "p4".into(), items: carried, gone: vec![] };
     let written = ops(&change);
     assert_eq!(written.as_array().map(Vec::len), Some(2), "one canvas_apply, one add each");
     assert_eq!(written[1]["op"], "add");

@@ -36,20 +36,18 @@ impl Select {
         items: &[Cow<'_, Item>],
     ) {
         let hit = topmost(items, at, REACH / zoom);
-        let still = Point { x: 0.0, y: 0.0 };
+        self.arriving = None;
         let gesture = match hit {
             Some(id) if shift => {
                 self.toggle((canvas, page), id);
                 return;
             }
             None if shift => Gesture::Marquee { from: at, to: at, adding: true },
-            click if self.grabs((canvas, page), at, zoom, items) => {
-                Gesture::Move { from: at, by: still, click }
-            }
+            click if self.grabs((canvas, page), at, zoom, items) => Gesture::moving(at, click),
             Some(id) => {
                 let ids = vec![id];
                 self.selection = Some(Selection { canvas: canvas.into(), page: page.into(), ids });
-                Gesture::Move { from: at, by: still, click: None }
+                Gesture::moving(at, None)
             }
             None => {
                 self.selection = None;

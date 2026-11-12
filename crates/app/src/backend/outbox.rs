@@ -83,9 +83,14 @@ fn apply(daemon: &Client, change: &Change) -> Answer {
         Ok(written) => {
             // No line (nothing to undo, ids already gone): nothing to wait for.
             let seq = written.seq.last().copied().unwrap_or(0);
-            match (change, written.made.into_iter().next()) {
+            let mut made = written.made.into_iter();
+            match (change, made.next()) {
                 (Change::Page { op: PageOp::Add { .. }, .. }, Some(page)) => {
                     Answer::NewPage { seq, page }
+                }
+                (Change::Carry { .. }, Some(first)) => {
+                    let made = std::iter::once(first).chain(made);
+                    Answer::Made { seq, ids: made.filter_map(|id| mirror::item_id(&id)).collect() }
                 }
                 _ => Answer::Applied(seq),
             }

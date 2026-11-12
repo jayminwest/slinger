@@ -233,7 +233,7 @@ pub fn item_ref(id: ItemId) -> String {
 }
 
 /// `i12` is item 12.
-fn item_id(text: &str) -> Option<ItemId> {
+pub fn item_id(text: &str) -> Option<ItemId> {
     text.strip_prefix('i')?.parse().ok().map(ItemId)
 }
 
@@ -335,9 +335,13 @@ pub fn ops(change: &Change) -> Value {
             serde_json::json!({"op": "add", "item": item})
         }
         Change::Set { id, shape, .. } => set(*id, shape),
-        Change::Carry { items, .. } => {
+        Change::Carry { items, gone, .. } => {
             let add = |c: &Carried| serde_json::json!({"op": "add", "item": c.object});
-            Value::Array(items.iter().map(add).collect())
+            let mut ops: Vec<Value> = items.iter().map(add).collect();
+            if !gone.is_empty() {
+                ops.push(serde_json::json!({"op": "remove", "ids": ids(gone)}));
+            }
+            Value::Array(ops)
         }
         Change::Page { op, .. } => match op {
             PageOp::Add { name } => serde_json::json!({"op": "page.add", "name": name}),
