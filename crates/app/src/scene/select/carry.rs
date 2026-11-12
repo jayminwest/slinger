@@ -95,8 +95,8 @@ impl Select {
 
     /// The pen lifted at `at` over `landing`, as [`Select::hover`]: a drag
     /// of the selection moves or carries it as the module says; `carry`
-    /// gives the selected items moved by a distance and set on the landing
-    /// page. Any other gesture ends as [`Select::up`] at `at`. Returns
+    /// gives the selected items, as `ink` shows them, moved by a distance
+    /// and set on the landing page. Any other gesture ends as [`Select::up`] at `at`. Returns
     /// false when no gesture was under the pen.
     pub fn lift(
         &mut self,
@@ -104,7 +104,7 @@ impl Select {
         landing: Option<Landing<'_>>,
         items: &[Cow<'_, Item>],
         ink: &mut Ink,
-        carry: impl FnOnce(&[ItemId], Point) -> Vec<Carried>,
+        carry: impl FnOnce(&Ink, &[ItemId], Point) -> Vec<Carried>,
     ) -> bool {
         if !matches!(self.gesture, Some((_, _, Gesture::Move { .. }))) {
             return self.up(Some(at), items, ink);
@@ -130,7 +130,7 @@ impl Select {
         };
         let by = Point { x: tenth(by.x), y: tenth(by.y) };
         let Some(Selection { ids, .. }) = self.selection.take() else { return true };
-        let carried = carry(&ids, by);
+        let carried = carry(ink, &ids, by);
         if carried.is_empty() {
             return true;
         }

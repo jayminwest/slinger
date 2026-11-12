@@ -922,7 +922,10 @@ own until the daemon says the id it made, and a change that names it is
 renamed to that id before it goes (`scene/ink/ids.rs`), so it is still one
 `canvas_apply` and one undo step; the selection follows the rename. A
 change left naming only items never made (their add was refused) is
-dropped unsent. A finished erase, move or delete joins the ink's queue
+dropped unsent. Copy and a carry to another page take the items as they
+show too (`Mirror::carried`): the mirror's object of each, or the object
+the ink's change writes for one not yet written, laid over with how it
+shows (`mirror/write.rs`). A finished erase, move or delete joins the ink's queue
 as one `canvas_apply`, in turn with the strokes, and shows from there until
 the feed brings it. The user may erase, move and delete any item, an
 agent's too. The eraser takes strokes, text, boxes (by their outline, so

@@ -334,8 +334,8 @@ fn copy_paste_and_cut_the_selection_and_a_text_being_typed_takes_only_text() {
         assert!(canvases.can_paste(&clip, &panes));
         assert!(canvases.paste(&clip, &panes, WINDOW.rect(), GREY));
         until(&mut canvases, &panes, daemon, |d| count(d, "stroke") == 2);
-        // The copy is selected once made, and copied once the page's copy
-        // holds it too (slinger-86410b).
+        // The copy is selected once made, and copied as it shows, whether
+        // the page's copy holds it yet or not (slinger-86410b, slinger-8e4112).
         wait_until(|| {
             shown(&mut canvases, &panes);
             let pasted =

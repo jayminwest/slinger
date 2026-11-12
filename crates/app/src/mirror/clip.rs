@@ -14,14 +14,15 @@ use super::{Mirror, read, shift};
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{ItemId, Shape};
-use crate::scene::ink::Carried;
+use crate::scene::ink::{Carried, Ink};
 use crate::scene::paste::{self, Clip};
 
 impl Mirror {
-    /// Items `ids` of this page as a copy puts them on the clipboard, in
-    /// drawing order; `None` when none of them is here.
-    pub fn copied(&self, ids: &[ItemId]) -> Option<Clip> {
-        let carried = self.carried(ids, "", Point { x: 0.0, y: 0.0 });
+    /// Items `ids` of this page as the user sees it, `canvas`'s `ink` laid
+    /// over it ([`Mirror::carried`]), as a copy puts them on the clipboard,
+    /// in drawing order; `None` when none of them is here.
+    pub fn copied(&self, ink: (&str, &Ink), ids: &[ItemId]) -> Option<Clip> {
+        let carried = self.carried(ink, ids, "", Point { x: 0.0, y: 0.0 });
         let texts: Vec<&str> = carried
             .iter()
             .filter_map(|c| match &c.item.shape {

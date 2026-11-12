@@ -10,6 +10,8 @@
 //! operation it does not know); the server keeps those, so nothing is lost.
 //! Items keep the server's drawing order, which is the order of their ids.
 
+use std::collections::HashMap;
+
 use serde_json::{Map, Value};
 use slinger_control::{CanvasFeed, CanvasPage};
 
@@ -17,7 +19,7 @@ use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::glyphs;
-use crate::scene::ink::Carried;
+use crate::scene::ink::{Carried, Ink};
 use crate::scene::pages::Page;
 
 pub mod clip;
@@ -95,26 +97,45 @@ impl Mirror {
         &self.pages
     }
 
-    /// Items `ids` of this page as they would be carried to `page` (of this
-    /// canvas or another) and moved by `by` canvas units: each item, and
-    /// its object for an `add` there, without what the server gives an item
-    /// (its id, maker and time). An arrow's end bound to an item carried
-    /// with it stays bound to that item there, named by its place in the
-    /// adds (`$n`, docs/service.md), so such an arrow comes after every
-    /// other item; an end bound to an item left here is let go. Ids not on
-    /// this page are left out.
-    pub fn carried(&self, ids: &[ItemId], page: &str, by: Point) -> Vec<Carried> {
+    /// Items `ids` of this page as the user sees it, `canvas`'s `ink` laid
+    /// over it (so ink not yet written too, slinger-8e4112), as they would
+    /// be carried to `page` (of this canvas or another) and moved by `by`
+    /// canvas units: each item, and its object for an `add` there, without
+    /// what the server gives an item (its id, maker and time). An item the
+    /// ink changes is written as it shows. An arrow's end bound to an item
+    /// carried with it stays bound to that item there, named by its place
+    /// in the adds (`$n`, docs/service.md), so such an arrow comes after
+    /// every other item; an end bound to an item left here is let go. Ids
+    /// not on this page are left out.
+    pub fn carried(
+        &self,
+        (canvas, ink): (&str, &Ink),
+        ids: &[ItemId],
+        page: &str,
+        by: Point,
+    ) -> Vec<Carried> {
         let (dx, dy) = (Value::from(tenths(by.x)), Value::from(tenths(by.y)));
-        let found = self.items.iter().zip(&self.objects).filter(|(i, _)| ids.contains(&i.id));
+        let adding = ink.adding(canvas, &self.page);
+        let added: HashMap<ItemId, Map<String, Value>> =
+            adding.flat_map(|(change, ids)| write::added(change, &ids)).collect();
+        let object = |id: ItemId| match self.items.binary_search_by_key(&id, |i| i.id) {
+            Ok(at) => Some(self.objects[at].clone()),
+            Err(_) => added.get(&id).cloned(),
+        };
+        let shown = ink.shown(canvas, &self.page, &self.items);
+        let found = shown.iter().filter(|i| ids.contains(&i.id));
         let bound_here = |i: &Item| match i.shape {
             Shape::Arrow { bound, .. } => bound.iter().flatten().any(|end| ids.contains(end)),
             _ => false,
         };
-        let (last, first): (Vec<_>, Vec<_>) = found.partition(|(i, _)| bound_here(i));
+        let (last, first): (Vec<_>, Vec<_>) = found.partition(|i| bound_here(i));
         let mut out = Vec::new();
         let mut places = Vec::new();
-        for (old, object) in first.into_iter().chain(last) {
-            let mut object = object.clone();
+        for old in first.into_iter().chain(last) {
+            let Some(mut object) = object(old.id) else { continue };
+            if read(&object).as_ref() != Some(&**old) {
+                write::draw(&mut object, old);
+            }
             shift(&mut object, &dx, &dy);
             let ends = ["from", "to"].map(|key| object.remove(key));
             let Some(item) = read(&object) else { continue };

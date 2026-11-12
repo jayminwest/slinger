@@ -19,7 +19,7 @@ use crate::mirror::Mirror;
 use crate::panes::Panes;
 use crate::scene::canvas::{Item, ItemId};
 use crate::scene::cursor::Cursor;
-use crate::scene::ink::Pen;
+use crate::scene::ink::{Ink, Pen};
 use crate::scene::select::{Landing, Select};
 use crate::scene::tools::Tool;
 
@@ -60,9 +60,11 @@ impl Canvases {
                     landing.as_ref().map(|(canvas, page, at)| Landing { canvas, page, at: *at });
                 let source = canvas_of(panes, pane)
                     .and_then(|c| find(&self.open, c, wanted(&self.views, pane, c)));
-                let source = source.and_then(|o| o.mirror.as_ref());
-                let carry = |ids: &[ItemId], by| match (source, landing) {
-                    (Some(mirror), Some(to)) => mirror.carried(ids, to.page, by),
+                let source = source.and_then(|o| Some((o.canvas.as_str(), o.mirror.as_ref()?)));
+                let carry = |ink: &Ink, ids: &[ItemId], by| match (source, landing) {
+                    (Some((canvas, mirror)), Some(to)) => {
+                        mirror.carried((canvas, ink), ids, to.page, by)
+                    }
                     _ => Vec::new(),
                 };
                 self.select.lift(at, landing, &items, &mut self.ink, carry)

@@ -59,6 +59,51 @@ pub fn ops(change: &Change) -> Value {
     }
 }
 
+/// The item objects the `add`s of `change` write, in order, each under
+/// the id in `ids` at its place (the id the ink shows it under), and an
+/// end bound to another of its adds (`$n`) named by that one's id: as the
+/// canvas file will hold them once written.
+pub(super) fn added(change: &Change, ids: &[ItemId]) -> Vec<(ItemId, Map<String, Value>)> {
+    let ops = match ops(change) {
+        Value::Array(ops) => ops,
+        op => vec![op],
+    };
+    let adds = ops.into_iter().filter(|op| op["op"] == "add");
+    let objects = adds.filter_map(|op| match op.get("item") {
+        Some(Value::Object(o)) => Some(o.clone()),
+        _ => None,
+    });
+    let place = |end: &Value| {
+        let n = end.as_str()?.strip_prefix('$')?.parse::<usize>().ok()?;
+        ids.get(n).copied()
+    };
+    let mut out = Vec::new();
+    for (id, mut object) in ids.iter().copied().zip(objects) {
+        for key in ["from", "to"] {
+            if let Some(end) = object.get(key).and_then(place) {
+                object.insert(key.into(), item_ref(end).into());
+            }
+        }
+        object.insert("id".into(), item_ref(id).into());
+        out.push((id, object));
+    }
+    out
+}
+
+/// `object` changed to draw as `item` does, as a resize writes it
+/// ([`reshape`]): a field set to `null` is cleared.
+pub(super) fn draw(object: &mut Map<String, Value>, item: &Item) {
+    let set = reshape(item);
+    let Some(fields) = set.get("fields").and_then(Value::as_object) else { return };
+    for (key, value) in fields {
+        if value.is_null() {
+            object.remove(key);
+        } else {
+            object.insert(key.clone(), value.clone());
+        }
+    }
+}
+
 /// A `set` that makes item `id` the shape `shape`, every field of it given
 /// (an arrow end bound to nothing as `null`, which clears it, and a text of
 /// the usual size with a `null` size).

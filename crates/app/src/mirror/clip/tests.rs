@@ -29,7 +29,9 @@ fn page() -> Mirror {
 
 #[test]
 fn a_copy_holds_the_items_objects_and_the_texts_one_a_line() {
-    let clip = page().copied(&[ItemId(4), ItemId(1), ItemId(2), ItemId(9)]).unwrap();
+    let clip = page()
+        .copied(("main", &Ink::default()), &[ItemId(4), ItemId(1), ItemId(2), ItemId(9)])
+        .unwrap();
     assert_eq!(clip.text.as_deref(), Some("first\nsecond"), "in drawing order");
     let items: Value = serde_json::from_str(clip.items.as_deref().unwrap()).unwrap();
     assert_eq!(
@@ -39,15 +41,15 @@ fn a_copy_holds_the_items_objects_and_the_texts_one_a_line() {
     );
     assert_eq!(items.as_array().map(Vec::len), Some(3));
 
-    let arrow = page().copied(&[ItemId(3)]).unwrap();
+    let arrow = page().copied(("main", &Ink::default()), &[ItemId(3)]).unwrap();
     assert_eq!(arrow.text, None, "no text: none of the items is a text");
     assert!(!arrow.items.unwrap().contains("\"to\""), "an arrow's ends name this canvas's items");
-    assert_eq!(page().copied(&[ItemId(9)]), None);
+    assert_eq!(page().copied(("main", &Ink::default()), &[ItemId(9)]), None);
 }
 
 #[test]
 fn a_paste_adds_the_items_to_the_page_centred_on_the_point() {
-    let clip = page().copied(&[ItemId(1), ItemId(3)]).unwrap();
+    let clip = page().copied(("main", &Ink::default()), &[ItemId(1), ItemId(3)]).unwrap();
     let pasted = pasted(clip.items.as_deref().unwrap(), "p2", Point { x: 500.0, y: 300.0 });
     assert_eq!(pasted.len(), 2);
     // The box is 10 by 4 and the arrow 10 long on its top edge: together
@@ -103,4 +105,49 @@ fn plain_text_pastes_as_one_text_item_of_the_pen_s_colour() {
     let centre = (frame.x + frame.width / 2.0, frame.y + frame.height / 2.0);
     assert!((centre.0 - 200.0).abs() < 1.0 && (centre.1 - 100.0).abs() < 1.0, "{centre:?}");
     assert_eq!(text_items(" \n\t", colour), None, "blank text adds nothing");
+}
+
+/// slinger-8e4112: what the ink shows is copied and carried as it shows,
+/// ink not yet written too: a stroke, an arrow bound to it, a box moved.
+#[test]
+fn ink_not_yet_written_is_copied_and_carried_as_it_shows() {
+    use crate::scene::ink::{Answer, Change, PENDING};
+    let mut ink = Ink::default();
+    let red = Rgb { r: 255, g: 0, b: 0 };
+    ink.down("main", "p1", red, Point { x: 1.0, y: 2.0 });
+    ink.drag(Point { x: 3.0, y: 2.0 });
+    assert!(ink.up(None));
+    let stroke = ItemId(PENDING);
+    let (from, to) = (Point { x: 0.0, y: 0.0 }, Point { x: 10.0, y: 0.0 });
+    let bound = [Some(stroke), Some(ItemId(1))];
+    let shape = Shape::Arrow { from, to, width: 2.0, bound };
+    let (canvas, on) = (String::from("main"), String::from("p1"));
+    ink.push(Change::Put { canvas: canvas.clone(), page: on.clone(), colour: red, shape });
+    let arrow = ItemId(PENDING + 1);
+    let by = Point { x: 10.0, y: 0.0 };
+    ink.push(Change::Move { canvas, page: on, ids: vec![ItemId(1)], by, follow: vec![] });
+
+    let ids = [arrow, ItemId(1), stroke];
+    let clip = page().copied(("main", &ink), &ids).unwrap();
+    let items: Value = serde_json::from_str(clip.items.as_deref().unwrap()).unwrap();
+    assert_eq!(
+        items,
+        json!([
+            {"kind": "box", "color": "#ff0000", "x": 100, "y": 0, "w": 100, "h": 40},
+            {"kind": "stroke", "color": "#ff0000", "width": 20, "pts": [10, 20, 20, 0]},
+            {"kind": "arrow", "color": "#ff0000", "pts": [0, 0, 100, 0], "from": "$1", "to": "$0"},
+        ]),
+        "the box as moved; the arrow after the items it is bound to"
+    );
+
+    // Made, the stroke shows under the server's id before the page holds it.
+    let (key, _) = ink.next().unwrap();
+    ink.answered(key, Answer::Made { seq: 9, ids: vec![ItemId(7)] });
+    let carried = page().carried(("main", &ink), &[ItemId(7)], "p2", Point { x: 1.0, y: 0.0 });
+    assert_eq!(
+        carried.iter().map(|c| c.object.clone()).collect::<Vec<_>>(),
+        [json!({"page": "p2", "kind": "stroke", "color": "#ff0000", "width": 20,
+                "pts": [20, 20, 20, 0]})]
+    );
+    assert_eq!(page().carried(("other", &ink), &[ItemId(7)], "p2", by), []);
 }
