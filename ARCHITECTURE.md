@@ -232,6 +232,9 @@ feedback.rs  the feedback file (`--feedback`, default `feedback.jsonl` in
              lock, each note and resolution appended as one line, the
              file read back for a list or a resolve; the time from `date
              +%z` and the build from `SLINGER_BUILD_SHA` at build time.
+build.rs     stamps that build: `SLINGER_BUILD_SHA` and `SLINGER_BUILD_DIRTY`
+             from git (`HEAD`, tracked changes), unless the environment
+             sets them; neither without git, so notes say `dev`.
 server/feedback.rs  the four feedback verbs on the wire.
 server/session.rs  the session verbs on the wire, each session with its process.
 server/sling.rs  `sling_send`: the workspace of the canvas, the marker, the

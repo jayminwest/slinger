@@ -64,6 +64,8 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Feedback:** each note names the commit `slingerd` was built from
+  (with `-dirty` for uncommitted changes) instead of always `dev`.
 - **App:** a failed tap on the "send to agent" button shows why in the
   pill, instead of opening an entry the pen cannot close.
 - **Daemon:** an agent can answer when `slingerd` was started with a
