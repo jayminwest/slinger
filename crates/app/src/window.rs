@@ -133,6 +133,7 @@ pub fn view(
     let theme = &settings.config.theme;
     let area = sidebar.panes(shared.size.rect());
     canvases.agents(sidebar.statuses());
+    canvases.follow_paper(settings.config.canvas);
     let drawn = canvases.show(&shared.panes, area, theme);
     let mut problems: Vec<&Problem> = Vec::new();
     for problem in shared.trouble.iter().chain(canvases.problems()).chain(&settings.problem) {

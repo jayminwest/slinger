@@ -29,6 +29,7 @@ use crate::layout::{PaneId, Rect, Size, Viewport};
 use crate::mirror::{Applied, Mirror};
 use crate::panes::{Kind, Panes};
 use crate::scene::canvas::ItemId;
+use crate::scene::grid::Paper;
 use crate::scene::ink::{Answer, Ink, Pen};
 use crate::scene::pages::{self, Pages};
 use crate::scene::select::{Landing, Select, Selection};
@@ -70,8 +71,10 @@ pub struct Canvases {
     lives: live::Lives,
     /// Each open workspace's canvas and its agent's status, for the buttons.
     statuses: Vec<(String, Option<Status>)>,
-    /// The zoom a pane's canvas went to last, to flash once ("Zoom 150%").
+    /// What to flash once: a pane's new zoom ("Zoom 150%") or the grid's toggle.
     zoomed: Option<String>,
+    /// Whether every canvas pane shows the dotted grid.
+    paper: Paper,
 }
 
 /// One canvas page followed: the page asked for (`None`: the first), as
@@ -130,6 +133,7 @@ impl Canvases {
             lives,
             statuses: Vec::new(),
             zoomed: None,
+            paper: Paper::default(),
         }
     }
 
@@ -435,7 +439,7 @@ impl Canvases {
         }
         self.views.retain(|(id, _)| placed.iter().any(|(p, _, _)| p == id));
         self.clear_hidden_selection(&shown);
-        let mut scenes = Vec::new();
+        let (mut scenes, grid) = (Vec::new(), self.paper.grid(theme));
         for (id, pane, frame) in placed {
             let open = find(&self.open, &pane.name, wanted(&self.views, id, &pane.name));
             let mirror = open.and_then(|o| o.mirror.as_ref());
@@ -461,7 +465,7 @@ impl Canvases {
             let items = self.shapes.shown(here, items, zoom, theme);
             let items = button::shown(items, button::status(&self.statuses, here.0));
             let items = items.iter().map(AsRef::as_ref);
-            let mut scene = canvas::build(items, view.viewport, screen, theme, last);
+            let mut scene = canvas::build(items, view.viewport, screen, theme, last).on(grid, last);
             if self.pen.is_some_and(|(p, _)| p == id) {
                 scene.pen_event = self.unshown.take();
             }

@@ -5,7 +5,7 @@
 //! `key = "string"` lines. In `[keys]`, each key is a command's name and its
 //! value is a chord (`commands`). Every key is optional; a missing key keeps its
 //! default. `[pen] colours` and `[pen] widths` are lists in one string
-//! ([`Palette`], [`Widths`]). A machine's overlay file is parsed the same way and merged over
+//! ([`Palette`], [`Widths`]); `[canvas]` is the paper under the ink ([`Canvas`]). A machine's overlay file is parsed the same way and merged over
 //! the shared file key by key ([`Layer::over`]). `config.example.toml` at the
 //! repository root lists every key with its default.
 
@@ -14,8 +14,10 @@ use std::path::{Path, PathBuf};
 
 use crate::commands::{Chord, Command, Keymap};
 
+pub mod canvas;
 mod widths;
 
+pub use canvas::Canvas;
 pub use widths::{Width, Widths};
 
 /// A colour, written `"#rrggbb"` in the file.
@@ -116,6 +118,7 @@ pub struct Config {
     pub palette: Palette,
     pub widths: Widths,
     pub sidebar: Shown,
+    pub canvas: Canvas,
 }
 
 /// What one file sets. Unset keys fall through to the layer below.
@@ -131,6 +134,8 @@ pub struct Layer {
     palette: Option<Palette>,
     widths: Option<Widths>,
     sidebar: Option<Shown>,
+    paper: Option<canvas::Background>,
+    grid: Option<canvas::Grid>,
     /// By command: `Some(None)` unbinds it.
     #[expect(
         clippy::option_option,
@@ -154,6 +159,8 @@ impl Default for Layer {
             palette: None,
             widths: None,
             sidebar: None,
+            paper: None,
+            grid: None,
             keys: [None; Command::ALL.len()],
         }
     }
@@ -186,6 +193,8 @@ impl Layer {
             palette: top.palette.or(self.palette),
             widths: top.widths.or(self.widths),
             sidebar: top.sidebar.or(self.sidebar),
+            paper: top.paper.or(self.paper),
+            grid: top.grid.or(self.grid),
             keys,
         }
     }
@@ -213,6 +222,10 @@ impl Layer {
             palette: self.palette.unwrap_or_default(),
             widths: self.widths.unwrap_or_default(),
             sidebar: self.sidebar.unwrap_or_default(),
+            canvas: Canvas {
+                background: self.paper.unwrap_or_default(),
+                grid: self.grid.unwrap_or_default(),
+            },
         }
     }
 
@@ -239,6 +252,13 @@ impl Layer {
                     _ => return Err(ErrorKind::BadSidebar),
                 };
                 return put(&mut self.sidebar, shown);
+            }
+            ("canvas", "background") => {
+                let paper = canvas::Background::parse(&value).ok_or(ErrorKind::BadBackground)?;
+                return put(&mut self.paper, paper);
+            }
+            ("canvas", "grid") => {
+                return put(&mut self.grid, canvas::Grid::parse(&value).ok_or(ErrorKind::BadGrid)?);
             }
             ("theme", "background") => &mut self.background,
             ("theme", "text") => &mut self.text,
@@ -274,7 +294,7 @@ fn put<T>(slot: &mut Option<T>, value: T) -> Result<(), ErrorKind> {
     Ok(())
 }
 
-const TABLES: [&str; 6] = ["theme", "daemon", "workspace", "pen", "window", "keys"];
+const TABLES: [&str; 7] = ["theme", "daemon", "workspace", "pen", "window", "canvas", "keys"];
 
 /// A line the parser rejects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -301,6 +321,10 @@ pub enum ErrorKind {
     BadWidths,
     /// `[window] sidebar` is neither `open` nor `closed`.
     BadSidebar,
+    /// `[canvas] background` is neither `plain` nor `dots`.
+    BadBackground,
+    /// `[canvas] grid` is not a distance from 1 to 500 points.
+    BadGrid,
     /// A key in `[keys]` that names no command.
     UnknownCommand,
     BadChord,
@@ -335,6 +359,13 @@ impl ErrorKind {
                 "write the widths in points as \"2 4 8 16\", split by spaces or commas",
             ),
             Self::BadSidebar => ("the value is not open or closed", "write \"open\" or \"closed\""),
+            Self::BadBackground => {
+                ("the value is not plain or dots", "write \"plain\" or \"dots\"")
+            }
+            Self::BadGrid => (
+                "the value is not a distance from 1 to 500 points",
+                "write the canvas points between dots, with at most two decimal places: \"28.35\"",
+            ),
             Self::UnknownCommand => ("unknown command", every),
             Self::BadChord => (
                 "the value is not a key chord",

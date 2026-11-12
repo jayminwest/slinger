@@ -154,6 +154,9 @@ pub struct Scene {
     pub screen: Size,
     /// The pane's paper, under every mark.
     pub background: Rgb,
+    /// The dots on the paper, over the background and under every mark
+    /// (`scene::grid`); `None` for plain paper. Set by [`Scene::on`].
+    pub grid: Option<super::grid::Grid>,
     /// What to draw, bottom first.
     pub draws: Vec<Draw>,
     /// The screen box to repaint since the last scene; `None` when nothing
@@ -219,7 +222,7 @@ pub fn build<'a>(
         }
         _ => Some(pane),
     };
-    Scene { viewport, screen, background, draws, changed, pen_event: None }
+    Scene { viewport, screen, background, grid: None, draws, changed, pen_event: None }
 }
 
 impl Scene {

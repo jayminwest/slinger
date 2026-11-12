@@ -132,6 +132,7 @@ const BAR: [(&str, &[Action]); 8] = [
             R(Command::PanRight),
             R(Command::PanUp),
             R(Command::PanDown),
+            R(Command::ToggleGrid),
         ],
     ),
     (

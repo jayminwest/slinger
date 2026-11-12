@@ -1,7 +1,8 @@
 //! One `AppKit` view per canvas pane. It keeps the pane's last
 //! [`canvas::Scene`] and paints it: smoothed pen lines at a constant width,
-//! text, boxes and arrows, each in its colour, on the pane's background,
-//! and the chrome over them: panels and a text's caret.
+//! text, boxes and arrows, each in its colour, on the pane's background
+//! and its dotted grid, if any, and the chrome over them: panels and a
+//! text's caret.
 //! A new scene repaints only the box the scene says changed; `AppKit` then
 //! asks for that box alone, and only the marks that touch it are painted.
 //! The view is flipped, so its points are the scene's: top-left origin.
@@ -40,6 +41,7 @@ use crate::config::Rgb;
 use crate::layout::{Point, Rect, Size};
 use crate::scene::canvas::{Draw, ItemId, Mark, Scene};
 use crate::scene::cursor::Cursor;
+use crate::scene::grid::{self, Grid};
 
 /// How tall a text column may grow, in canvas points: text is never cut.
 const TALL: f64 = 1e7;
@@ -184,6 +186,9 @@ fn paint(scene: &Scene, dirty: NSRect, texts: &mut HashMap<ItemId, Laid>) {
     NSRectClip(ns_rect(area));
     color(scene.background).setFill();
     NSRectFill(ns_rect(area));
+    if let Some(grid) = scene.grid {
+        paint_dots(grid, scene, area);
+    }
     let mut ink: Option<Rgb> = None;
     for draw in scene.touching(area) {
         if ink != Some(draw.colour) {
@@ -263,6 +268,21 @@ fn paint(scene: &Scene, dirty: NSRect, texts: &mut HashMap<ItemId, Laid>) {
             }
         }
     }
+}
+
+/// The dots of `grid` inside `area` (only those: a stroke repaints a small
+/// box), as one path filled once.
+fn paint_dots(grid: Grid, scene: &Scene, area: Rect) {
+    let (r, d) = (grid::RADIUS, 2.0 * grid::RADIUS);
+    let path = NSBezierPath::new();
+    for p in grid.dots(scene.viewport, area) {
+        path.appendBezierPathWithOvalInRect(NSRect::new(
+            NSPoint::new(p.x - r, p.y - r),
+            NSSize::new(d, d),
+        ));
+    }
+    color(grid.colour).setFill();
+    path.fill();
 }
 
 /// Where the next character of a laid-out text goes, in its own points: a

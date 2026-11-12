@@ -96,6 +96,7 @@ impl Command {
             Command::ShowKeys => "Show keys",
             Command::ShowCommands => "Show commands",
             Command::LeaveFeedback => "Leave feedback…",
+            Command::ToggleGrid => "Dotted grid",
         }
     }
 
@@ -125,7 +126,8 @@ impl Command {
             | Command::DeleteSelection
             | Command::ClearSelection
             | Command::Undo
-            | Command::Redo => Group::Canvas,
+            | Command::Redo
+            | Command::ToggleGrid => Group::Canvas,
             Command::NextPage
             | Command::PreviousPage
             | Command::NewPage

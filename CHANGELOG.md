@@ -11,6 +11,16 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a dotted grid on the canvas, like grid paper. Set `[canvas]
+  background = "dots"` in the config to start with it, or run Dotted grid
+  (`toggle-grid`, ⌘', also in the Canvas menu and the palette) to show or
+  hide it; the toggle lasts until the app quits. `[canvas] grid` sets the
+  distance between dots in canvas points: the default, 28.35, is 1 cm at
+  100% on a screen of 72 points per inch (most Mac screens show more, so
+  the dots look closer; `config.example.toml` says how to match your
+  paper). The dots pan and zoom with the ink, thin out when you zoom far
+  out, and are for you only: they are not items, and an agent never sees
+  them.
 - **App:** pen-sized buttons in each pane's footer, so the pen does most
   things without the keyboard. Tap the swatch, the width bars or the tool
   name to pick a colour, a width or a tool; undo and redo; ‹ and › to turn

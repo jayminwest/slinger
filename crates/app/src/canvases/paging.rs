@@ -1,4 +1,5 @@
-//! The canvas commands on a pane (SPEC D6): pan and zoom; the next and
+//! The canvas commands on a pane (SPEC D6): pan and zoom, and the dotted
+//! grid every canvas pane shows (`toggle-grid`); the next and
 //! previous page, a new page, a rename and a removal, which turn only that
 //! pane; and undo and redo, the user's own steps on its canvas. Changes go
 //! through the ink's queue, in turn with the pen's, so an undo pressed
@@ -8,7 +9,7 @@
 use super::{Canvases, canvas_of, find, pane_shown, wanted};
 use crate::backend::Follower;
 use crate::commands::Command;
-use crate::config::Theme;
+use crate::config::{Canvas, Theme};
 use crate::layout::{self, PaneId, Point, Rect, Viewport};
 use crate::panes::{Kind, Panes};
 use crate::scene::Label;
@@ -55,6 +56,7 @@ impl Canvases {
             Command::RemovePage => self.remove_page(panes, pane),
             Command::Undo | Command::Redo => self.step(panes, pane, command == Command::Redo),
             Command::PlaceButton => self.place_button(panes, pane, frame),
+            Command::ToggleGrid => self.zoomed = Some(self.paper.toggle().to_string()),
             _ => return false,
         }
         true
@@ -78,6 +80,12 @@ impl Canvases {
     pub fn said(&mut self) -> Option<String> {
         let zoomed = self.zoomed.take();
         self.asks.said().or(zoomed)
+    }
+
+    /// Takes the config's `[canvas]`: whether the panes show the dotted grid
+    /// at start (or after an edit of `background`), and its spacing.
+    pub fn follow_paper(&mut self, config: Canvas) {
+        self.paper.follow(config);
     }
 
     /// Zooms `pane`'s canvas by `factor` about `about`, a point in the pane;
