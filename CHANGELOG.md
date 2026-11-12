@@ -16,6 +16,10 @@ bullet with the area in bold.
   units). Agents give a text its size with `size` in `canvas apply`
   (`slinger canvas schema` shows it), and the pictures an agent reads draw
   each text at its own size. Canvases saved before read exactly as they did.
+- **CLI:** `slinger canvas put --text ... --size N` and `slinger canvas edit
+  --size N` set a text's size, in tenths of a unit like `--at` and `--box`
+  (40 to 4000; the default 240 is 24 units). The text's box fits the words
+  at the new size; a size out of range is refused with a hint.
 
 - **App:** a live item panned off the screen keeps its page for 30
   seconds, so panning away and back no longer resets what you entered;

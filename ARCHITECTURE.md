@@ -76,9 +76,10 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              put.rs: an agent's answer (SPEC section 7): text, a box, ink, an
              arrow or a live item (an agent UI's showing, kind `live`) beside
              an item, placed by free_beside or at the agent's `How::at`, in
-             `How::colour`, as one undo step; check_put says first whether a
-             put would go.
-             edit.rs: the agent changes (text, size, place) or removes what it
+             `How::colour`, text at `How::text_size` (tenths, checked against
+             TEXT_SIZES by put::text_size), as one undo step; check_put says
+             first whether a put would go.
+             edit.rs: the agent changes (text, text size, size, place) or removes what it
              put; a move or resize (here or by canvas_apply, Log::followed)
              refits the bound ends of the arrows `by` may change, in the
              same step. The author rule stays in Canvas (may_change),

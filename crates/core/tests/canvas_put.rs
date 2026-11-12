@@ -191,7 +191,7 @@ fn a_put_beside_nothing_or_of_nothing_fails_and_changes_nothing() {
 #[test]
 fn a_put_takes_a_colour_and_a_place_and_ink_goes_where_any_put_goes() {
     let mut log = log_of(&bx(0, 0, 1000, 500));
-    let yellow = How { colour: Some("#ffd400".into()), at: Some([-300, 900]) };
+    let yellow = How { colour: Some("#ffd400".into()), at: Some([-300, 900]), text_size: None };
     let placed = log.put_how(&scout(), AT, "i1", &Put::Text("yes".into()), &yellow).unwrap();
     assert_eq!(placed.frame[..2], [-300, 900], "the corner where the agent said");
     let item = log.canvas().item(ItemId::new(2)).unwrap();
@@ -207,7 +207,7 @@ fn a_put_takes_a_colour_and_a_place_and_ink_goes_where_any_put_goes() {
     let next = log.next();
     for (what, how) in [
         (&arrow, &at),
-        (&ink, &How { colour: Some("yellow".into()), at: None }),
+        (&ink, &How { colour: Some("yellow".into()), ..How::default() }),
         (&Put::Ink(vec![1, 2, 3]), &How::default()),
     ] {
         let err = log.put_how(&scout(), AT, "i1", what, how).unwrap_err();
@@ -280,4 +280,25 @@ fn a_set_of_new_text_without_a_size_refits_the_box() {
     assert_eq!(frame_of(&log, "i1"), [0, 0, 5000, 900]);
     log.apply(&Author::User, AT, &set(json!({ "x": 100 }))).unwrap();
     assert_eq!(frame_of(&log, "i1"), [100, 0, 5000, 900]);
+}
+
+#[test]
+fn a_put_text_takes_a_size_in_tenths_and_its_frame_fits_it() {
+    let mut log = log_of(&bx(0, 0, 1000, 500));
+    let big = How { text_size: Some(480), at: Some([0, 1000]), ..How::default() };
+    let placed = log.put_how(&scout(), AT, "i1", &Put::Text("hi".into()), &big).unwrap();
+    assert_eq!(placed.frame, [0, 1000, 2 * 480, 480]);
+    assert_eq!(log.show(None).unwrap().items[1]["size"], 480);
+    let next = log.next();
+    for (what, tenths) in [
+        (Put::Text("hi".into()), 39),
+        (Put::Text("hi".into()), 4001),
+        (Put::Box { w: 10, h: 10 }, 240),
+    ] {
+        let how = How { text_size: Some(tenths), ..How::default() };
+        let err = log.put_how(&scout(), AT, "i1", &what, &how).unwrap_err();
+        assert_eq!(err.code(), "invalid", "{what:?} {tenths}");
+        assert!(err.hint().is_some(), "{what:?} {tenths}");
+    }
+    assert_eq!(log.next(), next, "a refused put writes nothing");
 }
