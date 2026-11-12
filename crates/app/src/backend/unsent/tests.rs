@@ -46,27 +46,22 @@ fn a_stroke_that_does_not_read_is_left_out_and_a_bad_file_is_a_problem() {
 }
 
 #[test]
-fn two_apps_keep_a_file_each_and_the_next_start_takes_both() {
+fn one_app_at_a_time_keeps_the_file_and_the_next_start_takes_it() {
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("unsent-ink.json");
-    let (mut one, mut two) = (Unsent::at(path.clone()), Unsent::at(path.clone()));
-    assert_eq!((one.claim(), two.claim()), (Ok(vec![]), Ok(vec![])));
-    let lone = Unsent::at(path.clone());
-    assert!(lone.save(&[kept("x", 9.0, None)]).is_err(), "not taken: it writes nothing");
+    let path = dir.path().join("deep/unsent-ink.json");
+    let mut one = Unsent::at(path.clone());
+    assert_eq!(one.claim(), Ok(vec![]));
     one.save(&[kept("notes", 1.0, Some("a.1"))]).unwrap();
-    two.save(&[kept("notes", 2.0, Some("b.1"))]).unwrap();
+    let mut two = Unsent::at(path.clone());
+    let problem = two.claim().unwrap_err();
+    assert!(problem.message.contains("another slinger app keeps it"), "{problem:?}");
+    assert!(two.save(&[kept("notes", 2.0, None)]).is_err(), "not held: it writes nothing");
+    assert!(Unsent::at(path.clone()).save(&[]).is_err(), "never claimed: nor does this");
     assert_eq!(Unsent::at(path.clone()).load().unwrap(), [kept("notes", 1.0, Some("a.1"))]);
-    let second = dir.path().join("unsent-ink.2.json");
-    assert_eq!(Unsent::at(second.clone()).load().unwrap(), [kept("notes", 2.0, Some("b.1"))]);
 
-    let mut three = Unsent::at(path.clone());
-    assert_eq!(three.claim(), Ok(vec![]), "both held: the third file, and none of theirs");
-    drop((one, two, three));
-    let mut next = Unsent::at(path.clone());
-    let both = [kept("notes", 1.0, Some("a.1")), kept("notes", 2.0, Some("b.1"))];
-    assert_eq!(next.claim().unwrap(), both);
-    assert_eq!(Unsent::at(path).load().unwrap(), both, "in its own file now");
-    assert!(!second.exists());
+    drop((one, two));
+    let mut next = Unsent::at(path);
+    assert_eq!(next.claim().unwrap(), [kept("notes", 1.0, Some("a.1"))]);
 }
 
 #[test]

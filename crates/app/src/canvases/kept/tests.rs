@@ -108,37 +108,26 @@ fn a_stroke_written_as_the_app_quit_is_not_written_twice() {
     });
 }
 
-/// slinger-1d05ae: two apps running at once keep their strokes in a file
-/// each, and neither writes over the other's.
+/// slinger-1d05ae: a second app running beside the first keeps nothing and
+/// says so, rather than write over the first's strokes.
 #[test]
-fn two_apps_keep_their_own_strokes() {
+fn a_second_app_keeps_nothing_and_says_so() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("unsent-ink.json");
     let down =
         || Canvases::new(Client::new("/nonexistent/x.sock")).keeping(Unsent::at(path.clone()));
-    let (mut one, mut two) = (down(), down());
+    let mut one = down();
+    let mut two = down();
+    assert!(one.kept.as_ref().unwrap().problem().is_none());
+    let problem = two.kept.as_ref().unwrap().problem().unwrap();
+    assert!(problem.message.contains("another slinger app keeps it"), "{problem:?}");
     draw(&mut one, "notes", 1.0);
     one.poll();
     draw(&mut two, "notes", 2.0);
-    draw(&mut two, "notes", 3.0);
     two.poll();
     draw(&mut one, "notes", 4.0);
     one.poll();
-    let xs = |file: &str| -> Vec<f64> {
-        let kept = Unsent::at(dir.path().join(file)).load().unwrap();
-        kept.iter().map(|k| k.stroke.points[0].x).collect()
-    };
-    assert_eq!(xs("unsent-ink.json"), [1.0, 4.0]);
-    assert_eq!(xs("unsent-ink.2.json"), [2.0, 3.0]);
-    drop((one, two));
-
-    with_store(None, |daemon| {
-        let _home = open_notes(daemon);
-        let mut canvases = Canvases::new(daemon.clone()).keeping(Unsent::at(path.clone()));
-        wait_until(|| {
-            canvases.poll();
-            strokes(daemon).len() == 4 && !path.exists()
-        });
-        assert_eq!(strokes(daemon), [10, 40, 20, 30], "its own first, then the other's");
-    });
+    let kept = Unsent::at(path.clone()).load().unwrap();
+    let xs: Vec<f64> = kept.iter().map(|k| k.stroke.points[0].x).collect();
+    assert_eq!(xs, [1.0, 4.0], "the first app's alone");
 }

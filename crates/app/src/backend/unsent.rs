@@ -14,13 +14,11 @@
 //! way when the app quit is not written twice (slinger-1d05ae). No stroke
 //! left: no file.
 //!
-//! Each app running keeps a file of its own (slinger-1d05ae): the first is
-//! `unsent-ink.json`, the others `unsent-ink.2.json` and up, to [`FILES`].
-//! An app holds its file by a lock on `<file>.lock` for as long as it runs;
-//! the system lets go of it however the app ends. At its start an app takes
-//! the first file no running app holds, and the strokes of every other one
-//! no running app holds (an app that quit left them), which then move into
-//! its own file.
+//! One app at a time keeps the file (slinger-1d05ae): the first app to
+//! start holds a lock on `unsent-ink.json.lock` for as long as it runs (the
+//! system lets go of it however the app ends), and another app running
+//! beside it keeps nothing and says so, so neither writes over the other's
+//! strokes. The next app to start takes the file, strokes and all.
 
 use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions, TryLockError};
@@ -34,9 +32,6 @@ use crate::config::Rgb;
 use crate::layout::Point;
 use crate::scene::ink::Stroke;
 
-/// How many apps running at once can each keep their strokes.
-pub const FILES: usize = 16;
-
 /// A stroke kept, and the key it is applied once under, if it has one.
 #[derive(Debug, Clone, PartialEq)]
 pub struct KeptStroke {
@@ -44,14 +39,11 @@ pub struct KeptStroke {
     pub once: Option<String>,
 }
 
-/// The file this app keeps its unsent strokes in.
+/// The file the unsent strokes are kept in.
 #[derive(Debug)]
 pub struct Unsent {
-    /// The first file: the others are named after it.
-    first: PathBuf,
-    /// This app's file.
     path: PathBuf,
-    /// The lock on it, once taken ([`Unsent::claim`]).
+    /// The lock on it, once this app holds it ([`Unsent::claim`]).
     lock: Option<File>,
 }
 
@@ -65,42 +57,23 @@ impl Unsent {
         Some(Self::at(dir.join("slinger").join("unsent-ink.json")))
     }
 
-    /// The files whose first is at `path`, none taken yet.
+    /// The strokes kept in the file at `path`, not held yet.
     pub fn at(path: PathBuf) -> Self {
-        Self { first: path.clone(), path, lock: None }
+        Self { path, lock: None }
     }
 
-    /// Takes the first file no running app holds, as this app's for as long
-    /// as it runs, and returns the strokes it keeps: its own, oldest first,
-    /// then those of each other file no running app holds, which move into
-    /// it. A file held, or one that cannot be read, is left as it is.
+    /// Holds the file for this app as long as it runs, and returns the
+    /// strokes it keeps, oldest first. Another app running holds it: a
+    /// problem, and this app keeps nothing ([`Unsent::save`]).
     pub fn claim(&mut self) -> Result<Vec<KeptStroke>, Problem> {
-        let free = (1..=FILES).map(|n| self.nth(n)).find_map(|path| match hold(&path) {
-            Ok(Some(lock)) => Some(Ok((path, lock))),
-            Ok(None) => None,
-            Err(e) => Some(Err(problem(&path, &e))),
-        });
-        let Some((path, lock)) = free.transpose()? else { return Err(self.unheld()) };
-        (self.path, self.lock) = (path, Some(lock));
-        let mut kept = self.load()?;
-        let mut taken = Vec::new();
-        for path in (1..=FILES).map(|n| self.nth(n)).filter(|p| *p != self.path && p.exists()) {
-            let Ok(Some(lock)) = hold(&path) else { continue };
-            let Ok(theirs) = Self::at(path.clone()).load() else { continue };
-            kept.extend(theirs);
-            taken.push((path, lock));
+        self.lock = hold(&self.path).map_err(|e| problem(&self.path, &e))?;
+        if self.lock.is_none() {
+            return Err(self.unheld());
         }
-        if !taken.is_empty() {
-            self.save(&kept)?;
-            for (path, _lock) in taken {
-                // Gone already is as good.
-                let _ = fs::remove_file(path);
-            }
-        }
-        Ok(kept)
+        self.load()
     }
 
-    /// The strokes kept in this app's file, oldest first; none without a
+    /// The strokes kept in the file, oldest first; none without a
     /// file. A stroke the file holds but this app cannot read is left out.
     pub fn load(&self) -> Result<Vec<KeptStroke>, Problem> {
         let text = match fs::read_to_string(&self.path) {
@@ -113,11 +86,11 @@ impl Unsent {
         Ok(strokes.into_iter().flatten().filter_map(read).collect())
     }
 
-    /// Keeps `kept`, oldest first, in place of what this app's file held:
-    /// written whole beside it, then moved over it, so a quit midway leaves
-    /// the old file or the new one. None removes the file. Nothing is kept
-    /// until the file is this app's ([`Unsent::claim`]), so it never
-    /// overwrites another app's.
+    /// Keeps `kept`, oldest first, in place of what the file held: written
+    /// whole beside it, then moved over it, so a quit midway leaves the old
+    /// file or the new one. None removes the file. Nothing is kept unless
+    /// this app holds the file ([`Unsent::claim`]), so it never writes over
+    /// another app's.
     pub fn save(&self, kept: &[KeptStroke]) -> Result<(), Problem> {
         if self.lock.is_none() {
             return Err(self.unheld());
@@ -130,28 +103,17 @@ impl Unsent {
         }
         let strokes: Vec<Value> = kept.iter().map(write).collect();
         let text = json!({"version": 1, "strokes": strokes}).to_string();
+        // Held, so its directory is there.
         let beside = self.path.with_extension("json.new");
-        let dir = self.path.parent().unwrap_or(Path::new("."));
-        fs::create_dir_all(dir)
-            .and_then(|()| fs::write(&beside, text))
+        fs::write(&beside, text)
             .and_then(|()| fs::rename(&beside, &self.path))
             .map_err(|e| problem(&self.path, &e))
     }
 
-    /// Why no file is this app's: every one is held by an app running.
+    /// Why this app keeps nothing: another app running holds the file.
     fn unheld(&self) -> Problem {
-        let message =
-            format!("{}: all {FILES} files are held by running apps", self.first.display());
-        Problem::new(message, Some("quit another slinger app, then this one"))
-    }
-
-    /// The `n`th file, from 1: the first, or `<name>.<n>.json` beside it.
-    fn nth(&self, n: usize) -> PathBuf {
-        if n == 1 {
-            return self.first.clone();
-        }
-        let stem = self.first.file_stem().unwrap_or_default().to_string_lossy();
-        self.first.with_file_name(format!("{stem}.{n}.json"))
+        let message = format!("{}: another slinger app keeps it", self.path.display());
+        Problem::new(message, Some("strokes not yet sent are kept by one app at a time"))
     }
 }
 

@@ -902,9 +902,9 @@ stderr as one `ink:` line (SPEC O2). Strokes not yet written are kept in
 whole each time they change, removed when none are left) and queued first
 at the next start, so a stroke drawn while the daemon is down survives a
 quit; erases, moves and the other changes not yet sent are lost if the app
-quits. Each app running holds a file of its own by a lock
-(`unsent-ink.json`, then `unsent-ink.2.json` and up), and takes the strokes
-of the files no running app holds at its start. Every `canvas_apply` goes
+quits. One app at a time keeps the file: it holds a lock on
+`unsent-ink.json.lock` while it runs, and a second app started beside it
+keeps nothing and says so, rather than write over the first's strokes. Every `canvas_apply` goes
 with `once`, a key of this run and the change (`scene/ink/once.rs`), and a
 kept stroke keeps its key in the file: the daemon applies a request sent
 again under a key it applied lately only once, so a stroke written as the
