@@ -43,7 +43,8 @@ fn escapes_nothing(more: &[&str], host: &str) {
         }
     });
     // A daemon of the test's own.
-    let socket = std::env::temp_dir().join(format!("sb-{}-{host}.sock", std::process::id()));
+    let sockets = tempfile::tempdir().unwrap();
+    let socket = sockets.path().join("d.sock");
     let data = tempfile::tempdir().unwrap();
     let store = slingerd::Store::open(data.path(), "my-laptop").unwrap();
     let server = slingerd::Server::bind(&socket).unwrap();
@@ -84,7 +85,6 @@ fn escapes_nothing(more: &[&str], host: &str) {
     };
     stopper.stop();
     serving.join().unwrap().unwrap();
-    let _ = std::fs::remove_file(format!("{}.lock", socket.display()));
     let reply: Value = serde_json::from_str(&reply).unwrap();
     assert_eq!(
         (&reply["kind"], &reply["ui"], &reply["version"]),

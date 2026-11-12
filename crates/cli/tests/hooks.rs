@@ -4,7 +4,7 @@
 //! binary, which finds the agent and the socket in the process's environment.
 
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use slinger_control::{Client, EventFilter};
@@ -49,7 +49,9 @@ fn until(mut met: impl FnMut() -> bool) {
 #[test]
 fn a_turn_moves_the_status_from_working_to_done_and_records_the_file_it_wrote() {
     let (data, work) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-    let socket: PathBuf = std::env::temp_dir().join(format!("hk-{}.sock", std::process::id()));
+    // The socket in a directory of its own, removed on drop.
+    let sockets = tempfile::tempdir().unwrap();
+    let socket = sockets.path().join("d.sock");
     let claude = work.path().join("claude");
     std::fs::write(&claude, FAKE_CLAUDE).unwrap();
     std::fs::set_permissions(&claude, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -87,6 +89,5 @@ fn a_turn_moves_the_status_from_working_to_done_and_records_the_file_it_wrote() 
     client.session_stop("notes").unwrap();
     stopper.stop();
     serving.join().unwrap().unwrap();
-    std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();
     assert!(!Path::new(&socket).exists());
 }
