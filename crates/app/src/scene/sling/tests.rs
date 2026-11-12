@@ -231,3 +231,23 @@ fn dictation_s_lines_stand_under_the_entry_after_its_own() {
     let after = HEIGHT + SMALL + 2.0 * LINE;
     assert_eq!(ys(&sling), [after, after + LINE], "after its failure");
 }
+
+#[test]
+fn a_text_field_keeps_its_edits_and_the_keymap_gets_the_rest() {
+    use crate::commands::{ALT, CMD, CTRL, SHIFT};
+    for (mods, key) in [
+        (CMD, 'v'),
+        (CMD, 'C'),
+        (CMD | SHIFT, 'z'),
+        (CMD, '\u{f702}'),
+        (CMD | SHIFT, '\u{7f}'),
+        (CTRL, 'a'),
+        (ALT, '\u{f703}'),
+        (0, 'q'),
+    ] {
+        assert!(edits(Chord::new(mods, key)), "{mods} {key:?} is the field's");
+    }
+    for (mods, key) in [(CMD, 'q'), (CMD, 'k'), (CMD, '\r'), (CMD | SHIFT, 'b'), (CTRL, '\t')] {
+        assert!(!edits(Chord::new(mods, key)), "{mods} {key:?} is the keymap's");
+    }
+}

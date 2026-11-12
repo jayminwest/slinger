@@ -7,8 +7,9 @@
 //! (above it when there is no room below), inside the focused pane: a
 //! labelled field, "Sling to <agent>" above it ("Sling" when the workspace
 //! has no agent), its keys beneath, from the live keymap. The entry takes
-//! every key but two: return sends, escape cancels. An empty prompt sends
-//! too: the selection is the question.
+//! every key a text field uses ([`edits`]) but two: return sends, escape
+//! cancels; a chord the keymap binds otherwise runs its command (cmd+Q
+//! quits). An empty prompt sends too: the selection is the question.
 //!
 //! A sling goes once the ink of its canvas is in the daemon: every stroke,
 //! erase and move made before it is applied first, so the packet holds what
@@ -26,7 +27,7 @@
 //! pen tapped ([`crate::scene::slung`]): the pen cannot press escape.
 
 use crate::backend::Problem;
-use crate::commands::Chord;
+use crate::commands::{CMD, CTRL, Chord};
 use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::ItemId;
@@ -353,6 +354,21 @@ impl Key {
             Key::Type
         }
     }
+}
+
+/// Whether `chord`, held with command or control, is a text field's own
+/// while the entry is open: cut, copy, paste, select all, undo and redo
+/// (command with x, c, v, a or z, shift or not), the caret's moves and
+/// deletes to a line's or a word's end (an arrow or a delete with command),
+/// and the Emacs keys (control with a letter). Any other chord with command
+/// or control is the keymap's: cmd+Q quits with the entry open.
+pub fn edits(chord: Chord) -> bool {
+    let key = chord.key().to_ascii_lowercase();
+    let caret = matches!(key, '\u{7f}' | '\u{8}' | '\u{f700}'..='\u{f703}' | '\u{f728}');
+    if chord.mods() & CMD != 0 {
+        return matches!(key, 'x' | 'c' | 'v' | 'a' | 'z') || caret;
+    }
+    chord.mods() & CTRL == 0 || key.is_ascii_lowercase() || caret
 }
 
 /// A muted row in small type at `y`, as wide as the entry's box at `frame`.

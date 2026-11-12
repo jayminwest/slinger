@@ -88,6 +88,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** menu keys work while the sling's prompt (or a note of feedback)
+  is open: ⌘Q quits, ⌘K opens the palette and so on, instead of doing
+  nothing. Keys a text field uses itself (⌘X, ⌘C, ⌘V, ⌘A, the arrows
+  and delete with ⌘ or ⌃) still edit the prompt.
 - **App:** ink is smoother. The pen's small wobbles no longer show as bumps
   along a line's edges, most of all at the bold and marker widths; a line
   still starts and ends where the pen did, and fine writing keeps its shape.

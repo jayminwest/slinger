@@ -838,8 +838,11 @@ keymap binds them (the window's close button quits too). Paste with no text
 field focused comes to main as text (platform/keys.rs); cut and copy then do
 nothing, and a key with cmd held never types.
 The sling's open entry takes every key before the keymap but the `dictate`
-chord: return and escape are its, and any other key goes on to the text
-field (delete deletes a character there, not the selection).
+chord and the keymap's other chords with cmd or ctrl that a text field does
+not use (`scene::sling::edits`): return and escape are its, a key that types,
+an edit (cmd+X/C/V/A/Z, cmd or ctrl with an arrow or delete, ctrl with a
+letter) or a chord the keymap leaves free goes on to the text field (delete
+deletes a character there, not the selection), and cmd+Q still quits.
 An open pop-up at the pen takes its own keys first (escape, return, space,
 the arrows, 1 to 9); any other key goes to the keymap. These keys act only
 inside a pop-up a command opened, so they are not commands themselves.
