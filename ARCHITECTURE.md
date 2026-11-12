@@ -663,8 +663,9 @@ scene/dictation.rs  the dictation into the entry: start, then stop, one
              the entry; an answer overtaken by the entry closing is ignored.
              Pure.
 scene/tools.rs  the pen's tool, colour and width, and the pop-up at the pen (colour,
-             shape, tool, width) that changes them: opens, picks by pen or
-             key, closes. The tool commands pick a tool without it, and
+             shape, tool, width) that changes them: opens (at the focused
+             pane's centre until the pen or pointer has been in the window),
+             picks by pen or key, closes. The tool commands pick a tool without it, and
              `width-up`/`width-down` step the width. The width is the pen's
              line alone: boxes and arrows keep one line width. Canvases
              hold it for new strokes (`set_pen_width`). While a tablet pen's

@@ -111,6 +111,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a colour, shape, tool or width pop-up opened from a key before
+  the pen or pointer has been in the window opens at the middle of the
+  focused pane, wherever the window was sized, not at a fixed spot.
 - **App:** the select tool can pick a box drawn inside another box. A box
   dragged inside a box takes the ink it touches, not the outer box; a tap,
   or a drag over nothing, inside nested boxes selects the innermost one.

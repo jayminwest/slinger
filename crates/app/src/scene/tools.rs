@@ -10,7 +10,8 @@
 //! (so the footer and the cursor say so), and the chosen tool
 //! ([`Tools::chosen`]) comes back with the tip.
 //!
-//! A pop-up opens from a key command where the pen or pointer last was. The
+//! A pop-up opens from a key command where the pen or pointer last was, or
+//! at the focused pane's centre before either has been in the window. The
 //! pen picks a cell; a digit picks the cell with that number; the arrow keys
 //! move the highlight and return (or space) picks it. A pick, escape, a press
 //! outside the pop-up, or the same command again closes it.
@@ -91,7 +92,7 @@ pub struct Popup {
 }
 
 /// The pen's state: its tool, its colour and width, the lists it picks
-/// them from, where it last was, the open pop-up, if any, the flash that
+/// them from, where it last was (if it has been in the window), the open pop-up, if any, the flash that
 /// names a new tool or width, and whether the pen's eraser end is the one in use.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tools {
@@ -101,7 +102,7 @@ pub struct Tools {
     palette: Palette,
     width: Width,
     widths: Widths,
-    pen: Point,
+    pen: Option<Point>,
     popup: Option<Popup>,
     flash: Flash,
 }
@@ -109,8 +110,8 @@ pub struct Tools {
 impl Tools {
     /// The pen with the palette's first colour and the default widths'
     /// first width, and no pop-up. Until the pen or pointer moves, a pop-up
-    /// opens at `pen`.
-    pub fn new(palette: Palette, pen: Point) -> Self {
+    /// opens at the centre of the pane it opens in.
+    pub fn new(palette: Palette) -> Self {
         let colour = palette.colours()[0];
         let flash = Flash::new(Tool::Pen);
         let widths = Widths::default();
@@ -122,7 +123,7 @@ impl Tools {
             palette,
             width,
             widths,
-            pen,
+            pen: None,
             popup: None,
             flash,
         }
@@ -235,11 +236,12 @@ impl Tools {
 
     /// The pen or pointer is at `at`, in the window's points.
     pub fn moved(&mut self, at: Point) {
-        self.pen = at;
+        self.pen = Some(at);
     }
 
-    /// Opens the `kind` pop-up where the pen last was, inside `within` (the
-    /// focused pane, in the window's points), with the current choice lit.
+    /// Opens the `kind` pop-up where the pen last was, or at the centre of
+    /// `within` (the focused pane, in the window's points) before it has
+    /// been in the window, inside `within`, with the current choice lit.
     /// The same kind open already closes instead; another kind is replaced.
     pub fn open(&mut self, kind: Kind, within: Rect) {
         if self.open_kind() == Some(kind) {
@@ -258,7 +260,8 @@ impl Tools {
             Kind::Tool => TOOLS.iter().position(|&t| t == self.tool),
             Kind::Width => self.widths.widths().iter().position(|&w| w == self.width),
         };
-        let place = layout::popup(self.pen, count, cell, within);
+        let centre = Point { x: within.x + within.width / 2.0, y: within.y + within.height / 2.0 };
+        let place = layout::popup(self.pen.unwrap_or(centre), count, cell, within);
         self.popup = Some(Popup { kind, place, lit: lit.unwrap_or(0) });
     }
 
@@ -272,7 +275,7 @@ impl Tools {
     /// press outside closes it; each is used up (true). With none open, the
     /// press is not the pop-up's (false).
     pub fn press(&mut self, at: Point) -> bool {
-        self.pen = at;
+        self.pen = Some(at);
         let Some(popup) = &self.popup else { return false };
         if let Some(i) = popup.place.cells.iter().position(|c| c.contains(at)) {
             self.pick(i);
