@@ -24,16 +24,16 @@ fn kept(canvas: &str, x: f64, once: Option<&str>) -> Kept {
 fn strokes_kept_come_back_in_order_and_none_left_removes_the_file() {
     let dir = tempfile::tempdir().unwrap();
     let mut file = Unsent::at(dir.path().join("deep/unsent-ink.json"));
-    assert_eq!(file.claim(), Ok(vec![]), "no file: none kept");
+    assert_eq!(file.claim(), Ok((vec![], vec![])), "no file: none kept");
     let strokes = [kept("notes", 0.5, Some("1-2.3")), kept("other", 3.0, None)];
-    file.save(&strokes).unwrap();
+    file.save(&strokes, &[]).unwrap();
     assert_eq!(file.load().unwrap(), strokes);
-    file.save(&strokes[1..]).unwrap();
+    file.save(&strokes[1..], &[]).unwrap();
     assert_eq!(file.load().unwrap(), strokes[1..]);
-    file.save(&[]).unwrap();
+    file.save(&[], &[]).unwrap();
     assert!(!dir.path().join("deep/unsent-ink.json").exists());
     assert!(!dir.path().join("deep/unsent-ink.json.new").exists());
-    file.save(&[]).unwrap();
+    file.save(&[], &[]).unwrap();
 }
 
 #[test]
@@ -56,18 +56,20 @@ fn one_app_at_a_time_keeps_the_file_and_the_next_start_takes_it() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("deep/unsent-ink.json");
     let mut one = Unsent::at(path.clone());
-    assert_eq!(one.claim(), Ok(vec![]));
-    one.save(&[kept("notes", 1.0, Some("a.1"))]).unwrap();
+    assert_eq!(one.claim(), Ok((vec![], vec![])));
+    one.save(&[kept("notes", 1.0, Some("a.1"))], &[(7, 2)]).unwrap();
     let mut two = Unsent::at(path.clone());
     let problem = two.claim().unwrap_err();
     assert!(problem.message.contains("another slinger app keeps it"), "{problem:?}");
-    assert!(two.save(&[kept("notes", 2.0, None)]).is_err(), "not held: it writes nothing");
-    assert!(Unsent::at(path.clone()).save(&[]).is_err(), "never claimed: nor does this");
+    assert!(two.save(&[kept("notes", 2.0, None)], &[]).is_err(), "not held: it writes nothing");
+    assert!(Unsent::at(path.clone()).save(&[], &[]).is_err(), "never claimed: nor does this");
     assert_eq!(Unsent::at(path.clone()).load().unwrap(), [kept("notes", 1.0, Some("a.1"))]);
 
     drop((one, two));
     let mut next = Unsent::at(path);
-    assert_eq!(next.claim().unwrap(), [kept("notes", 1.0, Some("a.1"))]);
+    let (changes, turning) = next.claim().unwrap();
+    assert_eq!(changes, [kept("notes", 1.0, Some("a.1"))]);
+    assert_eq!(turning, [(7, 2)], "the pane waiting for a page, slinger-857848");
 }
 
 #[test]
@@ -146,7 +148,7 @@ fn every_change_comes_back_as_kept_and_a_file_of_strokes_alone_reads() {
         .collect();
     let mut file = Unsent::at(path.clone());
     file.claim().unwrap();
-    file.save(&kept).unwrap();
+    file.save(&kept, &[]).unwrap();
     let back = file.load().unwrap();
     assert_eq!(back.len(), kept.len());
     for (back, kept) in back.iter().zip(&kept) {

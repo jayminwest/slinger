@@ -29,6 +29,20 @@ pub enum Direction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PaneId(u32);
 
+impl PaneId {
+    /// The pane's id as a number, to keep on disk (slinger-857848): a tree
+    /// built the same way (the same layout followed) gives each of its panes
+    /// the same number, so [`PaneId::numbered`] names the same pane again.
+    pub fn number(self) -> u32 {
+        self.0
+    }
+
+    /// The pane [`PaneId::number`] gave `number`.
+    pub fn numbered(number: u32) -> Self {
+        Self(number)
+    }
+}
+
 /// The least share of a split each side keeps.
 pub const MIN_RATIO: f64 = 0.1;
 /// The most panes a tree holds. It also bounds how deep a split nests.

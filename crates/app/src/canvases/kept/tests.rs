@@ -211,3 +211,41 @@ fn changes_made_while_the_daemon_is_down_are_sent_after_the_next_start() {
         assert_eq!(items[2]["to"], "i2", "bound to the kept stroke, by the id it was made under");
     });
 }
+
+/// slinger-857848: a pane that asked for a new page while the daemon was
+/// down turns to that page after the next start, once it is added; the
+/// pane beside it stays where it was.
+#[test]
+fn a_pane_waiting_for_a_page_added_while_the_daemon_was_down_turns_to_it_after_a_restart() {
+    use crate::commands::Command;
+    use crate::config::Config;
+    use crate::layout::{Axis, PaneId, WINDOW};
+    use crate::panes::{Kind, Pane, Panes};
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("unsent-ink.json");
+    let mut panes = Panes::new(Pane { kind: Kind::Canvas, name: "notes".into() });
+    panes.split(Axis::Row);
+    let placed = panes.place(WINDOW.rect());
+    let [(left, ..), (right, _, frame)] = placed[..] else { panic!("{placed:?}") };
+    let theme = Config::default().theme;
+    let page = |canvases: &mut Canvases, pane: PaneId| {
+        canvases.poll();
+        canvases.show(&panes, WINDOW.rect(), &theme);
+        canvases.pages_of(&panes, pane).map(|(_, _, page)| page)
+    };
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let mut quit = Canvases::new(daemon.clone()).keeping(Unsent::at(path.clone()));
+        wait_until(|| page(&mut quit, right).is_some());
+        quit.outbox.reconnect(Client::new("/nonexistent/x.sock"));
+        assert!(quit.command(&panes, (right, frame), Command::NewPage));
+        quit.poll();
+        assert_eq!(Unsent::at(path.clone()).load().unwrap().len(), 1, "the new page kept");
+        drop(quit);
+
+        let mut canvases = Canvases::new(daemon.clone()).keeping(Unsent::at(path.clone()));
+        wait_until(|| page(&mut canvases, right).is_some_and(|p| p != "p1"));
+        assert_eq!(daemon.canvas_show("notes", None).unwrap().pages.len(), 2, "added once");
+        assert_eq!(page(&mut canvases, left).as_deref(), Some("p1"), "the other pane stays");
+    });
+}

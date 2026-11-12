@@ -6,13 +6,15 @@
 //! way is not written twice. A kept change that names an item another kept
 //! change adds still names it after the start ([`Ink::resume`]). The file
 //! follows the ink each time the changes waiting change; an undo or a redo
-//! is not kept ([`Ink::unsent`]).
+//! is not kept ([`Ink::unsent`]). A pane waiting for a page kept to be
+//! added turns to it once it is, after the start too (slinger-857848).
 //!
 //! [`Ink::resume`]: crate::scene::ink::Ink::resume
 //! [`Ink::unsent`]: crate::scene::ink::Ink::unsent
 
 use super::Canvases;
 use crate::backend::{Problem, Unsent};
+use crate::layout::PaneId;
 use crate::scene::ink::Change;
 
 /// The file, which changes it holds (by the ink's keys, as they were
@@ -34,11 +36,17 @@ impl Canvases {
     /// queues the changes it kept, to be sent before any made from now on.
     /// The file is this app's alone while it runs ([`Unsent::claim`]).
     pub fn keeping(mut self, mut file: Unsent) -> Self {
-        let (changes, problem) = match file.claim() {
-            Ok(changes) => (changes, None),
-            Err(problem) => (Vec::new(), Some(problem)),
+        let ((changes, turning), problem) = match file.claim() {
+            Ok(kept) => (kept, None),
+            Err(problem) => ((Vec::new(), Vec::new()), Some(problem)),
         };
-        self.ink.resume(changes);
+        let keys = self.ink.resume(changes);
+        for (old, pane) in turning {
+            let Some(&key) = keys.get(&old) else { continue };
+            let Some((_, change)) = self.ink.unsent().find(|(k, _)| *k == key) else { continue };
+            let canvas = change.canvas().to_string();
+            self.turning.push((key, PaneId::numbered(pane), canvas));
+        }
         // Saved again under this run's keys at the first poll.
         self.kept = Some(Kept { file, saved: Vec::new(), problem });
         self
@@ -52,7 +60,9 @@ impl Canvases {
         if self.ink.unsent().eq(kept.saved.iter().map(|(key, change)| (*key, change))) {
             return;
         }
-        kept.problem = kept.file.save(&self.ink.kept()).err();
+        let turning: Vec<_> =
+            self.turning.iter().map(|(key, pane, _)| (*key, pane.number())).collect();
+        kept.problem = kept.file.save(&self.ink.kept(), &turning).err();
         kept.saved = self.ink.unsent().map(|(key, change)| (key, change.clone())).collect();
     }
 }
