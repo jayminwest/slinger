@@ -40,7 +40,8 @@ bullet with the area in bold.
   Copy (⌘C) puts its items on the clipboard (other apps get the text of
   its texts), Cut (⌘X) also removes them, and Edit > Paste (⌘V) adds them
   to the focused pane's page, centred in it and selected, on any page or
-  canvas. Undo takes a paste or a cut back in one step. Cut, Copy and
+  canvas. Arrows pasted with the items at their ends stay joined to them.
+  Undo takes a paste or a cut back in one step. Cut, Copy and
   Paste grey out in the Edit menu when they would do nothing, such as
   Copy with nothing selected or while typing a text. Plain text copied
   from another app pastes onto the page as a new text in the pen's
@@ -133,8 +134,9 @@ bullet with the area in bold.
 - **App:** the selection's corner handles resize it, with the lasso or
   the select tool: drag one and the selection scales about the opposite
   corner. Strokes, boxes and arrows stretch; texts and agent UIs keep their
-  size and move with the rest; arrows pointing at the items follow. One
-  undo puts it back.
+  size and move with the rest; arrows pointing at the items follow. Hold
+  shift to keep the selection's shape. The pointer on a handle turns into
+  a diagonal resize cursor. One undo puts it back.
 - **App:** the "<agent> is done" bar goes on its own: 5 s after it shows,
   or at the pen's next press. A blocked agent's bar stays until you tap its
   ✕ (or ⌘.). The bar sits above the footers, so it hides no button, and a

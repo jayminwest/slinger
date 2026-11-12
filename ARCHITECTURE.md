@@ -359,9 +359,9 @@ mirror/clip.rs  the selection's items on the clipboard: their file objects
              as a JSON array, as a carry writes them (no id, maker, time
              or page; an end bound to an item copied with it as `$n`), and
              its texts' plain text, one a line; a paste reads the objects
-             back as a carry's items for a page, centred on a point, every
-             arrow's ends let go; plain text alone reads as one text item
-             (`text_items`). Pure.
+             back as a carry's items for a page, centred on a point, an
+             arrow still bound to the items pasted before it; plain text
+             alone reads as one text item (`text_items`). Pure.
 canvases.rs  the canvas panes: one follower and mirror per page shown, each
              pane's page, viewport and last scene (kept on screen until a
              page turned to arrives); the pen's ink, the eraser's and
@@ -400,8 +400,10 @@ canvases/find.rs  which page, canvas and items each pane shows; a window
              point in canvas points.
 canvases/drag.rs  the pen's drag and lift on the canvas panes: a drag of the
              selection read through the pane under the pen; whether a press
-             grabs the selection (it wins over a divider within reach). The
-             selection is of a page, so every pane on its page shows it.
+             grabs the selection (it wins over a divider within reach); the
+             pane whose selection handle the pointer is on, for its resize
+             cursor. The selection is of a page, so every pane on its page
+             shows it.
 canvases/paging.rs  the canvas commands on a pane: pan, zoom (in, out, to
              100%; a pinch and a cmd- or ctrl-scroll come here too, and each
              zoom flashes its level, "Zoom 150%"), `toggle-grid` (the
@@ -530,7 +532,8 @@ scene/cursor.rs  the pointer over a canvas pane, per tool: the pen a ring in
              its colour, the eraser a ring its width, the lasso and the
              shapes cross hairs, text an I-beam, the select tool and an open
              pop-up the arrow. The arrow elsewhere (sidebar, agent UI, chrome).
-             On a divider between panes, the resize cursor across it. Pure.
+             On a divider between panes, the resize cursor across it; on a
+             selection handle, the diagonal resize cursor through it. Pure.
 ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
              slinger-ui://<hex>/ with the policy), the sandbox's constants
              (the policy and the shim in ui/policy.txt and ui/shim.js, the
@@ -663,7 +666,8 @@ scene/select/carry.rs  a drag of the selection goes by the canvas pane
              are selected there once the server's ids arrive; outside every
              canvas pane they show home and nothing moves. Pure.
 scene/select/scale.rs  a drag of a corner handle scales the selection
-             about the opposite corner, width and height apart, never below
+             about the opposite corner, width and height apart (with shift,
+             together by the larger), never below
              5% or turned over: a stroke's points, a box's corners and an
              arrow's ends scale (line widths do not); a text, a button and
              an agent UI keep their size and only their place moves; arrows
@@ -793,8 +797,8 @@ platform/chrome.rs  the focus border, and the flash's pill (a rounded box
              with its text) with the one-shot timer that ticks when it goes;
              the plain label, the flip to AppKit's coordinates and the
              colour every view is made with.
-             Each canvas view sets the scene's cursor over itself (a ring is
-             drawn once).
+             Each canvas view sets the scene's cursor over itself (a ring and
+             the diagonal resize arrows are drawn once).
 platform/entry.rs  the open entry (sling, feedback, rename): a native text
              field in its box, with its label and keys, kept while the scene
              has one, over every view; a new field for each kind of entry.
@@ -1010,7 +1014,7 @@ Each boundary has something that fails when it is broken:
 | Strokes not yet written survive a quit and are sent first after the next start; a refused one leaves the file | `crates/app/src/canvases/kept/tests.rs` and `crates/app/src/backend/unsent.rs`, against a real daemon |
 | An erase, a move and a delete are one change each and show at once; a lasso selects what it holds whole; the selection clears | `crates/app/src/scene/select/tests.rs` |
 | The select tool picks the topmost item under a press, a drawn box selects what it touches, shift adds or takes out, a drag moves the selection | `crates/app/src/scene/select/pick/tests.rs` |
-| A drag of a corner handle scales the selection about the opposite corner in one change, texts keep their size, bound arrows follow, no side turns over | `crates/app/src/scene/select/scale/tests.rs` |
+| A drag of a corner handle scales the selection about the opposite corner in one change, texts keep their size, bound arrows follow, no side turns over, shift keeps the shape | `crates/app/src/scene/select/scale/tests.rs` |
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |
