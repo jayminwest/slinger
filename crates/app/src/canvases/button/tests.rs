@@ -145,36 +145,73 @@ fn a_placed_button_shows_its_agent_s_status_and_a_tap_slings_what_is_new() {
     });
 }
 
+/// The button placed on a pane with no agent running, once the window has
+/// heard of it: its box.
+fn placed_with_no_agent(canvases: &mut Canvases, panes: &Panes, daemon: &Client) -> Rect {
+    wait_until(|| {
+        draws(canvases, panes);
+        canvases.pages_of(panes, panes.focus()).is_some()
+    });
+    assert!(canvases.command(panes, (panes.focus(), WINDOW.rect()), Command::PlaceButton));
+    let (frame, _) = button(canvases, panes, daemon);
+    assert!(canvases.agent_of("notes").is_none());
+    // The pill stands under the button the daemon holds: wait for it to be heard.
+    wait_until(|| {
+        canvases.poll();
+        let mirrors = canvases.open.iter().filter_map(|o| o.mirror.as_ref());
+        let mut items = mirrors.flat_map(crate::mirror::Mirror::items);
+        items.any(|i| matches!(i.shape, crate::scene::canvas::Shape::Button { .. }))
+    });
+    frame
+}
+
+/// The sling's lines under the button once they show.
+fn sling_lines(canvases: &mut Canvases, panes: &Panes) -> Vec<crate::scene::Label> {
+    let theme = Config::default().theme;
+    let mut lines = Vec::new();
+    wait_until(|| {
+        canvases.poll();
+        lines = canvases.sling_marks(panes, WINDOW.rect(), &theme).0;
+        !lines.is_empty()
+    });
+    lines
+}
+
 #[test]
 fn a_tap_with_no_agent_running_says_why_under_the_button() {
     with_store(None, |daemon| {
         let _home = open_notes(daemon);
         let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
-        wait_until(|| {
-            draws(&mut canvases, &panes);
-            canvases.pages_of(&panes, panes.focus()).is_some()
-        });
-        assert!(canvases.command(&panes, (panes.focus(), WINDOW.rect()), Command::PlaceButton));
-        let (frame, _) = button(&mut canvases, &panes, daemon);
-        assert!(canvases.agent_of("notes").is_none());
-        // The pill stands under the button the daemon holds: wait for it to be heard.
-        wait_until(|| {
-            canvases.poll();
-            let mirrors = canvases.open.iter().filter_map(|o| o.mirror.as_ref());
-            let mut items = mirrors.flat_map(crate::mirror::Mirror::items);
-            items.any(|i| matches!(i.shape, crate::scene::canvas::Shape::Button { .. }))
-        });
+        let frame = placed_with_no_agent(&mut canvases, &panes, daemon);
         assert!(tap(&mut canvases, &panes, frame));
-        let theme = Config::default().theme;
-        let mut lines = Vec::new();
-        wait_until(|| {
-            canvases.poll();
-            lines = canvases.sling_marks(&panes, WINDOW.rect(), &theme).0;
-            !lines.is_empty()
-        });
+        let lines = sling_lines(&mut canvases, &panes);
         assert!(!canvases.typing(), "no entry: the pen cannot press escape");
         assert!(lines[0].text.starts_with("✗ "), "{lines:?}");
         assert!(lines[1].text.contains("session start"), "its hint: {lines:?}");
         assert!(lines[0].frame.y > frame.y + frame.height, "under the button: {lines:?}");
+    });
+}
+
+/// slinger-6b4b6b: a tap on the button with the feedback entry or a page's
+/// new name open closes it, as any press on the canvas does, and slings.
+#[test]
+fn a_tap_closes_the_feedback_or_rename_entry_and_slings() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+        let frame = placed_with_no_agent(&mut canvases, &panes, daemon);
+        let here = (panes.focus(), WINDOW.rect());
+        for open in [Command::LeaveFeedback, Command::RenamePage] {
+            if open == Command::LeaveFeedback {
+                assert!(canvases.open_feedback(&panes, here, Some("notes"), Tool::Pen));
+            } else {
+                assert!(canvases.command(&panes, here, open));
+            }
+            assert!(canvases.typing(), "{open:?} is open");
+            assert!(tap(&mut canvases, &panes, frame));
+            assert!(!canvases.typing(), "{open:?} closed");
+            let lines = sling_lines(&mut canvases, &panes);
+            assert!(lines[0].text.starts_with("✗ "), "it slung: {lines:?}");
+        }
     });
 }

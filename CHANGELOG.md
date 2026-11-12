@@ -151,6 +151,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** tapping the "send to agent" button while the feedback entry
+  or a page's new name is open closes it and slings, instead of doing
+  nothing.
 - **App:** ⌘Z and ⇧⌘Z undo and redo your typing in the sling's prompt
   (and a note of feedback or a page's new name) instead of doing nothing.
 - **App:** the pointer turns into the resize cursor within reach of the
