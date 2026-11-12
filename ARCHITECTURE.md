@@ -747,6 +747,14 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              layout::SMALLEST) and says its new size as Event::Resized; main
              lays the scene out again at it. All unsafe, objc2 and AppKit
              code. No decisions.
+platform/window.rs  makes the window (its style, smallest size and
+             delegate) and puts it at its saved frame.
+platform/remember.rs  what the window keeps in the user defaults from one
+             launch to the next: its frame, and whether the sidebar was open.
+             main says whose frame a run keeps (platform::Kept): the app's
+             window, or a preview's (`--preview`, which the tests run), saved
+             under a name of its own so a preview never moves the app's
+             window; a preview never reads or writes the sidebar's.
 platform/files.rs  sets the title bar a scene's Title says (title, subtitle,
              represented file), and shows a file in the Finder
              (`show-canvas-file`, from main).

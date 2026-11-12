@@ -151,6 +151,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** `slinger-app --preview` keeps its window's size and place apart
+  from the app's, so previewing a UI no longer moves or resizes the app's
+  window the next time it opens.
 - **App:** ⌘Z and ⇧⌘Z undo and redo your typing in the sling's prompt
   (and a note of feedback or a page's new name) instead of doing nothing.
 - **App:** the pointer turns into the resize cursor within reach of the
