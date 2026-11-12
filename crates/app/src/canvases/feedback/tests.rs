@@ -128,7 +128,8 @@ fn escape_cancels_and_a_lost_daemon_opens_the_entry_again() {
 /// and the entries: here, the pen's buttons beside the open entry.
 fn buttons(canvases: &Canvases, panes: &Panes) -> (Vec<String>, Vec<Target>) {
     let theme = Config::default().theme;
-    let (labels, targets, _) = canvases.sling_marks(panes, WINDOW.rect(), &theme);
+    let crate::scene::slung::Marks { labels, targets, .. } =
+        canvases.sling_marks(panes, WINDOW.rect(), &theme);
     (labels.into_iter().map(|l| l.text).collect(), targets)
 }
 

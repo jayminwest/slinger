@@ -9,7 +9,7 @@ mod glyph;
 #[cfg(test)]
 mod tests;
 
-use glyph::glyph;
+use glyph::{glyph, zero_width};
 
 /// The pen width, in canvas units, of a box's edge and an arrow.
 const LINE_WIDTH: f64 = 2.0;
@@ -172,10 +172,49 @@ impl Raster {
         [self.rgb[at], self.rgb[at + 1], self.rgb[at + 2]]
     }
 
-    pub fn png(&self) -> Vec<u8> {
+    /// The box `[x, y, w, h]` of the pixels drawn on, in the tile: those
+    /// not white. `None` when the tile is all white.
+    pub fn inked(&self) -> Option<[u32; 4]> {
+        let (mut lo, mut hi) = ((usize::MAX, usize::MAX), (0, 0));
+        for (n, px) in self.rgb.as_chunks::<3>().0.iter().enumerate() {
+            if *px != [255, 255, 255] {
+                let (x, y) = (n % self.width, n / self.width);
+                lo = (lo.0.min(x), lo.1.min(y));
+                hi = (hi.0.max(x), hi.1.max(y));
+            }
+        }
+        #[expect(clippy::cast_possible_truncation, reason = "within a tile built from u32")]
+        let n = |v: usize| v as u32;
+        (lo.0 <= hi.0).then(|| [n(lo.0), n(lo.1), n(hi.0 - lo.0 + 1), n(hi.1 - lo.1 + 1)])
+    }
+
+    /// Whether every pixel drawn on lies in one of `rects`, boxes `[x, y,
+    /// w, h]` of the whole picture.
+    pub fn inked_within(&self, rects: &[[u32; 4]]) -> bool {
+        // The tile's place in the whole picture, whole pixels by `new`.
+        #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "from u32")]
+        let (left, top) = (self.left as usize, self.top as usize);
+        let held = |x: usize, y: usize| {
+            rects.iter().any(|&[rx, ry, rw, rh]| {
+                let (rx, ry, rw, rh) = (rx as usize, ry as usize, rw as usize, rh as usize);
+                (rx..rx + rw).contains(&x) && (ry..ry + rh).contains(&y)
+            })
+        };
+        self.rgb.as_chunks::<3>().0.iter().enumerate().all(|(n, px)| {
+            *px == [255, 255, 255] || held(left + n % self.width, top + n / self.width)
+        })
+    }
+
+    /// The PNG of the part `[x, y, w, h]` of the tile, which lies inside it.
+    pub fn png(&self, [x, y, w, h]: [u32; 4]) -> Vec<u8> {
+        let (x, y, w, h) = (x as usize, y as usize, w as usize, h as usize);
+        let mut rgb = Vec::with_capacity(w * h * 3);
+        for row in y..y + h {
+            let at = (row * self.width + x) * 3;
+            rgb.extend_from_slice(&self.rgb[at..at + w * 3]);
+        }
         #[expect(clippy::cast_possible_truncation, reason = "built from u32")]
-        let (w, h) = (self.width as u32, self.height as u32);
-        png::encode(w, h, &self.rgb)
+        png::encode(w as u32, h as u32, &rgb)
     }
 }
 
@@ -268,13 +307,14 @@ pub(super) fn columns(w: f64) -> usize {
 }
 
 /// Lines of characters: `text` cut at each `\n`, and wrapped at spaces to at
-/// most `columns` characters. A word longer than a line is cut.
+/// most `columns` characters. A word longer than a line is cut. Zero-width
+/// characters draw nothing, so they are left out and take no cell.
 pub(super) fn wrap(text: &str, columns: usize) -> Vec<Vec<char>> {
     let mut rows = Vec::new();
     for paragraph in text.split('\n') {
         let mut row: Vec<char> = Vec::new();
         for (i, word) in paragraph.split(' ').enumerate() {
-            let word: Vec<char> = word.chars().collect();
+            let word: Vec<char> = word.chars().filter(|&c| !zero_width(c)).collect();
             if i > 0 {
                 // The space before a word that does not fit becomes the line break.
                 if !row.is_empty() && row.len() + 1 + word.len() > columns {

@@ -7,7 +7,8 @@
 //! A live item's view is made the same way, so it has every layer of the
 //! sandbox. It sits in a view of its own at its canvas pane's frame, which
 //! cuts it off at the pane's edges, just over the pane's canvas, and its
-//! page is zoomed with the canvas.
+//! page is zoomed with the canvas. One the scene says is away is kept,
+//! hidden, with its page's state.
 //!
 //! The rule list compiles once, asynchronously: a view loads its page only
 //! once the list is on it, so no load ever runs without it.
@@ -37,6 +38,7 @@ use super::flipped;
 use crate::layout::{PaneId, Rect};
 use crate::scene::Web;
 use crate::scene::canvas::ItemId;
+use crate::scene::live::Shows;
 use crate::ui::{self, Bridge, Page};
 
 /// What a [`Host`] holds: the bridge of its one showing.
@@ -242,6 +244,7 @@ pub fn place(
         });
         match (&shown.clip, web.live) {
             (Some(clip), Some(live)) => {
+                clip.setHidden(live.shows == Shows::Away);
                 clip.setFrame(flipped(height, live.clip));
                 let (x, y) = (web.frame.x - live.clip.x, web.frame.y - live.clip.y);
                 shown.view.setFrame(flipped(live.clip.height, Rect { x, y, ..web.frame }));

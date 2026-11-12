@@ -32,17 +32,50 @@ pub enum Status {
     Stopped,
 }
 
+/// An agent's process as slingerd holds it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Process {
+    Running,
+    /// It ended, or was stopped: slingerd started it before.
+    Exited,
+    /// slingerd never started it: the agent may run outside it, and its
+    /// hooks say how it is.
+    Absent,
+}
+
+impl Process {
+    /// The process the daemon calls `name` (`running` or `exited`; `None`:
+    /// it holds none) for an agent it `started` before (it holds a session
+    /// id for it).
+    pub fn named(name: Option<&str>, started: bool) -> Process {
+        match name {
+            Some("running") => Process::Running,
+            None if !started => Process::Absent,
+            _ => Process::Exited,
+        }
+    }
+}
+
 impl Status {
     /// The status to show for an agent that `said` it is at a status, whose
-    /// process is `running` with `pending` messages it has not answered,
-    /// and which has `answered` one: the daemon's own count wins over what
-    /// the agent's hooks last said, which may be late or never come. With
-    /// no process it is [`Status::Stopped`]; with a message pending it is
-    /// working, or blocked when it says so; with none it is done once it
-    /// said anything or answered, and has no status before.
-    pub fn of(said: Option<Status>, running: bool, pending: u32, answered: bool) -> Option<Status> {
-        if !running {
-            return Some(Status::Stopped);
+    /// `process` has `pending` messages it has not answered, and which has
+    /// `answered` one: the daemon's own count wins over what the agent's
+    /// hooks last said, which may be late or never come. A process that
+    /// exited is [`Status::Stopped`]; for an agent slingerd never started,
+    /// what its hooks said shows (stopped when they said nothing). A running one with a
+    /// message pending is working, or blocked when it says so; with none
+    /// it is done once it said anything or answered, and has no status
+    /// before.
+    pub fn of(
+        said: Option<Status>,
+        process: Process,
+        pending: u32,
+        answered: bool,
+    ) -> Option<Status> {
+        match process {
+            Process::Running => {}
+            Process::Exited => return Some(Status::Stopped),
+            Process::Absent => return said.or(Some(Status::Stopped)),
         }
         if pending > 0 {
             let blocked = said == Some(Status::Blocked);

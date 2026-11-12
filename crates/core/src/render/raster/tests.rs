@@ -164,3 +164,15 @@ fn text_wraps_at_spaces_and_cuts_words_longer_than_a_line() {
     assert_eq!(rows("", 10), [""]);
     assert_eq!(rows("no wrap at all", usize::MAX), ["no wrap at all"]);
 }
+
+#[test]
+fn zero_width_characters_take_no_cell() {
+    // A joiner, a zero-width space, a variation selector and a BOM: none
+    // draws, so none counts toward the line or the frame.
+    assert_eq!(rows("ab\u{200D}cd\u{200B}ef\u{FE0F}\u{FEFF}", 6), ["abcdef"]);
+    assert_eq!(rows("one\u{2060} two", 7), ["one two"]);
+    assert_eq!(
+        crate::render::text_size("\u{200B}\u{200B}hi", usize::MAX),
+        crate::render::text_size("hi", usize::MAX)
+    );
+}

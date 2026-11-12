@@ -14,6 +14,7 @@ mod imported;
 mod look;
 mod packet;
 mod pane;
+mod profile;
 mod session;
 mod sling;
 mod ui;
@@ -39,6 +40,7 @@ pub use imported::CanvasImported;
 pub use look::{CanvasImage, CanvasImages, CanvasStrokes};
 pub use packet::{CanvasPacket, PacketAsk, PacketImage};
 pub use pane::{Pane, PaneAsk, PaneKind, PaneLayout, PaneSplit, PaneTree};
+pub use profile::{Profile, ProfileAsk, Profiles};
 pub use session::{FileTouched, Session, SessionAsk, SessionInfo, Sessions, StatusSet, Touched};
 pub use sling::{SlingAsk, Slung};
 pub use ui::{LIVE_SIZE, LiveItem, UiAsk, UiOpen, UiOpened, UiReplied, UiShown};
@@ -162,6 +164,10 @@ pub enum Request {
     /// written by clients with `FeedbackAsk` itself.
     #[serde(untagged, skip_serializing)]
     Feedback(FeedbackAsk),
+    /// The profile verbs (`profile_list`, `profile_set`, `profile_remove`),
+    /// read by their own `op`s and written by clients with `ProfileAsk`.
+    #[serde(untagged, skip_serializing)]
+    Profile(ProfileAsk),
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -210,6 +216,7 @@ pub enum Reply {
     FeedbackList(FeedbackEntries),
     FeedbackResolve(FeedbackResolution),
     FeedbackPath(FeedbackFile),
+    Profiles(Profiles),
 }
 
 /// An event to append. The daemon sets its number, time and machine tag,

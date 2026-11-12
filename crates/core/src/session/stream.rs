@@ -16,7 +16,7 @@ use std::fmt::Write;
 use serde_json::{Value, json};
 
 use crate::sling::{Block, Message};
-use crate::workspace::Workspace;
+use crate::workspace::{Workspace, profile};
 use crate::{Error, Result};
 
 /// The built-in tools every session has: reading and running commands.
@@ -41,9 +41,12 @@ pub enum Start<'a> {
 /// [`Limits::tools`] allows (the `slinger` CLI, at least, and read-only
 /// commands in those directories); it loads the settings and instructions of
 /// its home, and the owner's own only with [`Limits::user_config`]. No MCP
-/// server loads.
+/// server loads. Under a profile it runs in the profile's directory
+/// ([`Limits::dir`]), with the profile's rules in place of the agent's.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Limits {
+    /// The working directory, when it is not the agent's home: a profile's.
+    pub dir: Option<String>,
     /// More directories it may read, absolute.
     pub dirs: Vec<String>,
     /// Claude Code permission rules it may use without asking.
@@ -67,13 +70,42 @@ impl Limits {
             dirs: unique(roots.map(|r| r.path.as_str()).chain(more.iter().map(String::as_str))),
             tools: unique([SLINGER].into_iter().chain(rules.iter().map(String::as_str))),
             user_config: agent.is_some_and(|a| a.user_config),
+            dir: None,
         }
     }
 
-    /// The built-in tools the session has: [`TOOLS`] and the tool each of
-    /// its rules names (`Edit` for `Edit(src/**)`).
+    /// The limits of `workspace`'s agent on `machine` under the profile
+    /// `profile` names, or [`Limits::of`] with none. A profile's rules take
+    /// the place of the agent's `tools` (the `slinger` CLI stays). A profile
+    /// with a directory runs there, and still reads the home (the primary
+    /// root, when it is on `machine`) and the other directories.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::NotFound`] when the agent has no such profile.
+    pub fn under(workspace: &Workspace, machine: &str, profile: Option<&str>) -> Result<Self> {
+        let mut limits = Self::of(workspace, machine);
+        let Some(name) = profile else { return Ok(limits) };
+        let profile = workspace.profile(name)?;
+        let rules = profile.tools.iter().map(String::as_str);
+        limits.tools = unique([SLINGER].into_iter().chain(rules));
+        if let Some(dir) = &profile.dir {
+            let home = workspace.primary_root().filter(|r| r.machine == machine);
+            let all = home
+                .map(|r| r.path.as_str())
+                .into_iter()
+                .chain(limits.dirs.iter().map(String::as_str));
+            limits.dirs = unique(all.filter(|d| d != dir));
+            limits.dir = Some(dir.clone());
+        }
+        Ok(limits)
+    }
+
+    /// The built-in tools the session has: [`TOOLS`] and the built-in tool
+    /// each of its rules names (`Edit` for `Edit(src/**)`; none for an MCP
+    /// rule).
     fn builtin(&self) -> String {
-        let named = self.tools.iter().map(|rule| rule.split('(').next().unwrap_or(rule).trim());
+        let named = self.tools.iter().filter_map(|rule| profile::builtin(rule));
         unique(TOOLS.into_iter().chain(named)).join(",")
     }
 }
@@ -253,7 +285,7 @@ mod tests {
     fn an_agent_widens_its_limits_with_dirs_tools_and_its_user_config() {
         let ws = workspace(
             "[agent]\nname = \"a\"\nuser_config = true\ndirs = [\"/docs\", \"/docs\"]\n\
-             tools = [\"Edit(/docs/**)\", \"Bash(git *)\", \"WebFetch\"]\n",
+             tools = [\"Edit(/docs/**)\", \"Bash(git *)\", \"WebFetch\", \"mcp__gh\"]\n",
         );
         let limits = Limits::of(&ws, "here");
         assert_eq!(limits.dirs, ["/docs"], "each once");
@@ -264,9 +296,33 @@ mod tests {
         };
         assert_eq!(after("--setting-sources"), ["user,project,local"]);
         assert_eq!(after("--tools"), ["Read,Glob,Grep,Bash,Edit,WebFetch"]);
-        assert_eq!(after("--allowedTools"), [SLINGER, "Edit(/docs/**)", "Bash(git *)", "WebFetch"]);
+        let rules = [SLINGER, "Edit(/docs/**)", "Bash(git *)", "WebFetch", "mcp__gh"];
+        assert_eq!(after("--allowedTools"), rules, "an MCP rule is no built-in tool");
         assert_eq!(after("--add-dir"), ["/docs"]);
         assert_eq!(args[args.len() - 2..], ["--resume", "id"]);
+    }
+
+    #[test]
+    fn a_profile_replaces_the_agents_rules_and_moves_the_working_directory() {
+        let ws = workspace(
+            "[agent]\nname = \"a\"\ndirs = [\"/docs\"]\ntools = [\"WebFetch\"]\n\
+             [[agent.profile]]\nname = \"dev\"\ndir = \"/src\"\ntools = [\"Edit\", \"Bash(git *)\"]\n\
+             [[agent.profile]]\nname = \"look\"\n\
+             [[root]]\nmachine = \"here\"\npath = \"/home/ws\"\nprimary = true\n",
+        );
+        assert_eq!(Limits::under(&ws, "here", None).unwrap(), Limits::of(&ws, "here"));
+        let dev = Limits::under(&ws, "here", Some("dev")).unwrap();
+        let want = Limits {
+            dir: Some("/src".into()),
+            dirs: vec!["/home/ws".into(), "/docs".into()],
+            tools: vec![SLINGER.into(), "Edit".into(), "Bash(git *)".into()],
+            user_config: false,
+        };
+        assert_eq!(dev, want);
+        assert_eq!(Limits::under(&ws, "elsewhere", Some("dev")).unwrap().dirs, ["/docs"]);
+        let look = Limits::under(&ws, "here", Some("look")).unwrap();
+        assert_eq!((look.dir, look.tools), (None, vec![SLINGER.to_string()]), "never wider");
+        assert_eq!(Limits::under(&ws, "here", Some("nope")).unwrap_err().code(), "not_found");
     }
 
     #[test]

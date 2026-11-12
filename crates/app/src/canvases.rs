@@ -90,6 +90,8 @@ pub struct Canvases {
     paper: Paper,
     /// Where the strokes not yet written are kept, if anywhere.
     kept: Option<kept::Kept>,
+    /// The pane the pointer is on a selection handle in, and its cursor.
+    handle: Option<(PaneId, crate::scene::cursor::Cursor)>,
 }
 
 /// One canvas page followed: the page asked for (`None`: the first), as
@@ -155,6 +157,7 @@ impl Canvases {
             zoomed: None,
             paper: Paper::default(),
             kept: None,
+            handle: None,
         }
     }
 
@@ -286,7 +289,7 @@ impl Canvases {
         drop(items);
         self.close_entries();
         let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
-        if self.lives.under(&items, at) && !grabs {
+        if self.lives.under(&items, at, viewport.zoom()) && !grabs {
             return false;
         } else if self.shapes.down((tool, colour), here, press, &items, &mut self.ink) {
             drop(items);

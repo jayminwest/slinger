@@ -264,7 +264,7 @@ fn a_text_field_keeps_its_edits_and_the_keymap_gets_the_rest() {
 fn the_selection_s_buttons_sling_prompt_and_delete_in_a_row_inside_the_pane() {
     use crate::commands::Command;
     use crate::scene::taps::Tap;
-    let (labels, targets) = buttons::buttons(BOX, PANE, &T);
+    let (labels, targets) = buttons::buttons(BOX, PANE, &T, false);
     let texts: Vec<&str> = labels.iter().map(|l| l.text.as_str()).collect();
     assert_eq!(texts, [buttons::SLING, buttons::PROMPT, buttons::DELETE]);
     let taps: Vec<Tap> = targets.iter().map(|t| t.1).collect();
@@ -277,7 +277,12 @@ fn the_selection_s_buttons_sling_prompt_and_delete_in_a_row_inside_the_pane() {
     assert!(frames[0].x > BOX.x + BOX.width, "right of the selection: {frames:?}");
 
     let corner = Rect { x: PANE.x + PANE.width - 20.0, ..BOX };
-    let (_, targets) = buttons::buttons(corner, PANE, &T);
+    let (_, targets) = buttons::buttons(corner, PANE, &T, false);
     let last = targets.last().unwrap().0;
     assert!(last.x + last.width <= PANE.x + PANE.width, "kept in the pane: {last:?}");
+
+    let (labels, out) = buttons::buttons(BOX, PANE, &T, true);
+    assert_eq!(labels.len(), 1, "a sling is out: only Delete");
+    assert_eq!((labels[0].text.as_str(), out[0].1), (buttons::DELETE, runs[2]));
+    assert_eq!(out[0].0, frames[0], "in the first place");
 }

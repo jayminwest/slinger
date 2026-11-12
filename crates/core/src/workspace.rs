@@ -6,12 +6,14 @@
 //! the bytes and hand the text here. [`panes`] owns the layout's text.
 
 pub mod panes;
+pub mod profile;
 
 use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
+pub use profile::Profile;
 
 /// The definition file's name, in a workspace's primary root.
 pub const FILE_NAME: &str = "slinger-workspace.toml";
@@ -78,6 +80,10 @@ pub struct Agent {
     /// `slinger` CLI: `Edit`, `Bash(git *)`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<String>,
+    /// Named limits its session can run under instead: a working directory
+    /// and rules of their own ([`profile`]).
+    #[serde(default, rename = "profile", skip_serializing_if = "Vec::is_empty")]
+    pub profiles: Vec<Profile>,
     #[serde(flatten)]
     extra: toml::Table,
 }
@@ -129,6 +135,7 @@ impl Agent {
             user_config: false,
             dirs: Vec::new(),
             tools: Vec::new(),
+            profiles: Vec::new(),
             extra: toml::Table::new(),
         }
     }
@@ -308,14 +315,28 @@ impl Workspace {
             if agent.name.trim().is_empty() {
                 return Err(invalid(&format!("workspace {ws:?}: agent name is empty")));
             }
+            if agent.name.contains('#') {
+                // `#` parts an agent from its profile in a session's key.
+                return Err(Error::Invalid {
+                    message: format!("workspace {ws:?}: agent name {:?} has a '#'", agent.name),
+                    hint: Some("rename the agent without '#' under [agent]".into()),
+                });
+            }
             if let Some(dir) = agent.dirs.iter().find(|d| !d.starts_with('/')) {
                 return Err(invalid(&format!(
                     "workspace {ws:?}: agent dir {dir:?} is not an absolute path"
                 )));
             }
-            if agent.tools.iter().any(|t| t.trim().is_empty()) {
-                return Err(invalid(&format!("workspace {ws:?}: an agent tool is empty")));
+            for rule in &agent.tools {
+                profile::check_rule(rule).map_err(|e| Error::Invalid {
+                    message: format!("workspace {ws:?}: agent.tools: {e}"),
+                    hint: e.hint().map(|h| format!("{h}; fix or drop it in {FILE_NAME}")),
+                })?;
             }
+            profile::check_all(&agent.profiles).map_err(|e| Error::Invalid {
+                message: format!("workspace {ws:?}: {e}"),
+                hint: e.hint().map(str::to_string),
+            })?;
             if agent.durable && primaries != 1 {
                 return Err(Error::Invalid {
                     message: format!("workspace {ws:?} has a durable agent but no primary root"),

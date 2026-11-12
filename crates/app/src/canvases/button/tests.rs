@@ -171,7 +171,7 @@ fn sling_lines(canvases: &mut Canvases, panes: &Panes) -> Vec<crate::scene::Labe
     let mut lines = Vec::new();
     wait_until(|| {
         canvases.poll();
-        lines = canvases.sling_marks(panes, WINDOW.rect(), &theme).0;
+        lines = canvases.sling_marks(panes, WINDOW.rect(), &theme).all();
         !lines.is_empty()
     });
     lines

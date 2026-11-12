@@ -59,6 +59,11 @@ fn an_agent_reads_its_limits_and_writes_back_only_the_ones_set() {
         (agent.dirs, agent.tools),
         (vec!["/srv/docs".into()], vec!["Edit".into(), "Bash(git *)".into()])
     );
+    let text = "version = 1\nname = \"x\"\n[agent]\nname = \"a\"\n\
+                tools = [\"Bash(git:*)\", \"mcp__gh__get_issue\", \"Sudo\"]\n";
+    let err = Workspace::parse(text).unwrap_err();
+    assert!(err.to_string().contains("agent.tools: \"Sudo\""), "{err}");
+    assert!(err.hint().unwrap().contains("mcp__server"), "the way out is named");
     let mut ws = Workspace::new("y");
     ws.agent = Some(Agent::new("b", false));
     assert!(ws.to_toml().ends_with("[agent]\nname = \"b\"\n"), "{}", ws.to_toml());
@@ -101,6 +106,9 @@ fn rejects_files_that_are_not_workspaces() {
         "version = 1\nname = \"x\"\n[agent]\nname = \"\"",
         "version = 1\nname = \"x\"\n[agent]\nname = \"a\"\ndirs = [\"notes\"]",
         "version = 1\nname = \"x\"\n[agent]\nname = \"a\"\ntools = [\" \"]",
+        "version = 1\nname = \"x\"\n[agent]\nname = \"a\"\ntools = [\"Shell\"]",
+        "version = 1\nname = \"x\"\n[agent]\nname = \"a\"\ntools = [\"Bash(git\"]",
+        "version = 1\nname = \"x\"\n[agent]\nname = \"a#dev\"",
         "version = 1\nname = \"x\"\n[layout]\nsplit = \"no version\"",
     ] {
         let err = Workspace::parse(text).unwrap_err();

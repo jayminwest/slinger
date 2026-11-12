@@ -55,7 +55,7 @@ fn until_marked(canvases: &mut Canvases, panes: &Panes, start: &str) -> Vec<Stri
     let mut texts = Vec::new();
     wait_until(|| {
         canvases.poll();
-        let labels = canvases.sling_marks(panes, WINDOW.rect(), &theme).0;
+        let labels = canvases.sling_marks(panes, WINDOW.rect(), &theme).all();
         texts = labels.into_iter().map(|l| l.text).collect();
         texts.iter().any(|t| t.starts_with(start))
     });
@@ -75,7 +75,7 @@ fn one_tap_slings_the_selection_with_the_config_s_words_and_the_pill_follows_the
         select_the_stroke(&mut canvases, &panes);
 
         let theme = Config::default().theme;
-        let (labels, targets, _) = canvases.sling_marks(&panes, WINDOW.rect(), &theme);
+        let Marks { labels, targets, .. } = canvases.sling_marks(&panes, WINDOW.rect(), &theme);
         let texts: Vec<&str> = labels.iter().map(|l| l.text.as_str()).collect();
         let beside = [buttons::SLING, buttons::PROMPT, buttons::DELETE];
         assert_eq!(texts, beside, "beside the selection");
@@ -87,15 +87,17 @@ fn one_tap_slings_the_selection_with_the_config_s_words_and_the_pill_follows_the
         let message = delivered(home.path(), PROMPT);
         assert!(message.contains("selected=c1"), "{message}");
         let working = until_marked(&mut canvases, &panes, "● scout working");
-        assert_eq!(working[..3], beside, "still there: {working:?}");
+        assert_eq!(working[1..], [buttons::DELETE], "one sling at a time: {working:?}");
         assert_eq!(canvases.said().as_deref(), Some("Slung to scout"));
 
         daemon.canvas_put("notes", "scout", "c1", Put::Text("a reply".into())).unwrap();
         std::fs::write(home.path().join("go"), "").unwrap();
         let answered = until_marked(&mut canvases, &panes, "✓ scout answered ·");
-        assert_eq!(answered[3], "✓ scout answered · 1 new item");
+        assert_eq!(answered[0], "✓ scout answered · 1 new item");
+        assert_eq!(answered[1..], beside, "it answered: the buttons are back");
         assert!(canvases.tap_slung(&panes, WINDOW.rect()), "in sight: a tap clears it");
-        assert!(canvases.sling_marks(&panes, WINDOW.rect(), &theme).0.len() == 3, "the buttons");
+        let marks = canvases.sling_marks(&panes, WINDOW.rect(), &theme);
+        assert_eq!((marks.labels.len(), marks.pill), (3, None), "the buttons");
         daemon.session_stop("notes").unwrap();
     });
 }
@@ -112,11 +114,11 @@ fn one_tap_with_nothing_selected_slings_what_is_new_on_the_page() {
         assert!(canvases.sling_now_command(&panes, WINDOW.rect()), "no list yet: it tries");
         let message = delivered(home.path(), PROMPT);
         assert!(message.contains("canvas=notes\\n") && message.contains("c1 ink"), "{message}");
-        let done = until_marked(&mut canvases, &panes, "✓ scout");
+        let done = until_marked(&mut canvases, &panes, "✓ scout answered in");
         assert_eq!(done, ["✓ scout answered in text · tap to read"]);
         assert!(canvases.tap_slung(&panes, WINDOW.rect()));
-        let (_, _, answer) = canvases.sling_marks(&panes, WINDOW.rect(), &Config::default().theme);
-        let lines = answer.expect("the answer").lines;
+        let marks = canvases.sling_marks(&panes, WINDOW.rect(), &Config::default().theme);
+        let lines = marks.panel.expect("the answer").lines;
         assert!(lines.iter().any(|l| l.label.text == "ok"), "{lines:?}");
         daemon.session_stop("notes").unwrap();
     });

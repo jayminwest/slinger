@@ -14,8 +14,8 @@ pub fn answer(store: &Store, ask: SessionAsk) -> Result<Reply, RemoteError> {
         SessionAsk::SessionList => list(store),
         SessionAsk::SessionShow { agent } => show(store, &agent),
         SessionAsk::StatusSet { agent, status, note } => set(store, &agent, &status, note),
-        SessionAsk::SessionStart { workspace, fresh } => {
-            let session = store.sessions().start(store, &workspace, fresh);
+        SessionAsk::SessionStart { workspace, fresh, profile } => {
+            let session = store.sessions().start(store, &workspace, fresh, profile.as_deref());
             Ok(Reply::SessionStart(info(store, session)?))
         }
         SessionAsk::SessionStop { workspace } => {
@@ -85,6 +85,7 @@ fn wire(store: &Store, s: Session) -> Result<control::Session, RemoteError> {
     let shown = processes.shown(&s.agent);
     let process = shown.as_ref().map(|p| if p.running { "running" } else { "exited" }.into());
     let answer = shown.as_ref().and_then(|p| p.answer.clone());
+    let profile = shown.as_ref().and_then(|p| p.profile.clone());
     let running = shown.filter(|p| p.running);
     let (status, note) = s.status.map_or((None, None), |r| (Some(r.status.name().into()), r.note));
     Ok(control::Session {
@@ -98,6 +99,7 @@ fn wire(store: &Store, s: Session) -> Result<control::Session, RemoteError> {
         pending: running.map(|p| p.pending),
         answer,
         session_id,
+        profile,
     })
 }
 

@@ -3,10 +3,12 @@
 //! canvas panes only; anywhere else (the sidebar, an agent UI, a live item,
 //! the chrome) it keeps the system's arrow. Within reach of a divider
 //! between panes, and while one is dragged, the pointer is the resize
-//! cursor across it ([`over_divider`]) over whatever is there.
+//! cursor across it ([`over_divider`]) over whatever is there. On a corner
+//! handle of the selection, and while one is dragged, it is the resize
+//! cursor along the diagonal through that corner ([`over_handle`]).
 
 use crate::config::{Rgb, Theme};
-use crate::layout::Axis;
+use crate::layout::{Axis, Point};
 use crate::scene::select::ERASER;
 use crate::scene::tools::{Tool, Tools};
 
@@ -25,6 +27,12 @@ pub enum Cursor {
     ResizeLeftRight,
     /// Arrows up and down: a divider between stacked panes.
     ResizeUpDown,
+    /// Arrows to the top left and the bottom right: the selection's handle
+    /// on either of those corners.
+    ResizeFalling,
+    /// Arrows to the top right and the bottom left: the selection's handle
+    /// on either of those corners.
+    ResizeRising,
 }
 
 /// The narrowest the pen's ring is, in screen points: a thin line's ring
@@ -68,6 +76,17 @@ pub const fn over_divider(axis: Axis) -> Cursor {
     }
 }
 
+/// The pointer on the selection's handle at `corner` of its box, whose
+/// opposite corner is `anchor`, in canvas units (y down): it moves along
+/// the diagonal through them.
+pub fn over_handle(corner: Point, anchor: Point) -> Cursor {
+    if (corner.x - anchor.x) * (corner.y - anchor.y) >= 0.0 {
+        Cursor::ResizeFalling
+    } else {
+        Cursor::ResizeRising
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,6 +125,15 @@ mod tests {
         }
         tools.open(Kind::Colour, Rect { x: 0.0, y: 0.0, width: 400.0, height: 300.0 });
         assert_eq!(over_canvas(&tools, &T, 1.0), Cursor::Arrow);
+    }
+
+    #[test]
+    fn a_handle_s_cursor_runs_along_the_diagonal_through_its_corner() {
+        let p = |x, y| Point { x, y };
+        assert_eq!(over_handle(p(0.0, 0.0), p(10.0, 5.0)), Cursor::ResizeFalling, "top left");
+        assert_eq!(over_handle(p(10.0, 5.0), p(0.0, 0.0)), Cursor::ResizeFalling, "bottom right");
+        assert_eq!(over_handle(p(10.0, 0.0), p(0.0, 5.0)), Cursor::ResizeRising, "top right");
+        assert_eq!(over_handle(p(0.0, 5.0), p(10.0, 0.0)), Cursor::ResizeRising, "bottom left");
     }
 
     #[test]
