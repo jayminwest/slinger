@@ -15,14 +15,17 @@
 //! stroke's size unit is the median long edge of the given strokes drawn at
 //! its width, which is about how big that pen's letters are.
 //!
-//! A long stroke (a frame, an arrow, a divider) never joins anything (Spike B
-//! finding 1): it is a cluster of its own. A stroke is long when its long edge
-//! is over [`LONG`] size units. An agent's stroke is never clustered either
-//! (SPEC R2).
+//! A long stroke (a frame, an arrow, a divider) joins nothing by distance
+//! (Spike B finding 1): a frame's box holds the notes inside it. A stroke is
+//! long when its long edge is over [`LONG`] size units. It joins only the
+//! strokes its ink touches, within [`TOUCH`] size units, with the same colour
+//! and time, so the parts of one drawing (a fuselage and its wings) are one
+//! cluster while a frame drawn clear of its notes stays alone. An agent's
+//! stroke is never clustered (SPEC R2).
 
 use std::collections::BTreeMap;
 
-use crate::canvas::{Author, Canvas, Colour, Item, ItemId, Rect, Shape};
+use crate::canvas::{Author, Canvas, Colour, Item, ItemId, Rect, Shape, ink_gap};
 
 /// How far apart, in size units, two strokes of one note may be.
 const GAP: f64 = 3.0;
@@ -31,6 +34,9 @@ const GAP: f64 = 3.0;
 const ROW: f64 = 5.0;
 /// Over how many size units a stroke's long edge makes it long.
 const LONG: f64 = 6.0;
+/// How close, in size units, a long stroke's ink must come to another's to
+/// join it.
+const TOUCH: f64 = 0.25;
 /// How long, in milliseconds, the pen may rest between two neighbouring
 /// strokes of one note.
 const PAUSE: u64 = 5 * 60 * 1000;
@@ -85,8 +91,10 @@ struct Stroke<'a> {
     bounds: Rect,
     /// The size unit, in canvas units, of the pen that drew this stroke.
     size: f64,
-    /// False for a long stroke and an agent's: they stay alone.
+    /// False for an agent's stroke: it stays alone.
     joins: bool,
+    /// Over [`LONG`] size units: it joins only what its ink touches.
+    long: bool,
 }
 
 impl Stroke<'_> {
@@ -94,7 +102,14 @@ impl Stroke<'_> {
         self.item.page() == other.item.page()
             && self.colour == other.colour
             && self.item.time().0.abs_diff(other.item.time().0) <= PAUSE
-            && self.near(other)
+            && if self.long || other.long { self.touches(other) } else { self.near(other) }
+    }
+
+    /// Whether the ink comes within [`TOUCH`] size units of the other's.
+    fn touches(&self, other: &Stroke<'_>) -> bool {
+        let reach = TOUCH * self.size.max(other.size);
+        distance(self.bounds, other.bounds) <= reach
+            && ink_gap(self.item.shape(), other.item.shape()) <= reach
     }
 
     /// Whether the boxes are close enough: [`ROW`] size units apart when
@@ -135,8 +150,9 @@ fn sized<'a>(found: &[&'a Item]) -> Vec<Stroke<'a>> {
             let (colour, width) = pen(item);
             let bounds = item.bounds();
             let size = unit.get(&width).copied().unwrap_or(0.0);
-            let joins = *item.author() == Author::User && long_edge(bounds) <= LONG * size;
-            Stroke { index, item, colour, bounds, size, joins }
+            let joins = *item.author() == Author::User;
+            let long = long_edge(bounds) > LONG * size;
+            Stroke { index, item, colour, bounds, size, joins, long }
         })
         .collect()
 }

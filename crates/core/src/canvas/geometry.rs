@@ -198,6 +198,21 @@ impl<'a> Geometry<'a> {
     }
 }
 
+/// How far apart the ink of two strokes is, in canvas units: each line
+/// thickened by half its width, zero when they touch or cross. Any other
+/// shape is infinitely far.
+pub(crate) fn ink_gap(a: &Shape, b: &Shape) -> f64 {
+    let (Shape::Stroke { points: p, width: wp, .. }, Shape::Stroke { points: q, width: wq, .. }) =
+        (a, b)
+    else {
+        return f64::INFINITY;
+    };
+    let nearest = segments(p)
+        .flat_map(|(a, b)| segments(q).map(move |(c, d)| segment_distance(a, b, c, d)))
+        .fold(f64::INFINITY, f64::min);
+    (nearest - (wp + wq) / 2.0).max(0.0)
+}
+
 /// The segments of a polyline. One point is one segment of zero length.
 fn segments(points: &[Point]) -> impl Iterator<Item = (Point, Point)> + '_ {
     let dot = points.first().filter(|_| points.len() == 1).map(|&p| (p, p));

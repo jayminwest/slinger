@@ -169,7 +169,12 @@ overlapping top to bottom, since word gaps are wider than line gaps:
 slinger-c94c3e), where a size unit is the median long edge of the strokes
 drawn at that width. Joining chains. A stroke whose
 long edge is over 6 size units (a frame, an arrow, a divider) joins nothing
-and is a cluster of its own (Spike B findings 1 and 2).
+by distance (Spike B findings 1 and 2): it joins only strokes its ink comes
+within a quarter of a size unit of, with the same colour and time, so a
+drawing's touching parts and a word's underline are one cluster, while a
+frame drawn clear of its notes stays alone (slinger-e0dbb0). On the fixture
+board this joins a diagram on `inital-planning` (client, server and
+database with their arrows) into one cluster of six tiles.
 
 **Ids**: canvas items keep their canvas item number behind a letter for their
 kind (`t12`, `b9`, `a13`, `l14`, and `u15` for a button: `b` is a box's). A cluster's id is `c` plus the item number of its

@@ -49,11 +49,11 @@ fn every_fixture_page_has_its_recorded_cluster_count() {
     assert_eq!(
         counts,
         [
-            ("inital-planning", 67),
+            ("inital-planning", 44),
             ("claude", 4),
             ("slinger-diagrams", 12),
-            ("fable-5.2", 27),
-            ("spec", 13)
+            ("fable-5.2", 23),
+            ("spec", 11)
         ]
     );
 }
@@ -87,14 +87,11 @@ fn a_note_with_wide_word_gaps_is_one_cluster_per_paragraph() {
     let canvas = board();
     let page = canvas.page_named("spec").unwrap().id();
     let clusters = page_clusters(&canvas, page);
-    let firsts: Vec<u64> = clusters.iter().map(|c| c[0].get()).collect();
-    for id in [7729, 7773] {
-        assert!(firsts.contains(&id), "{firsts:?}");
-    }
-    for id in [7744, 7793, 7798] {
-        assert!(!firsts.contains(&id), "{firsts:?}");
-        assert!(clusters.iter().any(|c| c.contains(&ItemId::new(id))));
-    }
+    let home = |id: u64| clusters.iter().position(|c| c.contains(&ItemId::new(id))).unwrap();
+    let pieces = [7729, 7744, 7773, 7793, 7798].map(home);
+    assert_eq!(pieces[0], pieces[1]);
+    assert_eq!([pieces[2], pieces[2]], [pieces[3], pieces[4]]);
+    assert_ne!(pieces[0], pieces[2]);
 }
 
 #[test]
@@ -181,6 +178,30 @@ fn a_long_stroke_beside_two_notes_does_not_join_them() {
     let line = p.draw(&Author::User, BLACK, &[(-10.0, 0.0), (-10.0, 220.0)]);
     let b = p.note(BLACK, 0.0, 200.0, 4);
     assert_eq!(p.clusters(), [a, vec![line], b]);
+}
+
+#[test]
+fn the_touching_parts_of_a_drawing_are_one_cluster() {
+    // slinger-e0dbb0: an airplane beside a note arrived as fuselage, wings
+    // and belly, because long strokes joined nothing.
+    let mut p = Page::new();
+    let note = p.note(BLACK, 0.0, 0.0, 6);
+    let fuselage = p.draw(&Author::User, BLACK, &[(500.0, 100.0), (800.0, 100.0)]);
+    let wing = p.draw(&Author::User, BLACK, &[(620.0, 20.0), (680.0, 180.0)]);
+    let tail = p.draw(&Author::User, BLACK, &[(780.0, 40.0), (790.0, 101.0)]);
+    let belly = p.draw(&Author::User, BLACK, &[(560.0, 100.0), (600.0, 130.0), (660.0, 102.0)]);
+    // Drawn later in red, touching the fuselage: another colour stays apart.
+    let label = p.draw(&Author::User, RED, &[(500.0, 100.0), (450.0, 50.0)]);
+    assert_eq!(p.clusters(), [note, vec![fuselage, wing, tail, belly], vec![label]]);
+}
+
+#[test]
+fn an_underline_touching_its_word_joins_it() {
+    let mut p = Page::new();
+    let mut word = p.note(BLACK, 0.0, 0.0, 6);
+    word.push(p.draw(&Author::User, BLACK, &[(0.0, 21.0), (200.0, 21.0)]));
+    let far = p.note(BLACK, 0.0, 200.0, 6);
+    assert_eq!(p.clusters(), [word, far]);
 }
 
 #[test]
