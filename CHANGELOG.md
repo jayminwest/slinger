@@ -102,6 +102,10 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Agents:** a large drawing slung to an agent no longer sends the nearly
+  white parts of it: each tile of its picture is cut down to the ink, and a
+  tile with nothing new on it is left out. The fixture board costs about
+  13% fewer tokens (63 800 to 55 700 by the packet's estimate).
 - **App:** the selection's corner handles resize it, with the lasso or
   the select tool: drag one and the selection scales about the opposite
   corner. Strokes, boxes and arrows stretch; texts and agent UIs keep their

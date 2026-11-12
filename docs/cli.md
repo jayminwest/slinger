@@ -175,7 +175,8 @@ show` (`i12`) or from a packet (`c12` is the whole cluster). `--box` is in
 tenths of a unit, like every canvas command, on the first page unless
 `--page` names another. The image goes to `--out` (default `<ITEM>.png` or
 `crop.png` in the current directory); a crop too large for one image goes
-beside it in tiles, `<stem>-1.png` and on. Both or neither of `--item` and
+beside it in tiles, `<stem>-1.png` and on (an item's tiles cut down to
+their ink, as in a packet; a box's tiles whole). Both or neither of `--item` and
 `--box` exit 2 (`usage`); a box too large, over 16000 units a side, exits
 5 (`invalid`). `canvas strokes` prints the raw points of a stroke or of every
 stroke of a cluster; an item that is not ink exits 5. An item that is not
