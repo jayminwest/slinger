@@ -401,8 +401,9 @@ canvases/sling.rs  the sling from the window: opens the entry at the
 canvases/feedback.rs  the `leave-feedback` command: opens the feedback
              entry in the focused pane with its workspace, canvas, page
              name, tool and selection count, closing an open sling's entry;
-             saves it through the Noter. It takes the keys and the sling's
-             place in the scene while open.
+             saves it through the Noter, and asks it for the recent open
+             notes (`feedback_list`) to list under the entry. It takes the
+             keys and the sling's place in the scene while open.
 canvases/dictation.rs  the `dictate` command: opens the entry when it is
              closed, then starts or stops Flick's dictation into it; the
              entry closing cancels one going. Flick types the text into the
