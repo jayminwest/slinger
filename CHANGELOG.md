@@ -215,6 +215,13 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** erasing, moving, placing a text, box or arrow, editing and
+  changing pages while slingerd is down now survive quitting the app, as
+  strokes already did: they are sent, in order, after the next start.
+- **App:** ink you just drew can be copied, and dragged to another page,
+  before slingerd has written it. Before, copy greyed out and a drag to
+  another page left it behind; an item moved a moment before is now
+  copied or carried where it shows, not where it was.
 - **App:** a stroke on its way to slingerd as the app quit is no longer
   added twice when the app starts again, and a change sent again after
   slingerd's answer was lost is not applied twice. A second copy of the

@@ -32,8 +32,7 @@
 //! Each paint that shows new ink adds its delay from the pen event, and the
 //! end of a stroke gives the log line for SPEC O2 ([`Ink::delay_log`]).
 
-use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::backend::Problem;
 use crate::config::Rgb;
@@ -44,6 +43,7 @@ use crate::scene::pages::PageOp;
 mod delay;
 mod ids;
 mod once;
+mod shown;
 
 /// The pen's line width until one is set ([`Ink::set_width`]), in canvas
 /// units: tldraw's small pen.
@@ -132,6 +132,18 @@ pub struct Carried {
     pub object: serde_json::Value,
 }
 
+/// A change not yet written, as it is kept to survive a quit
+/// ([`Ink::kept`], [`Ink::resume`]): the key it was queued under in its
+/// run (`None` when that was not kept), the key of the change it goes with
+/// ([`Ink::carry`]), the key it is applied once under, and the change.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Kept {
+    pub key: Option<u64>,
+    pub after: Option<u64>,
+    pub once: Option<String>,
+    pub change: Change,
+}
+
 impl Change {
     /// The canvas it changes.
     pub fn canvas(&self) -> &str {
@@ -145,6 +157,15 @@ impl Change {
             | Change::Carry { canvas, .. }
             | Change::Page { canvas, .. }
             | Change::Step { canvas, .. } => canvas,
+        }
+    }
+
+    /// How many items it adds: each shows under a key of its own.
+    fn adds(&self) -> u64 {
+        match self {
+            Change::Add(_) | Change::Put { .. } => 1,
+            Change::Carry { items, .. } => u64::try_from(items.len()).unwrap_or(1),
+            _ => 0,
         }
     }
 
@@ -313,10 +334,7 @@ impl Ink {
     fn queue(&mut self, mut change: Change, after: Option<u64>) -> u64 {
         change.rename(|id| Some(ids::known(&self.made, id)));
         let key = self.next_key;
-        let keys = match &change {
-            Change::Carry { items, .. } => u64::try_from(items.len()).unwrap_or(1).max(1),
-            _ => 1,
-        };
+        let keys = change.adds().max(1);
         self.pending.push(Pending::new(key, change, after));
         self.next_key += keys;
         key
@@ -386,79 +404,6 @@ impl Ink {
         });
     }
 
-    /// `items`, the server's copy of `page` of `canvas`, as the user should
-    /// see it: each change not yet heard laid over it in the order made
-    /// (removed items gone, moved ones moved, edited ones edited, new
-    /// strokes, texts, boxes and arrows on top, each under the server's id
-    /// once made, and not at all once `items` holds it), then the
-    /// stroke under the pen. Items no change touches are borrowed, not
-    /// copied, so a big page costs little.
-    pub fn shown<'a>(&self, canvas: &str, page: &str, items: &'a [Item]) -> Vec<Cow<'a, Item>> {
-        let mut shown: Vec<Cow<'a, Item>> = items.iter().map(Cow::Borrowed).collect();
-        let made = self.pending.iter().any(|p| !p.made.is_empty());
-        let held: HashSet<ItemId> = items.iter().filter(|_| made).map(|i| i.id).collect();
-        let new = |id: &ItemId| !held.contains(id);
-        let here = |c: &str, p: &str| c == canvas && p == page;
-        // A carry within the canvas takes its items from whatever page they were on.
-        let mine = |p: &&Pending| {
-            let carry = matches!(&p.change, Change::Carry { gone, .. } if !gone.is_empty());
-            let on = p.change.page().is_some_and(|page| here(p.change.canvas(), page));
-            on || (carry && p.change.canvas() == canvas)
-        };
-        for pending in self.pending.iter().filter(mine) {
-            match &pending.change {
-                Change::Add(stroke) => {
-                    let id = pending.id(0);
-                    shown.extend(new(&id).then(|| Cow::Owned(local(id, stroke))));
-                }
-                Change::Carry { page: to, items, gone, .. } => {
-                    let gone: HashSet<&ItemId> = gone.iter().collect();
-                    shown.retain(|i| !gone.contains(&i.id));
-                    let ids = (0..).map(|n| pending.id(n));
-                    let landed = items.iter().zip(ids).filter(|(_, id)| to == page && new(id));
-                    shown.extend(landed.map(|(c, id)| Cow::Owned(Item { id, ..c.item.clone() })));
-                }
-                Change::Remove { ids, .. } => {
-                    let ids: HashSet<&ItemId> = ids.iter().collect();
-                    shown.retain(|i| !ids.contains(&i.id));
-                }
-                Change::Move { ids, by, follow, .. } => {
-                    let ids: HashSet<&ItemId> = ids.iter().collect();
-                    for item in &mut shown {
-                        if let Some(after) = follow.iter().find(|f| f.id == item.id) {
-                            *item = Cow::Owned(after.clone());
-                        } else if ids.contains(&item.id) {
-                            let (id, colour) = (item.id, item.colour);
-                            *item = Cow::Owned(Item { id, colour, shape: item.shape.moved(*by) });
-                        }
-                    }
-                }
-                Change::Put { colour, shape, .. } => {
-                    let id = pending.id(0);
-                    let item = Item { id, colour: *colour, shape: shape.clone() };
-                    shown.extend(new(&id).then_some(Cow::Owned(item)));
-                }
-                Change::Set { id, shape, .. } => {
-                    for item in shown.iter_mut().filter(|i| i.id == *id) {
-                        let colour = item.colour;
-                        *item = Cow::Owned(Item { id: *id, colour, shape: shape.clone() });
-                    }
-                }
-                Change::Reshape { items: after, .. } => {
-                    for item in &mut shown {
-                        if let Some(after) = after.iter().find(|a| a.id == item.id) {
-                            *item = Cow::Owned(after.clone());
-                        }
-                    }
-                }
-                Change::Page { .. } | Change::Step { .. } => {}
-            }
-        }
-        let drawing = self.drawing.iter().filter(|(_, s)| here(&s.canvas, &s.page));
-        shown.extend(drawing.map(|(key, stroke)| Cow::Owned(local(ItemId(PENDING + key), stroke))));
-        shown
-    }
-
     /// Whether every finished change of `canvas` is written: none waits or
     /// is sending. A sling waits for it, so its packet holds them.
     pub fn settled(&self, canvas: &str) -> bool {
@@ -466,27 +411,19 @@ impl Ink {
         !self.pending.iter().any(|p| p.change.canvas() == canvas && busy(p))
     }
 
-    /// The finished strokes the daemon has not written yet, oldest first,
-    /// each with its key: what is lost if the app quits now.
-    pub fn unsent(&self) -> impl Iterator<Item = (u64, &Stroke)> {
-        self.pending.iter().filter_map(|p| match (&p.change, p.state) {
-            (Change::Add(stroke), State::Waiting | State::Sending) => Some((p.key, stroke)),
-            _ => None,
-        })
+    /// The finished changes the daemon has not written yet, oldest first,
+    /// each with its key: what is lost if the app quits now ([`Ink::kept`]).
+    /// An undo or a redo is not among them: it is not applied once under a
+    /// key, so one sent again could undo twice.
+    pub fn unsent(&self) -> impl Iterator<Item = (u64, &Change)> {
+        let waiting = |p: &&Pending| matches!(p.state, State::Waiting | State::Sending);
+        let kept = |p: &&Pending| !matches!(p.change, Change::Step { .. });
+        self.pending.iter().filter(waiting).filter(kept).map(|p| (p.key, &p.change))
     }
 
     /// Why the last change sent did not go, until one goes.
     pub fn problem(&self) -> Option<&Problem> {
         self.problem.as_ref()
-    }
-}
-
-/// A stroke of local ink as an item, under `id`.
-fn local(id: ItemId, stroke: &Stroke) -> Item {
-    Item {
-        id,
-        colour: stroke.colour,
-        shape: Shape::Stroke { points: stroke.points.clone(), width: stroke.width },
     }
 }
 

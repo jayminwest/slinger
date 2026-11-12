@@ -392,7 +392,12 @@ fn carried_items_are_add_objects_on_the_other_page_moved_and_without_this_canvas
         json!({"id": "i3", "page": "p1", "kind": "box", "x": 0, "y": 0, "w": 10, "h": 10}),
         json!({"id": "i4", "page": "p1", "kind": "arrow", "pts": [0, 0, 5, 5], "to": "i3"}),
     ]));
-    let carried = m.carried(&[ItemId(2), ItemId(1), ItemId(4), ItemId(7)], "p4", pt(1.0, -0.5));
+    let carried = m.carried(
+        ("board", &Ink::default()),
+        &[ItemId(2), ItemId(1), ItemId(4), ItemId(7)],
+        "p4",
+        pt(1.0, -0.5),
+    );
     assert_eq!(carried.len(), 3, "i7 is not here");
     let order: Vec<_> = carried.iter().map(|c| c.item.id).collect();
     assert_eq!(order, [ItemId(1), ItemId(4), ItemId(2)], "an arrow after the items it points at");

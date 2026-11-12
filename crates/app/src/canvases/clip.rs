@@ -29,14 +29,14 @@ impl Canvases {
         !self.typing() && !self.editing() && shown && self.holds_selection()
     }
 
-    /// Whether the server's copy of the selection's page holds every
-    /// selected item, which copy takes them from. A paste's items are
-    /// selected once the daemon has made them, a moment before its copy of
-    /// the page comes (slinger-86410b).
+    /// Whether the selection's page as shown holds every selected item,
+    /// which copy takes them from: the server's copy with the ink laid
+    /// over it, so ink not yet written is copied too (slinger-8e4112).
     fn holds_selection(&self) -> bool {
         let Some(selection) = self.selection() else { return false };
         let open = find(&self.open, &selection.canvas, Some(&selection.page));
-        let items = open.and_then(|o| o.mirror.as_ref()).map(Mirror::items).unwrap_or_default();
+        let Some(mirror) = open.and_then(|o| o.mirror.as_ref()) else { return false };
+        let items = self.ink.shown(&selection.canvas, mirror.page(), mirror.items());
         selection.ids.iter().all(|id| items.iter().any(|i| i.id == *id))
     }
 
@@ -49,7 +49,8 @@ impl Canvases {
         }
         let selection = self.selection()?;
         let open = find(&self.open, &selection.canvas, Some(&selection.page));
-        let clip = open.and_then(|o| o.mirror.as_ref())?.copied(&selection.ids)?;
+        let ink = (selection.canvas.as_str(), &self.ink);
+        let clip = open.and_then(|o| o.mirror.as_ref())?.copied(ink, &selection.ids)?;
         if cut {
             self.delete_selection(panes, panes.focus());
         }

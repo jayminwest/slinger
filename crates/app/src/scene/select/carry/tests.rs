@@ -40,7 +40,7 @@ fn grab(select: &mut Select, ink: &mut Ink, items: &[Cow<'_, Item>]) {
 }
 
 /// The items moved by `by` as the mirror would carry them to page p7.
-fn carried(ids: &[ItemId], by: Point) -> Vec<Carried> {
+fn carried(_: &Ink, ids: &[ItemId], by: Point) -> Vec<Carried> {
     let page = page();
     let found = page.into_iter().filter(|i| ids.contains(&i.id));
     let carry = |i: Item| Carried {
@@ -57,9 +57,9 @@ fn a_drag_that_ends_in_a_pane_on_another_canvas_carries_the_items_there() {
     grab(&mut select, &mut ink, &items);
     let landing = Landing { canvas: "board", page: "p7", at: pt(100.04, 205.0) };
     let mut asked = None;
-    let carry = |ids: &[ItemId], by| {
+    let carry = |ink: &Ink, ids: &[ItemId], by| {
         asked = Some((ids.to_vec(), by));
-        carried(ids, by)
+        carried(ink, ids, by)
     };
     assert!(select.lift(pt(900.0, 5.0), Some(landing), &items, &mut ink, carry));
     let by = pt(95.0, 200.0);
@@ -104,7 +104,7 @@ fn a_drag_that_ends_outside_every_pane_moves_nothing() {
     let (page, mut select, mut ink) = (page(), Select::default(), Ink::default());
     let items = shown(&page);
     grab(&mut select, &mut ink, &items);
-    let carry = |_: &[ItemId], _| -> Vec<Carried> { panic!("nothing is carried") };
+    let carry = |_: &Ink, _: &[ItemId], _| -> Vec<Carried> { panic!("nothing is carried") };
     assert!(select.lift(pt(900.0, 5.0), None, &items, &mut ink, carry));
     assert_eq!(ink.next(), None);
     assert_eq!(select.selection().map(|s| s.ids.clone()), Some(vec![ItemId(1)]), "still selected");
@@ -120,7 +120,7 @@ fn a_drag_that_ends_in_another_pane_on_the_same_page_moves_the_items() {
     grab(&mut select, &mut ink, &items);
     // The other pane looks at main's p1 elsewhere: (25, 35) there.
     let landing = Landing { canvas: "main", page: "p1", at: pt(25.0, 35.0) };
-    let carry = |_: &[ItemId], _| -> Vec<Carried> { panic!("a move, not a carry") };
+    let carry = |_: &Ink, _: &[ItemId], _| -> Vec<Carried> { panic!("a move, not a carry") };
     assert!(select.lift(pt(900.0, 5.0), Some(landing), &items, &mut ink, carry));
     let Some((_, Change::Move { ids, by, .. })) = ink.next() else { panic!() };
     assert_eq!((ids, by), (vec![ItemId(1)], pt(20.0, 30.0)));
@@ -132,7 +132,7 @@ fn a_carry_of_items_no_longer_there_changes_nothing() {
     let items = shown(&page);
     grab(&mut select, &mut ink, &items);
     let landing = Landing { canvas: "board", page: "p7", at: pt(5.0, 5.0) };
-    assert!(select.lift(pt(0.0, 0.0), Some(landing), &items, &mut ink, |_, _| Vec::new()));
+    assert!(select.lift(pt(0.0, 0.0), Some(landing), &items, &mut ink, |_, _, _| Vec::new()));
     assert_eq!(ink.next(), None);
 }
 
@@ -142,7 +142,7 @@ fn any_other_gesture_ends_where_the_pen_lifted_on_its_own_page() {
     let items = shown(&page);
     assert!(select.down(Tool::Eraser, HERE, pt(40.0, 45.0), 1.0, &items));
     let landing = Landing { canvas: "board", page: "p7", at: pt(0.0, 0.0) };
-    let carry = |_: &[ItemId], _| -> Vec<Carried> { panic!("an erase carries nothing") };
+    let carry = |_: &Ink, _: &[ItemId], _| -> Vec<Carried> { panic!("an erase carries nothing") };
     assert!(select.lift(pt(45.0, 41.0), Some(landing), &items, &mut ink, carry));
     let Some((_, Change::Remove { ids, .. })) = ink.next() else { panic!() };
     assert_eq!(ids, [ItemId(2)]);
