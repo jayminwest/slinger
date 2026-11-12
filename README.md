@@ -29,7 +29,9 @@ scripts/bundle.sh && open target/slinger.app
 ## Development
 
 `cargo xtask check-all` runs every quality gate, the same way the pre-commit hook and CI do.
-Agents and contributors start at [AGENTS.md](AGENTS.md). The design rules are in [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md).
+Agents start at [AGENTS.md](AGENTS.md). The design rules are in [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md).
+
+This is a personal project. It does not take issues or outside pull requests. Fork it freely.
 
 ## Status
 
