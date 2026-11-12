@@ -11,6 +11,9 @@ bullet with the area in bold.
 
 ### Added
 
+- **CLI:** `slinger session start <workspace> --fresh` starts the agent in a
+  new conversation instead of resuming its last one, stopping a running
+  agent first.
 - **App:** copy, cut and paste on the canvas. With a selection, Edit >
   Copy (⌘C) puts its items on the clipboard (other apps get the text of
   its texts), Cut (⌘X) also removes them, and Edit > Paste (⌘V) adds them
@@ -126,6 +129,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Sessions:** an agent whose last conversation Claude Code no longer has
+  (`--resume` fails) is no longer stuck. Its process shows as `exited`,
+  and the next `slinger session start` begins a new conversation.
 - **App:** a colour, shape, tool or width pop-up opened from a key before
   the pen or pointer has been in the window opens at the middle of the
   focused pane, wherever the window was sized, not at a fixed spot.

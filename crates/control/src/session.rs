@@ -27,7 +27,12 @@ pub enum SessionAsk {
         note: Option<String>,
     },
     /// Start the process of a workspace's agent, or resume its session.
-    SessionStart { workspace: String },
+    /// `fresh` starts a new session instead, ending a running process.
+    SessionStart {
+        workspace: String,
+        #[serde(default, skip_serializing_if = "is_false")]
+        fresh: bool,
+    },
     /// End the process of a workspace's agent.
     SessionStop { workspace: String },
     /// Deliver one message to the running process of a workspace's agent.
@@ -165,7 +170,9 @@ impl Client {
     }
 
     /// Starts the process of `workspace`'s agent in its home, resuming the
-    /// session it last held. A running one is left as it is.
+    /// session it last held. A running one is left as it is. A session that
+    /// could not be resumed (its process exited with an error) is dropped,
+    /// and the start after it begins a new one.
     ///
     /// # Errors
     ///
@@ -173,7 +180,21 @@ impl Client {
     /// cannot find, `invalid` for a workspace with no agent, and
     /// `unavailable` when the daemon does not answer.
     pub fn session_start(&self, workspace: &str) -> Result<Session, RemoteError> {
-        let ask = SessionAsk::SessionStart { workspace: workspace.into() };
+        self.start(workspace, false)
+    }
+
+    /// Starts `workspace`'s agent in a new session: its last one is dropped,
+    /// and a running process ends first.
+    ///
+    /// # Errors
+    ///
+    /// As [`Client::session_start`].
+    pub fn session_start_fresh(&self, workspace: &str) -> Result<Session, RemoteError> {
+        self.start(workspace, true)
+    }
+
+    fn start(&self, workspace: &str, fresh: bool) -> Result<Session, RemoteError> {
+        let ask = SessionAsk::SessionStart { workspace: workspace.into(), fresh };
         Ok(self.call::<_, SessionInfo>(&ask)?.session)
     }
 
@@ -219,6 +240,14 @@ impl Client {
     }
 }
 
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde's skip_serializing_if passes a reference"
+)]
+fn is_false(b: &bool) -> bool {
+    !b
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -241,8 +270,12 @@ mod tests {
             (set(None), r#"{"v":1,"op":"status_set","agent":"a","status":"done"}"#),
             (set(Some("n")), r#"{"v":1,"op":"status_set","agent":"a","status":"done","note":"n"}"#),
             (
-                SessionAsk::SessionStart { workspace: "w".into() },
+                SessionAsk::SessionStart { workspace: "w".into(), fresh: false },
                 r#"{"v":1,"op":"session_start","workspace":"w"}"#,
+            ),
+            (
+                SessionAsk::SessionStart { workspace: "w".into(), fresh: true },
+                r#"{"v":1,"op":"session_start","workspace":"w","fresh":true}"#,
             ),
             (
                 SessionAsk::SessionStop { workspace: "w".into() },
