@@ -1,0 +1,82 @@
+//! A canvas's items on the clipboard: Edit > Copy of the selection puts
+//! their file objects there as a JSON array, as a carry writes them
+//! ([`Mirror::carried`]: without the server's id, maker and time, the page,
+//! or what names items of this canvas, an arrow's ends), and the plain text
+//! of its texts, one a line, for other apps. Edit > Paste reads the objects
+//! back as items to add to a page. Pure.
+
+use serde_json::{Map, Value};
+
+use super::write::tenths;
+use super::{Mirror, read, shift};
+use crate::layout::{Point, Rect};
+use crate::scene::canvas::{ItemId, Shape};
+use crate::scene::ink::Carried;
+use crate::scene::paste::Clip;
+
+impl Mirror {
+    /// Items `ids` of this page as a copy puts them on the clipboard, in
+    /// drawing order; `None` when none of them is here.
+    pub fn copied(&self, ids: &[ItemId]) -> Option<Clip> {
+        let carried = self.carried(ids, "", Point { x: 0.0, y: 0.0 });
+        let texts: Vec<&str> = carried
+            .iter()
+            .filter_map(|c| match &c.item.shape {
+                Shape::Text { text, .. } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        let text = texts.join("\n");
+        let mut objects = Vec::new();
+        for Carried { mut object, .. } in carried {
+            if let Some(o) = object.as_object_mut() {
+                o.remove("page");
+            }
+            objects.push(object);
+        }
+        let items = (!objects.is_empty()).then(|| Value::Array(objects).to_string());
+        items.map(|items| Clip::new(Some(text), Some(items)))
+    }
+}
+
+/// The items a clip's `items` holds as a paste adds them to `page`: moved
+/// so the box around them is centred on `centre`, in canvas units (to the
+/// tenth, as the file keeps lengths). Nothing for text that is not a JSON
+/// array; an object that does not read as an item is left out.
+pub fn pasted(items: &str, page: &str, centre: Point) -> Vec<Carried> {
+    let Ok(Value::Array(objects)) = serde_json::from_str::<Value>(items) else {
+        return Vec::new();
+    };
+    let objects: Vec<Map<String, Value>> = objects
+        .into_iter()
+        .filter_map(|o| match o {
+            Value::Object(o) => Some(o),
+            _ => None,
+        })
+        .collect();
+    // An object reads only with an id: each its place in the clip, which
+    // the ink shows under one of its own.
+    let item = |n: usize, o: &Map<String, Value>| {
+        let mut o = o.clone();
+        o.insert("id".into(), format!("i{n}").into());
+        read(&o)
+    };
+    let around = objects.iter().enumerate().filter_map(|(n, o)| item(n, o)?.shape.bounds());
+    let Some(around) = around.reduce(Rect::union) else { return Vec::new() };
+    let by = |c: f64, from: f64, size: f64| Value::from(tenths(c - from - size / 2.0));
+    let (dx, dy) = (by(centre.x, around.x, around.width), by(centre.y, around.y, around.height));
+    let mut out = Vec::new();
+    for (n, mut object) in objects.into_iter().enumerate() {
+        shift(&mut object, &dx, &dy);
+        let Some(item) = item(n, &object) else { continue };
+        for key in ["id", "by", "t", "from", "to"] {
+            object.remove(key);
+        }
+        object.insert("page".into(), page.into());
+        out.push(Carried { item, object: Value::Object(object) });
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests;

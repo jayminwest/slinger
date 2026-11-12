@@ -11,7 +11,7 @@ use crate::panes::Panes;
 use crate::scene::Scene;
 use crate::scene::select::Selection;
 use crate::scene::sidebar::Sidebar;
-use crate::scene::sling::Key;
+use crate::scene::sling::{Key, edits};
 
 impl Canvases {
     /// The `sling` command: opens the entry at the selection, when the
@@ -61,12 +61,14 @@ impl Canvases {
         }
     }
 
-    /// Whether a key no command took is a text's: every key while the entry
-    /// is open but `keys`' `dictate` chord, and a key that types while a
-    /// text is being typed.
+    /// Whether a key no command took is a text's: while the entry is open,
+    /// every key a text field uses ([`edits`]) and every key `keys` binds
+    /// to nothing, but its `dictate` chord; and a key that types while a
+    /// text is being typed. So cmd+Q still quits with the entry open.
     pub fn takes(&self, chord: Chord, keys: &Keymap) -> bool {
-        let dictate = keys.command(chord) == Some(Command::Dictate);
-        self.typing() && !dictate || self.editing() && chord.types()
+        let bound = keys.command(chord);
+        let field = bound.is_none() || bound != Some(Command::Dictate) && edits(chord);
+        self.typing() && field || self.editing() && chord.types()
     }
 
     /// A key press while the entry is open: return sends and escape
@@ -328,6 +330,12 @@ mod tests {
         assert!(canvases.typing(), "the entry opened");
         assert!(!canvases.takes(dictate_key(), &keys), "the dictate key reaches the keymap");
         assert!(canvases.takes(Chord::new(0, 'w'), &keys));
+        let cmd = |key| Chord::new(crate::commands::CMD, key);
+        assert!(canvases.takes(Chord::new(0, '\u{7f}'), &keys), "delete is the field's");
+        assert!(canvases.takes(cmd('v'), &keys), "paste is the field's");
+        assert!(canvases.takes(cmd('z'), &keys), "undo is the field's");
+        assert!(!canvases.takes(cmd('q'), &keys), "cmd+Q reaches the keymap");
+        assert!(!canvases.takes(cmd('k'), &keys), "the palette's key too");
         let listening = ["● Flick is listening: dictate again when done"];
         assert_eq!(texts(&shown(canvases, panes)), listening);
         wait_until(|| canvases.poll_dictation());

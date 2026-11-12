@@ -29,8 +29,10 @@ impl World {
         if let Event::Press(pen) = *event {
             window::press(&mut w.shared, &mut w.sidebar, &w.canvases, &w.tools, pen);
         }
-        let used = match asked(event, &mut w.shared, &mut w.canvases, &mut w.tools, &w.settings) {
-            Ask::Draw | Ask::Tap(_) => true,
+        let asked = asked(event, &mut w.shared, &mut w.canvases, &mut w.tools, &w.settings, area);
+        let used = match asked {
+            Ask::Draw(_) | Ask::Tap(_) => true,
+            Ask::Step(step) => !matches!(step, Step::Pass),
             Ask::Pass => false,
             Ask::Run(command) => run(
                 command,

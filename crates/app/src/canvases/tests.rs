@@ -271,3 +271,46 @@ fn a_pane_knows_its_canvas_file_and_save_says_where_it_went() {
         assert_eq!(canvases.said().as_deref(), Some(title::NO_CANVAS));
     });
 }
+
+/// slinger-59ebdf: copy puts the selection on the clipboard, paste adds it
+/// to the page as the new selection, cut removes it; a text being typed
+/// copies nothing and takes only text.
+#[test]
+fn copy_paste_and_cut_the_selection_and_a_text_being_typed_takes_only_text() {
+    use crate::scene::paste::Clip;
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        user_stroke(daemon, "notes");
+        let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+        wait_until(|| shown(&mut canvases, &panes) == 1);
+        assert!(!canvases.can_copy(&panes) && canvases.copy(&panes, false).is_none());
+
+        let around = [(80.0, 80.0), (130.0, 80.0), (130.0, 130.0), (80.0, 130.0), (80.0, 81.0)];
+        gesture(&mut canvases, &panes, Tool::Lasso, &around, 10.0);
+        let first = canvases.selection().cloned().unwrap();
+        let clip = canvases.copy(&panes, false).unwrap();
+        assert_eq!(clip.text, None, "a stroke has no text");
+        assert!(canvases.can_paste(&clip, &panes));
+        assert!(!canvases.can_paste(&Clip::new(Some("words".into()), None), &panes));
+        assert!(canvases.paste(&clip, &panes, WINDOW.rect()));
+        until(&mut canvases, &panes, daemon, |d| count(d, "stroke") == 2);
+        wait_until(|| {
+            shown(&mut canvases, &panes);
+            canvases.selection().is_some_and(|s| s.ids.len() == 1 && s.ids != first.ids)
+        });
+
+        assert!(canvases.copy(&panes, true).is_some(), "cut");
+        until(&mut canvases, &panes, daemon, |d| count(d, "stroke") == 1);
+        assert!(canvases.selection().is_none());
+
+        type_word(&mut canvases, &panes, (300.0, 300.0), 20.0);
+        assert!(!canvases.can_copy(&panes), "no selection inside a text being typed");
+        assert!(!canvases.can_paste(&clip, &panes), "items do not go into a text");
+        let text = Clip::new(Some(" more".into()), None);
+        assert!(canvases.can_paste(&text, &panes) && canvases.paste(&text, &panes, WINDOW.rect()));
+        assert!(canvases.typed("\u{1b}"));
+        until(&mut canvases, &panes, daemon, |d| {
+            d.canvas_show("notes", None).unwrap().items.iter().any(|i| i["text"] == "word more")
+        });
+    });
+}

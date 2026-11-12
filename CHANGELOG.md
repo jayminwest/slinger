@@ -11,6 +11,14 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** copy, cut and paste on the canvas. With a selection, Edit >
+  Copy (⌘C) puts its items on the clipboard (other apps get the text of
+  its texts), Cut (⌘X) also removes them, and Edit > Paste (⌘V) adds them
+  to the focused pane's page, centred in it and selected, on any page or
+  canvas. Undo takes a paste or a cut back in one step. Cut, Copy and
+  Paste grey out in the Edit menu when they would do nothing, such as
+  Copy with nothing selected or while typing a text.
+
 - **CLI:** `slinger canvas schema` prints the item kinds (text, box,
   arrow, stroke, button, live) with their fields and the operations
   `canvas apply` takes, without a daemon; `canvas apply --help` shows the
@@ -125,6 +133,10 @@ bullet with the area in bold.
   dragged inside a box takes the ink it touches, not the outer box; a tap,
   or a drag over nothing, inside nested boxes selects the innermost one.
   A drag across a box's outline still takes it.
+- **App:** menu keys work while the sling's prompt (or a note of feedback)
+  is open: ⌘Q quits, ⌘K opens the palette and so on, instead of doing
+  nothing. Keys a text field uses itself (⌘X, ⌘C, ⌘V, ⌘A, the arrows
+  and delete with ⌘ or ⌃) still edit the prompt.
 - **App:** the key overlay (⌘/) fits a narrow window. It drops to two
   columns, then one, instead of squeezing three until the titles and keys
   overlap; the rows scroll as before.
