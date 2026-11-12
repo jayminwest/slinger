@@ -1,4 +1,4 @@
-use slinger_control::{Client, Put};
+use slinger_control::{Client, EventFilter, Put};
 
 use super::*;
 use crate::backend::testing::{fake_claude, user_stroke, wait_until};
@@ -38,15 +38,33 @@ fn button(canvases: &mut Canvases, panes: &Panes, daemon: &Client) -> (Rect, Str
     found.unwrap()
 }
 
-/// What the agent's process has read, once it holds `n` messages.
+/// What the agent's process has read, once it holds `n` whole messages.
+/// It writes a message a line at a time and a long line in pieces: a line
+/// counts once its newline is in.
 fn read(home: &std::path::Path, n: usize) -> Vec<String> {
     let mut lines = Vec::new();
     wait_until(|| {
         let text = std::fs::read_to_string(home.join("in.txt")).unwrap_or_default();
-        lines = text.lines().map(str::to_string).collect();
+        let whole = text.rfind('\n').map_or("", |end| &text[..end]);
+        lines = whole.lines().map(str::to_string).collect();
         lines.len() >= n
     });
     lines
+}
+
+/// Polls `canvases` until the daemon has recorded `n` slings on `notes`
+/// and the pane's sling line is gone: the last sling recorded is where what
+/// is new starts for the next. The agent reads a sling before the daemon
+/// records it, so its reading is not the sign.
+fn recorded(canvases: &mut Canvases, daemon: &Client, n: usize) {
+    let (kind, canvas) = (Some("sling_sent".into()), Some("notes".into()));
+    let filter = EventFilter { kind, canvas, ..EventFilter::default() };
+    let theme = Config::default().theme;
+    wait_until(|| {
+        canvases.poll();
+        let slings = daemon.record_list(filter.clone()).unwrap();
+        slings.len() >= n && canvases.sling.labels(&theme).is_empty()
+    });
 }
 
 fn tap(canvases: &mut Canvases, panes: &Panes, on: Rect) -> bool {
@@ -113,14 +131,14 @@ fn a_placed_button_shows_its_agent_s_status_and_a_tap_slings_what_is_new() {
         // A note, then a tap: what is new goes, with no selection and no prompt.
         user_stroke(daemon, "notes");
         assert!(tap(&mut canvases, &panes, frame));
-        let theme = Config::default().theme;
-        wait_until(|| canvases.poll() && canvases.sling.labels(&theme).is_empty());
+        recorded(&mut canvases, daemon, 1);
         let message = &read(home.path(), 1)[0];
         assert!(message.contains("slinger-sling 1 canvas=notes\\n"), "nothing selected: {message}");
-        assert!(message.contains("c2 ink"), "the note is new: {message}");
+        assert!(message.contains("# new\\nc2 ink"), "the note is new: {message}");
         reply_lands_beside_the_note(&mut canvases, &panes, daemon);
 
         type_beside_and_tap(&mut canvases, &panes, frame);
+        recorded(&mut canvases, daemon, 2);
         let second = &read(home.path(), 2)[1];
         assert!(second.contains("canvas=notes\\n") && second.contains("and now?"), "{second}");
         daemon.session_stop("notes").unwrap();
