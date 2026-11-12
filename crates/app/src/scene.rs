@@ -42,6 +42,7 @@ pub mod sidebar;
 pub mod sling;
 pub mod status;
 pub mod style;
+pub mod taps;
 pub mod tools;
 
 use std::collections::HashMap;

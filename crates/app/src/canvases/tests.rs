@@ -59,12 +59,12 @@ fn gesture(canvases: &mut Canvases, panes: &Panes, tool: Tool, path: &[(f64, f64
     shown(canvases, panes);
 }
 
-/// What the one pane's footer says, part by part, with `tool`.
-fn footer(canvases: &mut Canvases, panes: &Panes, tool: Tool) -> Vec<String> {
+/// What the one pane's footer says, its texts joined by "|", with `tool`.
+fn footer(canvases: &mut Canvases, panes: &Panes, tool: Tool) -> String {
     let (theme, keys) = (Config::default().theme, crate::commands::Keymap::default());
-    let footers = canvases.footers(panes, WINDOW.rect(), &theme, (tool, GREY), &keys);
+    let footers = canvases.footers(panes, WINDOW.rect(), &theme, (tool, GREY), &keys, false);
     let part = |p: &crate::scene::status::Part| p.runs.iter().map(|r| r.text.as_str()).collect();
-    footers[0].parts.iter().map(part).collect()
+    footers[0].parts.iter().map(part).collect::<Vec<String>>().join("|")
 }
 
 /// Waits until the daemon holds what `met` asks, the pane taking in its news.
@@ -111,8 +111,8 @@ fn the_first_press_of_any_tool_after_a_text_left_open_ends_it_and_is_that_tool_s
 
         let n = word(&mut canvases, 10.0);
         let said = footer(&mut canvases, &panes, Tool::Text);
-        assert!(said[0].starts_with("Text") && said[0].ends_with(" · typing"), "{said:?}");
-        assert!(said[1].ends_with(" · 1/1"), "the page: {said:?}");
+        assert!(said.starts_with("Text") && said.contains("|· typing|"), "{said:?}");
+        assert!(said.contains(" · 1/1|"), "the page: {said:?}");
         gesture(&mut canvases, &panes, Tool::Box, &[(400.0, 400.0), (500.0, 480.0)], 12.0);
         until(&mut canvases, &panes, daemon, |d| count(d, "text") == 1 && count(d, "box") == 1);
         assert!(!canvases.editing() && n == 1);
@@ -126,7 +126,7 @@ fn the_first_press_of_any_tool_after_a_text_left_open_ends_it_and_is_that_tool_s
         let around = [(80.0, 80.0), (130.0, 80.0), (130.0, 130.0), (80.0, 130.0), (80.0, 81.0)];
         gesture(&mut canvases, &panes, Tool::Lasso, &around, 32.0);
         assert_eq!(canvases.selection().map(|s| s.ids.len()), Some(1), "the stroke is selected");
-        assert!(footer(&mut canvases, &panes, Tool::Lasso)[0].ends_with(" · 1 selected"));
+        assert!(footer(&mut canvases, &panes, Tool::Lasso).contains("|· 1 selected|"));
         until(&mut canvases, &panes, daemon, |d| count(d, "text") == 3);
         assert!(canvases.clear_selection(&panes, panes.focus()));
 
@@ -165,11 +165,25 @@ fn a_paste_types_into_the_text_and_each_page_command_says_what_it_did() {
         assert_eq!(canvases.said().as_deref(), Some("New page: Page 2 · 2/2"));
         wait_until(|| {
             shown(&mut canvases, &panes);
-            footer(&mut canvases, &panes, Tool::Pen)[1].ends_with("Page 2 · 2/2")
+            footer(&mut canvases, &panes, Tool::Pen).contains("|Page 2 · 2/2|")
         });
         assert!(canvases.command(&panes, pane, Command::NextPage));
         assert_eq!(canvases.said().as_deref(), Some("Page 1 · 1/2"));
         assert_eq!(canvases.said(), None, "said once");
+        // The page menu lists the pages, and a tap on one turns the pane to it.
+        let names = Some((vec!["Page 1".to_string(), "Page 2".to_string()], 0));
+        wait_until(|| {
+            shown(&mut canvases, &panes);
+            canvases.page_names(&panes, panes.focus()) == names
+        });
+        canvases.turn_to(&panes, panes.focus(), 1);
+        assert_eq!(canvases.said().as_deref(), Some("Page 2 · 2/2"));
+        canvases.turn_to(&panes, panes.focus(), 9);
+        assert_eq!(canvases.said(), None, "no such page: nothing turns");
+        wait_until(|| {
+            shown(&mut canvases, &panes);
+            canvases.page_names(&panes, panes.focus()).is_some_and(|(_, at)| at == 1)
+        });
     });
 }
 
@@ -191,6 +205,7 @@ fn a_zoom_reaches_the_scene_and_flashes_its_level() {
         assert_eq!((zoom(&mut canvases), canvases.said().as_deref()), (1.25, Some("Zoom 125%")));
         canvases.zoom(panes.focus(), Point { x: 10.0, y: 10.0 }, 2.0);
         assert_eq!((zoom(&mut canvases), canvases.said().as_deref()), (2.5, Some("Zoom 250%")));
+        assert!(footer(&mut canvases, &panes, Tool::Pen).contains("|250%|"), "the footer says it");
         assert!(canvases.command(&panes, pane, Command::ZoomReset));
         assert_eq!((zoom(&mut canvases), canvases.said().as_deref()), (1.0, Some("Zoom 100%")));
         assert_eq!(canvases.said(), None, "said once");

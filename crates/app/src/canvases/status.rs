@@ -1,15 +1,16 @@
 //! What each pane's footer says (`scene::status`): on a canvas pane, the
-//! pen, whether a text is open or items are selected on its page, and the
-//! page; on an agent UI pane, its UI's name. The decisions are
-//! `scene::status`'s; this module finds the pane's page and state.
+//! pen, whether a text is open or items are selected on its page, the page
+//! and the zoom; on an agent UI pane, its UI's name. The decisions are
+//! `scene::status`'s; this module finds the pane's page, view and state.
+//! Also the page menu's list, and a tap there that turns a pane to a page.
 
 use super::Canvases;
-use crate::commands::{Command, Keymap};
+use crate::commands::Keymap;
 use crate::config::{Rgb, Theme};
-use crate::layout::{Point, Rect};
+use crate::layout::{PaneId, Rect};
 use crate::panes::{Kind, Panes};
 use crate::scene::pages;
-use crate::scene::status::{self, Footer, Pen, State};
+use crate::scene::status::{self, Footer, Pen, Shows, State};
 use crate::scene::tools::Tool;
 
 impl Canvases {
@@ -21,18 +22,35 @@ impl Canvases {
 
     /// The footer of each pane of `panes` laid in `area`, in `theme`'s
     /// colours, with the pen's `tool`, `colour` and width and the live keys
-    /// of `keys`. Their targets are kept for [`Canvases::hint`].
+    /// of `keys`. With the sidebar `collapsed`, the pane at the area's
+    /// bottom left has its button.
     pub fn footers(
-        &mut self,
+        &self,
         panes: &Panes,
         area: Rect,
         theme: &Theme,
         (tool, colour): (Tool, Rgb),
         keys: &Keymap,
+        collapsed: bool,
     ) -> Vec<Footer> {
-        let footer = |(id, pane, frame): (_, &crate::panes::Pane, Rect)| {
+        let placed = panes.place(area);
+        let close = placed.len() > 1;
+        let corner = |frame: Rect| {
+            let bottom = (frame.y + frame.height - area.y - area.height).abs() < 0.5;
+            collapsed && (frame.x - area.x).abs() < 0.5 && bottom
+        };
+        let footer = |&(id, pane, frame): &(PaneId, &crate::panes::Pane, Rect)| {
+            let sidebar = corner(frame);
             if pane.kind == Kind::Ui {
-                return status::footer(frame, theme, keys, None, &pane.name);
+                let shows = Shows {
+                    pen: None,
+                    centre: &pane.name,
+                    pages: false,
+                    zoom: None,
+                    sidebar,
+                    close,
+                };
+                return status::footer(frame, theme, keys, &shows);
             }
             let page = self.pages_of(panes, id);
             let typing = page.as_ref().is_some_and(|(canvas, _, at)| {
@@ -47,23 +65,36 @@ impl Canvases {
                 _ => State::Idle,
             };
             let centre = page.map(|(_, list, at)| pages::line(&list, &at)).unwrap_or_default();
-            status::footer(
-                frame,
-                theme,
-                keys,
-                Some(Pen { tool, colour, width: self.ink.width(), state }),
-                &centre,
-            )
+            let zoom = self.views.iter().find(|(p, _)| *p == id).map(|(_, v)| v.viewport);
+            let shows = Shows {
+                pen: Some(Pen { tool, colour, width: self.ink.width(), state }),
+                centre: &centre,
+                pages: !centre.is_empty(),
+                zoom: Some(zoom.unwrap_or_else(crate::layout::Viewport::start).percent()),
+                sidebar,
+                close,
+            };
+            status::footer(frame, theme, keys, &shows)
         };
-        let footers: Vec<Footer> = panes.place(area).into_iter().map(footer).collect();
-        self.hints = footers.iter().flat_map(|f| f.targets.iter().copied()).collect();
-        footers
+        placed.iter().map(footer).collect()
     }
 
-    /// The command of the footer target under `at`, a point in the window,
-    /// as the footers were last laid: a tap on a key hint opens the key
-    /// overlay or the palette.
-    pub fn hint(&self, at: Point) -> Option<Command> {
-        self.hints.iter().find(|(frame, _)| frame.contains(at)).map(|&(_, command)| command)
+    /// The names of the pages of the canvas `pane` of `panes` shows, and
+    /// the index of the one it shows; `None` until its page has arrived,
+    /// or for an agent UI pane.
+    pub fn page_names(&self, panes: &Panes, pane: PaneId) -> Option<(Vec<String>, usize)> {
+        let (_, list, at) = self.pages_of(panes, pane)?;
+        let here = list.iter().position(|p| p.id == at).unwrap_or(0);
+        Some((list.into_iter().map(|p| p.name).collect(), here))
+    }
+
+    /// Turns `pane` of `panes` to the page with index `index` of its
+    /// canvas, and flashes it ("Page 2 · 2/3"). An index past the last does
+    /// nothing.
+    pub fn turn_to(&mut self, panes: &Panes, pane: PaneId, index: usize) {
+        let Some((canvas, list, _)) = self.pages_of(panes, pane) else { return };
+        let Some(to) = list.get(index) else { return };
+        self.asks.turned(&list, &to.id);
+        self.view(pane).page = Some((canvas, to.id.clone()));
     }
 }

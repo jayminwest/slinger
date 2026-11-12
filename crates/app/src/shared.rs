@@ -1,7 +1,7 @@
 //! The window's panes as the server keeps them for its workspace, and what
 //! goes with them: the window's size, the agent UIs, the notes, the
-//! divider under the pen and the key overlay and the command palette over
-//! them.
+//! divider under the pen, the footers' and the sidebar's tap targets, and
+//! the key overlay, the command palette and the page menu over them.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -13,8 +13,10 @@ use crate::commands::Command;
 use crate::layout::{self, Point, Rect, Size};
 use crate::panes::{self, Pane, Panes};
 use crate::scene::overlay::KeyOverlay;
-use crate::scene::palette::{Palette, Taken};
+use crate::scene::pages::menu::PageMenu;
+use crate::scene::palette::Palette;
 use crate::scene::resize::Dividers;
+use crate::scene::taps::{Taps, Took};
 use crate::scene::{Notes, Uis};
 use crate::ui;
 
@@ -40,6 +42,10 @@ pub struct Shared {
     pub overlay: KeyOverlay,
     /// The command palette (`show-commands`), when it is open.
     pub palette: Palette,
+    /// The page menu a tap on a footer's page name opens.
+    pub menu: PageMenu,
+    /// The footers' and the sidebar's buttons, as last drawn.
+    pub taps: Taps,
 }
 
 impl Default for Shared {
@@ -50,7 +56,8 @@ impl Default for Shared {
             (layout::WINDOW, None, None, Dividers::default());
         let (overlay, palette) = (KeyOverlay::default(), Palette::default());
         let panes = Panes::new(main);
-        Self { size, panes, uis, workspace, trouble, notes, dividers, overlay, palette }
+        let (menu, taps) = (PageMenu::default(), Taps::default());
+        Self { size, panes, uis, workspace, trouble, notes, dividers, overlay, palette, menu, taps }
     }
 }
 
@@ -82,46 +89,68 @@ impl Shared {
     }
 
     /// A press at `at`, a point in the window: the open palette's, else
-    /// the open key overlay's (each takes every press); with neither open,
-    /// a press on a footer's key hint (`hint`, the command under it) runs
-    /// that command, so the pen opens them with no keyboard.
-    pub fn press(&mut self, at: Point, hint: Option<Command>) -> Taken {
-        match self.palette.press(at, self.size) {
-            Taken::No => match self.overlay.press(at, self.size) {
-                Taken::No => hint.map_or(Taken::No, Taken::Run),
-                taken => taken,
-            },
+    /// the open key overlay's, else the open page menu's (each takes every
+    /// press); with none open, a press on a button holds it until the lift
+    /// ([`Shared::lift`]), and goes no further.
+    pub fn press(&mut self, at: Point) -> Took {
+        let size = self.size;
+        let taken = Took::from(self.palette.press(at, size));
+        let taken = if taken == Took::No { self.overlay.press(at, size).into() } else { taken };
+        let taken = if taken == Took::No { self.menu.press(at, size) } else { taken };
+        match taken {
+            Took::No if self.taps.press(at) => Took::Yes,
             taken => taken,
         }
+    }
+
+    /// A pen or mouse press at `at`, a point in the window, with the panes
+    /// in `area`: the pane under it (what it shows or its footer) takes
+    /// focus before the press does its work, so every focused-pane command
+    /// acts there next. Under the key overlay or the palette (they take
+    /// the press), on a divider, or for a touch, focus stays. Returns
+    /// whether it moved.
+    pub fn press_focus(&mut self, area: Rect, at: Point, touch: bool) -> bool {
+        !touch && !self.modal() && self.panes.focus_at(area, at)
     }
 
     /// Whether the key overlay or the palette is open: either takes every
     /// pen, mouse and trackpad event.
     pub fn modal(&self) -> bool {
-        self.overlay.is_open() || self.palette.is_open()
+        self.overlay.is_open() || self.palette.is_open() || self.menu.is_open()
     }
 
     /// The pen or the pointer, up, moved to `at`: over the open key
-    /// overlay, the row under it lights up. True when that changed.
+    /// overlay or page menu, the row under it lights up; else the button
+    /// under it. True when that changed.
     pub fn hover(&mut self, at: Point) -> bool {
-        self.overlay.hover(at, self.size)
+        if self.overlay.is_open() {
+            return self.overlay.hover(at, self.size);
+        }
+        self.menu.pointer(at, self.size, false) || (!self.modal() && self.taps.hover(at))
     }
 
     /// The pen, down, moved to `at`: the open key overlay scrolls with it.
-    /// True while the overlay or the palette is open: they take it.
+    /// True while the overlay, the palette or the page menu is open, or the
+    /// pen holds a button: they take it.
     pub fn drag(&mut self, at: Point) -> bool {
-        self.overlay.drag(at, self.size) || self.palette.is_open()
+        self.overlay.drag(at, self.size)
+            || self.palette.is_open()
+            || self.menu.pointer(at, self.size, true)
+            || self.taps.drag(at)
     }
 
     /// A scroll by `dy` points: the open key overlay's rows follow it. True
-    /// while the overlay or the palette is open: they take it.
+    /// while the overlay, the palette or the page menu is open: they take it.
     pub fn scroll(&mut self, dy: f64) -> bool {
-        self.overlay.scroll(dy, self.size) || self.palette.is_open()
+        self.overlay.scroll(dy, self.size) || self.palette.is_open() || self.menu.is_open()
     }
 
-    /// The pen lifted at `at`: a tap on a key overlay's row runs it.
-    pub fn lift(&mut self, at: Point) -> Taken {
-        self.overlay.lift(at, self.size)
+    /// The pen lifted at `at`: a tap on a key overlay's or the page menu's
+    /// row runs it, and so does one on the button the pen went down on.
+    pub fn lift(&mut self, at: Point) -> Took {
+        let taken = Took::from(self.overlay.lift(at, self.size));
+        let taken = if taken == Took::No { self.menu.lift(at, self.size) } else { taken };
+        if taken == Took::No { self.taps.lift(at) } else { taken }
     }
 
     /// Sends an agent UI's reply `line` to the daemon on `socket`, which
@@ -191,3 +220,6 @@ impl Shared {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

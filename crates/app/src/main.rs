@@ -46,11 +46,11 @@ use crate::config::Shown;
 use crate::layout::{Point, Rect};
 use crate::panes::Panes;
 use crate::platform::{Event, Step};
-use crate::scene::palette::Taken;
 use crate::scene::sidebar::Sidebar;
-use crate::scene::tools::Tools;
+use crate::scene::taps::{Tap, Target, Took};
+use crate::scene::tools::{Kind, Tools};
 use crate::shared::Shared;
-use crate::window::{pane_at, run, view};
+use crate::window::{pane_at, run, tap, view};
 
 fn main() -> ExitCode {
     let settings = backend::Settings::load(backend::ConfigFiles::locate());
@@ -135,7 +135,10 @@ fn window(mut settings: Settings) -> ExitCode {
     let mut tools = Tools::new(settings.config.palette.clone(), centre).with_widths(widths);
     let mut shared = Shared::default();
     let mut canvases = Canvases::new(control::Client::new(&socket));
-    let first = view(&settings, &shared, &tools, &sidebar, &mut canvases);
+    let first = view(&settings, &mut shared, &tools, &sidebar, &mut canvases);
+    // The workspace the config names, to tell when an edit changes it; a
+    // tap on another in the sidebar shows that one until it does.
+    let mut named = settings.config.workspace.clone();
     // Runs on the main thread for each key press, menu item, pen, mouse or
     // trackpad event, paint of new ink, and tick of the window's timer. The
     // open command palette, then the open key overlay, takes every key and
@@ -146,23 +149,44 @@ fn window(mut settings: Settings) -> ExitCode {
     // agents and the panes and what the canvases' followers heard; the watch
     // and the followers follow an edit that moves the socket or the
     // workspace. Only a split, a close or a resize asks the daemon here.
+    // Any pen or mouse press first focuses the pane under it; one an agent
+    // UI's page takes still draws the new focus.
     let answer = move |event| {
         let area = sidebar.panes(shared.size.rect());
+        // A press focuses the pane under it first, so the press works there.
+        let refocused = match event {
+            Event::Press(pen) => shared.press_focus(area, pen.at, pen.touch),
+            _ => false,
+        };
+        let pass =
+            |shared: &mut Shared, canvases: &mut Canvases, tools: &Tools, sidebar: &Sidebar| {
+                if refocused {
+                    Step::Through(view(&settings, shared, tools, sidebar, canvases))
+                } else {
+                    Step::Pass
+                }
+            };
         let asked = asked(&event, &mut shared, &mut canvases, &mut tools, &settings);
         let force = match (asked, event) {
             (Ask::Draw, _) => {
-                return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
+                return Step::Draw(view(&settings, &mut shared, &tools, &sidebar, &mut canvases));
             }
-            (Ask::Pass, _) => return Step::Pass,
+            (Ask::Pass, _) => return pass(&mut shared, &mut canvases, &tools, &sidebar),
             (Ask::Not, Event::Tick) => false,
             (Ask::Not, Event::Reply(line)) => {
                 return match shared.reply(&line, &socket) {
                     Ok(false) => Step::Stay,
                     Ok(true) => {
-                        Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases))
+                        Step::Draw(view(&settings, &mut shared, &tools, &sidebar, &mut canvases))
                     }
                     Err(why) => Step::Refuse(why),
                 };
+            }
+            (Ask::Tap(target), _) => {
+                if let Some(name) = tap(target, &mut canvases, &mut shared, &mut sidebar) {
+                    watch.want(Some(name));
+                }
+                return Step::Draw(view(&settings, &mut shared, &tools, &sidebar, &mut canvases));
             }
             (Ask::Run(Command::Quit), _) => return Step::Quit,
             // It flashes, and the window is drawn whether or not the files changed.
@@ -174,14 +198,14 @@ fn window(mut settings: Settings) -> ExitCode {
                 if !run(command, &mut tools, &mut canvases, &mut sidebar, &mut shared, &socket) {
                     return Step::Pass;
                 }
-                return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
+                return Step::Draw(view(&settings, &mut shared, &tools, &sidebar, &mut canvases));
             }
             // The pen, the mouse, the trackpad, typed text and a resize.
             (Ask::Not, event) => {
                 if !pen(&event, &mut tools, &mut canvases, &mut shared, area, &socket) {
-                    return Step::Pass;
+                    return pass(&mut shared, &mut canvases, &tools, &sidebar);
                 }
-                return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
+                return Step::Draw(view(&settings, &mut shared, &tools, &sidebar, &mut canvases));
             }
         };
         let heard = watch.latest().is_some_and(|now| sidebar.update(now));
@@ -200,8 +224,11 @@ fn window(mut settings: Settings) -> ExitCode {
                 shown = settings.config.sidebar;
                 sidebar.set_open(shown == Shown::Open);
             }
-            watch.want(settings.config.workspace.clone());
-            sidebar.show(settings.config.workspace.clone());
+            if settings.config.workspace != named {
+                named.clone_from(&settings.config.workspace);
+                watch.want(named.clone());
+                sidebar.show(named.clone());
+            }
             let now = settings.socket();
             if now != socket {
                 watch.follow(now.clone());
@@ -209,7 +236,7 @@ fn window(mut settings: Settings) -> ExitCode {
                 socket = now;
             }
         }
-        Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases))
+        Step::Draw(view(&settings, &mut shared, &tools, &sidebar, &mut canvases))
     };
     match platform::run(&first, answer) {
         Ok(()) => ExitCode::SUCCESS,
@@ -221,6 +248,8 @@ fn window(mut settings: Settings) -> ExitCode {
 enum Ask {
     /// Run a command, as its key does.
     Run(Command),
+    /// A tap on a button that does more than run a command.
+    Tap(Target),
     /// Draw again: something took it.
     Draw,
     /// Let it go on to the focused view.
@@ -233,7 +262,9 @@ enum Ask {
 /// the open command palette in `shared` takes every key and press, and runs
 /// a command as its key would; then a key goes to what takes keys first
 /// ([`taken`]), to the canvases (a text being typed), and to the keymap. A
-/// menu item's key comes as that key.
+/// menu item's key comes as that key. A press on a button (or an open
+/// overlay's or menu's row) is theirs; the lift on it taps it: a pop-up
+/// opens where the pen lifted, another closes, and undo and redo flash.
 fn asked(
     event: &Event,
     shared: &mut Shared,
@@ -243,25 +274,38 @@ fn asked(
 ) -> Ask {
     let keys = &settings.config.keys;
     let palette = match *event {
-        Event::Key(chord) => shared.palette.key(chord, keys),
-        Event::Press(pen) => shared.press(pen.at, canvases.hint(pen.at)),
-        Event::Lift(pen) => shared.lift(pen.at),
+        Event::Key(chord) => shared.palette.key(chord, keys).into(),
+        Event::Press(pen) => shared.press(pen.at),
+        Event::Lift(pen) => {
+            tools.moved(pen.at);
+            shared.lift(pen.at)
+        }
         Event::Command(command) => return Ask::Run(command),
         _ => return Ask::Not,
     };
     match (palette, event) {
-        (Taken::Run(command), _) => Ask::Run(command),
-        (Taken::Yes, _) => Ask::Draw,
-        (Taken::No, &Event::Key(c)) if taken(c, shared, canvases, tools, settings) => Ask::Draw,
-        (Taken::No, &Event::Key(chord)) if canvases.takes(chord, keys) => Ask::Pass,
-        (Taken::No, &Event::Key(chord)) => keys.command(chord).map_or(Ask::Pass, Ask::Run),
-        (Taken::No, _) => Ask::Not,
+        (Took::Tap((_, Tap::Run(command))), &Event::Lift(_)) => {
+            if Kind::opened_by(command).is_none() {
+                tools.close();
+            }
+            if matches!(command, Command::Undo | Command::Redo) {
+                tools.flash().command(command, keys, Instant::now());
+            }
+            Ask::Run(command)
+        }
+        (Took::Tap((_, Tap::Run(command))), _) => Ask::Run(command),
+        (Took::Tap(target), _) => Ask::Tap(target),
+        (Took::Yes, _) => Ask::Draw,
+        (Took::No, &Event::Key(c)) if taken(c, shared, canvases, tools, settings) => Ask::Draw,
+        (Took::No, &Event::Key(chord)) if canvases.takes(chord, keys) => Ask::Pass,
+        (Took::No, &Event::Key(chord)) => keys.command(chord).map_or(Ask::Pass, Ask::Run),
+        (Took::No, _) => Ask::Not,
     }
 }
 
 /// Hands `chord` to what takes keys before the keymap: the open key overlay
-/// in `shared` (every key), the sling's entry, then a pop-up. False when
-/// none took it.
+/// in `shared` (every key), the page menu (escape), the sling's entry, then
+/// a pop-up. False when none took it.
 fn taken(
     chord: Chord,
     shared: &mut Shared,
@@ -270,6 +314,7 @@ fn taken(
     settings: &Settings,
 ) -> bool {
     shared.overlay.key(chord, &settings.config.keys)
+        || shared.menu.key(chord)
         || canvases.sling_key(chord)
         || tools.key(chord)
 }
@@ -279,10 +324,11 @@ fn taken(
 /// resize; a moved divider goes to the daemon on `socket`. A resized window
 /// lays its panes out again. A paste goes to the open palette's search,
 /// else to the text being typed or the page name asked; under the key
-/// overlay, or with neither open, it does nothing. The open key overlay lights the row under
-/// the pen, scrolls with a drag or a scroll, and with the palette takes every other pen, mouse
-/// or trackpad event and typed text. Any other event goes on to [`pointer`]. False when nothing
-/// used it.
+/// overlay, or with neither open, it does nothing. A move goes to the pop-ups (where one
+/// opens) and lights the button, or the open overlay's or menu's row, under the pen. The open
+/// key overlay scrolls with a drag or a scroll, and with the palette and the page menu takes
+/// every other pen, mouse or trackpad event and typed text; a drag after a press on a button is
+/// the button's. Any other event goes on to [`pointer`]. False when nothing used it.
 fn pen(
     event: &Event,
     tools: &mut Tools,
@@ -297,7 +343,10 @@ fn pen(
         Event::Paste(ref text) => {
             !shared.overlay.is_open() && (shared.palette.pasted(text) || canvases.pasted(text))
         }
-        Event::Moved(at) if shared.hover(at) => true,
+        Event::Moved(at) => {
+            tools.moved(at);
+            shared.hover(at)
+        }
         Event::Drag(pen) if shared.drag(pen.at) => true,
         Event::Scroll { dy, .. } if shared.scroll(dy) => true,
         Event::Lift(_) | Event::Zoom { .. } | Event::Text(_) if shared.modal() => true,
@@ -317,7 +366,7 @@ fn pen(
 /// erases, selects, places text or draws a shape; typed text to the text being
 /// typed (the sling's open entry keeps its presses and keys); a scroll or a
 /// pinch pans or zooms. The pen's eraser end, near or pressed, erases with
-/// any tool. False when nothing used it, and for a move or a paint.
+/// any tool. False when nothing used it, and for a paint.
 /// A lift writes the stroke's delay log.
 fn pointer(
     event: &Event,
@@ -327,10 +376,6 @@ fn pointer(
     area: Rect,
 ) -> bool {
     match *event {
-        Event::Moved(at) => {
-            tools.moved(at);
-            false
-        }
         Event::Painted(delay) => {
             canvases.painted(delay);
             false

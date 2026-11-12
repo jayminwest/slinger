@@ -9,7 +9,28 @@ bullet with the area in bold.
 
 ## [Unreleased]
 
+### Added
+
+- **App:** pen-sized buttons in each pane's footer, so the pen does most
+  things without the keyboard. Tap the swatch, the width bars or the tool
+  name to pick a colour, a width or a tool; undo and redo; ‹ and › to turn
+  the page; − and + to zoom, and the zoom level to go back to 100%; split
+  right, split down and close the pane. Tap the page name for a page menu:
+  it lists the canvas's pages (tap one to show it) and offers New page,
+  Rename page… and Remove page. Each button acts on its own pane. A button
+  lights under the pen and runs when you lift on it, so a press that slides
+  off runs nothing. A narrow pane keeps the tool, colour, page and
+  commands, and drops the rest.
+- **App:** a button to hide the sidebar at its foot, and one to show it in
+  the bottom-left footer while it is hidden, at the same spot. Tap a
+  workspace in the sidebar to show its panes.
+
 ### Fixed
+
+- **App:** a pen or mouse press on a pane focuses it, so with two panes
+  open the zoom, pan, page, split and close commands act on the pane you
+  last touched. The first stroke in the other pane still draws, and a
+  press on its footer or on an agent UI pane focuses it too.
 
 - **App:** the feedback, sling and rename entries take the keyboard each
   time they open, and get it back after you click elsewhere or switch apps,
