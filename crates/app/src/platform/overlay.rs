@@ -8,7 +8,7 @@ use objc2::rc::Retained;
 use objc2_app_kit::{
     NSBox, NSBoxType, NSColor, NSFont, NSLineBreakMode, NSTextAlignment, NSTitlePosition, NSView,
 };
-use objc2_foundation::{NSPoint, NSRect, NSSize};
+use objc2_foundation::NSSize;
 
 use super::{color, flipped, label};
 use crate::scene::Label;
@@ -71,14 +71,7 @@ fn text(line: &Line, height: f64, mtm: MainThreadMarker) -> Retained<NSView> {
     };
     field.setFont(Some(&font));
     field.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
-    let frame = flipped(height, line.label.frame);
-    let tall = field.cell().map_or(frame.size.height, |cell| cell.cellSize().height);
-    let tall = tall.min(frame.size.height);
-    let y = frame.origin.y + (frame.size.height - tall) / 2.0;
-    field.setFrame(NSRect::new(
-        NSPoint::new(frame.origin.x, y),
-        NSSize::new(frame.size.width, tall),
-    ));
+    super::text::centre(&field, flipped(height, line.label.frame));
     Retained::into_super(Retained::into_super(field))
 }
 
