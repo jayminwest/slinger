@@ -130,9 +130,8 @@ fn window(mut settings: Settings) -> ExitCode {
     let mut shown = settings.config.sidebar;
     let mut sidebar = Sidebar::new(Shown::starts_open(shown, platform::remembered_sidebar()));
     sidebar.show(settings.config.workspace.clone());
-    let centre = Point { x: layout::WINDOW.width / 2.0, y: layout::WINDOW.height / 2.0 };
     let widths = settings.config.widths.clone();
-    let mut tools = Tools::new(settings.config.palette.clone(), centre).with_widths(widths);
+    let mut tools = Tools::new(settings.config.palette.clone()).with_widths(widths);
     let mut shared = Shared::default();
     let mut canvases = canvases(&socket);
     let first = view(&settings, &mut shared, &tools, &sidebar, &mut canvases);
