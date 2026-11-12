@@ -75,6 +75,7 @@ pub fn build(log: &[Op], ask: &Ask<'_>) -> Result<Packet> {
         from: delta.from.0 + 1,
         to: delta.to.0,
         scale: render::SCALE,
+        tokens: None,
         at: None,
     };
     let body = index.text(|id| names.get(id).cloned().unwrap_or_default());
@@ -87,5 +88,6 @@ pub fn build(log: &[Op], ask: &Ask<'_>) -> Result<Packet> {
         .iter()
         .filter_map(|n| lines().find(|e| number(&e.id) == Some(*n)).map(|e| e.id.clone()))
         .collect();
+    packet.count();
     Ok(packet)
 }

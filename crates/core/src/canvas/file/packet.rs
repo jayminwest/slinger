@@ -39,6 +39,7 @@ impl Log {
         let last = self.next().saturating_sub(1);
         packet.header.from = after.min(last) + 1;
         packet.header.to = last;
+        packet.count();
         Ok(packet)
     }
 }

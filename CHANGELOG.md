@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **Packets:** the packet header shows about what it costs to read
+  (`tokens=`), its images included, so you and the agent both see what a
+  sling costs. It is a local estimate (a token per 4 characters, a token
+  per 750 pixels of an image), not a tokenizer's count.
+
 - **App:** see where a canvas is saved. The window's title names the
   focused pane's canvas, with its file under it
   (`~/Library/Application Support/slinger/canvases/<id>.canvas` by

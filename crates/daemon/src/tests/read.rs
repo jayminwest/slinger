@@ -57,6 +57,8 @@ fn a_read_stores_the_packet_and_its_images_as_blobs_and_files() {
     let at = format!(" at={}", first.dir.display());
     assert!(header.starts_with("slinger-packet 1 canvas=idea page=Page%201 from=1 to=1 "));
     assert!(header.ends_with(&at), "{header}");
+    // The cost of the packet as slung, its image included.
+    assert!(header.contains(" scale=0.35 tokens="), "{header}");
     // The stored text has no `at`, so its id depends on the page alone.
     let stored = String::from_utf8(blob(&client, &first.packet, scratch.path())).unwrap();
     assert_eq!(stored, first.text.replacen(&at, "", 1));
