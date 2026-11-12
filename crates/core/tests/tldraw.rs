@@ -143,7 +143,7 @@ fn shapes_map_to_items_in_drawing_order_with_colour() {
         colour: Colour::rgb(215, 40, 50),
         width: 20.0,
     };
-    let label = Shape::Text { text: "label".into(), frame, colour: black };
+    let label = Shape::Text { text: "label".into(), frame, colour: black, size: 24.0 };
     assert_eq!(
         shapes[..3],
         [stroke, Shape::Box { frame, colour: Colour::rgb(40, 140, 90) }, label]
@@ -151,7 +151,7 @@ fn shapes_map_to_items_in_drawing_order_with_colour() {
     let texts: Vec<_> = shapes[3..]
         .iter()
         .filter_map(|s| match s {
-            Shape::Text { text, frame, colour } => Some((text.as_str(), frame.w, *colour)),
+            Shape::Text { text, frame, colour, .. } => Some((text.as_str(), frame.w, *colour)),
             _ => None,
         })
         .collect();

@@ -11,10 +11,11 @@
 //! held inside the pane when that place is off screen; a sling of the whole
 //! page from the footer pins it to the pane's top left. It says, in turn:
 //!
-//! - `● scout working · 4s` from the moment the sling is in the agent's
-//!   process until it answers, the time counting each second (each minute
-//!   past one, so the window is drawn at most once a second);
-//! - `■ scout blocked: <note>` while the agent says it waits;
+//! - `● scout working · 4s · ~12k` from the moment the sling is in the
+//!   agent's process until it answers, the time counting each second (each
+//!   minute past one, so the window is drawn at most once a second), then
+//!   about how many tokens the agent reads for it, when the daemon counts;
+//! - `■ scout blocked: <note> · ~12k` while the agent says it waits;
 //! - `✓ scout answered · 2 new items` once it answered, with an arrow
 //!   toward them (`→`) when none of them shows in the pane: a tap pans
 //!   there, and the next tap clears it;
@@ -40,7 +41,7 @@ use crate::scene::canvas::ItemId;
 use crate::scene::overlay::{Align, Line, Overlay};
 use crate::scene::taps::{Tap, Target};
 use crate::scene::{Label, glyphs, style};
-use words::{arrow, count, elapsed, page};
+use words::{arrow, cost, count, elapsed, page};
 
 /// How long an answer or a failure stays untapped.
 pub const CLEAR: Duration = Duration::from_secs(30);
@@ -52,8 +53,6 @@ const HIGH: f64 = style::TAP;
 /// The room inside the pill's ends, and around it in its pane.
 const PAD: f64 = 10.0;
 const GAP: f64 = 8.0;
-/// About how wide a character of the answer's text is, to wrap it.
-const CHAR: f64 = 7.0;
 /// A line under the pill (a hint, the answer), its text size, and the
 /// answer panel's widest and most lines.
 const LINE: f64 = 20.0;
@@ -141,6 +140,8 @@ struct Out {
     /// it are its answer.
     newest: ItemId,
     agent: String,
+    /// About how many tokens the agent reads for it, when the daemon said.
+    tokens: Option<u64>,
     went: Instant,
     stage: Stage,
     since: Instant,
@@ -179,6 +180,7 @@ impl Slung {
             at,
             newest,
             agent,
+            tokens: None,
             went: now,
             stage,
             since: now,
@@ -191,10 +193,11 @@ impl Slung {
         self.flash = None;
     }
 
-    /// The aimed sling went into `agent`'s session at `now`.
-    pub fn went(&mut self, agent: &str, now: Instant) -> bool {
+    /// The aimed sling went into `agent`'s session at `now`, `tokens` its
+    /// cost as the daemon counts it.
+    pub fn went(&mut self, agent: &str, tokens: Option<u64>, now: Instant) -> bool {
         let Some(out) = self.out.as_mut().filter(|o| o.stage == Stage::Aimed) else { return false };
-        (out.agent, out.went) = (agent.to_string(), now);
+        (out.agent, out.tokens, out.went) = (agent.to_string(), tokens, now);
         out.to(Stage::Working, now);
         self.flash = Some(format!("Slung to {agent}"));
         true
@@ -352,17 +355,16 @@ impl Slung {
     pub fn marks(&self, theme: &Theme, views: &[View], now: Instant) -> Marks {
         let Some(out) = &self.out else { return Marks::default() };
         let Some((_, view)) = out.view(views) else { return Marks::default() };
+        let (agent, cost) = (&out.agent, cost(out.tokens));
         let (text, colour, under) = match &out.stage {
             Stage::Aimed => return Marks::default(),
             Stage::Working => {
                 let time = elapsed(now.saturating_duration_since(out.went));
-                (format!("● {} working · {time}", out.agent), theme.text, Vec::new())
-            }
-            Stage::Blocked(note) if note.is_empty() => {
-                (format!("■ {} blocked", out.agent), theme.error, Vec::new())
+                (format!("● {agent} working · {time}{cost}"), theme.text, Vec::new())
             }
             Stage::Blocked(note) => {
-                (format!("■ {} blocked: {note}", out.agent), theme.error, Vec::new())
+                let note = if note.is_empty() { String::new() } else { format!(": {note}") };
+                (format!("■ {agent} blocked{note}{cost}"), theme.error, Vec::new())
             }
             Stage::Answered(answer) => {
                 (out.answered(answer.is_some(), &view), theme.text, Vec::new())

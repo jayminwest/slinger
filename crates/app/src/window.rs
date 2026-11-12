@@ -19,7 +19,7 @@ use crate::scene::pages::menu::List;
 use crate::scene::paste::{Clip, Edit};
 use crate::scene::sidebar::Row;
 use crate::scene::sidebar::Sidebar;
-use crate::scene::sling::{CANCEL, SEND};
+use crate::scene::sling::{CANCEL, Profile, SEND};
 use crate::scene::taps::{Tap, Target};
 use crate::scene::tools::{Kind, Tools};
 use crate::scene::{self, Label, Scene, cursor, status, title};
@@ -115,7 +115,7 @@ pub fn selection(
         Command::DeleteSelection => canvases.delete_selection(panes, panes.focus()),
         Command::ClearSelection => canvases.clear_selection(panes, panes.focus()),
         Command::Sling | Command::Dictate => canvases.sling_command(command, panes, area),
-        Command::SlingNow => canvases.sling_now_command(panes, area),
+        Command::SlingNow => canvases.sling_now_command(panes, area, Profile::Running),
         _ => true,
     }
 }

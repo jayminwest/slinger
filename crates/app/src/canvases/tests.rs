@@ -293,9 +293,13 @@ fn copy_paste_and_cut_the_selection_and_a_text_being_typed_takes_only_text() {
         assert!(canvases.can_paste(&clip, &panes));
         assert!(canvases.paste(&clip, &panes, WINDOW.rect(), GREY));
         until(&mut canvases, &panes, daemon, |d| count(d, "stroke") == 2);
+        // The copy is selected once made, and copied once the page's copy
+        // holds it too (slinger-86410b).
         wait_until(|| {
             shown(&mut canvases, &panes);
-            canvases.selection().is_some_and(|s| s.ids.len() == 1 && s.ids != first.ids)
+            let pasted =
+                canvases.selection().is_some_and(|s| s.ids.len() == 1 && s.ids != first.ids);
+            pasted && canvases.can_copy(&panes)
         });
 
         assert!(canvases.copy(&panes, true).is_some(), "cut");

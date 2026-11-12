@@ -15,7 +15,7 @@ fn fixed(text: &str, _size: f64, column: f64) -> Size {
 #[test]
 fn a_text_s_frame_is_its_glyphs_not_the_stored_cells() {
     let frame = frame(AT, "hello world", TEXT_SIZE, UNWRAPPED);
-    let stored = text_frame_at(AT, "hello world");
+    let stored = text_frame_at(AT, "hello world", TEXT_SIZE);
     assert_eq!((frame.x, frame.y), (AT.x, AT.y));
     assert!(frame.width < stored.width * 0.6, "{frame:?} is about half the stored {stored:?}");
     assert!((frame.width - 11.0 * TEXT_SIZE * CHAR_WIDTH).abs() <= 2.0, "rounded up, a point more");

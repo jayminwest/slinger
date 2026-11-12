@@ -25,7 +25,19 @@ impl Canvases {
     /// Whether copy and cut have something to take: a selection the
     /// focused pane of `panes` shows, with no text being typed.
     pub fn can_copy(&self, panes: &Panes) -> bool {
-        !self.typing() && !self.editing() && self.shows_selection(panes, panes.focus())
+        let shown = self.shows_selection(panes, panes.focus());
+        !self.typing() && !self.editing() && shown && self.holds_selection()
+    }
+
+    /// Whether the server's copy of the selection's page holds every
+    /// selected item, which copy takes them from. A paste's items are
+    /// selected once the daemon has made them, a moment before its copy of
+    /// the page comes (slinger-86410b).
+    fn holds_selection(&self) -> bool {
+        let Some(selection) = self.selection() else { return false };
+        let open = find(&self.open, &selection.canvas, Some(&selection.page));
+        let items = open.and_then(|o| o.mirror.as_ref()).map(Mirror::items).unwrap_or_default();
+        selection.ids.iter().all(|id| items.iter().any(|i| i.id == *id))
     }
 
     /// The selection as the clipboard takes it ([`Canvases::can_copy`]);

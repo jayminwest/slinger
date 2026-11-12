@@ -49,7 +49,7 @@ impl Canvases {
             Some(_) if index == 0 => None,
             Some(name) => Some(name.clone()),
         };
-        self.sling_now_under(panes, area, Profile::Picked(profile))
+        self.sling_now_command(panes, area, Profile::Picked(profile))
     }
 }
 

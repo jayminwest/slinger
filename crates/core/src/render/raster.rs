@@ -23,8 +23,8 @@ const HEAD: f64 = 16.0;
 /// What a crop writes inside a "send to agent" button.
 const BUTTON_LABEL: &str = "send to agent";
 
-/// The size, in canvas units, of one character cell of text.
-pub(super) const TEXT_SIZE: f64 = 24.0;
+/// The size, in canvas units, of one character cell of a label.
+const TEXT_SIZE: f64 = crate::canvas::TEXT_SIZE;
 
 /// One tile of the picture of `frame`, white until drawn on.
 pub(super) struct Raster {
@@ -77,7 +77,9 @@ impl Raster {
                 let lines = lines.map(|l| l.into_iter().map(|p| self.at(p)).collect()).collect();
                 (lines, LINE_WIDTH * SCALE / 2.0, *colour)
             }
-            Shape::Text { text, frame, colour } => return self.text(text, *frame, *colour),
+            Shape::Text { text, frame, colour, size } => {
+                return self.text(text, *frame, *colour, *size);
+            }
             // A live item's page is not drawn: its box, and its UI's name
             // inside. A button the same, with its label.
             Shape::Live { frame, .. } | Shape::Button { frame } => {
@@ -87,7 +89,7 @@ impl Raster {
                 };
                 let pad = TEXT_SIZE / 2.0;
                 let inside = Rect::new(frame.x + pad, frame.y + pad, frame.w - 2.0 * pad, frame.h);
-                self.text(label, inside, Colour::BLACK);
+                self.text(label, inside, Colour::BLACK, TEXT_SIZE);
                 (vec![corners(self, *frame)], LINE_WIDTH * SCALE / 2.0, Colour::BLACK)
             }
         };
@@ -101,13 +103,13 @@ impl Raster {
         self.fill(&mask, colour);
     }
 
-    /// Lays `text` out from the top left of `frame`, one character cell per
-    /// character, wrapped at spaces to the frame's width when at least one
-    /// cell fits, and at each `\n`.
-    fn text(&mut self, text: &str, frame: Rect, colour: Colour) {
-        let rows = wrap(text, columns(frame.w));
+    /// Lays `text` out from the top left of `frame`, one character cell of
+    /// `size` per character, wrapped at spaces to the frame's width when at
+    /// least one cell fits, and at each `\n`.
+    fn text(&mut self, text: &str, frame: Rect, colour: Colour, size: f64) {
+        let rows = wrap(text, columns(frame.w, size));
         let longest = rows.iter().map(Vec::len).max().unwrap_or(0);
-        let cell = TEXT_SIZE * SCALE;
+        let cell = size * SCALE;
         let origin = self.at(Point::new(frame.x, frame.y));
         let size = Point::new(float(longest) * cell, float(rows.len()) * cell);
         let bounds = Rect::new(origin.x, origin.y, size.x, size.y);
@@ -299,11 +301,12 @@ fn arrow(from: Point, to: Point) -> Vec<Vec<Point>> {
     vec![vec![from, to], vec![side(1.0), to, side(-1.0)]]
 }
 
-/// How many characters a line of text holds in a frame `w` wide: as many
-/// cells as fit, or no limit when not one does (the text is drawn unwrapped).
+/// How many characters of `size` a line of text holds in a frame `w` wide:
+/// as many cells as fit, or no limit when not one does (the text is drawn
+/// unwrapped).
 #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "floored, >= 1")]
-pub(super) fn columns(w: f64) -> usize {
-    if w >= TEXT_SIZE { (w / TEXT_SIZE) as usize } else { usize::MAX }
+pub(super) fn columns(w: f64, size: f64) -> usize {
+    if w >= size { (w / size) as usize } else { usize::MAX }
 }
 
 /// Lines of characters: `text` cut at each `\n`, and wrapped at spaces to at

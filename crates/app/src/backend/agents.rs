@@ -33,7 +33,8 @@ pub fn workspaces(daemon: &Client) -> Result<Vec<Workspace>, Problem> {
     Ok(open
         .into_iter()
         .map(|w| Workspace {
-            name: w.name,
+            // Richer display of a broken file: slinger-44766e follow-up.
+            name: if w.error.is_some() { format!("{} (invalid file)", w.name) } else { w.name },
             canvas: w.canvas,
             agent: w.agent.map(|a| agent(a.name, a.profiles)),
         })

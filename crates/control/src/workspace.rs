@@ -32,13 +32,19 @@ enum Ask<'a> {
     Close { workspace: &'a str },
 }
 
-/// One open workspace, as the daemon read it from its definition file.
+/// One open workspace, as the daemon read it from its definition file. A
+/// workspace whose file the daemon cannot use has an `error`, its `dir`,
+/// and its `name` and `canvas` only if the file says them; nothing else.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Workspace {
+    /// Its name. Empty only for a broken file that names none.
+    #[serde(default)]
     pub name: String,
     /// Its tag on events in the record.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub tag: String,
     /// Its default canvas's id.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub canvas: String,
     /// The directory that holds its definition file: the primary root, or a
     /// directory in the daemon's data directory for a workspace with no root.
@@ -47,6 +53,25 @@ pub struct Workspace {
     pub agent: Option<WorkspaceAgent>,
     #[serde(default)]
     pub roots: Vec<WorkspaceRoot>,
+    /// Why the daemon cannot use its file. Every verb on it fails with this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<WorkspaceFileError>,
+}
+
+/// Why an open workspace's definition file cannot be used: the error every
+/// verb on the workspace fails with.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceFileError {
+    /// The stable code: `invalid` for a file that breaks a rule.
+    pub code: String,
+    pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
+    /// The definition file.
+    pub file: PathBuf,
+    /// The field that broke a rule (`agent.tools`), when one did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
 }
 
 /// The agent of a workspace.
@@ -116,11 +141,11 @@ impl Client {
         self.call(&Ask::Open { dir, name })
     }
 
-    /// The open workspaces, by name.
+    /// The open workspaces, by name; one whose file the daemon cannot use
+    /// is listed with its `error`.
     ///
     /// # Errors
     ///
-    /// The error of a definition file the daemon cannot read, and
     /// `unavailable` when the daemon does not answer.
     pub fn workspace_list(&self) -> Result<Vec<Workspace>, RemoteError> {
         let reply: Workspaces = self.call(&Ask::List)?;
@@ -131,8 +156,9 @@ impl Client {
     ///
     /// # Errors
     ///
-    /// `not_found` for no such open workspace, and `unavailable` when the
-    /// daemon does not answer.
+    /// `not_found` for no such open workspace, the error of its file when
+    /// the daemon cannot use it, and `unavailable` when the daemon does not
+    /// answer.
     pub fn workspace_show(&self, workspace: &str) -> Result<Workspace, RemoteError> {
         let reply: WorkspaceInfo = self.call(&Ask::Show { workspace })?;
         Ok(reply.workspace)

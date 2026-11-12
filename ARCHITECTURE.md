@@ -105,8 +105,9 @@ render/      images of items (docs/design/packet.md, Images): a set of items or 
              box of a page in, PNGs out, at a fixed scale, cut into overlapping
              tiles past the size limit (SCALE, MAX_EDGE, OVERLAP, MARGIN). Owns
              the rasterizer (raster.rs) and the PNG container (png.rs). Pure and
-             deterministic: the same input gives the same bytes. text_size: the
-             frame text needs as drawn; text_frame: the one rule for a text
+             deterministic: the same input gives the same bytes. Text draws
+             at its item's size (one character cell of it a character).
+             text_size: the frame text needs as drawn; text_frame: the one rule for a text
              item's frame (Shape::fitted), which Canvas::apply and the file's
              snap both keep, so no text item covers less than it draws.
 sling.rs     the sling message (SPEC section 6, D10): a packet, the prompt, the
@@ -141,7 +142,10 @@ workspace.rs workspaces (SPEC section 10): the definition file's format
              (docs/workspace.md), the rules a set of them keeps (one primary
              root, name and canvas each), what a new one gets (slug of its
              name) and which workspace an event's canvas or agent tags. No IO;
-             callers read and write the bytes.
+             callers read and write the bytes. `peek` reads the name and
+             canvas of a file that breaks a rule, for listing it only.
+workspace/rules.rs  the rules: one workspace's (`Workspace::read` refuses
+             with a `Rejected` that names the field) and a set's (`check`).
 workspace/panes.rs  a workspace's panes (SPEC section 7): the tree of panes
              (a canvas or a UI each) and splits, numbered in order; open
              beside a pane or the window, close (the sibling takes the
@@ -210,7 +214,10 @@ server/import.rs  `canvas_import`: reads the client's file, calls the tldraw
              importer, stores the canvas, replies with the counts.
 workspaces.rs the open workspaces: the list of directories that hold their
              files (`workspaces/open.json`), written whole; the files are read
-             on every request and checked by the core's rules. The store asks
+             on every request and checked by the core's rules, each on its
+             own: a file that breaks one is listed `Broken` with its error
+             (`slingerd` names it on stderr at startup) and every verb on
+             that workspace fails with it; the others serve. The store asks
              it for the workspace tag of each event it appends. `panes`
              changes a workspace's layout under the list's lock and writes
              the file whole when it changed; `edit` does the same for any
@@ -356,7 +363,8 @@ mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              (tenths, delta points, `#rrggbb`, an arrow's bound ends) into
              scene items, and writes the pen's changes as `canvas_apply`
              operations, and the frame a typed text is stored with (the
-             core's render cells). A text item reads in with the frame its
+             core's render cells at the text's size, `size` left out at the
+             usual 24 and `null` in a `set`). A text item reads in with the frame its
              glyphs fill (scene/glyphs.rs), never the stored width, so every
              hit test, the lasso, the selection and the caret follow the
              glyphs, texts saved earlier included. Keeps the canvas's pages,
@@ -582,8 +590,9 @@ scene/sidebar/notice.rs  the notice: a 28 pt bar above the footers (it
              its status moves on. Pure.
 scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
              made (a page's sling at its top left), inside its pane, what
-             the agent is doing: "● scout working · 4s", "■ scout blocked:
-             <note>", "✓ scout answered · N new items" (a tap brings them
+             the agent is doing: "● scout working · 4s · ~12k", "■ scout
+             blocked: <note> · ~12k" (the sling's tokens, when the daemon's
+             Slung reply counts them), "✓ scout answered · N new items" (a tap brings them
              into view, the next clears it), "✓ scout answered in text · tap
              to read" (a tap opens the answer's panel), "✓ scout is done,
              with nothing on the canvas", a failure's "✗ <message>" and hint,
@@ -593,7 +602,8 @@ scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
              goes 30 s later. The pill is a Line with a field's round
              corners, as wide as its words measure (scene/glyphs.rs). `out`:
              a sling is on its way or worked on. `slung/words.rs`: the
-             elapsed time, the arrow to the items, the answer's lines. Pure.
+             elapsed time, the tokens, the arrow to the items, the answer's
+             lines (wrapped as scene/glyphs.rs measures them). Pure.
 scene/button.rs  the "send to agent" button: an item of kind `button`, drawn
              as an outline with the agent's status mark (the sidebar's) and
              its label; which button is under a point; where a new one goes.
@@ -694,8 +704,10 @@ scene/select/scale.rs  a drag of a corner handle scales the selection
              about the opposite corner, width and height apart (with shift,
              together by the larger), never below
              5% or turned over: a stroke's points, a box's corners and an
-             arrow's ends scale (line widths do not); a text, a button and
-             an agent UI keep their size and only their place moves; arrows
+             arrow's ends scale (line widths do not); a text's size scales
+             evenly (the geometric mean of the two sides' scales, within the
+             text sizes, 4 to 400 units); a button and an agent UI keep their
+             size and only their place moves; arrows
              bound to it follow. It shows as the pen goes; the lift writes
              it as one `set` an item, in one `canvas_apply`, so one undo
              step. Pure.
@@ -739,10 +751,12 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              beside a selection's box, ➤ Sling (`sling-now`), + prompt
              (`sling`) and Delete (`delete-selection`), each a 28 pt target
              inside the pane; while a sling is out, Delete alone.
-             `sling/pen.rs`: the pen's buttons beside a
-             note's or a new name's box, ✓ Save or ✓ Rename (Tap::Send, as
-             return), Dictate (`dictate`; ● Stop while Flick listens) and ✕
-             (Tap::Cancel, as escape); the box narrows to make room.
+             `sling/pen.rs`: the pen's buttons beside every entry's box
+             (the prompt's, a note's, a new name's), ✓ Sling, ✓ Save or ✓
+             Rename (Tap::Send, as return), Dictate (`dictate`; ● Stop while
+             Flick listens) and ✕ (Tap::Cancel, as escape); the box narrows
+             or moves to make room. Every entry shows the live dictate key
+             beneath its box (Entry::dictated).
 scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
              sling's labelled field (Entry::framed), "Feedback" above and
              "↩ saves · esc cancels" beneath, centred in the focused pane
@@ -1012,7 +1026,7 @@ Each boundary has something that fails when it is broken:
 | A canvas survives a restart; concurrent changes are numbered with no gap | `crates/daemon/src/tests/canvas.rs`, through a real socket |
 | `canvas read`: only ink after the marker is new; each packet and image is a blob; the stored text has no `at` | `crates/core/tests/canvas_packet.rs` and `crates/daemon/src/tests/read.rs`, through a real socket |
 | An imported canvas reads back with the importer's pages, ids and arrow ends | `crates/core/tests/canvas_import.rs` and `crates/daemon/src/tests/import.rs`, on the real board |
-| Open workspaces survive a restart; each has its canvas; one primary root per workspace | `crates/daemon/src/tests/workspace.rs`, through a real socket |
+| Open workspaces survive a restart; each has its canvas; one primary root per workspace; a broken file is listed with its error, fails every verb on it, and leaves the others served | `crates/daemon/src/tests/workspace.rs`, through a real socket; `crates/cli/src/tests/workspace.rs` |
 | The change feed wakes a waiting client on another's change; a stop ends a wait | `crates/daemon/src/tests/feed.rs`, through a real socket |
 | SIGTERM ends the daemon cleanly, with a client waiting on a feed | `crates/daemon/tests/signals.rs`, against the real binary |
 | A crop is limited in size; an empty box is a white image; an unknown id is `not_found` | `crates/core/tests/canvas_look.rs`, and `crates/daemon/src/tests/look.rs` through a real socket |
@@ -1047,7 +1061,7 @@ Each boundary has something that fails when it is broken:
 | Strokes not yet written survive a quit and are sent first after the next start; a refused one leaves the file | `crates/app/src/canvases/kept/tests.rs` and `crates/app/src/backend/unsent.rs`, against a real daemon |
 | An erase, a move and a delete are one change each and show at once; a lasso selects what it holds whole; the selection clears | `crates/app/src/scene/select/tests.rs` |
 | The select tool picks the topmost item under a press, a drawn box selects what it touches, shift adds or takes out, a drag moves the selection | `crates/app/src/scene/select/pick/tests.rs` |
-| A drag of a corner handle scales the selection about the opposite corner in one change, texts keep their size, bound arrows follow, no side turns over, shift keeps the shape | `crates/app/src/scene/select/scale/tests.rs` |
+| A drag of a corner handle scales the selection about the opposite corner in one change, a text's size scales evenly within its range, bound arrows follow, no side turns over, shift keeps the shape | `crates/app/src/scene/select/scale/tests.rs` |
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |

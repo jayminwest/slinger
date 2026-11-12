@@ -83,7 +83,7 @@ fn one_tap_slings_the_selection_with_the_config_s_words_and_the_pill_follows_the
         let runs = [Command::SlingNow, Command::Sling, Command::DeleteSelection].map(Tap::Run);
         assert_eq!(taps, runs);
 
-        assert!(canvases.sling_now_command(&panes, WINDOW.rect()));
+        assert!(canvases.sling_now_command(&panes, WINDOW.rect(), Profile::Running));
         let message = delivered(home.path(), PROMPT);
         assert!(message.contains("selected=c1"), "{message}");
         let working = until_marked(&mut canvases, &panes, "● scout working");
@@ -111,7 +111,10 @@ fn one_tap_with_nothing_selected_slings_what_is_new_on_the_page() {
         user_stroke(daemon, "notes");
         let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
         arrived(&mut canvases, &panes);
-        assert!(canvases.sling_now_command(&panes, WINDOW.rect()), "no list yet: it tries");
+        assert!(
+            canvases.sling_now_command(&panes, WINDOW.rect(), Profile::Running),
+            "no list yet: it tries"
+        );
         let message = delivered(home.path(), PROMPT);
         assert!(message.contains("canvas=notes\\n") && message.contains("c1 ink"), "{message}");
         let done = until_marked(&mut canvases, &panes, "✓ scout answered in");
@@ -131,7 +134,7 @@ fn one_tap_on_a_canvas_with_no_agent_says_so_and_sends_nothing() {
         let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
         arrived(&mut canvases, &panes);
         canvases.agents(Some(agents(None)));
-        assert!(canvases.sling_now_command(&panes, WINDOW.rect()));
+        assert!(canvases.sling_now_command(&panes, WINDOW.rect(), Profile::Running));
         assert_eq!(canvases.said().as_deref(), Some(NO_AGENT));
         assert_eq!(canvases.sling.canvas(), None, "nothing on its way");
     });
@@ -140,7 +143,7 @@ fn one_tap_on_a_canvas_with_no_agent_says_so_and_sends_nothing() {
 #[test]
 fn one_tap_with_no_canvas_page_does_nothing() {
     let mut canvases = Canvases::new(Client::new("/nonexistent/x.sock"));
-    assert!(!canvases.sling_now_command(&notes(), WINDOW.rect()));
+    assert!(!canvases.sling_now_command(&notes(), WINDOW.rect(), Profile::Running));
 }
 
 #[test]

@@ -113,11 +113,15 @@ pub fn check_rule(rule: &str) -> Result<()> {
         None => TOOLS.contains(&rule),
     };
     if !known {
+        let tool = rule.split_once('(').map_or(rule, |(tool, _)| tool);
+        let meant = TOOLS.iter().find(|t| t.eq_ignore_ascii_case(tool.trim()) && **t != tool);
+        let meant = meant.map_or_else(String::new, |t| format!("did you mean {t:?}? "));
         return Err(Error::Invalid {
             message: format!("{rule:?} is not a permission rule slinger knows"),
             hint: Some(format!(
-                "a rule is a tool, or a tool and a pattern in parentheses (Edit, Bash(git *)), \
-                 or an MCP tool (mcp__server, mcp__server__tool); the tools are {}",
+                "{meant}a rule is one of: Tool, Tool(pattern), mcp__<server>, \
+                 mcp__<server>__<tool>, mcp__<server>__* (e.g. Edit, Bash(git *), mcp__github); \
+                 Tool is one of {}",
                 TOOLS.join(", ")
             )),
         });
@@ -267,8 +271,16 @@ mod tests {
         ] {
             let err = check_rule(rule).unwrap_err();
             assert_eq!(err.code(), "invalid", "{rule:?}");
-            assert!(err.hint().unwrap().contains("Bash, Edit"), "{rule:?}");
+            let hint = err.hint().unwrap();
+            assert!(hint.contains("Bash, Edit"), "{rule:?}");
+            let forms =
+                "Tool, Tool(pattern), mcp__<server>, mcp__<server>__<tool>, mcp__<server>__*";
+            assert!(hint.contains(forms), "{hint}");
         }
+        let near = |rule| check_rule(rule).unwrap_err().hint().unwrap().to_string();
+        assert!(near("bash(ls)").starts_with("did you mean \"Bash\"?"), "{}", near("bash(ls)"));
+        assert!(near(" Edit").starts_with("did you mean \"Edit\"?"));
+        assert!(!near("Shell").contains("did you mean"));
     }
 
     #[test]

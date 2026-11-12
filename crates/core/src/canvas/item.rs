@@ -5,6 +5,13 @@ use std::fmt;
 
 use crate::{Error, Result};
 
+/// The size of a text item's characters, in canvas units, when it gives
+/// none: one character cell of the agent's picture is this wide and tall.
+pub const TEXT_SIZE: f64 = 24.0;
+
+/// The smallest and the largest text size, in canvas units.
+pub const TEXT_SIZES: std::ops::RangeInclusive<f64> = 4.0..=400.0;
+
 /// Names one item on a canvas. A canvas never reuses an id, even after the
 /// item is removed, so an id in an old operation or packet never means a
 /// different item.
@@ -210,8 +217,9 @@ pub enum Shape {
     /// Pen ink at a constant width (D6: no pressure). `width` is in canvas
     /// units and is above zero.
     Stroke { points: Vec<Point>, colour: Colour, width: f64 },
-    /// Text laid out inside `frame`.
-    Text { text: String, frame: Rect, colour: Colour },
+    /// Text laid out inside `frame`, `size` canvas units a character cell
+    /// ([`TEXT_SIZE`] unless it says otherwise, within [`TEXT_SIZES`]).
+    Text { text: String, frame: Rect, colour: Colour, size: f64 },
     /// A rectangle outline.
     Box { frame: Rect, colour: Colour },
     /// A straight arrow from one end to the other.
@@ -253,11 +261,12 @@ impl Shape {
     /// they are.
     #[must_use]
     pub fn fitted(mut self) -> Self {
-        if let Shape::Text { text, frame, .. } = &mut self
+        if let Shape::Text { text, frame, size, .. } = &mut self
             && frame.w >= 0.0
             && frame.h >= 0.0
+            && TEXT_SIZES.contains(size)
         {
-            (frame.w, frame.h) = crate::render::text_frame(text, frame.w, frame.h);
+            (frame.w, frame.h) = crate::render::text_frame(text, frame.w, frame.h, *size);
         }
         self
     }
@@ -306,7 +315,16 @@ impl Shape {
                 }
                 Ok(())
             }
-            Shape::Text { frame, .. } => frame.check("the text frame"),
+            Shape::Text { frame, size, .. } => {
+                if !TEXT_SIZES.contains(size) {
+                    let (min, max) = (TEXT_SIZES.start(), TEXT_SIZES.end());
+                    return Err(invalid(
+                        format!("the text size {size} is not from {min} to {max}"),
+                        "give a size from 40 to 4000 tenths, or leave it out for 240",
+                    ));
+                }
+                frame.check("the text frame")
+            }
             Shape::Box { frame, .. } => frame.check("the box"),
             Shape::Button { frame } => {
                 frame.check("the button")?;

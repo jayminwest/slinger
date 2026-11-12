@@ -5,7 +5,8 @@
 //! A tap on a button slings what is new on its page after the last sling
 //! (R1) with `[sling] prompt`, through [`Canvases::sling_now`]: the same
 //! `sling_send` as the `sling` command, with nothing selected. While the
-//! sling's entry is open, a tap sends it, as return does: the `sling`
+//! sling's entry is open, a tap sends it, as return does; the feedback
+//! entry or a page's new name closes, as on any press. The `sling`
 //! command with nothing selected opens the entry beside the focused page's
 //! button, so a short prompt can be typed beside it first. The
 //! `place-button` command puts one in the middle of the focused pane, in
@@ -33,12 +34,14 @@ impl Canvases {
         viewport: Viewport,
         frame: Rect,
     ) -> bool {
-        if self.typing() {
+        if self.sling.is_typing() {
             self.sling.send();
             self.entry_closed();
             self.poll_sling();
             return true;
         }
+        // The feedback entry or a page's new name closes, as on any other press.
+        self.close_entries();
         let selection = Selection { canvas: canvas.into(), page: page.into(), ids: Vec::new() };
         let around = in_window(viewport, frame, button);
         self.sling_now(&selection, ("", Profile::Running), around, frame)
