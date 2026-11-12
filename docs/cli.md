@@ -212,7 +212,8 @@ not pairs of integers, or `--at` with `--arrow`, exits 2 (`usage`); blank
 text or a colour that is not one exits 5 (`invalid`).
 `canvas edit` and `canvas remove` are agent verbs for items the agent made:
 `edit` gives a text new words, a text or a box a new size (`--box W,H`), or
-moves the item's top-left corner to `--move X,Y`, all in tenths; `remove`
+moves the item's top-left corner to `--move X,Y`, all in tenths (the ends
+of the agent's arrows bound to it follow); `remove`
 takes the item off the canvas, and an item already gone succeeds. Naming
 the user's ink or another agent's item exits 5 (`invalid`) with a hint. An
 edit with none of `--text`, `--box` and `--move`, or a pair that is not two

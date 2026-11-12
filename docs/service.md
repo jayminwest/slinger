@@ -784,8 +784,10 @@ item on another page is `invalid`; a line with none or two of `text`, `box`,
 **`canvas_edit`** changes an item the agent made, as one undo step: `text`
 gives a text item new words (its frame grows or shrinks to hold them),
 `box` gives a text or a box a new size `[w, h]`, and `move` puts the top-left
-corner of the item's box at `[x, y]`. What it leaves out stays; an edit that
-leaves the item as it was writes nothing. **`canvas_remove`** takes an item
+corner of the item's box at `[x, y]`. A move takes along the end of each
+arrow bound to the item, in the same step, as a move in the app does; only
+arrows the agent made: another author's arrow stays as it is. What it
+leaves out stays; an edit that leaves the item as it was writes nothing. **`canvas_remove`** takes an item
 the agent made off the canvas; an item already gone (or never there)
 succeeds and writes nothing (SPEC B4). Ids are as for `canvas_put`. The
 author rule (above, "Authors") is checked first: an agent naming the user's

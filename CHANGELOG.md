@@ -119,6 +119,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **CLI:** when an agent moves its item with `slinger canvas edit --move`,
+  its arrows bound to the item follow, as they do when you move it in the
+  app; they no longer point at where the item was.
+
 - **App:** the key overlay (⌘/) fits a narrow window. It drops to two
   columns, then one, instead of squeezing three until the titles and keys
   overlap; the rows scroll as before.
