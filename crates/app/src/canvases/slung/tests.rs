@@ -87,23 +87,25 @@ fn one_tap_slings_the_selection_with_the_config_s_words_and_the_pill_follows_the
         let theme = Config::default().theme;
         let (labels, targets, _) = canvases.sling_marks(&panes, WINDOW.rect(), &theme);
         let texts: Vec<&str> = labels.iter().map(|l| l.text.as_str()).collect();
-        assert_eq!(texts, [buttons::SLING, buttons::PROMPT], "beside the selection");
+        let beside = [buttons::SLING, buttons::PROMPT, buttons::DELETE];
+        assert_eq!(texts, beside, "beside the selection");
         let taps: Vec<Tap> = targets.iter().map(|t| t.1).collect();
-        assert_eq!(taps, [Tap::Run(Command::SlingNow), Tap::Run(Command::Sling)]);
+        let runs = [Command::SlingNow, Command::Sling, Command::DeleteSelection].map(Tap::Run);
+        assert_eq!(taps, runs);
 
         assert!(canvases.sling_now_command(&panes, WINDOW.rect()));
         let message = delivered(home.path(), PROMPT);
         assert!(message.contains("selected=c1"), "{message}");
         let working = until_marked(&mut canvases, &panes, "● scout working");
-        assert_eq!(working[..2], [buttons::SLING, buttons::PROMPT], "still there: {working:?}");
+        assert_eq!(working[..3], beside, "still there: {working:?}");
         assert_eq!(canvases.said().as_deref(), Some("Slung to scout"));
 
         daemon.canvas_put("notes", "scout", "c1", Put::Text("a reply".into())).unwrap();
         std::fs::write(home.path().join("go"), "").unwrap();
         let answered = until_marked(&mut canvases, &panes, "✓ scout answered ·");
-        assert_eq!(answered[2], "✓ scout answered · 1 new item");
+        assert_eq!(answered[3], "✓ scout answered · 1 new item");
         assert!(canvases.tap_slung(&panes, WINDOW.rect()), "in sight: a tap clears it");
-        assert!(canvases.sling_marks(&panes, WINDOW.rect(), &theme).0.len() == 2, "the buttons");
+        assert!(canvases.sling_marks(&panes, WINDOW.rect(), &theme).0.len() == 3, "the buttons");
         daemon.session_stop("notes").unwrap();
     });
 }
