@@ -3,7 +3,8 @@
 //! operations in order. Pure. It owns the canvas file's item objects
 //! (docs/design/canvas-file.md): lengths in tenths of a unit, stroke and
 //! arrow points as a delta array, colours as `#rrggbb`. It reads them, and
-//! writes the pen's changes as the operations of one `canvas_apply` ([`ops`]).
+//! writes the pen's changes as the operations of one `canvas_apply` ([`ops`]),
+//! and its items as the clipboard holds them ([`clip`]).
 //!
 //! What it cannot draw it leaves out (an item of a kind it does not know, an
 //! operation it does not know); the server keeps those, so nothing is lost.
@@ -19,6 +20,7 @@ use crate::scene::glyphs;
 use crate::scene::ink::Carried;
 use crate::scene::pages::Page;
 
+pub mod clip;
 mod write;
 
 pub use write::ops;

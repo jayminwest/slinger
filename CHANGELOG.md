@@ -11,6 +11,14 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** copy, cut and paste on the canvas. With a selection, Edit >
+  Copy (⌘C) puts its items on the clipboard (other apps get the text of
+  its texts), Cut (⌘X) also removes them, and Edit > Paste (⌘V) adds them
+  to the focused pane's page, centred in it and selected, on any page or
+  canvas. Undo takes a paste or a cut back in one step. Cut, Copy and
+  Paste grey out in the Edit menu when they would do nothing, such as
+  Copy with nothing selected or while typing a text.
+
 - **App:** see where a canvas is saved. The window's title names the
   focused pane's canvas, with its file under it
   (`~/Library/Application Support/slinger/canvases/<id>.canvas` by

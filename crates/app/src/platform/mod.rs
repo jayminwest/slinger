@@ -10,8 +10,9 @@
 //! canvas pane is a view of its own (`canvas`) that lives as long as its
 //! pane, so a new scene repaints only what changed.
 //! `web` shows agent UIs in sandboxed web views, each kept as long as its
-//! page is shown. `menu` is the menu bar. `keys` reads a key press and the
-//! clipboard, which a paste with no text field focused hands on as text. `entry` is the sling's one-line
+//! page is shown. `menu` is the menu bar. `keys` reads a key press, and
+//! reads and writes the clipboard for a cut, copy or paste no text field
+//! takes (greyed in the Edit menu when the app would do nothing). `entry` is the sling's one-line
 //! text field; `overlay` dims the window under the key overlay; `chrome`
 //! the focus border and the flash's pill. `text` sets styled text: the
 //! sidebar's rows and the panes' footers. The window
@@ -43,20 +44,21 @@ use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSColor, NSEvent,
-    NSEventType, NSResponder, NSTextAlignment, NSTextField, NSView, NSWindow, NSWindowDelegate,
+    NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSEvent, NSEventType,
+    NSMenuItem, NSResponder, NSTextAlignment, NSView, NSWindow, NSWindowDelegate,
     NSWindowOrderingMode, NSWindowStyleMask,
 };
-use objc2_foundation::{NSNotification, NSObject, NSPoint, NSRect, NSSize, NSString, NSTimer};
+use objc2_foundation::{NSNotification, NSObject, NSPoint, NSRect, NSSize, NSTimer};
 
 use self::canvas::CanvasView;
+use self::chrome::{color, flipped, label};
 pub use self::files::reveal;
 pub use self::remember::{remember_sidebar, sidebar as remembered_sidebar};
 use crate::commands::{Chord, Command};
-use crate::config::Rgb;
-use crate::layout::{self, PaneId, Point, Rect, Size};
+use crate::layout::{self, PaneId, Point, Size};
 use crate::scene::flash::Pill;
 use crate::scene::ink::Pen;
+use crate::scene::paste::{Clip, Edit};
 use crate::scene::sidebar::Row;
 use crate::scene::status::Footer;
 use crate::scene::style::Rule;
@@ -115,9 +117,13 @@ pub enum Event {
     Resized(Size),
     /// A menu item was chosen with the pointer: its command.
     Command(Command),
-    /// Paste (cmd+V, or Edit > Paste) with no text field taking it: the
-    /// clipboard's plain text. Flick's dictation comes this way.
-    Paste(String),
+    /// Cut, copy or paste (the Edit menu or its keys) with no text field
+    /// taking it; a paste holds what the clipboard does. Flick's dictation
+    /// comes this way, as a paste.
+    Edit(Edit),
+    /// Whether the app would do this edit: [`Step::Pass`] greys its Edit
+    /// menu item, any other step leaves it on.
+    Can(Edit),
 }
 
 /// What to do about an [`Event`].
@@ -131,6 +137,8 @@ pub enum Step {
     /// focused an agent UI's pane still reaches its page.
     Through(Box<Scene>),
     Quit,
+    /// Put this on the clipboard, and draw.
+    Copy(Clip, Box<Scene>),
     /// The reply cannot go on, and why.
     Refuse(String),
 }
@@ -201,13 +209,40 @@ define_class!(
             dispatch(Event::Tick, self.mtm());
         }
 
-        /// Edit > Paste (or cmd+V) when no text field has the focus: the
-        /// clipboard's text to the app, which may take it or not.
+        /// Edit > Paste (or cmd+V) when no text field has the focus: what
+        /// the clipboard holds to the app, which may take it or not.
         #[unsafe(method(paste:))]
         fn paste(&self, _sender: Option<&AnyObject>) {
-            if let Some(text) = keys::pasted(self.mtm()) {
-                dispatch(Event::Paste(text), self.mtm());
+            let clip = keys::clip(self.mtm());
+            if !clip.is_empty() {
+                dispatch(Event::Edit(Edit::Paste(clip)), self.mtm());
             }
+        }
+
+        /// Edit > Copy (or cmd+C) when no text field has the focus.
+        #[unsafe(method(copy:))]
+        fn copy(&self, _sender: Option<&AnyObject>) {
+            dispatch(Event::Edit(Edit::Copy), self.mtm());
+        }
+
+        /// Edit > Cut (or cmd+X) when no text field has the focus.
+        #[unsafe(method(cut:))]
+        fn cut(&self, _sender: Option<&AnyObject>) {
+            dispatch(Event::Edit(Edit::Cut), self.mtm());
+        }
+
+        /// Cut, copy and paste are on only while the app would do them
+        /// ([`Event::Can`]); every other item is the window's to say.
+        #[unsafe(method(validateMenuItem:))]
+        fn validate_menu_item(&self, item: &NSMenuItem) -> bool {
+            let edit = match item.action() {
+                Some(a) if a == sel!(cut:) => Edit::Cut,
+                Some(a) if a == sel!(copy:) => Edit::Copy,
+                Some(a) if a == sel!(paste:) => Edit::Paste(keys::clip(self.mtm())),
+                // SAFETY: `NSWindow`'s own `validateMenuItem:`, with its item.
+                _ => return unsafe { msg_send![super(self), validateMenuItem: item] },
+            };
+            dispatch(Event::Can(edit), self.mtm())
         }
 
         /// The app quits with its window.
@@ -252,6 +287,10 @@ fn dispatch(event: Event, mtm: MainThreadMarker) -> bool {
         }
         Step::Stay | Step::Refuse(_) => {}
         Step::Draw(scene) => draw(state, &scene, mtm),
+        Step::Copy(clip, scene) => {
+            keys::copy(&clip, mtm);
+            draw(state, &scene, mtm);
+        }
         // The window quits the app as it closes.
         Step::Quit => state.window.close(),
     }
@@ -268,7 +307,9 @@ fn reply(line: String, mtm: MainThreadMarker) -> Result<(), String> {
     let step = (state.answer.borrow_mut())(Event::Reply(line));
     match step {
         Step::Refuse(why) => return Err(why),
-        Step::Draw(scene) | Step::Through(scene) => draw(state, &scene, mtm),
+        Step::Draw(scene) | Step::Through(scene) | Step::Copy(_, scene) => {
+            draw(state, &scene, mtm);
+        }
         Step::Quit => state.window.close(),
         Step::Pass | Step::Stay => {}
     }
@@ -454,36 +495,4 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     shown.overlay = scene.overlay.iter().flat_map(|o| overlay::views(o, height, mtm)).collect();
     shown.overlay.iter().for_each(|over| view.addSubview(over));
     shown.made_from = made_from;
-}
-
-/// A text field that shows `line` in a view `height` tall.
-fn label(
-    line: &Label,
-    height: f64,
-    align: NSTextAlignment,
-    mtm: MainThreadMarker,
-) -> Retained<NSTextField> {
-    let field = NSTextField::labelWithString(&NSString::from_str(&line.text), mtm);
-    field.setFrame(flipped(height, line.frame));
-    field.setAlignment(align);
-    field.setTextColor(Some(&color(line.colour)));
-    if let Some(fill) = line.fill {
-        field.setDrawsBackground(true);
-        field.setBackgroundColor(Some(&color(fill)));
-    }
-    field
-}
-
-/// `rect`, whose origin is the top left of a view `height` tall, in `AppKit`'s
-/// coordinates, whose origin is the bottom left.
-fn flipped(height: f64, rect: Rect) -> NSRect {
-    NSRect::new(
-        NSPoint::new(rect.x, height - rect.y - rect.height),
-        NSSize::new(rect.width, rect.height),
-    )
-}
-
-fn color(rgb: Rgb) -> Retained<NSColor> {
-    let channel = |c: u8| f64::from(c) / 255.0;
-    NSColor::colorWithSRGBRed_green_blue_alpha(channel(rgb.r), channel(rgb.g), channel(rgb.b), 1.0)
 }

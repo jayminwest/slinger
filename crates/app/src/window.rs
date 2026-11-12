@@ -1,5 +1,6 @@
 //! What the window does with a command (`run`, and the selection's commands
-//! in `selection`) or a tap on a button that does more (`tap`), and what it
+//! in `selection`), a tap on a button that does more (`tap`) or a cut, copy
+//! or paste no text field took (`edit`, and `can_edit` to grey it), and what it
 //! shows (`view`), and where its panes are: the canvas pane under a point
 //! (`pane_at`), the focused pane (`focus`) and whether a press grabs the
 //! selection (`grabs`). Split from `main.rs`, which
@@ -14,6 +15,7 @@ use crate::commands::{self, Command};
 use crate::layout::{PaneId, Point, Rect};
 use crate::panes::{self, Panes};
 use crate::scene::ink::Pen;
+use crate::scene::paste::{Clip, Edit};
 use crate::scene::sidebar::Row;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::taps::{Tap, Target};
@@ -101,6 +103,50 @@ pub fn selection(
         Command::SlingNow => canvases.sling_now_command(panes, area),
         _ => true,
     }
+}
+
+/// What a cut, a copy or a paste no text field took did.
+pub enum Edited {
+    /// Nothing: nothing took it.
+    No,
+    /// Something took it: draw again.
+    Drawn,
+    /// The clipboard is to hold this (a cut drew a change too).
+    Copied(Clip),
+}
+
+/// Whether `edit` would do anything in `shared` and `canvases`, so its
+/// Edit menu item is not grey: under the key overlay or the page menu,
+/// nothing; the open palette's search takes pasted text; else the
+/// canvases say ([`crate::canvases`]' `clip`).
+pub fn can_edit(edit: &Edit, shared: &Shared, canvases: &Canvases) -> bool {
+    let palette = shared.palette.is_open();
+    !shared.overlay.is_open()
+        && !shared.menu.is_open()
+        && match edit {
+            Edit::Cut | Edit::Copy => !palette && canvases.can_copy(&shared.panes),
+            Edit::Paste(clip) if palette => clip.text.is_some(),
+            Edit::Paste(clip) => canvases.can_paste(clip, &shared.panes),
+        }
+}
+
+/// Does `edit` where [`can_edit`] says, on the focused pane of `shared`
+/// laid in `area`.
+pub fn edit(edit: &Edit, shared: &mut Shared, canvases: &mut Canvases, area: Rect) -> Edited {
+    if !can_edit(edit, shared, canvases) {
+        return Edited::No;
+    }
+    let took = match edit {
+        Edit::Cut | Edit::Copy => {
+            let clip = canvases.copy(&shared.panes, *edit == Edit::Cut);
+            return clip.map_or(Edited::No, Edited::Copied);
+        }
+        Edit::Paste(Clip { text: Some(text), .. }) if shared.palette.is_open() => {
+            shared.palette.pasted(text)
+        }
+        Edit::Paste(clip) => canvases.paste(clip, &shared.panes, area),
+    };
+    if took { Edited::Drawn } else { Edited::No }
 }
 
 /// The canvas pane of `panes` laid in `area` under `at`, a point in the
