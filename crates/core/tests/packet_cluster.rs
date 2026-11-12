@@ -49,11 +49,11 @@ fn every_fixture_page_has_its_recorded_cluster_count() {
     assert_eq!(
         counts,
         [
-            ("inital-planning", 73),
+            ("inital-planning", 44),
             ("claude", 4),
             ("slinger-diagrams", 12),
-            ("fable-5.2", 30),
-            ("spec", 16)
+            ("fable-5.2", 23),
+            ("spec", 11)
         ]
     );
 }
@@ -76,6 +76,22 @@ fn two_notes_of_different_colours_side_by_side_stay_two_clusters() {
         canvas.bounds_of(yellow.iter().copied()).unwrap(),
     );
     assert!(apart < 40.0, "{apart}");
+}
+
+#[test]
+fn a_note_with_wide_word_gaps_is_one_cluster_per_paragraph() {
+    // On "spec", "I have an agent working on the / Scaffolding now. Lets do
+    // the spikes while the other / agent works." has word gaps of 124 to 152
+    // canvas units, about four size units (slinger-c94c3e). A blank line
+    // splits it in two.
+    let canvas = board();
+    let page = canvas.page_named("spec").unwrap().id();
+    let clusters = page_clusters(&canvas, page);
+    let home = |id: u64| clusters.iter().position(|c| c.contains(&ItemId::new(id))).unwrap();
+    let pieces = [7729, 7744, 7773, 7793, 7798].map(home);
+    assert_eq!(pieces[0], pieces[1]);
+    assert_eq!([pieces[2], pieces[2]], [pieces[3], pieces[4]]);
+    assert_ne!(pieces[0], pieces[2]);
 }
 
 #[test]
@@ -165,6 +181,30 @@ fn a_long_stroke_beside_two_notes_does_not_join_them() {
 }
 
 #[test]
+fn the_touching_parts_of_a_drawing_are_one_cluster() {
+    // slinger-e0dbb0: an airplane beside a note arrived as fuselage, wings
+    // and belly, because long strokes joined nothing.
+    let mut p = Page::new();
+    let note = p.note(BLACK, 0.0, 0.0, 6);
+    let fuselage = p.draw(&Author::User, BLACK, &[(500.0, 100.0), (800.0, 100.0)]);
+    let wing = p.draw(&Author::User, BLACK, &[(620.0, 20.0), (680.0, 180.0)]);
+    let tail = p.draw(&Author::User, BLACK, &[(780.0, 40.0), (790.0, 101.0)]);
+    let belly = p.draw(&Author::User, BLACK, &[(560.0, 100.0), (600.0, 130.0), (660.0, 102.0)]);
+    // Drawn later in red, touching the fuselage: another colour stays apart.
+    let label = p.draw(&Author::User, RED, &[(500.0, 100.0), (450.0, 50.0)]);
+    assert_eq!(p.clusters(), [note, vec![fuselage, wing, tail, belly], vec![label]]);
+}
+
+#[test]
+fn an_underline_touching_its_word_joins_it() {
+    let mut p = Page::new();
+    let mut word = p.note(BLACK, 0.0, 0.0, 6);
+    word.push(p.draw(&Author::User, BLACK, &[(0.0, 21.0), (200.0, 21.0)]));
+    let far = p.note(BLACK, 0.0, 200.0, 6);
+    assert_eq!(p.clusters(), [word, far]);
+}
+
+#[test]
 fn letters_close_together_join_and_a_far_note_does_not() {
     let mut p = Page::new();
     let mut a = p.note(BLACK, 0.0, 0.0, 3);
@@ -172,6 +212,18 @@ fn letters_close_together_join_and_a_far_note_does_not() {
     a.extend(p.note(BLACK, 0.0, 40.0, 3));
     let far = p.note(BLACK, 0.0, 200.0, 3);
     assert_eq!(p.clusters(), [a, far]);
+}
+
+#[test]
+fn words_on_one_line_join_further_apart_than_lines_do() {
+    let mut p = Page::new();
+    // Letters about 20 tall, so a size unit is about 20: words about 80
+    // apart, near four units.
+    let mut line = p.note(BLACK, 0.0, 0.0, 3);
+    line.extend(p.note(BLACK, 160.0, 0.0, 3));
+    // A gap a little wider, down the page, is a new note.
+    let below = p.note(BLACK, 0.0, 110.0, 3);
+    assert_eq!(p.clusters(), [line, below]);
 }
 
 #[test]

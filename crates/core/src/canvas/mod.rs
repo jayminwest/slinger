@@ -24,6 +24,7 @@ use std::collections::BTreeMap;
 pub(crate) use delta::replay;
 pub use delta::{Changes, Marker, changes_since};
 pub use geometry::GAP;
+pub(crate) use geometry::ink_gap;
 pub use history::History;
 pub use item::{Author, Colour, End, Item, ItemId, Page, PageId, Point, Rect, Shape, Time};
 
