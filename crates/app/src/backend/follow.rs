@@ -146,7 +146,12 @@ mod tests {
             let item = json!({"page": "p1", "kind": "box", "x": 0, "y": 0, "w": 10, "h": 10});
             let ops = json!({"op": "add", "item": item});
             daemon
-                .canvas_apply(CanvasOps { canvas: "main".into(), by: "user".into(), ops })
+                .canvas_apply(CanvasOps {
+                    canvas: "main".into(),
+                    by: "user".into(),
+                    ops,
+                    once: None,
+                })
                 .unwrap();
             let News::Changed(feed) = next(&follower) else { panic!("no change") };
             assert_eq!((feed.next, feed.ops.len()), (2, 1));

@@ -35,6 +35,7 @@ fn the_real_board_becomes_a_canvas_that_survives_a_restart() {
             canvas: "idea".into(),
             by: "user".into(),
             ops: add,
+            once: None,
         })
         .unwrap();
     assert_eq!(change.seq, [shown.next]);

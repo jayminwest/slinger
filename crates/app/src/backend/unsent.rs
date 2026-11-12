@@ -5,13 +5,25 @@
 //!
 //! ```json
 //! {"version": 1, "strokes": [{"canvas": "notes", "page": "p1",
-//!   "colour": [0, 0, 255], "width": 2.0, "points": [x0, y0, x1, y1]}]}
+//!   "colour": [0, 0, 255], "width": 2.0, "points": [x0, y0, x1, y1],
+//!   "once": "4021-1762790400000000000.7"}]}
 //! ```
 //!
-//! Points are canvas units, as the ink holds them. No stroke left: no file.
+//! Points are canvas units, as the ink holds them; `once` is the key the
+//! stroke is applied once under, so one that was on its way when the app
+//! quit is not written twice (slinger-1d05ae). No stroke left: no file.
+//!
+//! Each app running keeps a file of its own (slinger-1d05ae): the first is
+//! `unsent-ink.json`, the others `unsent-ink.2.json` and up, to [`FILES`].
+//! An app holds its file by a lock on `<file>.lock` for as long as it runs;
+//! the system lets go of it however the app ends. At its start an app takes
+//! the first file no running app holds, and the strokes of every other one
+//! no running app holds (an app that quit left them), which then move into
+//! its own file.
 
-use std::fs;
-use std::io::ErrorKind;
+use std::ffi::OsString;
+use std::fs::{self, File, OpenOptions, TryLockError};
+use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
@@ -21,10 +33,25 @@ use crate::config::Rgb;
 use crate::layout::Point;
 use crate::scene::ink::Stroke;
 
-/// The file the unsent strokes are kept in.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// How many apps running at once can each keep their strokes.
+pub const FILES: usize = 16;
+
+/// A stroke kept, and the key it is applied once under, if it has one.
+#[derive(Debug, Clone, PartialEq)]
+pub struct KeptStroke {
+    pub stroke: Stroke,
+    pub once: Option<String>,
+}
+
+/// The file this app keeps its unsent strokes in.
+#[derive(Debug)]
 pub struct Unsent {
+    /// The first file: the others are named after it.
+    first: PathBuf,
+    /// This app's file.
     path: PathBuf,
+    /// The lock on it, once taken ([`Unsent::claim`]).
+    lock: Option<File>,
 }
 
 impl Unsent {
@@ -37,58 +64,125 @@ impl Unsent {
         Some(Self::at(dir.join("slinger").join("unsent-ink.json")))
     }
 
-    /// The strokes kept in the file at `path`.
+    /// The files whose first is at `path`, none taken yet.
     pub fn at(path: PathBuf) -> Self {
-        Self { path }
+        Self { first: path.clone(), path, lock: None }
     }
 
-    /// The strokes kept, oldest first; none without a file. A stroke the
-    /// file holds but this app cannot read is left out.
-    pub fn load(&self) -> Result<Vec<Stroke>, Problem> {
+    /// Takes the first file no running app holds, as this app's for as long
+    /// as it runs, and returns the strokes it keeps: its own, oldest first,
+    /// then those of each other file no running app holds, which move into
+    /// it. A file held, or one that cannot be read, is left as it is.
+    pub fn claim(&mut self) -> Result<Vec<KeptStroke>, Problem> {
+        let free = (1..=FILES).map(|n| self.nth(n)).find_map(|path| match hold(&path) {
+            Ok(Some(lock)) => Some(Ok((path, lock))),
+            Ok(None) => None,
+            Err(e) => Some(Err(problem(&path, &e))),
+        });
+        let Some((path, lock)) = free.transpose()? else {
+            let message =
+                format!("{}: all {FILES} files are held by running apps", self.first.display());
+            return Err(Problem::new(message, Some("quit another slinger app, then this one")));
+        };
+        (self.path, self.lock) = (path, Some(lock));
+        let mut kept = self.load()?;
+        let mut taken = Vec::new();
+        for path in (1..=FILES).map(|n| self.nth(n)).filter(|p| *p != self.path && p.exists()) {
+            let Ok(Some(lock)) = hold(&path) else { continue };
+            let Ok(theirs) = Self::at(path.clone()).load() else { continue };
+            kept.extend(theirs);
+            taken.push((path, lock));
+        }
+        if !taken.is_empty() {
+            self.save(&kept)?;
+            for (path, _lock) in taken {
+                // Gone already is as good.
+                let _ = fs::remove_file(path);
+            }
+        }
+        Ok(kept)
+    }
+
+    /// The strokes kept in this app's file, oldest first; none without a
+    /// file. A stroke the file holds but this app cannot read is left out.
+    pub fn load(&self) -> Result<Vec<KeptStroke>, Problem> {
         let text = match fs::read_to_string(&self.path) {
             Ok(text) => text,
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(e) => return Err(self.problem(&e)),
+            Err(e) => return Err(problem(&self.path, &e)),
         };
-        let file: Value = serde_json::from_str(&text).map_err(|e| self.problem(&e))?;
+        let file: Value = serde_json::from_str(&text).map_err(|e| problem(&self.path, &e))?;
         let strokes = file.get("strokes").and_then(Value::as_array);
         Ok(strokes.into_iter().flatten().filter_map(read).collect())
     }
 
-    /// Keeps `strokes`, oldest first, in place of what was kept: written
-    /// whole beside the file, then moved over it, so a quit midway leaves
-    /// the old file or the new one. None removes the file.
-    pub fn save<'a>(&self, strokes: impl IntoIterator<Item = &'a Stroke>) -> Result<(), Problem> {
-        let strokes: Vec<Value> = strokes.into_iter().map(write).collect();
-        if strokes.is_empty() {
+    /// Keeps `kept`, oldest first, in place of what this app's file held:
+    /// written whole beside it, then moved over it, so a quit midway leaves
+    /// the old file or the new one. None removes the file. Nothing is kept
+    /// until the file is this app's ([`Unsent::claim`]), so it never
+    /// overwrites another app's.
+    pub fn save(&self, kept: &[KeptStroke]) -> Result<(), Problem> {
+        if self.lock.is_none() {
+            let message = format!("{}: not this app's file", self.path.display());
+            return Err(Problem::new(message, Some("quit another slinger app, then this one")));
+        }
+        if kept.is_empty() {
             return match fs::remove_file(&self.path) {
-                Err(e) if e.kind() != ErrorKind::NotFound => Err(self.problem(&e)),
+                Err(e) if e.kind() != ErrorKind::NotFound => Err(problem(&self.path, &e)),
                 _ => Ok(()),
             };
         }
+        let strokes: Vec<Value> = kept.iter().map(write).collect();
         let text = json!({"version": 1, "strokes": strokes}).to_string();
         let beside = self.path.with_extension("json.new");
         let dir = self.path.parent().unwrap_or(Path::new("."));
         fs::create_dir_all(dir)
             .and_then(|()| fs::write(&beside, text))
             .and_then(|()| fs::rename(&beside, &self.path))
-            .map_err(|e| self.problem(&e))
+            .map_err(|e| problem(&self.path, &e))
     }
 
-    fn problem(&self, e: &dyn std::fmt::Display) -> Problem {
-        let hint = "strokes not yet sent cannot be kept: make the file writable, or remove it";
-        Problem::new(format!("{}: {e}", self.path.display()), Some(hint))
+    /// The `n`th file, from 1: the first, or `<name>.<n>.json` beside it.
+    fn nth(&self, n: usize) -> PathBuf {
+        if n == 1 {
+            return self.first.clone();
+        }
+        let stem = self.first.file_stem().unwrap_or_default().to_string_lossy();
+        self.first.with_file_name(format!("{stem}.{n}.json"))
     }
 }
 
-fn write(stroke: &Stroke) -> Value {
+/// The lock on the file at `path`, taken: `None` when a running app holds it.
+fn hold(path: &Path) -> io::Result<Option<File>> {
+    let mut name = OsString::from(path.as_os_str());
+    name.push(".lock");
+    fs::create_dir_all(path.parent().unwrap_or(Path::new(".")))?;
+    let file = OpenOptions::new().create(true).truncate(false).write(true).open(name)?;
+    match file.try_lock() {
+        Ok(()) => Ok(Some(file)),
+        Err(TryLockError::WouldBlock) => Ok(None),
+        Err(TryLockError::Error(e)) => Err(e),
+    }
+}
+
+fn problem(path: &Path, e: &dyn std::fmt::Display) -> Problem {
+    let hint = "strokes not yet sent cannot be kept: make the file writable, or remove it";
+    Problem::new(format!("{}: {e}", path.display()), Some(hint))
+}
+
+fn write(kept: &KeptStroke) -> Value {
+    let stroke = &kept.stroke;
     let Rgb { r, g, b } = stroke.colour;
     let points: Vec<f64> = stroke.points.iter().flat_map(|p| [p.x, p.y]).collect();
-    json!({"canvas": stroke.canvas, "page": stroke.page, "colour": [r, g, b],
-        "width": stroke.width, "points": points})
+    let mut o = json!({"canvas": stroke.canvas, "page": stroke.page, "colour": [r, g, b],
+        "width": stroke.width, "points": points});
+    if let Some(once) = &kept.once {
+        o["once"] = once.as_str().into();
+    }
+    o
 }
 
-fn read(o: &Value) -> Option<Stroke> {
+fn read(o: &Value) -> Option<KeptStroke> {
     let text = |key: &str| o.get(key)?.as_str().map(str::to_string);
     let byte = |v: &Value| u8::try_from(v.as_u64()?).ok();
     let [r, g, b] = o.get("colour")?.as_array()?.as_slice() else { return None };
@@ -97,63 +191,15 @@ fn read(o: &Value) -> Option<Stroke> {
     if numbers.is_empty() || !numbers.len().is_multiple_of(2) {
         return None;
     }
-    Some(Stroke {
+    let stroke = Stroke {
         canvas: text("canvas")?,
         page: text("page")?,
         colour: Rgb { r: byte(r)?, g: byte(g)?, b: byte(b)? },
         width: o.get("width")?.as_f64()?,
         points: numbers.as_chunks::<2>().0.iter().map(|[x, y]| Point { x: *x, y: *y }).collect(),
-    })
+    };
+    Some(KeptStroke { stroke, once: text("once") })
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn stroke(canvas: &str, x: f64) -> Stroke {
-        Stroke {
-            canvas: canvas.into(),
-            page: "p1".into(),
-            colour: Rgb { r: 0, g: 10, b: 255 },
-            width: 2.5,
-            points: vec![Point { x, y: 1.25 }, Point { x: x + 1.0, y: -2.0 }],
-        }
-    }
-
-    #[test]
-    fn strokes_kept_come_back_in_order_and_none_left_removes_the_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let file = Unsent::at(dir.path().join("deep/unsent-ink.json"));
-        assert_eq!(file.load(), Ok(vec![]), "no file: none kept");
-        let kept = [stroke("notes", 0.5), stroke("other", 3.0)];
-        file.save(&kept).unwrap();
-        assert_eq!(file.load().unwrap(), kept);
-        file.save(&kept[1..]).unwrap();
-        assert_eq!(file.load().unwrap(), kept[1..]);
-        file.save([]).unwrap();
-        assert!(!dir.path().join("deep/unsent-ink.json").exists());
-        assert!(!dir.path().join("deep/unsent-ink.json.new").exists());
-        file.save([]).unwrap();
-    }
-
-    #[test]
-    fn a_stroke_that_does_not_read_is_left_out_and_a_bad_file_is_a_problem() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("unsent-ink.json");
-        let good = write(&stroke("notes", 1.0));
-        let odd = json!({"canvas": "notes", "page": "p1", "colour": [0, 0, 0],
-            "width": 2.0, "points": [1.0]});
-        fs::write(&path, json!({"version": 1, "strokes": [odd, good, 7]}).to_string()).unwrap();
-        assert_eq!(Unsent::at(path.clone()).load().unwrap(), [stroke("notes", 1.0)]);
-        fs::write(&path, "{nope").unwrap();
-        let problem = Unsent::at(path.clone()).load().unwrap_err();
-        assert!(problem.message.starts_with(&path.display().to_string()), "{problem:?}");
-        assert!(problem.hint.is_some());
-    }
-
-    #[test]
-    fn the_file_is_beside_the_daemon_s_record() {
-        let located = Unsent::locate().map(|f| f.path);
-        assert!(located.is_none_or(|p| p.ends_with("slinger/unsent-ink.json")));
-    }
-}
+mod tests;

@@ -47,7 +47,12 @@ fn agent_verbs_take_the_agent_from_the_flag_or_the_environment_or_fail_as_usage(
     let client = Client::new(&socket);
     client.canvas_create("main").unwrap();
     let bx = serde_json::json!({ "op": "add", "item": { "page": "p1", "kind": "box", "x": 0, "y": 0, "w": 10, "h": 10 } });
-    let ops = slinger_control::CanvasOps { canvas: "main".into(), by: "user".into(), ops: bx };
+    let ops = slinger_control::CanvasOps {
+        canvas: "main".into(),
+        by: "user".into(),
+        ops: bx,
+        once: None,
+    };
     client.canvas_apply(ops).unwrap();
     let put = ["canvas", "put", "main", "--beside", "i1", "--text", "hi"];
     assert_eq!(slinger(&socket, None, &put).status.code(), Some(USAGE));

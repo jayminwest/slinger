@@ -14,7 +14,7 @@ fn drawn(daemon: &Daemon) {
     let stroke = |x: i64| json!({ "op": "add", "item": { "page": "p1", "kind": "stroke", "width": 20, "pts": [x, 0, 100, 0] } });
     let bx = json!({ "op": "add", "item": { "page": "p1", "kind": "box", "x": 0, "y": 500, "w": 1000, "h": 500 } });
     let ops = json!([bx, stroke(0), stroke(120)]);
-    let request = CanvasOps { canvas: "main".into(), by: "user".into(), ops };
+    let request = CanvasOps { canvas: "main".into(), by: "user".into(), ops, once: None };
     client.canvas_apply(request).unwrap();
 }
 

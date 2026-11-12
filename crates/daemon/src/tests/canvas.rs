@@ -10,7 +10,7 @@ use tempfile::TempDir;
 use super::Daemon;
 
 fn ops(canvas: &str, by: &str, ops: Value) -> CanvasOps {
-    CanvasOps { canvas: canvas.into(), by: by.into(), ops }
+    CanvasOps { canvas: canvas.into(), by: by.into(), ops, once: None }
 }
 
 fn bx(x: i64) -> Value {
@@ -43,6 +43,23 @@ fn a_canvas_survives_a_restart_with_every_item_and_page() {
     assert_eq!(after.items[1]["by"], "agent:ada");
     assert_eq!(after.pages[1], json!({ "id": "p2", "name": "notes" }));
     assert_eq!(daemon.client().canvas_list().unwrap(), ["main"]);
+    daemon.stop();
+}
+
+#[test]
+fn a_change_sent_again_under_its_key_is_applied_once_and_answered_the_same() {
+    let data = TempDir::new().unwrap();
+    let daemon = Daemon::start_in(data.path());
+    let client = daemon.client();
+    client.canvas_create("main").unwrap();
+    let once = |x| CanvasOps { once: Some("app-1.7".into()), ..ops("main", "user", bx(x)) };
+    let first = client.canvas_apply(once(0)).unwrap();
+    let again = client.canvas_apply(once(0)).unwrap();
+    assert_eq!((&again.seq, &again.made), (&first.seq, &first.made));
+    let other = CanvasOps { once: Some("app-1.8".into()), ..ops("main", "user", bx(0)) };
+    assert_eq!(client.canvas_apply(other).unwrap().made, ["i2"]);
+    let shown = client.canvas_show("main", None).unwrap();
+    assert_eq!((shown.items.len(), shown.next), (2, 3), "written once");
     daemon.stop();
 }
 

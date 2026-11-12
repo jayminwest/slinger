@@ -19,6 +19,7 @@ use std::ops::Range;
 use serde_json::Value;
 
 use super::json::{self, Fields};
+use super::once::Onces;
 use super::{File, Header, Line, read, snap};
 use crate::canvas::{
     Action, Applied, Author, Canvas, History, ItemId, Op, Page, Point, Shape, Time,
@@ -124,6 +125,8 @@ pub struct Log {
     /// Where each whole line of the file ends: the header's, then each
     /// operation line's, in order.
     ends: Vec<u64>,
+    /// The keys of the last changes applied once ([`Log::apply_once`]).
+    pub(super) onces: Onces,
 }
 
 impl Log {
@@ -143,6 +146,7 @@ impl Log {
             ops: Vec::new(),
             lines: Vec::new(),
             ends: vec![bytes.len() as u64],
+            onces: Onces::default(),
         };
         Ok((log, bytes))
     }
@@ -178,7 +182,8 @@ impl Log {
         let whole = &bytes[..bytes.len() - file.torn];
         let ends = whole.iter().enumerate().filter(|(_, b)| **b == b'\n');
         let ends = ends.map(|(i, _)| i as u64 + 1).collect();
-        let log = Self { canvas, history: History::new(), next: file.next(), ops, lines, ends };
+        let (history, onces) = (History::new(), Onces::default());
+        let log = Self { canvas, history, next: file.next(), ops, lines, ends, onces };
         Ok((log, file.torn))
     }
 

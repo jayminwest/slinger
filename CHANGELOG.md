@@ -139,6 +139,15 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a stroke on its way to slingerd as the app quit is no longer
+  added twice when the app starts again, and a change sent again after
+  slingerd's answer was lost is not applied twice. Two copies of the app
+  running at once keep their unsent strokes in a file each
+  (`unsent-ink.json`, `unsent-ink.2.json`, ...), so neither loses the
+  other's; the next start sends them all.
+- **Control:** `canvas_apply` takes `once`, a key the caller makes unique:
+  a request sent again under the same key is applied once and answered
+  the same.
 - **App:** ink slingerd has not written yet (just drawn, or drawn while
   slingerd is down) can be erased, selected, moved and deleted at once,
   like any other item. Each change still goes to slingerd in order, as one

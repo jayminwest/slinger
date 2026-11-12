@@ -43,6 +43,7 @@ use crate::scene::pages::PageOp;
 
 mod delay;
 mod ids;
+mod once;
 
 /// The pen's line width until one is set ([`Ink::set_width`]), in canvas
 /// units: tldraw's small pen.
@@ -198,9 +199,15 @@ struct Pending {
     after: Option<u64>,
     /// The ids the daemon made for the items it adds, once it said.
     made: Vec<ItemId>,
+    /// The key it is applied once under, when not this run's ([`once`]).
+    once: Option<String>,
 }
 
 impl Pending {
+    fn new(key: u64, change: Change, after: Option<u64>) -> Self {
+        Self { key, change, state: State::Waiting, after, made: Vec::new(), once: None }
+    }
+
     /// The id the `n`th item it adds shows under: the server's once made.
     fn id(&self, n: u64) -> ItemId {
         let made = usize::try_from(n).ok().and_then(|n| self.made.get(n));
@@ -225,6 +232,8 @@ pub struct Ink {
     /// made. Kept for the app's life (a few bytes a change), so a gesture
     /// still holding an old id names the item made ([`ids`]).
     made: HashMap<ItemId, ItemId>,
+    /// What this run's keys for applying once start with ([`once`]).
+    run: String,
 }
 
 impl Ink {
@@ -272,9 +281,7 @@ impl Ink {
             self.drag(at);
         }
         let Some((key, stroke)) = self.drawing.take() else { return false };
-        let change = Change::Add(stroke);
-        let made = Vec::new();
-        self.pending.push(Pending { key, change, state: State::Waiting, after: None, made });
+        self.pending.push(Pending::new(key, Change::Add(stroke), None));
         true
     }
 
@@ -310,7 +317,7 @@ impl Ink {
             Change::Carry { items, .. } => u64::try_from(items.len()).unwrap_or(1).max(1),
             _ => 1,
         };
-        self.pending.push(Pending { key, change, state: State::Waiting, after, made: Vec::new() });
+        self.pending.push(Pending::new(key, change, after));
         self.next_key += keys;
         key
     }

@@ -155,8 +155,12 @@ pub fn execute(
                     Some(hint.into()),
                 )
             })?;
-            let request =
-                control::CanvasOps { canvas: canvas.clone(), by: by(agent.as_deref()), ops };
+            let request = control::CanvasOps {
+                canvas: canvas.clone(),
+                by: by(agent.as_deref()),
+                ops,
+                once: None,
+            };
             change(&daemon.canvas_apply(request)?)
         }
         Canvas::Schema => Ok(crate::schema::schema()),
