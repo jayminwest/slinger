@@ -61,7 +61,26 @@ fn a_paste_adds_the_items_to_the_page_centred_on_the_point() {
     assert_eq!(pasted[0].object["page"], "p2");
     assert!(pasted[0].object.get("id").is_none(), "the server gives the id");
     let Shape::Arrow { bound, .. } = pasted[1].item.shape else { panic!() };
-    assert_eq!(bound, [None, None]);
+    assert_eq!(bound, [None, None], "drawn bound to nothing until the server says");
+    assert_eq!(pasted[1].object["to"], "$0", "bound to the box pasted with it");
+}
+
+#[test]
+fn a_pasted_arrow_keeps_only_the_ends_on_items_pasted_before_it() {
+    let arrow = |from: &str, to: &str| json!({"kind": "arrow", "color": "#0000ff", "pts": [0, 0, 100, 0], "from": from, "to": to});
+    let clip = json!([
+        {"kind": "unknown"},
+        {"kind": "box", "x": 0, "y": 0, "w": 100, "h": 40},
+        arrow("$1", "$0"),
+        arrow("i1", "$3"),
+        arrow("$2", "$x"),
+    ]);
+    let pasted = pasted(&clip.to_string(), "p1", Point { x: 0.0, y: 0.0 });
+    assert_eq!(pasted.len(), 4, "the unknown kind is left out");
+    let ends = |n: usize| (pasted[n].object.get("from"), pasted[n].object.get("to"));
+    assert_eq!(ends(1), (Some(&json!("$0")), None), "renumbered; an end on what is left out goes");
+    assert_eq!(ends(2), (None, None), "an id of the copied canvas, and an item after it, go");
+    assert_eq!(ends(3), (Some(&json!("$1")), None), "an arrow may point at an arrow");
 }
 
 #[test]

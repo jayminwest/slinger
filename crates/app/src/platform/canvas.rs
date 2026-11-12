@@ -16,8 +16,9 @@
 //! once, in canvas points, and kept while it is drawn the same; a pan or a
 //! zoom only moves and scales the glyphs.
 //!
-//! Over the view the pointer is the scene's [`Cursor`]: a system cursor, or
-//! a ring drawn once in its colour.
+//! Over the view the pointer is the scene's [`Cursor`]: a system cursor, a
+//! ring drawn once in its colour, or a diagonal resize arrow drawn once
+//! (`AppKit` has none before macOS 15).
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -310,8 +311,42 @@ pub(super) fn ns_cursor(cursor: Cursor) -> Retained<NSCursor> {
         Cursor::Crosshair => NSCursor::crosshairCursor(),
         Cursor::IBeam => NSCursor::IBeamCursor(),
         Cursor::ResizeLeftRight | Cursor::ResizeUpDown => resize(cursor),
+        Cursor::ResizeFalling => diagonal(false),
+        Cursor::ResizeRising => diagonal(true),
         Cursor::Ring { colour, diameter } => ring(colour, diameter),
     }
+}
+
+/// A double arrow along a diagonal, black edged in white, pointing at its
+/// middle: from the bottom left to the top right when `rising`, else from
+/// the top left to the bottom right.
+#[expect(deprecated, reason = "lockFocus draws a few points once, without a block")]
+fn diagonal(rising: bool) -> Retained<NSCursor> {
+    const SIDE: f64 = 18.0;
+    let image = NSImage::initWithSize(NSImage::alloc(), NSSize::new(SIDE, SIDE));
+    image.lockFocus();
+    // The image's y goes up: the arrow along y = x rises on screen.
+    let at = |x: f64, y: f64| NSPoint::new(x, if rising { y } else { SIDE - y });
+    let (low, high) = (3.0, SIDE - 3.0);
+    let head = 5.0;
+    let path = NSBezierPath::new();
+    path.moveToPoint(at(low, low));
+    path.lineToPoint(at(high, high));
+    for (tip, back) in [(low, head), (high, -head)] {
+        path.moveToPoint(at(tip + back, tip));
+        path.lineToPoint(at(tip, tip));
+        path.lineToPoint(at(tip, tip + back));
+    }
+    path.setLineCapStyle(NSLineCapStyle::Round);
+    path.setLineJoinStyle(NSLineJoinStyle::Round);
+    for (width, colour) in [(4.0, Rgb { r: 255, g: 255, b: 255 }), (1.5, Rgb { r: 0, g: 0, b: 0 })]
+    {
+        path.setLineWidth(width);
+        color(colour).setStroke();
+        path.stroke();
+    }
+    image.unlockFocus();
+    NSCursor::initWithImage_hotSpot(NSCursor::alloc(), &image, NSPoint::new(SIDE / 2.0, SIDE / 2.0))
 }
 
 /// A ring `diameter` points across in `colour`, pointing at its centre.
