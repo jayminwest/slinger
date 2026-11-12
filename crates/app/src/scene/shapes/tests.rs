@@ -33,7 +33,9 @@ fn item(id: u64, shape: Shape) -> Item {
 }
 
 /// A box (i1), a text (i2), an arrow (i3) across the empty middle, and a
-/// stroke of local ink over the right.
+/// mark drawn over the page on the right (from [`LOCAL`] up, as a preview is).
+///
+/// [`LOCAL`]: crate::scene::ink::LOCAL
 fn page() -> Vec<Item> {
     vec![
         item(1, Shape::Box { frame: frame(0.0, 0.0, 100.0, 100.0), width: 2.0 }),
@@ -349,7 +351,7 @@ fn an_arrow_end_that_lands_on_an_item_binds_to_it() {
         Shape::Arrow { from: pt(50.0, 50.0), to: pt(305.0, -5.0), width: LINE_WIDTH, bound };
     assert_eq!(changes(&mut ink), vec![put(arrow)]);
 
-    // Empty space, an arrow and local ink bind to nothing.
+    // Empty space, an arrow and a mark drawn over the page bind to nothing.
     drag(&mut shapes, &mut ink, Tool::Arrow, (200.0, 199.0), (520.0, 20.0), &items);
     let [Change::Put { shape: Shape::Arrow { bound, .. }, .. }] = &changes(&mut ink)[..] else {
         panic!()

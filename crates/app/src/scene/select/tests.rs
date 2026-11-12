@@ -30,7 +30,8 @@ fn frame(x: f64, y: f64, w: f64, h: f64) -> Rect {
 }
 
 /// Three notes in a row (a word, a box, a text), an arrow below them, and a
-/// stroke of local ink: i1 to i4, then ink.
+/// mark drawn over the page (from [`LOCAL`](crate::scene::ink::LOCAL) up, as
+/// the lasso is): i1 to i4, then the mark.
 fn page() -> Vec<Item> {
     vec![
         stroke(1, &[(0.0, 0.0), (10.0, 0.0)]),
@@ -43,11 +44,11 @@ fn page() -> Vec<Item> {
             4,
             Shape::Arrow { from: pt(0.0, 50.0), to: pt(50.0, 50.0), width: 2.0, bound: [None; 2] },
         ),
-        stroke(LOCAL_INK, &[(0.0, 20.0), (50.0, 20.0)]),
+        stroke(MARK, &[(0.0, 20.0), (50.0, 20.0)]),
     ]
 }
 
-const LOCAL_INK: u64 = crate::scene::ink::LOCAL;
+const MARK: u64 = crate::scene::ink::LOCAL;
 
 fn shown(items: &[Item]) -> Vec<Cow<'_, Item>> {
     items.iter().map(Cow::Borrowed).collect()
@@ -81,11 +82,8 @@ fn the_eraser_hides_what_it_touches_at_once_and_removes_it_in_one_change() {
         "within reach of i1: 5 from its line, 1 its half width"
     );
     let over = select.shown(HERE, shown(&page), 1.0, &THEME);
-    assert_eq!(ids(&over), [2, 3, 4, LOCAL_INK], "i1 hides at once; ink is not erased");
-    assert_eq!(
-        ids(&select.shown(("main", "p2"), shown(&page), 1.0, &THEME)),
-        [1, 2, 3, 4, LOCAL_INK]
-    );
+    assert_eq!(ids(&over), [2, 3, 4, MARK], "i1 hides at once; a mark is not erased");
+    assert_eq!(ids(&select.shown(("main", "p2"), shown(&page), 1.0, &THEME)), [1, 2, 3, 4, MARK]);
     assert!(select.drag(pt(25.0, 0.0), &items), "across the box's left side");
     assert!(select.up(Some(pt(25.0, 1.0)), &items, &mut ink));
     let ids = vec![ItemId(1), ItemId(2)];

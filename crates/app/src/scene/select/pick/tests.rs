@@ -30,7 +30,8 @@ fn stroke(id: u64, (x1, y1): (f64, f64), (x2, y2): (f64, f64)) -> Item {
 }
 
 /// A big box (i1) with a stroke drawn in it (i2), a text (i3), an arrow
-/// (i4), a stroke between them (i5), and local ink.
+/// (i4), a stroke between them (i5), and a mark drawn over the page (from
+/// [`LOCAL`] up, as the lasso is).
 fn page() -> Vec<Item> {
     let text = Shape::Text { frame: frame(200.0, 0.0, 40.0, 20.0), text: "hi".into(), size: 16.0 };
     let arrow =
@@ -93,7 +94,7 @@ fn a_press_selects_the_topmost_item_it_picks_alone() {
     }
     assert_eq!(ink.next(), None, "selecting changes nothing on the server");
     click(&mut select, &mut ink, 405.0, 0.0);
-    assert_eq!(selected(&select), [] as [u64; 0], "local ink is not the server's yet");
+    assert_eq!(selected(&select), [] as [u64; 0], "a mark drawn over the page is never picked");
 }
 
 #[test]
