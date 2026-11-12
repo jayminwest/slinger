@@ -374,7 +374,9 @@ canvases.rs  the canvas panes: one follower and mirror per page shown, each
 canvases/live.rs  the live items' pages: each showing a pane draws fetched
              once on a thread of its own, put over its item; a press on an
              item whose page shows goes to the page unless it grabs the
-             selection.
+             selection, or the item is under 48 points wide on the screen.
+             A view kept off the screen (scene/live/away.rs) due to close
+             draws the window again.
 canvases/button.rs  the "send to agent" button (SPEC section 8): a tap slings
              what is new on its page (`sling_now`, nothing selected, the
              config's prompt), or sends the open entry; `place-button` puts
@@ -600,7 +602,13 @@ scene/grid.rs  the dotted grid: display only, never an item (nothing
              and on an edit of `background`; `toggle-grid` between, not
              saved). A new paper repaints the whole pane (`Scene::on`). Pure.
 scene/live.rs  where each live item's page shows: over its item's visible
-             mark in each canvas pane, cut off at the pane, at its zoom. Pure.
+             mark in each canvas pane, cut off at the pane, at its zoom; and
+             how (Shows): its page, still (under 48 points wide on the
+             screen: no presses) or away; and the note of a reply its agent
+             did not take, along the item's top. Pure.
+scene/live/away.rs  the live items gone off the screen (or their pane turned
+             to another page): each view kept, hidden, for 30 s after it
+             went, then closed; the clock is the caller's. Pure.
 scene/ink.rs  the pen's ink: the stroke under the pen and the finished changes
              (strokes, removals, moves) the server's page does not hold yet,
              laid over it; which change goes next (one at a time, oldest
@@ -771,6 +779,14 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              layout::SMALLEST) and says its new size as Event::Resized; main
              lays the scene out again at it. All unsafe, objc2 and AppKit
              code. No decisions.
+platform/window.rs  makes the window (its style, smallest size and
+             delegate) and puts it at its saved frame.
+platform/remember.rs  what the window keeps in the user defaults from one
+             launch to the next: its frame, and whether the sidebar was open.
+             main says whose frame a run keeps (platform::Kept): the app's
+             window, or a preview's (`--preview`, which the tests run), saved
+             under a name of its own so a preview never moves the app's
+             window; a preview never reads or writes the sidebar's.
 platform/files.rs  sets the title bar a scene's Title says (title, subtitle,
              represented file), and shows a file in the Finder
              (`show-canvas-file`, from main).
@@ -814,8 +830,8 @@ platform/web.rs  agent UIs in WKWebViews: the scheme handler, navigation and
              call to its ui::Bridge, the rule list (compiled once; no view
              loads before it is on), and a view kept across draws while its
              page is shown; a live item's in a clip at its pane, just over
-             the pane's canvas, at the canvas's pageZoom. A reply goes to
-             main as Event::Reply.
+             the pane's canvas, at the canvas's pageZoom, hidden while it
+             is away. A reply goes to main as Event::Reply.
 ```
 
 **Threading rule:** AppKit runs on the main thread only. Every `platform`

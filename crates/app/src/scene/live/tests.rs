@@ -1,9 +1,11 @@
 use std::rc::Rc;
 
 use super::*;
+use crate::backend::Problem;
 use crate::config::{Rgb, Theme};
 use crate::layout::Viewport;
 use crate::panes::{Kind, Pane, Panes};
+use crate::scene::Notes;
 use crate::scene::canvas::{self, Item, Shape};
 use crate::scene::cursor::Cursor;
 use crate::ui::{Code, Shown};
@@ -41,7 +43,7 @@ fn a_live_item_s_page_shows_over_its_box_and_follows_a_pan_and_a_zoom() {
     let shown_pages = HashMap::from([("pick-slot#12".to_string(), page("pick-slot#12"))]);
     let (id, placed) = pane(&items, Viewport::default());
     let shown = webs(&placed, &shown_pages);
-    let want = Live { pane: Some(id), item: ItemId(2), clip: PANE, zoom: 1.0 };
+    let want = Live { pane: Some(id), item: ItemId(2), clip: PANE, zoom: 1.0, shows: Shows::Page };
     assert_eq!(shown.len(), 1);
     assert_eq!((shown[0].frame, shown[0].live), (rect(400.0, 90.0, 320.0, 240.0), Some(want)));
     assert!(shown[0].page.context.contains(r#""host":"canvas""#));
@@ -79,4 +81,41 @@ fn alone_a_live_item_shows_its_default_size_in_the_middle() {
     let web = alone(page("pick-slot#12"), SCREEN, 1.5);
     assert_eq!(web.frame, rect(160.0, 120.0, 480.0, 360.0));
     assert_eq!(web.live.map(|l| (l.pane, l.clip, l.zoom)), Some((None, SCREEN.rect(), 1.5)));
+}
+
+#[test]
+fn an_item_narrower_than_48_points_on_the_screen_takes_no_presses() {
+    let items = [live(2, rect(0.0, 0.0, 320.0, 240.0), "pick-slot#12")];
+    let shown_pages = HashMap::from([("pick-slot#12".to_string(), page("pick-slot#12"))]);
+    let shows = |zoom: f64| {
+        let view = Viewport::default().zoom_about(Point { x: 0.0, y: 0.0 }, zoom);
+        let (_, placed) = pane(&items, view);
+        webs(&placed, &shown_pages)[0].live.map(|l| l.shows)
+    };
+    assert_eq!(shows(0.15), Some(Shows::Page), "48 points wide");
+    assert_eq!(shows(0.14), Some(Shows::Still));
+    assert_eq!((Shows::at(48.0), Shows::at(47.9)), (Shows::Page, Shows::Still));
+}
+
+#[test]
+fn a_reply_its_agent_did_not_take_shows_along_the_top_of_its_item_cut_off_at_the_pane() {
+    let theme = Theme::default();
+    let items = [
+        live(2, rect(100.0, -10.0, 320.0, 240.0), "pick-slot#12"),
+        live(3, rect(500.0, 50.0, 320.0, 240.0), "pick-slot#13"),
+    ];
+    let shown_pages = HashMap::from([
+        ("pick-slot#12".to_string(), page("pick-slot#12")),
+        ("pick-slot#13".to_string(), page("pick-slot#13")),
+    ]);
+    let (_, placed) = pane(&items, Viewport::default());
+    let shown = webs(&placed, &shown_pages);
+    let problem = Problem { message: "scout is not running".into(), hint: None };
+    let notes = Notes::from([("pick-slot#12".to_string(), problem)]);
+    let labels = super::notes(&shown, &notes, &theme);
+    assert_eq!(labels.len(), 1, "only the item whose reply was not taken");
+    assert_eq!(labels[0].text, "✗ scout is not running");
+    assert_eq!((labels[0].colour, labels[0].fill), (theme.error, Some(theme.background)));
+    assert_eq!(labels[0].frame, rect(400.0, 40.0, 320.0, 12.0), "cut off at the pane's top");
+    assert_eq!(super::notes(&shown, &Notes::new(), &theme), []);
 }
