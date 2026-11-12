@@ -24,9 +24,9 @@
 //!
 //! Which items a path touches, a loop holds or a press picks is [`hit`]'s, the core's rules
 //! kept here so the answer comes at every pen event without the socket.
-//! Only the server's items count: ink shows under the server's id once the
-//! daemon has written it ([`Ink::shown`]), so only ink not yet written is
-//! out of reach.
+//! Every item on the page counts but the stroke under the pen and the
+//! marks: ink not yet written too, which the ink names by the server's id
+//! once the daemon has made it ([`Ink::answered`], [`Select::renamed`]).
 //! Any of them can be erased or moved, an agent's too: the user may change
 //! every item.
 
@@ -70,7 +70,7 @@ const COUNT: ItemId = ItemId(u64::MAX - 4);
 /// The four handles: this id and the three below it.
 const HANDLES: u64 = u64::MAX - 5;
 
-/// Items selected on one page, by the server's ids, in drawing order.
+/// Items selected on one page, by the ids they show under, in drawing order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Selection {
     pub canvas: String,
@@ -245,6 +245,23 @@ impl Select {
         let Some(Selection { canvas, page, ids }) = self.selection.take() else { return false };
         ink.push(Change::Remove { canvas, page, ids });
         true
+    }
+
+    /// Items that showed under the first id of each of `ids` show under the
+    /// second from now on (the daemon made them, [`Ink::answered`]): the
+    /// selection, and an erase under way, keep them.
+    pub fn renamed(&mut self, ids: &[(ItemId, ItemId)]) {
+        let rename = |id: &mut ItemId| {
+            if let Some((_, now)) = ids.iter().find(|(was, _)| was == id) {
+                *id = *now;
+            }
+        };
+        if let Some(selection) = &mut self.selection {
+            selection.ids.iter_mut().for_each(&rename);
+        }
+        if let Some((_, _, Gesture::Erase { ids: hit, .. })) = &mut self.gesture {
+            hit.iter_mut().for_each(&rename);
+        }
     }
 
     /// Lets go of the selected items no longer in `items`, the page shown of

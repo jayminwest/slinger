@@ -139,6 +139,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** ink slingerd has not written yet (just drawn, or drawn while
+  slingerd is down) can be erased, selected, moved and deleted at once,
+  like any other item. Each change still goes to slingerd in order, as one
+  undo step.
 - **App:** the pointer turns into the resize cursor within reach of the
   divider between two panes, and keeps it while you drag the divider, so
   you can see where a press resizes the panes.

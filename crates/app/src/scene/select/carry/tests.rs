@@ -73,7 +73,7 @@ fn a_drag_that_ends_in_a_pane_on_another_canvas_carries_the_items_there() {
     assert_eq!(there.len(), 1);
     // Its bounds take in half its line width.
     assert_eq!(there[0].shape.bounds().map(|b| (b.x, b.y)), Some((94.0, 199.0)));
-    assert!(there[0].id.0 >= crate::scene::ink::LOCAL, "{:?}", there[0].id);
+    assert!(there[0].id.0 >= crate::scene::ink::PENDING, "{:?}", there[0].id);
 
     // The add there goes first, then the removal here: one step on each.
     let Some((key, Change::Carry { canvas, page, items, .. })) = ink.next() else { panic!() };

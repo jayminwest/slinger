@@ -222,7 +222,8 @@ impl Canvases {
             if let Answer::Made { ids, .. } = &answer {
                 self.select.made(key, ids);
             }
-            self.ink.answered(key, answer);
+            let renamed = self.ink.answered(key, answer);
+            self.select.renamed(&renamed);
         }
         // Every page of a canvas hears the same numbers: the slowest decides.
         let mut heard: Vec<(&str, u64)> = Vec::new();
