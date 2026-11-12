@@ -65,12 +65,21 @@ bullet with the area in bold.
   stopped, and "working" as soon as a sling is waiting for it, so a sling
   to a stopped agent no longer looks like nothing happened.
 
+### Removed
+
+- **CLI and daemon:** the `hello` command and the `hello` verb, a
+  placeholder from the first build. To check that the daemon answers, run
+  `slinger canvas list`. `--verbose` now names the command and the socket.
+
 ### Fixed
 
 - **Daemon:** a second `slingerd` started on another socket but the same
   data directory now stops with exit 4 and `✗ data directory <path> is in
   use by another slingerd`, instead of writing to the same record as the
   first.
+- **App:** the sling's pill (`● scout working · 4s` and what follows it)
+  and the ➤ Sling and + prompt buttons centre their words top to bottom,
+  instead of sitting them at the top of their fill.
 - **Agents:** the picture an agent sees of your canvas draws em and en
   dashes, curly quotes, an ellipsis, bullets, arrows, check marks, box
   drawing and blocks as themselves, instead of as `?`. A character the
@@ -80,6 +89,9 @@ bullet with the area in bold.
 - **App:** choosing a menu bar item while the command palette is open now
   closes the palette before the command runs, instead of leaving it over
   the window. Choosing Show commands only closes it.
+- **App:** the key overlay, the command palette and the page menu now draw
+  over an open sling prompt (and the feedback and rename fields), dimming
+  it with the rest of the window, instead of leaving the prompt on top.
 - **App:** return on a just-opened command palette no longer quits. The
   palette now opens on the command you last ran from it, then the tools,
   with Quit at the bottom. Typed, the best match comes first: a title that

@@ -107,17 +107,10 @@ impl Daemon {
 }
 
 #[test]
-fn hello_goes_through_the_core_and_back() {
-    let daemon = Daemon::start();
-    assert_eq!(Client::new(&daemon.socket).hello(" ada ").unwrap(), "hello, ada");
-    daemon.stop();
-}
-
-#[test]
 fn a_core_error_keeps_its_code_and_hint() {
     let daemon = Daemon::start();
-    let err = Client::new(&daemon.socket).hello("  ").unwrap_err();
-    assert_eq!((err.code(), err.to_string().as_str()), ("invalid", "name is empty"));
+    let err = Client::new(&daemon.socket).canvas_create(".hidden").unwrap_err();
+    assert_eq!(err.code(), "invalid");
     assert!(err.hint().is_some());
     daemon.stop();
 }
@@ -128,15 +121,15 @@ fn malformed_requests_get_an_error_reply_and_the_daemon_keeps_serving() {
     for (request, code) in [
         (&b"not json\n"[..], "bad_request"),
         (b"{\"v\":1,\"op\":\"nope\"}\n", "bad_request"),
-        (b"{\"op\":\"hello\",\"name\":\"ada\"}\n", "bad_request"),
-        (b"{\"v\":9,\"op\":\"hello\",\"name\":\"ada\"}\n", "unsupported_version"),
+        (b"{\"op\":\"canvas_list\"}\n", "bad_request"),
+        (b"{\"v\":9,\"op\":\"canvas_list\"}\n", "unsupported_version"),
     ] {
         let reply = daemon.raw(request);
         assert!(reply.contains("\"ok\":false"), "{reply}");
         assert!(reply.contains(&format!("\"code\":\"{code}\"")), "{reply}");
     }
     assert_eq!(daemon.raw(b""), "");
-    assert_eq!(Client::new(&daemon.socket).hello("ada").unwrap(), "hello, ada");
+    assert_eq!(Client::new(&daemon.socket).canvas_list().unwrap(), Vec::<String>::new());
     daemon.stop();
 }
 
@@ -156,7 +149,7 @@ fn one_instance_per_socket_path() {
     assert!(matches!(err, StartError::Taken(_)));
     assert_eq!(err.code(), "conflict");
     // The loser must not have removed the winner's socket.
-    assert_eq!(Client::new(&daemon.socket).hello("ada").unwrap(), "hello, ada");
+    assert_eq!(Client::new(&daemon.socket).canvas_list().unwrap(), Vec::<String>::new());
     daemon.stop();
 }
 
@@ -169,7 +162,7 @@ fn a_socket_file_left_by_a_dead_daemon_is_replaced() {
     let stopper = server.stopper();
     let data = TempDir::new().unwrap();
     let thread = serving(server, data.path());
-    assert_eq!(Client::new(&socket).hello("ada").unwrap(), "hello, ada");
+    assert_eq!(Client::new(&socket).canvas_list().unwrap(), Vec::<String>::new());
     Daemon { socket, stopper, thread, data: Some(data) }.stop();
 }
 
@@ -177,12 +170,12 @@ fn a_socket_file_left_by_a_dead_daemon_is_replaced() {
 fn a_stop_does_not_lose_the_reply_to_a_request_in_flight() {
     let daemon = Daemon::start();
     let mut stream = UnixStream::connect(&daemon.socket).unwrap();
-    stream.write_all(b"{\"v\":1,\"op\":\"hello\",").unwrap();
+    stream.write_all(b"{\"v\":1,").unwrap();
     daemon.stopper.stop();
-    stream.write_all(b"\"name\":\"ada\"}\n").unwrap();
+    stream.write_all(b"\"op\":\"canvas_list\"}\n").unwrap();
     let mut reply = String::new();
     BufReader::new(stream).read_line(&mut reply).unwrap();
-    assert_eq!(reply, "{\"greeting\":\"hello, ada\",\"ok\":true}\n");
+    assert_eq!(reply, "{\"canvases\":[],\"ok\":true}\n");
     daemon.stop();
 }
 

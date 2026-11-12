@@ -78,12 +78,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Print a greeting
-    Hello {
-        /// Who to greet
-        #[arg(default_value = "world")]
-        name: String,
-    },
     /// Read and write this machine's record of events
     #[command(subcommand)]
     Record(Record),
@@ -184,7 +178,6 @@ struct TagArgs {
 impl Command {
     fn name(&self) -> &'static str {
         match self {
-            Self::Hello { .. } => "hello",
             Self::Record(Record::Append { .. }) => "record append",
             Self::Record(Record::List { .. }) => "record list",
             Self::Blob(Blob::Put { .. }) => "blob put",
@@ -209,11 +202,6 @@ fn execute(
     ctx: &mut Ctx,
 ) -> anyhow::Result<Output> {
     match command {
-        Command::Hello { name } => {
-            ctx.debug(&format!("greeting {name:?}"))?;
-            let greeting = daemon.hello(name)?;
-            Ok(Output::new(json!({ "greeting": greeting }), greeting))
-        }
         Command::Record(Record::Append { kind, payload, source, tags }) => {
             let payload = serde_json::from_str(payload).map_err(|e| {
                 let hint = "pass a JSON object, such as '{\"summary\":\"done\"}'".to_string();
@@ -368,6 +356,7 @@ fn dispatch(
     let socket = cli.socket.clone();
     let socket = socket.or_else(|| std::env::var_os(SOCKET_ENV).map(PathBuf::from));
     let socket = socket.unwrap_or_else(control::default_socket);
+    ctx.debug(&format!("{} on {}", ctx.command, socket.display()))?;
     let daemon = control::Client::new(socket);
     match execute(command, &daemon, input, &mut ctx) {
         Ok(output) => ctx.emit(&output),

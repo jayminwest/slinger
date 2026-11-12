@@ -53,12 +53,12 @@ fn agent_verbs_take_the_agent_from_the_flag_or_the_environment_or_fail_as_usage(
     assert_eq!(shown.items[1]["by"], "agent:scout");
 
     // An agent's process finds the daemon that started it by SLINGER_SOCKET.
-    let mut hello = Command::new(env!("CARGO_BIN_EXE_slinger"));
-    let hello = hello.arg("hello").env("SLINGER_SOCKET", &socket).output().unwrap();
-    assert_eq!((hello.status.code(), hello.stdout.as_slice()), (Some(0), &b"hello, world\n"[..]));
+    let mut list = Command::new(env!("CARGO_BIN_EXE_slinger"));
+    let list = list.args(["canvas", "list"]).env("SLINGER_SOCKET", &socket).output().unwrap();
+    assert_eq!((list.status.code(), list.stdout.as_slice()), (Some(0), &b"main\n"[..]));
     let mut elsewhere = Command::new(env!("CARGO_BIN_EXE_slinger"));
     elsewhere
-        .args(["hello", "--socket", "/nonexistent/slinger.sock"])
+        .args(["canvas", "list", "--socket", "/nonexistent/slinger.sock"])
         .env("SLINGER_SOCKET", &socket);
     let elsewhere = elsewhere.output().unwrap();
     assert_eq!(elsewhere.status.code(), Some(6), "--socket wins over SLINGER_SOCKET");

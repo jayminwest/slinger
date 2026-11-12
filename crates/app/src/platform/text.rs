@@ -1,4 +1,5 @@
-//! Styled text: a sidebar row in its font, and a pane's footer (its fill,
+//! Text: a label (its fill over its whole frame, its words centred in it
+//! both ways), a sidebar row in its font, and a pane's footer (its fill,
 //! the lit button's rounded fill, its marks, and each part's runs one after
 //! the other in one field). The scene decides every word, colour and frame.
 
@@ -11,7 +12,7 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{
     NSAttributedString, NSAttributedStringKey, NSDictionary, NSMutableAttributedString, NSNumber,
-    NSString,
+    NSPoint, NSRect, NSSize, NSString,
 };
 
 use super::{color, flipped, label};
@@ -20,6 +21,41 @@ use crate::scene::Label;
 use crate::scene::overlay::Line;
 use crate::scene::sidebar::Row;
 use crate::scene::status::{self, Footer};
+
+/// The views that show `line` in a view `height` tall: its fill over its
+/// whole frame, then its words in the middle of it, side to side and top
+/// to bottom, so a pill or a button taller than its text holds it centred.
+pub(super) fn line(line: &Label, height: f64, mtm: MainThreadMarker) -> Vec<Retained<NSView>> {
+    let into = |field: Retained<NSTextField>| Retained::into_super(Retained::into_super(field));
+    if line.text.is_empty() {
+        return vec![into(label(line, height, NSTextAlignment::Center, mtm))];
+    }
+    let mut views = Vec::new();
+    if let Some(fill) = line.fill {
+        let block =
+            Label { text: String::new(), colour: fill, fill: Some(fill), frame: line.frame };
+        views.push(into(label(&block, height, NSTextAlignment::Center, mtm)));
+    }
+    let bare = Label { fill: None, ..line.clone() };
+    let field = label(&bare, height, NSTextAlignment::Center, mtm);
+    // A line longer than its frame keeps both ends: paths end in the part that matters.
+    field.setLineBreakMode(NSLineBreakMode::ByTruncatingMiddle);
+    centre(&field, flipped(height, line.frame));
+    views.push(into(field));
+    views
+}
+
+/// Sets `field` as tall as its text in its font (at most `frame`), in the
+/// middle of `frame` top to bottom and as wide as it.
+pub(super) fn centre(field: &NSTextField, frame: NSRect) {
+    let tall = field.cell().map_or(frame.size.height, |cell| cell.cellSize().height);
+    let tall = tall.min(frame.size.height);
+    let y = frame.origin.y + (frame.size.height - tall) / 2.0;
+    field.setFrame(NSRect::new(
+        NSPoint::new(frame.origin.x, y),
+        NSSize::new(frame.size.width, tall),
+    ));
+}
 
 /// A text field that shows a sidebar `row`, read from its left edge, in
 /// its font, in a view `height` tall.
