@@ -85,3 +85,24 @@ fn the_open_page_menu_takes_every_press_and_its_rows_tap() {
     assert_eq!(shared.press(Point { x: 700.0, y: 100.0 }), Took::Yes, "outside: it closes");
     assert!(!shared.modal());
 }
+
+#[test]
+fn a_menu_choice_closes_the_open_layer_and_then_runs() {
+    let nowhere = Rect { x: 0.0, y: 0.0, width: 0.0, height: 0.0 };
+    let run = |command| Took::Tap((nowhere, Tap::Run(command)));
+    let mut shared = two();
+    assert_eq!(shared.chosen(Command::Undo), Took::No, "nothing open: it runs as its key");
+    shared.overlay.toggle();
+    assert_eq!(shared.chosen(Command::Undo), run(Command::Undo));
+    assert!(!shared.modal());
+    shared.palette.toggle();
+    assert_eq!(shared.chosen(Command::ShowKeys), run(Command::ShowKeys), "the overlay opens next");
+    assert!(!shared.modal());
+    let anchor = Rect { x: 150.0, y: 572.0, width: 100.0, height: 28.0 };
+    shared.menu.open(shared.panes.focus(), anchor, (vec!["a".into()], 0));
+    assert_eq!(shared.chosen(Command::NewPage), run(Command::NewPage));
+    assert!(!shared.modal());
+    shared.overlay.toggle();
+    assert_eq!(shared.chosen(Command::ShowKeys), Took::Yes, "its own: it only closes");
+    assert!(!shared.modal());
+}

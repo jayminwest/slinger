@@ -1,5 +1,6 @@
-//! Speaking the sling's prompt (SPEC D2, section 11): Flick dictates, and
-//! types what it heard into the focused field, the sling's entry. Pure:
+//! Speaking the sling's prompt (SPEC D2, section 11), or into any open
+//! entry (a note of feedback, a page's new name): Flick dictates, and
+//! types what it heard into the focused field, the entry. Pure:
 //! `canvases` hands in the `dictate` command, the entry closing and Flick's
 //! answers, and reads back the request to send and the lines to show.
 //!
@@ -64,6 +65,12 @@ impl Dictation {
         Some(verb)
     }
 
+    /// Whether Flick is asked to listen or listens: the pen's dictate
+    /// button stops it ([`crate::scene::sling::pen`]).
+    pub fn listening(&self) -> bool {
+        matches!(self.stage, Stage::Starting | Stage::Listening)
+    }
+
     /// The entry closed: a dictation still going is cancelled, and the
     /// last failure goes with the entry.
     pub fn closed(&mut self) -> Option<Verb> {
@@ -123,12 +130,14 @@ mod tests {
         let mut dictation = Dictation::default();
         assert_eq!(texts(&dictation), Vec::<String>::new());
         assert_eq!(dictation.toggle(), Some(Verb::Start));
+        assert!(dictation.listening());
         assert_eq!(dictation.toggle(), None, "the start's answer is due");
         assert_eq!(texts(&dictation), ["● Flick is listening: dictate again when done"]);
         assert!(!dictation.answered(Verb::Stop, Ok(())), "not asked to stop");
         assert!(dictation.answered(Verb::Start, Ok(())));
         assert_eq!(dictation.toggle(), Some(Verb::Stop));
         assert_eq!(texts(&dictation), ["Flick is writing it down…"]);
+        assert!(!dictation.listening());
         assert!(dictation.answered(Verb::Stop, Ok(())));
         assert_eq!(texts(&dictation), Vec::<String>::new());
         assert_eq!(dictation.closed(), None, "nothing going: nothing to cancel");

@@ -3,6 +3,9 @@
 #   scripts/bundle.sh
 # The bundle is signed ad hoc, which is enough to run it on this machine. To
 # distribute it, sign it with a Developer ID and notarize it.
+# The bundle holds the app alone: the app neither ships nor starts slingerd,
+# it only dials the socket of one already running. A slingerd built from this
+# checkout (cargo build or run) stamps its own commit (crates/daemon/build.rs).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

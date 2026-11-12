@@ -90,3 +90,17 @@ fn a_paste_of_anything_else_adds_nothing() {
         assert!(pasted(text, "p1", at).is_empty(), "{text}");
     }
 }
+
+#[test]
+fn plain_text_pastes_as_one_text_item_of_the_pen_s_colour() {
+    let colour = Rgb { r: 0x12, g: 0x34, b: 0x56 };
+    let items = text_items("ideas\r\nfor\tmonday", colour).unwrap();
+    let pasted = pasted(&items, "p1", Point { x: 200.0, y: 100.0 });
+    assert_eq!(pasted.len(), 1);
+    assert_eq!(pasted[0].object["text"], "ideas\nfor monday");
+    assert_eq!(pasted[0].object["color"], "#123456");
+    let Shape::Text { frame, .. } = &pasted[0].item.shape else { panic!() };
+    let centre = (frame.x + frame.width / 2.0, frame.y + frame.height / 2.0);
+    assert!((centre.0 - 200.0).abs() < 1.0 && (centre.1 - 100.0).abs() < 1.0, "{centre:?}");
+    assert_eq!(text_items(" \n\t", colour), None, "blank text adds nothing");
+}

@@ -88,6 +88,7 @@ impl Canvases {
             if let Some((canvas, op)) = self.asks.typed(answer) {
                 self.change_pages(canvas, op);
             }
+            self.entry_closed();
             return true;
         }
         let closed = match self.sling.key(chord) {
