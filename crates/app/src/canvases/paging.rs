@@ -214,3 +214,6 @@ impl Canvases {
         canvases.filter_map(line).collect()
     }
 }
+
+#[cfg(test)]
+mod tests;

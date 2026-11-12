@@ -1,13 +1,13 @@
 //! Feedback: notes about slinger, left while using it, kept as JSON Lines
 //! (docs/service.md, "Feedback"). One [`Entry`] per note, appended, never
 //! rewritten; resolving one appends a [`Resolution`] that names the entry's
-//! `ts`. The format follows Flick's `feedback.jsonl`, so the same `jq`
+//! `ts`, which [`stamp`] keeps unique in the file. The format follows Flick's `feedback.jsonl`, so the same `jq`
 //! reads both.
 //!
 //! Pure: the caller owns the file, the clock and the build label. It hands
 //! in the file's text and writes the lines this module makes.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -16,8 +16,9 @@ use crate::{Error, Result};
 /// The file's name, wherever the daemon keeps it.
 pub const FILE: &str = "feedback.jsonl";
 
-/// Seconds in a day.
-const DAY: i64 = 86_400;
+/// Milliseconds in a second and in a day.
+const SECOND: i64 = 1000;
+const DAY: i64 = 86_400 * SECOND;
 
 /// What the app was showing when the note was left. Every field is
 /// optional and left out of the line when absent; a CLI note has none.
@@ -40,8 +41,9 @@ pub struct Context {
 /// One note: a line of the file. Flat, so `jq -r .text` reads it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Entry {
-    /// When, local time with its UTC offset: `2026-11-11T14:52:43-08:00`.
-    /// It names the entry: [`resolve`] takes it.
+    /// When, local time with its UTC offset, to the millisecond:
+    /// `2026-11-11T14:52:43.120-08:00` ([`stamp`]). It names the entry:
+    /// [`resolve`] takes it. Older files name entries to the second.
     pub ts: String,
     pub text: String,
     /// The build that saved it: a commit (`-dirty` for uncommitted
@@ -170,15 +172,28 @@ pub fn resolve(text: &str, ts: &str, at: String, note: Option<String>) -> Result
     Ok(Resolution { resolves: ts.into(), resolved: Resolved { ts: at, note } })
 }
 
-/// `unix` seconds as local time `offset` seconds east of UTC, in RFC 3339:
-/// `2026-11-11T14:52:43-08:00`.
+/// A name for a new entry in the file's `text`, saved at `unix_ms`
+/// milliseconds: its [`timestamp`], or the first one after it that no entry
+/// in `text` has, so no two entries share a `ts`.
 #[must_use]
-pub fn timestamp(unix: i64, offset: i32) -> String {
-    let local = unix + i64::from(offset);
+pub fn stamp(text: &str, unix_ms: i64, offset: i32) -> String {
+    let taken: HashSet<String> = read(text, usize::MAX, true).into_iter().map(|e| e.ts).collect();
+    // One more millisecond than there are names taken always finds one free.
+    (0..=i64::try_from(taken.len()).unwrap_or(i64::MAX))
+        .map(|step| timestamp(unix_ms.saturating_add(step), offset))
+        .find(|ts| !taken.contains(ts))
+        .unwrap_or_else(|| timestamp(unix_ms, offset))
+}
+
+/// `unix_ms` milliseconds as local time `offset` seconds east of UTC, in
+/// RFC 3339 to the millisecond: `2026-11-11T14:52:43.120-08:00`.
+#[must_use]
+pub fn timestamp(unix_ms: i64, offset: i32) -> String {
+    let local = unix_ms + i64::from(offset) * SECOND;
     let (year, month, day) = civil_from_days(local.div_euclid(DAY));
-    let secs = local.rem_euclid(DAY);
+    let (secs, ms) = (local.rem_euclid(DAY) / SECOND, local.rem_euclid(SECOND));
     let (sign, off) = if offset < 0 { ('-', -offset) } else { ('+', offset) };
-    let time = format!("{:02}:{:02}:{:02}", secs / 3600, secs % 3600 / 60, secs % 60);
+    let time = format!("{:02}:{:02}:{:02}.{ms:03}", secs / 3600, secs % 3600 / 60, secs % 60);
     let zone = format!("{sign}{:02}:{:02}", off / 3600, off % 3600 / 60);
     format!("{year:04}-{month:02}-{day:02}T{time}{zone}")
 }

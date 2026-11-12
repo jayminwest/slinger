@@ -55,10 +55,13 @@ bullet with the area in bold.
   the page; − and + to zoom, and the zoom level to go back to 100%; split
   right, split down and close the pane. Tap the page name for a page menu:
   it lists the canvas's pages (tap one to show it) and offers New page,
-  Rename page… and Remove page. Each button acts on its own pane. A button
-  lights under the pen and runs when you lift on it, so a press that slides
-  off runs nothing. A narrow pane keeps the tool, colour, page and
-  commands, and drops the rest.
+  Rename page…, Place send button and Remove page. Each button acts on its
+  own pane. A button lights under the pen and runs when you lift on it, so
+  a press that slides off runs nothing. A narrow pane keeps the tool,
+  colour, page and commands, and drops the rest.
+- **App:** a Delete button beside the selection, after ➤ Sling and +
+  prompt, removes the selected items with the pen (one undo puts them
+  back). A tap on empty canvas still selects nothing.
 - **App:** slinging to an agent takes one tap. Select with the lasso and
   tap ➤ Sling beside the selection, or tap ➤ Sling in the footer (it slings
   the selection, else what is new on the page), or press ⌥↩ (`sling-now`,
@@ -123,12 +126,22 @@ bullet with the area in bold.
   its arrows bound to the item follow, as they do when you move it in the
   app; they no longer point at where the item was.
 
+- **App:** a colour, shape, tool or width pop-up opened from a key before
+  the pen or pointer has been in the window opens at the middle of the
+  focused pane, wherever the window was sized, not at a fixed spot.
+- **App:** the select tool can pick a box drawn inside another box. A box
+  dragged inside a box takes the ink it touches, not the outer box; a tap,
+  or a drag over nothing, inside nested boxes selects the innermost one.
+  A drag across a box's outline still takes it.
 - **App:** the key overlay (⌘/) fits a narrow window. It drops to two
   columns, then one, instead of squeezing three until the titles and keys
   overlap; the rows scroll as before.
 - **CLI:** `canvas apply`, `canvas undo` and `canvas redo` act as the agent
   named by `SLINGER_AGENT` when there is no `--agent`, as `canvas put` does.
   What an agent applies no longer lands in your undo history as yours.
+- **Feedback:** notes left in the same second can be resolved one at a
+  time. Each note's `ts` is now to the millisecond and unique in the file;
+  notes already saved to the second still list and resolve as before.
 - **Agents:** a drawing reaches the agent as one image when its strokes
   touch, instead of one image per long stroke (an airplane arrived as
   fuselage, wings and belly). An underline joins the words it touches. A

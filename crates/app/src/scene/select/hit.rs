@@ -17,17 +17,19 @@
 //!   point that defines the item (the nonzero rule): a stroke's points, an
 //!   arrow's ends, a frame's corners. A lasso of fewer than three points
 //!   holds nothing.
-//! - The select tool's drawn box takes an item that touches it, edges
-//!   included (`items_in_box`): a stroke by its line thickened by half its
-//!   width, an arrow by its line, a text, a box, a live item or the button
-//!   by its frame (a box drawn inside a box takes it).
 //!
-//! The select tool's press is the app's alone: [`picks`] takes a stroke or
-//! an arrow by its line thickened by half its width, a box by its outline,
-//! and a text, a live item or the button by its frame, each within the
-//! reach. A press inside a box, off its outline, draws a box of its own, so
-//! the ink in a box can be boxed; a press there that does not move touches
-//! the box, and selects it.
+//! The select tool is the app's alone. Its press ([`picks`]) takes a stroke
+//! or an arrow by its line thickened by half its width, a box by its
+//! outline, and a text, a live item or the button by its frame, each within
+//! the reach. A press inside a box, off its outline, draws a box of its own,
+//! so the ink in a box can be boxed. That drawn box ([`touches`]) takes an
+//! item that touches it, edges included: a stroke by its line thickened by
+//! half its width, an arrow by its line, a text, a live item or the button
+//! by its frame, and a box by its outline, so a box drawn inside a box
+//! does not take it (the core's `items_in_box` takes a box by its whole
+//! frame, for rendering and placing). A drawn box that touches nothing,
+//! or a press that does not move, takes the innermost box it lies inside
+//! ([`inside`]).
 
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::Shape;
@@ -175,7 +177,7 @@ pub fn picks(shape: &Shape, at: Point, radius: f64) -> bool {
 }
 
 /// Whether `shape` touches `area`, edges included (the select tool's drawn
-/// box; the core's `items_in_box`).
+/// box; see the module).
 pub fn touches(shape: &Shape, area: &Rect) -> bool {
     let near = |points: &[Point], radius: f64| {
         segments(points).any(|(p, q)| segment_rect_distance(p, q, area) <= radius)
@@ -183,10 +185,22 @@ pub fn touches(shape: &Shape, area: &Rect) -> bool {
     match shape {
         Shape::Stroke { points, width } => near(points, width / 2.0),
         Shape::Arrow { from, to, .. } => near(&[*from, *to], 0.0),
-        Shape::Text { frame, .. }
-        | Shape::Box { frame, .. }
-        | Shape::Live { frame, .. }
-        | Shape::Button { frame, .. } => frame.intersection(*area).is_some(),
+        Shape::Box { frame, .. } => frame.intersection(*area).is_some() && !inside(area, shape),
+        Shape::Text { frame, .. } | Shape::Live { frame, .. } | Shape::Button { frame, .. } => {
+            frame.intersection(*area).is_some()
+        }
         Shape::Panel { .. } | Shape::Caret { .. } => false,
     }
+}
+
+/// Whether `area` lies inside the box `shape`, off its outline (thickened
+/// by half its width): the space a drawn box takes it from. Not a box: no.
+pub fn inside(area: &Rect, shape: &Shape) -> bool {
+    let Shape::Box { frame, width } = shape else { return false };
+    let inner = frame.outset(-width / 2.0);
+    let (right, bottom) = (area.x + area.width, area.y + area.height);
+    area.x > inner.x
+        && area.y > inner.y
+        && right < inner.x + inner.width
+        && bottom < inner.y + inner.height
 }

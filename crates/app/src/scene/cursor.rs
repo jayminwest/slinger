@@ -56,7 +56,7 @@ pub fn over_canvas(tools: &Tools, theme: &Theme, zoom: f64) -> Cursor {
 mod tests {
     use super::*;
     use crate::commands::Command;
-    use crate::layout::{Point, Rect};
+    use crate::layout::Rect;
     use crate::scene::tools::Kind;
 
     const T: Theme = Theme {
@@ -72,7 +72,7 @@ mod tests {
     fn each_tool_has_its_cursor_and_an_open_popup_the_arrow() {
         let palette = crate::config::Palette::default();
         let ink = palette.colours()[0];
-        let mut tools = Tools::new(palette, Point { x: 10.0, y: 10.0 });
+        let mut tools = Tools::new(palette);
         let pen = Cursor::Ring { colour: ink, diameter: PEN_RING_LEAST };
         assert_eq!(over_canvas(&tools, &T, 1.0), pen);
         let each = [
@@ -95,7 +95,7 @@ mod tests {
     #[test]
     fn the_pen_s_eraser_end_has_the_eraser_s_ring_until_the_tip_is_back() {
         let palette = crate::config::Palette::default();
-        let mut tools = Tools::new(palette, Point { x: 10.0, y: 10.0 });
+        let mut tools = Tools::new(palette);
         assert!(tools.command(Command::ToolLasso));
         tools.set_eraser_end(true);
         let ring = Cursor::Ring { colour: T.muted, diameter: ERASER * 2.0 };
@@ -109,7 +109,7 @@ mod tests {
         let palette = crate::config::Palette::default();
         let ink = palette.colours()[0];
         // The default widths: 2, 4, 8 and 16 points.
-        let mut tools = Tools::new(palette, Point { x: 10.0, y: 10.0 });
+        let mut tools = Tools::new(palette);
         let ring = |diameter| Cursor::Ring { colour: ink, diameter };
         assert_eq!(over_canvas(&tools, &T, 1.0), ring(PEN_RING_LEAST), "a thin line");
         for _ in 0..3 {

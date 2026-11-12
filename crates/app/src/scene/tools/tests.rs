@@ -23,7 +23,9 @@ fn rgb_palette() -> Palette {
 }
 
 fn tools() -> Tools {
-    Tools::new(rgb_palette(), Point { x: 220.0, y: 80.0 })
+    let mut tools = Tools::new(rgb_palette());
+    tools.moved(Point { x: 220.0, y: 80.0 });
+    tools
 }
 
 fn key(text: &str) -> Chord {
@@ -56,6 +58,17 @@ fn opens_where_the_pen_last_was() {
     assert_eq!(panel.x + panel.width / 2.0, 200.0);
     assert_eq!(panel.y + panel.height / 2.0, 70.0);
     assert_eq!(tools.open_kind(), Some(Kind::Tool));
+}
+
+#[test]
+fn opens_at_the_pane_s_centre_before_the_pen_has_been_in_the_window() {
+    // A pane of a window larger than the size it first opens at.
+    let pane = Rect { x: 300.0, y: 100.0, width: 1300.0, height: 900.0 };
+    let mut tools = Tools::new(rgb_palette());
+    tools.open(Kind::Tool, pane);
+    let panel = tools.popup.as_ref().unwrap().place.panel;
+    assert_eq!(panel.x + panel.width / 2.0, 950.0);
+    assert_eq!(panel.y + panel.height / 2.0, 550.0);
 }
 
 #[test]
