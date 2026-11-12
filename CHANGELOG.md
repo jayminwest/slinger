@@ -218,6 +218,9 @@ bullet with the area in bold.
 - **App:** erasing, moving, placing a text, box or arrow, editing and
   changing pages while slingerd is down now survive quitting the app, as
   strokes already did: they are sent, in order, after the next start.
+- **App:** a new page asked for while slingerd is down now shows in the
+  pane that asked for it once the app starts again and slingerd adds it.
+  Before, the page was added but the pane stayed where it was.
 - **App:** ink you just drew can be copied, and dragged to another page,
   before slingerd has written it. Before, copy greyed out and a drag to
   another page left it behind; an item moved a moment before is now

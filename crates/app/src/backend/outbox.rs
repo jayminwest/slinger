@@ -148,6 +148,17 @@ mod tests {
         got
     }
 
+    /// slinger-fa4f97: two apps started in the same instant still name
+    /// their runs apart: no two running apps share a process id.
+    #[test]
+    fn a_run_is_named_by_the_app_s_process_and_when_it_started() {
+        let name = run();
+        let (pid, when) = name.split_once('-').unwrap();
+        assert_eq!(pid, std::process::id().to_string(), "{name}");
+        let (secs, nanos) = when.split_once('.').unwrap();
+        assert!(secs.parse::<u64>().is_ok() && nanos.parse::<u32>().is_ok(), "{name}");
+    }
+
     #[test]
     fn strokes_are_written_in_the_order_given_and_a_lost_daemon_is_unreachable() {
         let outbox = Outbox::start(Client::new("/nonexistent/x.sock"));

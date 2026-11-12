@@ -920,7 +920,10 @@ removed when none are left) and queued first at the next start, in order,
 so what the user did while the daemon is down survives a quit. Each keeps
 the ink's key it had, so a kept change naming an item a kept stroke adds
 (by an id of the ink's own) is renamed to that stroke's id in the new run
-(`Ink::resume`). One app at a time keeps the file: it holds a lock on
+(`Ink::resume`). A pane waiting for the page a kept page add makes is
+kept with it (`turning`, by `PaneId::number`, which the same layout gives
+the same pane again) and turns to the page once it is added. One app at a
+time keeps the file: it holds a lock on
 `unsent-ink.json.lock` while it runs, and a second app started beside it
 keeps nothing and says so, rather than write over the first's changes. Every `canvas_apply` goes
 with `once`, a key of this run and the change (`scene/ink/once.rs`), and a

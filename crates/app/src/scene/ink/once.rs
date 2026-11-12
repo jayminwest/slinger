@@ -45,8 +45,9 @@ impl Ink {
     /// the id that item shows under now; one naming an item none of them
     /// adds names an item never made (its add was refused) and is dropped,
     /// as when it is sent ([`ids`](super::ids)). A change goes with the
-    /// change it went with then, if that was kept too.
-    pub fn resume(&mut self, kept: Vec<Kept>) {
+    /// change it went with then, if that was kept too. Returns each kept
+    /// key queued and the key it is queued under now.
+    pub fn resume(&mut self, kept: Vec<Kept>) -> HashMap<u64, u64> {
         let mut keys: HashMap<u64, u64> = HashMap::new();
         let mut now: HashMap<ItemId, ItemId> = HashMap::new();
         for Kept { key, after, once, mut change } in kept {
@@ -65,6 +66,7 @@ impl Ink {
                 now.extend((0..adds).map(|n| (id(old, n), id(new, n))));
             }
         }
+        keys
     }
 }
 
