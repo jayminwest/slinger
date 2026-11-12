@@ -35,6 +35,7 @@ fn parses_every_key() {
         widths: Widths::default(),
         sidebar: Shown::Open,
         canvas: Canvas::default(),
+        prompt: Prompt::default(),
     };
     assert_eq!(config, expected);
 }
@@ -117,6 +118,7 @@ fn every_error_names_its_line_and_has_a_hint() {
         ErrorKind::BadPalette,
         ErrorKind::BadWidths,
         ErrorKind::BadSidebar,
+        ErrorKind::BadPrompt,
         ErrorKind::UnknownCommand,
         ErrorKind::BadChord,
         ErrorKind::ChordTaken,
@@ -138,6 +140,7 @@ fn every_error_names_its_line_and_has_a_hint() {
             "line 7: the value is not one to nine colours / write the colours as \"#rrggbb #rrggbb\", split by spaces or commas",
             "line 7: the value is not one to nine widths from 0.1 to 50 / write the widths in points as \"2 4 8 16\", split by spaces or commas",
             "line 7: the value is not open or closed / write \"open\" or \"closed\"",
+            "line 7: the value is blank / write the words a sling with no prompt sends: \"Read what I wrote and do what it asks.\"",
             "line 7: unknown command / config.example.toml lists every table and key",
             "line 7: the value is not a key chord / write a chord as \"cmd+shift+k\", or \"\" for none",
             "line 7: another command is on this chord / bind each chord to one command",
@@ -169,6 +172,7 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
         sidebar: Some(Shown::Open),
         paper: Some(canvas::Background::Plain),
         grid: Some(canvas::Grid::default()),
+        prompt: Some(Prompt::default()),
         // The defaults, each written out.
         keys: [
             "cmd+q",
@@ -221,6 +225,7 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
             "cmd+k",
             "cmd+shift+f",
             "cmd+'",
+            "alt+return",
         ]
         .map(|c| Some(Chord::parse(c))),
     };
@@ -361,4 +366,12 @@ fn the_sidebar_is_open_or_closed_at_start() {
     assert_eq!(sidebar("[window]\nsidebar = \"no\"\n"), Err(ErrorKind::BadSidebar));
     let base = parse("[window]\nsidebar = \"closed\"\n").unwrap();
     assert_eq!(base.over(Layer::default()).resolve().sidebar, Shown::Closed);
+}
+
+#[test]
+fn the_sling_prompt_is_any_words_but_blank_ones() {
+    let config = parse("[sling]\nprompt = \"  Answer in one line.  \"\n").unwrap().resolve();
+    assert_eq!(config.prompt.text(), "Answer in one line.");
+    assert_eq!(Config::default().prompt.text(), "Read what I wrote and do what it asks.");
+    assert_eq!(kind("[sling]\n\nprompt = \"   \"\n"), (3, ErrorKind::BadPrompt));
 }

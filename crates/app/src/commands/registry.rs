@@ -85,6 +85,7 @@ impl Command {
             Command::WidthUp => "Thicker pen",
             Command::WidthDown => "Thinner pen",
             Command::Sling => "Sling selection",
+            Command::SlingNow => "Sling now",
             Command::PreviousPage => "Previous page",
             Command::NewPage => "New page",
             Command::RenamePage => "Rename page",
@@ -115,7 +116,9 @@ impl Command {
             Command::PickColour | Command::PickShape | Command::PickTool | Command::PickWidth => {
                 Group::PopUps
             }
-            Command::Sling | Command::Dictate | Command::PlaceButton => Group::Sling,
+            Command::Sling | Command::SlingNow | Command::Dictate | Command::PlaceButton => {
+                Group::Sling
+            }
             Command::PanLeft
             | Command::PanRight
             | Command::PanUp

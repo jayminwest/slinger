@@ -5,7 +5,8 @@
 //! `key = "string"` lines. In `[keys]`, each key is a command's name and its
 //! value is a chord (`commands`). Every key is optional; a missing key keeps its
 //! default. `[pen] colours` and `[pen] widths` are lists in one string
-//! ([`Palette`], [`Widths`]); `[canvas]` is the paper under the ink ([`Canvas`]). A machine's overlay file is parsed the same way and merged over
+//! ([`Palette`], [`Widths`]); `[canvas]` is the paper under the ink ([`Canvas`]);
+//! `[sling] prompt` the words a sling with none sends ([`Prompt`]). A machine's overlay file is parsed the same way and merged over
 //! the shared file key by key ([`Layer::over`]). `config.example.toml` at the
 //! repository root lists every key with its default.
 
@@ -15,9 +16,11 @@ use std::path::{Path, PathBuf};
 use crate::commands::{Chord, Command, Keymap};
 
 pub mod canvas;
+mod sling;
 mod widths;
 
 pub use canvas::Canvas;
+pub use sling::Prompt;
 pub use widths::{Width, Widths};
 
 /// A colour, written `"#rrggbb"` in the file.
@@ -119,6 +122,7 @@ pub struct Config {
     pub widths: Widths,
     pub sidebar: Shown,
     pub canvas: Canvas,
+    pub prompt: Prompt,
 }
 
 /// What one file sets. Unset keys fall through to the layer below.
@@ -136,6 +140,7 @@ pub struct Layer {
     sidebar: Option<Shown>,
     paper: Option<canvas::Background>,
     grid: Option<canvas::Grid>,
+    prompt: Option<Prompt>,
     /// By command: `Some(None)` unbinds it.
     #[expect(
         clippy::option_option,
@@ -161,6 +166,7 @@ impl Default for Layer {
             sidebar: None,
             paper: None,
             grid: None,
+            prompt: None,
             keys: [None; Command::ALL.len()],
         }
     }
@@ -195,6 +201,7 @@ impl Layer {
             sidebar: top.sidebar.or(self.sidebar),
             paper: top.paper.or(self.paper),
             grid: top.grid.or(self.grid),
+            prompt: top.prompt.or(self.prompt),
             keys,
         }
     }
@@ -226,6 +233,7 @@ impl Layer {
                 background: self.paper.unwrap_or_default(),
                 grid: self.grid.unwrap_or_default(),
             },
+            prompt: self.prompt.unwrap_or_default(),
         }
     }
 
@@ -259,6 +267,9 @@ impl Layer {
             }
             ("canvas", "grid") => {
                 return put(&mut self.grid, canvas::Grid::parse(&value).ok_or(ErrorKind::BadGrid)?);
+            }
+            ("sling", "prompt") => {
+                return put(&mut self.prompt, Prompt::parse(&value).ok_or(ErrorKind::BadPrompt)?);
             }
             ("theme", "background") => &mut self.background,
             ("theme", "text") => &mut self.text,
@@ -294,7 +305,8 @@ fn put<T>(slot: &mut Option<T>, value: T) -> Result<(), ErrorKind> {
     Ok(())
 }
 
-const TABLES: [&str; 7] = ["theme", "daemon", "workspace", "pen", "window", "canvas", "keys"];
+const TABLES: [&str; 8] =
+    ["theme", "daemon", "workspace", "pen", "window", "canvas", "sling", "keys"];
 
 /// A line the parser rejects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -325,6 +337,8 @@ pub enum ErrorKind {
     BadBackground,
     /// `[canvas] grid` is not a distance from 1 to 500 points.
     BadGrid,
+    /// `[sling] prompt` is blank.
+    BadPrompt,
     /// A key in `[keys]` that names no command.
     UnknownCommand,
     BadChord,
@@ -365,6 +379,10 @@ impl ErrorKind {
             Self::BadGrid => (
                 "the value is not a distance from 1 to 500 points",
                 "write the canvas points between dots, with at most two decimal places: \"28.35\"",
+            ),
+            Self::BadPrompt => (
+                "the value is blank",
+                "write the words a sling with no prompt sends: \"Read what I wrote and do what it asks.\"",
             ),
             Self::UnknownCommand => ("unknown command", every),
             Self::BadChord => (

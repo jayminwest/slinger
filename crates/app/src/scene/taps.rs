@@ -29,6 +29,9 @@ pub enum Tap {
     Page(usize),
     /// Shows the panes of the sidebar's workspace with this index.
     Workspace(usize),
+    /// The pill that says what became of the last sling, or the answer
+    /// under it ([`crate::scene::slung`]).
+    Slung,
 }
 
 /// A target: where it takes a tap, and what the tap does.

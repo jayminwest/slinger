@@ -292,7 +292,10 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
              answer (a new page's id with it).
 backend/sling.rs  the Slinger: each sling as one `sling_send` (canvas, page,
              the selected ids, the prompt) on a thread of its own, and the
-             daemon's answer back. The daemon picks the agent.
+             daemon's answer back (`Heard`). The daemon picks the agent.
+             After a sling goes it follows the agent's session
+             (`session_show` every 0.5 s: process, pending, answer) until
+             nothing is pending or the process stops, or the next sling.
 backend/feedback.rs  the Noter: each feedback note as one `feedback_add`
              (the text and what the window showed) on a thread of its own,
              and the daemon's answer back.
@@ -329,10 +332,19 @@ canvases/live.rs  the live items' pages: each showing a pane draws fetched
              item whose page shows goes to the page unless it grabs the
              selection.
 canvases/button.rs  the "send to agent" button (SPEC section 8): a tap slings
-             what is new on its page (`sling_now`, nothing selected, no
-             prompt), or sends the open entry; `place-button` puts one in
-             the focused pane through the ink's queue; each button shows the
-             status of its canvas's agent (`agents`, from the sidebar).
+             what is new on its page (`sling_now`, nothing selected, the
+             config's prompt), or sends the open entry; `place-button` puts
+             one in the focused pane through the ink's queue. A failure
+             shows in the sling's pill, never the keyboard entry.
+canvases/slung.rs  the one-tap sling and what follows it: `sling-now` (the
+             selection's ➤ Sling, the footer's ➤ Sling) sends the open
+             entry, else the selection, else what is new on the page, with
+             `[sling] prompt` when nothing is typed; no agent in the
+             workspace flashes "No agent in this workspace" and sends
+             nothing. Each workspace's agent (`agents`, from the sidebar).
+             The pill's progress from the Slinger, a tap on the pill, and
+             the sling's marks: the buttons beside the selection, the pill
+             and the answer's panel.
 canvases/find.rs  which page, canvas and items each pane shows; a window
              point in canvas points.
 canvases/drag.rs  the pen's drag and lift on the canvas panes: a drag of the
@@ -351,7 +363,8 @@ canvases/sling.rs  the sling from the window: opens the entry at the
              is written (`Ink::settled`), takes the answer. `sling_now` is
              the one entry point for a sling with no typing (a tap on the
              button). With nothing selected the entry opens beside the
-             focused page's first button.
+             focused page's first button. A typed sling's failure opens the
+             entry again; one with nothing typed shows in the pill.
 canvases/feedback.rs  the `leave-feedback` command: opens the feedback
              entry in the focused pane with its workspace, canvas, page
              name, tool and selection count, closing an open sling's entry;
@@ -366,7 +379,9 @@ config.rs    the config file's format: text in, a typed config or an error
              `config/widths.rs` parses `[pen] widths` by hand (tenths of a
              point: no float parsing, for the size budget), and
              `config/canvas.rs` the `[canvas]` paper (plain or dots, the
-             grid's spacing in hundredths of a point). Pure.
+             grid's spacing in hundredths of a point), `config/sling.rs`
+             `[sling] prompt`, the words a sling with nothing typed sends.
+             Pure.
 commands.rs  key commands: the closed list of commands, the chord parser and
              the keymap from a chord to a command (and a command to its
              live chord). `registry` gives each command a title and a
@@ -462,7 +477,26 @@ scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
              where the panes go beside it, and
              the one notice when an agent becomes blocked or done out. The
              first list is the baseline; a status that moves on clears its
-             notice. `statuses`: each workspace canvas's agent status. Pure.
+             notice. An agent whose session has no process is `not running`
+             (hollow, muted), and one with a message pending is working
+             though no hook said so (`Status::of`). `agents`: each
+             workspace's agent. Pure.
+scene/sidebar/notice.rs  the notice: a 28 pt bar above the footers (it
+             hides none), "<agent> is blocked: <note>" or "is done", with a
+             ✕ (`dismiss-notice`); a tap on the rest shows the agent's
+             workspace. Done leaves on its own 5 s after it shows or at the
+             pen's next press; blocked stays until ✕, `dismiss-notice` or
+             its status moves on. Pure.
+scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
+             made (a page's sling at its top left), inside its pane, what
+             the agent is doing: "● scout working · 4s", "■ scout blocked:
+             <note>", "✓ scout answered · N new items" (a tap brings them
+             into view, the next clears it), "✓ scout answered in text · tap
+             to read" (a tap opens the answer's panel), "✓ scout is done,
+             with nothing on the canvas", a failure's "✗ <message>" and hint,
+             "✗ scout stopped before it answered". An ending pill goes 30 s
+             later. `slung/words.rs`: the elapsed time, the answer's lines.
+             Pure.
 scene/button.rs  the "send to agent" button: an item of kind `button`, drawn
              as an outline with the agent's status mark (the sidebar's) and
              its label; which button is under a point; where a new one goes.
@@ -575,7 +609,9 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              beneath it "↩ sends · esc cancels" and the live dictate key.
              Return sends and escape cancels, the wait for the ink, the line
              while it goes, and a failure's message and hint under the entry
-             opened again. Pure.
+             opened again. Pure. `sling/buttons.rs`: the two buttons beside
+             a selection's box, ➤ Sling (`sling-now`) and + prompt
+             (`sling`), each a 28 pt target inside the pane.
 scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
              sling's labelled field (Entry::framed), "Feedback" above and
              "↩ saves · esc cancels" beneath, centred in the focused pane

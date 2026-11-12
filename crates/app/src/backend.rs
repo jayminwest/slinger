@@ -37,7 +37,7 @@ pub use feedback::Noter;
 pub use flick::Flick;
 pub use follow::{Follower, News};
 pub use outbox::Outbox;
-pub use sling::Slinger;
+pub use sling::{Heard, Slinger};
 
 /// A failure as the window shows it: the message and what to do about it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,14 +59,19 @@ impl From<RemoteError> for Problem {
 }
 
 /// The open workspaces, by name, each with its agent's status from the
-/// daemon's sessions. Blocks until the daemon answers or its client gives up.
+/// daemon's sessions: what the agent last said, read against its process
+/// ([`Status::of`]). Blocks until the daemon answers or its client gives up.
 pub fn workspaces(daemon: &Client) -> Result<Vec<Workspace>, Problem> {
     let sessions = daemon.session_list()?;
     let open = daemon.workspace_list()?;
     let agent = |name: String| {
         let session = sessions.iter().find(|s| s.agent == name);
+        let said = session.and_then(|s| Status::parse(s.status.as_deref()?));
+        let running = session.is_some_and(|s| s.process.as_deref() == Some("running"));
+        let pending = session.and_then(|s| s.pending).unwrap_or(0);
+        let answered = session.is_some_and(|s| s.answer.is_some());
         Agent {
-            status: session.and_then(|s| Status::parse(s.status.as_deref()?)),
+            status: Status::of(said, running, pending, answered),
             note: session.and_then(|s| s.note.clone()),
             name,
         }
@@ -344,9 +349,9 @@ pub(crate) mod tests {
         with_daemon(|d| {
             assert_eq!(workspaces(d), Ok(vec![]));
             let _dir = open_notes(d);
-            assert_eq!(workspaces(d), Ok(notes(None, None)));
+            assert_eq!(workspaces(d), Ok(notes(Some(Status::Stopped), None)), "no process");
             d.status_set("scout", "blocked", Some("which key?")).unwrap();
-            assert_eq!(workspaces(d), Ok(notes(Some(Status::Blocked), Some("which key?"))));
+            assert_eq!(workspaces(d), Ok(notes(Some(Status::Stopped), Some("which key?"))));
         });
     }
 
@@ -375,9 +380,9 @@ pub(crate) mod tests {
             let d = &Client::new(socket);
             let _dir = open_notes(d);
             watch.follow(socket.to_path_buf());
-            until(&watch, &Ok(notes(None, None)));
-            d.status_set("scout", "done", None).unwrap();
-            until(&watch, &Ok(notes(Some(Status::Done), None)));
+            until(&watch, &Ok(notes(Some(Status::Stopped), None)));
+            d.status_set("scout", "blocked", Some("which key?")).unwrap();
+            until(&watch, &Ok(notes(Some(Status::Stopped), Some("which key?"))));
         });
     }
 

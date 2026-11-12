@@ -31,12 +31,41 @@ bullet with the area in bold.
   lights under the pen and runs when you lift on it, so a press that slides
   off runs nothing. A narrow pane keeps the tool, colour, page and
   commands, and drops the rest.
+- **App:** slinging to an agent takes one tap. Select with the lasso and
+  tap ➤ Sling beside the selection, or tap ➤ Sling in the footer (it slings
+  the selection, else what is new on the page), or press ⌥↩ (`sling-now`,
+  also in the Tools menu and the palette). Nothing to type: a sling with no
+  words sends `[sling] prompt` from the config, by default "Read what I
+  wrote and do what it asks." Tap + prompt beside the selection (or ⌘↩) to
+  type words first. A workspace with no agent says "No agent in this
+  workspace" and sends nothing.
+- **App:** a sling shows what the agent is doing, in a pill under where you
+  slung: "● scout working · 4s", "■ scout blocked: <its question>", then
+  "✓ scout answered · 2 new items" (tap to bring them into view), "✓ scout
+  answered in text · tap to read" (tap to read the answer in a panel),
+  "✓ scout is done, with nothing on the canvas", or "✗ scout stopped before
+  it answered" with how to start it. The pill goes 30 s after the agent
+  ends. The footer names the workspace's agent and its status.
+- **App:** `[sling] prompt` in the config: the words a sling with nothing
+  typed sends.
 - **App:** a button to hide the sidebar at its foot, and one to show it in
   the bottom-left footer while it is hidden, at the same spot. Tap a
   workspace in the sidebar to show its panes.
 
+### Changed
+
+- **App:** the "<agent> is done" bar goes on its own: 5 s after it shows,
+  or at the pen's next press. A blocked agent's bar stays until you tap its
+  ✕ (or ⌘.). The bar sits above the footers, so it hides no button, and a
+  tap on it shows the agent's workspace.
+- **App:** the sidebar says "not running" for an agent whose session is
+  stopped, and "working" as soon as a sling is waiting for it, so a sling
+  to a stopped agent no longer looks like nothing happened.
+
 ### Fixed
 
+- **App:** a failed tap on the "send to agent" button shows why in the
+  pill, instead of opening an entry the pen cannot close.
 - **Daemon:** an agent can answer when `slingerd` was started with a
   relative `--socket`. The agent runs in its own home, where that path
   named no socket, so slings arrived but no reply ever landed.

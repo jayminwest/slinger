@@ -133,10 +133,10 @@ fn typing_sets_the_prompt_and_send_waits_for_the_ink_then_goes() {
     );
     assert_eq!(sling.ready(|_| true), None, "it goes once");
     assert!(!sling.open(&selection(), BOX, PANE), "one sling at a time");
-    assert!(sling.answered(Ok(())));
+    assert_eq!(sling.answered(Ok(())), Answered::Closed);
     assert_eq!((entry(&sling), texts(&sling)), (None, vec![]), "it went: nothing more shows");
     assert_eq!(sling.canvas(), None);
-    assert!(!sling.answered(Ok(())), "no sling on its way");
+    assert_eq!(sling.answered(Ok(())), Answered::Not, "no sling on its way");
 }
 
 #[test]
@@ -175,7 +175,7 @@ fn a_failure_shows_its_message_and_hint_under_the_entry_and_return_tries_again()
     let mut sling = typed("why?");
     sling.send();
     sling.ready(|_| true).unwrap();
-    assert!(sling.answered(Err(no_session())));
+    assert_eq!(sling.answered(Err(no_session())), Answered::Reopened);
     assert!(sling.is_typing());
     let entry = entry(&sling).unwrap();
     assert_eq!(entry.text, "why?", "the prompt is kept");
@@ -208,8 +208,8 @@ fn send_now_skips_the_entry() {
     assert!(!sling.is_typing());
     assert!(!sling.send_now(&selection(), "again", BOX, PANE), "one at a time");
     assert_eq!(sling.ready(|_| true).unwrap().prompt, "from a button");
-    sling.answered(Err(no_session()));
-    assert_eq!(entry(&sling).unwrap().text, "from a button", "a failure opens the entry");
+    assert_eq!(sling.answered(Err(no_session())), Answered::Closed);
+    assert_eq!((entry(&sling), texts(&sling)), (None, vec![]), "no entry for the pen to escape");
 }
 
 #[test]

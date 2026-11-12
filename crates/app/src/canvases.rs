@@ -7,7 +7,8 @@
 //! the lasso work on the page as shown ([`Select`]), and so do the text, box
 //! and arrow tools ([`Shapes`]); what they change goes the same way, in turn
 //! with the strokes. The sling sends the selection ([`sling`]) once the ink
-//! before it is in; its prompt can be spoken ([`dictation`]). Runs on the
+//! before it is in, and what became of it shows on the canvas ([`slung`]);
+//! its prompt can be spoken ([`dictation`]). Runs on the
 //! main thread and never waits: the followers, the outbox, the slinger and
 //! Flick's thread do.
 //!
@@ -34,8 +35,9 @@ use crate::scene::ink::{Answer, Ink, Pen};
 use crate::scene::pages::{self, Pages};
 use crate::scene::select::{Select, Selection};
 use crate::scene::shapes::{Press, Shapes};
-use crate::scene::sidebar::Status;
+use crate::scene::sidebar::Agent;
 use crate::scene::sling::Sling;
+use crate::scene::slung::Slung;
 use crate::scene::tools::Tool;
 use crate::scene::{CanvasPane, canvas};
 use find::{canvas_of, find, matches, pane_shown, to_canvas, wanted};
@@ -43,6 +45,7 @@ use find::{canvas_of, find, matches, pane_shown, to_canvas, wanted};
 mod dictation;
 mod feedback;
 mod sling;
+mod slung;
 mod status;
 
 /// The canvases of a window's panes.
@@ -56,6 +59,10 @@ pub struct Canvases {
     outbox: Outbox,
     sling: Sling,
     slinger: Slinger,
+    /// What became of the last sling.
+    slung: Slung,
+    /// The words a sling the user wrote none for sends.
+    prompt: String,
     /// Speaking the sling's prompt through Flick.
     voice: dictation::Voice,
     /// The feedback being left.
@@ -69,8 +76,9 @@ pub struct Canvases {
     /// The panes waiting for a new page, by the key of its `page.add`.
     turning: Vec<(u64, PaneId, String)>,
     lives: live::Lives,
-    /// Each open workspace's canvas and its agent's status, for the buttons.
-    statuses: Vec<(String, Option<Status>)>,
+    /// Each open workspace's canvas and its agent, as the sidebar last
+    /// heard: for the buttons, the footers and `sling-now`.
+    agents: Option<Vec<(String, Option<Agent>)>>,
     /// What to flash once: a pane's new zoom ("Zoom 150%") or the grid's toggle.
     zoomed: Option<String>,
     /// Whether every canvas pane shows the dotted grid.
@@ -124,6 +132,8 @@ impl Canvases {
             outbox,
             sling,
             slinger,
+            slung: Slung::default(),
+            prompt: crate::config::Prompt::default().text().to_string(),
             voice,
             notes,
             pen,
@@ -131,7 +141,7 @@ impl Canvases {
             asks,
             turning,
             lives,
-            statuses: Vec::new(),
+            agents: None,
             zoomed: None,
             paper: Paper::default(),
         }
@@ -418,7 +428,8 @@ impl Canvases {
             let zoom = view.viewport.zoom();
             let items = self.select.shown(here, items, zoom, theme);
             let items = self.shapes.shown(here, items, zoom, theme);
-            let items = button::shown(items, button::status(&self.statuses, here.0));
+            let status = slung::agent_in(self.agents.as_deref(), here.0).and_then(|a| a.status);
+            let items = button::shown(items, status);
             let items = items.iter().map(AsRef::as_ref);
             let mut scene = canvas::build(items, view.viewport, screen, theme, last).on(grid, last);
             if self.pen.is_some_and(|(p, _)| p == id) {

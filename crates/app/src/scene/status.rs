@@ -7,7 +7,7 @@
 //! state. A canvas pane's footer, from the left:
 //!
 //! ```text
-//! ◧  ▬  ≡  Pen P · 2 selected  ↶ ↷      ‹  ideas · 2/3  ›      −  100%  +   ◫ ⊟ ✕   ⌘/ keys   ⌘K commands
+//! ◧  ▬  ≡  Pen P · 2 selected  ↶ ↷    ‹  ideas · 2/3  ›    ● scout · working  ➤ Sling   −  100%  +   ◫ ⊟ ✕   ⌘/ keys   ⌘K commands
 //! ```
 //!
 //! - left, the pen: the sidebar's button while it is collapsed (in the
@@ -19,7 +19,11 @@
 //! - middle, the page: the previous page, its name and where it is among
 //!   the pages (a tap opens the page menu), the next page. Centred in the
 //!   pane when the sides leave room, else in the space between them.
-//! - right: zoom out, the zoom (a tap goes back to 100%), zoom in; split
+//! - right: the agent of the canvas's workspace with its status, and
+//!   "➤ Sling", which slings the selection, or the page when nothing is
+//!   selected, in one tap (in the focus colour while there is an agent to
+//!   take it, muted when there is none); zoom out, the zoom (a tap goes
+//!   back to 100%), zoom in; split
 //!   right, split down, close (only with two panes or more); the keys of
 //!   the key overlay and the command palette, each left out while unbound.
 //!
@@ -28,8 +32,9 @@
 //! apart, the parts at least [`cells::SPACE`]. A narrow pane drops whole
 //! groups, the least needed first (the rank in brackets; higher stays
 //! longer): zoom (30), the pane buttons (35), the width (40), the overlay's
-//! key (50), undo and redo (55), the page (60), the palette's key (70);
-//! the tool, the state and the sidebar's button stay. Every command a
+//! key (50), undo and redo (55), the page (60), the palette's key (70),
+//! the agent (80); the tool, the state, "➤ Sling" and the sidebar's button
+//! stay. Every command a
 //! dropped button runs is still in the palette. What the pane shows is
 //! above the footer ([`content`]). Pure: `platform` draws a [`Footer`].
 
@@ -39,6 +44,7 @@ use self::cells::{Cell, Face, Side, Unit};
 use crate::commands::{Command, Keymap};
 use crate::config::{Rgb, Theme};
 use crate::layout::Rect;
+use crate::scene::sidebar::{self, Status};
 use crate::scene::style::{self, Rule};
 use crate::scene::taps::{Tap, Target};
 use crate::scene::tools::Tool;
@@ -83,8 +89,10 @@ pub struct Pen {
 /// line as `centre` (with `pages`: the page buttons) and its `zoom` in
 /// percent; an agent UI pane's has its UI's name. `sidebar` puts the
 /// sidebar's button first (the sidebar is collapsed); `close` adds the
-/// close button (there is another pane).
+/// close button (there is another pane). `sling` adds "➤ Sling" (a canvas
+/// pane), and `agent` names the agent its sling goes to, with its status.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[expect(clippy::struct_excessive_bools, reason = "each says whether one part of the footer shows")]
 pub struct Shows<'a> {
     pub pen: Option<Pen>,
     pub centre: &'a str,
@@ -92,7 +100,12 @@ pub struct Shows<'a> {
     pub zoom: Option<u32>,
     pub sidebar: bool,
     pub close: bool,
+    pub sling: bool,
+    pub agent: Option<(&'a str, Option<Status>)>,
 }
+
+/// What the footer's sling button says.
+pub const SLING: &str = "➤ Sling";
 
 /// Text in one colour, bold or not.
 #[derive(Debug, Clone, PartialEq)]
@@ -173,6 +186,20 @@ pub fn footer(frame: Rect, theme: &Theme, keys: &Keymap, shows: &Shows) -> Foote
             vec![Cell::words(muted(shows.centre), None)]
         };
         units.push(Unit::new(Side::Middle, 60, cells));
+    }
+    if let Some((name, status)) = shows.agent {
+        let (glyph, colour) = (sidebar::glyph(status), sidebar::colour(status, theme));
+        let mut runs = vec![Run { text: glyph.to_string(), colour, bold: false }];
+        let word = status.map(|s| format!(" · {}", s.word())).unwrap_or_default();
+        runs.extend(muted(&format!(" {name}{word}")));
+        units.push(Unit::new(Side::Right, 80, vec![Cell::words(runs, None)]));
+    }
+    if shows.sling {
+        let reaches = shows.agent.is_some_and(|(_, s)| s != Some(Status::Stopped));
+        let colour = if reaches { theme.focus } else { theme.muted };
+        let run = Run { text: SLING.to_string(), colour, bold: reaches };
+        let button = Cell::words(vec![run], Some(Tap::Run(Command::SlingNow)));
+        units.push(Unit::new(Side::Right, 95, vec![button]));
     }
     if let Some(zoom) = shows.zoom {
         let level = Cell::words(muted(&format!("{zoom}%")), Some(Tap::Run(Command::ZoomReset)));

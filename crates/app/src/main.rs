@@ -155,7 +155,7 @@ fn window(mut settings: Settings) -> ExitCode {
         let area = sidebar.panes(shared.size.rect());
         // A press focuses the pane under it first, so the press works there.
         let refocused = match event {
-            Event::Press(pen) => window::press_focus(&mut shared, &canvases, &tools, area, pen),
+            Event::Press(pen) => window::press(&mut shared, &mut sidebar, &canvases, &tools, pen),
             _ => false,
         };
         let pass =
@@ -213,7 +213,7 @@ fn window(mut settings: Settings) -> ExitCode {
         let fetched = shared.fetched(watch.uis());
         let drawn = canvases.poll();
         let reloaded = settings.refresh(force);
-        let faded = tools.flash().fade(Instant::now());
+        let faded = tools.flash().fade(Instant::now()) | sidebar.fade(Instant::now());
         if !force && !reloaded && !heard && !moved && !drawn && !fetched && !faded {
             return Step::Stay;
         }

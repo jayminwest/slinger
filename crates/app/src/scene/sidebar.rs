@@ -10,25 +10,47 @@
 //! bottom-left footer shows it while the sidebar is collapsed.
 //!
 //! The notice is the one thing the app tells the user unasked: an agent
-//! became blocked or done. It names each such agent and stays until the
-//! user dismisses it or the agent's status moves on. The first list the app
-//! hears, after it starts or after the daemon comes back, is where it
-//! starts counting: no notice for what was already so.
+//! became blocked or done ([`notice`]). The first list the app hears, after
+//! it starts or after the daemon comes back, is where it starts counting:
+//! no notice for what was already so.
 
 use crate::backend::Problem;
 use crate::config::{Rgb, Theme};
 use crate::layout::Rect;
 use crate::scene::{Label, status, style};
 
-/// An agent's status, as `slinger status set` sets it.
+pub mod notice;
+
+/// An agent's status as the window shows it: what it last set with
+/// `slinger status set`, read against its process ([`Status::of`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
     Working,
     Blocked,
     Done,
+    /// Its process is not running: a sling cannot reach it.
+    Stopped,
 }
 
 impl Status {
+    /// The status to show for an agent that `said` it is at a status, whose
+    /// process is `running` with `pending` messages it has not answered,
+    /// and which has `answered` one: the daemon's own count wins over what
+    /// the agent's hooks last said, which may be late or never come. With
+    /// no process it is [`Status::Stopped`]; with a message pending it is
+    /// working, or blocked when it says so; with none it is done once it
+    /// said anything or answered, and has no status before.
+    pub fn of(said: Option<Status>, running: bool, pending: u32, answered: bool) -> Option<Status> {
+        if !running {
+            return Some(Status::Stopped);
+        }
+        if pending > 0 {
+            let blocked = said == Some(Status::Blocked);
+            return Some(if blocked { Status::Blocked } else { Status::Working });
+        }
+        (said.is_some() || answered).then_some(Status::Done)
+    }
+
     /// The status the daemon calls `name`; `None` for any other word.
     pub fn parse(name: &str) -> Option<Status> {
         match name {
@@ -39,11 +61,12 @@ impl Status {
         }
     }
 
-    fn word(self) -> &'static str {
+    pub fn word(self) -> &'static str {
         match self {
             Status::Working => "working",
             Status::Blocked => "blocked",
             Status::Done => "done",
+            Status::Stopped => "not running",
         }
     }
 }
@@ -76,8 +99,6 @@ const MARK: f64 = 16.0;
 const ROW: f64 = 22.0;
 /// Space above each workspace's first line.
 const GAP: f64 = 4.0;
-/// The notice's widest, and its gap from the bottom of the window.
-const NOTICE_WIDTH: f64 = 480.0;
 /// The sidebar's heading.
 const HEADING: &str = "WORKSPACES";
 /// A done mark's colour: the theme has no green, and done must not read as
@@ -117,7 +138,7 @@ pub struct Sidebar {
     /// Why there is no list.
     problem: Option<String>,
     /// The agents in the notice, oldest first, with the status each became.
-    notice: Vec<(String, Status, Option<String>)>,
+    notice: Vec<notice::Noticed>,
     /// The workspace whose panes the window shows; `None`: the first.
     shown: Option<String>,
 }
@@ -142,11 +163,6 @@ impl Sidebar {
         self.open = open;
     }
 
-    /// Hides the notice until an agent next becomes blocked or done.
-    pub fn dismiss(&mut self) {
-        self.notice.clear();
-    }
-
     /// Takes what the daemon says now. An agent that was in the last list
     /// and has become blocked or done joins the notice; an agent in the
     /// notice whose status moved on leaves it. A problem empties the list,
@@ -157,9 +173,8 @@ impl Sidebar {
         match now {
             Ok(now) => {
                 let agents = || now.iter().filter_map(|w| w.agent.as_ref());
-                self.notice.retain(|(name, status, _)| {
-                    agents().any(|a| a.name == *name && a.status == Some(*status))
-                });
+                self.notice
+                    .retain(|n| agents().any(|a| a.name == n.agent && a.status == Some(n.status)));
                 let last = self.workspaces.as_ref();
                 let was = |name: &str| {
                     last?.iter().filter_map(|w| w.agent.as_ref()).find(|a| a.name == name)
@@ -169,8 +184,8 @@ impl Sidebar {
                         continue;
                     };
                     if was(&agent.name).is_some_and(|a| a.status != agent.status) {
-                        self.notice.retain(|(name, ..)| *name != agent.name);
-                        self.notice.push((agent.name.clone(), status, agent.note.clone()));
+                        self.notice.retain(|n| n.agent != agent.name);
+                        self.notice.push(notice::Noticed::new(agent, status));
                     }
                 }
                 (self.workspaces, self.problem) = (Some(now), None);
@@ -183,11 +198,12 @@ impl Sidebar {
         *self != before
     }
 
-    /// Each open workspace's canvas and its agent's status, as last heard:
-    /// what the canvases' buttons show. Empty without a list.
-    pub fn statuses(&self) -> Vec<(String, Option<Status>)> {
-        let list = self.workspaces.iter().flatten();
-        list.map(|w| (w.canvas.clone(), w.agent.as_ref().and_then(|a| a.status))).collect()
+    /// Each open workspace's canvas and its agent, as last heard: what the
+    /// canvases' buttons and footers show, and where a sling goes. `None`
+    /// before the first list and after the daemon was lost.
+    pub fn agents(&self) -> Option<Vec<(String, Option<Agent>)>> {
+        let list = self.workspaces.as_ref()?.iter();
+        Some(list.map(|w| (w.canvas.clone(), w.agent.clone())).collect())
     }
 
     /// The agent of the open workspace whose canvas is `canvas`, as last
@@ -313,34 +329,6 @@ impl Sidebar {
         }
         (rows, targets)
     }
-
-    /// The notice, at the bottom of the panes' area `panes`: each agent that
-    /// became blocked or done, with what it said. `None` when there is none.
-    pub fn notice(&self, theme: &Theme, panes: Rect) -> Option<Label> {
-        if self.notice.is_empty() {
-            return None;
-        }
-        let parts: Vec<String> = self
-            .notice
-            .iter()
-            .map(|(agent, status, note)| match note {
-                Some(note) => format!("{agent} is {}: {note}", status.word()),
-                None => format!("{agent} is {}", status.word()),
-            })
-            .collect();
-        let width = NOTICE_WIDTH.min(panes.width - 2.0 * PAD).max(0.0);
-        Some(Label {
-            text: parts.join(" · "),
-            colour: theme.background,
-            fill: Some(theme.focus),
-            frame: Rect {
-                x: panes.x + (panes.width - width) / 2.0,
-                y: panes.y + panes.height - PAD - ROW,
-                width,
-                height: ROW,
-            },
-        })
-    }
 }
 
 /// One line of the sidebar before it is placed.
@@ -426,7 +414,7 @@ fn mark(status: Option<Status>, theme: &Theme) -> (&'static str, Rgb) {
 /// when blocked, so its shape differs as well as its colour.
 pub(super) fn glyph(status: Option<Status>) -> &'static str {
     match status {
-        None => "○",
+        None | Some(Status::Stopped) => "○",
         Some(Status::Working | Status::Done) => "●",
         Some(Status::Blocked) => "■",
     }
@@ -435,7 +423,7 @@ pub(super) fn glyph(status: Option<Status>) -> &'static str {
 /// A status mark's colour: blocked in the error colour, done in green.
 pub(super) fn colour(status: Option<Status>, theme: &Theme) -> Rgb {
     match status {
-        None => theme.muted,
+        None | Some(Status::Stopped) => theme.muted,
         Some(Status::Working) => theme.focus,
         Some(Status::Blocked) => theme.error,
         Some(Status::Done) => DONE,

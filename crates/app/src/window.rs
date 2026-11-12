@@ -51,9 +51,9 @@ pub fn run(
 
 /// A tap on `target` (a press already focused its pane in `shared`): the
 /// page name opens the page menu over it, a page menu's page turns the
-/// focused pane to it, and a workspace in `sidebar` shows its panes: that
-/// workspace's name, for the watch to follow. A command's tap does nothing
-/// here.
+/// focused pane to it, a workspace in `sidebar` shows its panes (that
+/// workspace's name, for the watch to follow), and the sling's pill does
+/// what a tap there does. A command's tap does nothing here.
 pub fn tap(
     (frame, tap): Target,
     canvases: &mut Canvases,
@@ -69,13 +69,17 @@ pub fn tap(
         }
         Tap::Page(index) => canvases.turn_to(&shared.panes, pane, index),
         Tap::Workspace(index) => return sidebar.pick(index),
+        Tap::Slung => {
+            let area = sidebar.panes(shared.size.rect());
+            canvases.tap_slung(&shared.panes, area);
+        }
         Tap::Run(_) => {}
     }
     None
 }
 
-/// Runs a selection command (`sling`, `dictate`: the entry) when the focused pane of `shared`
-/// laid in `area` shows its canvas; false when it does not. `leave-feedback` opens its entry
+/// Runs a selection command (`sling`, `dictate`: the entry; `sling-now`) when the focused pane
+/// of `shared` laid in `area` shows its canvas; false when it does not. `leave-feedback` opens its entry
 /// there, with the pen's tool in `tools`. Any other command goes on (true).
 pub fn selection(
     canvases: &mut Canvases,
@@ -94,6 +98,7 @@ pub fn selection(
         Command::DeleteSelection => canvases.delete_selection(panes, panes.focus()),
         Command::ClearSelection => canvases.clear_selection(panes, panes.focus()),
         Command::Sling | Command::Dictate => canvases.sling_command(command, panes, area),
+        Command::SlingNow => canvases.sling_now_command(panes, area),
         _ => true,
     }
 }
@@ -115,18 +120,20 @@ pub fn grabs(canvases: &Canvases, panes: &Panes, tools: &Tools, area: Rect, pen:
     !pen.eraser && canvases.grabs(panes, pane_at(panes, area, pen.at), pen, tools.tool())
 }
 
-/// A press of `pen` focuses the pane of `shared` laid in `area` under it
-/// ([`Shared::press_focus`]), even on a divider when it [`grabs`] the
-/// selection. Returns whether focus moved.
-pub fn press_focus(
+/// A press of `pen` focuses the pane of `shared` under it, the panes laid
+/// beside `sidebar` ([`Shared::press_focus`]), even on a divider when it
+/// [`grabs`] the selection; and a done agent's notice goes, as the user is
+/// back. Returns whether focus moved or the notice changed.
+pub fn press(
     shared: &mut Shared,
+    sidebar: &mut Sidebar,
     canvases: &Canvases,
     tools: &Tools,
-    area: Rect,
     pen: Pen,
 ) -> bool {
+    let area = sidebar.panes(shared.size.rect());
     let grabs = grabs(canvases, &shared.panes, tools, area, pen);
-    shared.press_focus(area, pen.at, pen.touch, grabs)
+    sidebar.pressed() | shared.press_focus(area, pen.at, pen.touch, grabs)
 }
 
 /// The frame of the focused pane of `panes` laid in `area`.
@@ -143,10 +150,10 @@ pub fn focus(panes: &Panes, area: Rect) -> (PaneId, Rect) {
 
 /// The window: the sidebar, the panes and their footers (their buttons kept
 /// in `shared` for the pen, the one under it lit), any problem with the
-/// daemon, a canvas or the config (each said once), the notice, the pop-up
-/// at the pen and the flash of a new tool, a page command or a saved note,
-/// the key overlay, the palette or the page menu on top, and the tool's
-/// cursor.
+/// daemon, a canvas or the config (each said once), the notice, the
+/// sling's buttons and what became of it, the pop-up at the pen and the
+/// flash of a new tool, a page command, a sling or a saved note, the key
+/// overlay, the palette or the page menu on top, and the tool's cursor.
 pub fn view(
     settings: &Settings,
     shared: &mut Shared,
@@ -156,8 +163,9 @@ pub fn view(
 ) -> Box<Scene> {
     let theme = &settings.config.theme;
     let area = sidebar.panes(shared.size.rect());
-    canvases.agents(sidebar.statuses());
+    canvases.agents(sidebar.agents());
     canvases.follow_paper(settings.config.canvas);
+    canvases.set_prompt(&settings.config.prompt);
     let drawn = canvases.show(&shared.panes, area, theme);
     let mut problems: Vec<&Problem> = Vec::new();
     for problem in shared.trouble.iter().chain(canvases.problems()).chain(&settings.problem) {
@@ -170,6 +178,8 @@ pub fn view(
     canvases.show_live(&mut scene);
     canvases.show_sling(&mut scene, theme, &settings.config.keys, sidebar);
     scene.labels.splice(0..0, canvases.labels(&shared.panes, area, theme));
+    let (marks, marked, answer) = canvases.sling_marks(&shared.panes, area, theme);
+    scene.labels.extend(marks);
     let pen = (tools.tool(), tools.colour());
     canvases.set_pen_width(tools.width().points());
     let keys = &settings.config.keys;
@@ -177,17 +187,25 @@ pub fn view(
     let mut footers = canvases.footers(&shared.panes, area, theme, pen, keys, collapsed);
     footers.extend(sidebar.foot(size.rect()).map(|foot| status::strip(foot, theme)));
     let rows = sidebar.targets(theme, size.rect()).into_iter();
-    let mut targets: Vec<Target> = footers.iter().flat_map(|f| f.targets.clone()).collect();
+    let mut targets = sidebar.notice_targets(area);
+    targets.extend(marked);
+    targets.extend(footers.iter().flat_map(|f| f.targets.clone()));
     targets.extend(rows.map(|(frame, index)| (frame, Tap::Workspace(index))));
     shared.taps.set(targets);
     if let Some(lit) =
         shared.taps.lit(theme).filter(|&lit| !status::light(&mut footers, lit, theme))
     {
-        // A workspace's lines: lit under their text, over the shown one's fill.
         let (frame, fill) = lit;
-        let label = Label { text: String::new(), colour: fill, fill: Some(fill), frame };
-        let fills = scene.sidebar.iter().take_while(|r| r.label.text.is_empty()).count();
-        scene.sidebar.insert(fills, Row { label, font: scene::sidebar::Font::PLAIN });
+        if let Some(button) = scene.labels.iter_mut().find(|l| l.frame == frame && l.fill.is_some())
+        {
+            // A button over the panes: its own fill lit.
+            button.fill = Some(fill);
+        } else {
+            // A workspace's lines: lit under their text, over the shown one's fill.
+            let label = Label { text: String::new(), colour: fill, fill: Some(fill), frame };
+            let fills = scene.sidebar.iter().take_while(|r| r.label.text.is_empty()).count();
+            scene.sidebar.insert(fills, Row { label, font: scene::sidebar::Font::PLAIN });
+        }
     }
     scene.footers = footers;
     scene.labels.extend(tools.labels(theme));
@@ -195,7 +213,8 @@ pub fn view(
     shared.menu.refresh(pages);
     let overlay = shared.overlay.shown(keys, theme, size);
     let overlay = overlay.or_else(|| shared.palette.shown(keys, theme, size));
-    scene.overlay = overlay.or_else(|| shared.menu.shown(theme, size)).map(Box::new);
+    let overlay = overlay.or_else(|| shared.menu.shown(theme, size));
+    scene.overlay = overlay.or(answer).map(Box::new);
     scene.cursor = cursor::over_canvas(tools, theme);
     let now = Instant::now();
     tools.follow(keys, now);

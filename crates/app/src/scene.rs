@@ -6,7 +6,8 @@
 //! the lasso and the selection. [`sidebar`] holds the agents'
 //! statuses, the optional sidebar that shows them and the notice when one
 //! becomes blocked or done. [`sling`] holds the sling from the window: its
-//! one-line entry, and how it goes. [`overlay`] holds the key overlay and
+//! one-line entry, the pen's buttons at the selection, and how it goes;
+//! [`slung`] what became of it, until the agent answered. [`overlay`] holds the key overlay and
 //! [`palette`] the command palette. [`paste`] makes pasted text fit to type.
 //! [`flash`] holds the flash that names a new tool or what a page command
 //! did; [`cursor`] the pointer over a canvas pane. [`glyphs`] measures the
@@ -42,6 +43,7 @@ pub mod select;
 pub mod shapes;
 pub mod sidebar;
 pub mod sling;
+pub mod slung;
 pub mod status;
 pub mod style;
 pub mod taps;
@@ -147,7 +149,7 @@ pub const BORDER: f64 = 1.0;
 /// that cannot show says its name and why. Every other pane shows its kind
 /// and name. `problems` show in the focused pane, each with its hint under it:
 /// the window keeps working on the last good config and says what is wrong.
-/// The notice, if any, is the last label, over the panes. One pane alone
+/// The notice, if any, is the last labels, over the panes. One pane alone
 /// has no focus border: there is no other pane it could be told from.
 #[expect(clippy::too_many_arguments, reason = "each is one input the window shows")]
 pub fn build(
@@ -423,7 +425,10 @@ mod tests {
         assert_eq!(scene.focus.frame, area);
         assert!(area.x >= sidebar::WIDTH);
         assert_eq!(scene.sidebar, side.rows(&T, layout::WINDOW.rect()));
-        assert_eq!(shown(&scene), [("canvas main", T.text), ("ada is blocked", T.background)]);
+        assert_eq!(
+            shown(&scene),
+            [("canvas main", T.text), ("ada is blocked", T.background), ("✕", T.background)]
+        );
     }
 
     #[test]
