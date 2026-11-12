@@ -26,7 +26,8 @@ fn draw(client: &Client, x: i64) -> u64 {
 
 fn sling(client: &Client, select: &[&str], prompt: &str) -> Slung {
     let select = select.iter().map(|s| (*s).to_string()).collect();
-    let ask = SlingAsk { canvas: "notes".into(), select, prompt: prompt.into(), page: None };
+    let ask =
+        SlingAsk { canvas: "notes".into(), select, prompt: prompt.into(), ..SlingAsk::default() };
     client.sling_send(ask).unwrap()
 }
 
