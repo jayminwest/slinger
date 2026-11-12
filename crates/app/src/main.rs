@@ -134,7 +134,7 @@ fn window(mut settings: Settings) -> ExitCode {
     let widths = settings.config.widths.clone();
     let mut tools = Tools::new(settings.config.palette.clone(), centre).with_widths(widths);
     let mut shared = Shared::default();
-    let mut canvases = Canvases::new(control::Client::new(&socket));
+    let mut canvases = canvases(&socket);
     let first = view(&settings, &mut shared, &tools, &sidebar, &mut canvases);
     // The workspace the config names, to tell when an edit changes it; a
     // tap on another in the sidebar shows that one until it does.
@@ -242,6 +242,13 @@ fn window(mut settings: Settings) -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => fail(&e.to_string(), None),
     }
+}
+
+/// The canvases of the window, through the daemon on `socket`, keeping
+/// the strokes not yet written on disk ([`backend::Unsent`]).
+fn canvases(socket: &Path) -> Canvases {
+    let canvases = Canvases::new(control::Client::new(socket));
+    backend::Unsent::locate().into_iter().fold(canvases, Canvases::keeping)
 }
 
 /// `step` with `sidebar`, which it may open or collapse: the sidebar starts
