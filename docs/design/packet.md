@@ -135,7 +135,11 @@ so `page=Page%201` is the page "Page 1". Every other character is itself.
 **Header fields**, in this order: `canvas` (canvas id), `page` (page name),
 `from`, `to` (the canvas op range this packet covers; `from` is the first op
 after the last sling's `to`, so R1 is "ops in from..=to"), `scale` (the
-render scale, `0.35`), then `at` (see Delivery). `version` is `1`.
+render scale, `0.35`), `tokens` (about how many tokens the packet costs a
+model, text and images, by `Packet::tokens` below; the count includes the
+field itself but not `at`, so it is the cost of the packet as slung;
+slinger-0bc20b), then `at` (see Delivery). `version` is `1`; a reader
+that predates `tokens` skips it.
 
 **Sections**, always in this order, each always present, even when empty:
 
@@ -223,8 +227,10 @@ selection) and returns a `Packet`: header, three sections of entries and the
 images. `Packet::text` writes this format; `Packet::read` reads it back
 (keeping unknown kinds and fields on entries, skipping unknown header fields
 and sections). `Packet::tokens` estimates the cost: a token per 4 characters
-of text, a token per 750 pixels of each image, at most 1600 an image. The
-whole fixture board, all new, is about 63 000 by this estimate.
+of text, a token per 750 pixels of each image, at most 1600 an image. It is
+a local estimate, not a tokenizer's count: nothing is asked over the
+network. `build` writes it into the header's `tokens` (`Packet::count`).
+The whole fixture board, all new, is about 63 000 by this estimate.
 
 ## Delivery and storage
 
