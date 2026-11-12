@@ -36,6 +36,9 @@ pub enum Session {
     Start {
         /// The open workspace: its name, or the directory of its file
         workspace: String,
+        /// Start a new session instead of resuming the last one, ending a running process
+        #[arg(long)]
+        fresh: bool,
     },
     /// Stop a workspace's agent: end its process
     Stop {
@@ -125,7 +128,10 @@ pub fn execute(
             let human = fields(&session);
             Ok(Output::new(json!({ "session": session }), human))
         }
-        Session::Start { workspace } => Ok(quiet(&daemon.session_start(workspace)?)),
+        Session::Start { workspace, fresh: false } => Ok(quiet(&daemon.session_start(workspace)?)),
+        Session::Start { workspace, fresh: true } => {
+            Ok(quiet(&daemon.session_start_fresh(workspace)?))
+        }
         Session::Stop { workspace } => Ok(quiet(&daemon.session_stop(workspace)?)),
         Session::Send { workspace, text } => {
             let mut read = String::new();

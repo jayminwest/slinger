@@ -50,7 +50,7 @@ a "did you mean" suggestion.
 | `canvas strokes <ID> --item ITEM` | One stroke per line, as JSON with absolute `points` in tenths. `--json`: `strokes` |
 | `session list` | One line per session, by agent: agent, status (`-` for none) and home, then the note if there is one, separated by tabs. `--json`: `sessions` |
 | `session show <AGENT>` | One field per line, the name and the value separated by a tab: `agent`, `home`, `deliver`, `status`, then those it has of `note`, `process`, `pid`, `pending`, `session_id` and `answer` (its line breaks as `\n`). `--json`: `session` |
-| `session start <WORKSPACE>`, `session stop <WORKSPACE>` | Nothing. `--json`: `session` |
+| `session start <WORKSPACE> [--fresh]`, `session stop <WORKSPACE>` | Nothing. `--json`: `session` |
 | `session send <WORKSPACE> <TEXT\|->` | Nothing. `--json`: `session` |
 | `sling send <ID> [--page PAGE] [--select IDS] [--prompt TEXT\|-]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
@@ -218,7 +218,10 @@ nothing and exits 0. `session show` of an agent with no session exits 3
 
 `session start` starts the workspace's agent: a Claude Code process in its
 home that `slingerd` holds open, resuming the conversation it last had, even
-after a restart. `session send` delivers one message to it (`-` reads it from
+after a restart. If that conversation can no longer be resumed, the process
+exits and `session show` has it `exited`; the next `session start` begins a
+new conversation. `session start --fresh` begins a new one at once, ending
+a running process first. `session send` delivers one message to it (`-` reads it from
 stdin) and returns once it is delivered; `session show` has the process's
 state and its last answer. A send to an agent that was never started, or
 whose process exited, exits 6 (`unavailable`) with a hint to start it.

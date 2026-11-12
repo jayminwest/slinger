@@ -92,10 +92,12 @@ fn a_session_starts_takes_messages_and_stops_quietly() {
         runs.push(cli_raw(socket, &["session", "send", "notes", "-"], b"two\n", &mut Vec::new()));
         runs.push(cli_on(socket, &["session", "show", "scout", "--json"]));
         runs.push(cli_on(socket, &["session", "stop", "notes"]));
+        runs.push(cli_on(socket, &["session", "start", "notes", "--fresh"]));
         runs
     });
     let codes: Vec<u8> = runs.iter().map(|r| r.code).collect();
-    assert_eq!(codes, [exit::NOT_FOUND, exit::OK, exit::UNAVAILABLE, 0, 0, 0, 0, 0]);
+    assert_eq!(codes, [exit::NOT_FOUND, exit::OK, exit::UNAVAILABLE, 0, 0, 0, 0, 0, 0]);
+    assert_eq!((runs[8].out.as_str(), runs[8].err.as_str()), ("", ""));
     assert!(runs[2].err.contains("session start"), "{}", runs[2].err);
     for r in &runs[3..6] {
         assert_eq!((r.out.as_str(), r.err.as_str()), ("", ""));
