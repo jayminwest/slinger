@@ -566,8 +566,9 @@ scene/sidebar/notice.rs  the notice: a 28 pt bar above the footers (it
              its status moves on. Pure.
 scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
              made (a page's sling at its top left), inside its pane, what
-             the agent is doing: "● scout working · 4s", "■ scout blocked:
-             <note>", "✓ scout answered · N new items" (a tap brings them
+             the agent is doing: "● scout working · 4s · ~12k", "■ scout
+             blocked: <note> · ~12k" (the sling's tokens, when the daemon's
+             Slung reply counts them), "✓ scout answered · N new items" (a tap brings them
              into view, the next clears it), "✓ scout answered in text · tap
              to read" (a tap opens the answer's panel), "✓ scout is done,
              with nothing on the canvas", a failure's "✗ <message>" and hint,
@@ -577,7 +578,8 @@ scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
              goes 30 s later. The pill is a Line with a field's round
              corners, as wide as its words measure (scene/glyphs.rs). `out`:
              a sling is on its way or worked on. `slung/words.rs`: the
-             elapsed time, the arrow to the items, the answer's lines. Pure.
+             elapsed time, the tokens, the arrow to the items, the answer's
+             lines (wrapped as scene/glyphs.rs measures them). Pure.
 scene/button.rs  the "send to agent" button: an item of kind `button`, drawn
              as an outline with the agent's status mark (the sidebar's) and
              its label; which button is under a point; where a new one goes.

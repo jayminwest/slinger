@@ -124,9 +124,9 @@ impl Canvases {
         for heard in self.slinger.heard() {
             changed = true;
             match heard {
-                Heard::Went(agent) => {
+                Heard::Went(agent, tokens) => {
                     self.sling.answered(Ok(()));
-                    self.slung.went(&agent, now);
+                    self.slung.went(&agent, tokens, now);
                 }
                 Heard::Failed(problem) => match self.sling.answered(Err(problem.clone())) {
                     Answered::Reopened => self.slung.forget(),
