@@ -198,3 +198,13 @@ fn a_drag_on_the_panel_scrolls_the_pages_and_taps_nothing() {
     let Took::Tap((_, tap)) = menu.lift(p5, SIZE) else { panic!() };
     assert_eq!(tap, Tap::Page(4), "a tap after the scroll picks the page under it");
 }
+
+#[test]
+fn a_menu_choice_closes_it_and_runs() {
+    let mut menu = PageMenu::default();
+    assert_eq!(menu.chosen(Command::NextPage), Took::No, "closed, the menu runs it");
+    let mut menu = open(&["a", "b"], 0);
+    let Took::Tap((_, tap)) = menu.chosen(Command::NextPage) else { panic!("a run") };
+    assert_eq!(tap, Tap::Run(Command::NextPage));
+    assert!(!menu.is_open());
+}

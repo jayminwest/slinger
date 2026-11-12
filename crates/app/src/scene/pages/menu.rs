@@ -18,6 +18,7 @@ use crate::commands::{Chord, Command};
 use crate::config::Theme;
 use crate::layout::{PaneId, Point, Rect, Size};
 use crate::scene::overlay::{Align, Line, Overlay};
+use crate::scene::palette::Taken;
 use crate::scene::style;
 use crate::scene::taps::{Tap, Took};
 
@@ -117,6 +118,16 @@ impl PageMenu {
             *self = PageMenu::default();
         }
         closes
+    }
+
+    /// A command chosen from the menu bar while open: the menu closes, and
+    /// the command runs. Closed, [`Took::No`].
+    pub fn chosen(&mut self, command: Command) -> Took {
+        if !self.is_open() {
+            return Took::No;
+        }
+        *self = PageMenu::default();
+        Taken::Run(command).into()
     }
 
     /// A press at `at` in a window of `size`: outside the panel it closes
