@@ -68,6 +68,19 @@ fn opens_inside_the_window_near_its_edge() {
 }
 
 #[test]
+fn every_popup_cell_is_at_least_what_a_pen_taps() {
+    let mut tools = tools();
+    for kind in [Kind::Colour, Kind::Shape, Kind::Tool, Kind::Width] {
+        tools.open(kind, WITHIN);
+        for c in &tools.popup.as_ref().unwrap().place.cells {
+            assert!(c.width >= crate::scene::style::TAP, "{kind:?}: {c:?}");
+            assert!(c.height >= crate::scene::style::TAP, "{kind:?}: {c:?}");
+        }
+        tools.close();
+    }
+}
+
+#[test]
 fn the_pen_picks_a_cell_and_the_popup_closes() {
     let mut tools = tools();
     tools.open(Kind::Colour, WITHIN);

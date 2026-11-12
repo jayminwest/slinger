@@ -135,3 +135,56 @@ fn many_pages_keep_the_shown_one_in_view_and_the_menu_follows_the_pages() {
     assert!(!menu.is_open() && menu.shown(&T, SIZE).is_none(), "its pane shows no pages: closed");
     assert!(!menu.pointer(Point { x: 400.0, y: 580.0 }, SIZE, false));
 }
+
+/// The pages the open menu shows, top to bottom.
+fn pages(menu: &PageMenu) -> Vec<String> {
+    rows(menu).into_iter().filter(|r| r.starts_with('p') && r != "✓").collect()
+}
+
+#[test]
+fn a_scroll_turns_the_pages_a_row_at_a_time_and_stops_at_either_end() {
+    let names: Vec<String> = (1..=40).map(|n| format!("p{n}")).collect();
+    let mut menu = PageMenu::default();
+    menu.open(pane(), ANCHOR, (names, 0));
+    let first = pages(&menu);
+    assert_eq!(first[0], "p1");
+    assert!(first.len() < 40, "not all fit: {first:?}");
+    assert!(menu.scroll(-ROW / 2.0, SIZE), "taken");
+    assert_eq!(pages(&menu), first, "half a row waits for the rest");
+    menu.scroll(-ROW / 2.0, SIZE);
+    assert_eq!(pages(&menu)[0], "p2", "down the page shows later pages");
+    menu.scroll(-ROW * 100.0, SIZE);
+    assert_eq!(pages(&menu).last().map(String::as_str), Some("p40"), "the end");
+    let end = pages(&menu);
+    menu.scroll(-ROW, SIZE);
+    assert_eq!(pages(&menu), end, "stays at the end");
+    menu.scroll(ROW, SIZE);
+    assert_eq!(pages(&menu)[0], format!("p{}", 40 - end.len()), "one back at once");
+    menu.scroll(ROW * 100.0, SIZE);
+    assert_eq!(pages(&menu), first, "back at the start");
+    assert!(rows(&menu).ends_with(&[
+        "New page".into(),
+        "Rename page…".into(),
+        "Remove page".into()
+    ]));
+    let mut closed = PageMenu::default();
+    assert!(!closed.scroll(-ROW, SIZE), "closed: not its scroll");
+}
+
+#[test]
+fn a_drag_on_the_panel_scrolls_the_pages_and_taps_nothing() {
+    let names: Vec<String> = (1..=40).map(|n| format!("p{n}")).collect();
+    let mut menu = PageMenu::default();
+    menu.open(pane(), ANCHOR, (names, 0));
+    let p3 = row(&menu, "p3");
+    menu.press(p3, SIZE);
+    let up = Point { y: p3.y - 2.0 * ROW, ..p3 };
+    assert!(menu.pointer(up, SIZE, true));
+    assert_eq!(pages(&menu)[0], "p3", "the pen up two rows: two later pages");
+    assert_eq!(menu.lift(up, SIZE), Took::Yes, "a scroll is not a tap");
+    assert!(menu.is_open());
+    let p5 = row(&menu, "p5");
+    menu.press(p5, SIZE);
+    let Took::Tap((_, tap)) = menu.lift(p5, SIZE) else { panic!() };
+    assert_eq!(tap, Tap::Page(4), "a tap after the scroll picks the page under it");
+}

@@ -200,15 +200,20 @@ fn a_menu_choice_closes_it_and_runs_except_its_own_which_only_closes() {
 }
 
 #[test]
-fn a_press_on_a_row_runs_it_and_one_outside_closes_it() {
+fn a_lift_on_the_row_pressed_runs_it_and_a_press_outside_closes_it() {
     let size = layout::WINDOW;
     let mut palette = Palette::default();
     let row = place(size).row(1);
     let on = Point { x: row.x + 10.0, y: row.y + row.height / 2.0 };
-    assert_eq!(palette.press(on, size), Taken::No);
+    assert_eq!((palette.press(on, size), palette.lift(on, size)), (Taken::No, Taken::No));
     palette.toggle();
     type_in(&mut palette, "split");
-    assert_eq!(palette.press(on, size), Taken::Run(Command::SplitDown));
+    assert_eq!(palette.press(on, size), Taken::Yes, "the press holds the row");
+    assert!(palette.is_open());
+    let held = palette.shown(&Keymap::default(), &T, size).unwrap();
+    let lit = |l: &Line| l.label.frame == row && l.label.fill == Some(style::hover(&T));
+    assert!(held.lines.iter().any(lit), "it lights");
+    assert_eq!(palette.lift(on, size), Taken::Run(Command::SplitDown));
     assert!(!palette.is_open());
 
     palette.toggle();
@@ -217,6 +222,23 @@ fn a_press_on_a_row_runs_it_and_one_outside_closes_it() {
     assert!(palette.is_open());
     assert_eq!(palette.press(Point { x: 1.0, y: 1.0 }, size), Taken::Yes);
     assert!(!palette.is_open());
+}
+
+#[test]
+fn a_press_that_slides_off_its_row_or_outlives_the_rows_runs_nothing() {
+    let size = layout::WINDOW;
+    let row = place(size).row(1);
+    let on = Point { x: row.x + 10.0, y: row.y + row.height / 2.0 };
+    let mut palette = open();
+    type_in(&mut palette, "split");
+    assert_eq!(palette.press(on, size), Taken::Yes);
+    let off = Point { y: place(size).row(0).y + 4.0, ..on };
+    assert_eq!(palette.lift(off, size), Taken::Yes, "slid off its row: nothing runs");
+    assert_eq!(palette.lift(on, size), Taken::Yes, "nor does a lift with no press");
+    assert_eq!(palette.press(on, size), Taken::Yes);
+    type_in(&mut palette, "x");
+    assert_eq!(palette.lift(on, size), Taken::Yes, "typing moved the rows: nothing runs");
+    assert!(palette.is_open());
 }
 
 #[test]

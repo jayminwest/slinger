@@ -34,24 +34,30 @@ pub enum Face {
     Widths,
 }
 
-/// One button, or a word: how wide it is, what it shows, and what a tap
-/// on it does (`None`: a word that says a state).
+/// One button, or a word: how wide it is, what it shows, what a tap on it
+/// does (`None`: a word that says a state), and whether it needs a tip to
+/// say what it does (a glyph or a mark, with no words of its own).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Cell {
     width: f64,
     face: Face,
     tap: Option<Tap>,
+    tip: bool,
 }
+
+/// A laid cell: its frame, what it shows, what a tap on it does, and
+/// whether it needs a tip.
+pub type Laid = (Rect, Face, Option<Tap>, bool);
 
 impl Cell {
     /// A one-glyph button: the least width a pen taps.
     pub fn glyph(runs: Vec<Run>, tap: Tap) -> Cell {
-        Cell { width: style::TAP, face: Face::Text(runs), tap: Some(tap) }
+        Cell { width: style::TAP, face: Face::Text(runs), tap: Some(tap), tip: true }
     }
 
     /// A mark that runs `command`: the least width a pen taps.
     pub fn mark(face: Face, command: Command) -> Cell {
-        Cell { width: style::TAP, face, tap: Some(Tap::Run(command)) }
+        Cell { width: style::TAP, face, tap: Some(Tap::Run(command)), tip: true }
     }
 
     /// Words, a button when `tap` says what a tap does: as wide as the
@@ -59,7 +65,7 @@ impl Cell {
     pub fn words(runs: Vec<Run>, tap: Option<Tap>) -> Cell {
         let text: f64 = runs.iter().map(|r| width(&r.text)).sum();
         let least = if tap.is_some() { style::TAP } else { 0.0 };
-        Cell { width: (text + 2.0 * INSET).max(least), face: Face::Text(runs), tap }
+        Cell { width: (text + 2.0 * INSET).max(least), face: Face::Text(runs), tap, tip: false }
     }
 }
 
@@ -91,8 +97,8 @@ impl Unit {
 /// part to its right end, the middle centred on the line when that leaves
 /// [`SPACE`] to either side, else centred between them. Groups that do not
 /// fit go first, the lowest rank first, down to those ranked [`KEEP`].
-/// Each cell's frame, face and tap.
-pub fn lay(mut units: Vec<Unit>, line: Rect, bar: Rect) -> Vec<(Rect, Face, Option<Tap>)> {
+/// Each cell, laid.
+pub fn lay(mut units: Vec<Unit>, line: Rect, bar: Rect) -> Vec<Laid> {
     while !fits(&units, line.width) {
         let low = units.iter().enumerate().filter(|(_, u)| u.rank < KEEP);
         let low = low.min_by_key(|(_, u)| u.rank).map(|(i, _)| i);
@@ -110,7 +116,7 @@ pub fn lay(mut units: Vec<Unit>, line: Rect, bar: Rect) -> Vec<(Rect, Face, Opti
         for unit in units.iter().filter(|u| u.side == side) {
             for cell in &unit.cells {
                 let frame = Rect { x, y: bar.y, width: cell.width, height: bar.height };
-                cells.push((frame, cell.face.clone(), cell.tap));
+                cells.push((frame, cell.face.clone(), cell.tap, cell.tip));
                 x += cell.width;
             }
             x += GAP;
@@ -138,7 +144,7 @@ fn fits(units: &[Unit], room: f64) -> bool {
 }
 
 /// About how wide `text` is in footer text.
-fn width(text: &str) -> f64 {
+pub fn width(text: &str) -> f64 {
     count(text.chars().count()) * CHAR
 }
 
