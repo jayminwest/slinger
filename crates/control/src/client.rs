@@ -11,8 +11,8 @@ use serde_json::Value;
 
 use crate::{
     Appended, CanvasChange, CanvasImported, CanvasInfo, CanvasOps, CanvasPage, CanvasStep,
-    Canvases, EventFilter, Events, Exported, Greeting, NewEvent, RemoteError, Request, Stored, Ui,
-    UiPut, Uis, Written, wire,
+    Canvases, EventFilter, Events, Exported, NewEvent, RemoteError, Request, Stored, Ui, UiPut,
+    Uis, Written, wire,
 };
 
 /// The daemon's program name, for messages.
@@ -20,14 +20,6 @@ const DAEMON: &str = "slingerd";
 
 /// How long a client waits for the daemon to answer.
 pub(crate) const TIMEOUT: Duration = Duration::from_secs(5);
-
-/// [`Request::Hello`] as a client writes it. The app sends only this verb,
-/// so with it the app builds no [`Request`] and carries none of its code.
-#[derive(Serialize)]
-#[serde(tag = "op", rename = "hello")]
-pub(crate) struct Hello<'a> {
-    pub(crate) name: &'a str,
-}
 
 /// A client of the daemon on one socket path. Making one does no IO.
 #[derive(Debug, Clone)]
@@ -38,16 +30,6 @@ pub struct Client {
 impl Client {
     pub fn new(socket: impl Into<PathBuf>) -> Self {
         Self { socket: socket.into() }
-    }
-
-    /// Asks for a greeting.
-    ///
-    /// # Errors
-    ///
-    /// The daemon's error, or `unavailable` when it does not answer.
-    pub fn hello(&self, name: &str) -> Result<String, RemoteError> {
-        let reply: Greeting = self.call(&Hello { name })?;
-        Ok(reply.greeting)
     }
 
     /// Appends an event and returns it as stored.
@@ -298,32 +280,33 @@ mod tests {
         (Client::new(&socket), socket)
     }
 
-    fn hello(reply: &'static str) -> Result<String, RemoteError> {
+    fn list(reply: &'static str) -> Result<Vec<String>, RemoteError> {
         let (client, socket) = answering(reply);
-        let result = client.hello("ada");
+        let result = client.canvas_list();
         std::fs::remove_file(socket).unwrap();
         result
     }
 
     #[test]
     fn returns_the_reply_or_the_daemons_error() {
-        assert_eq!(hello("{\"ok\":true,\"greeting\":\"hello, ada\"}\n").unwrap(), "hello, ada");
-        let err = hello("{\"ok\":false,\"code\":\"invalid\",\"error\":\"no\",\"hint\":\"h\"}\n");
+        let reply = "{\"ok\":true,\"canvases\":[{\"canvas\":\"ada\"}]}\n";
+        assert_eq!(list(reply).unwrap(), ["ada"]);
+        let err = list("{\"ok\":false,\"code\":\"invalid\",\"error\":\"no\",\"hint\":\"h\"}\n");
         assert_eq!(err.unwrap_err(), RemoteError::new("invalid", "no", Some("h".into())));
     }
 
     #[test]
     fn a_reply_it_cannot_read_is_internal() {
         for reply in ["nope\n", "{}\n", "{\"ok\":true}\n", "{\"ok\":false}\n"] {
-            assert_eq!(hello(reply).unwrap_err().code(), "internal", "{reply}");
+            assert_eq!(list(reply).unwrap_err().code(), "internal", "{reply}");
         }
     }
 
     #[test]
     fn no_daemon_or_no_reply_is_unavailable_with_a_start_hint() {
-        let err = Client::new("/nonexistent/x.sock").hello("ada").unwrap_err();
+        let err = Client::new("/nonexistent/x.sock").canvas_list().unwrap_err();
         assert_eq!(err.code(), "unavailable");
         assert!(err.hint().unwrap().ends_with(" --socket /nonexistent/x.sock'"));
-        assert_eq!(hello("").unwrap_err().code(), "unavailable");
+        assert_eq!(list("").unwrap_err().code(), "unavailable");
     }
 }

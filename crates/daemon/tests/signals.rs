@@ -23,14 +23,14 @@ fn sigterm_stops_the_daemon_cleanly() {
 
     let client = Client::new(&socket);
     let deadline = Instant::now() + Duration::from_secs(10);
-    let greeting = loop {
-        match client.hello("ada") {
-            Ok(greeting) => break greeting,
+    let canvases = loop {
+        match client.canvas_list() {
+            Ok(canvases) => break canvases,
             Err(e) if Instant::now() > deadline => panic!("the daemon never answered: {e}"),
             Err(_) => std::thread::sleep(Duration::from_millis(20)),
         }
     };
-    assert_eq!(greeting, "hello, ada");
+    assert_eq!(canvases, Vec::<String>::new());
     client.canvas_create("main").unwrap();
     let waiter = client.clone();
     let waiting =
