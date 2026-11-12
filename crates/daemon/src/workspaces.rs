@@ -214,6 +214,34 @@ impl Workspaces {
         Ok((Opened { dir: dir.clone(), workspace: ws }, layout, changed))
     }
 
+    /// The open workspace `which` names, as [`Workspaces::show`], after
+    /// `change`. A change that leaves its file as it was writes nothing;
+    /// one that changes it writes the file whole before this returns, and
+    /// one that fails writes nothing. One change at a time, as
+    /// [`Workspaces::panes`].
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`Workspaces::show`], `change`'s, and the error of
+    /// writing the file.
+    pub fn edit<T>(
+        &self,
+        which: &str,
+        change: impl FnOnce(&mut Workspace) -> slinger_core::Result<T>,
+    ) -> Result<(Opened, T)> {
+        let guard = self.lock()?;
+        let open = guard.as_deref().unwrap_or_default();
+        let dir = find(open, which).ok_or_else(|| not_open(which))?;
+        let file = dir.join(FILE_NAME);
+        let mut ws = read(&file)?;
+        let before = ws.clone();
+        let changed = change(&mut ws)?;
+        if ws != before {
+            write_synced(&file, ws.to_toml().as_bytes())?;
+        }
+        Ok((Opened { dir: dir.clone(), workspace: ws }, changed))
+    }
+
     /// Closes the open workspace `which` names, as [`Workspaces::show`], and
     /// returns the directory of its file. The file and the canvas stay.
     ///

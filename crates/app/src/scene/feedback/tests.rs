@@ -1,5 +1,6 @@
 use super::*;
 use crate::config::Rgb;
+use crate::scene::sling::pen::beside;
 
 const T: Theme = Theme {
     background: Rgb { r: 0, g: 0, b: 0 },
@@ -45,8 +46,7 @@ fn the_entry_opens_in_the_pane_labelled_feedback_with_its_keys() {
     assert_eq!((entry.text.as_str(), entry.dictate), ("the lasso is slow", None));
     let inside = |r: Rect| r.x >= PANE.x && r.x + r.width <= PANE.x + PANE.width;
     assert!(inside(entry.frame) && entry.frame.y > 40.0, "{:?}", entry.frame);
-    let centre = entry.frame.x + entry.frame.width / 2.0;
-    assert!((centre - (PANE.x + PANE.width / 2.0)).abs() < 1e-9, "centred");
+    assert_eq!((entry.frame, entry.done), (beside(PANE), Some("Save")), "the pen's buttons");
     let on = Point { x: entry.frame.x + 1.0, y: entry.frame.y + 1.0 };
     assert!(feedback.covers(on) && !feedback.covers(Point { x: 0.0, y: 0.0 }));
     assert_eq!(texts(&feedback), []);
@@ -111,4 +111,37 @@ fn a_narrow_pane_keeps_the_entry_inside_it() {
     feedback.open(narrow, Context::default());
     let frame = feedback.entry(&T).unwrap().frame;
     assert!(frame.x >= 0.0 && frame.x + frame.width <= 200.0, "{frame:?}");
+}
+
+fn recent(text: &str) -> Recent {
+    Recent { text: text.into(), when: "11-11 14:02".into() }
+}
+
+#[test]
+fn the_open_entry_lists_the_recent_notes_under_any_problem() {
+    let mut feedback = Feedback::default();
+    assert!(!feedback.listed(vec![recent("old")]), "closed: nothing shown changes");
+    assert!(feedback.open(PANE, context()));
+    let header = ("Recent feedback".to_string(), T.muted);
+    assert_eq!(texts(&feedback), [header.clone(), ("11-11 14:02 · old".into(), T.muted)]);
+    assert!(!feedback.listed(vec![recent("old")]), "the same list");
+
+    let many: Vec<_> = (0..9).map(|n| recent(&n.to_string())).collect();
+    assert!(feedback.listed(many));
+    let lines = feedback.labels(&T);
+    assert_eq!(lines.len(), 1 + RECENT);
+    assert!(lines.windows(2).all(|two| two[0].frame.y < two[1].frame.y), "one under another");
+    assert!(lines[0].frame.y > feedback.entry(&T).unwrap().frame.y, "under the entry");
+
+    feedback.typed("slow");
+    feedback.send().unwrap();
+    assert_eq!(texts(&feedback), [("saving feedback…".to_string(), T.muted)]);
+    feedback.answered(Err(Problem { message: "gone".into(), hint: None }));
+    let lines = texts(&feedback);
+    assert_eq!(lines[..2], [("✗ gone".to_string(), T.error), header]);
+
+    // What dictation says goes under them all.
+    let said = feedback.under(&T, vec![("● Flick is listening".into(), T.muted)]);
+    let last = feedback.labels(&T).last().map(|l| l.frame.y).unwrap();
+    assert!(said.len() == 1 && said[0].frame.y > last, "{said:?}");
 }

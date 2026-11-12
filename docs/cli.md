@@ -49,10 +49,12 @@ a "did you mean" suggestion.
 | `canvas crop <ID> (--item ITEM \| --box X,Y,W,H [--page PAGE]) [--out FILE]` | The path of each image written, one per line, tiles in reading order. `--json`: `images` (`path`, `x`, `y`, `width`, `height`) |
 | `canvas strokes <ID> --item ITEM` | One stroke per line, as JSON with absolute `points` in tenths. `--json`: `strokes` |
 | `session list` | One line per session, by agent: agent, status (`-` for none) and home, then the note if there is one, separated by tabs. `--json`: `sessions` |
-| `session show <AGENT>` | One field per line, the name and the value separated by a tab: `agent`, `home`, `deliver`, `status`, then those it has of `note`, `process`, `pid`, `pending`, `session_id` and `answer` (its line breaks as `\n`). `--json`: `session` |
-| `session start <WORKSPACE> [--fresh]`, `session stop <WORKSPACE>` | Nothing. `--json`: `session` |
+| `session show <AGENT>` | One field per line, the name and the value separated by a tab: `agent`, `home`, `deliver`, `status`, then those it has of `note`, `process`, `pid`, `profile`, `pending`, `session_id` and `answer` (its line breaks as `\n`). `--json`: `session` |
+| `session start <WORKSPACE> [--fresh] [--profile NAME]`, `session stop <WORKSPACE>` | Nothing. `--json`: `session` |
+| `profile list <WORKSPACE>` | One line per profile, in its file's order: name, directory (`-` for the agent's home) and rules joined by `, ` (`-` for none), separated by tabs. `--json`: `workspace`, `profiles` |
+| `profile set <WORKSPACE> <NAME> [--dir DIR] [--tool RULE]...`, `profile remove <WORKSPACE> <NAME>` | Nothing. `--json`: `workspace`, `profiles` |
 | `session send <WORKSPACE> <TEXT\|->` | Nothing. `--json`: `session` |
-| `sling send <ID> [--page PAGE] [--select IDS] [--prompt TEXT\|-]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id` |
+| `sling send <ID> [--page PAGE] [--select IDS] [--prompt TEXT\|-] [--profile NAME]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
 | `file touched (<PATH> \| --hook) [--agent NAME]` | Nothing. `--json`: `agent`, `path`, `hash`, `event` |
 | `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --ink PTS \| --arrow FROM TO) [--color COLOR] [--at X,Y] [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
@@ -62,6 +64,18 @@ a "did you mean" suggestion.
 | `feedback ls [--all] [--limit N]` | One line per note, newest first: `ts`, text and, with `--all`, `resolved` and its note for a resolved one, separated by tabs. `--limit` defaults to 20. `--json`: `path`, `entries` |
 | `feedback resolve <TS> [NOTE]...` | Nothing. `--json`: `path`, `resolves`, `ts`, `note` |
 | `feedback path` | The feedback file's path. `--json`: `path` |
+
+`profile` keeps the profiles of a workspace's agent in its file
+(`docs/service.md`, "Profiles"): each a working directory and the Claude
+Code permission rules a session under it may use, in place of the agent's
+own. `profile set` replaces a profile of that name whole; `--tool` takes one
+rule and repeats (`--tool Edit --tool 'Bash(git *)'`), and `--dir` is taken
+from the current directory when relative. A name, a rule or a tool slinger
+does not know exits 5 (`invalid`) with a hint listing the tools; a `--dir`
+that is not there, or a profile `remove` does not find, exits 3
+(`not_found`). `session start --profile NAME` starts the agent under that
+profile, in its own conversation. `sling send --profile NAME` sends only if
+the agent runs under that profile, and exits 4 (`conflict`) otherwise.
 
 `feedback` keeps notes about slinger itself in the daemon's feedback
 file (`docs/service.md`, "Feedback"), the same notes the app's

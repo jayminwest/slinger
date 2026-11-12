@@ -2,7 +2,7 @@
 //! `SLINGER_SOCKET`, through the real `slinger` binary: each run gets an
 //! environment of its own, which in-process tests cannot have.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output};
 
 use slinger_control::{Client, EventFilter};
@@ -23,7 +23,9 @@ fn slinger(socket: &Path, agent: Option<&str>, args: &[&str]) -> Output {
 #[test]
 fn agent_verbs_take_the_agent_from_the_flag_or_the_environment_or_fail_as_usage() {
     let data = tempfile::tempdir().unwrap();
-    let socket: PathBuf = std::env::temp_dir().join(format!("ae-{}.sock", std::process::id()));
+    // The socket in a directory of its own, removed on drop.
+    let sockets = tempfile::tempdir().unwrap();
+    let socket = sockets.path().join("d.sock");
     let store = slingerd::Store::open(data.path(), "my-laptop").unwrap();
     let server = slingerd::Server::bind(&socket).unwrap();
     let stopper = server.stopper();
@@ -67,7 +69,6 @@ fn agent_verbs_take_the_agent_from_the_flag_or_the_environment_or_fail_as_usage(
     assert_eq!(elsewhere.status.code(), Some(6), "--socket wins over SLINGER_SOCKET");
     stopper.stop();
     serving.join().unwrap().unwrap();
-    std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();
 }
 
 /// `canvas apply`, `undo` and `redo` act as `$SLINGER_AGENT` too, and as the

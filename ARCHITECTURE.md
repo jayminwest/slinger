@@ -60,6 +60,8 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              Log holds a file open for the daemon: requests (ops as JSON, the
              author, the time) in, numbered lines to append out, with the
              History beside it. Canvas ids (check_id) never name a path.
+             An arrow added in a request may name an item an `add` before
+             it makes (`$n`, its place in `made`): ids are given in order.
              Log::import stores a whole canvas (an import) as a new file
              that replays to it, ids, makers and times included.
              Log keeps every op it applied with its line's number, so
@@ -148,6 +150,10 @@ workspace/panes.rs  a workspace's panes (SPEC section 7): the tree of panes
              with the `pane_moved` it records, and the `[layout]` text
              (version 1, `panes`). Workspace::panes reads it (one pane on the
              canvas when unset or unreadable), set_panes stores it.
+workspace/profile.rs  an agent's profiles (`[[agent.profile]]`): a name,
+             a working directory and permission rules, each rule checked
+             against the tools it knows (an unknown one is refused, never
+             passed on); find, set in place and remove on a Workspace.
 session.rs   sessions (SPEC section 5, section 7 status set): a session per
              agent of the open workspaces (agent, home, delivery, status), the
              three statuses, and the record event each writes (blocked, done)
@@ -155,7 +161,8 @@ session.rs   sessions (SPEC section 5, section 7 status set): a session per
              canvas goes to. No IO.
 session/stream.rs  Claude Code's stream format (D10): the arguments that start
              or resume a session's process, with its limits (what it reads,
-             runs and loads, from its workspace's agent), a message as one
+             runs and loads, from its workspace's agent, or under one of its
+             profiles: `Limits::under`), a message as one
              input line (text, or a sling's text and base64 PNG blocks), and
              what an output line says (its session id, the end of a turn).
 session/hooks.rs  Claude Code's hooks (SPEC section 5): the `--settings` JSON
@@ -206,7 +213,11 @@ workspaces.rs the open workspaces: the list of directories that hold their
              on every request and checked by the core's rules. The store asks
              it for the workspace tag of each event it appends. `panes`
              changes a workspace's layout under the list's lock and writes
-             the file whole when it changed.
+             the file whole when it changed; `edit` does the same for any
+             change the core makes (the profiles).
+server/profile.rs  `profile_list`, `profile_set`, `profile_remove`: the core
+             checks the profile, a `dir` must be there (kept with its links
+             resolved), and `Workspaces::edit` writes the file.
 server/pane.rs  `pane_list`, `pane_open`, `pane_close`, `pane_resize`: the canvas or UI a
              pane shows must exist; the core changes the layout; each change
              appends its `pane_moved`, tagged with the workspace. `open` is
@@ -229,11 +240,14 @@ sessions.rs  the statuses agents set since the daemon started (`working`
              `touched` reads and hashes a file an agent wrote and appends
              `file_touched` (path and hash, never the bytes).
 processes.rs the agents' processes, one per agent: spawned in the agent's
-             home within its limits, with `SLINGER_AGENT` and `SLINGER_SOCKET`,
+             home (or its profile's dir) within its limits, with `SLINGER_AGENT` and `SLINGER_SOCKET`,
              written to under one lock, read by a thread each so a pipe never
              fills. Keeps each session id in `sessions.json` once the output
-             names it; drops it when a resume fails (an error exit before the
-             output names it) or on a `fresh` start. Dropping one closes its input, waits a grace period,
+             names it, under `<agent>#<profile>` for a profile, so each
+             profile resumes its own conversation; drops it when a resume fails (an error exit before the
+             output names it) or on a `fresh` start. A start under another
+             profile replaces the running process; a send for one profile
+             reaches only a process under it (`conflict` otherwise). Dropping one closes its input, waits a grace period,
              then kills it; `serve` ends them all when it stops. No restart on death (D20).
              Each starts with the core's hooks in `--settings`, running the
              CLI at `--slinger` (default: beside slingerd).
@@ -265,7 +279,9 @@ server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
 main.rs      wires the modules below. The only caller of platform. With
              `--preview UI [--data JSON]` it shows one agent UI alone and
              writes each reply's `ui_reply` line to stdout instead. It routes
-             each event: keys, the pen, the mouse, the trackpad. A pen or
+             each event (route.rs, which the window's answer and the tests
+             both call; the answer adds a tick's news): keys, the pen, the
+             mouse, the trackpad. A pen or
              mouse press first focuses the pane under it (its content or its
              footer; not a touch, a divider, or under the key overlay or the
              palette), then does its work there; a press an agent UI's page
@@ -338,12 +354,15 @@ mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              glyphs fill (scene/glyphs.rs), never the stored width, so every
              hit test, the lasso, the selection and the caret follow the
              glyphs, texts saved earlier included. Keeps the canvas's pages,
-             with their names. Pure.
+             with their names. Items carried to another page are `add`s
+             there, an arrow carried with its ends still bound to them. Pure.
 mirror/clip.rs  the selection's items on the clipboard: their file objects
-             as a JSON array, as a carry writes them (no id, maker, time,
-             page or arrow's bound ends), and its texts' plain text, one a
-             line; a paste reads the objects back as a carry's items for a
-             page, centred on a point. Pure.
+             as a JSON array, as a carry writes them (no id, maker, time
+             or page; an end bound to an item copied with it as `$n`), and
+             its texts' plain text, one a line; a paste reads the objects
+             back as a carry's items for a page, centred on a point, every
+             arrow's ends let go; plain text alone reads as one text item
+             (`text_items`). Pure.
 canvases.rs  the canvas panes: one follower and mirror per page shown, each
              pane's page, viewport and last scene (kept on screen until a
              page turned to arrives); the pen's ink, the eraser's and
@@ -373,7 +392,8 @@ canvases/slung.rs  the one-tap sling and what follows it: `sling-now` (the
 canvases/clip.rs  cut, copy and paste on the canvas panes: copy takes the
              selection the focused pane shows (cut then removes it, one
              step); paste puts text into the text being typed or a page
-             command's question, else items onto the focused pane's page,
+             command's question, else items (or plain text alone, as a new
+             text of the pen's colour) onto the focused pane's page,
              centred in it, one step, selected once there. A text being
              typed has no selection inside it (its caret is at its end), so
              copy and cut grey out while one is.
@@ -402,12 +422,16 @@ canvases/sling.rs  the sling from the window: opens the entry at the
 canvases/feedback.rs  the `leave-feedback` command: opens the feedback
              entry in the focused pane with its workspace, canvas, page
              name, tool and selection count, closing an open sling's entry;
-             saves it through the Noter. It takes the keys and the sling's
-             place in the scene while open.
-canvases/dictation.rs  the `dictate` command: opens the entry when it is
-             closed, then starts or stops Flick's dictation into it; the
-             entry closing cancels one going. Flick types the text into the
-             focused entry, so it reaches the sling as typing does.
+             saves it through the Noter, and asks it for the recent open
+             notes (`feedback_list`) to list under the entry. It takes the
+             keys and the sling's place in the scene while open.
+canvases/dictation.rs  the `dictate` command: opens the sling's entry when
+             no entry is open, then starts or stops Flick's dictation into
+             the open one (sling, feedback, rename); the entry closing
+             cancels one going. Flick types the text into the focused
+             entry, so it reaches it as typing does. The pen's buttons
+             beside a note's or a new name's entry (scene/sling/pen.rs),
+             with the selection's in sling_marks.
 config.rs    the config file's format: text in, a typed config or an error
              with its line out; merges a machine's overlay over it.
              `config/widths.rs` parses `[pen] widths` by hand (tenths of a
@@ -463,7 +487,9 @@ scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              first. `strip`: the open sidebar's foot, its hide button.
              `light`: the button under the pen. `tip`: a lit button that
              is only a glyph or a mark names its command and key just
-             above the footer. A hairline tops each. Pure.
+             above the footer, on a rounded panel with a hairline edge
+             that the footer carries (`Footer::tip`). A hairline tops
+             each. Pure.
 scene/status/cells.rs  how a footer's cells are laid: groups that stay or
              go together on the left, in the middle or on the right; the
              middle centred on the footer when there is room. Pure.
@@ -479,7 +505,8 @@ scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
              every press while open; the lift on the row pressed picks it,
              a press outside or escape closes it. Pages that do not fit
              scroll a row at a time with a scroll or a drag on the panel
-             (a drag taps nothing). No dim. Pure.
+             (a drag taps nothing); a ▲ or ▼ at a page row's end says
+             more pages are above or below. No dim. Pure.
 scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
              `<Tool> <key>` (a new width: `Width <n> <pick-width key>`),
              reload-config its title and key, a saved note "Feedback saved",
@@ -502,7 +529,8 @@ scene/paste.rs  the clipboard as the app sees it (`Clip`: plain text, a
 scene/cursor.rs  the pointer over a canvas pane, per tool: the pen a ring in
              its colour, the eraser a ring its width, the lasso and the
              shapes cross hairs, text an I-beam, the select tool and an open
-             pop-up the arrow. The arrow elsewhere (sidebar, agent UI, chrome). Pure.
+             pop-up the arrow. The arrow elsewhere (sidebar, agent UI, chrome).
+             On a divider between panes, the resize cursor across it. Pure.
 ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
              slinger-ui://<hex>/ with the policy), the sandbox's constants
              (the policy and the shim in ui/policy.txt and ui/shim.js, the
@@ -573,7 +601,7 @@ scene/pages.rs  pages (SPEC D6): the next and previous page, a new page's
              name, where a pane goes when its page is removed, the page
              line, and the two questions a page command asks (a rename's
              typed or pasted name, in an entry like the sling's centred in
-             its pane; a removal of a page with items, asked once in the
+             its pane with the pen's buttons beside it; a removal of a page with items, asked once in the
              footer); what each page command did, said once for the flash
              (`Page 2 · 2/3`, `New page: Page 3 · 3/3`, `Renamed: plan`,
              `Removed: ideas`, `The last page stays`). Pure.
@@ -640,7 +668,8 @@ scene/select/scale.rs  a drag of a corner handle scales the selection
 scene/resize.rs  the pen on a divider between panes: the press grabs it,
              each drag resizes the panes at once, the lift names it (the
              number of the pane before it, and its share) for
-             `pane_resize`. Pure.
+             `pane_resize`. The pointer within reach of one, or holding
+             one, gets its resize cursor. Pure.
 scene/overlay.rs  the key overlay (`show-keys`): open or closed, its
              scroll, the row under the pen and the press. While open it
              takes every key (escape and the show-keys key close it, the
@@ -675,15 +704,18 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              opened again. Pure. `sling/buttons.rs`: the three buttons
              beside a selection's box, ➤ Sling (`sling-now`), + prompt
              (`sling`) and Delete (`delete-selection`), each a 28 pt target
-             inside the pane.
+             inside the pane. `sling/pen.rs`: the pen's buttons beside a
+             note's or a new name's box, ✓ Save or ✓ Rename (Tap::Send, as
+             return), Dictate (`dictate`; ● Stop while Flick listens) and ✕
+             (Tap::Cancel, as escape); the box narrows to make room.
 scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
              sling's labelled field (Entry::framed), "Feedback" above and
              "↩ saves · esc cancels" beneath, centred in the focused pane
-             below the flash. Return saves, escape cancels, an empty note
+             below the flash with the pen's buttons beside it. Return saves, escape cancels, an empty note
              saves nothing; "saving feedback…" while it goes, a failure's
              message and hint under the entry opened again, and "Feedback
              saved" flashed once on success. Pure.
-scene/dictation.rs  the dictation into the entry: start, then stop, one
+scene/dictation.rs  the dictation into the open entry: start, then stop, one
              request to Flick at a time; that Flick listens, or why it
              failed (Flick not running, or its refusal) and what to do, under
              the entry; an answer overtaken by the entry closing is ignored.
@@ -735,7 +767,9 @@ platform/menu.rs  makes the menu bar a scene's menus say, again when they
              change. A command item chosen by its key goes to main as that
              key press, so the keymap runs it once; chosen with the pointer,
              as Event::Command. Cut, copy, paste, select all, minimise and
-             about go along the responder chain.
+             about go along the responder chain. An undo or redo key main
+             passes on (the entry has it) goes on as undo: or redo: along
+             the responder chain, to the field's own undo.
 platform/keys.rs  a key press as a chord and the text it types (none with
              cmd held), and the clipboard as a Clip: its plain text and a
              canvas's items under the app's own type
@@ -890,7 +924,9 @@ chord and the keymap's other chords with cmd or ctrl that a text field does
 not use (`scene::sling::edits`): return and escape are its, a key that types,
 an edit (cmd+X/C/V/A/Z, cmd or ctrl with an arrow or delete, ctrl with a
 letter) or a chord the keymap leaves free goes on to the text field (delete
-deletes a character there, not the selection), and cmd+Q still quits.
+deletes a character there, not the selection), and cmd+Q still quits. The
+Edit menu's Undo and Redo take their keys before the field, so a passed
+undo or redo key goes to it as undo: or redo: (platform/menu.rs).
 An open pop-up at the pen takes its own keys first (escape, return, space,
 the arrows, 1 to 9); any other key goes to the keymap. These keys act only
 inside a pop-up a command opened, so they are not commands themselves.
@@ -944,6 +980,7 @@ Each boundary has something that fails when it is broken:
 | An agent's move or resize (edit or apply) takes its bound arrows' ends along in one step, not another author's | `crates/core/tests/canvas_edit.rs` |
 | Three sends reach one process under one session id and their answers are read; a restart resumes it; a dead process makes a send `unavailable`; a daemon stop ends it; a resume that fails drops the id and the next start is new; a fresh start ends the running process and begins a new session | `crates/daemon/src/tests/process.rs`, with a stand-in for Claude Code |
 | A session starts with the exact limits its workspace sets: by default its roots, the `slinger` CLI and no user config; wider with the agent's `dirs`, `tools` and `user_config` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
+| A profile is set, listed and removed in the workspace's file, and a bad name, rule or dir is refused loudly with nothing written; a session under one runs in its dir with its rules in place of the agent's and resumes its own conversation; a sling that names one reaches only a process under it | `crates/core/src/workspace/profile.rs`, `crates/core/src/session/stream.rs`, `crates/daemon/src/tests/profile.rs` with a stand-in for Claude Code, `crates/cli/src/tests/profile.rs` |
 | Three slings go into one conversation, each with its packet blob and `sling_sent`; old ink is not sent again; no running agent is `unavailable` and stores nothing; each verb the note names is served | `crates/daemon/src/tests/sling.rs`, with a stand-in for Claude Code |
 | An agent verb takes its agent from `--agent` or `SLINGER_AGENT`, else exits 2 | `crates/cli/tests/agent_env.rs`, against the real binary |
 | The hooks: each event runs its CLI command and none exits 2; `file_touched` stores a path and a hash, no contents | `crates/core/src/session/hooks.rs`, and `crates/daemon/src/tests/touched.rs` through a real socket |

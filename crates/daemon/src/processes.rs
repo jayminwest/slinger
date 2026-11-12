@@ -11,7 +11,10 @@
 //! loses the id, so the next start begins a new conversation; a fresh start
 //! drops it on purpose. Slinger does
 //! not keep a process alive (D20): one that dies shows as `exited` until the
-//! next start. Each process gets the hooks the core makes
+//! next start. A process may run under one of its agent's profiles; each
+//! profile keeps a conversation of its own, under `<agent>#<profile>` in
+//! the file of ids, since Claude Code keeps a conversation per working
+//! directory. Each process gets the hooks the core makes
 //! ([`slinger_core::session::hooks`]), so it reports its status and the files
 //! it writes through the CLI.
 
@@ -40,6 +43,9 @@ const SOCKET_ENV: &str = "SLINGER_SOCKET";
 pub enum ProcessError {
     #[error("the agent {agent:?} has no running process: {why}")]
     NotRunning { agent: String, why: &'static str },
+    /// A message for one profile, to a process under another one, or none.
+    #[error("the agent {agent:?} runs under {}, not profile {want:?}", running.as_ref().map_or_else(|| "no profile".to_string(), |p| format!("profile {p:?}")))]
+    OtherProfile { agent: String, running: Option<String>, want: String },
     #[error("cannot start {}: {source}", program.display())]
     Spawn { program: PathBuf, source: io::Error },
     #[error("cannot keep the session ids in {}: {source}", path.display())]
@@ -52,6 +58,7 @@ impl ProcessError {
     pub fn code(&self) -> &'static str {
         match self {
             Self::NotRunning { .. } => "unavailable",
+            Self::OtherProfile { .. } => "conflict",
             Self::Spawn { source, .. } if source.kind() == io::ErrorKind::NotFound => "not_found",
             Self::Spawn { .. } | Self::Ids { .. } => "internal",
         }
@@ -64,6 +71,9 @@ impl ProcessError {
             Self::NotRunning { .. } => {
                 Some("start it with 'slinger session start <WORKSPACE>'".into())
             }
+            Self::OtherProfile { want, .. } => Some(format!(
+                "start it under that profile: 'slinger session start <WORKSPACE> --profile {want}'"
+            )),
             Self::Spawn { .. } => {
                 Some("install Claude Code, or pass its path with 'slingerd --claude <PATH>'".into())
             }
@@ -84,6 +94,8 @@ pub struct Shown {
     pub pending: u32,
     /// The text of its last answer, if it gave one.
     pub answer: Option<String>,
+    /// The profile it runs under, if any.
+    pub profile: Option<String>,
 }
 
 /// The processes, by agent. Safe to share between threads.
@@ -127,9 +139,11 @@ impl Processes {
         let _ = self.socket.set(full);
     }
 
-    /// Starts `agent`'s process in `home` within `limits`, resuming its last
-    /// session. A running one is left as it is; one that exited is replaced,
-    /// and one that exited because it could not resume its session starts a
+    /// Starts `agent`'s process within `limits`, in their directory or else
+    /// in `home`, under `profile` (or none), resuming that profile's last
+    /// session. A running one under the same profile is left as it is; one
+    /// that exited, or that runs under another profile, is replaced, and
+    /// one that exited because it could not resume its session starts a
     /// new one. `fresh` starts a new session in any case, ending a running
     /// process first.
     ///
@@ -137,17 +151,30 @@ impl Processes {
     ///
     /// [`ProcessError::Spawn`] when the program cannot run, and
     /// [`ProcessError::Ids`] when the file of ids cannot be read or written.
-    pub fn start(&self, agent: &str, home: &Path, limits: &Limits, fresh: bool) -> Result<()> {
+    pub fn start(
+        &self,
+        agent: &str,
+        profile: Option<&str>,
+        home: &Path,
+        limits: &Limits,
+        fresh: bool,
+    ) -> Result<()> {
         let mut held = self.lock();
-        if !fresh && held.get_mut(agent).is_some_and(Held::running) {
+        let same = |p: &mut Held| p.profile.as_deref() == profile && p.running();
+        if !fresh && held.get_mut(agent).is_some_and(same) {
             return Ok(());
         }
         // The process it replaces ends before the new one starts.
-        let lost = held.remove(agent).is_some_and(|mut last| last.lost_its_resume());
-        if fresh || lost {
-            self.ids.forget(agent)?;
+        if let Some(mut last) = held.remove(agent)
+            && last.lost_its_resume()
+        {
+            self.ids.forget(&last.key)?;
         }
-        let kept = self.ids.get(agent)?;
+        let key = key(agent, profile);
+        if fresh {
+            self.ids.forget(&key)?;
+        }
+        let kept = self.ids.get(&key)?;
         let resume = kept.is_some();
         let id = match kept {
             Some(id) => id,
@@ -158,7 +185,8 @@ impl Processes {
         // Its hooks report its status and the files it writes. Passed as an
         // argument, they are this process's alone: no settings file changes.
         command.arg("--settings").arg(hooks::settings(&self.slinger));
-        command.args(stream::args(start, limits)).current_dir(home).env(AGENT_ENV, agent);
+        let dir = limits.dir.as_deref().map_or(home, Path::new);
+        command.args(stream::args(start, limits)).current_dir(dir).env(AGENT_ENV, agent);
         if let Some(socket) = self.socket.get() {
             command.env(SOCKET_ENV, socket);
         }
@@ -175,25 +203,37 @@ impl Processes {
         let (stdin, stdout) = (child.stdin.take(), child.stdout.take());
         let heard = Arc::new(Mutex::new(Heard::default()));
         if let Some(out) = stdout {
-            listen(out, agent, &heard, &self.ids);
+            listen(out, &key, &heard, &self.ids);
         }
-        held.insert(agent.to_string(), Held { child, id, resumed: resume, stdin, heard });
+        let profile = profile.map(str::to_string);
+        let process = Held { child, id, key, profile, resumed: resume, stdin, heard };
+        held.insert(agent.to_string(), process);
         Ok(())
     }
 
     /// Writes `line` (one message, as the stream format makes it) to
-    /// `agent`'s running process.
+    /// `agent`'s running process; with `profile`, only to one that runs
+    /// under that profile.
     ///
     /// # Errors
     ///
     /// [`ProcessError::NotRunning`] when there is no process, it exited, or
-    /// it does not take the line.
-    pub fn send(&self, agent: &str, line: &str) -> Result<()> {
+    /// it does not take the line; [`ProcessError::OtherProfile`] when it
+    /// runs under another profile than `profile`, or none.
+    pub fn send(&self, agent: &str, line: &str, profile: Option<&str>) -> Result<()> {
         let mut held = self.lock();
         let not = |why| ProcessError::NotRunning { agent: agent.to_string(), why };
         let process = held.get_mut(agent).ok_or_else(|| not("it was not started"))?;
         if !process.running() {
             return Err(not("it exited"));
+        }
+        if let Some(want) = profile.filter(|p| process.profile.as_deref() != Some(*p)) {
+            let (agent, want) = (agent.to_string(), want.to_string());
+            return Err(ProcessError::OtherProfile {
+                agent,
+                running: process.profile.clone(),
+                want,
+            });
         }
         let stdin = process.stdin.as_mut().ok_or_else(|| not("its input is closed"))?;
         stdin
@@ -229,11 +269,12 @@ impl Processes {
         let heard = process.heard();
         let pending = if running { heard.pending } else { 0 };
         let answer = heard.answer.clone();
-        Some(Shown { running, pid: process.child.id(), pending, answer })
+        let profile = process.profile.clone();
+        Some(Shown { running, pid: process.child.id(), pending, answer, profile })
     }
 
     /// The session id `agent`'s conversation has: the one its process uses,
-    /// else the one the next start resumes.
+    /// else the one the next start with no profile resumes.
     ///
     /// # Errors
     ///
@@ -257,6 +298,10 @@ struct Held {
     child: Child,
     /// The session id it started with: the one it resumes, or a new one.
     id: String,
+    /// Its id's key in the file of ids: the agent's, or its profile's.
+    key: String,
+    /// The profile it runs under.
+    profile: Option<String>,
     /// Whether it started by resuming `id`.
     resumed: bool,
     /// `None` once closed.
@@ -313,9 +358,9 @@ struct Heard {
 
 /// Reads the process's output on a thread of its own until it closes, so the
 /// process never blocks on a full pipe: the session id it names (kept in the
-/// file of ids) and each answer.
-fn listen(out: ChildStdout, agent: &str, heard: &Arc<Mutex<Heard>>, ids: &Arc<Ids>) {
-    let (agent, heard, ids) = (agent.to_string(), Arc::clone(heard), Arc::clone(ids));
+/// file of ids, under `key`) and each answer.
+fn listen(out: ChildStdout, key: &str, heard: &Arc<Mutex<Heard>>, ids: &Arc<Ids>) {
+    let (key, heard, ids) = (key.to_string(), Arc::clone(heard), Arc::clone(ids));
     std::thread::spawn(move || {
         let mut lines = BufReader::new(out);
         let mut line = Vec::new();
@@ -332,7 +377,7 @@ fn listen(out: ChildStdout, agent: &str, heard: &Arc<Mutex<Heard>>, ids: &Arc<Id
             {
                 // A failure to keep it costs the next start its resume, and
                 // nothing now; there is no caller to tell.
-                let _ = ids.set(&agent, &id);
+                let _ = ids.set(&key, &id);
                 heard.session_id = Some(id);
             }
         }
@@ -340,7 +385,13 @@ fn listen(out: ChildStdout, agent: &str, heard: &Arc<Mutex<Heard>>, ids: &Arc<Id
     });
 }
 
-/// The file of session ids: `{agent: id}` as JSON.
+/// The key of a conversation in the file of ids: the agent's name, or
+/// `<agent>#<profile>` for one of its profiles.
+fn key(agent: &str, profile: Option<&str>) -> String {
+    profile.map_or_else(|| agent.to_string(), |p| format!("{agent}#{p}"))
+}
+
+/// The file of session ids: `{key: id}` as JSON, keyed by [`key`].
 #[derive(Debug)]
 struct Ids {
     path: PathBuf,
@@ -349,21 +400,21 @@ struct Ids {
 }
 
 impl Ids {
-    fn get(&self, agent: &str) -> Result<Option<String>> {
+    fn get(&self, key: &str) -> Result<Option<String>> {
         let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
-        Ok(self.load()?.remove(agent))
+        Ok(self.load()?.remove(key))
     }
 
-    fn set(&self, agent: &str, id: &str) -> Result<()> {
+    fn set(&self, key: &str, id: &str) -> Result<()> {
         self.change(|all| {
-            all.insert(agent.to_string(), id.to_string());
+            all.insert(key.to_string(), id.to_string());
         })
     }
 
-    /// Drops `agent`'s id: its next start begins a new session.
-    fn forget(&self, agent: &str) -> Result<()> {
+    /// Drops `key`'s id: its next start begins a new session.
+    fn forget(&self, key: &str) -> Result<()> {
         self.change(|all| {
-            all.remove(agent);
+            all.remove(key);
         })
     }
 

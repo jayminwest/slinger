@@ -20,7 +20,9 @@ use serde_json::Value;
 
 use super::json::{self, Fields};
 use super::{File, Header, Line, read, snap};
-use crate::canvas::{Action, Applied, Author, Canvas, History, Op, Page, Point, Shape, Time};
+use crate::canvas::{
+    Action, Applied, Author, Canvas, History, ItemId, Op, Page, Point, Shape, Time,
+};
 use crate::{Error, Result};
 
 /// The longest canvas id, in bytes.
@@ -350,6 +352,14 @@ impl Log {
                     .map_err(bad)?
                     .clone();
                 item.entry("color").or_insert_with(|| "#000000".into());
+                for key in ["from", "to"] {
+                    let Some(n) = item.get(key).and_then(Value::as_str) else { continue };
+                    let Some(n) = n.strip_prefix('$') else { continue };
+                    let made = self.made(out, n).ok_or_else(|| {
+                        bad(format!("`{key}` \"${n}\" names no item an `add` before it made"))
+                    })?;
+                    item.insert(key.into(), json::item_id(made).into());
+                }
                 let page = json::text(&item, "page").and_then(json::parse_page).map_err(bad)?;
                 let shape = read_shape(&item)?;
                 out.push(Action::Add { page, shape });
@@ -385,6 +395,24 @@ impl Log {
             other => return Err(bad(format!("{other:?} is not an operation a client may send"))),
         }
         Ok(())
+    }
+
+    /// The item an arrow's end `$n` names: the one the `add` of `out` that
+    /// is `made[n]` (counting from 0) will make. Adds take ids in order,
+    /// from the canvas's next. `None` when `n` is not a number, or names a
+    /// page or nothing made yet.
+    fn made(&self, out: &[Action], n: &str) -> Option<ItemId> {
+        let n: usize = n.parse().ok()?;
+        let mut next = self.canvas.next_item().get();
+        let mut made = out.iter().filter_map(|action| match action {
+            Action::Add { .. } => {
+                next += 1;
+                Some(Some(ItemId::new(next - 1)))
+            }
+            Action::PageAdd { .. } => Some(None),
+            _ => None,
+        });
+        made.nth(n)?
     }
 }
 

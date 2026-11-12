@@ -11,6 +11,28 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** rename a page and leave feedback with the pen alone. Their
+  entries have buttons beside them: ✓ Rename or ✓ Save does what return
+  does, ✕ what escape does, and Dictate has Flick write the text in, as
+  in the sling's prompt (tap it again, ● Stop, when done). The dictate
+  key works in these entries too.
+
+- **Agents:** profiles per workspace. `slinger profile set <workspace> dev
+  --dir ~/Projects/app --tool Edit --tool 'Bash(git *)'` gives the
+  workspace's agent a named profile: a working directory and the Claude
+  Code tools it may use there. `slinger session start <workspace> --profile
+  dev` runs the agent under it, in a conversation of its own, and `slinger
+  sling send --profile dev` sends only to an agent running under it. A
+  start with no profile keeps the agent's own narrow limits, and a tool
+  slinger does not know is refused rather than passed on. `profile list`
+  and `profile remove` show and drop them; they live in
+  `slinger-workspace.toml` under `[[agent.profile]]`.
+- **Canvas:** `canvas apply` can add items and the arrows between them in
+  one step: an arrow's `from` or `to` may be `$n`, the item at `made[n]`
+  of the same request, made by an `add` before it.
+- **Feedback:** the app's feedback entry (`leave-feedback`, ⌘⇧F) lists
+  the five newest open notes under it, with when each was left, so you see
+  what is already said before you add to it.
 - **CLI:** `slinger session start <workspace> --fresh` starts the agent in a
   new conversation instead of resuming its last one, stopping a running
   agent first.
@@ -20,7 +42,9 @@ bullet with the area in bold.
   to the focused pane's page, centred in it and selected, on any page or
   canvas. Undo takes a paste or a cut back in one step. Cut, Copy and
   Paste grey out in the Edit menu when they would do nothing, such as
-  Copy with nothing selected or while typing a text.
+  Copy with nothing selected or while typing a text. Plain text copied
+  from another app pastes onto the page as a new text in the pen's
+  colour.
 
 - **CLI:** `slinger canvas put` takes `--color` (`#rrggbb`, so an agent can
   answer in yellow), `--at x,y` to put the item exactly where it wants
@@ -106,6 +130,10 @@ bullet with the area in bold.
   white parts of it: each tile of its picture is cut down to the ink, and a
   tile with nothing new on it is left out. The fixture board costs about
   13% fewer tokens (63 800 to 55 700 by the packet's estimate).
+- **App:** a page menu with more pages than fit shows ▲ or ▼ at the end of
+  its top or bottom page row while more pages are above or below.
+- **App:** a footer button's tip now sits on a small panel with rounded
+  corners and a hairline edge, like the menus.
 - **App:** the selection's corner handles resize it, with the lasso or
   the select tool: drag one and the selection scales about the opposite
   corner. Strokes, boxes and arrows stretch; texts and agent UIs keep their
@@ -140,6 +168,14 @@ bullet with the area in bold.
 - **Canvas:** zero-width characters (a joiner, a zero-width space, an emoji
   variation selector) no longer take a blank cell in a text's picture or
   widen its frame.
+- **App:** ⌘Z and ⇧⌘Z undo and redo your typing in the sling's prompt
+  (and a note of feedback or a page's new name) instead of doing nothing.
+- **App:** the pointer turns into the resize cursor within reach of the
+  divider between two panes, and keeps it while you drag the divider, so
+  you can see where a press resizes the panes.
+- **App:** an arrow dragged to another page with the items at its ends
+  stays joined to them there: move a box on the new page and the arrow
+  follows, as it did on the old one.
 - **Sessions:** an agent whose last conversation Claude Code no longer has
   (`--resume` fails) is no longer stuck. Its process shows as `exited`,
   and the next `slinger session start` begins a new conversation.
@@ -203,6 +239,9 @@ bullet with the area in bold.
 - **App:** choosing a menu bar item while the command palette is open now
   closes the palette before the command runs, instead of leaving it over
   the window. Choosing Show commands only closes it.
+- **App:** choosing a menu bar item while the key overlay or the page menu
+  is open now closes it before the command runs, as the palette does.
+  Choosing Show keys only closes the key overlay.
 - **App:** the key overlay, the command palette and the page menu now draw
   over an open sling prompt (and the feedback and rename fields), dimming
   it with the rest of the window, instead of leaving the prompt on top.

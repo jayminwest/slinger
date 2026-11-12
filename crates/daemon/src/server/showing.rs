@@ -157,7 +157,7 @@ fn reply(store: &Store, open: &str, value: Value) -> Result<Reply, RemoteError> 
     // The reply is in the record either way; an agent whose session does
     // not run gets none of it now, and the app says so.
     let line = stream::message(&showing::line(sent)).map_err(|e| remote(&e))?;
-    let delivered = store.sessions().processes().send(&showing.agent, &line).is_ok();
+    let delivered = store.sessions().processes().send(&showing.agent, &line, None).is_ok();
     Ok(Reply::UiReply(control::UiReplied {
         event: event.number.unwrap_or_default(),
         agent: showing.agent,

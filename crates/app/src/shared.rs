@@ -104,6 +104,17 @@ impl Shared {
         }
     }
 
+    /// A command chosen from the menu bar with the pointer: the open
+    /// palette, else the open key overlay, else the open page menu closes
+    /// first, and then it runs ([`Took::Tap`]), except the `show-commands`
+    /// or `show-keys` that only closed its own ([`Took::Yes`]). With none
+    /// open, [`Took::No`]: it runs as its key would.
+    pub fn chosen(&mut self, command: Command) -> Took {
+        let taken = Took::from(self.palette.chosen(command));
+        let taken = if taken == Took::No { self.overlay.chosen(command).into() } else { taken };
+        if taken == Took::No { self.menu.chosen(command) } else { taken }
+    }
+
     /// A pen or mouse press at `at`, a point in the window, with the panes
     /// in `area`: the pane under it (what it shows or its footer) takes
     /// focus before the press does its work, so every focused-pane command
