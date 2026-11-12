@@ -14,8 +14,8 @@ pub fn answer(store: &Store, ask: SessionAsk) -> Result<Reply, RemoteError> {
         SessionAsk::SessionList => list(store),
         SessionAsk::SessionShow { agent } => show(store, &agent),
         SessionAsk::StatusSet { agent, status, note } => set(store, &agent, &status, note),
-        SessionAsk::SessionStart { workspace } => {
-            let session = store.sessions().start(store, &workspace);
+        SessionAsk::SessionStart { workspace, fresh } => {
+            let session = store.sessions().start(store, &workspace, fresh);
             Ok(Reply::SessionStart(info(store, session)?))
         }
         SessionAsk::SessionStop { workspace } => {

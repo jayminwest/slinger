@@ -14,6 +14,21 @@ bullet with the area in bold.
 - **Feedback:** the app's feedback entry (`leave-feedback`, ⌘⇧F) lists
   the five newest open notes under it, with when each was left, so you see
   what is already said before you add to it.
+- **CLI:** `slinger session start <workspace> --fresh` starts the agent in a
+  new conversation instead of resuming its last one, stopping a running
+  agent first.
+- **App:** copy, cut and paste on the canvas. With a selection, Edit >
+  Copy (⌘C) puts its items on the clipboard (other apps get the text of
+  its texts), Cut (⌘X) also removes them, and Edit > Paste (⌘V) adds them
+  to the focused pane's page, centred in it and selected, on any page or
+  canvas. Undo takes a paste or a cut back in one step. Cut, Copy and
+  Paste grey out in the Edit menu when they would do nothing, such as
+  Copy with nothing selected or while typing a text.
+
+- **CLI:** `slinger canvas put` takes `--color` (`#rrggbb`, so an agent can
+  answer in yellow), `--at x,y` to put the item exactly where it wants
+  instead of beside the item, and `--ink` to draw a pen stroke (a bracket,
+  an underline, a check mark). The note in a first sling tells the agent.
 - **CLI:** `slinger canvas schema` prints the item kinds (text, box,
   arrow, stroke, button, live) with their fields and the operations
   `canvas apply` takes, without a daemon; `canvas apply --help` shows the
@@ -121,6 +136,13 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Sessions:** an agent whose last conversation Claude Code no longer has
+  (`--resume` fails) is no longer stuck. Its process shows as `exited`,
+  and the next `slinger session start` begins a new conversation.
+- **CLI:** when an agent moves its item with `slinger canvas edit --move`,
+  its arrows bound to the item follow, as they do when you move it in the
+  app; they no longer point at where the item was.
+
 - **App:** a colour, shape, tool or width pop-up opened from a key before
   the pen or pointer has been in the window opens at the middle of the
   focused pane, wherever the window was sized, not at a fixed spot.
@@ -128,6 +150,10 @@ bullet with the area in bold.
   dragged inside a box takes the ink it touches, not the outer box; a tap,
   or a drag over nothing, inside nested boxes selects the innermost one.
   A drag across a box's outline still takes it.
+- **App:** menu keys work while the sling's prompt (or a note of feedback)
+  is open: ⌘Q quits, ⌘K opens the palette and so on, instead of doing
+  nothing. Keys a text field uses itself (⌘X, ⌘C, ⌘V, ⌘A, the arrows
+  and delete with ⌘ or ⌃) still edit the prompt.
 - **App:** the key overlay (⌘/) fits a narrow window. It drops to two
   columns, then one, instead of squeezing three until the titles and keys
   overlap; the rows scroll as before.

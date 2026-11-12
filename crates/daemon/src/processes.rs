@@ -6,7 +6,10 @@
 //! module owns the processes and the file of session ids, `sessions.json` in
 //! the data directory: the id each agent's conversation last had, so the next
 //! start resumes it, even after a restart. An id is kept once the process's
-//! output names it; by then the conversation exists to resume. Slinger does
+//! output names it; by then the conversation exists to resume. A resume that
+//! fails (the process exits with an error before its output names the id)
+//! loses the id, so the next start begins a new conversation; a fresh start
+//! drops it on purpose. Slinger does
 //! not keep a process alive (D20): one that dies shows as `exited` until the
 //! next start. Each process gets the hooks the core makes
 //! ([`slinger_core::session::hooks`]), so it reports its status and the files
@@ -125,18 +128,25 @@ impl Processes {
     }
 
     /// Starts `agent`'s process in `home` within `limits`, resuming its last
-    /// session. A running one is left as it is; one that exited is replaced.
+    /// session. A running one is left as it is; one that exited is replaced,
+    /// and one that exited because it could not resume its session starts a
+    /// new one. `fresh` starts a new session in any case, ending a running
+    /// process first.
     ///
     /// # Errors
     ///
     /// [`ProcessError::Spawn`] when the program cannot run, and
-    /// [`ProcessError::Ids`] when the file of ids cannot be read.
-    pub fn start(&self, agent: &str, home: &Path, limits: &Limits) -> Result<()> {
+    /// [`ProcessError::Ids`] when the file of ids cannot be read or written.
+    pub fn start(&self, agent: &str, home: &Path, limits: &Limits, fresh: bool) -> Result<()> {
         let mut held = self.lock();
-        if held.get_mut(agent).is_some_and(Held::running) {
+        if !fresh && held.get_mut(agent).is_some_and(Held::running) {
             return Ok(());
         }
-        held.remove(agent);
+        // The process it replaces ends before the new one starts.
+        let lost = held.remove(agent).is_some_and(|mut last| last.lost_its_resume());
+        if fresh || lost {
+            self.ids.forget(agent)?;
+        }
         let kept = self.ids.get(agent)?;
         let resume = kept.is_some();
         let id = match kept {
@@ -167,7 +177,7 @@ impl Processes {
         if let Some(out) = stdout {
             listen(out, agent, &heard, &self.ids);
         }
-        held.insert(agent.to_string(), Held { child, id, stdin, heard });
+        held.insert(agent.to_string(), Held { child, id, resumed: resume, stdin, heard });
         Ok(())
     }
 
@@ -247,6 +257,8 @@ struct Held {
     child: Child,
     /// The session id it started with: the one it resumes, or a new one.
     id: String,
+    /// Whether it started by resuming `id`.
+    resumed: bool,
     /// `None` once closed.
     stdin: Option<ChildStdin>,
     heard: Arc<Mutex<Heard>>,
@@ -260,6 +272,16 @@ impl Held {
 
     fn heard(&self) -> std::sync::MutexGuard<'_, Heard> {
         self.heard.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Whether it could not resume its session: it was to resume one, it
+    /// exited with an error code, and its output never named that session.
+    /// Claude Code exits so when it no longer has the conversation. One that
+    /// was killed, or that answered under that id first, still has it.
+    fn lost_its_resume(&mut self) -> bool {
+        let failed =
+            matches!(self.child.try_wait(), Ok(Some(s)) if s.code().is_some_and(|c| c != 0));
+        self.resumed && failed && self.heard().session_id.as_deref() != Some(&self.id)
     }
 }
 
@@ -333,9 +355,22 @@ impl Ids {
     }
 
     fn set(&self, agent: &str, id: &str) -> Result<()> {
+        self.change(|all| {
+            all.insert(agent.to_string(), id.to_string());
+        })
+    }
+
+    /// Drops `agent`'s id: its next start begins a new session.
+    fn forget(&self, agent: &str) -> Result<()> {
+        self.change(|all| {
+            all.remove(agent);
+        })
+    }
+
+    fn change(&self, edit: impl FnOnce(&mut BTreeMap<String, String>)) -> Result<()> {
         let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
         let mut all = self.load()?;
-        all.insert(agent.to_string(), id.to_string());
+        edit(&mut all);
         let text = serde_json::to_string_pretty(&all).map_err(|e| self.failed(e.into()))?;
         let next = self.path.with_extension("json.next");
         std::fs::write(&next, text + "\n")

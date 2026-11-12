@@ -1,7 +1,6 @@
 //! The real binary: it serves, and SIGTERM ends it cleanly, even with a
 //! client waiting on a canvas feed.
 
-use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -9,7 +8,9 @@ use slinger_control::Client;
 
 #[test]
 fn sigterm_stops_the_daemon_cleanly() {
-    let socket: PathBuf = std::env::temp_dir().join(format!("s-{}.sock", std::process::id()));
+    // Its own directory, so no other run shares the path.
+    let socket_dir = tempfile::tempdir().unwrap();
+    let socket = socket_dir.path().join("s.sock");
     let data = tempfile::tempdir().unwrap();
     let daemon = Command::new(env!("CARGO_BIN_EXE_slingerd"))
         .arg("--socket")
@@ -47,5 +48,4 @@ fn sigterm_stops_the_daemon_cleanly() {
     assert_eq!((output.stdout.as_slice(), output.stderr.as_slice()), (&b""[..], &b""[..]));
     assert!(!socket.exists());
     assert!(data.path().join("record.sqlite").exists());
-    std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();
 }

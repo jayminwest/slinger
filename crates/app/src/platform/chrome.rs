@@ -1,5 +1,6 @@
 //! The chrome that is not a line of text: the focus border, and the flash's
-//! pill with the one timer that takes it away.
+//! pill with the one timer that takes it away; and what every view is made
+//! with: a plain label, a frame in `AppKit`'s coordinates and a colour.
 
 use std::time::Instant;
 
@@ -10,9 +11,10 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSPoint, NSRect, NSSize, NSString, NSTimer};
 
-use super::{color, flipped};
-use crate::scene::Border;
+use crate::config::Rgb;
+use crate::layout::Rect;
 use crate::scene::flash::{self, Pill};
+use crate::scene::{Border, Label};
 
 /// A box that draws only its edge: no title, no fill.
 pub fn border(border: &Border, height: f64, mtm: MainThreadMarker) -> Retained<NSBox> {
@@ -65,4 +67,36 @@ fn frameless(mtm: MainThreadMarker) -> Retained<NSBox> {
     edge.setBoxType(NSBoxType::Custom);
     edge.setTitlePosition(NSTitlePosition::NoTitle);
     edge
+}
+
+/// A text field that shows `line` in a view `height` tall.
+pub fn label(
+    line: &Label,
+    height: f64,
+    align: NSTextAlignment,
+    mtm: MainThreadMarker,
+) -> Retained<NSTextField> {
+    let field = NSTextField::labelWithString(&NSString::from_str(&line.text), mtm);
+    field.setFrame(flipped(height, line.frame));
+    field.setAlignment(align);
+    field.setTextColor(Some(&color(line.colour)));
+    if let Some(fill) = line.fill {
+        field.setDrawsBackground(true);
+        field.setBackgroundColor(Some(&color(fill)));
+    }
+    field
+}
+
+/// `rect`, whose origin is the top left of a view `height` tall, in `AppKit`'s
+/// coordinates, whose origin is the bottom left.
+pub fn flipped(height: f64, rect: Rect) -> NSRect {
+    NSRect::new(
+        NSPoint::new(rect.x, height - rect.y - rect.height),
+        NSSize::new(rect.width, rect.height),
+    )
+}
+
+pub fn color(rgb: Rgb) -> Retained<NSColor> {
+    let channel = |c: u8| f64::from(c) / 255.0;
+    NSColor::colorWithSRGBRed_green_blue_alpha(channel(rgb.r), channel(rgb.g), channel(rgb.b), 1.0)
 }

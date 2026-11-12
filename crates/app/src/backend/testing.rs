@@ -1,5 +1,8 @@
 //! What the app's tests share: stand-ins for Claude Code, one for Flick, a
 //! wait, and a user's stroke on a canvas.
+//!
+//! The tests run beside other builds: a wait stops on the whole of what it
+//! waits for, never its first sign, and gives up only after long enough.
 
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
@@ -53,13 +56,25 @@ fn write_claude(dir: &Path, script: &str) -> PathBuf {
     path
 }
 
-/// Waits until `met` holds, or fails after 10 s.
+/// Waits until `met` holds, or fails after 30 s: long enough for a machine
+/// busy with other builds.
 pub(crate) fn wait_until(mut met: impl FnMut() -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + Duration::from_secs(30);
     while !met() {
         assert!(Instant::now() < deadline, "timed out");
         std::thread::sleep(Duration::from_millis(10));
     }
+}
+
+/// What the stand-in for Claude Code in `home` read, once it holds `want`.
+/// It writes a message a line at a time: wait for the part that ends it.
+pub(crate) fn delivered(home: &Path, want: &str) -> String {
+    let mut message = String::new();
+    wait_until(|| {
+        message = fs::read_to_string(home.join("in.txt")).unwrap_or_default();
+        message.contains(want)
+    });
+    message
 }
 
 /// A user's stroke on page p1 of `canvas`, from (100, 100) to (110, 110).
@@ -71,8 +86,8 @@ pub(crate) fn user_stroke(daemon: &Client, canvas: &str) {
 }
 
 /// A stand-in Flick on a socket in `dir`: it answers each request line with
-/// `answer(line)`, then records the line. Returns the socket and the
-/// requests heard so far.
+/// `answer(line)`, after it records the line: once its answer is in, so is
+/// the request. Returns the socket and the requests heard so far.
 pub(crate) fn fake_flick(
     dir: &Path,
     answer: fn(&str) -> String,
@@ -89,8 +104,9 @@ pub(crate) fn fake_flick(
                 continue;
             }
             let line = line.trim_end().to_string();
-            let _ = writeln!(stream, "{}", answer(&line));
+            let answered = answer(&line);
             theirs.lock().unwrap().push(line);
+            let _ = writeln!(stream, "{answered}");
         }
     });
     (socket, heard)

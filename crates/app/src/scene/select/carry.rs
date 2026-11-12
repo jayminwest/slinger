@@ -146,6 +146,14 @@ impl Select {
         true
     }
 
+    /// Items pasted onto `page` of `canvas`, in the change sent under
+    /// `key`: the selection there once they are on it, as a carry's.
+    pub fn pasted(&mut self, key: u64, canvas: &str, page: &str) {
+        self.selection = None;
+        let (canvas, page) = (canvas.to_string(), page.to_string());
+        self.arriving = Some(Arriving { key, canvas, page, ids: None });
+    }
+
     /// The daemon wrote the change sent under `key`, making the items
     /// `ids`: a carry's items, selected once they are on their page.
     pub fn made(&mut self, key: u64, ids: &[ItemId]) {
