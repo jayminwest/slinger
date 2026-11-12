@@ -17,6 +17,9 @@ bullet with the area in bold.
   in the sling's prompt (tap it again, ● Stop, when done). The dictate
   key works in these entries too.
 
+- **Canvas:** `canvas apply` can add items and the arrows between them in
+  one step: an arrow's `from` or `to` may be `$n`, the item at `made[n]`
+  of the same request, made by an `add` before it.
 - **Feedback:** the app's feedback entry (`leave-feedback`, ⌘⇧F) lists
   the five newest open notes under it, with when each was left, so you see
   what is already said before you add to it.
@@ -146,6 +149,12 @@ bullet with the area in bold.
 
 - **App:** ⌘Z and ⇧⌘Z undo and redo your typing in the sling's prompt
   (and a note of feedback or a page's new name) instead of doing nothing.
+- **App:** the pointer turns into the resize cursor within reach of the
+  divider between two panes, and keeps it while you drag the divider, so
+  you can see where a press resizes the panes.
+- **App:** an arrow dragged to another page with the items at its ends
+  stays joined to them there: move a box on the new page and the arrow
+  follows, as it did on the old one.
 - **Sessions:** an agent whose last conversation Claude Code no longer has
   (`--resume` fails) is no longer stuck. Its process shows as `exited`,
   and the next `slinger session start` begins a new conversation.

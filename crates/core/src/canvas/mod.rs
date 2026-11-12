@@ -124,6 +124,13 @@ impl Canvas {
         Self { pages: vec![first], items: BTreeMap::new(), next_item: 1, next_page: 2 }
     }
 
+    /// The id the next `add` makes: ids rise from 1, and an item's id is
+    /// never handed out again.
+    #[must_use]
+    pub const fn next_item(&self) -> ItemId {
+        ItemId::new(self.next_item)
+    }
+
     /// Applies one operation. This is the only way to change a canvas. A
     /// failed operation changes nothing.
     ///

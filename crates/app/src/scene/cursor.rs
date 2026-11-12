@@ -1,9 +1,12 @@
 //! The pointer over a canvas pane: it says what the pen does there. Pure:
 //! the platform draws or picks the cursor a [`Cursor`] names, over the
 //! canvas panes only; anywhere else (the sidebar, an agent UI, a live item,
-//! the chrome) it keeps the system's arrow.
+//! the chrome) it keeps the system's arrow. Within reach of a divider
+//! between panes, and while one is dragged, the pointer is the resize
+//! cursor across it ([`over_divider`]) over whatever is there.
 
 use crate::config::{Rgb, Theme};
+use crate::layout::Axis;
 use crate::scene::select::ERASER;
 use crate::scene::tools::{Tool, Tools};
 
@@ -18,6 +21,10 @@ pub enum Cursor {
     Crosshair,
     /// The I-beam: where a text goes.
     IBeam,
+    /// Arrows left and right: a divider between panes side by side.
+    ResizeLeftRight,
+    /// Arrows up and down: a divider between stacked panes.
+    ResizeUpDown,
 }
 
 /// The narrowest the pen's ring is, in screen points: a thin line's ring
@@ -49,6 +56,15 @@ pub fn over_canvas(tools: &Tools, theme: &Theme, zoom: f64) -> Cursor {
         Tool::Lasso | Tool::Box | Tool::Arrow => Cursor::Crosshair,
         Tool::Text => Cursor::IBeam,
         Tool::Select => Cursor::Arrow,
+    }
+}
+
+/// The pointer on a divider between the panes of a split along `axis`: it
+/// moves across the divider.
+pub const fn over_divider(axis: Axis) -> Cursor {
+    match axis {
+        Axis::Row => Cursor::ResizeLeftRight,
+        Axis::Column => Cursor::ResizeUpDown,
     }
 }
 

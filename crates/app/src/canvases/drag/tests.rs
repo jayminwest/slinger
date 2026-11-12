@@ -265,3 +265,53 @@ fn a_second_press_soon_after_selecting_a_text_drags_it() {
         });
     });
 }
+
+#[test]
+fn an_arrow_carried_with_the_items_it_joins_stays_bound_to_them_on_their_new_page() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let (mut canvases, panes) = two_panes(daemon);
+        // A box beside the user's stroke, and an arrow from the stroke to it.
+        let ops = serde_json::json!([
+            {"op": "add", "item": {"page": "p1", "kind": "box", "x": 2000, "y": 1000, "w": 400, "h": 400}},
+            {"op": "add", "item": {"page": "p1", "kind": "arrow", "pts": [1100, 1100, 900, 100],
+                "from": "i1", "to": "$0"}},
+        ]);
+        let by = "user".to_string();
+        daemon
+            .canvas_apply(slinger_control::CanvasOps { canvas: "notes".into(), by, ops })
+            .unwrap();
+        let [(left, a), (right, b)] = frames(&panes)[..] else { panic!() };
+        assert!(canvases.command(&panes, (right, b), crate::commands::Command::NewPage));
+        let mut p2 = None;
+        wait_until(|| {
+            scenes(&mut canvases, &panes);
+            p2 = canvases.pages_of(&panes, right).map(|(_, _, page)| page).filter(|p| p != "p1");
+            p2.is_some() && drawn(&mut canvases, &panes, left).len() == 3
+        });
+        let p2 = p2.unwrap();
+
+        let around = [(60.0, 60.0), (400.0, 60.0), (400.0, 300.0), (60.0, 300.0), (60.0, 61.0)];
+        let lasso = (Tool::Lasso, GREY);
+        assert!(canvases.pen_down(&panes, (left, a), pen(60.0, 60.0, 1.0), lasso));
+        for (i, &(x, y)) in around.iter().enumerate().skip(1) {
+            let when = 1.0 + 0.01 * f64::from(u32::try_from(i).unwrap());
+            assert!(canvases.pen_drag(&panes, pen(x, y, when), Some((left, a))));
+        }
+        canvases.pen_up(&panes, pen(60.0, 61.0, 1.5), Some((left, a)));
+        assert_eq!(canvases.selection().map(|s| s.ids.len()), Some(3), "all three");
+
+        assert!(canvases.pen_down(&panes, (left, a), pen(121.0, 121.0, 2.0), (Tool::Select, GREY)));
+        let to = (480.0 + 121.0 + 100.0, 121.0);
+        assert!(canvases.pen_drag(&panes, pen(to.0, to.1, 2.1), under(&panes, to.0, to.1)));
+        canvases.pen_up(&panes, pen(to.0, to.1, 2.2), under(&panes, to.0, to.1));
+        wait_until(|| {
+            scenes(&mut canvases, &panes);
+            kinds(daemon, Some("p1")).is_empty() && kinds(daemon, Some(&p2)).len() == 3
+        });
+        let items = daemon.canvas_show("notes", Some(&p2)).unwrap().items;
+        assert_eq!(kinds(daemon, Some(&p2)), ["stroke", "box", "arrow"]);
+        let (stroke, bx, arrow) = (&items[0]["id"], &items[1]["id"], &items[2]);
+        assert_eq!((&arrow["from"], &arrow["to"]), (stroke, bx), "bound to the new items");
+    });
+}

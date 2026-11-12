@@ -1,10 +1,11 @@
 //! A canvas's items on the clipboard: Edit > Copy of the selection puts
 //! their file objects there as a JSON array, as a carry writes them
-//! ([`Mirror::carried`]: without the server's id, maker and time, the page,
-//! or what names items of this canvas, an arrow's ends), and the plain text
-//! of its texts, one a line, for other apps. Edit > Paste reads the objects
-//! back as items to add to a page; plain text alone, from another app,
-//! comes as one new text item ([`text_items`]). Pure.
+//! ([`Mirror::carried`]: without the server's id, maker and time, or the
+//! page; an arrow's end bound to an item copied with it names that item by
+//! its place, `$n`), and the plain text of its texts, one a line, for other
+//! apps. Edit > Paste reads the objects back as items to add to a page,
+//! every arrow's ends let go; plain text alone, from another app, comes as
+//! one new text item ([`text_items`]). Pure.
 
 use serde_json::{Map, Value};
 
