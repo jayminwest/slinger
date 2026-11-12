@@ -251,7 +251,12 @@ impl PageMenu {
                     let word = COMMANDS.iter().find(|(c, _)| *c == command).map_or("", |c| c.1);
                     lines.push(Line::text(word.into(), theme.text, text, 13.0, Align::Left));
                 }
-                Tap::Pages | Tap::Workspace(_) | Tap::Slung | Tap::Send | Tap::Cancel => {}
+                Tap::Pages
+                | Tap::Workspace(_)
+                | Tap::Slung
+                | Tap::Send
+                | Tap::Cancel
+                | Tap::Resolve(_) => {}
             }
         }
         lines.extend(place.rule.map(|rule| Line::fill(style::edge(theme), rule, 0.0)));

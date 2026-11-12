@@ -36,6 +36,9 @@ pub enum Tap {
     Send,
     /// The open entry's "✕" button: as escape in it.
     Cancel,
+    /// The "✓" at the end of the recent feedback note listed with this
+    /// index under the open entry: resolves it.
+    Resolve(usize),
 }
 
 /// A target: where it takes a tap, and what the tap does.
