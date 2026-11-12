@@ -1,6 +1,7 @@
 use super::*;
 use crate::config::Rgb;
 use crate::scene::sling::pen::beside;
+use crate::scene::taps::Tap;
 
 const T: Theme = Theme {
     background: Rgb { r: 0, g: 0, b: 0 },
@@ -114,7 +115,7 @@ fn a_narrow_pane_keeps_the_entry_inside_it() {
 }
 
 fn recent(text: &str) -> Recent {
-    Recent { text: text.into(), when: "11-11 14:02".into() }
+    Recent { ts: format!("ts {text}"), text: text.into(), when: "11-11 14:02".into() }
 }
 
 #[test]
@@ -126,10 +127,10 @@ fn the_open_entry_lists_the_recent_notes_under_any_problem() {
     assert_eq!(texts(&feedback), [header.clone(), ("11-11 14:02 · old".into(), T.muted)]);
     assert!(!feedback.listed(vec![recent("old")]), "the same list");
 
-    let many: Vec<_> = (0..9).map(|n| recent(&n.to_string())).collect();
+    let many: Vec<_> = (0..30).map(|n| recent(&n.to_string())).collect();
     assert!(feedback.listed(many));
     let lines = feedback.labels(&T);
-    assert_eq!(lines.len(), 1 + RECENT);
+    assert_eq!(lines.len(), 1 + feedback.ticks(&T).1.len(), "a header, then the notes");
     assert!(lines.windows(2).all(|two| two[0].frame.y < two[1].frame.y), "one under another");
     assert!(lines[0].frame.y > feedback.entry(&T).unwrap().frame.y, "under the entry");
 
@@ -144,4 +145,59 @@ fn the_open_entry_lists_the_recent_notes_under_any_problem() {
     let said = feedback.under(&T, vec![("● Flick is listening".into(), T.muted)]);
     let last = feedback.labels(&T).last().map(|l| l.frame.y).unwrap();
     assert!(said.len() == 1 && said[0].frame.y > last, "{said:?}");
+}
+
+/// The open entry in a pane `height` tall, listing `n` notes.
+fn listing(height: f64, n: usize) -> Feedback {
+    let mut feedback = Feedback::default();
+    assert!(feedback.open(Rect { height, ..PANE }, context()));
+    feedback.listed((0..n).map(|n| recent(&n.to_string())).collect());
+    feedback
+}
+
+#[test]
+fn a_tall_pane_lists_as_many_more_notes_as_fit_with_room_to_spare() {
+    let tall = listing(1200.0, 30);
+    let lines = tall.labels(&T);
+    assert!(lines.len() > 1 + RECENT && lines.len() <= 1 + LISTED, "{}", lines.len());
+    let said = tall.under(&T, vec![("a".into(), T.muted), ("b".into(), T.muted)]);
+    assert!(said[1].frame.y + said[1].frame.height <= 1200.0, "dictation still fits");
+    assert_eq!(listing(1200.0, 3).labels(&T).len(), 1 + 3, "only what there is");
+    assert_eq!(listing(300.0, 30).labels(&T).len(), 1 + RECENT, "a short pane: five still");
+}
+
+#[test]
+fn a_tick_stands_at_each_notes_end_and_resolves_it() {
+    let mut feedback = listing(400.0, 3);
+    let (labels, targets) = feedback.ticks(&T);
+    let rows = feedback.labels(&T).split_off(1);
+    assert_eq!(labels.iter().map(|l| l.text.as_str()).collect::<Vec<_>>(), ["✓"; 3]);
+    let frames: Vec<_> = labels.iter().map(|l| l.frame).collect();
+    let taps: Vec<_> = targets.iter().map(|t| t.1).collect();
+    assert_eq!(targets.iter().map(|t| t.0).collect::<Vec<_>>(), frames);
+    assert_eq!(taps, (0..3).map(Tap::Resolve).collect::<Vec<_>>());
+    let level = |(tick, row): (&Rect, &Label)| (tick.y - row.frame.y).abs() < 0.01;
+    assert!(frames.iter().zip(&rows).all(level), "level with its note");
+    let ends = |(tick, row): (&Rect, &Label)| tick.x >= row.frame.x + row.frame.width;
+    assert!(frames.iter().zip(&rows).all(ends), "at its end");
+    assert_eq!(feedback.resolve(3), None, "no such note");
+    assert_eq!(feedback.resolve(1).as_deref(), Some("ts 1"));
+    assert_eq!(feedback.ticks(&T).1.len(), 2, "it leaves the list");
+
+    assert!(feedback.cancel());
+    assert_eq!((feedback.resolve(0), feedback.ticks(&T).1.len()), (None, 0), "closed");
+    assert!(!feedback.unresolved(Problem { message: "late".into(), hint: None }));
+}
+
+#[test]
+fn a_note_that_does_not_resolve_says_why_under_the_entry_until_the_next_try() {
+    let mut feedback = listing(400.0, 3);
+    let problem = Problem { message: "no note".into(), hint: Some("list them".into()) };
+    assert!(feedback.unresolved(problem));
+    let lines = texts(&feedback);
+    assert_eq!(lines[..2], [("✗ no note".into(), T.error), ("list them".into(), T.muted)]);
+    let first = feedback.ticks(&T).1[0].0.y - feedback.labels(&T)[3].frame.y;
+    assert!(first.abs() < 0.01, "the notes under the problem");
+    assert_eq!(feedback.resolve(0).as_deref(), Some("ts 0"));
+    assert_eq!(texts(&feedback)[0].0, "Recent feedback", "the problem goes");
 }

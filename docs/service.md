@@ -800,8 +800,10 @@ runs, and a person or an agent reads it with any tool.
   and one resolution resolves both.
 - A file the daemon cannot write or read is `invalid`, with a hint to start
   it with a `--feedback` it can write.
-- The app's entry lists the five newest open notes under it, from one
-  `feedback_list` each time it opens; it needs no other verb.
+- The app's entry lists the newest open notes under it (five, or up to 20
+  in a tall pane), from one `feedback_list` each time it opens. The "✓" at
+  a note's end sends one `feedback_resolve` with its `ts` and no `note`,
+  then one `feedback_list`; it needs no other verb.
 
 ```json
 { "v": 1, "op": "feedback_add", "text": "the lasso is slow", "canvas": "notes", "page": "Page 1", "tool": "lasso", "selected": 3 }

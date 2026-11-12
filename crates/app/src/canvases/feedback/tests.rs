@@ -73,7 +73,23 @@ fn a_note_saves_with_the_canvas_page_and_tool_then_flashes() {
         assert_eq!((scene.entry, scene.labels.len()), (None, 0));
         saved_with_its_context(daemon);
         opens_listing_it(&mut canvases, &panes);
+        resolves_it_with_its_tick(&mut canvases, &panes, daemon);
     });
+}
+
+/// slinger-284a4c: the "✓" at the listed note's end resolves it: it
+/// leaves the list, and the daemon lists it resolved.
+fn resolves_it_with_its_tick(canvases: &mut Canvases, panes: &Panes, daemon: &Client) {
+    let (labels, targets) = buttons(canvases, panes);
+    assert_eq!(labels.last().map(String::as_str), Some("✓"));
+    let tick = *targets.last().unwrap();
+    assert_eq!(tick.1, Tap::Resolve(0));
+    tap(canvases, tick);
+    assert_eq!(shown(canvases, panes).labels.len(), 0, "it leaves the list at once");
+    assert!(!buttons(canvases, panes).1.iter().any(|t| matches!(t.1, Tap::Resolve(_))));
+    wait_until(|| daemon.feedback_list(false, None).unwrap().entries.is_empty());
+    let all = daemon.feedback_list(true, None).unwrap().entries;
+    assert_eq!(all.len(), 1, "resolved, not gone");
 }
 
 /// Opening the entry again lists the note saved under it.

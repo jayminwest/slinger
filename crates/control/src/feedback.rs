@@ -9,7 +9,9 @@
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
+use crate::client::internal;
 use crate::{Client, RemoteError};
 
 /// A feedback request, as a client writes it and the daemon reads it.
@@ -153,7 +155,16 @@ impl Client {
         ts: &str,
         note: Option<String>,
     ) -> Result<FeedbackResolution, RemoteError> {
-        self.call(&FeedbackAsk::FeedbackResolve { ts: ts.into(), note })
+        // Read by hand: a derived reader would cost the app's binary 2 KB
+        // over its budget (check:binary-size), and the app reads nothing
+        // of the reply.
+        let doc: Value = self.call(&FeedbackAsk::FeedbackResolve { ts: ts.into(), note })?;
+        let text = |key| doc.get(key).and_then(Value::as_str).map(str::to_string);
+        let (Some(path), Some(resolves), Some(ts)) = (text("path"), text("resolves"), text("ts"))
+        else {
+            return Err(internal("no `path`, `resolves` or `ts`"));
+        };
+        Ok(FeedbackResolution { path: path.into(), resolves, ts, note: text("note") })
     }
 
     /// The file the notes go to.

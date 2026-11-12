@@ -11,6 +11,10 @@ bullet with the area in bold.
 
 ### Added
 
+- **Feedback:** each note listed under the app's feedback entry has a
+  "✓" at its end: tap it with the pen to resolve the note, as `slinger
+  feedback resolve` does. If it fails, the entry says why. A tall pane
+  lists more than five notes, up to 20.
 - **App:** a live item panned off the screen keeps its page for 30
   seconds, so panning away and back no longer resets what you entered;
   after that its page closes and loads again when it returns. Zoomed out

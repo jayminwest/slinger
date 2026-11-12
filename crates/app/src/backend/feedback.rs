@@ -1,7 +1,8 @@
 //! Saving feedback (docs/service.md, "Feedback"): each [`Note`] goes as one
 //! `feedback_add` on a thread of its own, and the daemon's answer comes
 //! back to the main thread, which never waits on the socket. The recent
-//! open notes come the same way, from one `feedback_list`.
+//! open notes come the same way, from one `feedback_list`, and a note
+//! resolves the same way, from one `feedback_resolve`, the list following.
 
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
@@ -9,7 +10,7 @@ use std::thread;
 use slinger_control::{Client, FeedbackNote};
 
 use crate::backend::Problem;
-use crate::scene::feedback::{Note, RECENT, Recent};
+use crate::scene::feedback::{LISTED, Note, Recent};
 
 /// Sends notes and hands back what the daemon said to each, and lists the
 /// recent ones.
@@ -20,6 +21,8 @@ pub struct Noter {
     answers: Receiver<Result<(), Problem>>,
     list: Sender<Vec<Recent>>,
     lists: Receiver<Vec<Recent>>,
+    resolution: Sender<Result<(), Problem>>,
+    resolutions: Receiver<Result<(), Problem>>,
 }
 
 impl Noter {
@@ -27,7 +30,8 @@ impl Noter {
     pub fn new(daemon: Client) -> Self {
         let (answer, answers) = mpsc::channel();
         let (list, lists) = mpsc::channel();
-        Self { daemon, answer, answers, list, lists }
+        let (resolution, resolutions) = mpsc::channel();
+        Self { daemon, answer, answers, list, lists, resolution, resolutions }
     }
 
     /// Sends through `daemon` from the next note on.
@@ -37,11 +41,7 @@ impl Noter {
 
     /// Hands `note` to a thread that sends it. Never waits.
     pub fn send(&self, note: Note) {
-        let (daemon, answer) = (self.daemon.clone(), self.answer.clone());
-        thread::spawn(move || {
-            // The noter is gone, and the answer with it: nobody waits for it.
-            let _ = answer.send(add(&daemon, note));
-        });
+        self.spawn(Job::Add(note));
     }
 
     /// The answers since the last call, oldest first. Never waits.
@@ -52,20 +52,58 @@ impl Noter {
     /// Asks a thread for the most recent open notes. Never waits. A daemon
     /// that does not answer lists nothing: saving a note says why.
     pub fn list(&self) {
-        let (daemon, list) = (self.daemon.clone(), self.list.clone());
+        self.spawn(Job::List);
+    }
+
+    /// Hands the note named `ts` to a thread that resolves it, then lists
+    /// the recent notes again. Never waits.
+    pub fn resolve(&self, ts: String) {
+        self.spawn(Job::Resolve(ts));
+    }
+
+    /// Hands `job` to a thread of its own, which sends its answers back.
+    fn spawn(&self, job: Job) {
+        let (daemon, answer) = (self.daemon.clone(), self.answer.clone());
+        let (list, resolution) = (self.list.clone(), self.resolution.clone());
         thread::spawn(move || {
-            let limit = Some(RECENT as u64);
+            // The noter is gone, and the answers with it: nobody waits for them.
+            match job {
+                Job::Add(note) => {
+                    let _ = answer.send(add(&daemon, note));
+                    return;
+                }
+                Job::List => {}
+                Job::Resolve(ts) => {
+                    let resolved = daemon.feedback_resolve(&ts, None);
+                    let _ = resolution.send(resolved.map(drop).map_err(Problem::from));
+                }
+            }
+            let limit = Some(LISTED as u64);
             let Ok(listed) = daemon.feedback_list(false, limit) else { return };
-            // As in `send`: nobody waits for it.
             let recent = listed.entries.into_iter();
-            let _ = list.send(recent.map(|e| Recent { when: when(&e.ts), text: e.text }).collect());
+            let recent = recent.map(|e| Recent { when: when(&e.ts), ts: e.ts, text: e.text });
+            let _ = list.send(recent.collect());
         });
+    }
+
+    /// The answers to the notes resolved since the last call, oldest
+    /// first. Never waits.
+    pub fn resolutions(&self) -> Vec<Result<(), Problem>> {
+        self.resolutions.try_iter().collect()
     }
 
     /// The newest list since the last call, if one came. Never waits.
     pub fn listed(&self) -> Option<Vec<Recent>> {
         self.lists.try_iter().last()
     }
+}
+
+/// What a [`Noter`]'s thread does: save a note, list the recent ones, or
+/// resolve one by its `ts` and list them again.
+enum Job {
+    Add(Note),
+    List,
+    Resolve(String),
 }
 
 /// When a note was saved, as the entry lists it: `11-11 14:02` from its
@@ -156,9 +194,39 @@ mod tests {
             noter.list();
             let got = listed(&noter);
             let texts: Vec<_> = got.iter().map(|r| r.text.as_str()).collect();
-            assert_eq!(texts, ["six", "five", "four", "three", "two"]);
+            assert_eq!(texts, ["six", "five", "four", "three", "two", "one"]);
             let when = &got[0].when;
             assert!(when.len() == 11 && when.as_bytes()[2] == b'-', "{when}");
+        });
+    }
+
+    #[test]
+    fn a_note_resolves_by_its_ts_then_leaves_the_list_or_says_why_not() {
+        with_store(None, |daemon| {
+            let noter = Noter::new(daemon.clone());
+            for text in ["one", "two"] {
+                noter.send(note(text));
+                assert_eq!(wait(&noter), Ok(()));
+            }
+            noter.list();
+            let two = listed(&noter).remove(0);
+            noter.resolve(two.ts.clone());
+            let mut got = Vec::new();
+            wait_until(|| {
+                got.extend(noter.resolutions());
+                !got.is_empty()
+            });
+            assert_eq!(got, [Ok(())]);
+            let after = listed(&noter);
+            assert_eq!(after.iter().map(|r| r.text.as_str()).collect::<Vec<_>>(), ["one"]);
+
+            noter.resolve(two.ts);
+            let mut got = Vec::new();
+            wait_until(|| {
+                got.extend(noter.resolutions());
+                !got.is_empty()
+            });
+            assert!(got[0].is_err(), "resolved already: {got:?}");
         });
     }
 
