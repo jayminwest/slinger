@@ -1,6 +1,6 @@
 //! Styled text: a sidebar row in its font, and a pane's footer (its fill,
-//! the pen's swatch, and each part's runs one after the other in one
-//! field). The scene decides every word, colour and frame.
+//! the lit button's rounded fill, its marks, and each part's runs one after
+//! the other in one field). The scene decides every word, colour and frame.
 
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
@@ -17,8 +17,9 @@ use objc2_foundation::{
 use super::{color, flipped, label};
 use crate::config::Rgb;
 use crate::scene::Label;
+use crate::scene::overlay::Line;
 use crate::scene::sidebar::Row;
-use crate::scene::status::{self, Align, Footer};
+use crate::scene::status::{self, Footer};
 
 /// A text field that shows a sidebar `row`, read from its left edge, in
 /// its font, in a view `height` tall.
@@ -32,7 +33,7 @@ pub(super) fn sidebar_row(row: &Row, height: f64, mtm: MainThreadMarker) -> Reta
 }
 
 /// The views that show `footer` in a view `height` tall: its fill, its
-/// top hairline, the swatch, then one field per part.
+/// top hairline, the lit button's fill, the marks, then one field per part.
 pub(super) fn footer(footer: &Footer, height: f64, mtm: MainThreadMarker) -> Vec<Retained<NSView>> {
     let filled = |frame, fill| {
         let block = Label { text: String::new(), colour: fill, fill: Some(fill), frame };
@@ -45,7 +46,11 @@ pub(super) fn footer(footer: &Footer, height: f64, mtm: MainThreadMarker) -> Vec
     };
     let mut views = vec![filled(footer.frame, footer.fill)];
     views.push(filled(footer.rule.frame, footer.rule.colour));
-    views.extend(footer.swatch.map(|(frame, colour)| filled(frame, colour)));
+    if let Some((frame, fill)) = footer.lit {
+        let lit = Line::fill(fill, frame, status::LIT_RADIUS);
+        views.push(Retained::into_super(super::overlay::back(&lit, height, mtm)));
+    }
+    views.extend(footer.marks.iter().map(|&(frame, colour)| filled(frame, colour)));
     for part in &footer.parts {
         let colour = part.runs.first().map_or(Rgb { r: 0, g: 0, b: 0 }, |r| r.colour);
         let blank = Label { text: String::new(), colour, fill: None, frame: part.frame };
@@ -63,16 +68,11 @@ pub(super) fn footer(footer: &Footer, height: f64, mtm: MainThreadMarker) -> Vec
         field.setAttributedStringValue(&text);
         field.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
         // A field does not align styled text, so the field itself is placed:
-        // as wide as its text (at most the part), at the part's left, middle
-        // or right.
+        // as wide as its text (at most the part), in the part's middle.
         field.sizeToFit();
         let mut frame = flipped(height, part.frame);
         let width = field.frame().size.width.min(frame.size.width);
-        frame.origin.x += match part.align {
-            Align::Left => 0.0,
-            Align::Centre => (frame.size.width - width) / 2.0,
-            Align::Right => frame.size.width - width,
-        };
+        frame.origin.x += (frame.size.width - width) / 2.0;
         frame.size.width = width;
         field.setFrame(frame);
         views.push(Retained::into_super(Retained::into_super(field)));

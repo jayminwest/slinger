@@ -177,13 +177,18 @@ impl Viewport {
 
     /// The zoom as people read it: "Zoom 150%".
     pub fn zoom_label(self) -> String {
+        format!("Zoom {}%", self.percent())
+    }
+
+    /// The zoom in whole percent: 150 at one and a half.
+    pub fn percent(self) -> u32 {
         #[expect(
             clippy::cast_possible_truncation,
             clippy::cast_sign_loss,
             reason = "a zoom is 10% to 800%"
         )]
         let percent = (self.zoom * 100.0).round() as u32;
-        format!("Zoom {percent}%")
+        percent
     }
 }
 

@@ -5,7 +5,9 @@
 //! agent with one mark: working, blocked or done; the workspace the window
 //! shows stands out. It is optional: one command opens or collapses
 //! it, and the panes take the space it leaves. Agent status is a glance, not
-//! a dashboard.
+//! a dashboard. A tap on a workspace's rows shows its panes; the foot is
+//! kept for the button that hides the sidebar, at the spot where the
+//! bottom-left footer shows it while the sidebar is collapsed.
 //!
 //! The notice is the one thing the app tells the user unasked: an agent
 //! became blocked or done. It names each such agent and stays until the
@@ -16,7 +18,7 @@
 use crate::backend::Problem;
 use crate::config::{Rgb, Theme};
 use crate::layout::Rect;
-use crate::scene::Label;
+use crate::scene::{Label, status, style};
 
 /// An agent's status, as `slinger status set` sets it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,7 +97,7 @@ pub struct Font {
 }
 
 impl Font {
-    const PLAIN: Font = Font { size: None, bold: false, spacing: 0.0 };
+    pub const PLAIN: Font = Font { size: None, bold: false, spacing: 0.0 };
 }
 
 /// One thing the sidebar draws: a label read from its left edge, in `font`.
@@ -206,10 +208,38 @@ impl Sidebar {
     /// heading, then each workspace's name (bold, on a lighter row, when the
     /// window shows it), under it its agent's mark with `<agent> · <status>`
     /// or `no agent`, and a blocked agent's note under that. Nothing when it
-    /// is collapsed. Lines that do not fit are left out.
+    /// is collapsed. Lines that do not fit above its foot ([`Sidebar::foot`])
+    /// are left out.
     pub fn rows(&self, theme: &Theme, window: Rect) -> Vec<Row> {
+        self.laid(theme, window).0
+    }
+
+    /// Where each workspace's lines are in `window` (its name and its
+    /// agent's, as wide as the sidebar), with its index in the list: a
+    /// tap there shows its panes ([`Sidebar::pick`]). None when collapsed.
+    pub fn targets(&self, theme: &Theme, window: Rect) -> Vec<(Rect, usize)> {
+        self.laid(theme, window).1
+    }
+
+    /// The open sidebar's whole frame in `window`, its edge left out: its
+    /// foot holds its button (`scene::status::strip`). None when collapsed.
+    pub fn foot(&self, window: Rect) -> Option<Rect> {
+        let width = WIDTH.min(window.width) - style::HAIRLINE;
+        self.open.then_some(Rect { width: width.max(0.0), ..window })
+    }
+
+    /// Shows the workspace with index `index` in the list (the window
+    /// shows its panes): its name, or `None` past the last.
+    pub fn pick(&mut self, index: usize) -> Option<String> {
+        let name = self.workspaces.as_ref()?.get(index)?.name.clone();
+        self.shown = Some(name.clone());
+        Some(name)
+    }
+
+    /// The rows and the workspaces' targets.
+    fn laid(&self, theme: &Theme, window: Rect) -> (Vec<Row>, Vec<(Rect, usize)>) {
         if !self.open {
-            return Vec::new();
+            return (Vec::new(), Vec::new());
         }
         let heading = Font { size: Some(11.0), bold: false, spacing: 1.0 };
         let mut lines = vec![Line::new(HEADING.into(), theme.muted, heading)];
@@ -217,18 +247,23 @@ impl Sidebar {
             (_, Some(problem)) => {
                 lines.push(Line::new(format!("✗ {problem}"), theme.error, Font::PLAIN));
             }
-            (None, None) => return Vec::new(),
+            (None, None) => return (Vec::new(), Vec::new()),
             (Some(list), None) if list.is_empty() => {
                 lines.push(Line::new("no open workspaces".into(), theme.muted, Font::PLAIN));
             }
             (Some(list), None) => {
                 for (i, workspace) in list.iter().enumerate() {
                     let shown = self.shown.as_ref().map_or(i == 0, |s| *s == workspace.name);
-                    lines.extend(block(workspace, shown, theme));
+                    lines.extend(
+                        block(workspace, shown, theme)
+                            .into_iter()
+                            .map(|line| Line { workspace: Some(i), ..line }),
+                    );
                 }
             }
         }
-        let (right, bottom) = (window.x + WIDTH.min(window.width) - PAD, window.y + window.height);
+        let bottom = window.y + window.height - status::HEIGHT;
+        let right = window.x + WIDTH.min(window.width) - PAD;
         let label = |text: String, colour, x: f64, y, right: f64| Label {
             text,
             colour,
@@ -236,6 +271,8 @@ impl Sidebar {
             frame: Rect { x, y, width: (right - x).max(0.0), height: ROW },
         };
         let (mut rows, mut lit) = (Vec::new(), None::<(f64, f64)>);
+        let mut targets: Vec<(Rect, usize)> = Vec::new();
+        let wide = WIDTH.min(window.width) - style::HAIRLINE;
         let mut y = window.y + PAD;
         for line in lines {
             y += line.gap;
@@ -254,6 +291,13 @@ impl Sidebar {
             if line.shown {
                 lit = Some((lit.map_or(y, |(top, _)| top), y + ROW));
             }
+            match (line.workspace, targets.last_mut()) {
+                (Some(i), Some((frame, at))) if *at == i => frame.height = y + ROW - frame.y,
+                (Some(i), _) => {
+                    targets.push((Rect { x: window.x, y, width: wide, height: ROW }, i));
+                }
+                (None, _) => {}
+            }
             y += ROW;
         }
         if let Some((top, end)) = lit {
@@ -267,7 +311,7 @@ impl Sidebar {
             };
             rows.insert(0, Row { label: fill, font: Font::PLAIN });
         }
-        rows
+        (rows, targets)
     }
 
     /// The notice, at the bottom of the panes' area `panes`: each agent that
@@ -312,11 +356,22 @@ struct Line {
     gap: f64,
     /// Whether it belongs to the workspace the window shows.
     shown: bool,
+    /// The index of the workspace it belongs to, if any.
+    workspace: Option<usize>,
 }
 
 impl Line {
     fn new(text: String, colour: Rgb, font: Font) -> Self {
-        Self { under: false, mark: None, text, colour, font, gap: 0.0, shown: false }
+        Self {
+            under: false,
+            mark: None,
+            text,
+            colour,
+            font,
+            gap: 0.0,
+            shown: false,
+            workspace: None,
+        }
     }
 }
 

@@ -262,6 +262,11 @@ impl Tools {
         self.popup = Some(Popup { kind, place, lit: lit.unwrap_or(0) });
     }
 
+    /// Closes the open pop-up, if any: a button tapped elsewhere ran.
+    pub fn close(&mut self) {
+        self.popup = None;
+    }
+
     /// A press of the pen or pointer at `at`. With a pop-up open, a press on
     /// a cell picks it, a press elsewhere on the pop-up does nothing, and a
     /// press outside closes it; each is used up (true). With none open, the

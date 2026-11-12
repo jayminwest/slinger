@@ -178,7 +178,34 @@ fn lines_that_do_not_fit_are_left_out() {
     let many: Vec<_> = (0..40).map(|i| ws(&format!("a{i}"), None)).collect();
     let rows = heard(many).rows(&T, WINDOW);
     assert!(rows.len() < 120);
-    assert!(rows.iter().all(|r| r.label.frame.y + r.label.frame.height <= WINDOW.height));
+    let foot = WINDOW.height - crate::scene::status::HEIGHT;
+    assert!(rows.iter().all(|r| r.label.frame.y + r.label.frame.height <= foot), "above its foot");
+}
+
+#[test]
+fn each_workspace_s_lines_are_a_target_a_tap_shows_its_panes() {
+    let mut blocked = noted("bo", Status::Blocked, "which key?");
+    blocked.name = "bo-ws".into();
+    let mut sidebar = heard(vec![ws("ada", None), blocked]);
+    let targets = sidebar.targets(&T, WINDOW);
+    assert_eq!(targets.iter().map(|t| t.1).collect::<Vec<_>>(), [0, 1]);
+    let rows = sidebar.rows(&T, WINDOW);
+    let at = |text: &str| rows.iter().find(|r| r.label.text == text).unwrap().label.frame;
+    let (ada, bo) = (targets[0].0, targets[1].0);
+    assert_eq!((ada.y, ada.height), (at("ada-ws").y, 2.0 * ROW), "the name and the agent");
+    assert_eq!(bo.y + bo.height, at("which key?").y + ROW, "a blocked agent's note too");
+    assert!(ada.height >= style::TAP && ada.y + ada.height <= bo.y, "pen-sized, apart");
+    assert_eq!((ada.x, ada.width), (0.0, WIDTH - style::HAIRLINE), "the sidebar's width");
+    assert_eq!(sidebar.pick(1).as_deref(), Some("bo-ws"));
+    let lit = sidebar.rows(&T, WINDOW)[0].label.frame;
+    assert_eq!(lit.y, bo.y, "the picked workspace stands out");
+    assert_eq!(sidebar.pick(2), None, "past the last");
+    sidebar.set_open(false);
+    assert!(sidebar.targets(&T, WINDOW).is_empty() && sidebar.foot(WINDOW).is_none());
+    sidebar.set_open(true);
+    let foot = sidebar.foot(WINDOW).unwrap();
+    assert_eq!(foot, Rect { width: WIDTH - style::HAIRLINE, ..WINDOW }, "its edge stays");
+    assert!(Sidebar::new(true).targets(&T, WINDOW).is_empty(), "nothing heard yet");
 }
 
 #[test]

@@ -70,8 +70,6 @@ pub struct Canvases {
     lives: live::Lives,
     /// Each open workspace's canvas and its agent's status, for the buttons.
     statuses: Vec<(String, Option<Status>)>,
-    /// The footers' last drawn targets: a tap there runs its command.
-    hints: Vec<(Rect, crate::commands::Command)>,
     /// The zoom a pane's canvas went to last, to flash once ("Zoom 150%").
     zoomed: Option<String>,
 }
@@ -131,7 +129,6 @@ impl Canvases {
             turning,
             lives,
             statuses: Vec::new(),
-            hints: Vec::new(),
             zoomed: None,
         }
     }

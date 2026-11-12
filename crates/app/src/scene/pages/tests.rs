@@ -55,6 +55,9 @@ fn the_line_names_the_page_and_where_it_is_among_the_pages() {
     assert_eq!(line(&pages(&["Page 1"]), "p1"), "Page 1 · 1/1");
     assert_eq!(line(&pages(&["ideas", "spec"]), "p2"), "spec · 2/2");
     assert_eq!(line(&pages(&["ideas"]), "p7"), "");
+    let long = pages(&["a name much longer than a footer's"]);
+    assert_eq!(line(&long, "p1"), "a name much longer… · 1/1", "the place among pages stays");
+    assert_eq!(line(&pages(&["exactly eighteen 1"]), "p1"), "exactly eighteen 1 · 1/1");
 }
 
 #[test]

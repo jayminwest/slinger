@@ -7,6 +7,8 @@
 //! typed keys, and sends the [`PageOp`] that comes out through the ink's
 //! queue, in turn with the pen's changes.
 
+pub mod menu;
+
 use crate::config::Theme;
 use crate::layout::{PaneId, Point, Rect};
 use crate::scene::paste;
@@ -68,12 +70,21 @@ pub fn after_remove<'a>(pages: &'a [Page], at: &str) -> Option<&'a str> {
     pages.get(there).map(|p| p.id.as_str())
 }
 
-/// The line that names page `at` in its pane's footer: its name, and
-/// where it is among the pages. Empty for a page not among them.
+/// The line that names page `at` in its pane's footer: its name (a long
+/// one cut short, so the footer keeps room for its buttons), and where it
+/// is among the pages. Empty for a page not among them.
 pub fn line(pages: &[Page], at: &str) -> String {
     let Some(here) = pages.iter().position(|p| p.id == at) else { return String::new() };
-    format!("{} · {}/{}", pages[here].name, here + 1, pages.len())
+    let name = &pages[here].name;
+    let name = match name.char_indices().nth(NAME) {
+        Some((cut, _)) => format!("{}…", &name[..cut]),
+        None => name.clone(),
+    };
+    format!("{name} · {}/{}", here + 1, pages.len())
 }
+
+/// The most characters of a page's name a footer shows.
+const NAME: usize = 18;
 
 /// A question a page command asks, in the pane it was asked in.
 #[derive(Debug, Clone, PartialEq)]

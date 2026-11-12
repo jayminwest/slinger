@@ -256,14 +256,23 @@ main.rs      wires the modules below. The only caller of platform. With
              mouse press first focuses the pane under it (its content or its
              footer; not a touch, a divider, or under the key overlay or the
              palette), then does its work there; a press an agent UI's page
-             takes still draws the new focus (Step::Through).
-window.rs    runs a command on the focused pane, builds the window's scene
-             (`view`), and finds the canvas pane under a point and the
-             focused pane's frame.
+             takes still draws the new focus (Step::Through). A press on
+             a footer's or the sidebar's button goes no further; the lift
+             on it runs it.
+window.rs    runs a command on the focused pane, does a tap on a button that
+             does more than run one (`tap`: the page name opens the page
+             menu, a page menu's page turns the pane, a workspace shows
+             its panes), builds the window's scene (`view`: the footers,
+             the sidebar's foot, the lit button, the tap targets), and
+             finds the canvas pane under a point and the focused pane's
+             frame.
 shared.rs    the window's panes as the server keeps them for its workspace,
              the window's size, the agent UIs the panes show and their notes,
-             and the key overlay and the command palette over them:
-             it follows the server's layout and sends the pane commands.
+             the footers' and the sidebar's tap targets (scene/taps.rs), and
+             the key overlay, the command palette and the page menu over
+             them: it routes a press and its lift to the first of those
+             that takes it, follows the server's layout and sends the pane
+             commands.
 backend.rs   the app's IO: the one module that talks to the daemon, and the
              one that reads and watches the config files. Its Watch asks the
              daemon for the workspaces and their agents' statuses
@@ -384,13 +393,31 @@ scene/style.rs  the window's look in one place: corner radii, the 28 pt
              divider on each edge two panes share. Pure.
 scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              under which nothing of the pane shows (`content`: hit-testing,
-             paint and the pan and zoom centre use it): the pen's colour
-             and width (a swatch line that thick, up to a square), its
-             tool and live key and `· typing` or `· N selected`; the page
-             and `i/n`; the `show-keys` and `show-commands` keys, each only
-             when bound, each a target the pen taps to run it. A hairline
-             tops it. A UI pane's has no tool part. A narrow pane drops
-             the right part, then the middle. Pure.
+             paint and the pan and zoom centre use it): a row of
+             pen-sized buttons (each at least 28 pt wide), the sidebar's
+             (while it is collapsed, in the bottom-left pane), the pen's
+             swatch, width bars and tool, `· typing` or `· N selected`,
+             undo and redo; ‹ the page name and `i/n` › (the name opens
+             the page menu); − the zoom +; split right, split down and
+             close; the `show-keys` and `show-commands` keys, each only
+             when bound. Each runs its command on its pane (the press
+             focuses it first). A UI pane's has its name and the pane
+             buttons. A narrow pane drops whole groups, the lowest rank
+             first. `strip`: the open sidebar's foot, its hide button.
+             `light`: the button under the pen. A hairline tops each. Pure.
+scene/status/cells.rs  how a footer's cells are laid: groups that stay or
+             go together on the left, in the middle or on the right; the
+             middle centred on the footer when there is room. Pure.
+scene/taps.rs  the footers' and the sidebar's buttons as last drawn: the
+             one under the pen lights, a press arms it and goes no further
+             (no ink, no gesture), and the lift on it taps it (`Tap`: run
+             a command, open the page menu, turn to a page, show a
+             workspace); a lift off it does nothing. Pure.
+scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
+             above the name, one 28 pt row per page (the shown one ✓ and
+             bold), then New page, Rename page… and Remove page. It takes
+             every press while open; the lift on the row pressed picks it,
+             a press outside or escape closes it. No dim. Pure.
 scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
              `<Tool> <key>` (a new width: `Width <n> <pick-width key>`),
              reload-config its title and key, a saved note "Feedback saved",
@@ -422,6 +449,8 @@ scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
              workspace, the shown one bold on a lighter row; its agent's mark,
              round working, round green done, square red blocked, with
              `<agent> · <status>` or `no agent`; a blocked agent's note),
+             each workspace's rows a target a tap shows (`targets`,
+             `pick`), the foot kept for the hide button (`foot`),
              where the panes go beside it, and
              the one notice when an agent becomes blocked or done out. The
              first list is the baseline; a status that moves on clears its
@@ -792,6 +821,8 @@ Each boundary has something that fails when it is broken:
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |
 | Page commands turn, name and remove pages; removing a page with items asks once | `crates/app/src/scene/pages/tests.rs` |
+| Every footer button is at least 28 pt square and none overlap; a narrow footer drops whole groups, the lowest rank first; the sidebar button sits in the same spot open or collapsed | `crates/app/src/scene/status/tests.rs` |
+| A press on a button goes no further and only the lift on the same button taps it; the open page menu takes every press, lists the pages with the shown one marked and turns the pane to the one tapped | `crates/app/src/scene/taps/tests.rs`, `crates/app/src/scene/pages/menu/tests.rs`, `crates/app/src/shared/tests.rs`, and `crates/app/src/canvases/tests.rs` against a real daemon |
 | Layout is fully tested | the 100% floor on `crates/app/src/layout.rs` in `budgets/coverage-budgets.json` |
 | The app binary does not grow unnoticed | `check:binary-size` |
 

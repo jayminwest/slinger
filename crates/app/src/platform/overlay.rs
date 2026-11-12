@@ -39,7 +39,7 @@ pub(super) fn views(
 
 /// The box behind `line`: its fill (or none), its edge one point wide (or
 /// none) and its corners.
-fn back(line: &Line, height: f64, mtm: MainThreadMarker) -> Retained<NSBox> {
+pub(super) fn back(line: &Line, height: f64, mtm: MainThreadMarker) -> Retained<NSBox> {
     let back = plain(mtm);
     back.setCornerRadius(line.radius);
     back.setFillColor(&line.label.fill.map_or_else(NSColor::clearColor, color));
