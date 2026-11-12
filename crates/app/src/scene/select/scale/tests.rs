@@ -128,3 +128,40 @@ fn a_handle_pressed_and_lifted_unmoved_changes_nothing_and_its_reach_follows_the
     assert!(!select.grabs(HERE, pt(26.0, 16.0), 2.0, &items), "past the handle and the box");
     assert!(!select.grabs(("main", "p2"), pt(26.0, 16.0), 1.0, &items), "another page");
 }
+
+#[test]
+fn with_shift_held_both_sides_scale_by_the_larger_and_letting_go_frees_them() {
+    let page = page();
+    let (mut select, mut ink) = selected(&page);
+    let items = shown(&page);
+    // The bottom right handle: 30 right is 2.5 times as wide, 5 down 1.5 times as tall.
+    assert!(select.down(Tool::Lasso, HERE, pt(26.0, 16.0), 1.0, &items));
+    select.keep_ratio(true);
+    assert!(select.drag(pt(56.0, 21.0), &items));
+    let over = select.shown(HERE, shown(&page), 1.0, &THEME);
+    assert_eq!(*over[0], boxed(1, frame(0.0, 0.0, 50.0, 25.0)), "its shape kept");
+    select.keep_ratio(false);
+    assert!(select.drag(pt(56.0, 21.0), &items));
+    let over = select.shown(HERE, shown(&page), 1.0, &THEME);
+    assert_eq!(*over[0], boxed(1, frame(0.0, 0.0, 50.0, 15.0)), "each side its own");
+    select.keep_ratio(true);
+    assert!(select.up(Some(pt(36.0, 6.0)), &items, &mut ink), "1.5 times as wide, half as tall");
+    let Some((_, Change::Reshape { items: after, .. })) = ink.next() else { panic!() };
+    assert_eq!(after[0], boxed(1, frame(0.0, 0.0, 30.0, 15.0)), "the larger is the width's");
+}
+
+#[test]
+fn shift_scales_a_selection_with_no_height_by_its_width_alone() {
+    let page = vec![stroke(1, vec![pt(0.0, 0.0), pt(20.0, 0.0)])];
+    let (mut select, mut ink) = (Select::default(), Ink::default());
+    let items = shown(&page);
+    select.pick(HERE, pt(10.0, 0.0), 1.0, false, &items);
+    assert!(select.up(None, &items, &mut ink));
+    assert_eq!(select.selection().map(|s| s.ids.clone()), Some(vec![ItemId(1)]));
+    assert!(select.down(Tool::Lasso, HERE, pt(26.0, 6.0), 1.0, &items), "the bottom right handle");
+    select.keep_ratio(true);
+    assert!(select.up(Some(pt(46.0, 30.0)), &items, &mut ink));
+    let next = ink.next();
+    let Some((_, Change::Reshape { items: after, .. })) = next else { panic!("{next:?}") };
+    assert_eq!(after[0], stroke(1, vec![pt(0.0, 0.0), pt(40.0, 0.0)]), "twice as long, still flat");
+}

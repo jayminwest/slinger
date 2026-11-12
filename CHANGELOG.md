@@ -11,6 +11,15 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a live item panned off the screen keeps its page for 30
+  seconds, so panning away and back no longer resets what you entered;
+  after that its page closes and loads again when it returns. Zoomed out
+  until it is under 48 points wide, a live item takes no clicks, so the
+  pen draws over it. When the agent did not take a live item's reply, the
+  item says so along its top.
+
+- **CLI:** `slinger sling send --json` reports `tokens`: about how many
+  tokens the agent reads for the sling, its note and prompt included.
 - **App:** rename a page and leave feedback with the pen alone. Their
   entries have buttons beside them: ✓ Rename or ✓ Save does what return
   does, ✕ what escape does, and Dictate has Flick write the text in, as
@@ -31,7 +40,8 @@ bullet with the area in bold.
   dev` runs the agent under it, in a conversation of its own, and `slinger
   sling send --profile dev` sends only to an agent running under it. A
   start with no profile keeps the agent's own narrow limits, and a tool
-  slinger does not know is refused rather than passed on. `profile list`
+  slinger does not know is refused rather than passed on; MCP tools
+  (`mcp__server__tool`) are taken. `profile list`
   and `profile remove` show and drop them; they live in
   `slinger-workspace.toml` under `[[agent.profile]]`.
 - **Canvas:** `canvas apply` can add items and the arrows between them in
@@ -47,7 +57,8 @@ bullet with the area in bold.
   Copy (⌘C) puts its items on the clipboard (other apps get the text of
   its texts), Cut (⌘X) also removes them, and Edit > Paste (⌘V) adds them
   to the focused pane's page, centred in it and selected, on any page or
-  canvas. Undo takes a paste or a cut back in one step. Cut, Copy and
+  canvas. Arrows pasted with the items at their ends stay joined to them.
+  Undo takes a paste or a cut back in one step. Cut, Copy and
   Paste grey out in the Edit menu when they would do nothing, such as
   Copy with nothing selected or while typing a text. Plain text copied
   from another app pastes onto the page as a new text in the pen's
@@ -133,6 +144,15 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Agents:** a workspace's `agent.tools` must now be rules slinger knows,
+  as a profile's are: a tool such as `Edit`, `Bash(git *)` or
+  `Bash(git:*)`, or an MCP tool (`mcp__server__tool`). A file with another
+  rule, or an agent name with a `#`, is refused with a hint naming it, so
+  fix or drop that entry in `slinger-workspace.toml`.
+- **Agents:** a large drawing slung to an agent no longer sends the nearly
+  white parts of it: each tile of its picture is cut down to the ink, and a
+  tile with nothing new on it is left out. The fixture board costs about
+  13% fewer tokens (63 800 to 55 700 by the packet's estimate).
 - **App:** a page menu with more pages than fit shows ▲ or ▼ at the end of
   its top or bottom page row while more pages are above or below.
 - **App:** a footer button's tip now sits on a small panel with rounded
@@ -140,8 +160,9 @@ bullet with the area in bold.
 - **App:** the selection's corner handles resize it, with the lasso or
   the select tool: drag one and the selection scales about the opposite
   corner. Strokes, boxes and arrows stretch; texts and agent UIs keep their
-  size and move with the rest; arrows pointing at the items follow. One
-  undo puts it back.
+  size and move with the rest; arrows pointing at the items follow. Hold
+  shift to keep the selection's shape. The pointer on a handle turns into
+  a diagonal resize cursor. One undo puts it back.
 - **App:** the "<agent> is done" bar goes on its own: 5 s after it shows,
   or at the pen's next press. A blocked agent's bar stays until you tap its
   ✕ (or ⌘.). The bar sits above the footers, so it hides no button, and a
@@ -168,6 +189,12 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Canvas:** zero-width characters (a joiner, a zero-width space, an emoji
+  variation selector) no longer take a blank cell in a text's picture or
+  widen its frame.
+- **App:** `slinger-app --preview` keeps its window's size and place apart
+  from the app's, so previewing a UI no longer moves or resizes the app's
+  window the next time it opens.
 - **App:** after a sling, the agent's answer no longer flashes "answered
   in text" when its items are still on their way to the canvas: an answer
   with nothing on the canvas yet waits a second for them.
@@ -193,6 +220,9 @@ bullet with the area in bold.
 - **CLI:** when an agent moves its item with `slinger canvas edit --move`,
   its arrows bound to the item follow, as they do when you move it in the
   app; they no longer point at where the item was.
+- **CLI:** the same holds for a move with `slinger canvas apply`, and when
+  an agent resizes its item (`canvas edit --box`, or new words that resize
+  a text), its arrows' ends stay on the same spot of the item's edge.
 
 - **App:** a colour, shape, tool or width pop-up opened from a key before
   the pen or pointer has been in the window opens at the middle of the

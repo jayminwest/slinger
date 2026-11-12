@@ -50,11 +50,11 @@ version = 1
 | `tag` | no | The workspace's tag on events in the record (section 9). Defaults to `name`. |
 | `canvas` | no | The default canvas, where you talk to the agent. Defaults to `main`. |
 | `[agent]` | no | The agent that works here. |
-| `agent.name` | yes, in `[agent]` | The agent's name, as the server's session list knows it. |
+| `agent.name` | yes, in `[agent]` | The agent's name, as the server's session list knows it. No `#`. |
 | `agent.durable` | no | `true` when a harness keeps the agent alive (D20). Defaults to `false`. |
 | `agent.user_config` | no | `true` to load the owner's own Claude Code settings and instructions into the agent's session. Defaults to `false`. |
 | `agent.dirs` | no | More directories on slingerd's machine the session may read, beyond the roots. Absolute paths. |
-| `agent.tools` | no | More Claude Code permission rules the session may use without asking, beyond the `slinger` CLI: `"Edit"`, `"Bash(git *)"`. |
+| `agent.tools` | no | More Claude Code permission rules the session may use without asking, beyond the `slinger` CLI: `"Edit"`, `"Bash(git *)"`, `"mcp__github"`. Each is a rule slinger knows (below). |
 | `[[agent.profile]]` | no | One table per profile of the agent: limits a session can run under instead of the agent's. Zero or more. |
 | `profile.name` | yes, in a profile | The profile's name: `a-z`, `0-9`, `-` and `_`, at most 64 long. |
 | `profile.dir` | no | The session's working directory on slingerd's machine. Absolute. Defaults to the agent's home. |
@@ -134,8 +134,14 @@ is rejected whole, rather than run with a rule it does not understand.
 For one workspace (a file that breaks one is rejected as `invalid`):
 
 - At most one root is primary.
-- Each of the agent's `dirs` is an absolute path, and none of its `tools` is
-  blank.
+- The agent's name has no `#` (it parts the agent from a profile in the
+  key of a session's conversation). Each of its `dirs` is an absolute path,
+  and each of its `tools` is a rule slinger knows: a tool of `Bash`, `Edit`,
+  `Glob`, `Grep`, `MultiEdit`, `NotebookEdit`, `Read`, `WebFetch`,
+  `WebSearch` and `Write`, alone or with a pattern in parentheses
+  (`Bash(git *)`, `Bash(git:*)`, `Edit(src/**)`), or an MCP tool
+  (`mcp__server`, `mcp__server__tool`, `mcp__server__*`). A rule it cannot
+  read fails the file with a hint naming the rule; fix or drop it here.
 - Each profile has a name of its own, its `dir` (when set) is an absolute
   path, and each of its `tools` is a rule slinger knows.
 - A workspace with a durable agent has exactly one primary root. That

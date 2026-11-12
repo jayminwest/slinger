@@ -11,13 +11,16 @@
 //! the page's items, not of a pane, and delete, escape and sling act on it
 //! from any pane that shows its page.
 
+use std::borrow::Cow;
+
 use super::{Canvases, canvas_of, find, pane_shown, to_canvas, wanted};
 use crate::layout::{PaneId, Point, Rect};
 use crate::mirror::Mirror;
 use crate::panes::Panes;
-use crate::scene::canvas::ItemId;
+use crate::scene::canvas::{Item, ItemId};
+use crate::scene::cursor::Cursor;
 use crate::scene::ink::Pen;
-use crate::scene::select::Landing;
+use crate::scene::select::{Landing, Select};
 use crate::scene::tools::Tool;
 
 impl Canvases {
@@ -34,6 +37,7 @@ impl Canvases {
         let landing = self.landing(panes, under, pen.at);
         let landing = landing.as_ref().map(|(canvas, page, at)| Landing { canvas, page, at: *at });
         let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
+        self.select.keep_ratio(pen.shift);
         self.select.hover(at, landing, &items)
     }
 
@@ -48,6 +52,7 @@ impl Canvases {
         let Some((pane, frame)) = self.pen.take() else { return false };
         let at = to_canvas(self.view(pane).viewport, frame, pen.at);
         let landing = self.landing(panes, under, pen.at);
+        self.select.keep_ratio(pen.shift);
         let ended = self.ink.up(Some(at)) || {
             let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
             self.shapes.up(Some(at), &items, &mut self.ink) || {
@@ -80,18 +85,58 @@ impl Canvases {
         pen: Pen,
         tool: Tool,
     ) -> bool {
-        let Some((pane, frame)) = under.filter(|_| !pen.touch) else { return false };
+        let under = under.filter(|_| !pen.touch);
+        self.at_selection(panes, under, pen.at, tool, Select::grabs).unwrap_or(false)
+    }
+
+    /// The pointer, up, moved to `at` with `tool` over `under`, the canvas
+    /// pane of `panes` there and its frame, if any: on a handle of the
+    /// selection with the lasso or the select tool, that pane's pointer is
+    /// the handle's resize cursor ([`Canvases::handle_cursor`]) until the
+    /// pointer next moves, so also while the pen drags the handle. Returns
+    /// whether that changed.
+    pub fn hover_handle(
+        &mut self,
+        panes: &Panes,
+        under: Option<(PaneId, Rect)>,
+        at: Point,
+        tool: Tool,
+    ) -> bool {
+        let handle = self.at_selection(panes, under, at, tool, Select::handle_cursor).flatten();
+        let handle = handle.zip(under).map(|(cursor, (pane, _))| (pane, cursor));
+        std::mem::replace(&mut self.handle, handle) != handle
+    }
+
+    /// The pointer over `pane` while it is on a handle of the selection
+    /// ([`Canvases::hover_handle`]); `None` anywhere else.
+    pub fn handle_cursor(&self, pane: PaneId) -> Option<Cursor> {
+        self.handle.filter(|(on, _)| *on == pane).map(|(_, cursor)| cursor)
+    }
+
+    /// What `ask` says of the selection at `at`, a point in the window, with
+    /// `tool` over `under`, the canvas pane of `panes` there and its frame:
+    /// it is handed the select, the canvas and page the pane shows, the
+    /// canvas point, the zoom and the items the pane shows. `None` off every
+    /// canvas pane, before its page arrives, or with a tool other than the
+    /// lasso and the select tool.
+    fn at_selection<R>(
+        &self,
+        panes: &Panes,
+        under: Option<(PaneId, Rect)>,
+        at: Point,
+        tool: Tool,
+        ask: impl FnOnce(&Select, (&str, &str), Point, f64, &[Cow<'_, Item>]) -> R,
+    ) -> Option<R> {
+        let (pane, frame) = under?;
         let moves = matches!(tool, Tool::Lasso | Tool::Select);
-        let Some(canvas) = canvas_of(panes, pane).filter(|_| moves) else { return false };
+        let canvas = canvas_of(panes, pane).filter(|_| moves)?;
         let open = find(&self.open, canvas, wanted(&self.views, pane, canvas));
-        let Some(shown) = open.and_then(|o| o.mirror.as_ref()).map(Mirror::page) else {
-            return false;
-        };
+        let shown = open.and_then(|o| o.mirror.as_ref()).map(Mirror::page)?;
         let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v.viewport);
         let viewport = view.unwrap_or_else(crate::layout::Viewport::start);
         let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
-        let at = to_canvas(viewport, frame, pen.at);
-        self.select.grabs((canvas, shown), at, viewport.zoom(), &items)
+        let at = to_canvas(viewport, frame, at);
+        Some(ask(&self.select, (canvas, shown), at, viewport.zoom(), &items))
     }
 
     /// The canvas, the page and the canvas point under `at`, a point in the

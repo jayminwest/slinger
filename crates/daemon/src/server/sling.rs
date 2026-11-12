@@ -42,6 +42,7 @@ pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Reply, RemoteError> {
         first,
         verbs: &VERBS,
     });
+    let tokens = message.tokens();
     let line = stream::sling(&message);
     let profile = ask.profile.as_deref();
     sessions.deliver(store, &workspace, &line, profile).map_err(|e| remote(&e))?;
@@ -64,6 +65,7 @@ pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Reply, RemoteError> {
         strokes: packet.new_strokes(),
         agent,
         session_id: session_id.unwrap_or_default(),
+        tokens: Some(tokens),
     }))
 }
 

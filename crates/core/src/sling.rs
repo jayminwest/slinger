@@ -121,6 +121,24 @@ pub struct Message {
     pub blocks: Vec<Block>,
 }
 
+impl Message {
+    /// About how many tokens a model spends reading the whole message: the
+    /// packet, its images, and the sling's own lines, note and prompt
+    /// around it. The packet's rule ([`Packet::tokens`]), so the two agree.
+    #[must_use]
+    pub fn tokens(&self) -> u64 {
+        let chars = self.blocks.iter().map(|b| match b {
+            Block::Text(t) => t.chars().count() as u64,
+            Block::Image(_) => 0,
+        });
+        let images = self.blocks.iter().filter_map(|b| match b {
+            Block::Image(i) => Some(i),
+            Block::Text(_) => None,
+        });
+        Packet::estimate(chars.sum(), images)
+    }
+}
+
 /// The message for `sling`. Every sling has one: there is nothing to reject.
 #[must_use]
 pub fn message(sling: &Sling<'_>) -> Message {
