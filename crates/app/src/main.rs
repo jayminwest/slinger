@@ -258,9 +258,9 @@ enum Ask {
     Not,
 }
 
-/// What `event` asks: a menu item chosen with the pointer runs its command;
-/// the open command palette in `shared` takes every key and press, and runs
-/// a command as its key would; then a key goes to what takes keys first
+/// What `event` asks: a menu item chosen with the pointer runs its command,
+/// and closes the open command palette in `shared` first; the palette takes
+/// every key and press, and runs a command as its key would; then a key goes to what takes keys first
 /// ([`taken`]), to the canvases (a text being typed), and to the keymap. A
 /// menu item's key comes as that key. A press on a button (or an open
 /// overlay's or menu's row) is theirs; the lift on it taps it: a pop-up
@@ -280,7 +280,7 @@ fn asked(
             tools.moved(pen.at);
             shared.lift(pen.at)
         }
-        Event::Command(command) => return Ask::Run(command),
+        Event::Command(command) => shared.palette.chosen(command).into(),
         _ => return Ask::Not,
     };
     match (palette, event) {
@@ -293,7 +293,9 @@ fn asked(
             }
             Ask::Run(command)
         }
-        (Took::Tap((_, Tap::Run(command))), _) => Ask::Run(command),
+        (Took::Tap((_, Tap::Run(command))), _) | (Took::No, &Event::Command(command)) => {
+            Ask::Run(command)
+        }
         (Took::Tap(target), _) => Ask::Tap(target),
         (Took::Yes, _) => Ask::Draw,
         (Took::No, &Event::Key(c)) if taken(c, shared, canvases, tools, settings) => Ask::Draw,
