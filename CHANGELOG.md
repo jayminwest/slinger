@@ -79,6 +79,9 @@ bullet with the area in bold.
 - **App:** the sidebar says "not running" for an agent whose session is
   stopped, and "working" as soon as a sling is waiting for it, so a sling
   to a stopped agent no longer looks like nothing happened.
+- **App:** the pen's ring over a canvas is as wide as the line it will
+  draw: it grows with a wider pen and with the pane's zoom, and never gets
+  smaller than it was.
 
 ### Removed
 

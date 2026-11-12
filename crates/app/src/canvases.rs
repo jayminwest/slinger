@@ -30,6 +30,7 @@ use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Rect, Size, Viewport};
 use crate::mirror::{Applied, Mirror};
 use crate::panes::{Kind, Panes};
+use crate::scene::cursor::Cursor;
 use crate::scene::grid::Paper;
 use crate::scene::ink::{Answer, Ink, Pen};
 use crate::scene::pages::{self, Pages};
@@ -378,7 +379,8 @@ impl Canvases {
     /// has arrived; a pane turned to a page still on its way keeps what it
     /// drew. Starts following each page a pane shows, stops following the
     /// others, forgets the views of panes that closed, and clears a
-    /// selection no pane shows.
+    /// selection no pane shows. Each pane's pointer is the arrow: the
+    /// window decides it from the pen.
     pub fn show(&mut self, panes: &Panes, area: Rect, theme: &Theme) -> Vec<CanvasPane> {
         // A canvas pane's canvas is what its footer leaves of it.
         let placed: Vec<_> = (panes.place(area).into_iter())
@@ -420,7 +422,12 @@ impl Canvases {
             let view = &mut self.views[at].1;
             let Some(mirror) = mirror else {
                 if let Some(last) = &view.last {
-                    scenes.push(CanvasPane { pane: id, frame, scene: Rc::clone(last) });
+                    scenes.push(CanvasPane {
+                        pane: id,
+                        frame,
+                        scene: Rc::clone(last),
+                        cursor: Cursor::Arrow,
+                    });
                 }
                 continue;
             };
@@ -440,7 +447,7 @@ impl Canvases {
             }
             let scene = Rc::new(scene);
             view.last = Some(Rc::clone(&scene));
-            scenes.push(CanvasPane { pane: id, frame, scene });
+            scenes.push(CanvasPane { pane: id, frame, scene, cursor: Cursor::Arrow });
         }
         scenes
     }

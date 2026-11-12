@@ -81,14 +81,16 @@ pub struct Border {
     pub colour: Rgb,
 }
 
-/// A pane that draws a canvas: which pane, where in the window, and what it
-/// shows, in the pane's own points. The pane's last scene is shared, not
-/// copied, with what decides the next one.
+/// A pane that draws a canvas: which pane, where in the window, what it
+/// shows, in the pane's own points, and the pointer over it. The pane's
+/// last scene is shared, not copied, with what decides the next one.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CanvasPane {
     pub pane: PaneId,
     pub frame: Rect,
     pub scene: Rc<canvas::Scene>,
+    /// The pointer over the pane ([`cursor::over_canvas`]) at its zoom.
+    pub cursor: cursor::Cursor,
 }
 
 /// An agent UI on screen: its page, in `frame`; a live item's page also
@@ -138,8 +140,6 @@ pub struct Scene {
     pub overlay: Option<Box<overlay::Overlay>>,
     /// The flash, over the labels, while it shows.
     pub flash: Option<Box<flash::Pill>>,
-    /// The pointer over the canvas panes; elsewhere it is the arrow.
-    pub cursor: cursor::Cursor,
 }
 
 /// The focus border's width, in points.
@@ -226,7 +226,6 @@ pub fn build(
         entry: None,
         overlay: None,
         flash: None,
-        cursor: cursor::Cursor::Arrow,
     }
 }
 
@@ -255,7 +254,6 @@ pub fn preview(page: Arc<Page>, theme: &Theme, item: bool, size: Size) -> Scene 
         entry: None,
         overlay: None,
         flash: None,
-        cursor: cursor::Cursor::Arrow,
     }
 }
 
@@ -307,7 +305,7 @@ mod tests {
         assert_eq!(scene.sidebar, []);
         assert_eq!(scene.background, T.background);
         assert_eq!(shown(&scene), [("canvas main", T.text)]);
-        assert_eq!((scene.flash, scene.cursor), (None, cursor::Cursor::Arrow));
+        assert_eq!(scene.flash, None);
         assert_eq!(
             scene.focus,
             Border { frame: layout::WINDOW.rect(), width: 0.0, colour: T.background }
@@ -440,7 +438,12 @@ mod tests {
         panes.split(Axis::Row);
         let drawn = canvas::build(&[], layout::Viewport::default(), layout::WINDOW, &T, None);
         let frame = Rect { x: 0.0, y: 0.0, width: 1.0, height: 1.0 };
-        let canvases = vec![CanvasPane { pane: panes.focus(), frame, scene: Rc::new(drawn) }];
+        let canvases = vec![CanvasPane {
+            pane: panes.focus(),
+            frame,
+            scene: Rc::new(drawn),
+            cursor: cursor::Cursor::Arrow,
+        }];
         let daemon = Problem { message: "no daemon".into(), hint: None };
         let scene = build(&panes, &T, &[&daemon], &Sidebar::new(false), canvases.clone());
         assert_eq!(shown(&scene), [("canvas main", T.text), ("✗ no daemon", T.error)]);
