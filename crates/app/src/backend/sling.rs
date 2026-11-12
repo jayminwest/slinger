@@ -175,6 +175,7 @@ fn progress(session: &Session) -> Progress {
         pending: session.pending.unwrap_or(0),
         blocked: blocked.then(|| session.note.clone().unwrap_or_default()),
         answer: session.answer.clone(),
+        profile: session.profile.clone(),
     }
 }
 
@@ -265,12 +266,14 @@ mod tests {
 
             slinger.send(ask(vec![ItemId(1)], "what is missing?"));
             assert_eq!(went(wait(&slinger, got)), "scout");
-            let working = Progress { running: true, pending: 1, blocked: None, answer: None };
+            let working =
+                Progress { running: true, pending: 1, blocked: None, answer: None, profile: None };
             assert_eq!(wait(&slinger, got), Heard::Progress(working));
 
             std::fs::write(home.path().join("go"), "").unwrap();
             let answer = Some("ok".to_string());
-            let answered = Progress { running: true, pending: 0, blocked: None, answer };
+            let answered =
+                Progress { running: true, pending: 0, blocked: None, answer, profile: None };
             assert_eq!(wait(&slinger, got), Heard::Progress(answered));
             std::thread::sleep(3 * EVERY);
             assert_eq!(slinger.heard(), [], "no more once it answered");

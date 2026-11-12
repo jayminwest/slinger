@@ -20,11 +20,12 @@ fn view(focused: bool) -> View<'static> {
 }
 
 fn working(pending: u32) -> Progress {
-    Progress { running: true, pending, blocked: None, answer: None }
+    Progress { running: true, pending, blocked: None, answer: None, profile: None }
 }
 
 fn answered(answer: Option<&str>) -> Progress {
-    Progress { running: true, pending: 0, blocked: None, answer: answer.map(str::to_string) }
+    let answer = answer.map(str::to_string);
+    Progress { running: true, pending: 0, blocked: None, answer, profile: None }
 }
 
 /// A sling of page p1 of notes made at [`AT`] at `now`, gone to scout.
@@ -51,6 +52,33 @@ fn a_sling_under_a_profile_names_it_when_it_goes() {
     slung.aim(("notes", "p1"), Some(AT), Some("dev"), ItemId(5), now);
     assert!(slung.went("scout", None, now));
     assert_eq!(slung.flash().as_deref(), Some("Slung to scout (dev)"));
+    let dev = || Progress { profile: Some("dev".into()), ..working(1) };
+    assert!(!slung.heard(&dev(), now), "the same profile");
+    assert_eq!(said(&slung, &[view(true)], now), ["● scout (dev) working · 0s"]);
+    let blocked = Progress { blocked: Some("which key?".into()), ..dev() };
+    assert!(slung.heard(&blocked, now));
+    assert_eq!(said(&slung, &[view(true)], now), ["■ scout (dev) blocked: which key?"]);
+}
+
+#[test]
+fn the_pill_names_the_profile_the_agent_s_process_says_it_runs_under() {
+    let now = Instant::now();
+    let mut slung = Slung::default();
+    slung.aim(("notes", "p1"), Some(AT), Some("old"), ItemId(5), now);
+    assert!(slung.went("scout", None, now));
+    let plain = slung.marks(&T, &[view(true)], now).all()[0].frame.width;
+    let look = Progress { profile: Some("look".into()), ..working(1) };
+    assert!(slung.heard(&look, now), "restarted under another since the sidebar heard");
+    let line = &slung.marks(&T, &[view(true)], now).all()[0];
+    assert_eq!(line.text, "● scout (look) working · 0s");
+    let measured = glyphs::frame(Point { x: 0.0, y: 0.0 }, &line.text, TEXT, glyphs::UNWRAPPED);
+    assert_eq!(line.frame.width, (measured.width + 2.0 * PAD).max(HIGH), "as wide as it says");
+    assert!(line.frame.width > plain, "{} after {plain}", line.frame.width);
+    assert!(slung.heard(&working(1), now), "under none now");
+    assert_eq!(said(&slung, &[view(true)], now), ["● scout working · 0s"]);
+    let gone = Progress { running: false, profile: None, ..look };
+    assert!(slung.heard(&gone, now));
+    assert_eq!(said(&slung, &[view(true)], now)[0], "✗ scout stopped before it answered");
 }
 
 #[test]

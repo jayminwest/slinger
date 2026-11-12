@@ -25,6 +25,13 @@ impl Out {
         Some((found, views[found]))
     }
 
+    /// "scout", or "scout (dev)" under a profile: whom the sling went to,
+    /// as its flash and its pill while the agent works name it.
+    pub(super) fn who(&self) -> String {
+        let under = self.under.as_ref().map(|p| format!(" ({p})")).unwrap_or_default();
+        format!("{}{under}", self.agent)
+    }
+
     /// Whether `view` shows the sling's page.
     pub(super) fn shows(&self, view: &View) -> bool {
         view.canvas == self.canvas && view.page == self.page

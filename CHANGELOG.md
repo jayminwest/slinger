@@ -51,7 +51,8 @@ bullet with the area in bold.
   the running one ticked; a tap on one slings the selection (or what is
   new on the page, or the open prompt) under it, restarting the agent
   under that profile first if it runs under another. A sling under a
-  profile flashes it: "Slung to scout (dev)". Setting and removing
+  profile flashes it, "Slung to scout (dev)", and its pill names it while
+  the agent works: "● scout (dev) working · 4s". Setting and removing
   profiles stays with `slinger profile`. `workspace list --json` names each
   agent's profiles.
 - **Agents:** profiles per workspace. `slinger profile set <workspace> dev

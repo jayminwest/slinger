@@ -593,7 +593,8 @@ scene/sidebar/notice.rs  the notice: a 28 pt bar above the footers (it
              its status moves on. Pure.
 scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
              made (a page's sling at its top left), inside its pane, what
-             the agent is doing: "● scout working · 4s · ~12k", "■ scout
+             the agent is doing: "● scout working · 4s · ~12k" ("scout
+             (dev)" under a profile, as its session says), "■ scout
              blocked: <note> · ~12k" (the sling's tokens, when the daemon's
              Slung reply counts them), "✓ scout answered · N new items" (a tap brings them
              into view, the next clears it), "✓ scout answered in text · tap

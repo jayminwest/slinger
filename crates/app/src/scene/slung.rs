@@ -11,11 +11,12 @@
 //! held inside the pane when that place is off screen; a sling of the whole
 //! page from the footer pins it to the pane's top left. It says, in turn:
 //!
-//! - `● scout working · 4s · ~12k` from the moment the sling is in the
+//! - `● scout working · 4s · ~12k` (`● scout (dev) working …` under a
+//!   profile) from the moment the sling is in the
 //!   agent's process until it answers, the time counting each second (each
 //!   minute past one, so the window is drawn at most once a second), then
 //!   about how many tokens the agent reads for it, when the daemon counts;
-//! - `■ scout blocked: <note> · ~12k` while the agent says it waits;
+//! - `■ scout blocked: <note> · ~12k` (its profile named too) while the agent says it waits;
 //! - `✓ scout answered · 2 new items` once it answered, with an arrow
 //!   toward them (`→`) when none of them shows in the pane: a tap pans
 //!   there, and the next tap clears it;
@@ -72,6 +73,8 @@ pub struct Progress {
     pub blocked: Option<String>,
     /// The text of its last answer.
     pub answer: Option<String>,
+    /// The profile its process runs under, when it runs under one.
+    pub profile: Option<String>,
 }
 
 /// One canvas pane as the pill sees it: its frame in the window (above its
@@ -141,7 +144,8 @@ struct Out {
     /// it are its answer.
     newest: ItemId,
     agent: String,
-    /// The profile it goes under, when the agent runs under one.
+    /// The profile it goes under, when the agent runs under one: as aimed,
+    /// then as the agent's session says while it works.
     under: Option<String>,
     /// About how many tokens the agent reads for it, when the daemon said.
     tokens: Option<u64>,
@@ -204,8 +208,7 @@ impl Slung {
         let Some(out) = self.out.as_mut().filter(|o| o.stage == Stage::Aimed) else { return false };
         (out.agent, out.tokens, out.went) = (agent.to_string(), tokens, now);
         out.to(Stage::Working, now);
-        let under = out.under.as_ref().map(|p| format!(" ({p})")).unwrap_or_default();
-        self.flash = Some(format!("Slung to {agent}{under}"));
+        self.flash = Some(format!("Slung to {}", out.who()));
         true
     }
 
@@ -234,6 +237,12 @@ impl Slung {
         if !matches!(out.stage, Stage::Working | Stage::Blocked(_)) {
             return false;
         }
+        // The sidebar's last poll may predate a restart: the running
+        // process's own profile is the one it works under.
+        let renamed = progress.running && out.under != progress.profile;
+        if renamed {
+            out.under.clone_from(&progress.profile);
+        }
         let next = if !progress.running {
             Stage::Stopped
         } else if progress.pending == 0 {
@@ -248,7 +257,7 @@ impl Slung {
             out.to(next, now);
         }
         self.tell(now);
-        changed
+        changed || renamed
     }
 
     /// Flashes the answer once what it brought is known: its items landed,
@@ -361,16 +370,16 @@ impl Slung {
     pub fn marks(&self, theme: &Theme, views: &[View], now: Instant) -> Marks {
         let Some(out) = &self.out else { return Marks::default() };
         let Some((_, view)) = out.view(views) else { return Marks::default() };
-        let (agent, cost) = (&out.agent, cost(out.tokens));
+        let (who, cost) = (out.who(), cost(out.tokens));
         let (text, colour, under) = match &out.stage {
             Stage::Aimed => return Marks::default(),
             Stage::Working => {
                 let time = elapsed(now.saturating_duration_since(out.went));
-                (format!("● {agent} working · {time}{cost}"), theme.text, Vec::new())
+                (format!("● {who} working · {time}{cost}"), theme.text, Vec::new())
             }
             Stage::Blocked(note) => {
                 let note = if note.is_empty() { String::new() } else { format!(": {note}") };
-                (format!("■ {agent} blocked{note}{cost}"), theme.error, Vec::new())
+                (format!("■ {who} blocked{note}{cost}"), theme.error, Vec::new())
             }
             Stage::Answered(answer) => {
                 (out.answered(answer.is_some(), &view), theme.text, Vec::new())
