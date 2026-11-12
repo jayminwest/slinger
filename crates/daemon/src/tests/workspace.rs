@@ -203,6 +203,33 @@ fn one_broken_file_leaves_the_other_workspaces_served() {
     daemon.stop();
 }
 
+#[test]
+fn a_broken_file_keeps_the_name_and_the_canvas_it_states() {
+    let (a, b, c) = (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
+    let (bad, same_name, same_canvas) =
+        (project(&a, "bad"), project(&b, "bad"), project(&c, "other"));
+    let daemon = Daemon::start();
+    let client = daemon.client();
+    client.workspace_open(Some(&bad), None).unwrap();
+    std::fs::write(bad.join(FILE), BROKEN).unwrap();
+
+    let err = client.workspace_open(Some(&same_name), None).unwrap_err();
+    assert_eq!(err.code(), "conflict");
+    assert!(err.to_string().contains("name \"bad\""), "{err}");
+    assert!(err.hint().unwrap().contains(&format!("workspace close {}", bad.display())));
+    assert!(!same_name.join(FILE).exists(), "a refused open writes no file");
+    let takes_canvas = "version = 1\nname = \"other\"\ncanvas = \"bad\"\n";
+    std::fs::write(same_canvas.join(FILE), takes_canvas).unwrap();
+    let err = client.workspace_open(Some(&same_canvas), None).unwrap_err();
+    assert_eq!(err.code(), "conflict");
+    assert!(err.to_string().contains("canvas \"bad\""), "{err}");
+    assert_eq!(client.workspace_list().unwrap().len(), 1);
+
+    client.workspace_close(text(&bad)).unwrap();
+    assert_eq!(client.workspace_open(Some(&same_name), None).unwrap().workspace.name, "bad");
+    daemon.stop();
+}
+
 /// The broken workspace is listed first, by name, with its error; the
 /// other with none. Returns the error's hint.
 fn listed_with_its_error(client: &Client, file: &Path) -> String {

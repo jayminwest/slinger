@@ -163,8 +163,9 @@ impl Workspaces {
     ///
     /// `invalid` with neither, or for a `dir` that is not an absolute
     /// directory; `not_found` for a `dir` that is not there; `conflict` when
-    /// the file names another workspace than `name`, or when the workspace
-    /// breaks a rule over the open ones; and the errors of the files.
+    /// the file names another workspace than `name`, when the workspace
+    /// breaks a rule over the open ones, or when it takes the name or the
+    /// canvas a broken one's file states; and the errors of the files.
     pub fn open(
         &self,
         dir: Option<&Path>,
@@ -204,8 +205,17 @@ impl Workspaces {
         if open.contains(&opened.dir) {
             return Ok((opened, false));
         }
-        let usable = load(open).into_iter().filter_map(Listed::served);
-        let mut all: Vec<Workspace> = usable.map(|o| o.workspace).collect();
+        let mut all = Vec::new();
+        for listed in load(open) {
+            match listed {
+                Listed::Served(o) => all.push(o.workspace),
+                Listed::Broken(b) => {
+                    let dir = b.dir.display().to_string();
+                    let (name, canvas) = (b.name.as_deref(), b.canvas.as_deref());
+                    workspace::check_reserved(&opened.workspace, &dir, name, canvas)?;
+                }
+            }
+        }
         all.push(opened.workspace.clone());
         workspace::check(&all)?;
         if new {
