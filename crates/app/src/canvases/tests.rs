@@ -215,3 +215,29 @@ fn a_zoom_reaches_the_scene_and_flashes_its_level() {
         assert_eq!(canvases.said().as_deref(), Some("No canvas in this pane to zoom"));
     });
 }
+
+/// slinger-fe0e9d: `[canvas] background` sets the dotted grid at start, and
+/// `toggle-grid` flips it on the pane's scene and flashes what it did.
+#[test]
+fn the_grid_follows_the_config_and_the_toggle_and_flashes() {
+    use crate::commands::Command;
+    use crate::config::canvas::{Background, Canvas};
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+        canvases.follow_paper(Canvas { background: Background::Dots, ..Canvas::default() });
+        wait_until(|| shown(&mut canvases, &panes) == 1);
+        let grid = |canvases: &mut Canvases| {
+            let theme = Config::default().theme;
+            canvases.show(&panes, WINDOW.rect(), &theme)[0].scene.grid.map(|g| g.spacing)
+        };
+        assert_eq!(grid(&mut canvases), Some(28.35));
+        let pane = (panes.focus(), WINDOW.rect());
+        assert!(canvases.command(&panes, pane, Command::ToggleGrid));
+        assert_eq!(grid(&mut canvases), None);
+        assert_eq!(canvases.said().as_deref(), Some("Dotted grid off"));
+        assert!(canvases.command(&panes, pane, Command::ToggleGrid));
+        assert_eq!(canvases.said().as_deref(), Some("Dotted grid on"));
+        assert_eq!(grid(&mut canvases), Some(28.35));
+    });
+}

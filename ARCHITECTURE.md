@@ -337,7 +337,9 @@ canvases/find.rs  which page, canvas and items each pane shows; a window
              point in canvas points.
 canvases/paging.rs  the canvas commands on a pane: pan, zoom (in, out, to
              100%; a pinch and a cmd- or ctrl-scroll come here too, and each
-             zoom flashes its level, "Zoom 150%"), the page
+             zoom flashes its level, "Zoom 150%"), `toggle-grid` (the
+             dotted grid on every canvas pane, flashing "Dotted grid
+             on/off"; the config's `[canvas]` is its start), the page
              commands (each turns only that pane) and undo and redo, each
              through the ink's queue; each pane's page line.
 canvases/sling.rs  the sling from the window: opens the entry at the
@@ -358,7 +360,9 @@ canvases/dictation.rs  the `dictate` command: opens the entry when it is
 config.rs    the config file's format: text in, a typed config or an error
              with its line out; merges a machine's overlay over it.
              `config/widths.rs` parses `[pen] widths` by hand (tenths of a
-             point: no float parsing, for the size budget). Pure.
+             point: no float parsing, for the size budget), and
+             `config/canvas.rs` the `[canvas]` paper (plain or dots, the
+             grid's spacing in hundredths of a point). Pure.
 commands.rs  key commands: the closed list of commands, the chord parser and
              the keymap from a chord to a command (and a command to its
              live chord). `registry` gives each command a title and a
@@ -464,6 +468,16 @@ scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport
              paint is cut off at the pane's edges (`clip`). Chrome over a page
              is two more shapes no server item has: a panel (a box with a
              fill, dashed or not) and a text's caret. Pure.
+scene/grid.rs  the dotted grid: display only, never an item (nothing
+             selects, erases, slings or stores it; the core's images never
+             show it). Dots fixed to the canvas, a quiet mix of the
+             background and muted, 1 screen point in radius at any zoom;
+             every 2nd, 5th, 10th... dot (from the canvas origin) when they
+             would come closer than 8 screen points. `Grid::dots`: the dots
+             whose ink touches a screen box, so platform draws only those in
+             the box it repaints. `Paper`: shown or not (the config at start
+             and on an edit of `background`; `toggle-grid` between, not
+             saved). A new paper repaints the whole pane (`Scene::on`). Pure.
 scene/live.rs  where each live item's page shows: over its item's visible
              mark in each canvas pane, cut off at the pane, at its zoom. Pure.
 scene/ink.rs  the pen's ink: the stroke under the pen and the finished changes

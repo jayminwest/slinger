@@ -98,6 +98,8 @@ pub enum Command {
     /// Leave a note about slinger itself: a one-line entry opens in the
     /// focused pane, and the daemon keeps it in its feedback file.
     LeaveFeedback,
+    /// Show the dotted grid on every canvas pane, or hide it.
+    ToggleGrid,
 }
 
 /// How many commands there are.
@@ -105,7 +107,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 49] = [
+    pub const ALL: [(Command, &str); 50] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -155,6 +157,7 @@ impl Command {
         (Command::ShowKeys, "show-keys"),
         (Command::ShowCommands, "show-commands"),
         (Command::LeaveFeedback, "leave-feedback"),
+        (Command::ToggleGrid, "toggle-grid"),
     ];
 
     /// The command called `name` in the config file.
@@ -323,6 +326,7 @@ impl Default for Keymap {
             on(CMD, '/'),
             on(CMD, 'k'),
             on(CMD | SHIFT, 'f'),
+            on(CMD, '\''),
         ])
     }
 }

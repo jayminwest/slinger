@@ -236,7 +236,8 @@ impl Panes {
             | Command::PlaceButton
             | Command::ShowKeys
             | Command::ShowCommands
-            | Command::LeaveFeedback => {}
+            | Command::LeaveFeedback
+            | Command::ToggleGrid => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),

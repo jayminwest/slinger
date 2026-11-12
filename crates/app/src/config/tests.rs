@@ -34,6 +34,7 @@ fn parses_every_key() {
         palette: Palette::default(),
         widths: Widths::default(),
         sidebar: Shown::Open,
+        canvas: Canvas::default(),
     };
     assert_eq!(config, expected);
 }
@@ -166,6 +167,8 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
         palette: Some(Palette::default()),
         widths: Some(Widths::default()),
         sidebar: Some(Shown::Open),
+        paper: Some(canvas::Background::Plain),
+        grid: Some(canvas::Grid::default()),
         // The defaults, each written out.
         keys: [
             "cmd+q",
@@ -217,6 +220,7 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
             "cmd+/",
             "cmd+k",
             "cmd+shift+f",
+            "cmd+'",
         ]
         .map(|c| Some(Chord::parse(c))),
     };
