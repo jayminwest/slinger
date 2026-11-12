@@ -10,7 +10,7 @@ const T: Theme = Theme {
     done: Rgb { r: 5, g: 5, b: 5 },
 };
 
-const PANE: Rect = Rect { x: 100.0, y: 0.0, width: 600.0, height: 400.0 };
+const PANE: Rect = Rect { x: 100.0, y: 0.0, width: 900.0, height: 400.0 };
 const BOX: Rect = Rect { x: 200.0, y: 100.0, width: 50.0, height: 40.0 };
 
 fn selection() -> Selection {
@@ -82,6 +82,8 @@ fn the_entry_is_labelled_with_its_agent_and_its_keys_are_beneath() {
     assert_eq!((dictate.label.frame, dictate.font), (keys.frame, e.keys.font), "on the keys' line");
     assert_eq!(dictate.label.fill, None, "it does not cover the keys");
 
+    assert_eq!(e.done, Some("Sling"), "the pen's buttons: ✓ Sling, Dictate, ✕");
+
     let alone = sling.entry(&T, None, None).unwrap();
     assert_eq!(alone.title.label.text, "Sling", "a workspace with no agent");
     assert_eq!(alone.dictate, None, "no key dictates: nothing to show");
@@ -91,10 +93,15 @@ fn the_entry_is_labelled_with_its_agent_and_its_keys_are_beneath() {
 fn the_entry_stays_inside_its_pane() {
     let low = Rect { y: 360.0, ..BOX };
     assert_eq!(place(low, PANE).y, 360.0 - GAP - SMALL - HEIGHT, "above when no room below");
-    let right = Rect { x: 680.0, ..BOX };
-    assert_eq!(place(right, PANE).x, 700.0 - WIDTH - GAP);
+    let right = Rect { x: 980.0, ..BOX };
+    assert_eq!(place(right, PANE).x, 1000.0 - WIDTH - pen::ROOM - GAP, "room for the buttons");
     let left = Rect { x: 0.0, ..BOX };
     assert_eq!(place(left, PANE).x, 100.0 + GAP);
+    let narrow = Rect { width: 420.0, ..PANE };
+    let squeezed = place(BOX, narrow);
+    assert!(squeezed.width > 0.0 && squeezed.width < WIDTH, "narrower: {squeezed:?}");
+    let end = squeezed.x + squeezed.width + pen::ROOM;
+    assert!((end - (narrow.x + narrow.width - GAP)).abs() < 0.01, "buttons inside: {squeezed:?}");
     let tall = Rect { y: 10.0, height: 390.0, ..BOX };
     assert_eq!(place(tall, PANE).y, GAP + SMALL, "its label never above the pane");
     let room = Rect { y: PANE.height - GAP - SMALL - HEIGHT - SMALL - GAP - BOX.height, ..BOX };
