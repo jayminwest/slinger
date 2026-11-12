@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** rename a page and leave feedback with the pen alone. Their
+  entries have buttons beside them: ✓ Rename or ✓ Save does what return
+  does, ✕ what escape does, and Dictate has Flick write the text in, as
+  in the sling's prompt (tap it again, ● Stop, when done). The dictate
+  key works in these entries too.
+
 - **Canvas:** `canvas apply` can add items and the arrows between them in
   one step: an arrow's `from` or `to` may be `$n`, the item at `made[n]`
   of the same request, made by an `add` before it.
@@ -26,7 +32,9 @@ bullet with the area in bold.
   to the focused pane's page, centred in it and selected, on any page or
   canvas. Undo takes a paste or a cut back in one step. Cut, Copy and
   Paste grey out in the Edit menu when they would do nothing, such as
-  Copy with nothing selected or while typing a text.
+  Copy with nothing selected or while typing a text. Plain text copied
+  from another app pastes onto the page as a new text in the pen's
+  colour.
 
 - **CLI:** `slinger canvas put` takes `--color` (`#rrggbb`, so an agent can
   answer in yellow), `--at x,y` to put the item exactly where it wants
@@ -143,6 +151,8 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** ⌘Z and ⇧⌘Z undo and redo your typing in the sling's prompt
+  (and a note of feedback or a page's new name) instead of doing nothing.
 - **App:** the pointer turns into the resize cursor within reach of the
   divider between two panes, and keeps it while you drag the divider, so
   you can see where a press resizes the panes.

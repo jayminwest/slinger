@@ -18,6 +18,7 @@ use crate::scene::ink::Pen;
 use crate::scene::paste::{Clip, Edit};
 use crate::scene::sidebar::Row;
 use crate::scene::sidebar::Sidebar;
+use crate::scene::sling::{CANCEL, SEND};
 use crate::scene::taps::{Tap, Target};
 use crate::scene::tools::{Kind, Tools};
 use crate::scene::{self, Label, Scene, cursor, status, title};
@@ -55,7 +56,8 @@ pub fn run(
 /// page name opens the page menu over it, a page menu's page turns the
 /// focused pane to it, a workspace in `sidebar` shows its panes (that
 /// workspace's name, for the watch to follow), and the sling's pill does
-/// what a tap there does. A command's tap does nothing here.
+/// what a tap there does; the open entry's "✓" and "✕" do what return and
+/// escape do in it. A command's tap does nothing here.
 pub fn tap(
     (frame, tap): Target,
     canvases: &mut Canvases,
@@ -75,6 +77,8 @@ pub fn tap(
             let area = sidebar.panes(shared.size.rect());
             canvases.tap_slung(&shared.panes, area);
         }
+        Tap::Send => _ = canvases.sling_key(SEND),
+        Tap::Cancel => _ = canvases.sling_key(CANCEL),
         Tap::Run(_) => {}
     }
     None
@@ -130,8 +134,14 @@ pub enum Edited {
 }
 
 /// Does `edit` where [`can_edit`] says, on the focused pane of `shared`
-/// laid in `area`.
-pub fn edit(edit: &Edit, shared: &mut Shared, canvases: &mut Canvases, area: Rect) -> Edited {
+/// laid in `area`; pasted text that makes a new text item has `tools`' colour.
+pub fn edit(
+    edit: &Edit,
+    shared: &mut Shared,
+    canvases: &mut Canvases,
+    tools: &Tools,
+    area: Rect,
+) -> Edited {
     if !can_edit(edit, shared, canvases) {
         return Edited::No;
     }
@@ -143,7 +153,7 @@ pub fn edit(edit: &Edit, shared: &mut Shared, canvases: &mut Canvases, area: Rec
         Edit::Paste(Clip { text: Some(text), .. }) if shared.palette.is_open() => {
             shared.palette.pasted(text)
         }
-        Edit::Paste(clip) => canvases.paste(clip, &shared.panes, area),
+        Edit::Paste(clip) => canvases.paste(clip, &shared.panes, area, tools.colour()),
     };
     if took { Edited::Drawn(None) } else { Edited::No }
 }

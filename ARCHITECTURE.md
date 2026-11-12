@@ -348,7 +348,8 @@ mirror/clip.rs  the selection's items on the clipboard: their file objects
              or page; an end bound to an item copied with it as `$n`), and
              its texts' plain text, one a line; a paste reads the objects
              back as a carry's items for a page, centred on a point, every
-             arrow's ends let go. Pure.
+             arrow's ends let go; plain text alone reads as one text item
+             (`text_items`). Pure.
 canvases.rs  the canvas panes: one follower and mirror per page shown, each
              pane's page, viewport and last scene (kept on screen until a
              page turned to arrives); the pen's ink, the eraser's and
@@ -378,7 +379,8 @@ canvases/slung.rs  the one-tap sling and what follows it: `sling-now` (the
 canvases/clip.rs  cut, copy and paste on the canvas panes: copy takes the
              selection the focused pane shows (cut then removes it, one
              step); paste puts text into the text being typed or a page
-             command's question, else items onto the focused pane's page,
+             command's question, else items (or plain text alone, as a new
+             text of the pen's colour) onto the focused pane's page,
              centred in it, one step, selected once there. A text being
              typed has no selection inside it (its caret is at its end), so
              copy and cut grey out while one is.
@@ -410,10 +412,13 @@ canvases/feedback.rs  the `leave-feedback` command: opens the feedback
              saves it through the Noter, and asks it for the recent open
              notes (`feedback_list`) to list under the entry. It takes the
              keys and the sling's place in the scene while open.
-canvases/dictation.rs  the `dictate` command: opens the entry when it is
-             closed, then starts or stops Flick's dictation into it; the
-             entry closing cancels one going. Flick types the text into the
-             focused entry, so it reaches the sling as typing does.
+canvases/dictation.rs  the `dictate` command: opens the sling's entry when
+             no entry is open, then starts or stops Flick's dictation into
+             the open one (sling, feedback, rename); the entry closing
+             cancels one going. Flick types the text into the focused
+             entry, so it reaches it as typing does. The pen's buttons
+             beside a note's or a new name's entry (scene/sling/pen.rs),
+             with the selection's in sling_marks.
 config.rs    the config file's format: text in, a typed config or an error
              with its line out; merges a machine's overlay over it.
              `config/widths.rs` parses `[pen] widths` by hand (tenths of a
@@ -583,7 +588,7 @@ scene/pages.rs  pages (SPEC D6): the next and previous page, a new page's
              name, where a pane goes when its page is removed, the page
              line, and the two questions a page command asks (a rename's
              typed or pasted name, in an entry like the sling's centred in
-             its pane; a removal of a page with items, asked once in the
+             its pane with the pen's buttons beside it; a removal of a page with items, asked once in the
              footer); what each page command did, said once for the flash
              (`Page 2 · 2/3`, `New page: Page 3 · 3/3`, `Renamed: plan`,
              `Removed: ideas`, `The last page stays`). Pure.
@@ -686,15 +691,18 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              opened again. Pure. `sling/buttons.rs`: the three buttons
              beside a selection's box, ➤ Sling (`sling-now`), + prompt
              (`sling`) and Delete (`delete-selection`), each a 28 pt target
-             inside the pane.
+             inside the pane. `sling/pen.rs`: the pen's buttons beside a
+             note's or a new name's box, ✓ Save or ✓ Rename (Tap::Send, as
+             return), Dictate (`dictate`; ● Stop while Flick listens) and ✕
+             (Tap::Cancel, as escape); the box narrows to make room.
 scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
              sling's labelled field (Entry::framed), "Feedback" above and
              "↩ saves · esc cancels" beneath, centred in the focused pane
-             below the flash. Return saves, escape cancels, an empty note
+             below the flash with the pen's buttons beside it. Return saves, escape cancels, an empty note
              saves nothing; "saving feedback…" while it goes, a failure's
              message and hint under the entry opened again, and "Feedback
              saved" flashed once on success. Pure.
-scene/dictation.rs  the dictation into the entry: start, then stop, one
+scene/dictation.rs  the dictation into the open entry: start, then stop, one
              request to Flick at a time; that Flick listens, or why it
              failed (Flick not running, or its refusal) and what to do, under
              the entry; an answer overtaken by the entry closing is ignored.
@@ -746,7 +754,9 @@ platform/menu.rs  makes the menu bar a scene's menus say, again when they
              change. A command item chosen by its key goes to main as that
              key press, so the keymap runs it once; chosen with the pointer,
              as Event::Command. Cut, copy, paste, select all, minimise and
-             about go along the responder chain.
+             about go along the responder chain. An undo or redo key main
+             passes on (the entry has it) goes on as undo: or redo: along
+             the responder chain, to the field's own undo.
 platform/keys.rs  a key press as a chord and the text it types (none with
              cmd held), and the clipboard as a Clip: its plain text and a
              canvas's items under the app's own type
@@ -901,7 +911,9 @@ chord and the keymap's other chords with cmd or ctrl that a text field does
 not use (`scene::sling::edits`): return and escape are its, a key that types,
 an edit (cmd+X/C/V/A/Z, cmd or ctrl with an arrow or delete, ctrl with a
 letter) or a chord the keymap leaves free goes on to the text field (delete
-deletes a character there, not the selection), and cmd+Q still quits.
+deletes a character there, not the selection), and cmd+Q still quits. The
+Edit menu's Undo and Redo take their keys before the field, so a passed
+undo or redo key goes to it as undo: or redo: (platform/menu.rs).
 An open pop-up at the pen takes its own keys first (escape, return, space,
 the arrows, 1 to 9); any other key goes to the keymap. These keys act only
 inside a pop-up a command opened, so they are not commands themselves.

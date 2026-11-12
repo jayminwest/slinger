@@ -32,6 +32,10 @@ pub enum Tap {
     /// The pill that says what became of the last sling, or the answer
     /// under it ([`crate::scene::slung`]).
     Slung,
+    /// The open entry's "✓" button: as return in it.
+    Send,
+    /// The open entry's "✕" button: as escape in it.
+    Cancel,
 }
 
 /// A target: where it takes a tap, and what the tap does.
