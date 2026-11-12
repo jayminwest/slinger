@@ -141,11 +141,21 @@ For one workspace (a file that breaks one is rejected as `invalid`):
   `WebSearch` and `Write`, alone or with a pattern in parentheses
   (`Bash(git *)`, `Bash(git:*)`, `Edit(src/**)`), or an MCP tool
   (`mcp__server`, `mcp__server__tool`, `mcp__server__*`). A rule it cannot
-  read fails the file with a hint naming the rule; fix or drop it here.
+  read fails the file with a hint that lists the accepted forms (`Tool`,
+  `Tool(pattern)`, `mcp__<server>`, `mcp__<server>__<tool>`,
+  `mcp__<server>__*`) and the tools, and names the tool meant when only its
+  case is wrong (`bash` for `Bash`); fix or drop it here.
 - Each profile has a name of its own, its `dir` (when set) is an absolute
   path, and each of its `tools` is a rule slinger knows.
 - A workspace with a durable agent has exactly one primary root. That
   directory is the agent's home.
+
+A broken rule names the field that broke it (`agent.tools`, `root.path`);
+text that is not TOML names its line. An open workspace whose file breaks a
+rule stays open but is not served: it is listed with its error, and every
+verb on it fails with that error, never with a default in its place. The
+other workspaces serve as before. Fix the file and the next request reads
+it.
 
 Over the set of workspaces the server knows:
 

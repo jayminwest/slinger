@@ -9,8 +9,11 @@
 //!
 //! - A stroke's points, a box's corners and an arrow's ends scale; a
 //!   stroke's width and an arrow's do not.
-//! - A text, a button and an agent UI keep their size (their size is their
-//!   words', or the agent's), and their top left goes where the scale puts it.
+//! - A text's size scales evenly, by the geometric mean of the two sides'
+//!   scales (their one scale when they scale together), kept within
+//!   [`TEXT_SIZES`]; its top left goes where the scale puts it.
+//! - A button and an agent UI keep their size (the agent's), and their top
+//!   left goes where the scale puts it.
 //! - An arrow not selected with an end bound to a selected item follows:
 //!   that end goes where the scale puts it ([`shapes::follow`]).
 //!
@@ -21,6 +24,7 @@ use std::borrow::Cow;
 
 use super::{Gesture, HANDLE, MARGIN, Select, bounds};
 use crate::layout::{Point, Rect};
+use crate::mirror::TEXT_SIZES;
 use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::cursor::{self, Cursor};
 use crate::scene::ink::{Change, Ink};
@@ -42,20 +46,40 @@ pub(super) struct Grip {
 }
 
 impl Grip {
-    /// Where the scale puts `p`.
-    fn map(&self, p: Point) -> Point {
-        // `None` for a side of no length: whatever it scales by, it stays.
+    /// How much the width and the height scale by.
+    fn factors(&self) -> (f64, f64) {
+        match self.sides() {
+            (Some(sx), Some(sy)) if self.even => (sx.max(sy), sx.max(sy)),
+            (sx, sy) if self.even => (sx.or(sy).unwrap_or(1.0), sx.or(sy).unwrap_or(1.0)),
+            (sx, sy) => (sx.unwrap_or(1.0), sy.unwrap_or(1.0)),
+        }
+    }
+
+    /// How much the width and the height scale by, each on its own;
+    /// `None` for a side of no length: whatever it scales by, it stays.
+    fn sides(&self) -> (Option<f64>, Option<f64>) {
         let scale = |corner: f64, anchor: f64, by: f64| {
             let side = corner - anchor;
             (side != 0.0).then(|| ((side + by) / side).max(SMALLEST))
         };
         let sx = scale(self.corner.x, self.anchor.x, self.by.x);
-        let sy = scale(self.corner.y, self.anchor.y, self.by.y);
-        let (sx, sy) = match (sx, sy) {
-            (Some(sx), Some(sy)) if self.even => (sx.max(sy), sx.max(sy)),
-            (sx, sy) if self.even => (sx.or(sy).unwrap_or(1.0), sx.or(sy).unwrap_or(1.0)),
-            (sx, sy) => (sx.unwrap_or(1.0), sy.unwrap_or(1.0)),
-        };
+        (sx, scale(self.corner.y, self.anchor.y, self.by.y))
+    }
+
+    /// How much a text's size scales by: evenly, by the geometric mean of
+    /// the sides' scales. A side of no length scales by the other's.
+    fn text_factor(&self) -> f64 {
+        let (sx, sy) = self.factors();
+        match self.sides() {
+            (None, Some(_)) => sy,
+            (Some(_), None) => sx,
+            _ => (sx * sy).sqrt(),
+        }
+    }
+
+    /// Where the scale puts `p`.
+    fn map(&self, p: Point) -> Point {
+        let (sx, sy) = self.factors();
         Point {
             x: self.anchor.x + (p.x - self.anchor.x) * sx,
             y: self.anchor.y + (p.y - self.anchor.y) * sy,
@@ -71,16 +95,22 @@ impl Grip {
             let p = self.map(p);
             Point { x: tenth(p.x), y: tenth(p.y) }
         };
+        let grow = |size: f64| {
+            let size = (size * self.text_factor()).clamp(*TEXT_SIZES.start(), *TEXT_SIZES.end());
+            tenth(size)
+        };
         let chosen = items.iter().filter(|i| ids.contains(&i.id));
-        let mut after: Vec<Item> =
-            chosen.map(|i| Item { shape: reshaped(&i.shape, map), ..(**i).clone() }).collect();
+        let mut after: Vec<Item> = chosen
+            .map(|i| Item { shape: reshaped(&i.shape, map, grow), ..(**i).clone() })
+            .collect();
         after.extend(shapes::follow_by(items, ids, map));
         after
     }
 }
 
-/// `shape` with its points put where `map` says, as the module says.
-fn reshaped(shape: &Shape, map: impl Fn(Point) -> Point) -> Shape {
+/// `shape` with its points put where `map` says and a text's size made
+/// what `grow` says, as the module says.
+fn reshaped(shape: &Shape, map: impl Fn(Point) -> Point, grow: impl Fn(f64) -> f64) -> Shape {
     let corner = |r: &Rect| map(Point { x: r.x, y: r.y });
     let placed = |r: &Rect| {
         let at = corner(r);
@@ -100,7 +130,10 @@ fn reshaped(shape: &Shape, map: impl Fn(Point) -> Point) -> Shape {
             Shape::Arrow { from: map(*from), to: map(*to), width: *width, bound: *bound }
         }
         Shape::Text { frame, text, size } => {
-            Shape::Text { frame: placed(frame), text: text.clone(), size: *size }
+            let (at, after) = (placed(frame), grow(*size));
+            let by = after / size;
+            let frame = Rect { width: frame.width * by, height: frame.height * by, ..at };
+            Shape::Text { frame, text: text.clone(), size: after }
         }
         Shape::Button { frame, status } => Shape::Button { frame: placed(frame), status: *status },
         Shape::Live { frame, name, open } => {

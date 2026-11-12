@@ -23,7 +23,12 @@ fn frame(x: f64, y: f64, w: f64, h: f64) -> Shape {
 }
 
 fn text(x: f64, y: f64, w: f64, h: f64) -> Shape {
-    Shape::Text { text: "hi".into(), frame: Rect::new(x, y, w, h), colour: Colour::BLACK }
+    Shape::Text {
+        text: "hi".into(),
+        frame: Rect::new(x, y, w, h),
+        colour: Colour::BLACK,
+        size: 24.0,
+    }
 }
 
 fn arrow(from: (f64, f64), to: (f64, f64)) -> Shape {

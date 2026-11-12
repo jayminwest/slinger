@@ -65,6 +65,7 @@ fn shape(rng: &mut Rng, items: &[ItemId]) -> Shape {
             text: rng.pick(&["", "hi", "a \"quoted\"\nline", "ünïcode ✓", "\\ \t"]).to_string(),
             frame: frame(rng),
             colour: colour(rng),
+            size: [24.0, 36.5, 4.0][rng.below(3)],
         },
         2 => Shape::Box { frame: frame(rng), colour: colour(rng) },
         3 => Shape::Live {
@@ -219,7 +220,10 @@ fn the_stored_v1_fixture_still_decodes() {
     assert_eq!(text.author(), &Author::Agent("scout".into()));
     assert_eq!(text.time(), Time(1_794_328_930_400));
     let frame = Rect::new(280.0, 700.0, 200.0, 30.0);
-    assert_eq!(text.shape(), &Shape::Text { text: "Two pages.".into(), frame, colour: black });
+    assert_eq!(
+        text.shape(),
+        &Shape::Text { text: "Two pages.".into(), frame, colour: black, size: 24.0 }
+    );
     let arrow = Shape::Arrow {
         from: End::on(Point::new(0.0, 0.0), ItemId::new(2)),
         to: End::free(Point::new(50.0, 0.0)),
@@ -247,6 +251,24 @@ fn the_stroke_points_are_deltas_in_tenths() {
     let want = [(209.6, 738.6), (206.7, 732.2), (206.7, 728.2), (210.7, 736.2)];
     assert_eq!(*points, want.map(|(x, y)| Point::new(x, y)));
     assert!((width - 2.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn a_text_size_is_read_written_back_and_cleared_by_null() {
+    let sized = r##"{"n":5,"t":"2026-11-10T16:42:10.400Z","by":"agent:scout","op":"add","item":{"id":"i3","page":"p1","kind":"text","color":"#000000","x":2800,"y":7000,"w":2000,"h":300,"text":"Two pages, one box.","size":360}}"##;
+    let size = |bytes: &str| {
+        let c = read(bytes.as_bytes()).unwrap().canvas().unwrap();
+        let Shape::Text { size, .. } = c.item(ItemId::new(3)).unwrap().shape() else { panic!() };
+        *size
+    };
+    let file = with_line(6, sized);
+    assert!((size(FIXTURE) - 24.0).abs() < f64::EPSILON, "no size is the usual 24");
+    assert!((size(&file) - 36.0).abs() < f64::EPSILON, "a set of the text keeps the size");
+    assert_eq!(read(file.as_bytes()).unwrap().lines[4].encode(), format!("{sized}\n"));
+    let cleared = r#"{"n":6,"t":"2026-11-10T16:42:12.000Z","by":"agent:scout","op":"set","id":"i3","fields":{"size":null}}"#;
+    let mut lines: Vec<&str> = file.lines().collect();
+    lines[6] = cleared;
+    assert!((size(&(lines.join("\n") + "\n")) - 24.0).abs() < f64::EPSILON);
 }
 
 #[test]

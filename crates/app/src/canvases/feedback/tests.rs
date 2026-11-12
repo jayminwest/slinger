@@ -241,3 +241,70 @@ fn the_pen_cancels_or_keeps_a_new_name_with_the_buttons_beside_its_entry() {
         });
     });
 }
+
+/// slinger-e8d72a: every entry shows the dictate key beneath its box, and
+/// the sling's prompt has the pen's buttons too: "✕" cancels it, "✓ Sling"
+/// sends it.
+#[test]
+fn every_entry_shows_the_dictate_key_and_the_sling_s_has_the_pen_s_buttons() {
+    let flick = tempfile::tempdir().unwrap();
+    let (socket, _heard) = fake_flick(flick.path(), ready);
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        user_stroke(daemon, "notes");
+        let (mut canvases, panes) = arrived(daemon, &socket);
+        let here = (panes.focus(), WINDOW.rect());
+        let key = Keymap::default().chord(Command::Dictate).unwrap();
+        let dictate = |canvases: &Canvases| shown(canvases, &panes).entry.unwrap().dictate;
+        assert!(open(&mut canvases, &panes));
+        assert_eq!(dictate(&canvases).unwrap().label.text, format!("{} dictate", key.glyphs()));
+        assert!(canvases.sling_key(ESCAPE));
+        assert!(canvases.command(&panes, here, Command::RenamePage));
+        assert!(dictate(&canvases).is_some(), "the new name's entry");
+        assert!(canvases.sling_key(ESCAPE));
+
+        lasso_the_stroke(&mut canvases, &panes);
+        assert!(canvases.sling_command(Command::Sling, &panes, here.1));
+        assert!(dictate(&canvases).is_some(), "the sling's");
+        let (labels, targets) = buttons(&canvases, &panes);
+        assert_eq!(labels, ["✓ Sling", DICTATE, CROSS]);
+        let entry = shown(&canvases, &panes).entry.unwrap();
+        let (pane, last) = (panes.place(here.1)[0].2, targets[2].0);
+        assert!(targets[0].0.x > entry.frame.x + entry.frame.width, "right of the box");
+        assert!(last.x + last.width <= pane.x + pane.width, "inside the pane");
+        tap(&mut canvases, targets[2]);
+        assert!(!canvases.typing(), "cancelled");
+        sling_by_the_button(&mut canvases, &panes);
+    });
+}
+
+/// The sling's entry opened again, "why?" typed, and "✓ Sling" tapped: it
+/// goes and, with no agent running, fails and opens again with why.
+fn sling_by_the_button(canvases: &mut Canvases, panes: &Panes) {
+    assert!(canvases.sling_command(Command::Sling, panes, WINDOW.rect()));
+    canvases.sling_typed("why?");
+    let send = buttons(canvases, panes).1[0];
+    tap(canvases, send);
+    assert!(!canvases.typing(), "sent");
+    wait_until(|| {
+        canvases.poll();
+        canvases.typing()
+    });
+    let lines = shown(canvases, panes).labels;
+    assert!(lines[0].text.starts_with("✗ "), "{lines:?}");
+}
+
+/// A lasso round the stroke `user_stroke` made, with the pen.
+fn lasso_the_stroke(canvases: &mut Canvases, panes: &Panes) {
+    let at = (panes.focus(), WINDOW.rect());
+    let here = Some(at);
+    let pen =
+        |x, y| Pen { at: Point { x, y }, when: 0.0, touch: false, eraser: false, shift: false };
+    let lasso = (Tool::Lasso, Config::default().theme.text);
+    assert!(canvases.pen_down(panes, at, pen(50.0, 50.0), lasso));
+    for (x, y) in [(200.0, 50.0), (200.0, 200.0), (50.0, 200.0)] {
+        canvases.pen_drag(panes, pen(x, y), here);
+    }
+    canvases.pen_up(panes, pen(50.0, 50.0), here);
+    assert!(canvases.selection().is_some());
+}

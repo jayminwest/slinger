@@ -353,7 +353,7 @@ fn an_edit_is_a_set_and_a_move_sets_each_arrow_that_follows() {
     assert_eq!(
         ops(&edit),
         json!({"op": "set", "id": "i3",
-               "fields": {"x": 0, "y": 0, "w": 240, "h": 312, "text": "a"}})
+               "fields": {"x": 0, "y": 0, "w": 240, "h": 312, "text": "a", "size": null}})
     );
     let shape = Shape::Arrow {
         from: pt(1.0, 1.0),
@@ -457,4 +457,25 @@ fn a_resize_sets_each_item_a_stroke_by_its_points_and_an_agent_ui_by_its_place()
     let ops = written.as_array().unwrap()[..1].to_vec();
     assert_eq!(m.apply(&feed(7, ops)), Applied::Changed);
     assert_eq!(m.items()[0].shape, scaled.shape, "the feed brings the stroke back as shown");
+}
+
+#[test]
+fn a_text_size_is_read_and_written_and_the_usual_one_left_out() {
+    let m = Mirror::new(&shown(vec![
+        json!({"id": "i1", "page": "p1", "kind": "text", "color": "#000000",
+               "x": 0, "y": 0, "w": 0, "h": 0, "text": "big", "size": 360}),
+        json!({"id": "i2", "page": "p1", "kind": "text", "color": "#000000",
+               "x": 0, "y": 0, "text": "odd", "size": 1}),
+    ]));
+    let frame = glyphs::frame(pt(0.0, 0.0), "big", 36.0, glyphs::UNWRAPPED);
+    let big = Shape::Text { frame, text: "big".into(), size: 36.0 };
+    assert_eq!(m.items()[0].shape, big);
+    let Shape::Text { size, .. } = m.items()[1].shape else { panic!() };
+    assert!((size - TEXT_SIZE).abs() < f64::EPSILON, "a size out of range reads as the usual");
+    let edit = Change::Set { canvas: "main".into(), page: "p1".into(), id: ItemId(1), shape: big };
+    assert_eq!(
+        ops(&edit),
+        json!({"op": "set", "id": "i1",
+               "fields": {"x": 0, "y": 0, "w": 1080, "h": 468, "text": "big", "size": 360}})
+    );
 }

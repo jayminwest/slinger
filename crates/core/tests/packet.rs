@@ -66,7 +66,12 @@ fn claude() -> Author {
 }
 
 fn text(body: &str, at: [f64; 4]) -> Shape {
-    Shape::Text { text: body.into(), frame: Rect::new(at[0], at[1], at[2], at[3]), colour: BLACK }
+    Shape::Text {
+        text: body.into(),
+        frame: Rect::new(at[0], at[1], at[2], at[3]),
+        colour: BLACK,
+        size: 24.0,
+    }
 }
 
 fn frame(x: f64, y: f64, w: f64, h: f64) -> Shape {

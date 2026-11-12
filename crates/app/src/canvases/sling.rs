@@ -122,15 +122,17 @@ impl Canvases {
     }
 
     /// Lays the sling over `scene` in `theme`'s colours: its entry, to the
-    /// agent `sidebar` names for its canvas, with `keys`' dictate key; or
-    /// its line while it goes, or why it failed; the feedback entry or a
-    /// page's new name's in its place while that is open, and the
-    /// feedback's lines; and what dictation says.
+    /// agent `sidebar` names for its canvas; or its line while it goes, or
+    /// why it failed; the feedback entry or a page's new name's in its
+    /// place while that is open, and the feedback's lines; whichever entry
+    /// shows, with `keys`' dictate key; and what dictation says.
     pub fn show_sling(&self, scene: &mut Scene, theme: &Theme, keys: &Keymap, sidebar: &Sidebar) {
         let agent = self.sling.canvas().and_then(|canvas| sidebar.agent(canvas));
-        let entry = self.sling.entry(theme, agent, keys.chord(Command::Dictate));
+        let dictate = keys.chord(Command::Dictate);
+        let entry = self.sling.entry(theme, agent, dictate);
         let (note, lines) = self.notes.shown(theme);
-        scene.entry = note.or_else(|| self.asks.entry(theme)).or(entry).map(Box::new);
+        let other = note.or_else(|| self.asks.entry(theme)).map(|e| e.dictated(theme, dictate));
+        scene.entry = other.or(entry).map(Box::new);
         scene.labels.extend(self.sling.labels(theme));
         scene.labels.extend(lines);
         scene.labels.extend(self.dictation_labels(theme));

@@ -1,7 +1,7 @@
 //! Speaking the sling's prompt (SPEC D2), or into any open entry: the
 //! `dictate` command, what dictation shows under the entry
-//! ([`crate::scene::dictation`]), the pen's buttons beside a note's or a
-//! new name's entry ([`pen`]), and the thread that asks Flick ([`Flick`]).
+//! ([`crate::scene::dictation`]), the pen's buttons beside the open entry
+//! ([`pen`]), and the thread that asks Flick ([`Flick`]).
 //! Flick types what it heard into the focused field, the entry, as if the
 //! user typed it, so the text reaches it the usual way
 //! ([`Canvases::sling_typed`]). Runs on the main thread and never waits.
@@ -82,11 +82,12 @@ impl Canvases {
         }
     }
 
-    /// The pen's buttons beside the open entry, when it has them (a note's,
-    /// a new name's: [`pen`]), in `theme`'s colours: their labels and
-    /// their targets.
+    /// The pen's buttons beside the open entry ([`pen`]: a note's, a new
+    /// name's, the sling's), in `theme`'s colours: their labels and their
+    /// targets.
     pub(super) fn entry_buttons(&self, theme: &Theme) -> (Vec<Label>, Vec<Target>) {
-        let entry = self.notes.shown(theme).0.or_else(|| self.asks.entry(theme));
+        let note = self.notes.shown(theme).0.or_else(|| self.asks.entry(theme));
+        let entry = note.or_else(|| self.sling.entry(theme, None, None));
         let Some((frame, done)) = entry.and_then(|e| Some((e.frame, e.done?))) else {
             return (Vec::new(), Vec::new());
         };
