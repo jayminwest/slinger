@@ -623,7 +623,10 @@ change writes the workspace's file before the reply, and each reply is the
 profiles after it. A name is `a-z`, `0-9`, `-` and `_`, at most 64 long. A
 rule is a Claude Code tool, alone or with a pattern in parentheses (`Edit`,
 `Bash(git *)`), and the tool is one of `Bash`, `Edit`, `Glob`, `Grep`,
-`MultiEdit`, `NotebookEdit`, `Read`, `WebFetch`, `WebSearch` and `Write`.
+`MultiEdit`, `NotebookEdit`, `Read`, `WebFetch`, `WebSearch` and `Write`;
+or an MCP tool (`mcp__server`, `mcp__server__tool`, `mcp__server__*`),
+which is allowed but adds no built-in tool. The agent's own `tools` keep
+the same rule.
 A name, rule or `dir` the daemon cannot read is `invalid`, and nothing is
 written: a blank rule, another tool or an empty pattern is never passed on.
 A `dir` that is not there is `not_found`; one that is, is kept with its

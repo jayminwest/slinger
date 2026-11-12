@@ -16,7 +16,7 @@ use std::fmt::Write;
 use serde_json::{Value, json};
 
 use crate::sling::{Block, Message};
-use crate::workspace::Workspace;
+use crate::workspace::{Workspace, profile};
 use crate::{Error, Result};
 
 /// The built-in tools every session has: reading and running commands.
@@ -101,10 +101,11 @@ impl Limits {
         Ok(limits)
     }
 
-    /// The built-in tools the session has: [`TOOLS`] and the tool each of
-    /// its rules names (`Edit` for `Edit(src/**)`).
+    /// The built-in tools the session has: [`TOOLS`] and the built-in tool
+    /// each of its rules names (`Edit` for `Edit(src/**)`; none for an MCP
+    /// rule).
     fn builtin(&self) -> String {
-        let named = self.tools.iter().map(|rule| rule.split('(').next().unwrap_or(rule).trim());
+        let named = self.tools.iter().filter_map(|rule| profile::builtin(rule));
         unique(TOOLS.into_iter().chain(named)).join(",")
     }
 }
@@ -284,7 +285,7 @@ mod tests {
     fn an_agent_widens_its_limits_with_dirs_tools_and_its_user_config() {
         let ws = workspace(
             "[agent]\nname = \"a\"\nuser_config = true\ndirs = [\"/docs\", \"/docs\"]\n\
-             tools = [\"Edit(/docs/**)\", \"Bash(git *)\", \"WebFetch\"]\n",
+             tools = [\"Edit(/docs/**)\", \"Bash(git *)\", \"WebFetch\", \"mcp__gh\"]\n",
         );
         let limits = Limits::of(&ws, "here");
         assert_eq!(limits.dirs, ["/docs"], "each once");
@@ -295,7 +296,8 @@ mod tests {
         };
         assert_eq!(after("--setting-sources"), ["user,project,local"]);
         assert_eq!(after("--tools"), ["Read,Glob,Grep,Bash,Edit,WebFetch"]);
-        assert_eq!(after("--allowedTools"), [SLINGER, "Edit(/docs/**)", "Bash(git *)", "WebFetch"]);
+        let rules = [SLINGER, "Edit(/docs/**)", "Bash(git *)", "WebFetch", "mcp__gh"];
+        assert_eq!(after("--allowedTools"), rules, "an MCP rule is no built-in tool");
         assert_eq!(after("--add-dir"), ["/docs"]);
         assert_eq!(args[args.len() - 2..], ["--resume", "id"]);
     }

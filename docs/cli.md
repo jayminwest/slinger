@@ -71,7 +71,8 @@ Code permission rules a session under it may use, in place of the agent's
 own. `profile set` replaces a profile of that name whole; `--tool` takes one
 rule and repeats (`--tool Edit --tool 'Bash(git *)'`), and `--dir` is taken
 from the current directory when relative. A name, a rule or a tool slinger
-does not know exits 5 (`invalid`) with a hint listing the tools; a `--dir`
+does not know exits 5 (`invalid`) with a hint listing the tools (an MCP
+tool, `mcp__server__tool`, is taken too); a `--dir`
 that is not there, or a profile `remove` does not find, exits 3
 (`not_found`). `session start --profile NAME` starts the agent under that
 profile, in its own conversation. `sling send --profile NAME` sends only if

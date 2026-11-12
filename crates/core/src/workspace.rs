@@ -315,13 +315,23 @@ impl Workspace {
             if agent.name.trim().is_empty() {
                 return Err(invalid(&format!("workspace {ws:?}: agent name is empty")));
             }
+            if agent.name.contains('#') {
+                // `#` parts an agent from its profile in a session's key.
+                return Err(Error::Invalid {
+                    message: format!("workspace {ws:?}: agent name {:?} has a '#'", agent.name),
+                    hint: Some("rename the agent without '#' under [agent]".into()),
+                });
+            }
             if let Some(dir) = agent.dirs.iter().find(|d| !d.starts_with('/')) {
                 return Err(invalid(&format!(
                     "workspace {ws:?}: agent dir {dir:?} is not an absolute path"
                 )));
             }
-            if agent.tools.iter().any(|t| t.trim().is_empty()) {
-                return Err(invalid(&format!("workspace {ws:?}: an agent tool is empty")));
+            for rule in &agent.tools {
+                profile::check_rule(rule).map_err(|e| Error::Invalid {
+                    message: format!("workspace {ws:?}: agent.tools: {e}"),
+                    hint: e.hint().map(|h| format!("{h}; fix or drop it in {FILE_NAME}")),
+                })?;
             }
             profile::check_all(&agent.profiles).map_err(|e| Error::Invalid {
                 message: format!("workspace {ws:?}: {e}"),
