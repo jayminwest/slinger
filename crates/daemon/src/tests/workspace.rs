@@ -5,10 +5,11 @@
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
-use slinger_control::{NewEvent, NewTags, Workspace};
+use slinger_control::{Client, NewEvent, NewTags, SlingAsk, Workspace};
 use tempfile::TempDir;
 
 use super::Daemon;
+use crate::Workspaces;
 
 const FILE: &str = "slinger-workspace.toml";
 
@@ -147,21 +148,100 @@ fn closing_keeps_the_file_and_the_canvas() {
 }
 
 #[test]
-fn a_broken_file_fails_the_list_and_can_still_be_closed() {
+fn a_file_that_is_not_toml_is_listed_with_its_error_and_can_be_closed() {
     let projects = TempDir::new().unwrap();
     let dir = project(&projects, "fragile");
     let daemon = Daemon::start();
     let client = daemon.client();
     client.workspace_open(Some(&dir), None).unwrap();
     std::fs::write(dir.join(FILE), "not a workspace").unwrap();
-    let err = client.workspace_list().unwrap_err();
-    assert_eq!(err.code(), "invalid");
-    assert!(err.to_string().contains(FILE), "{err}");
-    assert!(err.hint().unwrap().contains("workspace close"), "{:?}", err.hint());
+    let listed = client.workspace_list().unwrap();
+    assert_eq!(listed.len(), 1);
+    let error = listed[0].error.as_ref().unwrap();
+    assert_eq!(
+        (error.code.as_str(), &error.file, error.field.as_deref()),
+        ("invalid", &dir.join(FILE), None)
+    );
+    assert!(error.hint.as_ref().unwrap().contains("workspace close"), "{:?}", error.hint);
+    assert_eq!((listed[0].name.as_str(), &listed[0].dir), ("", &dir), "the file names nothing");
     assert_eq!(client.workspace_show("fragile").unwrap_err().code(), "not_found");
+    assert_eq!(client.workspace_show(text(&dir)).unwrap_err().code(), "invalid");
     assert_eq!(client.workspace_close(text(&dir)).unwrap(), dir);
     assert_eq!(client.workspace_list().unwrap(), []);
     daemon.stop();
+}
+
+/// A file that breaks a rule: an agent rule slinger does not know.
+const BROKEN: &str = "version = 1\nname = \"bad\"\ncanvas = \"bad\"\n\
+                      [agent]\nname = \"scout\"\ntools = [\"Shell\"]\n";
+
+#[test]
+fn one_broken_file_leaves_the_other_workspaces_served() {
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let (good, bad) = (project(&projects, "good"), project(&projects, "bad"));
+    let daemon = Daemon::start_in(data.path());
+    let client = daemon.client();
+    client.workspace_open(Some(&good), None).unwrap();
+    client.workspace_open(Some(&bad), None).unwrap();
+    let file = bad.join(FILE);
+    std::fs::write(&file, BROKEN).unwrap();
+
+    let hint = listed_with_its_error(&client, &file);
+    every_verb_on_it_fails(&client, &bad, &hint);
+
+    // The others serve, and another can open.
+    assert_eq!(client.workspace_show("good").unwrap().name, "good");
+    assert!(client.pane_list("good").is_ok());
+    assert_eq!(client.session_list().unwrap(), []);
+    client.workspace_open(Some(&project(&projects, "third")), None).unwrap();
+    daemon.stop();
+    named_once_at_startup(data.path(), &file);
+
+    std::fs::write(&file, "version = 1\nname = \"bad\"\ncanvas = \"bad\"\n").unwrap();
+    let daemon = Daemon::start_in(data.path());
+    assert_eq!(daemon.client().workspace_show("bad").unwrap().error, None, "fixed, it serves");
+    daemon.stop();
+}
+
+/// The broken workspace is listed first, by name, with its error; the
+/// other with none. Returns the error's hint.
+fn listed_with_its_error(client: &Client, file: &Path) -> String {
+    let listed = client.workspace_list().unwrap();
+    let names: Vec<_> = listed.iter().map(|w| w.name.as_str()).collect();
+    assert_eq!(names, ["bad", "good"]);
+    assert_eq!(listed[1].error, None);
+    let (broken, error) = (&listed[0], listed[0].error.as_ref().unwrap());
+    assert_eq!((error.code.as_str(), error.file.as_path()), ("invalid", file));
+    assert_eq!(error.field.as_deref(), Some("agent.tools"));
+    assert!(error.message.contains("\"Shell\""), "{}", error.message);
+    let hint = error.hint.clone().unwrap();
+    assert!(hint.contains("mcp__<server>__<tool>") && hint.contains("workspace close"), "{hint}");
+    assert_eq!((broken.agent.as_ref(), broken.tag.as_str()), (None, ""), "nothing served from it");
+    hint
+}
+
+/// Every verb on the workspace in `dir` fails with its file's error, by
+/// name or by directory.
+fn every_verb_on_it_fails(client: &Client, dir: &Path, hint: &str) {
+    for which in ["bad", text(dir)] {
+        let err = client.workspace_show(which).unwrap_err();
+        assert_eq!((err.code(), err.hint()), ("invalid", Some(hint)), "{which}");
+    }
+    assert_eq!(client.pane_list("bad").unwrap_err().code(), "invalid");
+    assert_eq!(client.profile_list("bad").unwrap_err().code(), "invalid");
+    assert_eq!(client.session_start("bad").unwrap_err().code(), "invalid");
+    let sling = SlingAsk { canvas: "bad".into(), ..SlingAsk::default() };
+    assert_eq!(client.sling_send(sling).unwrap_err().code(), "invalid");
+}
+
+/// What the daemon writes on stderr as it starts: the broken file, once,
+/// and its hint.
+fn named_once_at_startup(data: &Path, file: &Path) {
+    let mut warned = Vec::new();
+    crate::warn_broken(&Workspaces::new(data.join("workspaces"), "m"), &mut warned).unwrap();
+    let warned = String::from_utf8(warned).unwrap();
+    assert_eq!(warned.matches(text(file)).count(), 1, "{warned}");
+    assert_eq!(warned.lines().count(), 2, "the error and its hint: {warned}");
 }
 
 #[test]

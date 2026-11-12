@@ -148,7 +148,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_import` | `path`: absolute path of a tldraw file, `canvas`: canvas id (optional, default made from the file's name) | `canvas`, `pages`: number, `items`: count by kind, `skipped`: count by tldraw shape type |
 | `canvas_changes` | `canvas`: canvas id, `after`: number (default 0), `wait`: milliseconds (default 0, at most 60000) | `next`: the number after the last op given, `ops`: list of operation lines |
 | `workspace_open` | `dir`: absolute path of a directory (optional), `name`: string (optional); one of them | `workspace`: the workspace, `new`: whether this open made its file |
-| `workspace_list` | none | `workspaces`: list of workspaces, sorted by name |
+| `workspace_list` | none | `workspaces`: list of workspaces, sorted by name; a broken one has `error` |
 | `workspace_show` | `workspace`: a name, or the absolute directory of its file | `workspace` |
 | `workspace_close` | `workspace`: as `workspace_show` | `dir`: the directory of its file |
 | `pane_list` | `workspace`: as `workspace_show` | `workspace`: its name, `layout`: the pane tree |
@@ -413,10 +413,24 @@ A workspace is `{name, tag, canvas, dir, agent, roots}`: `dir` is the
 directory of its file, `agent` (absent when it has none) is `{name, durable}`
 and `roots` is a list of `{machine, path, primary}`.
 
+Each open workspace's file is read on its own. One the daemon cannot use (it
+is not there, is not TOML, or breaks a rule of `docs/workspace.md`) is
+*broken*: `workspace_list` still lists it, as `{name, canvas, dir, error}`,
+where `name` and `canvas` are what the file says (absent or empty when it
+says none) and nothing else of it is served. `error` is `{code, message,
+hint, file, field}`: the stable code (`invalid` for a rule or text,
+`not_found` for a missing file), the file, and `field`, the field that broke
+a rule (`agent.tools`), when one did. Every verb on a broken workspace (show,
+the panes, the profiles, the session verbs, a sling on its canvas) fails with
+that same error and hint; none falls back to defaults. The others serve as
+before. At startup `slingerd` writes each broken file's error and hint to
+stderr, once.
+
 **`workspace_show`** and **`workspace_close`** take the workspace's name, or
-the absolute directory of its file. One that is not open is `not_found`.
-**`workspace_list`** fails with the error of a file it cannot read, and a hint
-to close that workspace by its directory, which works whatever the file holds.
+the absolute directory of its file. A name matches what a broken file says
+too. One that is not open is `not_found`. The hint of a broken workspace's
+error says to close it by its directory, which works whatever the file
+holds.
 Closing removes the workspace from the list only: its file, its canvas and
 its agent stay.
 

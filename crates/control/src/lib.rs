@@ -46,8 +46,8 @@ pub use sling::{SlingAsk, Slung};
 pub use ui::{LIVE_SIZE, LiveItem, UiAsk, UiOpen, UiOpened, UiReplied, UiShown};
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
 pub use workspace::{
-    Workspace, WorkspaceAgent, WorkspaceClosed, WorkspaceInfo, WorkspaceOpened, WorkspaceRoot,
-    Workspaces,
+    Workspace, WorkspaceAgent, WorkspaceClosed, WorkspaceFileError, WorkspaceInfo, WorkspaceOpened,
+    WorkspaceRoot, Workspaces,
 };
 
 /// A request to the daemon. One variant per verb; `op` on the wire names it.

@@ -38,7 +38,7 @@ a "did you mean" suggestion.
 | `canvas read <ID> [--page PAGE] [--after NUMBER] [--select IDS] [--out DIR]` | The packet's text (`docs/design/packet.md`), its header naming the directory that holds the images (`at=`). `--json`: `packet`, `dir`, `text`, `images` |
 | `canvas import <FILE> [--name ID]` | The new canvas's id, then one count per line, tab separated: `pages`, each item kind, and `skipped` with each tldraw shape type. `--json`: `canvas`, `pages`, `items`, `skipped` |
 | `workspace open [DIR] [--name NAME]` | The workspace's name. `--json`: `workspace`, `new` |
-| `workspace list` | One line per open workspace, by name: name, canvas and directory, separated by tabs. `--json`: `workspaces` |
+| `workspace list` | One line per open workspace, by name: name, canvas and directory, separated by tabs. A workspace whose file is broken has `-` for what its file does not say and a fourth field, `✗` and the error. `--json`: `workspaces` (a broken one with `error`: `code`, `message`, `hint`, `file`, `field`) |
 | `workspace show <WORKSPACE>` | One field per line, the name and the value separated by a tab: `name`, `tag`, `canvas`, `dir`, then `agent` (if any) and one `root` line per root, `machine:path`. `--json`: `workspace` |
 | `workspace close <WORKSPACE>` | Nothing. `--json`: `dir` |
 | `pane list <WORKSPACE>` | One line per pane, in order (left to right, top to bottom): number, kind (`canvas` or `ui`) and target, separated by tabs. `--json`: `workspace`, `layout`, `panes` |

@@ -18,7 +18,7 @@ use slinger_core::session::{self, Report, Session, Status, hooks, stream};
 
 use crate::processes::{ProcessError, Processes};
 use crate::store::{Query, Store, StoreError};
-use crate::workspaces::WorkspaceError;
+use crate::workspaces::{Listed, WorkspaceError};
 
 /// Why a session request failed.
 #[derive(Debug, thiserror::Error)]
@@ -172,11 +172,24 @@ impl Sessions {
     /// # Errors
     ///
     /// `not_found` when no open workspace has that canvas, `invalid` when
-    /// it has no agent, and the error of a workspace file.
+    /// it has no agent, and the error of the file of the workspace that
+    /// has it when the daemon cannot use that file.
     pub fn on_canvas(&self, store: &Store, canvas: &str) -> Result<(String, String)> {
-        let open = store.workspaces().list()?;
-        let ws = session::on_canvas(open.iter().map(|o| &o.workspace), canvas)?;
-        Ok((ws.name.clone(), session::agent_of(ws)?.to_string()))
+        let all = store.workspaces().list()?;
+        let usable = all.iter().filter_map(|w| match w {
+            Listed::Served(o) => Some(&o.workspace),
+            Listed::Broken(_) => None,
+        });
+        let missing = match session::on_canvas(usable, canvas) {
+            Ok(ws) => return Ok((ws.name.clone(), session::agent_of(ws)?.to_string())),
+            Err(missing) => missing,
+        };
+        // A broken file that names the canvas: the sling fails with its error.
+        let mut broken = all.into_iter().filter_map(Listed::broken);
+        match broken.find(|b| b.canvas.as_deref() == Some(canvas)) {
+            Some(b) => Err(b.error.into()),
+            None => Err(missing.into()),
+        }
     }
 
     /// Held by a sling from its marker to its `sling_sent`, and by a put
@@ -194,13 +207,14 @@ impl Sessions {
         self.show(store, agent)
     }
 
-    /// The sessions of the open workspaces, by agent.
+    /// The sessions of the open workspaces whose files the daemon can use,
+    /// by agent.
     ///
     /// # Errors
     ///
-    /// The error of a workspace file or of the record.
+    /// The error of the list of workspaces or of the record.
     pub fn list(&self, store: &Store) -> Result<Vec<Session>> {
-        let open = store.workspaces().list()?;
+        let open = store.workspaces().usable()?;
         let set = self.set.lock().unwrap_or_else(PoisonError::into_inner);
         let mut failed = None;
         let sessions = session::list(open.iter().map(|o| (&o.dir, &o.workspace)), |agent| {

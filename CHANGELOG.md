@@ -171,6 +171,15 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Workspaces:** one open workspace whose `slinger-workspace.toml` breaks
+  a rule (say an `agent.tools` rule slinger does not know) no longer stops
+  every other workspace from loading. The others work as before; the broken
+  one stays in `slinger workspace list` with its error, and anything you do
+  with it fails with that error and its hint, naming the file and the field
+  to fix. The hint for an unknown tool lists the accepted forms (`Tool`,
+  `Tool(pattern)`, `mcp__<server>`, `mcp__<server>__<tool>`,
+  `mcp__<server>__*`) and suggests `Bash` for `bash`. `slingerd` names a
+  broken file when it starts. The app's sidebar marks it "(invalid file)".
 - **App:** after a sling, the agent's answer no longer flashes "answered
   in text" when its items are still on their way to the canvas: an answer
   with nothing on the canvas yet waits a second for them.
