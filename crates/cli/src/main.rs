@@ -9,6 +9,7 @@ mod look;
 mod output;
 mod pane;
 mod put;
+mod schema;
 mod session;
 mod sling;
 #[cfg(test)]

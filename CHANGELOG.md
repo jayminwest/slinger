@@ -11,6 +11,10 @@ bullet with the area in bold.
 
 ### Added
 
+- **CLI:** `slinger canvas schema` prints the item kinds (text, box,
+  arrow, stroke, button, live) with their fields and the operations
+  `canvas apply` takes, without a daemon; `canvas apply --help` shows the
+  same table.
 - **Packets:** the packet header shows about what it costs to read
   (`tokens=`), its images included, so you and the agent both see what a
   sling costs. It is a local estimate (a token per 4 characters, a token
@@ -114,6 +118,9 @@ bullet with the area in bold.
 - **App:** the key overlay (⌘/) fits a narrow window. It drops to two
   columns, then one, instead of squeezing three until the titles and keys
   overlap; the rows scroll as before.
+- **CLI:** `canvas apply`, `canvas undo` and `canvas redo` act as the agent
+  named by `SLINGER_AGENT` when there is no `--agent`, as `canvas put` does.
+  What an agent applies no longer lands in your undo history as yours.
 - **Agents:** a drawing reaches the agent as one image when its strokes
   touch, instead of one image per long stroke (an airplane arrived as
   fuselage, wings and belly). An underline joins the words it touches. A

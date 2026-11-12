@@ -333,7 +333,8 @@ tenths of a unit.
 
 `made` lists the ids the `add` and `page.add` operations made, in order. An
 operation of another kind, or one whose fields do not fit, is `invalid` with
-a hint. `canvas_show` gives a page's items in drawing order as the file's
+a hint. `slinger canvas schema` prints this table and the item kinds
+(`crates/cli/src/schema.rs`); change it with them. `canvas_show` gives a page's items in drawing order as the file's
 whole item objects: `id`, `page`, `by`, `t` (when it was made), `kind`,
 `color` and the kind's fields.
 
