@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **Agents:** slinger ships a skill, so an agent knows when and how to use
+  it. In Claude Code, `/plugin marketplace add jayminwest/slinger` then
+  `/plugin install slinger@slinger`; for another harness, `slinger skill
+  install --dir <DIR>`. `slinger guide` prints the guide the skill points
+  to: the ideas, the common tasks and every command, from the binary you
+  run, so it is never behind it.
 - **Feedback:** each note listed under the app's feedback entry has a
   "✓" at its end: tap it with the pen to resolve the note, as `slinger
   feedback resolve` does. If it fails, the entry says why. A tall pane

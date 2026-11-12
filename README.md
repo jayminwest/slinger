@@ -20,6 +20,15 @@ cargo run --release --bin slingerd &
 cargo run --release --bin slinger -- canvas create main
 ```
 
+Teach your agents to use it. In Claude Code, install the plugin:
+
+```
+/plugin marketplace add jayminwest/slinger
+/plugin install slinger@slinger
+```
+
+For another harness, `slinger skill install --dir <its skills directory>` writes the same skill. The skill sends the agent to `slinger guide`, which the binary prints, so the guide always fits the installed commands.
+
 Build and open the macOS app (it shows the daemon's answer):
 
 ```bash

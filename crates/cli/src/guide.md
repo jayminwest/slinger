@@ -1,0 +1,116 @@
+# slinger: the guide for agents
+
+Slinger is one window where the user thinks with a pen on a canvas and agents
+do the work. The user reads the canvas, not chat. You use slinger through the
+`slinger` CLI, which talks to the daemon `slingerd` on a local socket. This
+guide comes from the `slinger` binary you run, so it fits that binary.
+
+## Ideas
+
+- **Canvas.** Pages of items: `stroke` (pen ink), `text`, `box`, `arrow`,
+  `button` and `live` (an agent UI). A canvas has an id, such as `notes`.
+- **Item ids.** `slinger canvas show` names items `i12`. A packet names them
+  by kind: `t12` is a text, `c12` is a cluster of ink (many strokes, one id).
+  The verbs that take an item take both forms.
+- **Units.** The verbs and `canvas show` use integers in tenths of a unit. A
+  packet prints whole units: the packet's `120` is `1200` in a verb.
+- **Packet.** What you read in place of a screenshot: images of the new ink,
+  one line for each item, and an outline of the rest of the page.
+- **Workspace.** A name, a directory, a canvas and an agent. The app shows
+  each workspace as a window of panes; a pane shows a canvas or an agent UI.
+- **Sling.** The user selects items, adds a prompt and sends them to the
+  workspace's agent. The agent gets a packet and the prompt.
+- **Agent name.** The verbs that change things for an agent (`canvas put`,
+  `canvas edit`, `canvas remove`, `status set`, `ui open`) need the agent's
+  name. A session that slinger started has `SLINGER_AGENT` set: pass nothing.
+  From another terminal, pass `--agent <NAME>` with a name for yourself, such
+  as `--agent claude`. The user sees that name as the maker of your items.
+- **Ownership.** You can edit and remove only the items your agent name made.
+  Never change the user's ink.
+
+## Output
+
+- Text on stdout by default, with tabs between fields. A command that
+  succeeds with nothing to say prints nothing.
+- `--json` prints one JSON document: `success`, `command`, then the data. A
+  failure has `error`, `code` and `hint`.
+- Exit codes: 0 ok, 1 error, 2 usage, 3 not found, 4 conflict, 5 invalid,
+  6 the daemon does not answer. On 6, tell the user to start `slingerd`; do
+  not start it yourself unless the user asks.
+- `slinger <command> --help` gives the full help of one command.
+
+## Tasks
+
+Find where to work:
+
+```bash
+slinger workspace list          # name, canvas and directory of each workspace
+slinger canvas list             # every canvas id
+slinger pane list <WORKSPACE>   # what the user's window shows
+```
+
+Read a canvas:
+
+```bash
+slinger canvas read <CANVAS>                 # the packet; `at=` names the directory of its images
+slinger canvas show <CANVAS>                 # every item as JSON, in tenths
+slinger canvas crop <CANVAS> --item c12      # an image of one item; read the file it prints
+slinger canvas changes <CANVAS> --after 40 --wait 30000   # wait for the user's next change
+```
+
+Read the images of a packet before you answer about handwriting: the lines
+give only the place of the ink, the images give the words.
+
+Answer on the canvas. Put your answer beside the item it is about; slinger
+finds a free place:
+
+```bash
+slinger canvas put <CANVAS> --beside t12 --text "The answer" --agent claude
+slinger canvas put <CANVAS> --beside c12 --box 2400,1200 --color "#cc0000" --agent claude
+slinger canvas put <CANVAS> --beside i7 --arrow i7 i9 --agent claude
+slinger canvas edit <CANVAS> --item i14 --text "A better answer" --agent claude
+slinger canvas remove <CANVAS> --item i14 --agent claude
+```
+
+Keep each text short: a few lines. Use more puts, each beside its subject,
+in place of one long text. Each put prints the new item's id and its box.
+
+Make many items in one undo step:
+
+```bash
+slinger canvas schema     # the item kinds and operations
+slinger canvas apply <CANVAS> '[{"op":"add","item":{"page":"p1","kind":"box","x":0,"y":0,"w":2400,"h":1200}}]' --agent claude
+slinger canvas undo <CANVAS> --agent claude
+```
+
+Show the user a UI in place of a long answer. A UI is one HTML file with
+everything in it:
+
+```bash
+slinger ui put pick-slot ./pick-slot.html
+slinger ui open pick-slot --workspace <WORKSPACE> --data '{"slots":[9,10]}' --agent claude
+slinger ui open pick-slot --as item --canvas <CANVAS> --beside i7 --agent claude
+```
+
+Tell the user your state when the work is long:
+
+```bash
+slinger status set working --note "reading the canvas" --agent claude
+slinger status set blocked --note "which page?" --agent claude
+slinger status set done --note "3 notes added" --agent claude
+```
+
+Give work to a workspace's own agent, as the user's sling does:
+
+```bash
+slinger session list
+slinger session start <WORKSPACE>
+slinger sling send <CANVAS> --prompt "Sum up this page"
+slinger session show <AGENT>      # its status and its last answer
+```
+
+When slinger itself gets in your way, leave a note for its maker:
+
+```bash
+slinger feedback add "canvas put put my text over the ink"
+```

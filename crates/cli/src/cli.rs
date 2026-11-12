@@ -17,6 +17,7 @@ use slinger_control as control;
 
 use crate::canvas::Canvas;
 use crate::feedback::Feedback;
+use crate::guide::Skill;
 use crate::output::{Ctx, Failure, Output, exit};
 use crate::pane::Pane;
 use crate::profile::Profile;
@@ -115,6 +116,11 @@ enum Command {
     /// Leave, list and resolve notes about slinger itself
     #[command(subcommand)]
     Feedback(Feedback),
+    /// Print the guide for agents: the ideas, the common tasks and every command
+    Guide,
+    /// Install the skill that tells an agent when and how to use slinger
+    #[command(subcommand)]
+    Skill(Skill),
 }
 
 #[derive(Subcommand)]
@@ -196,6 +202,8 @@ impl Command {
             Self::Sling(sling) => sling.name(),
             Self::File(file) => file.name(),
             Self::Feedback(feedback) => feedback.name(),
+            Self::Guide => "guide",
+            Self::Skill(skill) => skill.name(),
         }
     }
 }
@@ -275,7 +283,15 @@ fn execute(
         Command::Sling(sling) => crate::sling::execute(sling, daemon, input),
         Command::File(file) => crate::session::touched(file, daemon, input),
         Command::Feedback(feedback) => feedback.execute(daemon),
+        Command::Guide => Ok(crate::guide::guide(&command_tree())),
+        Command::Skill(skill) => skill.execute(),
     }
+}
+
+/// Every command and its arguments, as clap holds them: what `slinger guide`
+/// prints, and what the tests hold the guide and the skill to.
+pub fn command_tree() -> clap::Command {
+    Cli::command()
 }
 
 /// A file of this user's in the temporary directory that the daemon reads or

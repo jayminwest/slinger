@@ -1,0 +1,10 @@
+{
+  "name": "slinger",
+  "version": "0.0.0",
+  "description": "Teaches an agent to use the slinger canvas app through its CLI: read a canvas, answer on it, show a UI, manage workspaces and sessions.",
+  "author": { "name": "Jaymin West" },
+  "homepage": "https://github.com/jayminwest/slinger",
+  "repository": "https://github.com/jayminwest/slinger",
+  "license": "MIT",
+  "keywords": ["canvas", "slinger", "agents"]
+}

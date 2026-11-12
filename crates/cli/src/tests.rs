@@ -15,6 +15,7 @@ mod canvas;
 mod canvas_feed;
 mod edit;
 mod feedback;
+mod guide;
 mod look;
 mod pane;
 mod profile;

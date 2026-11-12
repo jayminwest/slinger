@@ -16,6 +16,7 @@ Read `docs/PHILOSOPHY.md` before you change any design. In short:
 
 - `crates/core/`: the core library (`slinger-core`). It has no terminal or process IO and no front-end dependencies.
 - `crates/cli/`: the CLI (`slinger` binary). This is a thin layer over the daemon's control socket: it does not link the core. The output contract is in `docs/cli.md`.
+- `plugin/`: the Claude Code plugin: the skill that tells an agent when to use slinger (`plugin/skills/slinger/SKILL.md`). `.claude-plugin/marketplace.json` lists it. The CLI ships the same skill (`slinger skill install`) and the guide it points to (`slinger guide`, from `crates/cli/src/guide.md`).
 - `crates/control/`: the control protocol (`slinger-control`): the requests, the replies, the wire format and the socket client. The contract is in `docs/service.md`.
 - `crates/daemon/`: the daemon (`slingerd` binary). It owns the socket, the signals and startup, and serves the core. It holds no domain logic.
 - `crates/app/`: the macOS app (`slinger-app` binary). This is a thin layer over the daemon's control socket. Only `crates/app/src/platform/` holds `unsafe`, objc2 or AppKit code. `scripts/bundle.sh` builds the `.app`.
@@ -42,6 +43,7 @@ cargo test --workspace
 - Use typed errors with `thiserror` in the core and `anyhow` only at the binary edge.
 - A layer boundary is a rule in `budgets/layer-rules.json`. Add the rule in the same commit as the boundary.
 - A new verb changes four places, in this order: the core, `crates/control`, the daemon's `answer`, then each client. See "Adding a verb" in `docs/service.md`.
+- A change to how agents use slinger (a new common task, a renamed verb or flag) changes `crates/cli/src/guide.md` in the same commit. The tests in `crates/cli/src/tests/guide.rs` fail on a command or flag that is gone.
 - AppKit runs on the main thread only. Keep decisions in the pure modules (`scene`, `layout`) and out of `platform`.
 - Keep files under 500 lines. Budgets live in `budgets/` and only tighten.
 - Stop an app or daemon you started by its pid. `pkill -f target/debug/slinger-app` also kills the app that another worktree's tests are running (slinger-db4a8b).

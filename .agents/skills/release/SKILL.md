@@ -19,6 +19,9 @@ version's CHANGELOG section.
 3. **Bump it.**
    - Set `version` under `[workspace.package]` in the root `Cargo.toml`, and the
      same `version` on each path dependency under `[workspace.dependencies]`.
+   - Set the same `version` in `plugin/.claude-plugin/plugin.json`: Claude Code
+     updates an installed plugin only when this changes. A test fails if it
+     differs.
    - Run `cargo update --workspace --offline` to update the lockfile.
 4. **Edit the changelog.** Rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`
    and add a fresh, empty `## [Unreleased]` above it. Write the entries for

@@ -1032,6 +1032,7 @@ Each boundary has something that fails when it is broken:
 | The protocol crate does not link the core | `check:layers` rule `control-is-transport-only` |
 | The CLI reaches the core only through the socket | `check:layers` rule `cli-uses-the-socket` |
 | The app reaches the core only through the socket | `check:layers` rule `app-uses-the-socket` |
+| The agent guide, the skill and the plugin name only commands and flags the CLI has; the plugin has the binary's version | `crates/cli/src/tests/guide.rs` |
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
 | The canvas file format is readable by older readers | `crates/core/tests/canvas_file.rs`, with a stored v1 fixture |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |

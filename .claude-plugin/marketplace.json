@@ -1,0 +1,12 @@
+{
+  "name": "slinger",
+  "description": "The slinger canvas app's own plugin: the skill that teaches an agent its CLI.",
+  "owner": { "name": "Jaymin West" },
+  "plugins": [
+    {
+      "name": "slinger",
+      "source": "./plugin",
+      "description": "Teaches an agent to use the slinger canvas app through its CLI."
+    }
+  ]
+}

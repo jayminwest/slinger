@@ -64,6 +64,8 @@ a "did you mean" suggestion.
 | `feedback ls [--all] [--limit N]` | One line per note, newest first: `ts`, text and, with `--all`, `resolved` and its note for a resolved one, separated by tabs. `--limit` defaults to 20. `--json`: `path`, `entries` |
 | `feedback resolve <TS> [NOTE]...` | Nothing. `--json`: `path`, `resolves`, `ts`, `note` |
 | `feedback path` | The feedback file's path. `--json`: `path` |
+| `guide` | The guide for agents: the ideas and the common tasks, then every command with its arguments and what it does. Needs no daemon. `--json`: `guide`, `commands` (`name`, `usage`, `about`) |
+| `skill install [--dir DIR]` | The path of the skill file written, `<DIR>/slinger/SKILL.md`. Needs no daemon. `--json`: `path`, `new` |
 
 `profile` keeps the profiles of a workspace's agent in its file
 (`docs/service.md`, "Profiles"): each a working directory and the Claude
@@ -77,6 +79,19 @@ that is not there, or a profile `remove` does not find, exits 3
 (`not_found`). `session start --profile NAME` starts the agent under that
 profile, in its own conversation. `sling send --profile NAME` sends only if
 the agent runs under that profile, and exits 4 (`conflict`) otherwise.
+
+`guide` and `skill` are how an agent learns slinger. `guide` prints the
+text in `crates/cli/src/guide.md` and then one entry per command, made from
+the commands themselves, so the reference always fits the binary that prints
+it. The skill (`plugin/skills/slinger/SKILL.md`) says when to use slinger and
+to run `slinger guide`; the Claude Code plugin in `plugin/` ships it, and
+`skill install` writes the same bytes for a harness with no plugins. `--dir`
+defaults to `$CLAUDE_CONFIG_DIR/skills`, else `~/.claude/skills`; it is made
+if missing. A skill that holds these bytes already stays as it is (`new` is
+false); an older one is replaced. With no `--dir` and no home directory it
+exits 2 (`usage`). The tests in `crates/cli/src/tests/guide.rs` fail when
+the guide or the skill shows a command or a flag the CLI does not have, and
+when the plugin's version is not the binary's.
 
 `feedback` keeps notes about slinger itself in the daemon's feedback
 file (`docs/service.md`, "Feedback"), the same notes the app's
@@ -312,3 +327,5 @@ others. Never renumber.
 3. Add a match arm that calls the client method and returns `Output { data, human }`.
    The CLI never calls the core.
 4. Add tests to `crates/cli/src/tests.rs`. They run against a real daemon.
+5. If agents use the command often, show it under "Tasks" in `crates/cli/src/guide.md`.
+   `slinger guide` lists every command without this step.
