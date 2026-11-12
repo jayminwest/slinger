@@ -8,8 +8,10 @@
 //! While open it takes every press, as the key overlay does: a row runs
 //! when the pen lifts on the row it went down on (the row under the pen
 //! lights, more when pressed); a press outside the panel, or escape,
-//! closes it. Rows are [`style::TAP`] tall. Pages that do not fit above the
-//! footer are left out, the shown page kept in view.
+//! closes it. Rows are [`style::TAP`] tall. When the pages do not all fit
+//! above the footer, it opens on as many as do, the shown page kept in
+//! view, and a scroll or a drag of the pen on the panel (past a small slop,
+//! so it taps nothing) turns them a row at a time; the commands stay put.
 
 use crate::commands::{Chord, Command};
 use crate::config::Theme;
@@ -27,6 +29,8 @@ const EDGE: f64 = 8.0;
 /// A row: tall enough for the pen; the space for the ✓ before a name.
 const ROW: f64 = style::TAP;
 const MARK: f64 = 22.0;
+/// How far the pen moves before a press scrolls instead of tapping.
+const SLOP: f64 = 6.0;
 /// The space the hairline between the pages and the commands takes.
 const RULE: f64 = 9.0;
 const ESCAPE: Chord = Chord::new(0, '\u{1b}');
@@ -38,36 +42,53 @@ const COMMANDS: [(Command, &str); 3] = [
 ];
 
 /// The open menu: the pane it is for, the page name it opened over, the
-/// pages' names and which one the pane shows.
+/// pages' names and which one the pane shows; once scrolled, the first
+/// page shown, and the part of a row scrolled past it.
 #[derive(Debug, Clone, PartialEq)]
 struct Open {
     pane: PaneId,
     anchor: Rect,
     names: Vec<String>,
     shown: usize,
+    first: Option<usize>,
+    spill: f64,
 }
 
-/// The page menu: open or not, where the pen is over it, and the row it
-/// went down on.
+/// A press on the panel, until the pen lifts: the row it went down on,
+/// where it went down and last was, and whether it moved far enough to
+/// scroll.
+#[derive(Debug, Clone, Copy)]
+struct Held {
+    tap: Option<Tap>,
+    from: Point,
+    last: Point,
+    dragged: bool,
+}
+
+/// The page menu: open or not, where the pen is over it, and the press on it.
 #[derive(Debug, Default)]
 pub struct PageMenu {
     open: Option<Open>,
     pointer: Option<Point>,
-    held: Option<Tap>,
+    held: Option<Held>,
 }
 
-/// Where the panel and its rows are: each row's frame and what it runs.
+/// Where the panel and its rows are: each row's frame and what it runs;
+/// the first page shown and the most it can be.
 struct Place {
     panel: Rect,
     rows: Vec<(Rect, Tap)>,
     rule: Option<Rect>,
+    first: usize,
+    most: usize,
 }
 
 impl PageMenu {
     /// Opens the menu for `pane` above `anchor` (its footer's page name),
     /// listing `names` with the one at `shown` marked.
     pub fn open(&mut self, pane: PaneId, anchor: Rect, (names, shown): (Vec<String>, usize)) {
-        *self = PageMenu { open: Some(Open { pane, anchor, names, shown }), ..PageMenu::default() };
+        let open = Open { pane, anchor, names, shown, first: None, spill: 0.0 };
+        *self = PageMenu { open: Some(open), ..PageMenu::default() };
     }
 
     pub fn is_open(&self) -> bool {
@@ -102,20 +123,54 @@ impl PageMenu {
     pub fn press(&mut self, at: Point, size: Size) -> Took {
         let Some(place) = self.place(size) else { return Took::No };
         if place.panel.contains(at) {
-            (self.held, self.pointer) = (row_at(&place, at), Some(at));
+            let held = Held { tap: row_at(&place, at), from: at, last: at, dragged: false };
+            (self.held, self.pointer) = (Some(held), Some(at));
         } else {
             *self = PageMenu::default();
         }
         Took::Yes
     }
 
-    /// The pen moved to `at`, down (`drag`) or not. True when that changed
-    /// what lights; a drag is always the menu's while it is open.
+    /// The pen moved to `at`, down (`drag`) or not: past a small slop, a
+    /// press scrolls the pages with it instead of tapping. True when that
+    /// changed what lights; a drag is always the menu's while it is open.
     pub fn pointer(&mut self, at: Point, size: Size, drag: bool) -> bool {
         let Some(place) = self.place(size) else { return false };
         let before = self.pointer.and_then(|p| row_at(&place, p));
         self.pointer = Some(at);
+        if let Some(mut held) = self.held.filter(|_| drag) {
+            held.dragged |= (at.x - held.from.x).hypot(at.y - held.from.y) > SLOP;
+            let by = held.last.y - at.y;
+            held.last = at;
+            self.held = Some(held);
+            if held.dragged {
+                self.turn(by, size);
+            }
+        }
         drag || before != row_at(&place, at)
+    }
+
+    /// A scroll by `dy` points (down the page is negative) while open: the
+    /// pages follow it. True while open: the menu takes it.
+    pub fn scroll(&mut self, dy: f64, size: Size) -> bool {
+        self.turn(-dy, size);
+        self.is_open()
+    }
+
+    /// Turns the pages `by` points (positive shows later pages), a row at a
+    /// time; a part of a row waits for the rest. At either end they stay.
+    fn turn(&mut self, by: f64, size: Size) {
+        let Some(place) = self.place(size) else { return };
+        let Some(open) = &mut self.open else { return };
+        let (mut first, mut moved) = (place.first, open.spill + by);
+        while moved >= ROW && first < place.most {
+            (first, moved) = (first + 1, moved - ROW);
+        }
+        while moved <= -ROW && first > 0 {
+            (first, moved) = (first - 1, moved + ROW);
+        }
+        let end = (first == place.most && moved > 0.0) || (first == 0 && moved < 0.0);
+        (open.first, open.spill) = (Some(first), if end { 0.0 } else { moved });
     }
 
     /// The pen lifted at `at`: on the row it went down on, the menu closes
@@ -124,7 +179,9 @@ impl PageMenu {
     pub fn lift(&mut self, at: Point, size: Size) -> Took {
         let Some(place) = self.place(size) else { return Took::No };
         match self.held.take() {
-            Some(tap) if row_at(&place, at) == Some(tap) => {
+            Some(Held { tap: Some(tap), dragged: false, .. })
+                if row_at(&place, at) == Some(tap) =>
+            {
                 let frame = place.rows.iter().find(|(_, t)| *t == tap).map_or(place.panel, |r| r.0);
                 *self = PageMenu::default();
                 Took::Tap((frame, tap))
@@ -145,7 +202,10 @@ impl PageMenu {
         let mut lines = vec![panel];
         let under = self.pointer.and_then(|p| row_at(&place, p));
         let lit = match self.held {
-            Some(held) => (under == Some(held)).then(|| (held, style::selected(theme))),
+            Some(Held { tap: Some(held), dragged: false, .. }) => {
+                (under == Some(held)).then(|| (held, style::selected(theme)))
+            }
+            Some(_) => None,
             None => under.map(|tap| (tap, style::hover(theme))),
         };
         for &(frame, tap) in &place.rows {
@@ -176,15 +236,17 @@ impl PageMenu {
 
     /// Where the open menu's panel and rows are in a window of `size`:
     /// above its page name, centred on it and kept inside the window; as
-    /// many pages as fit, from one that keeps the shown page in view.
+    /// many pages as fit, from where it was scrolled to, else from one that
+    /// keeps the shown page in view.
     fn place(&self, size: Size) -> Option<Place> {
         let open = self.open.as_ref()?;
         let count = |n: usize| u32::try_from(n).map_or(f64::from(u32::MAX), f64::from);
         let fixed = 2.0 * PAD + RULE + ROW * count(COMMANDS.len());
         let room = open.anchor.y - GAP - EDGE - fixed;
         let fit = (0..open.names.len()).take_while(|&n| ROW * count(n + 1) <= room).count();
-        let first =
-            open.shown.saturating_sub(fit.saturating_sub(1) / 2).min(open.names.len() - fit);
+        let most = open.names.len() - fit;
+        let centred = open.shown.saturating_sub(fit.saturating_sub(1) / 2);
+        let first = open.first.unwrap_or(centred).min(most);
         let height = fixed + ROW * count(fit);
         let centre = open.anchor.x + open.anchor.width / 2.0;
         let x = (centre - WIDTH / 2.0).min(size.width - EDGE - WIDTH).max(EDGE);
@@ -207,7 +269,7 @@ impl PageMenu {
         });
         let after = below + RULE;
         rows.extend(COMMANDS.iter().enumerate().map(|(n, &(c, _))| (row(n, after), Tap::Run(c))));
-        Some(Place { panel, rows, rule })
+        Some(Place { panel, rows, rule, first, most })
     }
 }
 

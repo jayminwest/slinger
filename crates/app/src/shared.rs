@@ -134,7 +134,8 @@ impl Shared {
         self.menu.pointer(at, self.size, false) || (!self.modal() && self.taps.hover(at))
     }
 
-    /// The pen, down, moved to `at`: the open key overlay scrolls with it.
+    /// The pen, down, moved to `at`: the open key overlay, or the open page
+    /// menu's pages, scroll with it.
     /// True while the overlay, the palette or the page menu is open, or the
     /// pen holds a button: they take it.
     pub fn drag(&mut self, at: Point) -> bool {
@@ -144,10 +145,13 @@ impl Shared {
             || self.taps.drag(at)
     }
 
-    /// A scroll by `dy` points: the open key overlay's rows follow it. True
-    /// while the overlay, the palette or the page menu is open: they take it.
+    /// A scroll by `dy` points: the open key overlay's rows, or the open
+    /// page menu's pages, follow it. True while the overlay, the palette or
+    /// the page menu is open: they take it.
     pub fn scroll(&mut self, dy: f64) -> bool {
-        self.overlay.scroll(dy, self.size) || self.palette.is_open() || self.menu.is_open()
+        self.overlay.scroll(dy, self.size)
+            || self.palette.is_open()
+            || self.menu.scroll(dy, self.size)
     }
 
     /// The pen lifted at `at`: a tap on the palette's, the key overlay's or
