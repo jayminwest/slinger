@@ -145,7 +145,8 @@ fn follow(
 /// went to.
 fn sling(daemon: &Client, ask: Ask) -> Result<String, Problem> {
     let select = ask.ids.into_iter().map(mirror::item_ref).collect();
-    let request = SlingAsk { canvas: ask.canvas, page: Some(ask.page), select, prompt: ask.prompt };
+    let (canvas, page, prompt) = (ask.canvas, Some(ask.page), ask.prompt);
+    let request = SlingAsk { canvas, page, select, prompt, profile: None };
     daemon.sling_send(request).map(|slung| slung.agent).map_err(Problem::from)
 }
 
@@ -275,7 +276,7 @@ mod tests {
         with_store(Some(&waiting_claude(bin.path())), |d| {
             let home = open_notes(d);
             d.status_set("scout", "done", None).unwrap();
-            assert_eq!(shown(d), (Some(Status::Stopped), None), "no process");
+            assert_eq!(shown(d), (Some(Status::Done), None), "never started: its hooks say");
             d.session_start("notes").unwrap();
             assert_eq!(shown(d), (Some(Status::Done), None), "it said so");
             let ask = SlingAsk {
@@ -283,6 +284,7 @@ mod tests {
                 page: None,
                 select: vec![],
                 prompt: "hi".into(),
+                profile: None,
             };
             d.sling_send(ask).unwrap();
             assert_eq!(shown(d), (Some(Status::Working), None), "one pending, no hook yet");
@@ -291,6 +293,7 @@ mod tests {
             std::fs::write(home.path().join("go"), "").unwrap();
             wait_until(|| shown(d).0 == Some(Status::Done));
             d.session_stop("notes").unwrap();
+            assert_eq!(shown(d).0, Some(Status::Stopped), "stopped, whatever it said");
         });
     }
 }

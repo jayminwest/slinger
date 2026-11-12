@@ -1,7 +1,11 @@
 //! Resizing the selection by a corner handle, with the lasso or the select
 //! tool: a press on a handle grabs that corner, and the drag scales the
 //! selection about the opposite corner, which stays put. The width and the
-//! height scale apart, and neither goes below [`SMALLEST`] or turns over.
+//! height scale apart, and neither goes below [`SMALLEST`] or turns over;
+//! with shift held they scale together, by the larger of the two, so the
+//! selection keeps its shape. The pointer on a handle is the resize cursor
+//! along its diagonal ([`Select::handle_cursor`]), and stays it while the
+//! handle is dragged.
 //!
 //! - A stroke's points, a box's corners and an arrow's ends scale; a
 //!   stroke's width and an arrow's do not.
@@ -18,6 +22,7 @@ use std::borrow::Cow;
 use super::{Gesture, HANDLE, MARGIN, Select, bounds};
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::cursor::{self, Cursor};
 use crate::scene::ink::{Change, Ink};
 use crate::scene::shapes;
 
@@ -25,25 +30,32 @@ use crate::scene::shapes;
 const SMALLEST: f64 = 0.05;
 
 /// A drag of a corner handle: the corner of the selection's items' box it
-/// grabbed, the corner opposite, which stays put, the press, and how far
-/// the pen has gone from it.
+/// grabbed, the corner opposite, which stays put, the press, how far the
+/// pen has gone from it, and whether the sides scale together (shift).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct Grip {
     corner: Point,
     anchor: Point,
     from: Point,
     pub(super) by: Point,
+    even: bool,
 }
 
 impl Grip {
     /// Where the scale puts `p`.
     fn map(&self, p: Point) -> Point {
+        // `None` for a side of no length: whatever it scales by, it stays.
         let scale = |corner: f64, anchor: f64, by: f64| {
             let side = corner - anchor;
-            if side == 0.0 { 1.0 } else { ((side + by) / side).max(SMALLEST) }
+            (side != 0.0).then(|| ((side + by) / side).max(SMALLEST))
         };
         let sx = scale(self.corner.x, self.anchor.x, self.by.x);
         let sy = scale(self.corner.y, self.anchor.y, self.by.y);
+        let (sx, sy) = match (sx, sy) {
+            (Some(sx), Some(sy)) if self.even => (sx.max(sy), sx.max(sy)),
+            (sx, sy) if self.even => (sx.or(sy).unwrap_or(1.0), sx.or(sy).unwrap_or(1.0)),
+            (sx, sy) => (sx.unwrap_or(1.0), sy.unwrap_or(1.0)),
+        };
         Point {
             x: self.anchor.x + (p.x - self.anchor.x) * sx,
             y: self.anchor.y + (p.y - self.anchor.y) * sy,
@@ -134,7 +146,30 @@ impl Select {
         let (x, y, _, _) = corners[i];
         let (ax, ay, _, _) = corners[(i + 2) % 4];
         let zero = Point { x: 0.0, y: 0.0 };
-        Some(Grip { corner: Point { x, y }, anchor: Point { x: ax, y: ay }, from: at, by: zero })
+        let (corner, anchor) = (Point { x, y }, Point { x: ax, y: ay });
+        Some(Grip { corner, anchor, from: at, by: zero, even: false })
+    }
+
+    /// The pointer at `at` on `page` of `canvas` at `zoom`, over `items`:
+    /// on a handle of the selection, the resize cursor along that handle's
+    /// diagonal; `None` anywhere else.
+    pub fn handle_cursor(
+        &self,
+        (canvas, page): (&str, &str),
+        at: Point,
+        zoom: f64,
+        items: &[Cow<'_, Item>],
+    ) -> Option<Cursor> {
+        let grip = self.handle((canvas, page), at, zoom, items)?;
+        Some(cursor::over_handle(grip.corner, grip.anchor))
+    }
+
+    /// Whether shift is held as the pen moves or lifts: a resize keeps the
+    /// selection's shape while it is.
+    pub fn keep_ratio(&mut self, shift: bool) {
+        if let Some((_, _, Gesture::Scale(grip))) = &mut self.gesture {
+            grip.even = shift;
+        }
     }
 
     /// A press at `at` on a handle starts a resize: returns false, and

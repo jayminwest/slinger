@@ -17,6 +17,16 @@ bullet with the area in bold.
   in the sling's prompt (tap it again, ● Stop, when done). The dictate
   key works in these entries too.
 
+- **Agents:** profiles per workspace. `slinger profile set <workspace> dev
+  --dir ~/Projects/app --tool Edit --tool 'Bash(git *)'` gives the
+  workspace's agent a named profile: a working directory and the Claude
+  Code tools it may use there. `slinger session start <workspace> --profile
+  dev` runs the agent under it, in a conversation of its own, and `slinger
+  sling send --profile dev` sends only to an agent running under it. A
+  start with no profile keeps the agent's own narrow limits, and a tool
+  slinger does not know is refused rather than passed on. `profile list`
+  and `profile remove` show and drop them; they live in
+  `slinger-workspace.toml` under `[[agent.profile]]`.
 - **Canvas:** `canvas apply` can add items and the arrows between them in
   one step: an arrow's `from` or `to` may be `$n`, the item at `made[n]`
   of the same request, made by an `add` before it.
@@ -30,7 +40,8 @@ bullet with the area in bold.
   Copy (⌘C) puts its items on the clipboard (other apps get the text of
   its texts), Cut (⌘X) also removes them, and Edit > Paste (⌘V) adds them
   to the focused pane's page, centred in it and selected, on any page or
-  canvas. Undo takes a paste or a cut back in one step. Cut, Copy and
+  canvas. Arrows pasted with the items at their ends stay joined to them.
+  Undo takes a paste or a cut back in one step. Cut, Copy and
   Paste grey out in the Edit menu when they would do nothing, such as
   Copy with nothing selected or while typing a text. Plain text copied
   from another app pastes onto the page as a new text in the pen's
@@ -123,8 +134,9 @@ bullet with the area in bold.
 - **App:** the selection's corner handles resize it, with the lasso or
   the select tool: drag one and the selection scales about the opposite
   corner. Strokes, boxes and arrows stretch; texts and agent UIs keep their
-  size and move with the rest; arrows pointing at the items follow. One
-  undo puts it back.
+  size and move with the rest; arrows pointing at the items follow. Hold
+  shift to keep the selection's shape. The pointer on a handle turns into
+  a diagonal resize cursor. One undo puts it back.
 - **App:** the "<agent> is done" bar goes on its own: 5 s after it shows,
   or at the pen's next press. A blocked agent's bar stays until you tap its
   ✕ (or ⌘.). The bar sits above the footers, so it hides no button, and a
@@ -154,6 +166,17 @@ bullet with the area in bold.
 - **App:** `slinger-app --preview` keeps its window's size and place apart
   from the app's, so previewing a UI no longer moves or resizes the app's
   window the next time it opens.
+- **App:** after a sling, the agent's answer no longer flashes "answered
+  in text" when its items are still on their way to the canvas: an answer
+  with nothing on the canvas yet waits a second for them.
+- **App:** the sidebar shows what an agent's hooks say for an agent you
+  run yourself, outside slingerd, instead of "not running". An agent
+  slingerd started and that has stopped still says "not running".
+- **App:** while a sling is out, only Delete stands beside the selection:
+  ➤ Sling and + prompt come back once the agent answers.
+- **App:** the sling's pill has round corners, like the flash, and is as
+  wide as its words: a pill with symbols or wide letters no longer cuts
+  them off or leaves a gap.
 - **App:** ⌘Z and ⇧⌘Z undo and redo your typing in the sling's prompt
   (and a note of feedback or a page's new name) instead of doing nothing.
 - **App:** the pointer turns into the resize cursor within reach of the

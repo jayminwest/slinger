@@ -164,10 +164,13 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `ink`: a `pts` list in tenths, `arrow`: `[from, to]` item ids; optional `color`: `#rrggbb` or `#rrggbbaa`, `at`: `[x, y]` in tenths | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
 | `canvas_edit` | `canvas`: canvas id, `agent`: string, `item`: an item id, then any of `text`: string, `box`: `[w, h]` in tenths, `move`: `[x, y]` in tenths | `item`, `page`, `x`, `y`, `w`, `h`: its box now, `seq`: the numbers written (empty when nothing changed) |
 | `canvas_remove` | `canvas`: canvas id, `agent`: string, `item`: an item id | `seq`: the numbers written (empty when it was already gone) |
-| `session_start` | `workspace`: string, its name or the directory of its file, `fresh`: bool (default `false`) | `session` |
+| `session_start` | `workspace`: string, its name or the directory of its file, `fresh`: bool (default `false`), `profile`: a profile's name (optional) | `session` |
 | `session_stop` | `workspace`: string | `session` |
 | `session_send` | `workspace`: string, `text`: string | `session` |
-| `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` |
+| `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty), `profile`: a profile's name (optional) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` |
+| `profile_list` | `workspace`: as `workspace_show` | `workspace`: its name, `profiles`: list of `{name, dir, tools}`, in its file's order |
+| `profile_set` | `workspace`, `name`: string, `dir`: absolute path of a directory (optional), `tools`: list of permission rules (optional) | `workspace`, `profiles` |
+| `profile_remove` | `workspace`, `name`: string | `workspace`, `profiles` |
 | `feedback_add` | `text`: string, then each optional: `workspace`, `canvas`, `page`, `tool`: string, `selected`: number | `path`: the feedback file, `entry`: the note as saved |
 | `feedback_list` | `all`: bool (default `false`: the open notes only), `limit`: number (optional) | `path`, `entries`: notes, newest first |
 | `feedback_resolve` | `ts`: a note's `ts`, `note`: string (optional) | `path`, `resolves`: the `ts`, `ts`: when it was resolved, `note` (absent when none) |
@@ -603,6 +606,35 @@ owner's settings and instructions too (`--setting-sources
 user,project,local`). The home's own `.claude/settings.json` belongs to the
 workspace and still applies, so the owner can widen a session there too.
 
+**Profiles.** An agent can have profiles (`[[agent.profile]]` in its
+workspace's file, docs/workspace.md): named limits it runs under when a
+start names one. A profile runs the process in its `dir` (the home when
+it has none), which then reads the home and the other directories too,
+and its `tools` take the place of the agent's: the `slinger` CLI stays,
+the agent's `dirs` and `user_config` stay, and nothing else is added. So
+a profile with no `tools` is narrower than the agent, never wider. A
+start under no profile runs within the agent's own limits. Claude Code
+loads the settings of the directory it runs in (`.claude/settings.json`
+there), as it does the home's: a profile's directory brings its own.
+
+**`profile_set`** adds a profile, or replaces the one of its name whole;
+**`profile_remove`** removes one; **`profile_list`** lists them. Each
+change writes the workspace's file before the reply, and each reply is the
+profiles after it. A name is `a-z`, `0-9`, `-` and `_`, at most 64 long. A
+rule is a Claude Code tool, alone or with a pattern in parentheses (`Edit`,
+`Bash(git *)`), and the tool is one of `Bash`, `Edit`, `Glob`, `Grep`,
+`MultiEdit`, `NotebookEdit`, `Read`, `WebFetch`, `WebSearch` and `Write`.
+A name, rule or `dir` the daemon cannot read is `invalid`, and nothing is
+written: a blank rule, another tool or an empty pattern is never passed on.
+A `dir` that is not there is `not_found`; one that is, is kept with its
+links resolved. A workspace with no agent is `invalid`, and removing a
+profile it does not have is `not_found`, with a hint naming the ones it has.
+
+```json
+{ "v": 1, "op": "profile_set", "workspace": "notes", "name": "dev", "dir": "/Users/me/Projects/app", "tools": ["Edit", "Bash(git *)"] }
+{ "ok": true, "workspace": "notes", "profiles": [{ "name": "dev", "dir": "/Users/me/Projects/app", "tools": ["Edit", "Bash(git *)"] }] }
+```
+
 **`session_start`** starts the process of the workspace's agent. The first
 start gives it a new session id (`--session-id`); once its output names that
 id, the daemon keeps it in `sessions.json`, and every later start, after a
@@ -612,7 +644,14 @@ with an error code before its output names the id, as Claude Code does when
 it no longer has the conversation) drops the kept id: that process shows as
 `exited`, and the next start begins a new session. With `fresh` a start
 always begins a new session: the kept id is dropped and a running process
-is stopped first. **`session_stop`** closes the process's
+is stopped first. With `profile` the process runs under that profile, and a
+process running under another one (or under none) is stopped first. Each
+profile keeps a conversation of its own, since Claude Code keeps one per
+working directory: `sessions.json` keeps it under `<agent>#<profile>`, and
+the next start under that profile resumes it. A session shows the
+`profile` its process runs under. A profile the agent does not have, or
+whose `dir` is no longer there, is `not_found`, and the running process
+stays. **`session_stop`** closes the process's
 input, waits up to 3 seconds and then kills it; stopping one that is not
 running succeeds. **`session_send`** writes `text` to the process as one user
 message and returns: the answer is the agent's to deliver, through the CLI.
@@ -707,7 +746,11 @@ at a time, so two packets never cover the same operation.
 
 Slinger never starts an agent for a sling (D10): with no running process
 the reply is `unavailable` with a hint to `session start` the workspace,
-and nothing is stored. A canvas no open workspace has is `not_found`, a
+and nothing is stored. A sling with `profile` goes only to a process that
+runs under that profile: one under another, or under none, is `conflict`
+with a hint to start it under that profile, and a profile the agent does
+not have is `not_found`. Either way nothing is stored. So a sling the user
+meant for a narrow profile never reaches a wider one. A canvas no open workspace has is `not_found`, a
 workspace with no agent `invalid`, and the canvas, page and selection fail
 as in `canvas_read`.
 
