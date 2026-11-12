@@ -244,7 +244,9 @@ fn the_selection_s_buttons_sling_prompt_and_delete_in_a_row_inside_the_pane() {
     let runs = [Command::SlingNow, Command::Sling, Command::DeleteSelection].map(Tap::Run);
     assert_eq!(taps, runs);
     let frames: Vec<Rect> = targets.iter().map(|t| t.0).collect();
-    assert!(frames.windows(2).all(|w| w[0].y == w[1].y && w[0].x + w[0].width < w[1].x));
+    assert!(
+        frames.windows(2).all(|w| (w[0].y - w[1].y).abs() < 1e-9 && w[0].x + w[0].width < w[1].x)
+    );
     assert!(frames[0].x > BOX.x + BOX.width, "right of the selection: {frames:?}");
 
     let corner = Rect { x: PANE.x + PANE.width - 20.0, ..BOX };
