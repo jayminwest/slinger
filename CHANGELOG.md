@@ -65,6 +65,9 @@ bullet with the area in bold.
   and the sidebar opens or stays hidden as you last left it. A `[window]
   sidebar` setting in the config still wins.
 
+- **App:** `[theme] done` sets the colour of a done agent's mark in the
+  sidebar (default `"#4cc36b"`, the green it always had).
+
 ### Changed
 
 - **App:** the selection's corner handles resize it, with the lasso or
