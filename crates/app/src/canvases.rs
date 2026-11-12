@@ -18,6 +18,7 @@
 mod button;
 mod drag;
 mod find;
+mod kept;
 mod live;
 mod paging;
 
@@ -85,6 +86,8 @@ pub struct Canvases {
     zoomed: Option<String>,
     /// Whether every canvas pane shows the dotted grid.
     paper: Paper,
+    /// Where the strokes not yet written are kept, if anywhere.
+    kept: Option<kept::Kept>,
 }
 
 /// One canvas page followed: the page asked for (`None`: the first), as
@@ -117,7 +120,8 @@ impl Default for View {
 }
 
 impl Canvases {
-    /// None followed yet; [`Canvases::show`] starts following.
+    /// None followed yet; [`Canvases::show`] starts following. Strokes not
+    /// yet written are kept nowhere until [`Canvases::keeping`].
     pub fn new(daemon: Client) -> Self {
         let (outbox, slinger) = (Outbox::start(daemon.clone()), Slinger::start(daemon.clone()));
         let (ink, select, sling) = (Ink::default(), Select::default(), Sling::default());
@@ -148,6 +152,7 @@ impl Canvases {
             agents: None,
             zoomed: None,
             paper: Paper::default(),
+            kept: None,
         }
     }
 
@@ -231,12 +236,14 @@ impl Canvases {
         if let Some((key, change)) = self.ink.next() {
             self.outbox.send(key, change);
         }
+        self.keep();
         answered
     }
 
     /// What is wrong with any canvas followed, or with sending the ink.
     pub fn problems(&self) -> impl Iterator<Item = &Problem> {
-        self.open.iter().filter_map(|o| o.problem.as_ref()).chain(self.ink.problem())
+        let kept = self.kept.as_ref().and_then(kept::Kept::problem);
+        self.open.iter().filter_map(|o| o.problem.as_ref()).chain(self.ink.problem()).chain(kept)
     }
 
     /// The pen went down in `pane` of `panes`, laid at `frame` in the

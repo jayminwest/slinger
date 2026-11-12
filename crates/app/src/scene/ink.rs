@@ -424,6 +424,15 @@ impl Ink {
         !self.pending.iter().any(|p| p.change.canvas() == canvas && busy(p))
     }
 
+    /// The finished strokes the daemon has not written yet, oldest first,
+    /// each with its key: what is lost if the app quits now.
+    pub fn unsent(&self) -> impl Iterator<Item = (u64, &Stroke)> {
+        self.pending.iter().filter_map(|p| match (&p.change, p.state) {
+            (Change::Add(stroke), State::Waiting | State::Sending) => Some((p.key, stroke)),
+            _ => None,
+        })
+    }
+
     /// Why the last change sent did not go, until one goes.
     pub fn problem(&self) -> Option<&Problem> {
         self.problem.as_ref()
