@@ -15,6 +15,16 @@ bullet with the area in bold.
   arrow, stroke, button, live) with their fields and the operations
   `canvas apply` takes, without a daemon; `canvas apply --help` shows the
   same table.
+- **Packets:** the packet header shows about what it costs to read
+  (`tokens=`), its images included, so you and the agent both see what a
+  sling costs. It is a local estimate (a token per 4 characters, a token
+  per 750 pixels of an image), not a tokenizer's count.
+
+- **App:** strokes drawn while slingerd is down are no longer lost when
+  the app quits. They are kept in `unsent-ink.json` next to slingerd's
+  data (`~/Library/Application Support/slinger` by default) and sent the
+  next time the app starts and reaches slingerd. Erases, moves and other
+  edits made while it is down are still lost on quit.
 - **App:** see where a canvas is saved. The window's title names the
   focused pane's canvas, with its file under it
   (`~/Library/Application Support/slinger/canvases/<id>.canvas` by
@@ -69,6 +79,9 @@ bullet with the area in bold.
   and the sidebar opens or stays hidden as you last left it. A `[window]
   sidebar` setting in the config still wins.
 
+- **App:** `[theme] done` sets the colour of a done agent's mark in the
+  sidebar (default `"#4cc36b"`, the green it always had).
+
 ### Changed
 
 - **App:** the selection's corner handles resize it, with the lasso or
@@ -83,6 +96,9 @@ bullet with the area in bold.
 - **App:** the sidebar says "not running" for an agent whose session is
   stopped, and "working" as soon as a sling is waiting for it, so a sling
   to a stopped agent no longer looks like nothing happened.
+- **App:** the pen's ring over a canvas is as wide as the line it will
+  draw: it grows with a wider pen and with the pane's zoom, and never gets
+  smaller than it was.
 - **App:** the footer's glyph buttons (undo, redo, the page arrows, zoom,
   split, close, the swatch, the width) say what they do: hover over one, or
   hold the pen on it, and a tip above the footer names its command and key.

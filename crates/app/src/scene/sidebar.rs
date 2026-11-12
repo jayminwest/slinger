@@ -101,9 +101,6 @@ const ROW: f64 = 22.0;
 const GAP: f64 = 4.0;
 /// The sidebar's heading.
 const HEADING: &str = "WORKSPACES";
-/// A done mark's colour: the theme has no green, and done must not read as
-/// working or blocked.
-const DONE: Rgb = Rgb { r: 0x4c, g: 0xc3, b: 0x6b };
 /// How far the shown workspace's row moves from the background toward the
 /// text colour, out of 255.
 const LIGHTER: u16 = 24;
@@ -420,13 +417,14 @@ pub(super) fn glyph(status: Option<Status>) -> &'static str {
     }
 }
 
-/// A status mark's colour: blocked in the error colour, done in green.
+/// A status mark's colour: working in the accent, blocked in the error
+/// colour, done in the done colour.
 pub(super) fn colour(status: Option<Status>, theme: &Theme) -> Rgb {
     match status {
         None | Some(Status::Stopped) => theme.muted,
         Some(Status::Working) => theme.focus,
         Some(Status::Blocked) => theme.error,
-        Some(Status::Done) => DONE,
+        Some(Status::Done) => theme.done,
     }
 }
 

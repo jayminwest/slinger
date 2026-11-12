@@ -35,6 +35,9 @@ pub struct Header {
     pub to: u64,
     /// Pixels per canvas unit in the images.
     pub scale: f64,
+    /// About how many tokens the packet costs a model, its images included:
+    /// [`Packet::tokens`], set by [`Packet::count`]. `None` writes no field.
+    pub tokens: Option<u64>,
     /// The directory the images were written to, when they were.
     pub at: Option<String>,
 }
@@ -84,6 +87,9 @@ impl Packet {
         field("from", &h.from.to_string());
         field("to", &h.to.to_string());
         field("scale", &h.scale.to_string());
+        if let Some(tokens) = h.tokens {
+            field("tokens", &tokens.to_string());
+        }
         if let Some(at) = &h.at {
             field("at", at);
         }
@@ -147,32 +153,56 @@ impl Packet {
 
     /// About how many tokens a model spends reading the packet: a token per
     /// four characters of text, and a token per 750 pixels of each image, at
-    /// most 1600 an image. Tests use it to hold the packet's cost down.
+    /// most 1600 an image. A local estimate, not a tokenizer's count: no
+    /// model is asked. Tests use it to hold the packet's cost down.
     #[must_use]
     pub fn tokens(&self) -> u64 {
-        let chars = self.text().chars().count() as u64;
+        Self::estimate(self.text().chars().count() as u64, &self.images)
+    }
+
+    /// Writes [`Packet::tokens`] into the header's `tokens` field, counting
+    /// the field itself. Call it again after changing the header or the
+    /// sections.
+    pub fn count(&mut self) {
+        self.header.tokens = Some(0);
+        let base = self.text().chars().count() as u64 - 1;
+        // The field's own digits add to the text; more tokens never mean
+        // fewer digits, so this climbs to a fixed point in a step or two.
+        let mut tokens: u64 = 0;
+        loop {
+            let digits = tokens.to_string().len() as u64;
+            let next = Self::estimate(base + digits, &self.images);
+            if next == tokens {
+                break;
+            }
+            tokens = next;
+        }
+        self.header.tokens = Some(tokens);
+    }
+
+    fn estimate(chars: u64, images: &[Image]) -> u64 {
         let image = |i: &Image| {
             (u64::from(i.width) * u64::from(i.height))
                 .div_ceil(PIXELS_PER_TOKEN)
                 .min(MAX_IMAGE_TOKENS)
         };
-        chars.div_ceil(CHARS_PER_TOKEN) + self.images.iter().map(image).sum::<u64>()
+        chars.div_ceil(CHARS_PER_TOKEN) + images.iter().map(image).sum::<u64>()
     }
 }
 
 /// Reads line 1.
 fn header(line: &str) -> Result<Header> {
-    let mut tokens = line.split(' ');
-    if tokens.next() != Some(MAGIC) {
+    let mut words = line.split(' ');
+    if words.next() != Some(MAGIC) {
         return Err(invalid(format!("the text does not start with `{MAGIC}`")));
     }
-    let version = tokens.next().unwrap_or_default();
+    let version = words.next().unwrap_or_default();
     if version.parse::<u64>().ok() != Some(VERSION) {
         return Err(Error::UnsupportedVersion { version: version.to_string() });
     }
-    let (mut canvas, mut page, mut from, mut to, mut scale, mut at) =
-        (None, None, None, None, None, None);
-    for token in tokens {
+    let (mut canvas, mut page, mut from, mut to, mut scale, mut tokens, mut at) =
+        (None, None, None, None, None, None, None);
+    for token in words {
         let bad = || invalid(format!("the header field `{token}` cannot be read"));
         let (key, value) = token.split_once('=').ok_or_else(bad)?;
         let value = unvalue(value).ok_or_else(bad)?;
@@ -182,6 +212,7 @@ fn header(line: &str) -> Result<Header> {
             "from" => from = Some(value.parse().map_err(|_| bad())?),
             "to" => to = Some(value.parse().map_err(|_| bad())?),
             "scale" => scale = Some(value.parse().map_err(|_| bad())?),
+            "tokens" => tokens = Some(value.parse().map_err(|_| bad())?),
             "at" => at = Some(value),
             _ => {}
         }
@@ -193,6 +224,7 @@ fn header(line: &str) -> Result<Header> {
         from: from.ok_or_else(|| missing("from"))?,
         to: to.ok_or_else(|| missing("to"))?,
         scale: scale.ok_or_else(|| missing("scale"))?,
+        tokens,
         at,
     })
 }
