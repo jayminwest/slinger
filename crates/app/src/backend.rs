@@ -316,10 +316,11 @@ pub(crate) mod tests {
         serve(Path::new("/nonexistent/claude"), f)
     }
 
+    /// The socket is in a new directory of its own, removed on drop. Short:
+    /// socket paths have a length limit.
     fn serve<T>(claude: &Path, f: impl FnOnce(&Path) -> T) -> T {
-        static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-        let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let socket = std::env::temp_dir().join(format!("a-{}-{n}.sock", std::process::id()));
+        let sockets = tempfile::tempdir().unwrap();
+        let socket = sockets.path().join("d.sock");
         let data = tempfile::tempdir().unwrap();
         let store = daemon::Store::open(data.path(), "my-laptop").unwrap().with_claude(claude);
         let server = daemon::Server::bind(&socket).unwrap();
@@ -328,7 +329,6 @@ pub(crate) mod tests {
         let result = f(&socket);
         stopper.stop();
         serving.join().unwrap().unwrap();
-        std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();
         result
     }
 

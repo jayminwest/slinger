@@ -99,13 +99,7 @@ fn colour(c: Colour) -> String {
 /// or `#rrggbbaa`, reads as black: the model has no palette yet, and a newer
 /// writer's colour must not make the item unreadable.
 fn parse_colour(s: &str) -> Colour {
-    let Some(hex) = s.strip_prefix('#') else { return Colour::BLACK };
-    if !(hex.len() == 6 || hex.len() == 8) || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Colour::BLACK;
-    }
-    let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).unwrap_or(0);
-    let a = if hex.len() == 8 { byte(6) } else { 255 };
-    Colour { r: byte(0), g: byte(2), b: byte(4), a }
+    Colour::parse(s).unwrap_or(Colour::BLACK)
 }
 
 /// A point list as one flat array: the first pair absolute, each later pair

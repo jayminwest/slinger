@@ -335,7 +335,9 @@ fn a_bad_blob_id_or_path_is_invalid_with_a_hint() {
     let daemon = Daemon::start();
     let client = daemon.client();
     let dir = TempDir::new().unwrap();
-    let id = client.blob_put(&std::env::current_exe().unwrap()).unwrap();
+    let file = dir.path().join("file");
+    std::fs::write(&file, "small\n").unwrap();
+    let id = client.blob_put(&file).unwrap();
     for err in [
         client.blob_get("sha256:nope", &dir.path().join("out")).unwrap_err(),
         client.blob_put(dir.path()).unwrap_err(),

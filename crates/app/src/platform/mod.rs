@@ -254,12 +254,13 @@ define_class!(
         }
 
         /// Every event for the window comes through here first. A key press,
-        /// pen or mouse event, scroll or pinch the app uses stops here;
-        /// everything else, moves included, goes on as usual. After a move
-        /// the pointer gets the cursor of what is under it.
+        /// pen or mouse event, scroll or pinch the app uses stops here, and
+        /// keeps a divider's cursor; everything else, moves included, goes on
+        /// as usual. After a move the pointer gets the cursor of what is under it.
         #[unsafe(method(sendEvent:))]
         fn send_event(&self, event: &NSEvent) {
             if input::send(self, event, self.mtm()) {
+                input::divider();
                 return;
             }
             // SAFETY: `NSWindow`'s own `sendEvent:`, with the event it was given.
@@ -408,6 +409,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     let Some(view) = window.contentView() else { return };
     let shown = &mut *state.shown.borrow_mut();
     let height = scene.size.height;
+    input::DIVIDER.set(scene.divider);
 
     shown.canvases.retain(|(pane, canvas)| {
         let kept = scene.canvases.iter().any(|c| c.pane == *pane);

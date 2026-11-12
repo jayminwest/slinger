@@ -57,7 +57,7 @@ a "did you mean" suggestion.
 | `sling send <ID> [--page PAGE] [--select IDS] [--prompt TEXT\|-] [--profile NAME]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
 | `file touched (<PATH> \| --hook) [--agent NAME]` | Nothing. `--json`: `agent`, `path`, `hash`, `event` |
-| `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --arrow FROM TO) [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
+| `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --ink PTS \| --arrow FROM TO) [--color COLOR] [--at X,Y] [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
 | `canvas edit <ID> --item ITEM [--text TEXT] [--box W,H] [--move X,Y] [--agent NAME]` | The item's id and its box `x,y,w,h` in tenths now, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq` |
 | `canvas remove <ID> --item ITEM [--agent NAME]` | Nothing. `--json`: `seq` |
 | `feedback add <TEXT>...` | The note's `ts`. `--json`: `path`, `entry` |
@@ -211,16 +211,23 @@ agent's process run it after every file write (`docs/service.md`, "Hooks").
 A file that is not there exits 3 (`not_found`); both or neither of `PATH`
 and `--hook` exits 2.
 `canvas put` is an agent verb too: the agent answers on the canvas with
-text, a box (`W,H` in tenths of a unit) or an arrow between two items, placed
-beside `--beside`, an id from `canvas show` (`i12`) or a packet (`c12` is the
-whole cluster), where it covers nothing (`docs/service.md`, "Agent canvas
-verbs"). After a sling to that agent on that canvas, the put also appends
-`reply_landed` to the record. An item that is not there exits 3
-(`not_found`); none or two of `--text`, `--box` and `--arrow`, or a `--box`
-that is not two integers, exits 2 (`usage`); blank text exits 5 (`invalid`).
+text, a box (`W,H` in tenths of a unit), a pen stroke (`--ink`: x,y pairs in
+tenths, the first where it starts, each next the step from the one before,
+as `pts` in `canvas schema`) or an arrow between two items, placed beside
+`--beside`, an id from `canvas show` (`i12`) or a packet (`c12` is the whole
+cluster), where it covers nothing (`docs/service.md`, "Agent canvas verbs").
+`--color` draws it in `#rrggbb` or `#rrggbbaa` (default black). `--at X,Y`
+puts the top-left corner of its box there instead, in tenths, on the page of
+`--beside`; an arrow takes no `--at`. After a sling to that agent on that
+canvas, the put also appends `reply_landed` to the record. An item that is
+not there exits 3 (`not_found`); none or two of `--text`, `--box`, `--ink`
+and `--arrow`, a `--box` or `--at` that is not two integers, `--ink` that is
+not pairs of integers, or `--at` with `--arrow`, exits 2 (`usage`); blank
+text or a colour that is not one exits 5 (`invalid`).
 `canvas edit` and `canvas remove` are agent verbs for items the agent made:
 `edit` gives a text new words, a text or a box a new size (`--box W,H`), or
-moves the item's top-left corner to `--move X,Y`, all in tenths; `remove`
+moves the item's top-left corner to `--move X,Y`, all in tenths (the ends
+of the agent's arrows bound to it follow); `remove`
 takes the item off the canvas, and an item already gone succeeds. Naming
 the user's ink or another agent's item exits 5 (`invalid`) with a hint. An
 edit with none of `--text`, `--box` and `--move`, or a pair that is not two

@@ -21,6 +21,12 @@ bullet with the area in bold.
   slinger does not know is refused rather than passed on. `profile list`
   and `profile remove` show and drop them; they live in
   `slinger-workspace.toml` under `[[agent.profile]]`.
+- **Canvas:** `canvas apply` can add items and the arrows between them in
+  one step: an arrow's `from` or `to` may be `$n`, the item at `made[n]`
+  of the same request, made by an `add` before it.
+- **Feedback:** the app's feedback entry (`leave-feedback`, ⌘⇧F) lists
+  the five newest open notes under it, with when each was left, so you see
+  what is already said before you add to it.
 - **CLI:** `slinger session start <workspace> --fresh` starts the agent in a
   new conversation instead of resuming its last one, stopping a running
   agent first.
@@ -32,6 +38,10 @@ bullet with the area in bold.
   Paste grey out in the Edit menu when they would do nothing, such as
   Copy with nothing selected or while typing a text.
 
+- **CLI:** `slinger canvas put` takes `--color` (`#rrggbb`, so an agent can
+  answer in yellow), `--at x,y` to put the item exactly where it wants
+  instead of beside the item, and `--ink` to draw a pen stroke (a bracket,
+  an underline, a check mark). The note in a first sling tells the agent.
 - **CLI:** `slinger canvas schema` prints the item kinds (text, box,
   arrow, stroke, button, live) with their fields and the operations
   `canvas apply` takes, without a daemon; `canvas apply --help` shows the
@@ -139,9 +149,19 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** the pointer turns into the resize cursor within reach of the
+  divider between two panes, and keeps it while you drag the divider, so
+  you can see where a press resizes the panes.
+- **App:** an arrow dragged to another page with the items at its ends
+  stays joined to them there: move a box on the new page and the arrow
+  follows, as it did on the old one.
 - **Sessions:** an agent whose last conversation Claude Code no longer has
   (`--resume` fails) is no longer stuck. Its process shows as `exited`,
   and the next `slinger session start` begins a new conversation.
+- **CLI:** when an agent moves its item with `slinger canvas edit --move`,
+  its arrows bound to the item follow, as they do when you move it in the
+  app; they no longer point at where the item was.
+
 - **App:** a colour, shape, tool or width pop-up opened from a key before
   the pen or pointer has been in the window opens at the middle of the
   focused pane, wherever the window was sized, not at a fixed spot.
