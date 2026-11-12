@@ -17,7 +17,9 @@ bullet with the area in bold.
   to the focused pane's page, centred in it and selected, on any page or
   canvas. Undo takes a paste or a cut back in one step. Cut, Copy and
   Paste grey out in the Edit menu when they would do nothing, such as
-  Copy with nothing selected or while typing a text.
+  Copy with nothing selected or while typing a text. Plain text copied
+  from another app pastes onto the page as a new text in the pen's
+  colour.
 
 - **CLI:** `slinger canvas schema` prints the item kinds (text, box,
   arrow, stroke, button, live) with their fields and the operations
@@ -126,6 +128,8 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** ⌘Z and ⇧⌘Z undo and redo your typing in the sling's prompt
+  (and a note of feedback or a page's new name) instead of doing nothing.
 - **App:** a colour, shape, tool or width pop-up opened from a key before
   the pen or pointer has been in the window opens at the middle of the
   focused pane, wherever the window was sized, not at a fixed spot.

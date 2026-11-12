@@ -284,7 +284,7 @@ fn asked(
         }
         Event::Can(_) => return Ask::Step(Step::Pass),
         Event::Edit(edit) => {
-            return match window::edit(edit, shared, canvases, area) {
+            return match window::edit(edit, shared, canvases, tools, area) {
                 Edited::No => Ask::Step(Step::Stay),
                 Edited::Drawn(clip) => Ask::Draw(clip),
             };

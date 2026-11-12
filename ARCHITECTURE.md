@@ -338,7 +338,8 @@ mirror/clip.rs  the selection's items on the clipboard: their file objects
              as a JSON array, as a carry writes them (no id, maker, time,
              page or arrow's bound ends), and its texts' plain text, one a
              line; a paste reads the objects back as a carry's items for a
-             page, centred on a point. Pure.
+             page, centred on a point; plain text alone reads as one text
+             item (`text_items`). Pure.
 canvases.rs  the canvas panes: one follower and mirror per page shown, each
              pane's page, viewport and last scene (kept on screen until a
              page turned to arrives); the pen's ink, the eraser's and
@@ -368,7 +369,8 @@ canvases/slung.rs  the one-tap sling and what follows it: `sling-now` (the
 canvases/clip.rs  cut, copy and paste on the canvas panes: copy takes the
              selection the focused pane shows (cut then removes it, one
              step); paste puts text into the text being typed or a page
-             command's question, else items onto the focused pane's page,
+             command's question, else items (or plain text alone, as a new
+             text of the pen's colour) onto the focused pane's page,
              centred in it, one step, selected once there. A text being
              typed has no selection inside it (its caret is at its end), so
              copy and cut grey out while one is.
@@ -730,7 +732,9 @@ platform/menu.rs  makes the menu bar a scene's menus say, again when they
              change. A command item chosen by its key goes to main as that
              key press, so the keymap runs it once; chosen with the pointer,
              as Event::Command. Cut, copy, paste, select all, minimise and
-             about go along the responder chain.
+             about go along the responder chain. An undo or redo key main
+             passes on (the entry has it) goes on as undo: or redo: along
+             the responder chain, to the field's own undo.
 platform/keys.rs  a key press as a chord and the text it types (none with
              cmd held), and the clipboard as a Clip: its plain text and a
              canvas's items under the app's own type
@@ -885,7 +889,9 @@ chord and the keymap's other chords with cmd or ctrl that a text field does
 not use (`scene::sling::edits`): return and escape are its, a key that types,
 an edit (cmd+X/C/V/A/Z, cmd or ctrl with an arrow or delete, ctrl with a
 letter) or a chord the keymap leaves free goes on to the text field (delete
-deletes a character there, not the selection), and cmd+Q still quits.
+deletes a character there, not the selection), and cmd+Q still quits. The
+Edit menu's Undo and Redo take their keys before the field, so a passed
+undo or redo key goes to it as undo: or redo: (platform/menu.rs).
 An open pop-up at the pen takes its own keys first (escape, return, space,
 the arrows, 1 to 9); any other key goes to the keymap. These keys act only
 inside a pop-up a command opened, so they are not commands themselves.

@@ -130,8 +130,14 @@ pub enum Edited {
 }
 
 /// Does `edit` where [`can_edit`] says, on the focused pane of `shared`
-/// laid in `area`.
-pub fn edit(edit: &Edit, shared: &mut Shared, canvases: &mut Canvases, area: Rect) -> Edited {
+/// laid in `area`; pasted text that makes a new text item has `tools`' colour.
+pub fn edit(
+    edit: &Edit,
+    shared: &mut Shared,
+    canvases: &mut Canvases,
+    tools: &Tools,
+    area: Rect,
+) -> Edited {
     if !can_edit(edit, shared, canvases) {
         return Edited::No;
     }
@@ -143,7 +149,7 @@ pub fn edit(edit: &Edit, shared: &mut Shared, canvases: &mut Canvases, area: Rec
         Edit::Paste(Clip { text: Some(text), .. }) if shared.palette.is_open() => {
             shared.palette.pasted(text)
         }
-        Edit::Paste(clip) => canvases.paste(clip, &shared.panes, area),
+        Edit::Paste(clip) => canvases.paste(clip, &shared.panes, area, tools.colour()),
     };
     if took { Edited::Drawn(None) } else { Edited::No }
 }

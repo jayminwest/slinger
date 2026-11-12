@@ -2,7 +2,10 @@
 //! changes (a reloaded keymap, a new tool). A command item goes to the app's
 //! answer: chosen by its key, as that key press, so the keymap runs it once;
 //! chosen with the pointer, as [`Event::Command`]. A native item goes to the
-//! window or the text field with the focus (cut, copy, paste).
+//! window or the text field with the focus (cut, copy, paste). The menu
+//! takes its keys before any field: an undo or a redo key the app passes on
+//! (the sling's entry has the keys) goes to the field as `undo:` or `redo:`
+//! along the responder chain, so cmd+Z undoes the typing there.
 
 use std::cell::RefCell;
 
@@ -38,9 +41,15 @@ define_class!(
             else {
                 return;
             };
-            let now = NSApplication::sharedApplication(mtm).currentEvent();
+            let app = NSApplication::sharedApplication(mtm);
+            let now = app.currentEvent();
             let key = now.filter(|e| e.r#type() == NSEventType::KeyDown).and_then(|e| chord(&e));
-            dispatch(key.map_or(Event::Command(command), Event::Key), mtm);
+            let took = dispatch(key.map_or(Event::Command(command), Event::Key), mtm);
+            if let (false, Some(_), Some(action)) = (took, key, in_field(command)) {
+                // SAFETY: `undo:` and `redo:` take a sender; with no target
+                // they go to the first responder that answers them.
+                unsafe { app.sendAction_to_from(action, None, Some(item)) };
+            }
         }
     }
 );
@@ -105,6 +114,16 @@ fn made(item: &Item, target: &Target, mtm: MainThreadMarker) -> Retained<NSMenuI
         made.setState(NSControlStateValueOn);
     }
     made
+}
+
+/// What `command`'s key does in a text field that has it: undo and redo
+/// its typing.
+fn in_field(command: Command) -> Option<Sel> {
+    match command {
+        Command::Undo => Some(sel!(undo:)),
+        Command::Redo => Some(sel!(redo:)),
+        _ => None,
+    }
 }
 
 /// The selector macOS answers for `native`.

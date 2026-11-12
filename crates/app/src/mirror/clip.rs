@@ -3,16 +3,18 @@
 //! ([`Mirror::carried`]: without the server's id, maker and time, the page,
 //! or what names items of this canvas, an arrow's ends), and the plain text
 //! of its texts, one a line, for other apps. Edit > Paste reads the objects
-//! back as items to add to a page. Pure.
+//! back as items to add to a page; plain text alone, from another app,
+//! comes as one new text item ([`text_items`]). Pure.
 
 use serde_json::{Map, Value};
 
 use super::write::tenths;
 use super::{Mirror, read, shift};
+use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{ItemId, Shape};
 use crate::scene::ink::Carried;
-use crate::scene::paste::Clip;
+use crate::scene::paste::{self, Clip};
 
 impl Mirror {
     /// Items `ids` of this page as a copy puts them on the clipboard, in
@@ -76,6 +78,20 @@ pub fn pasted(items: &str, page: &str, centre: Point) -> Vec<Carried> {
         out.push(Carried { item, object: Value::Object(object) });
     }
     out
+}
+
+/// Plain `text` (from another app) as the items a clip holds: one text
+/// item of `colour`, its lines as [`paste::plain`] makes them; `None` for
+/// blank text.
+pub fn text_items(text: &str, colour: Rgb) -> Option<String> {
+    let text = paste::plain(text);
+    if text.trim().is_empty() {
+        return None;
+    }
+    let Rgb { r, g, b } = colour;
+    let hex = format!("#{r:02x}{g:02x}{b:02x}");
+    let object = serde_json::json!({"kind": "text", "color": hex, "x": 0, "y": 0, "text": text});
+    Some(Value::Array(vec![object]).to_string())
 }
 
 #[cfg(test)]
