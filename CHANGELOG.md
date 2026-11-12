@@ -68,6 +68,8 @@ bullet with the area in bold.
   dashes, curly quotes, an ellipsis, bullets, arrows, check marks, box
   drawing and blocks as themselves, instead of as `?`. A character the
   picture still has no glyph for (most emoji, Chinese) is drawn as `?`.
+- **Feedback:** each note names the commit `slingerd` was built from
+  (with `-dirty` for uncommitted changes) instead of always `dev`.
 - **App:** a failed tap on the "send to agent" button shows why in the
   pill, instead of opening an entry the pen cannot close.
 - **Daemon:** an agent can answer when `slingerd` was started with a
