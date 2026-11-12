@@ -30,7 +30,7 @@ use objc2_app_kit::{
 use objc2_foundation::NSPoint;
 
 use super::keys::{chord, typed};
-use super::{Event, STATE, dispatch};
+use super::{CanvasView, Event, STATE, dispatch};
 use crate::layout::{Point, scroll_zoom};
 use crate::scene::ink::Pen;
 
@@ -115,9 +115,12 @@ pub(super) fn send(window: &NSWindow, event: &NSEvent, mtm: MainThreadMarker) ->
 }
 
 /// Sets the cursor for the pointer at `at`, in `window`'s base coordinates:
-/// over a canvas view its cursor, over the chrome or the bare window the
-/// arrow. Over anything else (an agent UI, the sling's entry) that view
-/// sets its own.
+/// over a canvas view its cursor, also where chrome that takes no press (the
+/// focus border, a label, the flash) lies over the canvas; over the rest of
+/// the chrome, the bare window and all of it under the key overlay or the
+/// palette, the arrow. Over anything else (an agent UI, the sling's entry)
+/// that view sets its own. A box is hit as its content view, so the chrome
+/// is told by descent, not by being the view hit.
 pub(super) fn cursor(window: &NSWindow, at: NSPoint) {
     let Some(state) = STATE.get() else { return };
     let Some(content) = window.contentView() else { return };
@@ -125,9 +128,18 @@ pub(super) fn cursor(window: &NSWindow, at: NSPoint) {
     let Some(hit) = content.hitTest(at) else { return };
     let Ok(shown) = state.shown.try_borrow() else { return };
     let is = |view: &NSView| std::ptr::eq(view, Retained::as_ptr(&hit));
-    if let Some((_, canvas)) = shown.canvases.iter().find(|(_, canvas)| is(canvas)) {
+    let chrome = is(&content) || shown.chrome.iter().any(|view| hit.isDescendantOf(view));
+    let covered = shown.made_from.as_ref().is_some_and(|made| made.5.is_some());
+    let inside = content.convertPoint_fromView(at, None);
+    let holds = |canvas: &CanvasView| {
+        let frame = canvas.frame();
+        let (x, y) = (inside.x - frame.origin.x, inside.y - frame.origin.y);
+        (0.0..frame.size.width).contains(&x) && (0.0..frame.size.height).contains(&y)
+    };
+    let under = |canvas: &CanvasView| is(canvas) || (chrome && !covered && holds(canvas));
+    if let Some((_, canvas)) = shown.canvases.iter().find(|(_, canvas)| under(canvas)) {
         canvas.set_cursor();
-    } else if is(&content) || shown.chrome.iter().any(|view| is(view)) {
+    } else if chrome {
         NSCursor::arrowCursor().set();
     }
 }

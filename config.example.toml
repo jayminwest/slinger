@@ -100,8 +100,8 @@
 #focus-up = "cmd+alt+up"
 #focus-down = "cmd+alt+down"
 # Give the focused pane more, or less, of the space it shares with the pane beside it.
-#grow-pane = "cmd+="
-#shrink-pane = "cmd+-"
+#grow-pane = "alt+="
+#shrink-pane = "alt+-"
 # Open the sidebar, or collapse it; the panes take the space it leaves.
 #toggle-sidebar = "cmd+b"
 # Hide the notice that an agent became blocked or done. It also goes once the agent's
@@ -115,9 +115,9 @@
 # Zoom the focused pane's canvas in or out about its centre, or back to 100%. Each zoom
 # flashes its level. The trackpad pinches too, and a scroll (wheel or two fingers) with
 # cmd or ctrl held zooms about the pointer: away from you zooms in.
-#zoom-in = "alt+="
-#zoom-out = "alt+-"
-#zoom-reset = "alt+0"
+#zoom-in = "cmd+="
+#zoom-out = "cmd+-"
+#zoom-reset = "cmd+0"
 # Pages: each pane shows its own page of its canvas, named at its foot. Turn the
 # focused pane to the next page (after the last, the first) or the one before.
 #next-page = "cmd+]"

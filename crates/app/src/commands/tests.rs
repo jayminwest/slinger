@@ -225,14 +225,18 @@ fn the_live_chord_follows_a_binding() {
     assert_eq!(keys.chord(Command::Quit), None);
 }
 
-/// slinger-5578a4: option+= types "≠", but `AppKit` reports the key with no
-/// modifier but shift ('='), so the zoom keys are what an option press gives.
+/// The zoom keys are the Mac ones, and what a tablet's zoom wheel sends:
+/// cmd+=, cmd+- and cmd+0, with cmd++ (shift held) as cmd+=. The pane keys
+/// are on option: option+= types "≠", but `AppKit` reports the key with no
+/// modifier but shift ('=').
 #[test]
-fn the_zoom_keys_are_the_keys_an_option_press_reports() {
+fn the_zoom_keys_are_on_command_and_the_pane_keys_on_option() {
     let keys = Keymap::default();
-    assert_eq!(keys.command(Chord::new(ALT, '=')), Some(Command::ZoomIn));
-    assert_eq!(keys.command(Chord::new(ALT, '-')), Some(Command::ZoomOut));
-    assert_eq!(keys.command(Chord::new(ALT, '0')), Some(Command::ZoomReset));
+    assert_eq!(keys.command(Chord::new(CMD, '=')), Some(Command::ZoomIn));
+    assert_eq!(keys.command(Chord::new(CMD | SHIFT, '+')), Some(Command::ZoomIn));
+    assert_eq!(keys.command(Chord::new(CMD, '-')), Some(Command::ZoomOut));
+    assert_eq!(keys.command(Chord::new(CMD, '0')), Some(Command::ZoomReset));
+    assert_eq!(keys.command(Chord::new(ALT, '=')), Some(Command::GrowPane));
+    assert_eq!(keys.command(Chord::new(ALT, '-')), Some(Command::ShrinkPane));
     assert_eq!(keys.command(Chord::new(ALT, '≠')), None, "never the typed character");
-    assert_eq!(Command::named("zoom-reset"), Some(Command::ZoomReset));
 }

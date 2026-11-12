@@ -288,17 +288,17 @@ impl Default for Keymap {
             on(CMD | ALT, RIGHT),
             on(CMD | ALT, UP),
             on(CMD | ALT, DOWN),
-            on(CMD, '='),
-            on(CMD, '-'),
+            on(ALT, '='),
+            on(ALT, '-'),
             on(CMD, 'b'),
             on(CMD, '.'),
             on(ALT, LEFT),
             on(ALT, RIGHT),
             on(ALT, UP),
             on(ALT, DOWN),
-            on(ALT, '='),
-            on(ALT, '-'),
-            on(ALT, '0'),
+            on(CMD, '='),
+            on(CMD, '-'),
+            on(CMD, '0'),
             on(CMD, ']'),
             on(0, '\u{7f}'),
             on(0, '\u{1b}'),
@@ -328,9 +328,14 @@ impl Default for Keymap {
 }
 
 impl Keymap {
-    /// The command `chord` runs, if any.
+    /// The command `chord` runs, if any. A "+" pressed with shift runs what
+    /// "=" is on when it has no key of its own: cmd++ is cmd+=, as a
+    /// tablet's zoom wheel may send it.
     pub fn command(&self, chord: Chord) -> Option<Command> {
-        let i = self.0.iter().position(|&c| c == Some(chord))?;
+        let on = |chord| self.0.iter().position(|&c| c == Some(chord));
+        let plus = chord.key == '+' && chord.mods & SHIFT != 0;
+        let equals = Chord { mods: chord.mods & !SHIFT, key: '=' };
+        let i = on(chord).or_else(|| plus.then(|| on(equals)).flatten())?;
         Some(Command::ALL[i].0)
     }
 
