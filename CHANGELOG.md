@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** rename a page and leave feedback with the pen alone. Their
+  entries have buttons beside them: ✓ Rename or ✓ Save does what return
+  does, ✕ what escape does, and Dictate has Flick write the text in, as
+  in the sling's prompt (tap it again, ● Stop, when done). The dictate
+  key works in these entries too.
+
 - **App:** copy, cut and paste on the canvas. With a selection, Edit >
   Copy (⌘C) puts its items on the clipboard (other apps get the text of
   its texts), Cut (⌘X) also removes them, and Edit > Paste (⌘V) adds them

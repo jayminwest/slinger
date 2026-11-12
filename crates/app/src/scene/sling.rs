@@ -36,6 +36,7 @@ use crate::scene::sidebar::{Font, Row};
 use crate::scene::{Border, Label, style};
 
 pub mod buttons;
+pub mod pen;
 
 /// The entry's box, in points.
 pub const WIDTH: f64 = 360.0;
@@ -58,8 +59,9 @@ const PAD: f64 = 12.0;
 const EDGE: f64 = 1.0;
 /// The room a pane keeps at its top for the flash, over a centred entry.
 const FLASH: f64 = 40.0;
-/// The key that sends.
+/// The key that sends, and the one that cancels.
 pub const SEND: Chord = Chord::new(0, '\r');
+pub const CANCEL: Chord = Chord::new(0, '\u{1b}');
 
 /// What a sling sends: a page's selected items, by the server's ids, and
 /// the prompt.
@@ -98,6 +100,9 @@ pub struct Entry {
     /// dictate, from its right edge, when a key does.
     pub keys: Row,
     pub dictate: Option<Row>,
+    /// The word on the pen's "✓" button beside the box ([`pen`]): "Save";
+    /// none for the sling's, which the selection's "➤ Sling" sends.
+    pub done: Option<&'static str>,
 }
 
 /// What a key does while the entry is open.
@@ -297,9 +302,7 @@ impl Sling {
     /// dictation says.
     pub fn under(&self, theme: &Theme, lines: Vec<(String, Rgb)>) -> Vec<Label> {
         let Some((_, frame, Stage::Typing(problem))) = &self.open else { return Vec::new() };
-        let first = problem.as_ref().map_or(1, |p| 2 + u32::from(p.hint.is_some()));
-        let placed = lines.into_iter().zip(first..);
-        placed.map(|((text, colour), n)| line(*frame, f64::from(n), text, colour, theme)).collect()
+        under(*frame, problem.as_ref(), theme, lines)
     }
 }
 
@@ -328,6 +331,7 @@ impl Entry {
             title: small(theme, frame, title, frame.y - SMALL, fill),
             keys: small(theme, frame, keys, frame.y + HEIGHT, fill),
             dictate: None,
+            done: None,
         }
     }
 }
@@ -348,7 +352,7 @@ impl Key {
     pub fn of(chord: Chord) -> Key {
         if chord == SEND {
             Key::Send
-        } else if chord == Chord::new(0, '\u{1b}') {
+        } else if chord == CANCEL {
             Key::Cancel
         } else {
             Key::Type
@@ -387,6 +391,19 @@ pub fn line(frame: Rect, n: f64, text: String, colour: Rgb, theme: &Theme) -> La
     };
     let frame = Rect { y, height: LINE, ..frame };
     Label { text, colour, fill: Some(theme.background), frame }
+}
+
+/// `lines` (text and colour) under the entry's box at `frame`, after the
+/// lines of its `problem`, if any.
+pub fn under(
+    frame: Rect,
+    problem: Option<&Problem>,
+    theme: &Theme,
+    lines: Vec<(String, Rgb)>,
+) -> Vec<Label> {
+    let first = problem.map_or(1, |p| 2 + u32::from(p.hint.is_some()));
+    let placed = lines.into_iter().zip(first..);
+    placed.map(|((text, colour), n)| line(frame, f64::from(n), text, colour, theme)).collect()
 }
 
 /// What a sling of `selection` with `prompt` sends.

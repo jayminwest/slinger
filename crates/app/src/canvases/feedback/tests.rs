@@ -1,6 +1,7 @@
 use super::*;
-use crate::backend::testing::{user_stroke, wait_until};
+use crate::backend::testing::{fake_flick, ready, user_stroke, wait_until};
 use crate::backend::tests::{open_notes, with_store};
+use crate::commands::Command;
 use crate::commands::Keymap;
 use crate::config::Config;
 use crate::layout::WINDOW;
@@ -8,6 +9,8 @@ use crate::panes::{Kind, Pane};
 use crate::scene::Scene;
 use crate::scene::ink::Pen;
 use crate::scene::sidebar::Sidebar;
+use crate::scene::sling::pen::{CROSS, DICTATE, STOP};
+use crate::scene::taps::{Tap, Target};
 
 const RETURN: Chord = Chord::new(0, '\r');
 const ESCAPE: Chord = Chord::new(0, '\u{1b}');
@@ -109,4 +112,105 @@ fn escape_cancels_and_a_lost_daemon_opens_the_entry_again() {
     assert_eq!(scene.entry.map(|e| e.text), Some("slow".into()));
     assert!(scene.labels[0].text.starts_with("✗ "), "{:?}", scene.labels);
     assert_eq!(canvases.take_flash(), None);
+}
+
+/// The labels and the targets of what the window draws for the sling
+/// and the entries: here, the pen's buttons beside the open entry.
+fn buttons(canvases: &Canvases, panes: &Panes) -> (Vec<String>, Vec<Target>) {
+    let theme = Config::default().theme;
+    let (labels, targets, _) = canvases.sling_marks(panes, WINDOW.rect(), &theme);
+    (labels.into_iter().map(|l| l.text).collect(), targets)
+}
+
+/// A tap with the pen on `target`.
+fn tap(canvases: &mut Canvases, target: Target) {
+    let (mut shared, mut sidebar) = (crate::shared::Shared::default(), Sidebar::new(false));
+    crate::window::tap(target, canvases, &mut shared, &mut sidebar);
+}
+
+/// The canvases of the window, once the notes canvas has arrived, with
+/// Flick on `socket`.
+fn arrived(daemon: &Client, socket: &std::path::Path) -> (Canvases, Panes) {
+    let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+    canvases.listen_to(socket.to_path_buf());
+    let theme = Config::default().theme;
+    wait_until(|| {
+        canvases.poll();
+        !canvases.show(&panes, WINDOW.rect(), &theme).is_empty()
+    });
+    (canvases, panes)
+}
+
+/// slinger-a680b5: the pen's buttons beside a note's entry: "Dictate" has
+/// Flick dictate into it (the sling prompt's way), "✓ Save" does what
+/// return does.
+#[test]
+fn the_pen_dictates_a_note_and_saves_it_with_the_buttons_beside_its_entry() {
+    let flick = tempfile::tempdir().unwrap();
+    let (socket, heard) = fake_flick(flick.path(), ready);
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        user_stroke(daemon, "notes");
+        let (mut canvases, panes) = arrived(daemon, &socket);
+        let area = WINDOW.rect();
+        assert_eq!(buttons(&canvases, &panes).0, Vec::<String>::new(), "no entry: no buttons");
+        assert!(open(&mut canvases, &panes));
+        let (labels, targets) = buttons(&canvases, &panes);
+        assert_eq!(labels, ["✓ Save", DICTATE, CROSS]);
+        let entry = shown(&canvases, &panes).entry.unwrap();
+        assert!(targets.iter().all(|(f, _)| f.x > entry.frame.x + entry.frame.width));
+        assert_eq!(targets[1].1, Tap::Run(Command::Dictate));
+        assert!(canvases.sling_command(Command::Dictate, &panes, area), "the dictate button");
+        assert_eq!(buttons(&canvases, &panes).0[1], STOP);
+        let lines = shown(&canvases, &panes).labels;
+        assert_eq!(lines[0].text, "● Flick is listening: dictate again when done");
+        assert!(lines[0].frame.y > entry.frame.y + entry.frame.height, "under the note's box");
+        wait_until(|| canvases.poll_dictation());
+        assert!(canvases.sling_command(Command::Dictate, &panes, area), "again: stop");
+        wait_until(|| canvases.poll_dictation());
+        assert_eq!(buttons(&canvases, &panes).0[1], DICTATE);
+        assert_eq!(*heard.lock().unwrap(), [r#"["dictation","start"]"#, r#"["dictation","stop"]"#]);
+        // Flick types what it heard into the focused field, the note's.
+        canvases.sling_typed("the pen lags");
+        tap(&mut canvases, targets[0]);
+        assert!(!canvases.typing(), "saving");
+        wait_until(|| {
+            canvases.poll();
+            canvases.take_flash().is_some()
+        });
+        saved_with_its_context(daemon);
+    });
+}
+
+/// slinger-a680b5: "✕" beside a new name's entry keeps the old name and
+/// cancels its dictation; "✓ Rename" keeps the new one.
+#[test]
+fn the_pen_cancels_or_keeps_a_new_name_with_the_buttons_beside_its_entry() {
+    let flick = tempfile::tempdir().unwrap();
+    let (socket, heard) = fake_flick(flick.path(), ready);
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        user_stroke(daemon, "notes");
+        let (mut canvases, panes) = arrived(daemon, &socket);
+        let here = (panes.focus(), WINDOW.rect());
+        assert!(canvases.command(&panes, here, Command::RenamePage));
+        let (labels, targets) = buttons(&canvases, &panes);
+        assert_eq!(labels, ["✓ Rename", DICTATE, CROSS]);
+        assert!(canvases.sling_command(Command::Dictate, &panes, here.1));
+        tap(&mut canvases, targets[2]);
+        assert!(!canvases.typing(), "cancelled");
+        wait_until(|| heard.lock().unwrap().len() == 2);
+        assert_eq!(heard.lock().unwrap()[1], r#"["dictation","cancel"]"#, "and its dictation");
+
+        assert!(canvases.command(&panes, here, Command::RenamePage));
+        canvases.sling_typed("plans");
+        let rename = buttons(&canvases, &panes).1[0];
+        tap(&mut canvases, rename);
+        assert!(!canvases.typing());
+        wait_until(|| {
+            canvases.poll();
+            let named = daemon.canvas_show("notes", None).unwrap().pages;
+            named.iter().any(|p| p["name"] == "plans")
+        });
+    });
 }

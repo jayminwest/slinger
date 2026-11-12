@@ -179,8 +179,10 @@ fn a_new_name_is_typed_in_an_entry_like_the_sling_s_in_its_pane() {
     let entry = asks.entry(&theme).unwrap();
     let same =
         Entry::framed(entry.frame, &theme, "Rename page".into(), entry.keys.label.text.clone());
-    assert_eq!(Entry { text: String::new(), placeholder: String::new(), ..entry.clone() }, same);
-    assert_eq!(entry.frame, centred(PANE));
+    let bare =
+        Entry { text: String::new(), placeholder: String::new(), done: None, ..entry.clone() };
+    assert_eq!(bare, same);
+    assert_eq!((entry.frame, entry.done), (beside(PANE), Some("Rename")), "the pen's buttons");
     assert!(entry.keys.label.text.ends_with("renames · esc cancels"));
     let inside = Point { x: entry.frame.x + 4.0, y: entry.frame.y + 4.0 };
     assert!(asks.covers(inside) && !asks.covers(Point { x: 1.0, y: 1.0 }));
