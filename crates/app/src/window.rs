@@ -18,6 +18,7 @@ use crate::scene::ink::Pen;
 use crate::scene::paste::{Clip, Edit};
 use crate::scene::sidebar::Row;
 use crate::scene::sidebar::Sidebar;
+use crate::scene::sling::{CANCEL, SEND};
 use crate::scene::taps::{Tap, Target};
 use crate::scene::tools::{Kind, Tools};
 use crate::scene::{self, Label, Scene, cursor, status, title};
@@ -55,7 +56,8 @@ pub fn run(
 /// page name opens the page menu over it, a page menu's page turns the
 /// focused pane to it, a workspace in `sidebar` shows its panes (that
 /// workspace's name, for the watch to follow), and the sling's pill does
-/// what a tap there does. A command's tap does nothing here.
+/// what a tap there does; the open entry's "✓" and "✕" do what return and
+/// escape do in it. A command's tap does nothing here.
 pub fn tap(
     (frame, tap): Target,
     canvases: &mut Canvases,
@@ -75,6 +77,8 @@ pub fn tap(
             let area = sidebar.panes(shared.size.rect());
             canvases.tap_slung(&shared.panes, area);
         }
+        Tap::Send => _ = canvases.sling_key(SEND),
+        Tap::Cancel => _ = canvases.sling_key(CANCEL),
         Tap::Run(_) => {}
     }
     None
@@ -130,8 +134,14 @@ pub enum Edited {
 }
 
 /// Does `edit` where [`can_edit`] says, on the focused pane of `shared`
-/// laid in `area`.
-pub fn edit(edit: &Edit, shared: &mut Shared, canvases: &mut Canvases, area: Rect) -> Edited {
+/// laid in `area`; pasted text that makes a new text item has `tools`' colour.
+pub fn edit(
+    edit: &Edit,
+    shared: &mut Shared,
+    canvases: &mut Canvases,
+    tools: &Tools,
+    area: Rect,
+) -> Edited {
     if !can_edit(edit, shared, canvases) {
         return Edited::No;
     }
@@ -143,7 +153,7 @@ pub fn edit(edit: &Edit, shared: &mut Shared, canvases: &mut Canvases, area: Rec
         Edit::Paste(Clip { text: Some(text), .. }) if shared.palette.is_open() => {
             shared.palette.pasted(text)
         }
-        Edit::Paste(clip) => canvases.paste(clip, &shared.panes, area),
+        Edit::Paste(clip) => canvases.paste(clip, &shared.panes, area, tools.colour()),
     };
     if took { Edited::Drawn(None) } else { Edited::No }
 }
@@ -167,18 +177,22 @@ pub fn grabs(canvases: &Canvases, panes: &Panes, tools: &Tools, area: Rect, pen:
 
 /// The pointer, up, moved to `at` over the panes of `shared` laid in
 /// `area`: on a divider a press would grab (no pop-up open, not grabbing
-/// the selection: [`grabs`]), it shows the divider's cursor. Returns
-/// whether that changed.
+/// the selection: [`grabs`]), it shows the divider's cursor; on a handle
+/// of the selection with no pop-up open, the handle's
+/// ([`Canvases::hover_handle`]). Returns whether that changed.
 pub fn divider(
     shared: &mut Shared,
-    canvases: &Canvases,
+    canvases: &mut Canvases,
     tools: &Tools,
     area: Rect,
     at: Point,
 ) -> bool {
     let still = Pen { at, when: 0.0, touch: false, eraser: false, shift: false };
-    let free = tools.open_kind().is_none() && !grabs(canvases, &shared.panes, tools, area, still);
-    shared.dividers.hover(&shared.panes, area, free.then_some(at))
+    let open = tools.open_kind().is_some();
+    let under = pane_at(&shared.panes, area, at).filter(|_| !open);
+    let handle = canvases.hover_handle(&shared.panes, under, at, tools.tool());
+    let free = !open && !grabs(canvases, &shared.panes, tools, area, still);
+    shared.dividers.hover(&shared.panes, area, free.then_some(at)) | handle
 }
 
 /// A press of `pen` focuses the pane of `shared` under it, the panes laid
@@ -215,8 +229,8 @@ pub fn focus(panes: &Panes, area: Rect) -> (PaneId, Rect) {
 /// daemon, a canvas or the config (each said once), the notice, the
 /// sling's buttons and what became of it, the pop-up at the pen and the
 /// flash of a new tool, a page command, a sling or a saved note, the key
-/// overlay, the palette or the page menu on top, the tool's cursor, and the
-/// focused pane's canvas and its file in the title bar.
+/// overlay, the palette or the page menu on top, the tool's cursor (a
+/// selection handle's where the pointer is on one), and the focused pane's canvas and its file in the title bar.
 pub fn view(
     settings: &Settings,
     shared: &mut Shared,
@@ -238,11 +252,12 @@ pub fn view(
     }
     let (size, uis, notes) = (shared.size, &shared.uis, &shared.notes);
     let mut scene = scene::build(size, &shared.panes, theme, &problems, sidebar, drawn, uis, notes);
-    canvases.show_live(&mut scene);
+    canvases.show_live(&mut scene, notes, theme);
     canvases.show_sling(&mut scene, theme, &settings.config.keys, sidebar);
     scene.labels.splice(0..0, canvases.labels(&shared.panes, area, theme));
-    let (marks, marked, answer) = canvases.sling_marks(&shared.panes, area, theme);
-    scene.labels.extend(marks);
+    let sling = canvases.sling_marks(&shared.panes, area, theme);
+    scene.labels.extend(sling.labels);
+    scene.pills.extend(sling.pill);
     let pen = (tools.tool(), tools.colour());
     canvases.set_pen_width(tools.width().points());
     let keys = &settings.config.keys;
@@ -251,16 +266,19 @@ pub fn view(
     footers.extend(sidebar.foot(size.rect()).map(|foot| status::strip(foot, theme)));
     let rows = sidebar.targets(theme, size.rect()).into_iter();
     let mut targets = sidebar.notice_targets(area);
-    targets.extend(marked);
+    targets.extend(sling.targets);
     targets.extend(footers.iter().flat_map(|f| f.targets.clone()));
     targets.extend(rows.map(|(frame, index)| (frame, Tap::Workspace(index))));
     shared.taps.set(targets);
     let lit = shared.taps.lit(theme);
-    let tip = lit.and_then(|(at, _)| status::tip(&footers, at, theme, keys, size.rect()));
+    if let Some((at, _)) = lit {
+        status::tip(&mut footers, at, theme, keys, size.rect());
+    }
     if let Some(lit) = lit.filter(|&lit| !status::light(&mut footers, lit, theme)) {
         let (frame, fill) = lit;
-        if let Some(button) = scene.labels.iter_mut().find(|l| l.frame == frame && l.fill.is_some())
-        {
+        let pills = scene.pills.iter_mut().map(|p| &mut p.label);
+        let mut buttons = scene.labels.iter_mut().chain(pills);
+        if let Some(button) = buttons.find(|l| l.frame == frame && l.fill.is_some()) {
             // A button over the panes: its own fill lit.
             button.fill = Some(fill);
         } else {
@@ -272,17 +290,18 @@ pub fn view(
     }
     scene.footers = footers;
     scene.labels.extend(tools.labels(theme));
-    scene.labels.extend(tip);
     let pages = shared.menu.pane().and_then(|pane| canvases.page_names(&shared.panes, pane));
     shared.menu.refresh(pages);
     let overlay = shared.overlay.shown(keys, theme, size);
     let overlay = overlay.or_else(|| shared.palette.shown(keys, theme, size));
     let overlay = overlay.or_else(|| shared.menu.shown(theme, size));
-    scene.overlay = overlay.or(answer).map(Box::new);
-    for pane in &mut scene.canvases {
-        pane.cursor = cursor::over_canvas(tools, theme, pane.scene.viewport.zoom());
-    }
+    scene.overlay = overlay.or(sling.panel).map(Box::new);
     let free = !shared.modal() && tools.open_kind().is_none();
+    for pane in &mut scene.canvases {
+        let handle = canvases.handle_cursor(pane.pane).filter(|_| free);
+        let tool = || cursor::over_canvas(tools, theme, pane.scene.viewport.zoom());
+        pane.cursor = handle.unwrap_or_else(tool);
+    }
     scene.divider = shared.dividers.cursor().filter(|_| free);
     let now = Instant::now();
     tools.follow(keys, now);

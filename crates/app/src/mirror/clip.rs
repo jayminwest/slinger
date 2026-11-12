@@ -3,17 +3,19 @@
 //! ([`Mirror::carried`]: without the server's id, maker and time, or the
 //! page; an arrow's end bound to an item copied with it names that item by
 //! its place, `$n`), and the plain text of its texts, one a line, for other
-//! apps. Edit > Paste reads the objects back as items to add to a page,
-//! every arrow's ends let go. Pure.
+//! apps. Edit > Paste reads the objects back as items to add to a page, an
+//! arrow still bound to the items pasted with it; plain text alone, from
+//! another app, comes as one new text item ([`text_items`]). Pure.
 
 use serde_json::{Map, Value};
 
 use super::write::tenths;
 use super::{Mirror, read, shift};
+use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{ItemId, Shape};
 use crate::scene::ink::Carried;
-use crate::scene::paste::Clip;
+use crate::scene::paste::{self, Clip};
 
 impl Mirror {
     /// Items `ids` of this page as a copy puts them on the clipboard, in
@@ -42,8 +44,11 @@ impl Mirror {
 
 /// The items a clip's `items` holds as a paste adds them to `page`: moved
 /// so the box around them is centred on `centre`, in canvas units (to the
-/// tenth, as the file keeps lengths). Nothing for text that is not a JSON
-/// array; an object that does not read as an item is left out.
+/// tenth, as the file keeps lengths). An arrow's end `$n` stays bound to
+/// the clip's object `n`, renumbered for its place in the adds, when that
+/// object is pasted before the arrow; any other end is let go. Nothing for
+/// text that is not a JSON array; an object that does not read as an item
+/// is left out.
 pub fn pasted(items: &str, page: &str, centre: Point) -> Vec<Carried> {
     let Ok(Value::Array(objects)) = serde_json::from_str::<Value>(items) else {
         return Vec::new();
@@ -67,16 +72,44 @@ pub fn pasted(items: &str, page: &str, centre: Point) -> Vec<Carried> {
     let by = |c: f64, from: f64, size: f64| Value::from(tenths(c - from - size / 2.0));
     let (dx, dy) = (by(centre.x, around.x, around.width), by(centre.y, around.y, around.height));
     let mut out = Vec::new();
+    // The place in `out` of each object of the clip pasted so far.
+    let mut places: Vec<Option<usize>> = Vec::new();
     for (n, mut object) in objects.into_iter().enumerate() {
         shift(&mut object, &dx, &dy);
-        let Some(item) = item(n, &object) else { continue };
-        for key in ["id", "by", "t", "from", "to"] {
+        let Some(item) = item(n, &object) else {
+            places.push(None);
+            continue;
+        };
+        for key in ["from", "to"] {
+            let end = object.remove(key);
+            let end = end.as_ref().and_then(Value::as_str).and_then(|e| e.strip_prefix('$'));
+            let place = end.and_then(|e| e.parse::<usize>().ok()).and_then(|m| *places.get(m)?);
+            if let Some(place) = place {
+                object.insert(key.into(), format!("${place}").into());
+            }
+        }
+        for key in ["id", "by", "t"] {
             object.remove(key);
         }
         object.insert("page".into(), page.into());
+        places.push(Some(out.len()));
         out.push(Carried { item, object: Value::Object(object) });
     }
     out
+}
+
+/// Plain `text` (from another app) as the items a clip holds: one text
+/// item of `colour`, its lines as [`paste::plain`] makes them; `None` for
+/// blank text.
+pub fn text_items(text: &str, colour: Rgb) -> Option<String> {
+    let text = paste::plain(text);
+    if text.trim().is_empty() {
+        return None;
+    }
+    let Rgb { r, g, b } = colour;
+    let hex = format!("#{r:02x}{g:02x}{b:02x}");
+    let object = serde_json::json!({"kind": "text", "color": hex, "x": 0, "y": 0, "text": text});
+    Some(Value::Array(vec![object]).to_string())
 }
 
 #[cfg(test)]

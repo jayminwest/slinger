@@ -69,6 +69,8 @@ fn the_whole_board_costs_under_half_the_screenshots() {
     let packets: Vec<Packet> = pages.iter().map(|p| build(&log, &ask(*p, 0)).unwrap()).collect();
     let tokens: u64 = packets.iter().map(Packet::tokens).sum();
     assert!(tokens < SCREENSHOTS / 2, "{tokens} tokens");
+    // Tiles cut down to their ink took it from about 63 800 to 55 700.
+    assert!(tokens < 57_000, "{tokens} tokens");
     for p in &packets {
         // The header's count is the packet's cost, its own digits included.
         assert_eq!(p.header.tokens, Some(p.tokens()));

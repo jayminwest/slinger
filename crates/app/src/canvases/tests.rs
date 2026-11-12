@@ -315,7 +315,7 @@ fn a_pane_knows_its_canvas_file_and_save_says_where_it_went() {
 
 /// slinger-59ebdf: copy puts the selection on the clipboard, paste adds it
 /// to the page as the new selection, cut removes it; a text being typed
-/// copies nothing and takes only text.
+/// copies nothing and takes only text; plain text alone makes a new text.
 #[test]
 fn copy_paste_and_cut_the_selection_and_a_text_being_typed_takes_only_text() {
     use crate::scene::paste::Clip;
@@ -332,8 +332,7 @@ fn copy_paste_and_cut_the_selection_and_a_text_being_typed_takes_only_text() {
         let clip = canvases.copy(&panes, false).unwrap();
         assert_eq!(clip.text, None, "a stroke has no text");
         assert!(canvases.can_paste(&clip, &panes));
-        assert!(!canvases.can_paste(&Clip::new(Some("words".into()), None), &panes));
-        assert!(canvases.paste(&clip, &panes, WINDOW.rect()));
+        assert!(canvases.paste(&clip, &panes, WINDOW.rect(), GREY));
         until(&mut canvases, &panes, daemon, |d| count(d, "stroke") == 2);
         wait_until(|| {
             shown(&mut canvases, &panes);
@@ -348,10 +347,20 @@ fn copy_paste_and_cut_the_selection_and_a_text_being_typed_takes_only_text() {
         assert!(!canvases.can_copy(&panes), "no selection inside a text being typed");
         assert!(!canvases.can_paste(&clip, &panes), "items do not go into a text");
         let text = Clip::new(Some(" more".into()), None);
-        assert!(canvases.can_paste(&text, &panes) && canvases.paste(&text, &panes, WINDOW.rect()));
+        let typed = canvases.paste(&text, &panes, WINDOW.rect(), GREY);
+        assert!(canvases.can_paste(&text, &panes) && typed);
         assert!(canvases.typed("\u{1b}"));
         until(&mut canvases, &panes, daemon, |d| {
             d.canvas_show("notes", None).unwrap().items.iter().any(|i| i["text"] == "word more")
+        });
+
+        // slinger-bec613: plain text with no text being typed is a new text.
+        let words = Clip::new(Some("from\r\nelsewhere".into()), None);
+        assert!(canvases.can_paste(&words, &panes));
+        assert!(canvases.paste(&words, &panes, WINDOW.rect(), GREY));
+        until(&mut canvases, &panes, daemon, |d| {
+            let items = d.canvas_show("notes", None).unwrap().items;
+            items.iter().any(|i| i["text"] == "from\nelsewhere" && i["color"] == "#808080")
         });
     });
 }

@@ -164,10 +164,13 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `ink`: a `pts` list in tenths, `arrow`: `[from, to]` item ids; optional `color`: `#rrggbb` or `#rrggbbaa`, `at`: `[x, y]` in tenths | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
 | `canvas_edit` | `canvas`: canvas id, `agent`: string, `item`: an item id, then any of `text`: string, `box`: `[w, h]` in tenths, `move`: `[x, y]` in tenths | `item`, `page`, `x`, `y`, `w`, `h`: its box now, `seq`: the numbers written (empty when nothing changed) |
 | `canvas_remove` | `canvas`: canvas id, `agent`: string, `item`: an item id | `seq`: the numbers written (empty when it was already gone) |
-| `session_start` | `workspace`: string, its name or the directory of its file, `fresh`: bool (default `false`) | `session` |
+| `session_start` | `workspace`: string, its name or the directory of its file, `fresh`: bool (default `false`), `profile`: a profile's name (optional) | `session` |
 | `session_stop` | `workspace`: string | `session` |
 | `session_send` | `workspace`: string, `text`: string | `session` |
-| `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` |
+| `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty), `profile`: a profile's name (optional) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id`, `tokens`: about how many tokens the agent reads for it (optional) |
+| `profile_list` | `workspace`: as `workspace_show` | `workspace`: its name, `profiles`: list of `{name, dir, tools}`, in its file's order |
+| `profile_set` | `workspace`, `name`: string, `dir`: absolute path of a directory (optional), `tools`: list of permission rules (optional) | `workspace`, `profiles` |
+| `profile_remove` | `workspace`, `name`: string | `workspace`, `profiles` |
 | `feedback_add` | `text`: string, then each optional: `workspace`, `canvas`, `page`, `tool`: string, `selected`: number | `path`: the feedback file, `entry`: the note as saved |
 | `feedback_list` | `all`: bool (default `false`: the open notes only), `limit`: number (optional) | `path`, `entries`: notes, newest first |
 | `feedback_resolve` | `ts`: a note's `ts`, `note`: string (optional) | `path`, `resolves`: the `ts`, `ts`: when it was resolved, `note` (absent when none) |
@@ -317,7 +320,10 @@ the daemon's memory: a restart starts with nothing to undo.
 
 **Canvas operations.** `ops` of `canvas_apply` is one operation object or a
 list of them, applied in order as one undo step: all of them apply, or none
-do. Ids, items and units are as in the canvas file (`docs/design/canvas-file.md`):
+do. An arrow bound to an item the operations move or resize (`move`, or a
+`set` that changes its box) follows in the same step, as with `canvas_edit`,
+when `by` may change it and no operation touches the arrow itself: a client
+that places the arrows (the app does) sends a `set` for each. Ids, items and units are as in the canvas file (`docs/design/canvas-file.md`):
 item ids `i<n>`, page ids `p<n>`, and positions and lengths as integers in
 tenths of a unit.
 
@@ -612,6 +618,38 @@ owner's settings and instructions too (`--setting-sources
 user,project,local`). The home's own `.claude/settings.json` belongs to the
 workspace and still applies, so the owner can widen a session there too.
 
+**Profiles.** An agent can have profiles (`[[agent.profile]]` in its
+workspace's file, docs/workspace.md): named limits it runs under when a
+start names one. A profile runs the process in its `dir` (the home when
+it has none), which then reads the home and the other directories too,
+and its `tools` take the place of the agent's: the `slinger` CLI stays,
+the agent's `dirs` and `user_config` stay, and nothing else is added. So
+a profile with no `tools` is narrower than the agent, never wider. A
+start under no profile runs within the agent's own limits. Claude Code
+loads the settings of the directory it runs in (`.claude/settings.json`
+there), as it does the home's: a profile's directory brings its own.
+
+**`profile_set`** adds a profile, or replaces the one of its name whole;
+**`profile_remove`** removes one; **`profile_list`** lists them. Each
+change writes the workspace's file before the reply, and each reply is the
+profiles after it. A name is `a-z`, `0-9`, `-` and `_`, at most 64 long. A
+rule is a Claude Code tool, alone or with a pattern in parentheses (`Edit`,
+`Bash(git *)`), and the tool is one of `Bash`, `Edit`, `Glob`, `Grep`,
+`MultiEdit`, `NotebookEdit`, `Read`, `WebFetch`, `WebSearch` and `Write`;
+or an MCP tool (`mcp__server`, `mcp__server__tool`, `mcp__server__*`),
+which is allowed but adds no built-in tool. The agent's own `tools` keep
+the same rule.
+A name, rule or `dir` the daemon cannot read is `invalid`, and nothing is
+written: a blank rule, another tool or an empty pattern is never passed on.
+A `dir` that is not there is `not_found`; one that is, is kept with its
+links resolved. A workspace with no agent is `invalid`, and removing a
+profile it does not have is `not_found`, with a hint naming the ones it has.
+
+```json
+{ "v": 1, "op": "profile_set", "workspace": "notes", "name": "dev", "dir": "/Users/me/Projects/app", "tools": ["Edit", "Bash(git *)"] }
+{ "ok": true, "workspace": "notes", "profiles": [{ "name": "dev", "dir": "/Users/me/Projects/app", "tools": ["Edit", "Bash(git *)"] }] }
+```
+
 **`session_start`** starts the process of the workspace's agent. The first
 start gives it a new session id (`--session-id`); once its output names that
 id, the daemon keeps it in `sessions.json`, and every later start, after a
@@ -621,7 +659,14 @@ with an error code before its output names the id, as Claude Code does when
 it no longer has the conversation) drops the kept id: that process shows as
 `exited`, and the next start begins a new session. With `fresh` a start
 always begins a new session: the kept id is dropped and a running process
-is stopped first. **`session_stop`** closes the process's
+is stopped first. With `profile` the process runs under that profile, and a
+process running under another one (or under none) is stopped first. Each
+profile keeps a conversation of its own, since Claude Code keeps one per
+working directory: `sessions.json` keeps it under `<agent>#<profile>`, and
+the next start under that profile resumes it. A session shows the
+`profile` its process runs under. A profile the agent does not have, or
+whose `dir` is no longer there, is `not_found`, and the running process
+stays. **`session_stop`** closes the process's
 input, waits up to 3 seconds and then kills it; stopping one that is not
 running succeeds. **`session_send`** writes `text` to the process as one user
 message and returns: the answer is the agent's to deliver, through the CLI.
@@ -703,7 +748,11 @@ agent verbs this daemon serves (`canvas put`, `canvas crop`), and the
 prompt last. The first sling into a conversation (no `sling_sent` of the
 agent names its session id) gets the whole note, later ones one line. It
 reaches the process as one stream-json user message: text blocks and a
-base64 PNG image block per image.
+base64 PNG image block per image. The reply's `tokens` estimates the whole
+message by the packet's rule (a token per four characters, and per 750
+pixels of an image up to 1600): the packet, its images and the sling's own
+lines, note and prompt, so it is more than the packet header's `tokens=`. A
+daemon that does not count leaves it out; a client takes it as absent.
 
 The reply comes once the message is written to the process; the daemon
 does not wait for the answer, which arrives as the agent's `canvas_put`s
@@ -716,7 +765,11 @@ at a time, so two packets never cover the same operation.
 
 Slinger never starts an agent for a sling (D10): with no running process
 the reply is `unavailable` with a hint to `session start` the workspace,
-and nothing is stored. A canvas no open workspace has is `not_found`, a
+and nothing is stored. A sling with `profile` goes only to a process that
+runs under that profile: one under another, or under none, is `conflict`
+with a hint to start it under that profile, and a profile the agent does
+not have is `not_found`. Either way nothing is stored. So a sling the user
+meant for a narrow profile never reaches a wider one. A canvas no open workspace has is `not_found`, a
 workspace with no agent `invalid`, and the canvas, page and selection fail
 as in `canvas_read`.
 
@@ -729,7 +782,7 @@ lose which question it belonged to.
 
 ```json
 { "v": 1, "op": "sling_send", "canvas": "notes", "select": ["c42"], "prompt": "what is missing here?" }
-{ "ok": true, "event": 14, "packet": "sha256:5e1f…", "from": 42, "to": 58, "strokes": 23, "agent": "scout", "session_id": "6f1c0d52-8a3e-4b7d-9c1e-2f4a5b6c7d8e" }
+{ "ok": true, "event": 14, "packet": "sha256:5e1f…", "from": 42, "to": 58, "strokes": 23, "agent": "scout", "session_id": "6f1c0d52-8a3e-4b7d-9c1e-2f4a5b6c7d8e", "tokens": 2310 }
 ```
 
 #### Feedback
@@ -803,9 +856,10 @@ item on another page is `invalid`; a line with none or two of `text`, `box`,
 **`canvas_edit`** changes an item the agent made, as one undo step: `text`
 gives a text item new words (its frame grows or shrinks to hold them),
 `box` gives a text or a box a new size `[w, h]`, and `move` puts the top-left
-corner of the item's box at `[x, y]`. A move takes along the end of each
-arrow bound to the item, in the same step, as a move in the app does; only
-arrows the agent made: another author's arrow stays as it is. What it
+corner of the item's box at `[x, y]`. A move or a resize takes along the
+end of each arrow bound to the item, in the same step, as a move in the app
+does (a resize keeps the end on the same spot of the item's box, scaled
+with it); only arrows the agent made: another author's arrow stays as it is. What it
 leaves out stays; an edit that leaves the item as it was writes nothing. **`canvas_remove`** takes an item
 the agent made off the canvas; an item already gone (or never there)
 succeeds and writes nothing (SPEC B4). Ids are as for `canvas_put`. The

@@ -6,6 +6,7 @@ use crate::backend::tests::{open_notes, with_store};
 use crate::config::{Config, Rgb};
 use crate::layout::{Axis, Point, WINDOW};
 use crate::panes::{Kind, Pane};
+use crate::scene::cursor::Cursor;
 use crate::scene::ink::Pen;
 use crate::scene::status;
 use crate::scene::tools::Tool;
@@ -179,6 +180,41 @@ fn a_press_in_the_selection_within_reach_of_a_divider_grabs_the_selection() {
         assert!(canvases.grabs(&panes, over, near, Tool::Lasso));
         assert!(!canvases.grabs(&panes, over, near, Tool::Pen), "the pen draws: the divider's");
         assert!(!canvases.grabs(&panes, over, pen(300.0, 300.0, 2.0), Tool::Select), "outside it");
+    });
+}
+
+/// The pointer, up, moved to `(x, y)` in the window with `tool`.
+fn hover(canvases: &mut Canvases, panes: &Panes, (x, y): (f64, f64), tool: Tool) -> bool {
+    canvases.hover_handle(panes, under(panes, x, y), Point { x, y }, tool)
+}
+
+#[test]
+fn the_pointer_on_a_selection_handle_is_its_resize_cursor_in_that_pane_only() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let (mut canvases, panes) = two_panes(daemon);
+        let [(left, a), (right, _)] = frames(&panes)[..] else { panic!() };
+        assert!(
+            !hover(&mut canvases, &panes, (132.0, 132.0), Tool::Select),
+            "no selection, no handle"
+        );
+        let tool = (Tool::Select, GREY);
+        assert!(canvases.pen_down(&panes, (left, a), pen(121.0, 121.0, 1.0), tool));
+        canvases.pen_up(&panes, pen(121.0, 121.0, 1.05), Some((left, a)));
+        // The stroke's box is (116, 116) to (126, 126) in the window; each
+        // handle 6 out from a corner.
+        assert!(
+            hover(&mut canvases, &panes, (132.0, 132.0), Tool::Select),
+            "the bottom right handle"
+        );
+        assert!(!hover(&mut canvases, &panes, (133.0, 131.0), Tool::Select), "still on it");
+        assert_eq!(canvases.handle_cursor(left), Some(Cursor::ResizeFalling));
+        assert_eq!(canvases.handle_cursor(right), None, "the other pane keeps its tool's");
+        assert!(hover(&mut canvases, &panes, (132.0, 110.0), Tool::Lasso), "the top right handle");
+        assert_eq!(canvases.handle_cursor(left), Some(Cursor::ResizeRising));
+        assert!(hover(&mut canvases, &panes, (132.0, 110.0), Tool::Pen), "the pen draws there");
+        assert!(!hover(&mut canvases, &panes, (300.0, 300.0), Tool::Select));
+        assert_eq!(canvases.handle_cursor(left), None);
     });
 }
 

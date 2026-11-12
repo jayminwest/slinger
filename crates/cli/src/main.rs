@@ -8,6 +8,7 @@ mod feedback;
 mod look;
 mod output;
 mod pane;
+mod profile;
 mod put;
 mod schema;
 mod session;

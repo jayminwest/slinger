@@ -1,7 +1,8 @@
 //! Pages (SPEC D6): which page a page command turns a pane to, the name a
 //! new page gets, where a pane goes when its page is removed, the line
 //! that names a pane's page in its footer, and the two questions a page command
-//! asks: a rename's new name, in an entry like the sling's, and whether to remove a page
+//! asks: a rename's new name, in an entry like the sling's (with the pen's
+//! buttons beside it: [`crate::scene::sling::pen`]), and whether to remove a page
 //! that has items, asked once; and what a page command did, for the flash
 //! (SPEC P6: the footer's line alone is easy to miss). Pure: `canvases` hands in the canvas's pages and the
 //! typed keys, and sends the [`PageOp`] that comes out through the ink's
@@ -9,10 +10,11 @@
 
 pub mod menu;
 
-use crate::config::Theme;
+use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Point, Rect};
 use crate::scene::paste;
-use crate::scene::sling::{Entry, SEND, centred};
+use crate::scene::sling::pen::beside;
+use crate::scene::sling::{Entry, SEND, under};
 
 /// A canvas page as the app knows it: its id and its name.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -108,7 +110,7 @@ impl Pages {
     /// frame is `within`: an entry ([`Pages::entry`]) starts from the old
     /// name; return keeps the new one, escape keeps the old one.
     pub fn rename(&mut self, (pane, within): (PaneId, Rect), canvas: &str, shown: &Page) {
-        let (canvas, text, frame) = (canvas.to_string(), shown.name.clone(), centred(within));
+        let (canvas, text, frame) = (canvas.to_string(), shown.name.clone(), beside(within));
         self.ask = Some(Ask::Rename { pane, canvas, page: shown.id.clone(), text, frame });
         self.said = Some(format!("Rename “{}”", shown.name));
     }
@@ -143,7 +145,15 @@ impl Pages {
         let mut entry = Entry::framed(*frame, theme, "Rename page".into(), keys);
         entry.text.clone_from(text);
         entry.placeholder = "a name for the page".into();
+        entry.done = Some("Rename");
         Some(entry)
+    }
+
+    /// `lines` (text and colour) under the new name's entry: what
+    /// dictation says.
+    pub fn under(&self, theme: &Theme, lines: Vec<(String, Rgb)>) -> Vec<crate::scene::Label> {
+        let Some(Ask::Rename { frame, .. }) = &self.ask else { return Vec::new() };
+        under(*frame, 0, theme, lines)
     }
 
     /// Whether `at`, a point in the window, is on the new name's entry.

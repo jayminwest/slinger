@@ -5,6 +5,7 @@ mod agent;
 mod feedback;
 mod import;
 mod pane;
+mod profile;
 mod read;
 mod session;
 mod showing;
@@ -285,6 +286,7 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
         Request::Pane(ask) => pane::answer(store, ask),
         Request::Showing(ask) => showing::answer(store, ask),
         Request::Feedback(ask) => feedback::answer(store, ask),
+        Request::Profile(ask) => profile::answer(store, ask),
     }
 }
 

@@ -10,7 +10,7 @@ use slinger_control::Client;
 use super::{Canvases, canvas_of};
 use crate::backend::Noter;
 use crate::commands::Chord;
-use crate::config::Theme;
+use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Point, Rect};
 use crate::panes::Panes;
 use crate::scene::Label;
@@ -49,6 +49,11 @@ impl Notes {
     /// Whether `at`, a point in the window, is on the open entry.
     pub(super) fn covers(&self, at: Point) -> bool {
         self.entry.covers(at)
+    }
+
+    /// `lines` under the open entry, after its own: what dictation says.
+    pub(super) fn under(&self, theme: &Theme, lines: Vec<(String, Rgb)>) -> Vec<Label> {
+        self.entry.under(theme, lines)
     }
 
     /// The entry, while it is open, and its lines, in `theme`'s colours.

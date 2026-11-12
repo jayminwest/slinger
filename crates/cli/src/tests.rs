@@ -17,6 +17,7 @@ mod edit;
 mod feedback;
 mod look;
 mod pane;
+mod profile;
 mod put;
 mod read;
 mod session;

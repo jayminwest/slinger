@@ -25,6 +25,13 @@ pub(super) fn glyph(c: char) -> Bitmap {
     fonts.into_iter().flatten().next().unwrap_or_default()
 }
 
+/// Whether `c` is drawn as nothing and takes no cell: a zero-width space,
+/// joiner or no-break space, or a variation selector. `wrap` leaves these
+/// out, so they never widen a line or a frame.
+pub(super) fn zero_width(c: char) -> bool {
+    matches!(c, '\u{200B}' | '\u{200C}' | '\u{200D}' | '\u{2060}' | '\u{FE0F}' | '\u{FEFF}')
+}
+
 /// The character `font8x8` draws for one that only looks different: a
 /// curly quote is drawn straight, a hyphen or minus as `-`.
 fn stand_in(c: char) -> char {
@@ -62,8 +69,8 @@ fn typography(c: char) -> Option<Bitmap> {
         '\u{2194}' => [0x00, 0x12, 0x33, 0x7F, 0x33, 0x12, 0x00, 0x00],
         // Check mark.
         '\u{2713}' | '\u{2714}' => [0x00, 0x40, 0x20, 0x11, 0x0A, 0x04, 0x00, 0x00],
-        // Zero-width characters draw nothing.
-        '\u{200B}' | '\u{200C}' | '\u{200D}' | '\u{2060}' | '\u{FE0F}' | '\u{FEFF}' => [0; 8],
+        // Zero-width characters draw nothing (and `wrap` leaves them out).
+        c if zero_width(c) => [0; 8],
         _ => return None,
     })
 }

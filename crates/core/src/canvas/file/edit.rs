@@ -7,15 +7,17 @@
 //! change. That rule is checked before anything else about the edit, so an
 //! agent naming the user's item always hears that it is not its own.
 //! Removing an item already gone succeeds and writes nothing (B4), as does
-//! an edit that leaves the item as it was. A move takes along the ends of
-//! the arrows bound to the item, in the same step, as a move in the app
-//! does; only the arrows the agent may change.
+//! an edit that leaves the item as it was. A move or a resize takes along
+//! the ends of the arrows bound to the item, in the same step, as one in the
+//! app does ([`Log::followed`]); only the arrows the agent may change.
 //!
 //! [`Canvas::apply`]: crate::canvas::Canvas::apply
 
 use super::put::TEXT_COLUMNS;
+use std::collections::{HashMap, HashSet};
+
 use super::{Log, Placed, Written, json};
-use crate::canvas::{Action, Author, End, Item, ItemId, Point, Rect, Shape, Time};
+use crate::canvas::{Action, Author, End, Item, ItemId, PageId, Point, Rect, Shape, Time};
 use crate::render;
 use crate::{Error, Result};
 
@@ -70,17 +72,14 @@ impl Log {
             };
             (frame.w, frame.h) = (json::units(w), json::units(h));
         }
-        let mut by_moved = Point::new(0.0, 0.0);
         if let Some([x, y]) = edit.to {
             let Rect { x: left, y: top, .. } = new.bounds();
-            by_moved = Point::new(json::units(x) - left, json::units(y) - top);
-            new = new.shifted(by_moved);
+            new = new.shifted(Point::new(json::units(x) - left, json::units(y) - top));
         }
         let written = if new == shape {
             Written::default()
         } else {
-            let mut actions = vec![Action::Edit { item, shape: new }];
-            actions.extend(self.followers(by, item, by_moved));
+            let actions = self.followed(by, vec![Action::Edit { item, shape: new }]);
             self.step(by, at, actions)?
         };
         let frame = self.canvas().item(item).map(Item::bounds).unwrap_or_default();
@@ -88,33 +87,67 @@ impl Log {
         Ok(Placed { written, item: json::item_id(item), page: json::page_id(page), frame })
     }
 
-    /// The arrows that follow a move of `item` by `by_moved`, as edits: each
-    /// arrow `by` may change with an end bound to `item`, that end moved. An
-    /// arrow `by` may not change (an agent's move of its note, the user's
-    /// arrow to it) stays as it is, as the author rule says.
-    fn followers(&self, by: &Author, item: ItemId, by_moved: Point) -> Vec<Action> {
-        if by_moved == Point::new(0.0, 0.0) {
-            return Vec::new();
+    /// `actions` and, after them, the arrows that follow the items they move
+    /// or resize, as edits: each arrow `by` may change, that `actions` do
+    /// not touch themselves, with an end bound to such an item, that end
+    /// refitted to the item's new box ([`refit`]). An arrow `by` may not
+    /// change (an agent's move of its note, the user's arrow to it) stays as
+    /// it is, as the author rule says. `canvas edit` and `canvas apply` both
+    /// come through here; the app names its followers itself, so they are
+    /// touched and left to it.
+    pub(super) fn followed(&self, by: &Author, mut actions: Vec<Action>) -> Vec<Action> {
+        let canvas = self.canvas();
+        // Each touched item's shape before and after `actions`, in order.
+        let mut shapes: HashMap<ItemId, (Rect, Shape)> = HashMap::new();
+        let mut touched = HashSet::new();
+        for action in &actions {
+            let (item, after) = match action {
+                Action::Edit { item, shape } => (*item, Some(shape.clone().fitted())),
+                Action::Move { item, by } => {
+                    let now = shapes.get(item).map(|(_, s)| s.clone());
+                    let now = now.or_else(|| canvas.item(*item).map(|i| i.shape().clone()));
+                    (*item, now.map(|s| s.shifted(*by)))
+                }
+                Action::Remove { item } => (*item, None),
+                _ => continue,
+            };
+            touched.insert(item);
+            let (Some(after), Some(before)) = (after, canvas.item(item)) else { continue };
+            let before = before.bounds();
+            shapes
+                .entry(item)
+                .and_modify(|(_, now)| *now = after.clone())
+                .or_insert((before, after));
         }
-        let Some(page) = self.canvas().item(item).map(Item::page) else { return Vec::new() };
-        let mut follow = Vec::new();
-        for arrow in self.canvas().items(page) {
+        let boxes: HashMap<ItemId, (Rect, Rect)> = shapes
+            .into_iter()
+            .map(|(item, (before, after))| (item, (before, after.bounds())))
+            .filter(|(_, (before, after))| before != after)
+            .collect();
+        let mut pages: Vec<PageId> =
+            boxes.keys().filter_map(|&i| canvas.item(i).map(Item::page)).collect();
+        pages.sort_unstable();
+        pages.dedup();
+        for arrow in pages.into_iter().flat_map(|page| canvas.items(page)) {
             let Shape::Arrow { from, to, colour } = arrow.shape() else { continue };
-            let on = |end: &End| end.item == Some(item);
-            if arrow.id() == item || !(on(from) || on(to)) || !by.may_change(arrow.author()) {
+            let fit = |end: &End| {
+                let to_box = end.item.and_then(|i| boxes.get(&i));
+                to_box.map_or(*end, |&(before, after)| End {
+                    at: refit(before, after, end.at),
+                    ..*end
+                })
+            };
+            let (new_from, new_to) = (fit(from), fit(to));
+            if touched.contains(&arrow.id())
+                || (new_from == *from && new_to == *to)
+                || !by.may_change(arrow.author())
+            {
                 continue;
             }
-            let shift = |end: &End| {
-                if on(end) {
-                    End { at: Point::new(end.at.x + by_moved.x, end.at.y + by_moved.y), ..*end }
-                } else {
-                    *end
-                }
-            };
-            let shape = Shape::Arrow { from: shift(from), to: shift(to), colour: *colour };
-            follow.push(Action::Edit { item: arrow.id(), shape });
+            let shape = Shape::Arrow { from: new_from, to: new_to, colour: *colour };
+            actions.push(Action::Edit { item: arrow.id(), shape });
         }
-        follow
+        actions
     }
 
     /// Takes the item `id` names off the canvas, as `by` at `at`, as one
@@ -130,6 +163,20 @@ impl Log {
         };
         self.step(by, at, items.into_iter().map(|item| Action::Remove { item }).collect())
     }
+}
+
+/// Where a point at `at` goes when the box `before` becomes `after`: the
+/// same place relative to the box, scaled with it (only shifted along a side
+/// of no length). A move is a shift; a resize keeps an arrow's end on the
+/// same spot of the item's edge.
+fn refit(before: Rect, after: Rect, at: Point) -> Point {
+    let axis = |p: f64, lo: f64, len: f64, new_lo: f64, new_len: f64| {
+        if len > 0.0 { new_lo + (p - lo) * new_len / len } else { new_lo + p - lo }
+    };
+    Point::new(
+        axis(at.x, before.x, before.w, after.x, after.w),
+        axis(at.y, before.y, before.h, after.y, after.h),
+    )
 }
 
 fn invalid(message: &str, hint: &str) -> Error {

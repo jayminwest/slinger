@@ -90,18 +90,32 @@ impl Sessions {
 
     /// Starts the process of the agent of the open workspace `which` names,
     /// in the agent's home and within the workspace's limits on this machine,
-    /// and returns its session. A running one is left as it is, unless
-    /// `fresh`: then the agent starts a new session, its last one dropped.
+    /// or in the directory and within the limits of its profile `profile`,
+    /// and returns its session. A running one under the same profile is
+    /// left as it is, unless `fresh`: then the agent starts a new session,
+    /// its last one dropped.
     ///
     /// # Errors
     ///
-    /// `not_found` for a workspace that is not open, `invalid` for one with
-    /// no agent, and the process's error.
-    pub fn start(&self, store: &Store, which: &str, fresh: bool) -> Result<Session> {
+    /// `not_found` for a workspace that is not open, a profile the agent
+    /// does not have or a profile's directory that is not there, `invalid`
+    /// for a workspace with no agent, and the process's error.
+    pub fn start(
+        &self,
+        store: &Store,
+        which: &str,
+        fresh: bool,
+        profile: Option<&str>,
+    ) -> Result<Session> {
         let opened = store.workspaces().show(which)?;
         let session = self.show(store, session::agent_of(&opened.workspace)?)?;
-        let limits = stream::Limits::of(&opened.workspace, store.machine());
-        self.processes.start(&session.agent, &session.home, &limits, fresh)?;
+        let limits = stream::Limits::under(&opened.workspace, store.machine(), profile)?;
+        if let Some(dir) = limits.dir.as_deref().filter(|d| !Path::new(d).is_dir()) {
+            let what = format!("directory {dir}");
+            let hint = Some("the profile's dir must be a directory on slingerd's machine: change it with 'slinger profile set'".into());
+            return Err(slinger_core::Error::NotFound { what, hint }.into());
+        }
+        self.processes.start(&session.agent, profile, &session.home, &limits, fresh)?;
         Ok(session)
     }
 
@@ -125,18 +139,30 @@ impl Sessions {
     /// `invalid` for blank text, `unavailable` when the process is not
     /// running, and the errors of [`Sessions::stop`].
     pub fn send(&self, store: &Store, which: &str, text: &str) -> Result<Session> {
-        self.deliver(store, which, &stream::message(text)?)
+        self.deliver(store, which, &stream::message(text)?, None)
     }
 
     /// Delivers `line`, one message as the stream format writes it, as
-    /// [`Sessions::send`] does.
+    /// [`Sessions::send`] does; with `profile`, only to a process that runs
+    /// under that profile of the agent's.
     ///
     /// # Errors
     ///
-    /// As [`Sessions::send`], less blank text.
-    pub fn deliver(&self, store: &Store, which: &str, line: &str) -> Result<Session> {
-        let session = self.of_workspace(store, which)?;
-        self.processes.send(&session.agent, line)?;
+    /// As [`Sessions::send`], less blank text; `not_found` for a profile
+    /// the agent does not have, and `conflict` for a process under another.
+    pub fn deliver(
+        &self,
+        store: &Store,
+        which: &str,
+        line: &str,
+        profile: Option<&str>,
+    ) -> Result<Session> {
+        let opened = store.workspaces().show(which)?;
+        if let Some(name) = profile {
+            opened.workspace.profile(name)?;
+        }
+        let session = self.show(store, session::agent_of(&opened.workspace)?)?;
+        self.processes.send(&session.agent, line, profile)?;
         Ok(session)
     }
 

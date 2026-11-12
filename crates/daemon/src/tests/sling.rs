@@ -26,7 +26,8 @@ fn draw(client: &Client, x: i64) -> u64 {
 
 fn sling(client: &Client, select: &[&str], prompt: &str) -> Slung {
     let select = select.iter().map(|s| (*s).to_string()).collect();
-    let ask = SlingAsk { canvas: "notes".into(), select, prompt: prompt.into(), page: None };
+    let ask =
+        SlingAsk { canvas: "notes".into(), select, prompt: prompt.into(), ..SlingAsk::default() };
     client.sling_send(ask).unwrap()
 }
 
@@ -98,7 +99,13 @@ fn three_slings_go_into_one_conversation_and_each_is_in_the_record() {
         slung.push(s);
     }
     in_the_record(&client, &slung, &id);
-    first_gets_the_whole_note(&messages(&home, 3));
+    let got = messages(&home, 3);
+    first_gets_the_whole_note(&got);
+    for (s, (text, _)) in slung.iter().zip(&got) {
+        let text = (text.chars().count() as u64).div_ceil(4);
+        assert!(s.tokens.unwrap() > text, "the wrapper and the image count: {s:?}");
+    }
+    assert!(slung[0].tokens > slung[1].tokens, "the whole note costs more");
 
     // Old ink selected again: nothing new is sent, and the selection is named.
     let again = sling(&client, &["i1"], "and this?");

@@ -22,6 +22,10 @@ pub struct SlingAsk {
     /// What the user asks. Empty is valid: the selection is the question.
     #[serde(default)]
     pub prompt: String,
+    /// The profile the agent must run under: a process under another one,
+    /// or under none, refuses the sling (`conflict`). Absent: any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
 }
 
 /// The reply to a sling: what went, and where.
@@ -41,6 +45,11 @@ pub struct Slung {
     pub agent: String,
     /// The conversation it went into.
     pub session_id: String,
+    /// About how many tokens the agent reads for it: the packet, its images
+    /// and the sling's wrapper (the note and the prompt). Absent from a
+    /// daemon that does not count.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tokens: Option<u64>,
 }
 
 impl Client {
@@ -51,10 +60,26 @@ impl Client {
     /// # Errors
     ///
     /// `unavailable` when the agent's process is not running or the daemon
-    /// does not answer, `not_found` for a canvas, page or workspace that is
+    /// does not answer, `conflict` when it runs under another profile than
+    /// the one asked for, `not_found` for a canvas, page or workspace that is
     /// not there, and `invalid` for a selected id that is not one or a
     /// workspace with no agent.
     pub fn sling_send(&self, ask: SlingAsk) -> Result<Slung, RemoteError> {
         self.call(&SessionAsk::SlingSend(ask))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_reply_without_tokens_from_an_older_daemon_still_reads() {
+        let old =
+            r#"{"event":1,"packet":"p","from":1,"to":2,"strokes":1,"agent":"a","session_id":"s"}"#;
+        let slung: Slung = serde_json::from_str(old).unwrap();
+        assert_eq!(slung.tokens, None);
+        let text = serde_json::to_string(&Slung { tokens: Some(9), ..slung }).unwrap();
+        assert!(text.ends_with(r#""tokens":9}"#), "{text}");
     }
 }

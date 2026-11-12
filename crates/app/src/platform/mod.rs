@@ -17,8 +17,9 @@
 //! the focus border and the flash's pill. `text` sets styled text: the
 //! sidebar's rows and the panes' footers. The window
 //! resizes, down to [`layout::SMALLEST`], and says its new size; `files`
-//! sets its title bar and shows a canvas's file in the Finder; `remember`
-//! keeps its frame, and whether the sidebar was open, for the next launch.
+//! sets its title bar and shows a canvas's file in the Finder; `window`
+//! makes it; `remember` keeps its frame, and whether the sidebar was open,
+//! for the next launch.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
 //! that touches `AppKit` takes a `MainThreadMarker`, which only the main thread
@@ -37,25 +38,25 @@ mod overlay;
 mod remember;
 mod text;
 mod web;
+mod window;
 
 use std::cell::{Cell, RefCell};
 
 use objc2::rc::Retained;
-use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
+use objc2::runtime::{AnyObject, NSObjectProtocol};
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSEvent, NSEventType,
-    NSMenuItem, NSResponder, NSTextAlignment, NSView, NSWindow, NSWindowDelegate,
-    NSWindowOrderingMode, NSWindowStyleMask,
+    NSApplication, NSApplicationActivationPolicy, NSEvent, NSEventType, NSMenuItem, NSResponder,
+    NSTextAlignment, NSView, NSWindow, NSWindowDelegate, NSWindowOrderingMode,
 };
-use objc2_foundation::{NSNotification, NSObject, NSPoint, NSRect, NSSize, NSTimer};
+use objc2_foundation::{NSNotification, NSObject, NSRect, NSTimer};
 
 use self::canvas::CanvasView;
 use self::chrome::{color, flipped, label};
 pub use self::files::reveal;
-pub use self::remember::{remember_sidebar, sidebar as remembered_sidebar};
+pub use self::remember::{Kept, remember_sidebar, sidebar as remembered_sidebar};
 use crate::commands::{Chord, Command};
-use crate::layout::{self, PaneId, Point, Size};
+use crate::layout::{PaneId, Point, Size};
 use crate::scene::flash::Pill;
 use crate::scene::ink::Pen;
 use crate::scene::paste::{Clip, Edit};
@@ -321,13 +322,15 @@ fn reply(line: String, mtm: MainThreadMarker) -> Result<(), String> {
 /// closes, or a [`Step::Quit`]). Each key press and twice a second a tick go
 /// to `answer` on the main thread, which must return quickly; so do pen and
 /// mouse presses, drags, lifts and moves in the window, and each paint of
-/// new ink. Call it from `main`.
+/// new ink. The window opens at, and keeps, the `kept` frame. Call it from
+/// `main`.
 ///
 /// # Errors
 ///
 /// [`NotMainThread`] when called from any other thread.
 pub fn run(
     scene: &Scene,
+    kept: Kept,
     answer: impl FnMut(Event) -> Step + 'static,
 ) -> Result<(), NotMainThread> {
     let mtm = MainThreadMarker::new().ok_or(NotMainThread)?;
@@ -337,7 +340,7 @@ pub fn run(
     app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
     // Every pen point, not one per frame: a fast stroke keeps its shape.
     NSEvent::setMouseCoalescingEnabled(false);
-    let window = window(mtm, scene);
+    let window = window::make(mtm, scene.size, kept);
     // SAFETY: the target implements `tick:`, which takes the timer. The run
     // loop keeps the repeating timer, and the timer keeps its target.
     let _timer = unsafe {
@@ -367,35 +370,6 @@ pub fn run(
     app.activate();
     app.run();
     Ok(())
-}
-
-fn window(mtm: MainThreadMarker, scene: &Scene) -> Retained<KeyWindow> {
-    let size = NSSize::new(scene.size.width, scene.size.height);
-    let style = NSWindowStyleMask::Titled
-        | NSWindowStyleMask::Closable
-        | NSWindowStyleMask::Miniaturizable
-        | NSWindowStyleMask::Resizable;
-    let frame = NSRect::new(NSPoint::new(0.0, 0.0), size);
-    // SAFETY: `NSWindow`'s designated initializer on a fresh allocation of a
-    // subclass with no ivars, called once with valid arguments.
-    let window: Retained<KeyWindow> = unsafe {
-        msg_send![
-            KeyWindow::alloc(mtm),
-            initWithContentRect: frame,
-            styleMask: style,
-            backing: NSBackingStoreType::Buffered,
-            defer: false,
-        ]
-    };
-    // SAFETY: `Retained` owns the window, so `AppKit` must not also release it on close.
-    unsafe { window.setReleasedWhenClosed(false) };
-    window.setAcceptsMouseMovedEvents(true);
-    window.setContentMinSize(NSSize::new(layout::SMALLEST.width, layout::SMALLEST.height));
-    // The delegate is weak: the window lives as long as the app.
-    window.setDelegate(Some(ProtocolObject::from_ref(&*window)));
-    window.center();
-    remember::frame(&window);
-    window
 }
 
 /// Makes the window show `scene`: its title, background, canvas panes,
@@ -475,9 +449,8 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     }
     // The border first, so a pop-up at the pen draws over it.
     shown.chrome.push(Retained::into_super(chrome::border(&scene.focus, height, mtm)));
-    for line in &scene.labels {
-        shown.chrome.extend(text::line(line, height, mtm));
-    }
+    shown.chrome.extend(scene.labels.iter().flat_map(|line| text::line(line, height, mtm)));
+    shown.chrome.extend(scene.pills.iter().flat_map(|line| overlay::line(line, height, mtm)));
     if let Some(pill) = &scene.flash {
         shown.chrome.push(Retained::into_super(chrome::pill(window, pill, height, mtm)));
     }
