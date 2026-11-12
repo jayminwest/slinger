@@ -59,7 +59,10 @@ writer; other programs reach the record through the socket.
   file stays.
 - The event log is append-only: the file refuses updates and deletes. The
   daemon gives each event its number and time and tags it with this
-  machine's name, the host name up to its first dot. An event the writer
+  machine's name. The record keeps that name from when it was created: the
+  host name up to its first dot then (for a record made by an older
+  daemon, the name on its first event). Renaming the host later does not
+  change it, so one machine's events keep one tag. An event the writer
   gave no workspace tag gets the tag of the open workspace whose canvas is
   its `canvas` tag, else of the one whose agent is its `agent` tag; none
   when no open workspace, or more than one, matches.

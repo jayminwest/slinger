@@ -181,6 +181,9 @@ store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
              Locks the data directory, so one store owns the record.
              Hands out the canvases, the workspaces and the sessions, so
              `answer` reaches all data one way.
+store/schema.rs  the file's layout, its version and the steps that bring
+             an older file up to date. The file keeps the machine name it
+             was created under, so a host rename keeps the tag.
 canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,
              so changes are numbered in the order they apply; append, sync,
              then reply. A failed write closes the canvas; the next request

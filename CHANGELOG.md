@@ -77,6 +77,10 @@ bullet with the area in bold.
   data directory now stops with exit 4 and `✗ data directory <path> is in
   use by another slingerd`, instead of writing to the same record as the
   first.
+- **Daemon:** renaming your computer no longer splits its record in two.
+  The record keeps the machine name it was created with and tags every
+  new event with it; a record made by an older `slingerd` keeps the name
+  on its first event.
 - **App:** the sling's pill (`● scout working · 4s` and what follows it)
   and the ➤ Sling and + prompt buttons centre their words top to bottom,
   instead of sitting them at the top of their fill.

@@ -14,6 +14,7 @@
 //! same way. And it holds `packets/`, where `canvas read` writes each packet
 //! for agents to read ([`Store::packet_dir`]): derived files, safe to delete.
 
+mod schema;
 #[cfg(test)]
 mod tests;
 
@@ -50,34 +51,6 @@ const SESSION_IDS: &str = "sessions.json";
 pub const CLAUDE: &str = "claude";
 /// The CLI each agent's hooks run, unless the daemon is told another.
 pub const SLINGER: &str = "slinger";
-/// The layout this code writes, kept in SQLite's `user_version`.
-const SCHEMA_VERSION: i64 = 1;
-const SCHEMA: &str = "
-CREATE TABLE events (
-    number    INTEGER PRIMARY KEY,
-    time      INTEGER NOT NULL,
-    kind      TEXT NOT NULL,
-    machine   TEXT NOT NULL,
-    workspace TEXT,
-    agent     TEXT,
-    canvas    TEXT,
-    event     TEXT NOT NULL
-) STRICT;
-CREATE INDEX events_by_kind      ON events (kind, number);
-CREATE INDEX events_by_workspace ON events (workspace, number);
-CREATE INDEX events_by_agent     ON events (agent, number);
-CREATE INDEX events_by_canvas    ON events (canvas, number);
-CREATE TRIGGER events_no_update BEFORE UPDATE ON events
-    BEGIN SELECT RAISE(ABORT, 'the record is append-only'); END;
-CREATE TRIGGER events_no_delete BEFORE DELETE ON events
-    BEGIN SELECT RAISE(ABORT, 'the record is append-only'); END;
-CREATE TABLE blobs (
-    id    TEXT PRIMARY KEY,
-    bytes BLOB NOT NULL
-) STRICT, WITHOUT ROWID;
-CREATE TRIGGER blobs_no_update BEFORE UPDATE ON blobs
-    BEGIN SELECT RAISE(ABORT, 'a blob never changes'); END;
-";
 
 /// Why the store failed.
 #[derive(Debug, thiserror::Error)]
@@ -95,7 +68,7 @@ pub enum StoreError {
     #[error("cannot open the record {}: {source}", path.display())]
     Open { path: PathBuf, source: rusqlite::Error },
     /// The file was laid out by a newer slingerd.
-    #[error("the record {} has layout {found}, newer than this slingerd reads ({SCHEMA_VERSION})", path.display())]
+    #[error("the record {} has layout {found}, newer than this slingerd reads ({})", path.display(), schema::VERSION)]
     Newer { path: PathBuf, found: i64 },
     #[error("record database error: {0}")]
     Sqlite(#[from] rusqlite::Error),
@@ -174,7 +147,9 @@ pub struct Store {
 
 impl Store {
     /// Opens the record in `dir`, creating the directory (mode 0700) and the
-    /// file when they do not exist. Every event appended is tagged `machine`.
+    /// file when they do not exist. A new record keeps `machine` as its name,
+    /// and every event appended is tagged with the name the record keeps, so
+    /// a host rename does not change it.
     ///
     /// # Errors
     ///
@@ -194,17 +169,8 @@ impl Store {
         let mut db = Connection::open(&path).map_err(opened)?;
         db.pragma_update(None, "journal_mode", "WAL").map_err(opened)?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate).map_err(opened)?;
-        let found: i64 = tx.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        match found {
-            0 => {
-                tx.execute_batch(SCHEMA)?;
-                tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
-            }
-            SCHEMA_VERSION => {}
-            _ => return Err(StoreError::Newer { path, found }),
-        }
+        let machine = schema::prepare(&tx, &path, machine.into())?;
         tx.commit()?;
-        let machine = machine.into();
         let canvases = Canvases::new(dir.join(CANVASES));
         let workspaces = Workspaces::new(dir.join(WORKSPACES), machine.clone());
         let packets = dir.join(PACKETS);
@@ -327,7 +293,7 @@ impl Store {
     }
 
     /// This machine's name, as the `machine` tag and the workspaces' roots
-    /// give it.
+    /// give it: the one the record kept when it was created.
     #[must_use]
     pub fn machine(&self) -> &str {
         &self.machine
@@ -466,8 +432,8 @@ fn data_dir_in(xdg: Option<PathBuf>, home: Option<PathBuf>, macos: bool) -> Opti
     Some(base.join("slinger"))
 }
 
-/// This machine's name for the `machine` tag: the host name up to its first
-/// dot, so `my-laptop.local` and `my-laptop` are the same machine.
+/// The name a new record keeps for the `machine` tag: the host name up to
+/// its first dot, so `my-laptop.local` and `my-laptop` are the same machine.
 #[must_use]
 pub fn machine_name() -> String {
     machine_from(&gethostname::gethostname().to_string_lossy())
