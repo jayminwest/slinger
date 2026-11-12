@@ -67,6 +67,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** the picture an agent sees of your canvas draws em and en
+  dashes, curly quotes, an ellipsis, bullets, arrows, check marks, box
+  drawing and blocks as themselves, instead of as `?`. A character the
+  picture still has no glyph for (most emoji, Chinese) is drawn as `?`.
 - **Feedback:** each note names the commit `slingerd` was built from
   (with `-dirty` for uncommitted changes) instead of always `dev`.
 - **App:** return on a just-opened command palette no longer quits. The
