@@ -208,3 +208,32 @@ fn a_menu_choice_closes_it_and_runs() {
     assert_eq!(tap, Tap::Run(Command::NextPage));
     assert!(!menu.is_open());
 }
+
+#[test]
+fn a_sign_says_when_more_pages_are_above_or_below() {
+    let signs = |menu: &PageMenu| {
+        let rows = rows(menu);
+        let pages = pages(menu);
+        let at = |sign: &str| rows.iter().position(|r| r == sign);
+        let page = |n: usize| rows.iter().position(|r| *r == pages[n]);
+        (at("▲").map(|_| page(0)), at("▼").map(|_| page(pages.len() - 1)))
+    };
+    assert_eq!(signs(&open(&["a", "b", "c"], 0)), (None, None), "all fit: no sign");
+    let names: Vec<String> = (1..=40).map(|n| format!("p{n}")).collect();
+    let mut menu = PageMenu::default();
+    menu.open(pane(), ANCHOR, (names, 0));
+    let (up, down) = signs(&menu);
+    assert!(up.is_none() && down.is_some(), "at the top: only more below");
+    let overlay = menu.shown(&T, SIZE).unwrap();
+    let sign = overlay.lines.iter().find(|l| l.label.text == "▼").unwrap();
+    let last = pages(&menu).pop().unwrap();
+    let name = overlay.lines.iter().find(|l| l.label.text == last).unwrap();
+    assert_eq!(sign.label.colour, T.muted);
+    assert!(name.label.frame.x + name.label.frame.width <= sign.label.frame.x, "beside the name");
+    menu.scroll(-ROW * 3.0, SIZE);
+    let (up, down) = signs(&menu);
+    assert!(up.is_some() && down.is_some(), "in the middle: both");
+    menu.scroll(-ROW * 100.0, SIZE);
+    let (up, down) = signs(&menu);
+    assert!(up.is_some() && down.is_none(), "at the end: only more above");
+}

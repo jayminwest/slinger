@@ -105,6 +105,10 @@ bullet with the area in bold.
 
 ### Changed
 
+- **App:** a page menu with more pages than fit shows ▲ or ▼ at the end of
+  its top or bottom page row while more pages are above or below.
+- **App:** a footer button's tip now sits on a small panel with rounded
+  corners and a hairline edge, like the menus.
 - **App:** the selection's corner handles resize it, with the lasso or
   the select tool: drag one and the selection scales about the opposite
   corner. Strokes, boxes and arrows stretch; texts and agent UIs keep their

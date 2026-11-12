@@ -240,7 +240,9 @@ pub fn view(
     targets.extend(rows.map(|(frame, index)| (frame, Tap::Workspace(index))));
     shared.taps.set(targets);
     let lit = shared.taps.lit(theme);
-    let tip = lit.and_then(|(at, _)| status::tip(&footers, at, theme, keys, size.rect()));
+    if let Some((at, _)) = lit {
+        status::tip(&mut footers, at, theme, keys, size.rect());
+    }
     if let Some(lit) = lit.filter(|&lit| !status::light(&mut footers, lit, theme)) {
         let (frame, fill) = lit;
         if let Some(button) = scene.labels.iter_mut().find(|l| l.frame == frame && l.fill.is_some())
@@ -256,7 +258,6 @@ pub fn view(
     }
     scene.footers = footers;
     scene.labels.extend(tools.labels(theme));
-    scene.labels.extend(tip);
     let pages = shared.menu.pane().and_then(|pane| canvases.page_names(&shared.panes, pane));
     shared.menu.refresh(pages);
     let overlay = shared.overlay.shown(keys, theme, size);
