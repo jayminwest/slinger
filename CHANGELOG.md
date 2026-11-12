@@ -76,6 +76,9 @@ bullet with the area in bold.
 - **App:** choosing a menu bar item while the command palette is open now
   closes the palette before the command runs, instead of leaving it over
   the window. Choosing Show commands only closes it.
+- **App:** the key overlay, the command palette and the page menu now draw
+  over an open sling prompt (and the feedback and rename fields), dimming
+  it with the rest of the window, instead of leaving the prompt on top.
 - **App:** return on a just-opened command palette no longer quits. The
   palette now opens on the command you last ran from it, then the tools,
   with Quit at the bottom. Typed, the best match comes first: a title that
