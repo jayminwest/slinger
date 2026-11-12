@@ -151,6 +151,10 @@ bullet with the area in bold.
   white parts of it: each tile of its picture is cut down to the ink, and a
   tile with nothing new on it is left out. The fixture board costs about
   13% fewer tokens (63 800 to 55 700 by the packet's estimate).
+- **Agents:** a scrap of a large drawing that spills just past a tile's
+  edge (the end of a word) goes into the tile beside it instead of being
+  sent as an image of its own, so the agent reads the word whole. A lone dot
+  or tick is still sent: nothing you drew is left out for being small.
 - **App:** a page menu with more pages than fit shows ▲ or ▼ at the end of
   its top or bottom page row while more pages are above or below.
 - **App:** a footer button's tip now sits on a small panel with rounded
