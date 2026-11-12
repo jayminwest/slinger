@@ -368,7 +368,7 @@ fn pen(
         Event::Resized(size) => std::mem::replace(&mut shared.size, size) != size,
         Event::Moved(at) => {
             tools.moved(at);
-            shared.hover(at)
+            shared.hover(at) | window::divider(shared, canvases, tools, area, at)
         }
         Event::Drag(pen) if shared.drag(pen.at) => true,
         Event::Scroll { dy, .. } if shared.scroll(dy) => true,

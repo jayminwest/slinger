@@ -304,16 +304,30 @@ fn end_of(laid: &Laid) -> NSRect {
 }
 
 /// The system cursor `cursor` names, or its ring drawn.
-fn ns_cursor(cursor: Cursor) -> Retained<NSCursor> {
+pub(super) fn ns_cursor(cursor: Cursor) -> Retained<NSCursor> {
     match cursor {
         Cursor::Arrow => NSCursor::arrowCursor(),
         Cursor::Crosshair => NSCursor::crosshairCursor(),
         Cursor::IBeam => NSCursor::IBeamCursor(),
+        Cursor::ResizeLeftRight | Cursor::ResizeUpDown => resize(cursor),
         Cursor::Ring { colour, diameter } => ring(colour, diameter),
     }
 }
 
 /// A ring `diameter` points across in `colour`, pointing at its centre.
+/// The system's resize cursor across a divider: left and right, or up and down.
+#[expect(
+    deprecated,
+    reason = "the column and row resize cursors need macOS 15; the app runs on 14"
+)]
+fn resize(cursor: Cursor) -> Retained<NSCursor> {
+    if cursor == Cursor::ResizeUpDown {
+        NSCursor::resizeUpDownCursor()
+    } else {
+        NSCursor::resizeLeftRightCursor()
+    }
+}
+
 #[expect(deprecated, reason = "lockFocus draws a few points once, without a block")]
 fn ring(colour: Rgb, diameter: f64) -> Retained<NSCursor> {
     let side = diameter + 2.0;
