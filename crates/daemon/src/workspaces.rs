@@ -7,7 +7,9 @@
 //! the data directory): `{"v":1,"dirs":[...]}`, the directories in the order
 //! they were opened. A workspace with no root keeps its file in that
 //! directory too, in `<slug>/`. Definition files are read on every request,
-//! so an edit to one shows at once.
+//! so an edit to one shows at once. Each file stands alone: one the daemon
+//! cannot use is listed as [`Broken`], with its error, and every verb on
+//! that workspace fails with that error; the others serve as before.
 
 use std::fs::{self, DirBuilder, File};
 use std::io::{self, Write};
@@ -32,9 +34,10 @@ const LIST_VERSION: u64 = 1;
 pub enum WorkspaceError {
     #[error(transparent)]
     Core(#[from] slinger_core::Error),
-    /// A definition file the daemon could not use.
+    /// A definition file the daemon could not use, and the field in it
+    /// that broke a rule, when one did.
     #[error("{}: {source}", path.display())]
-    File { path: PathBuf, source: slinger_core::Error },
+    File { path: PathBuf, field: Option<&'static str>, source: slinger_core::Error },
     #[error(transparent)]
     Canvas(#[from] CanvasError),
     #[error("cannot {doing} {}: {source}", path.display())]
@@ -57,13 +60,23 @@ impl WorkspaceError {
     pub fn hint(&self) -> Option<String> {
         match self {
             Self::Core(e) => e.hint().map(str::to_string),
-            Self::File { path, source } => {
+            Self::File { path, source, .. } => {
                 let dir = path.parent().unwrap_or(path).display();
                 let fix = source.hint().map_or_else(String::new, |h| format!("{h}; "));
                 Some(format!("{fix}fix the file, or close it: 'slinger workspace close {dir}'"))
             }
             Self::Canvas(e) => e.hint(),
             Self::Io { .. } => None,
+        }
+    }
+
+    /// The definition file this error is about, and the field in it that
+    /// broke a rule, if any.
+    #[must_use]
+    pub fn file(&self) -> Option<(&Path, Option<&'static str>)> {
+        match self {
+            Self::File { path, field, .. } => Some((path, *field)),
+            _ => None,
         }
     }
 }
@@ -75,6 +88,53 @@ type Result<T> = std::result::Result<T, WorkspaceError>;
 pub struct Opened {
     pub dir: PathBuf,
     pub workspace: Workspace,
+}
+
+/// An open workspace whose definition file the daemon cannot use: listed,
+/// never served. Its name and canvas are what the file says, if it says
+/// them ([`workspace::peek`]).
+#[derive(Debug)]
+pub struct Broken {
+    pub dir: PathBuf,
+    pub name: Option<String>,
+    pub canvas: Option<String>,
+    pub error: WorkspaceError,
+}
+
+/// One open workspace as [`Workspaces::list`] has it: served, or broken.
+#[derive(Debug)]
+pub enum Listed {
+    Served(Opened),
+    Broken(Broken),
+}
+
+impl Listed {
+    /// The workspace, if it is served.
+    #[must_use]
+    pub fn served(self) -> Option<Opened> {
+        match self {
+            Self::Served(opened) => Some(opened),
+            Self::Broken(_) => None,
+        }
+    }
+
+    /// The workspace, if its file cannot be used.
+    #[must_use]
+    pub fn broken(self) -> Option<Broken> {
+        match self {
+            Self::Served(_) => None,
+            Self::Broken(broken) => Some(broken),
+        }
+    }
+
+    /// Its name; empty for a broken file that says none.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Served(o) => &o.workspace.name,
+            Self::Broken(b) => b.name.as_deref().unwrap_or_default(),
+        }
+    }
 }
 
 /// The open workspaces. Safe to share between threads.
@@ -144,7 +204,8 @@ impl Workspaces {
         if open.contains(&opened.dir) {
             return Ok((opened, false));
         }
-        let mut all: Vec<Workspace> = load(open)?.into_iter().map(|o| o.workspace).collect();
+        let usable = load(open).into_iter().filter_map(Listed::served);
+        let mut all: Vec<Workspace> = usable.map(|o| o.workspace).collect();
         all.push(opened.workspace.clone());
         workspace::check(&all)?;
         if new {
@@ -160,16 +221,26 @@ impl Workspaces {
         Ok((opened, new))
     }
 
-    /// The open workspaces, sorted by name.
+    /// The open workspaces, sorted by name: each one served, or broken
+    /// when its file cannot be used.
     ///
     /// # Errors
     ///
-    /// The error of the first definition file that cannot be read.
-    pub fn list(&self) -> Result<Vec<Opened>> {
+    /// The error of reading the list.
+    pub fn list(&self) -> Result<Vec<Listed>> {
         let guard = self.lock()?;
-        let mut all = load(guard.as_deref().unwrap_or_default())?;
-        all.sort_by(|a, b| a.workspace.name.cmp(&b.workspace.name));
+        let mut all = load(guard.as_deref().unwrap_or_default());
+        all.sort_by(|a, b| a.name().cmp(b.name()));
         Ok(all)
+    }
+
+    /// The open workspaces whose files the daemon can use, by name.
+    ///
+    /// # Errors
+    ///
+    /// As [`Workspaces::list`].
+    pub fn usable(&self) -> Result<Vec<Opened>> {
+        Ok(self.list()?.into_iter().filter_map(Listed::served).collect())
     }
 
     /// The open workspace `which` names: its name, or the absolute directory
@@ -309,35 +380,48 @@ impl Workspaces {
     }
 }
 
-/// The open workspaces' files, read.
-fn load(open: &[PathBuf]) -> Result<Vec<Opened>> {
-    open.iter()
-        .map(|dir| Ok(Opened { workspace: read(&dir.join(FILE_NAME))?, dir: dir.clone() }))
-        .collect()
+/// The open workspaces' files, read, each on its own.
+fn load(open: &[PathBuf]) -> Vec<Listed> {
+    let one = |dir: &PathBuf| {
+        let file = dir.join(FILE_NAME);
+        let error = match read(&file) {
+            Ok(workspace) => return Listed::Served(Opened { dir: dir.clone(), workspace }),
+            Err(error) => error,
+        };
+        let (name, canvas) =
+            fs::read_to_string(&file).map(|t| workspace::peek(&t)).unwrap_or_default();
+        Listed::Broken(Broken { dir: dir.clone(), name, canvas, error })
+    };
+    open.iter().map(one).collect()
 }
 
 /// Reads and parses one definition file.
 fn read(path: &Path) -> Result<Workspace> {
-    let file = |source| WorkspaceError::File { path: path.to_owned(), source };
+    let file = |field, source| WorkspaceError::File { path: path.to_owned(), field, source };
     let text = match fs::read_to_string(path) {
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             let what = format!("workspace file {}", path.display());
-            return Err(file(slinger_core::Error::NotFound { what, hint: None }));
+            return Err(file(None, slinger_core::Error::NotFound { what, hint: None }));
         }
         other => other.map_err(failed("read", path))?,
     };
-    Workspace::parse(&text).map_err(file)
+    Workspace::read(&text).map_err(|r| file(r.field, r.error))
 }
 
 /// The open directory `which` names: by its path when it starts with `/`,
-/// else by the name in its file. A file that cannot be read matches no name.
+/// else by the name in its file, even a file that breaks a rule, so a verb
+/// on it fails with its file's error. A file with no name matches no name.
 fn find<'a>(open: &'a [PathBuf], which: &str) -> Option<&'a PathBuf> {
     if which.starts_with('/') {
         let which = Path::new(which.trim_end_matches('/'));
         let real = fs::canonicalize(which).ok();
         return open.iter().find(|d| *d == which || Some(*d) == real.as_ref());
     }
-    open.iter().find(|d| read(&d.join(FILE_NAME)).is_ok_and(|ws| ws.name == which))
+    let named = |d: &&PathBuf| {
+        let text = fs::read_to_string(d.join(FILE_NAME));
+        text.is_ok_and(|t| workspace::peek(&t).0.as_deref() == Some(which))
+    };
+    open.iter().find(named)
 }
 
 /// The directory a client named, as one path: absolute, links resolved.

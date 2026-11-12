@@ -1,6 +1,6 @@
 //! `slinger workspace ...` against a real daemon.
 
-use super::{cli_each, json};
+use super::{cli_each, cli_on, json, with_daemon};
 use crate::output::exit;
 
 #[test]
@@ -69,4 +69,33 @@ fn unknown_workspaces_and_missing_directories_get_their_exit_codes() {
     let codes: Vec<u8> = runs.iter().map(|r| r.code).collect();
     assert_eq!(codes, [exit::NOT_FOUND, exit::NOT_FOUND, exit::NOT_FOUND, exit::INVALID]);
     assert!(runs[0].err.contains("workspace list"), "{}", runs[0].err);
+}
+
+#[test]
+fn a_broken_file_is_listed_with_its_error_and_show_fails_with_it() {
+    let projects = tempfile::tempdir().unwrap();
+    let (good, bad) = (projects.path().join("good"), projects.path().join("bad"));
+    let runs = with_daemon(|socket| {
+        let mut runs = Vec::new();
+        for dir in [&good, &bad] {
+            std::fs::create_dir(dir).unwrap();
+            runs.push(cli_on(socket, &["workspace", "open", dir.to_str().unwrap()]));
+        }
+        let rules = "version = 1\nname = \"bad\"\n[agent]\nname = \"a\"\ntools = [\"bash\"]\n";
+        std::fs::write(bad.join("slinger-workspace.toml"), rules).unwrap();
+        runs.push(cli_on(socket, &["workspace", "list"]));
+        runs.push(cli_on(socket, &["workspace", "show", "bad"]));
+        runs.push(cli_on(socket, &["workspace", "list", "--json"]));
+        runs
+    });
+    assert_eq!(runs[2].code, exit::OK, "{}", runs[2].err);
+    let lines: Vec<&str> = runs[2].out.lines().collect();
+    assert_eq!(lines.len(), 2, "{}", runs[2].out);
+    assert!(lines[0].starts_with("bad\t-\t/") && lines[0].contains("\t✗ /"), "{}", lines[0]);
+    assert!(lines[0].contains("agent.tools: \"bash\""), "{}", lines[0]);
+    assert!(lines[1].starts_with("good\tgood\t/"), "{}", lines[1]);
+    assert_eq!(runs[3].code, exit::INVALID);
+    assert!(runs[3].err.contains("did you mean \"Bash\"?"), "{}", runs[3].err);
+    let error = &json(&runs[4])["workspaces"][0]["error"];
+    assert_eq!((&error["code"], &error["field"]), (&"invalid".into(), &"agent.tools".into()));
 }

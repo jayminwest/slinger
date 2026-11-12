@@ -63,7 +63,7 @@ fn an_agent_reads_its_limits_and_writes_back_only_the_ones_set() {
                 tools = [\"Bash(git:*)\", \"mcp__gh__get_issue\", \"Sudo\"]\n";
     let err = Workspace::parse(text).unwrap_err();
     assert!(err.to_string().contains("agent.tools: \"Sudo\""), "{err}");
-    assert!(err.hint().unwrap().contains("mcp__server"), "the way out is named");
+    assert!(err.hint().unwrap().contains("mcp__<server>__<tool>"), "the way out is named");
     let mut ws = Workspace::new("y");
     ws.agent = Some(Agent::new("b", false));
     assert!(ws.to_toml().ends_with("[agent]\nname = \"b\"\n"), "{}", ws.to_toml());
@@ -89,6 +89,38 @@ fn a_newer_version_is_still_read_and_kept() {
     assert_eq!(ws.version(), 7);
     assert!(ws.to_toml().starts_with("version = 7\n"));
     assert!(ws.to_toml().contains("new_thing = 3"));
+}
+
+#[test]
+fn a_refusal_names_the_field_that_broke_a_rule() {
+    for (text, field) in [
+        ("version = 0\nname = \"z\"", Some("version")),
+        ("version = 1\nname = \" \"", Some("name")),
+        ("version = 1\nname = \"x\"\n[[root]]\nmachine = \"m\"\npath = \"rel\"", Some("root.path")),
+        (
+            "version = 1\nname = \"x\"\n[agent]\nname = \"a\"\ntools = [\"Shell\"]",
+            Some("agent.tools"),
+        ),
+        ("version = 1\nname = \"x\"\n[agent]\nname = \"a\"\ndurable = true", Some("agent.durable")),
+        ("not toml at all", None),
+    ] {
+        let rejected = Workspace::read(text).unwrap_err();
+        assert_eq!(rejected.field, field, "{text}");
+        assert_eq!(rejected.error.code(), "invalid", "{text}");
+    }
+    let err = Workspace::parse("version = 1\nname = \"x\"\ncanvas = 3\n").unwrap_err();
+    assert!(err.to_string().starts_with("line 3: "), "{err}");
+}
+
+#[test]
+fn a_file_that_does_not_read_still_says_its_name_and_canvas() {
+    let text =
+        "version = 1\nname = \"x\"\ncanvas = \"c\"\n[agent]\nname = \"a\"\ntools = [\"Shell\"]";
+    assert!(Workspace::parse(text).is_err());
+    assert_eq!(peek(text), (Some("x".into()), Some("c".into())));
+    assert_eq!(peek("version = 1\nname = \"x\""), (Some("x".into()), None), "no default canvas");
+    assert_eq!(peek("not toml"), (None, None));
+    assert_eq!(peek("name = 3"), (None, None));
 }
 
 #[test]
