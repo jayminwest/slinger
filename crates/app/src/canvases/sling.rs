@@ -180,6 +180,10 @@ mod tests {
     use crate::scene::ink::Pen;
     use crate::scene::tools::Tool;
 
+    /// A press of the pen's tip.
+    const PEN: Pen =
+        Pen { at: Point { x: 0.0, y: 0.0 }, when: 0.0, touch: false, eraser: false, shift: false };
+
     fn notes() -> Panes {
         Panes::new(Pane { kind: Kind::Canvas, name: "notes".into() })
     }
@@ -222,8 +226,7 @@ mod tests {
             canvases.poll();
             !canvases.show(panes, area, &theme).is_empty()
         });
-        let pen =
-            |x, y| Pen { at: Point { x, y }, when: 0.0, touch: false, eraser: false, shift: false };
+        let pen = |x, y| Pen { at: Point { x, y }, ..PEN };
         let lasso = (Tool::Lasso, Rgb { r: 0, g: 0, b: 0 });
         assert!(canvases.pen_down(panes, (panes.focus(), area), pen(50.0, 50.0), lasso));
         for (x, y) in [(200.0, 50.0), (200.0, 200.0), (50.0, 200.0)] {
@@ -296,6 +299,12 @@ mod tests {
                 "one at a time"
             );
             wait_until(|| canvases.poll());
+
+            assert!(canvases.open_sling(&panes, WINDOW.rect()));
+            let pen = Pen { at: Point { x: 400.0, y: 400.0 }, ..PEN };
+            let ink = (Tool::Pen, Rgb { r: 0, g: 0, b: 0 });
+            assert!(canvases.pen_down(&panes, (panes.focus(), WINDOW.rect()), pen, ink));
+            assert!(!canvases.typing(), "a press on the canvas closes the entry");
             daemon.session_stop("notes").unwrap();
         });
     }

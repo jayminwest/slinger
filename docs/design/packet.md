@@ -164,10 +164,17 @@ never long), the same ink then has the same cluster and id in `new` and
 `page`, and a stroke added to a note within 5 minutes joins it, so that
 note's image is whole. The rules: two of the user's strokes
 join when they have the same colour, were made at most 5 minutes apart, and
-their boxes are at most 3 size units apart, where a size unit is the median
-long edge of the strokes drawn at that width. Joining chains. A stroke whose
+their boxes are at most 3 size units apart (5 when the boxes share a line,
+overlapping top to bottom, since word gaps are wider than line gaps:
+slinger-c94c3e), where a size unit is the median long edge of the strokes
+drawn at that width. Joining chains. A stroke whose
 long edge is over 6 size units (a frame, an arrow, a divider) joins nothing
-and is a cluster of its own (Spike B findings 1 and 2).
+by distance (Spike B findings 1 and 2): it joins only strokes its ink comes
+within a quarter of a size unit of, with the same colour and time, so a
+drawing's touching parts and a word's underline are one cluster, while a
+frame drawn clear of its notes stays alone (slinger-e0dbb0). On the fixture
+board this joins a diagram on `inital-planning` (client, server and
+database with their arrows) into one cluster of six tiles.
 
 **Ids**: canvas items keep their canvas item number behind a letter for their
 kind (`t12`, `b9`, `a13`, `l14`, and `u15` for a button: `b` is a box's). A cluster's id is `c` plus the item number of its
@@ -312,6 +319,11 @@ word for word. The failures, each with its crop:
   spikes / agent works.", then "while", then "the other". The gaps between
   the pieces are 124 to 152 canvas units, all one colour, so the likely
   cause is the 3 size unit distance rule meeting wide word spacing.
+  Fixed (slinger-c94c3e): strokes on one line now join up to 5 size units
+  apart, and the note is two clusters, one per paragraph: `c7729` ("I have
+  an agent working on the / Scaffolding now") and `c7773` ("Lets do the
+  spikes while the other / agent works."). The blank line between them
+  stays a split.
 - **Noise images:** `c2799` (26 by 28 px) and `c7821` (12 by 12 px) are
   single specks. Each cost a token and an image.
 

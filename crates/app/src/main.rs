@@ -309,7 +309,8 @@ enum Ask {
 
 /// What `event` asks: a menu item chosen with the pointer runs its command,
 /// and closes the open command palette in `shared` first; the palette takes
-/// every key and press, and runs a command as its key would; then a key goes to what takes keys first
+/// every key and press, and runs a command as its key would (a row on the
+/// lift, as the key overlay's); then a key goes to what takes keys first
 /// ([`taken`]), to the canvases (a text being typed), and to the keymap. A
 /// menu item's key comes as that key. A press on a button (or an open
 /// overlay's or menu's row) is theirs; the lift on it taps it: a pop-up

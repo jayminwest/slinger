@@ -352,3 +352,57 @@ fn said_of(footer: &Footer) -> Vec<String> {
 fn said_has(footer: &Footer, text: &str) -> bool {
     said(footer).iter().any(|s| s == text)
 }
+
+/// The tip of the button that runs `command` in `footer`, lit.
+fn tip_of(footer: &Footer, command: Command, keys: &Keymap, window: Rect) -> Option<Label> {
+    let target = footer.targets.iter().find(|t| t.1 == run(command))?.0;
+    tip(std::slice::from_ref(footer), target, &T, keys, window)
+}
+
+#[test]
+fn a_lit_glyph_button_names_its_command_and_key_in_a_tip_above_the_footer() {
+    let keys = Keymap::default();
+    let footer = canvas(PANE, &keys, pen(Tool::Pen, State::Idle), true);
+    let window = Rect { x: 0.0, y: 0.0, width: 1100.0, height: 400.0 };
+    let undo = keys.chord(Command::Undo).map(Chord::glyphs).unwrap_or_default();
+    let tip = tip_of(&footer, Command::Undo, &keys, window).unwrap();
+    assert_eq!(tip.text, format!("Undo  {undo}"));
+    assert!(tip.fill.is_some(), "on a panel");
+    assert!(tip.frame.y + tip.frame.height <= footer.frame.y, "above the footer");
+    for command in [
+        Command::ToggleSidebar,
+        Command::PickColour,
+        Command::PickWidth,
+        Command::Redo,
+        Command::PreviousPage,
+        Command::NextPage,
+        Command::ZoomOut,
+        Command::ZoomIn,
+        Command::SplitRight,
+        Command::SplitDown,
+        Command::ClosePane,
+    ] {
+        let tip = tip_of(&footer, command, &keys, window).unwrap();
+        assert!(tip.text.starts_with(command.title()), "{command:?}: {}", tip.text);
+        assert!(tip.frame.x >= window.x && tip.frame.x + tip.frame.width <= window.width);
+    }
+    for words in [Command::PickTool, Command::ZoomReset, Command::ShowKeys] {
+        assert_eq!(tip_of(&footer, words, &keys, window), None, "{words:?} says itself");
+    }
+    let mut unbound = Keymap::default();
+    unbound.bind(Command::SplitDown, None);
+    let footer = canvas(PANE, &unbound, pen(Tool::Pen, State::Idle), true);
+    let tip = tip_of(&footer, Command::SplitDown, &unbound, window).unwrap();
+    assert_eq!(tip.text, "Split down", "no key, no chip");
+}
+
+#[test]
+fn a_tip_by_the_window_s_edge_stays_inside_it() {
+    let keys = Keymap::default();
+    let footer = canvas(PANE, &keys, pen(Tool::Pen, State::Idle), true);
+    let window = Rect { x: 100.0, y: 0.0, width: 1000.0, height: 400.0 };
+    let tip = tip_of(&footer, Command::ToggleSidebar, &keys, window).unwrap();
+    assert!(tip.frame.x >= window.x, "{:?}", tip.frame);
+    let tip = tip_of(&footer, Command::ClosePane, &keys, window).unwrap();
+    assert!(tip.frame.x + tip.frame.width <= window.x + window.width, "{:?}", tip.frame);
+}

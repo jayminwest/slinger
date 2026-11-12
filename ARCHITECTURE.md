@@ -84,7 +84,8 @@ packet/      what an agent reads from a page (docs/design/packet.md). Index::new
              the render list (R2). Owns the line grammar, ids and reading order.
              cluster(canvas, strokes) groups strokes into notes by distance, colour
              and time, sized by each pen's median stroke; a long stroke (frame, arrow,
-             divider) and an agent's stroke stay alone. Same strokes, same clusters.
+             divider) joins only ink it touches, and an agent's stroke stays alone.
+             Same strokes, same clusters.
              build(log, ask) is the one entry: an op log, a page, the last sling's
              marker and a selection in; a Packet (header, sections, images, and
              the selection as packet ids: a stroke as its cluster c<n>) out.
@@ -334,6 +335,9 @@ canvases.rs  the canvas panes: one follower and mirror per page shown, each
              page turned to arrives); the pen's ink, the eraser's and
              lasso's work and the text, box and arrow tools' over each page,
              and the outbox they share. A selection no pane shows clears.
+             A press on a canvas closes the open entry (the sling's, the
+             feedback's, a page's new name's), but one on a button sends
+             the sling's.
 canvases/live.rs  the live items' pages: each showing a pane draws fetched
              once on a thread of its own, put over its item; a press on an
              item whose page shows goes to the page unless it grabs the
@@ -436,7 +440,9 @@ scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              focuses it first). A UI pane's has its name and the pane
              buttons. A narrow pane drops whole groups, the lowest rank
              first. `strip`: the open sidebar's foot, its hide button.
-             `light`: the button under the pen. A hairline tops each. Pure.
+             `light`: the button under the pen. `tip`: a lit button that
+             is only a glyph or a mark names its command and key just
+             above the footer. A hairline tops each. Pure.
 scene/status/cells.rs  how a footer's cells are laid: groups that stay or
              go together on the left, in the middle or on the right; the
              middle centred on the footer when there is room. Pure.
@@ -449,7 +455,9 @@ scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
              above the name, one 28 pt row per page (the shown one ✓ and
              bold), then New page, Rename page… and Remove page. It takes
              every press while open; the lift on the row pressed picks it,
-             a press outside or escape closes it. No dim. Pure.
+             a press outside or escape closes it. Pages that do not fit
+             scroll a row at a time with a scroll or a drag on the panel
+             (a drag taps nothing). No dim. Pure.
 scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
              `<Tool> <key>` (a new width: `Width <n> <pick-width key>`),
              reload-config its title and key, a saved note "Feedback saved",
@@ -621,9 +629,10 @@ scene/palette.rs  the command palette (`show-commands`): open or closed,
              a subsequence (a paste goes in too), ranked: title prefix,
              word start, title subsequence, then group. Empty, the command
              it last ran leads, then by Group::ALL with Quit last. 44 pt
-             high, each with the group and the live key's chip. While open it takes every key and press; return or
-             a press on a row gives back the command, which main runs as
-             its key would. It draws as the key overlay's Overlay: a
+             high, each with the group and the live key's chip. While open it takes every key and press; return, or
+             a lift on the row the press held, gives back the command,
+             which main runs as its key would (as the key overlay's and
+             the page menu's rows do). It draws as the key overlay's Overlay: a
              rounded panel, the search with a count, the selected row on a
              filled slab. Pure.
 scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
@@ -661,7 +670,8 @@ layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
              about a point or to a level, limits, the level as people read it,
              how far a scroll zooms; the canvas has no edge; a pane's view
              starts with the origin in by a margin) and where a pop-up
-             opens (at the pen, kept inside the window). Pure. 100% coverage floor.
+             opens (at the pen, kept inside the window; each cell at least
+             28 pt high, what a pen taps). Pure. 100% coverage floor.
 layout/tree.rs  the pane tree: binary splits with ratios to rectangles (no
              negative or oversized one at any size), split, close (the sibling
              takes the space), grow, next, and the pane beside one in a
@@ -872,7 +882,7 @@ Each boundary has something that fails when it is broken:
 | The packet's image rules: scale, margin, tiles, same bytes for the same input | `crates/core/tests/render.rs`, with golden images |
 | The packet format reads back, an old packet keeps decoding, the board costs under half its screenshots | `crates/core/tests/packet_build.rs`, with a stored v1 packet, on the real board |
 | The sling message: first and later snapshots; the note names only the verbs given | `crates/core/tests/sling.rs`, with stored snapshots |
-| Clustering: colours never mix, long strokes join nothing, each fixture page's count | `crates/core/tests/packet_cluster.rs`, on the real board |
+| Clustering: colours never mix, long strokes join only ink they touch, each fixture page's count | `crates/core/tests/packet_cluster.rs`, on the real board |
 | The workspace file format and rules (docs/workspace.md) | the tests of `crates/core/src/workspace.rs` and its stored fixture |
 | The record on disk is append-only and keeps fields it does not know | `crates/daemon/src/store/tests.rs`, against a real file |
 | One daemon per socket; a stop loses no reply | `crates/daemon/src/tests.rs`, through a real socket |

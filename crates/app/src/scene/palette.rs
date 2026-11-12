@@ -9,8 +9,10 @@
 //! character from its key's [`Chord`], which has no case, so the search is
 //! lowercase and matches any case; a paste goes in lowercase too. While
 //! open the palette takes every key and every press: escape or the
-//! `show-commands` key closes it, return or a press on a row runs that
-//! row's command, a press outside closes it. A command chosen from the menu
+//! `show-commands` key closes it, return runs the selected row's command,
+//! a press on a row holds it and the lift on that row runs it (as on the
+//! key overlay and the page menu: a press that slides off runs nothing),
+//! a press outside closes it. A command chosen from the menu
 //! bar closes it too, and then runs (`show-commands` only closes it).
 //!
 //! Opened empty it lists the command it last ran first, then the commands
@@ -72,14 +74,16 @@ pub enum Taken {
     Run(Command),
 }
 
-/// The palette: whether it is open, what is typed, the selected row and
-/// the command it last ran.
+/// The palette: whether it is open, what is typed, the selected row, the
+/// row the pen holds and the command it last ran.
 #[derive(Debug, Default)]
 pub struct Palette {
     open: bool,
     query: String,
     /// The selected row among the matches.
     at: usize,
+    /// The match the pen went down on, until it lifts.
+    held: Option<usize>,
     /// The command a row last ran, kept while the palette closes and opens.
     last: Option<Command>,
 }
@@ -122,6 +126,8 @@ impl Palette {
         if !self.open {
             return Taken::No;
         }
+        // The rows may move under the pen: a held one no longer runs.
+        self.held = None;
         let count = self.matches().len();
         if chord == ESCAPE || keys.command(chord) == Some(Command::ShowCommands) {
             self.toggle();
@@ -147,27 +153,45 @@ impl Palette {
         if self.open {
             self.query.extend(paste::one_line(text).chars().flat_map(char::to_lowercase));
             self.at = 0;
+            self.held = None;
         }
         self.open
     }
 
-    /// A press at `at` in a window of `size` while open: one on a row runs
-    /// its command, one outside the panel closes it; every press is used.
-    /// Closed, [`Taken::No`].
+    /// A press at `at` in a window of `size` while open: one on a row holds
+    /// it until the pen lifts ([`Palette::lift`]), one outside the panel
+    /// closes it; every press is used. Closed, [`Taken::No`].
     pub fn press(&mut self, at: Point, size: Size) -> Taken {
         if !self.open {
             return Taken::No;
         }
-        let place = place(size);
-        if !place.panel.contains(at) {
+        if place(size).panel.contains(at) {
+            self.held = self.row_at(at, size);
+        } else {
             self.toggle();
-            return Taken::Yes;
         }
-        let row = (0..place.rows).find(|&n| place.row(n).contains(at));
-        match row {
-            Some(n) => self.run(self.first(place.rows) + n as usize),
-            None => Taken::Yes,
+        Taken::Yes
+    }
+
+    /// The pen lifted at `at`: on the row it went down on, the palette
+    /// closes to run that row's command; anywhere else the lift is used up.
+    /// Closed, [`Taken::No`].
+    pub fn lift(&mut self, at: Point, size: Size) -> Taken {
+        if !self.open {
+            return Taken::No;
         }
+        match self.held.take() {
+            Some(held) if self.row_at(at, size) == Some(held) => self.run(held),
+            _ => Taken::Yes,
+        }
+    }
+
+    /// The match whose row is under `at` in a window of `size`, if any.
+    fn row_at(&self, at: Point, size: Size) -> Option<usize> {
+        let place = place(size);
+        let n = (0..place.rows).find(|&n| place.row(n).contains(at))?;
+        let shown = self.first(place.rows) + n as usize;
+        (shown < self.matches().len()).then_some(shown)
     }
 
     /// A command chosen from the menu bar while open: the palette closes,
@@ -238,6 +262,8 @@ impl Palette {
             let selected = at == self.at;
             if selected {
                 lines.push(Line::fill(style::selected(theme), row, style::ROW_RADIUS));
+            } else if self.held == Some(at) {
+                lines.push(Line::fill(style::hover(theme), row, style::ROW_RADIUS));
             }
             lines.extend(self::row(command, keys, theme, row, selected));
         }
