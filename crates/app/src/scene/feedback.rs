@@ -7,7 +7,10 @@
 //! note closes the entry and flashes "Feedback saved"; a failure opens it
 //! again with its text, and the problem under it. Under the open entry go
 //! the most recent open notes ([`Recent`]), as Flick lists them beside its
-//! own, so the user sees what is already said.
+//! own, so the user sees what is already said: five, or as many more as
+//! the pane has room for. A "✓" at each one's end resolves it
+//! ([`Feedback::ticks`]); a failure shows under the entry as a failed save
+//! does.
 //!
 //! Pure: `canvases` hands in the pane, the context, the text as it is typed,
 //! the keys, the daemon's answer and the recent notes, and reads back the
@@ -20,9 +23,10 @@ use crate::commands::Chord;
 use crate::config::Rgb;
 use crate::config::Theme;
 use crate::layout::{Point, Rect};
-use crate::scene::Label;
 use crate::scene::sling::pen::beside;
 use crate::scene::sling::{Entry, Key, SEND, line, under};
+use crate::scene::taps::{Tap, Target};
+use crate::scene::{Label, style};
 
 /// What the window showed when the note was left. The daemon leaves out
 /// what is absent.
@@ -48,13 +52,19 @@ pub struct Note {
 /// A note saved before, as listed under the entry: its text and when.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Recent {
+    /// Its `ts`, which names it: what resolving it sends.
+    pub ts: String,
     pub text: String,
     /// When it was saved, as shown: `11-11 14:02`.
     pub when: String,
 }
 
-/// How many recent notes the entry lists.
+/// How many recent notes the entry lists at least, and at most: a tall
+/// pane lists more than [`RECENT`], up to [`LISTED`].
 pub const RECENT: usize = 5;
+pub const LISTED: usize = 20;
+/// The lines kept free under the recent notes, for what dictation says.
+const SPARE: f64 = 2.0;
 
 /// Where an open note is.
 #[derive(Debug, Clone, PartialEq)]
@@ -72,6 +82,8 @@ pub struct Feedback {
     open: Option<(Note, Rect, Stage)>,
     saved: bool,
     recent: Vec<Recent>,
+    /// The bottom of the pane the entry opened in.
+    bottom: f64,
 }
 
 impl Feedback {
@@ -84,6 +96,7 @@ impl Feedback {
         }
         let text = self.open.take().map(|(note, ..)| note.text).unwrap_or_default();
         self.open = Some((Note { text, context }, beside(within), Stage::Typing(None)));
+        self.bottom = within.y + within.height;
         true
     }
 
@@ -138,12 +151,64 @@ impl Feedback {
     }
 
     /// The recent open notes are now `recent`, newest first; the entry
-    /// lists the first [`RECENT`]. Returns whether anything shown changed.
+    /// lists the first [`LISTED`], as many as fit. Returns whether anything
+    /// shown changed.
     pub fn listed(&mut self, mut recent: Vec<Recent>) -> bool {
-        recent.truncate(RECENT);
+        recent.truncate(LISTED);
         let changed = recent != self.recent && self.is_typing();
         self.recent = recent;
         changed
+    }
+
+    /// The user resolved the recent note listed `index`th: its `ts`, to
+    /// send. It leaves the list now, and any problem shown goes. `None`
+    /// when the entry is closed or lists no such note.
+    pub fn resolve(&mut self, index: usize) -> Option<String> {
+        if index >= self.shown() {
+            return None;
+        }
+        if let Some((_, _, Stage::Typing(problem))) = &mut self.open {
+            *problem = None;
+        }
+        Some(self.recent.remove(index).ts)
+    }
+
+    /// Resolving a note failed for `problem`: it shows under the open
+    /// entry, as a failed save's does. Returns whether anything shown
+    /// changed.
+    pub fn unresolved(&mut self, problem: Problem) -> bool {
+        let Some((_, _, Stage::Typing(shown))) = &mut self.open else { return false };
+        *shown = Some(problem);
+        true
+    }
+
+    /// The "✓" at the end of each recent note listed under the open entry,
+    /// in `theme`'s colours: their labels and their targets, which resolve
+    /// it ([`Tap::Resolve`]).
+    pub fn ticks(&self, theme: &Theme) -> (Vec<Label>, Vec<Target>) {
+        let rows = self.labels(theme);
+        let (mut labels, mut targets) = (Vec::new(), Vec::new());
+        for (index, row) in rows[rows.len() - self.shown()..].iter().enumerate() {
+            let frame = Rect { x: row.frame.x + row.frame.width, width: style::TAP, ..row.frame };
+            let fill = Some(style::panel(theme));
+            labels.push(Label { text: "✓".into(), colour: theme.text, fill, frame });
+            targets.push((frame, Tap::Resolve(index)));
+        }
+        (labels, targets)
+    }
+
+    /// How many recent notes the open entry lists: [`RECENT`], or as many
+    /// more as fit above the pane's bottom, with [`SPARE`] lines to spare.
+    fn shown(&self) -> usize {
+        let Some((_, frame, Stage::Typing(problem))) = &self.open else { return 0 };
+        let above = problem.as_ref().map_or(0.0, |p| if p.hint.is_some() { 2.0 } else { 1.0 });
+        let theme = Theme::default();
+        let first = line(*frame, above + 2.0, String::new(), theme.muted, &theme).frame;
+        #[expect(clippy::cast_possible_truncation, reason = "a count of lines, kept to 0 and up")]
+        #[expect(clippy::cast_sign_loss, reason = "kept to 0 and up")]
+        let room = ((self.bottom - first.y) / first.height - SPARE).max(0.0) as usize;
+        let fit = room.clamp(RECENT, LISTED);
+        self.recent.len().min(fit)
     }
 
     /// What to flash once a note is saved, once: "Feedback saved".
@@ -199,8 +264,13 @@ impl Feedback {
         if !self.recent.is_empty() {
             below("Recent feedback".into(), theme.muted);
         }
-        for recent in &self.recent {
-            below(format!("{} · {}", recent.when, recent.text), theme.muted);
+        for recent in &self.recent[..self.shown()] {
+            n += 1.0;
+            let mut row =
+                line(*frame, n, format!("{} · {}", recent.when, recent.text), theme.muted, theme);
+            // It makes room for its "✓" at the end.
+            row.frame.width = (row.frame.width - style::TAP).max(0.0);
+            lines.push(row);
         }
         lines
     }

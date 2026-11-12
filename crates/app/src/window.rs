@@ -57,7 +57,8 @@ pub fn run(
 /// focused pane to it, a workspace in `sidebar` shows its panes (that
 /// workspace's name, for the watch to follow), and the sling's pill does
 /// what a tap there does; the open entry's "✓" and "✕" do what return and
-/// escape do in it. A command's tap does nothing here.
+/// escape do in it, and a "✓" at a recent note's end under the feedback
+/// entry resolves the note. A command's tap does nothing here.
 pub fn tap(
     (frame, tap): Target,
     canvases: &mut Canvases,
@@ -79,6 +80,7 @@ pub fn tap(
         }
         Tap::Send => _ = canvases.sling_key(SEND),
         Tap::Cancel => _ = canvases.sling_key(CANCEL),
+        Tap::Resolve(index) => _ = canvases.resolve_feedback(index),
         Tap::Run(_) => {}
     }
     None

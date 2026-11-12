@@ -173,7 +173,9 @@ impl Canvases {
     /// What the window draws for the sling over the canvas panes of
     /// `panes` laid in `area`, in `theme`'s colours: "➤ Sling" and "+
     /// prompt" beside the selection while no sling is out, "Delete" beside
-    /// it, the pen's buttons beside the open entry, and the pill; their labels (the buttons' first), tap targets, and the
+    /// it, the pen's buttons beside the open entry, the "✓" that resolves
+    /// each recent note under a note's, and the pill; their labels (the
+    /// buttons' first), tap targets, and the
     /// answer's panel.
     pub fn sling_marks(&self, panes: &Panes, area: Rect, theme: &Theme) -> Marks {
         let (mut labels, mut targets) = (Vec::new(), Vec::new());
@@ -183,7 +185,8 @@ impl Canvases {
             (labels, targets) = buttons::buttons(around, within, theme, self.slung.out());
         }
         let (pen, tapped) = self.entry_buttons(theme);
-        (labels, targets) = ([labels, pen].concat(), [targets, tapped].concat());
+        let (ticks, ticked) = self.notes.ticks(theme);
+        (labels, targets) = ([labels, pen, ticks].concat(), [targets, tapped, ticked].concat());
         let seen = self.seen(panes, area);
         let mut marks = self.slung.marks(theme, &views(&seen), Instant::now());
         labels.append(&mut marks.labels);

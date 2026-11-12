@@ -40,7 +40,12 @@ fn new_text_resizes_its_frame_unless_a_size_is_given() {
     // The frame is the one a put of the same words gets.
     let fresh = log_with(words);
     assert_eq!(edited.frame[2..], fresh.frame[2..]);
-    let edit = Edit { text: Some("short".into()), size: Some([900, 300]), to: Some([-50, 70]) };
+    let edit = Edit {
+        text: Some("short".into()),
+        size: Some([900, 300]),
+        to: Some([-50, 70]),
+        ..Edit::default()
+    };
     let edited = log.edit(&scout(), AT, "i2", &edit).unwrap();
     assert_eq!(edited.frame, [-50, 70, 900, 300]);
     assert_eq!(edited.written.seq.len(), 2, "the text, and the arrow that follows it");
@@ -58,10 +63,30 @@ fn an_arrow_moves_but_has_no_text_or_size() {
     for edit in [
         Edit { text: Some("x".into()), ..Edit::default() },
         Edit { size: Some([1, 1]), ..Edit::default() },
+        Edit { text_size: Some(480), ..Edit::default() },
     ] {
         let err = log.edit(&scout(), AT, "i3", &edit).unwrap_err();
         assert_eq!(err.code(), "invalid", "{edit:?}");
     }
+}
+
+#[test]
+fn a_new_text_size_refits_the_frame_and_one_out_of_range_fails() {
+    let mut log = log();
+    let edit = Edit { text_size: Some(480), ..Edit::default() };
+    let edited = log.edit(&scout(), AT, "i2", &edit).unwrap();
+    assert_eq!(edited.frame[2..], [2 * 480, 480], "\"hi\" at 48 units a character");
+    assert_eq!(field(&log, "i2", "size"), 480);
+    let both = Edit { text: Some("abc".into()), text_size: Some(100), ..Edit::default() };
+    assert_eq!(log.edit(&scout(), AT, "i2", &both).unwrap().frame[2..], [300, 100]);
+    let next = log.next();
+    for tenths in [0, 39, 4001] {
+        let edit = Edit { text_size: Some(tenths), ..Edit::default() };
+        let err = log.edit(&scout(), AT, "i2", &edit).unwrap_err();
+        assert_eq!(err.code(), "invalid", "{tenths}");
+        assert!(err.hint().is_some_and(|h| h.contains("40 to 4000 tenths")), "{err:?}");
+    }
+    assert_eq!(log.next(), next, "a refused edit writes nothing");
 }
 
 #[test]

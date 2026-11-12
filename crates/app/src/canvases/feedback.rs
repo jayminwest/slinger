@@ -1,7 +1,8 @@
 //! Leaving feedback from the window: the `leave-feedback` command opens the
 //! entry ([`crate::scene::feedback`]) in the focused pane, with what the
 //! pane shows, and the thread that saves the note ([`Noter`]) sends it.
-//! Each open asks it for the recent notes to list under the entry.
+//! Each open asks it for the recent notes to list under the entry, and a
+//! tap on a note's "✓" there has it resolve the note.
 //! The entry takes the keys as the sling's does, and only one of the two
 //! is open. Runs on the main thread and never waits.
 
@@ -16,6 +17,7 @@ use crate::panes::Panes;
 use crate::scene::Label;
 use crate::scene::feedback::{Context, Feedback};
 use crate::scene::sling::{Entry, Key};
+use crate::scene::taps::Target;
 use crate::scene::tools::Tool;
 
 /// The note being left, and the thread that saves it.
@@ -54,6 +56,12 @@ impl Notes {
     /// `lines` under the open entry, after its own: what dictation says.
     pub(super) fn under(&self, theme: &Theme, lines: Vec<(String, Rgb)>) -> Vec<Label> {
         self.entry.under(theme, lines)
+    }
+
+    /// The "✓" at the end of each recent note under the open entry, in
+    /// `theme`'s colours: their labels and their targets.
+    pub(super) fn ticks(&self, theme: &Theme) -> (Vec<Label>, Vec<Target>) {
+        self.entry.ticks(theme)
     }
 
     /// The entry, while it is open, and its lines, in `theme`'s colours.
@@ -95,6 +103,15 @@ impl Canvases {
         true
     }
 
+    /// A tap on the "✓" of the recent note listed `index`th under the
+    /// open feedback entry: it leaves the list and the daemon resolves it.
+    /// False when there is no such note.
+    pub fn resolve_feedback(&mut self, index: usize) -> bool {
+        let Some(ts) = self.notes.entry.resolve(index) else { return false };
+        self.notes.noter.resolve(ts);
+        true
+    }
+
     /// What to flash once a note is saved, once.
     pub fn take_flash(&mut self) -> Option<String> {
         self.notes.entry.flash()
@@ -125,13 +142,18 @@ impl Canvases {
         typing
     }
 
-    /// Takes the daemon's answers to the notes and its list of the recent
-    /// ones. Returns whether anything shown changed.
+    /// Takes the daemon's answers to the notes saved and resolved, and its
+    /// list of the recent ones. Returns whether anything shown changed.
     pub(super) fn poll_feedback(&mut self) -> bool {
         let notes = &mut self.notes;
         let mut changed = notes.noter.listed().is_some_and(|recent| notes.entry.listed(recent));
         for answer in self.notes.noter.answers() {
             changed |= self.notes.entry.answered(answer);
+        }
+        for answer in self.notes.noter.resolutions() {
+            if let Err(problem) = answer {
+                changed |= self.notes.entry.unresolved(problem);
+            }
         }
         changed
     }

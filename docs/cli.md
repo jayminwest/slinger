@@ -57,8 +57,8 @@ a "did you mean" suggestion.
 | `sling send <ID> [--page PAGE] [--select IDS] [--prompt TEXT\|-] [--profile NAME]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id`, `tokens` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
 | `file touched (<PATH> \| --hook) [--agent NAME]` | Nothing. `--json`: `agent`, `path`, `hash`, `event` |
-| `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --ink PTS \| --arrow FROM TO) [--color COLOR] [--at X,Y] [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
-| `canvas edit <ID> --item ITEM [--text TEXT] [--box W,H] [--move X,Y] [--agent NAME]` | The item's id and its box `x,y,w,h` in tenths now, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq` |
+| `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --ink PTS \| --arrow FROM TO) [--color COLOR] [--at X,Y] [--size TENTHS] [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
+| `canvas edit <ID> --item ITEM [--text TEXT] [--size TENTHS] [--box W,H] [--move X,Y] [--agent NAME]` | The item's id and its box `x,y,w,h` in tenths now, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq` |
 | `canvas remove <ID> --item ITEM [--agent NAME]` | Nothing. `--json`: `seq` |
 | `feedback add <TEXT>...` | The note's `ts`. `--json`: `path`, `entry` |
 | `feedback ls [--all] [--limit N]` | One line per note, newest first: `ts`, text and, with `--all`, `resolved` and its note for a resolved one, separated by tabs. `--limit` defaults to 20. `--json`: `path`, `entries` |
@@ -220,20 +220,25 @@ as `pts` in `canvas schema`) or an arrow between two items, placed beside
 cluster), where it covers nothing (`docs/service.md`, "Agent canvas verbs").
 `--color` draws it in `#rrggbb` or `#rrggbbaa` (default black). `--at X,Y`
 puts the top-left corner of its box there instead, in tenths, on the page of
-`--beside`; an arrow takes no `--at`. After a sling to that agent on that
+`--beside`; an arrow takes no `--at`. `--size` sizes a text's characters,
+in tenths of a unit like `--at` and `--box` (40 to 4000, default 240: the
+packet's 24); the frame fits the words at that size. After a sling to that agent on that
 canvas, the put also appends `reply_landed` to the record. An item that is
 not there exits 3 (`not_found`); none or two of `--text`, `--box`, `--ink`
 and `--arrow`, a `--box` or `--at` that is not two integers, `--ink` that is
 not pairs of integers, or `--at` with `--arrow`, exits 2 (`usage`); blank
-text or a colour that is not one exits 5 (`invalid`).
+text, a colour that is not one, or a `--size` out of range or on what is
+not text exits 5 (`invalid`).
 `canvas edit` and `canvas remove` are agent verbs for items the agent made:
-`edit` gives a text new words, a text or a box a new size (`--box W,H`), or
+`edit` gives a text new words or a new character size (`--size`, as `put`
+takes it; the frame refits the words), a text or a box a new size (`--box W,H`), or
 moves the item's top-left corner to `--move X,Y`, all in tenths (the ends
 of the agent's arrows bound to it follow a move or a resize); `remove`
 takes the item off the canvas, and an item already gone succeeds. Naming
 the user's ink or another agent's item exits 5 (`invalid`) with a hint. An
-edit with none of `--text`, `--box` and `--move`, or a pair that is not two
-integers, exits 2 (`usage`); an item to edit that is not there exits 3
+edit with none of `--text`, `--size`, `--box` and `--move`, or a pair that is not two
+integers, exits 2 (`usage`); a `--size` out of range or on an item that is
+not text exits 5; an item to edit that is not there exits 3
 (`not_found`).
 `session list` shows the agents of the open workspaces; with none it prints
 nothing and exits 0. `session show` of an agent with no session exits 3

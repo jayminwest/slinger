@@ -94,3 +94,33 @@ fn put_takes_a_colour_ink_and_a_place_of_its_own() {
     );
     assert!(runs[5].err.contains("not a colour"), "{}", runs[5].err);
 }
+
+#[test]
+fn put_and_edit_take_a_text_size_in_tenths() {
+    let put = |more: &[&'static str]| {
+        let head = ["canvas", "put", "main", "--beside", "i1", "--agent", "scout"];
+        [&head[..], more].concat()
+    };
+    let edit = |more: &[&'static str]| {
+        let head = ["canvas", "edit", "main", "--item", "i2", "--agent", "scout"];
+        [&head[..], more].concat()
+    };
+    let runs = cli_each(&[
+        &["canvas", "create", "main"],
+        &["canvas", "apply", "main", BOX],
+        &put(&["--text", "hi", "--size", "480", "--at", "0,1000"]),
+        &edit(&["--size", "120"]),
+        &put(&["--text", "hi", "--size", "4001"]),
+        &edit(&["--size", "39"]),
+        &put(&["--box", "3,3", "--size", "240"]),
+        &put(&["--text", "hi", "--size", "big"]),
+    ]);
+    let codes: Vec<u8> = runs.iter().map(|r| r.code).collect();
+    let errs: Vec<&str> = runs.iter().map(|r| r.err.as_str()).collect();
+    assert_eq!(codes[..4], [exit::OK; 4], "{errs:?}");
+    assert_eq!(codes[4..], [exit::INVALID, exit::INVALID, exit::INVALID, exit::USAGE]);
+    assert!(runs[6].err.contains("only text"), "{}", runs[6].err);
+    assert_eq!(runs[2].out, "i2\t0,1000,960,480\n", "two characters at 48 units");
+    assert_eq!(runs[3].out, "i2\t0,1000,240,120\n");
+    assert!(runs[4].err.contains("40 to 4000 tenths"), "{}", runs[4].err);
+}
