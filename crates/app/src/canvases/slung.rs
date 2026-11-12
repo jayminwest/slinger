@@ -15,7 +15,7 @@ use crate::panes::{Kind, Panes};
 use crate::scene::canvas::{ItemId, Shape};
 use crate::scene::select::Selection;
 use crate::scene::sidebar::Agent;
-use crate::scene::sling::{Answered, Ask, buttons};
+use crate::scene::sling::{Answered, Ask, Profile, buttons};
 use crate::scene::slung::{Marks, Tapped, View};
 use crate::scene::status;
 
@@ -55,9 +55,10 @@ impl Canvases {
     /// on its page. A canvas whose workspace has no agent flashes so and
     /// sends nothing. False when the pane shows no canvas page, or a sling
     /// is on its way.
-    pub fn sling_now_command(&mut self, panes: &Panes, area: Rect) -> bool {
+    /// The sling goes under `profile` (a tap on the profile menu's row).
+    pub fn sling_now_command(&mut self, panes: &Panes, area: Rect, profile: Profile) -> bool {
         if self.sling.is_typing() {
-            self.sling.send();
+            self.sling.send_under(profile);
             self.entry_closed();
             self.poll_sling();
             return true;
@@ -71,7 +72,7 @@ impl Canvases {
             self.zoomed = Some(NO_AGENT.to_string());
             return true;
         }
-        self.sling_now(&selection, "", around, within)
+        self.sling_now(&selection, ("", profile), around, within)
     }
 
     /// The page the focused pane of `panes` laid in `area` shows, as a

@@ -45,8 +45,14 @@ bullet with the area in bold.
 - **App:** the sling's prompt has the same pen buttons beside it: ✓ Sling
   sends, Dictate dictates and ✕ cancels, with no keyboard.
 
-- **App:** the sidebar and each canvas footer name the profile the agent
-  runs under (`scout (dev) · working`).
+- **App:** pick an agent profile with the pen. The sidebar and the
+  footer name the profile the agent runs under (`scout (dev) · working`).
+  When the agent has profiles, a tap on its name in the footer lists them,
+  the running one ticked; a tap on one slings the selection (or what is
+  new on the page, or the open prompt) under it, restarting the agent
+  under that profile first if it runs under another. Setting and removing
+  profiles stays with `slinger profile`. `workspace list --json` names each
+  agent's profiles.
 - **Agents:** profiles per workspace. `slinger profile set <workspace> dev
   --dir ~/Projects/app --tool Edit --tool 'Bash(git *)'` gives the
   workspace's agent a named profile: a working directory and the Claude

@@ -413,8 +413,10 @@ writes nothing. A `dir` that is not there is `not_found`; one that is not an
 absolute directory, or a request with neither `dir` nor `name`, is `invalid`.
 
 A workspace is `{name, tag, canvas, dir, agent, roots}`: `dir` is the
-directory of its file, `agent` (absent when it has none) is `{name, durable}`
-and `roots` is a list of `{machine, path, primary}`.
+directory of its file, `agent` (absent when it has none) is `{name, durable,
+profiles}`, `profiles` the names of its profiles in its file's order (absent
+when it has none; `profile_list` shows each whole), and `roots` is a list of
+`{machine, path, primary}`.
 
 Each open workspace's file is read on its own. One the daemon cannot use (it
 is not there, is not TOML, or breaks a rule of `docs/workspace.md`) is

@@ -11,7 +11,7 @@ use crate::panes::Panes;
 use crate::scene::Scene;
 use crate::scene::select::Selection;
 use crate::scene::sidebar::Sidebar;
-use crate::scene::sling::{Key, edits};
+use crate::scene::sling::{Key, Profile, edits};
 
 impl Canvases {
     /// The `sling` command: opens the entry at the selection, when the
@@ -32,14 +32,14 @@ impl Canvases {
         self.sling.open(&selection, around, within)
     }
 
-    /// Slings `selection` (no ids: what is new on its page) with `prompt`,
-    /// without the entry; its line, and a failure's entry, stand under
+    /// Slings `selection` (no ids: what is new on its page) with `prompt`
+    /// under `profile`, without the entry; its line, and a failure's entry, stand under
     /// `around` inside `within`, in the window. For a sling that needs no
     /// typing: a tap on a button. False while a sling is on its way.
     pub(super) fn sling_now(
         &mut self,
         selection: &Selection,
-        prompt: &str,
+        prompt: (&str, Profile),
         around: Rect,
         within: Rect,
     ) -> bool {
@@ -300,9 +300,19 @@ mod tests {
             assert!(!canvases.typing());
             let selection = canvases.selection().unwrap().clone();
             let around = Rect { x: 50.0, y: 50.0, width: 10.0, height: 10.0 };
-            assert!(canvases.sling_now(&selection, "and now?", around, WINDOW.rect()));
+            assert!(canvases.sling_now(
+                &selection,
+                ("and now?", Profile::Running),
+                around,
+                WINDOW.rect()
+            ));
             assert!(
-                !canvases.sling_now(&selection, "again?", around, WINDOW.rect()),
+                !canvases.sling_now(
+                    &selection,
+                    ("again?", Profile::Running),
+                    around,
+                    WINDOW.rect()
+                ),
                 "one at a time"
             );
             gone(&mut canvases);
