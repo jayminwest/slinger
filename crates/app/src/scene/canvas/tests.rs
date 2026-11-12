@@ -87,14 +87,10 @@ fn a_stroke_with_no_points_draws_nothing() {
 fn marks_are_in_screen_points_and_scale_with_the_zoom() {
     let view = Viewport::default().zoom_about(pt(0.0, 0.0), 2.0).pan(10.0, 0.0);
     let scene = at(&page(), view, None);
-    assert_eq!(
-        scene.draws[0].mark,
-        Mark::Stroke {
-            start: pt(30.0, 20.0),
-            curves: vec![[pt(30.0, 20.0), pt(110.0, 80.0), pt(110.0, 80.0)]],
-            width: 4.0
-        }
-    );
+    // Smoothed in canvas points, then placed.
+    let curves = smooth::smooth(&[pt(10.0, 10.0), pt(50.0, 40.0)], 2.0);
+    let curves = curves.iter().map(|c| c.map(|p| view.to_screen(p))).collect();
+    assert_eq!(scene.draws[0].mark, Mark::Stroke { start: pt(30.0, 20.0), curves, width: 4.0 });
     assert_eq!(scene.draws[0].bounds, rect(28.0, 18.0, 84.0, 64.0));
     assert_eq!(
         scene.draws[1].mark,
@@ -107,21 +103,7 @@ fn marks_are_in_screen_points_and_scale_with_the_zoom() {
 }
 
 #[test]
-fn a_pen_line_is_smoothed_through_the_middles_of_its_sides() {
-    let curves = smooth(&[pt(0.0, 0.0), pt(30.0, 0.0), pt(30.0, 30.0)]);
-    // A quadratic from the start, about the corner, to the middle of the
-    // second side; then straight to the end.
-    assert_eq!(curves.len(), 2);
-    assert!(near(curves[0][0], pt(20.0, 0.0)));
-    assert!(near(curves[0][1], pt(30.0, 5.0)));
-    assert!(near(curves[0][2], pt(30.0, 15.0)));
-    assert_eq!(curves[1], [pt(30.0, 15.0), pt(30.0, 30.0), pt(30.0, 30.0)]);
-}
-
-#[test]
-fn a_dot_is_one_curve_of_no_length_and_no_points_is_none() {
-    assert_eq!(smooth(&[pt(4.0, 5.0)]), [[pt(4.0, 5.0); 3]]);
-    assert_eq!(smooth(&[]), Vec::<[Point; 3]>::new());
+fn a_dot_has_the_bounds_of_its_width() {
     let scene = at(&[stroke(1, &[(4.0, 5.0)])], Viewport::default(), None);
     assert_eq!(scene.draws[0].bounds, rect(3.0, 4.0, 2.0, 2.0));
 }
@@ -234,19 +216,20 @@ fn a_new_viewport_pane_size_or_background_changes_the_whole_pane() {
 }
 
 #[test]
-fn a_pen_line_that_grows_repaints_only_its_new_end() {
+fn a_pen_line_that_changes_at_its_end_repaints_only_its_end() {
     let line = |n: u32| {
         let points: Vec<(f64, f64)> = (1..=n).map(|i| (f64::from(i) * 10.0, 100.0)).collect();
         [stroke(1, &points)]
     };
     let first = at(&line(10), Viewport::default(), None);
     let next = at(&line(11), Viewport::default(), Some(&first));
-    assert_eq!(next.changed, Some(rect(93.0, 98.0, 19.0, 4.0)));
+    // Smoothing moves the last few curves, not the line before them.
+    assert_eq!(next.changed, Some(rect(88.0, 98.0, 24.0, 4.0)));
     let dot = at(&line(1), Viewport::default(), None);
     let two = at(&line(2), Viewport::default(), Some(&dot));
     assert_eq!(two.changed, Some(rect(8.0, 98.0, 14.0, 4.0)));
     let shorter = at(&line(9), Viewport::default(), Some(&first));
-    assert_eq!(shorter.changed, Some(rect(9.0, 99.0, 92.0, 2.0)), "not grown: the whole line");
+    assert_eq!(shorter.changed, Some(rect(78.0, 98.0, 24.0, 4.0)), "shorter: only its end");
 }
 
 #[test]

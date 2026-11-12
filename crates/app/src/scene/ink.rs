@@ -15,8 +15,11 @@
 //! Local ink and the server's echo: a change stays here, and shows from here,
 //! until the change feed has passed the number it was written under
 //! ([`Ink::heard`]). From then on the page's mirror holds it, so it never
-//! blinks out between the daemon's reply and the echo. For that moment a
-//! stroke draws twice, in the same place; a removal or a move laid over a
+//! blinks out between the daemon's reply and the echo. An item added shows
+//! under an id of the ink's own until the daemon says the id it made
+//! ([`Answer::Made`]), and under that id from then on, so the eraser, the
+//! lasso and the select tool can take it before the echo; once the mirror
+//! holds that id it draws from there alone. A removal or a move laid over a
 //! mirror that already has it changes nothing more, since the mirror takes
 //! the feed and the change leaves in the same poll.
 //!
@@ -40,11 +43,13 @@ use crate::scene::pages::PageOp;
 /// units: tldraw's small pen.
 pub const PEN_WIDTH: f64 = 2.0;
 /// Ink's item ids start here, far above any id the server hands out, so
-/// local ink and the page's items never share an id.
+/// local ink and the page's items never share an id. An item the daemon
+/// has made shows under the server's id instead.
 pub const LOCAL: u64 = 1 << 62;
 
 /// Whether `id` is the server's, not local ink's or a mark's drawn over
-/// the page: only the server's items can be erased, selected or moved.
+/// the page: only the server's items can be erased, selected or moved
+/// (ink the daemon has written shows under the server's id).
 pub fn on_server(id: ItemId) -> bool {
     id.0 < LOCAL
 }
@@ -155,7 +160,8 @@ pub enum Answer {
     /// Written; the number of its last line in the canvas file, or 0 when
     /// it wrote none (an undo with nothing to undo): nothing to wait for.
     Applied(u64),
-    /// A carry written, under that number: the ids of the items it made.
+    /// A stroke, a put or a carry written, under that number: the ids of
+    /// the items it made, in the order of its adds.
     Made { seq: u64, ids: Vec<ItemId> },
     /// A new page written, under that number: its id.
     NewPage { seq: u64, page: String },
@@ -181,6 +187,16 @@ struct Pending {
     state: State,
     /// The change this one goes with: refused, it takes this one too.
     after: Option<u64>,
+    /// The ids the daemon made for the items it adds, once it said.
+    made: Vec<ItemId>,
+}
+
+impl Pending {
+    /// The id the `n`th item it adds shows under: the server's once made.
+    fn id(&self, n: u64) -> ItemId {
+        let made = usize::try_from(n).ok().and_then(|n| self.made.get(n));
+        made.copied().unwrap_or(ItemId(LOCAL + self.key + n))
+    }
 }
 
 /// The ink and changes not yet in the server's copy of their page.
@@ -244,7 +260,8 @@ impl Ink {
         }
         let Some((key, stroke)) = self.drawing.take() else { return false };
         let change = Change::Add(stroke);
-        self.pending.push(Pending { key, change, state: State::Waiting, after: None });
+        let made = Vec::new();
+        self.pending.push(Pending { key, change, state: State::Waiting, after: None, made });
         true
     }
 
@@ -278,7 +295,7 @@ impl Ink {
             Change::Carry { items, .. } => u64::try_from(items.len()).unwrap_or(1).max(1),
             _ => 1,
         };
-        self.pending.push(Pending { key, change, state: State::Waiting, after });
+        self.pending.push(Pending { key, change, state: State::Waiting, after, made: Vec::new() });
         self.next_key += keys;
         key
     }
@@ -299,7 +316,11 @@ impl Ink {
     pub fn answered(&mut self, key: u64, answer: Answer) {
         let Some(at) = self.pending.iter().position(|p| p.key == key) else { return };
         match answer {
-            Answer::Applied(seq) | Answer::NewPage { seq, .. } | Answer::Made { seq, .. } => {
+            Answer::Made { seq, ids } => {
+                (self.pending[at].state, self.pending[at].made) = (State::Sent(seq), ids);
+                self.problem = None;
+            }
+            Answer::Applied(seq) | Answer::NewPage { seq, .. } => {
                 self.pending[at].state = State::Sent(seq);
                 self.problem = None;
             }
@@ -326,11 +347,15 @@ impl Ink {
     /// `items`, the server's copy of `page` of `canvas`, as the user should
     /// see it: each change not yet heard laid over it in the order made
     /// (removed items gone, moved ones moved, edited ones edited, new
-    /// strokes, texts, boxes and arrows on top), then the
+    /// strokes, texts, boxes and arrows on top, each under the server's id
+    /// once made, and not at all once `items` holds it), then the
     /// stroke under the pen. Items no change touches are borrowed, not
     /// copied, so a big page costs little.
     pub fn shown<'a>(&self, canvas: &str, page: &str, items: &'a [Item]) -> Vec<Cow<'a, Item>> {
         let mut shown: Vec<Cow<'a, Item>> = items.iter().map(Cow::Borrowed).collect();
+        let made = self.pending.iter().any(|p| !p.made.is_empty());
+        let held: HashSet<ItemId> = items.iter().filter(|_| made).map(|i| i.id).collect();
+        let new = |id: &ItemId| !held.contains(id);
         let here = |c: &str, p: &str| c == canvas && p == page;
         // A carry within the canvas takes its items from whatever page they were on.
         let mine = |p: &&Pending| {
@@ -340,13 +365,16 @@ impl Ink {
         };
         for pending in self.pending.iter().filter(mine) {
             match &pending.change {
-                Change::Add(stroke) => shown.push(Cow::Owned(local(pending.key, stroke))),
+                Change::Add(stroke) => {
+                    let id = pending.id(0);
+                    shown.extend(new(&id).then(|| Cow::Owned(local(id, stroke))));
+                }
                 Change::Carry { page: to, items, gone, .. } => {
                     let gone: HashSet<&ItemId> = gone.iter().collect();
                     shown.retain(|i| !gone.contains(&i.id));
-                    shown.extend(items.iter().zip(pending.key..).filter(|_| to == page).map(
-                        |(c, key)| Cow::Owned(Item { id: ItemId(LOCAL + key), ..c.item.clone() }),
-                    ));
+                    let ids = (0..).map(|n| pending.id(n));
+                    let landed = items.iter().zip(ids).filter(|(_, id)| to == page && new(id));
+                    shown.extend(landed.map(|(c, id)| Cow::Owned(Item { id, ..c.item.clone() })));
                 }
                 Change::Remove { ids, .. } => {
                     let ids: HashSet<&ItemId> = ids.iter().collect();
@@ -364,8 +392,9 @@ impl Ink {
                     }
                 }
                 Change::Put { colour, shape, .. } => {
-                    let id = ItemId(LOCAL + pending.key);
-                    shown.push(Cow::Owned(Item { id, colour: *colour, shape: shape.clone() }));
+                    let id = pending.id(0);
+                    let item = Item { id, colour: *colour, shape: shape.clone() };
+                    shown.extend(new(&id).then_some(Cow::Owned(item)));
                 }
                 Change::Set { id, shape, .. } => {
                     for item in shown.iter_mut().filter(|i| i.id == *id) {
@@ -384,7 +413,7 @@ impl Ink {
             }
         }
         let drawing = self.drawing.iter().filter(|(_, s)| here(&s.canvas, &s.page));
-        shown.extend(drawing.map(|(key, stroke)| Cow::Owned(local(*key, stroke))));
+        shown.extend(drawing.map(|(key, stroke)| Cow::Owned(local(ItemId(LOCAL + key), stroke))));
         shown
     }
 
@@ -433,10 +462,10 @@ impl Ink {
     }
 }
 
-/// A stroke of local ink as an item, under an id no server item has.
-fn local(key: u64, stroke: &Stroke) -> Item {
+/// A stroke of local ink as an item, under `id`.
+fn local(id: ItemId, stroke: &Stroke) -> Item {
     Item {
-        id: ItemId(LOCAL + key),
+        id,
         colour: stroke.colour,
         shape: Shape::Stroke { points: stroke.points.clone(), width: stroke.width },
     }

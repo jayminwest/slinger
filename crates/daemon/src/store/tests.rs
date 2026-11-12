@@ -54,6 +54,46 @@ fn the_machine_name_is_on_every_stored_event() {
 }
 
 #[test]
+fn the_record_keeps_its_machine_name_when_the_host_is_renamed() {
+    let dir = tempfile::tempdir().unwrap();
+    drop(Store::open(dir.path(), MACHINE).unwrap());
+    let store = Store::open(dir.path(), "renamed-host").unwrap();
+    assert_eq!(store.machine(), MACHINE);
+    let added = store.append(event("agent_done", None)).unwrap();
+    assert_eq!(added.tags.machine, MACHINE);
+    let mine = Query { machine: Some(MACHINE.into()), ..Query::default() };
+    assert_eq!(numbers(&store.events(&mine).unwrap()), [1]);
+}
+
+/// A data directory with a record laid out by a layout-1 slingerd, which
+/// kept no machine name, holding one event per name in `machines`.
+fn layout_1_record(machines: &[&str]) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Connection::open(dir.path().join(FILE)).unwrap();
+    db.execute_batch(super::schema::V1).unwrap();
+    db.pragma_update(None, "user_version", 1).unwrap();
+    for (number, machine) in (1..).zip(machines) {
+        db.execute(
+            "INSERT INTO events (number, time, kind, machine, event) VALUES (?1, 0, 'k', ?2, '{}')",
+            rusqlite::params![number, machine],
+        )
+        .unwrap();
+    }
+    dir
+}
+
+#[test]
+fn a_layout_1_record_keeps_the_name_on_its_first_event() {
+    let dir = layout_1_record(&["old-host", "other"]);
+    let store = Store::open(dir.path(), MACHINE).unwrap();
+    assert_eq!(store.machine(), "old-host");
+    drop(store);
+    assert_eq!(Store::open(dir.path(), "third").unwrap().machine(), "old-host");
+    let empty = layout_1_record(&[]);
+    assert_eq!(Store::open(empty.path(), MACHINE).unwrap().machine(), MACHINE);
+}
+
+#[test]
 fn reads_by_range_kind_tag_and_limit() {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path(), MACHINE).unwrap();

@@ -90,8 +90,9 @@ impl Shared {
 
     /// A press at `at`, a point in the window: the open palette's, else
     /// the open key overlay's, else the open page menu's (each takes every
-    /// press); with none open, a press on a button holds it until the lift
-    /// ([`Shared::lift`]), and goes no further.
+    /// press, and a press on a row holds it until the lift); with none open,
+    /// a press on a button holds it until the lift ([`Shared::lift`]), and
+    /// goes no further.
     pub fn press(&mut self, at: Point) -> Took {
         let size = self.size;
         let taken = Took::from(self.palette.press(at, size));
@@ -153,10 +154,12 @@ impl Shared {
             || self.menu.scroll(dy, self.size)
     }
 
-    /// The pen lifted at `at`: a tap on a key overlay's or the page menu's
-    /// row runs it, and so does one on the button the pen went down on.
+    /// The pen lifted at `at`: a tap on the palette's, the key overlay's or
+    /// the page menu's row runs it, and so does one on the button the pen
+    /// went down on.
     pub fn lift(&mut self, at: Point) -> Took {
-        let taken = Took::from(self.overlay.lift(at, self.size));
+        let taken = Took::from(self.palette.lift(at, self.size));
+        let taken = if taken == Took::No { self.overlay.lift(at, self.size).into() } else { taken };
         let taken = if taken == Took::No { self.menu.lift(at, self.size) } else { taken };
         if taken == Took::No { self.taps.lift(at) } else { taken }
     }

@@ -4,9 +4,8 @@
 //! not in the draw list, so the cost of a frame follows what is visible, not
 //! the size of the page.
 //!
-//! Pen lines are smoothed here, not in `platform`: each corner of the line
-//! through the pen's points is rounded by a curve through the middles of its
-//! two sides, so the line keeps a constant width and no corners.
+//! Pen lines are smoothed here, not in `platform` ([`smooth`]): the line
+//! keeps a constant width, its ends and no corners or bumps.
 
 use std::collections::HashMap;
 use std::f64::consts::FRAC_PI_6;
@@ -256,10 +255,11 @@ fn changed_between(old: &[Draw], new: &[Draw]) -> Option<Rect> {
     gone.chain(came).reduce(Rect::union)
 }
 
-/// The screen box of what `new` adds to `old`, when both are the same pen
-/// line and `new` only grew at its end. Smoothing changes only a line's last
-/// curve when a point comes, so the box holds `old`'s last curve and `new`'s
-/// curves after it. A cubic stays inside its points' box.
+/// The screen box of what changed between `old` and `new`, when both are
+/// the same pen line from the same start and only its end changed (the
+/// stroke under the pen). Smoothing changes only a line's last few curves
+/// when a point comes, so the box holds the curves of each after those they
+/// share. A cubic stays inside its points' box.
 #[expect(clippy::float_cmp, reason = "the same line's width is the same value, from one product")]
 fn grown(old: &Draw, new: &Draw) -> Option<Rect> {
     let (
@@ -269,13 +269,13 @@ fn grown(old: &Draw, new: &Draw) -> Option<Rect> {
     else {
         return None;
     };
-    let kept = was.len().checked_sub(1)?;
+    let shared = was.iter().zip(now).take_while(|(x, y)| x == y).count();
     let same = a == b && w == width && old.colour == new.colour;
-    if !same || now.len() < was.len() || was[..kept] != now[..kept] {
+    if !same {
         return None;
     }
-    let from = if kept == 0 { *a } else { was[kept - 1][2] };
-    let points = was[kept..].iter().chain(&now[kept..]).flatten().copied();
+    let from = if shared == 0 { *a } else { was[shared - 1][2] };
+    let points = was[shared..].iter().chain(&now[shared..]).flatten().copied();
     // One point more on each side for the edge's smoothing.
     Rect::around(points.chain([from])).map(|r| r.outset(width / 2.0 + 1.0))
 }
@@ -335,10 +335,13 @@ impl Shape {
         let zoom = view.zoom();
         match self {
             Self::Stroke { points, width } => {
-                let points: Vec<Point> = points.iter().map(|p| view.to_screen(*p)).collect();
+                // Smoothed in canvas points, so a zoom does not change the
+                // line's shape; the screen is the canvas scaled and moved.
+                let curves = smooth::smooth(points, *width);
+                let curves = curves.iter().map(|c| c.map(|p| view.to_screen(p))).collect();
                 // A stroke has a point, or it has no bounds and is not drawn.
-                let start = points.first().copied().unwrap_or(Point { x: 0.0, y: 0.0 });
-                Mark::Stroke { start, curves: smooth(&points), width: width * zoom }
+                let start = points.first().map_or(Point { x: 0.0, y: 0.0 }, |p| view.to_screen(*p));
+                Mark::Stroke { start, curves, width: width * zoom }
             }
             Self::Text { frame, text, size } => Mark::Text {
                 at: view.to_screen(Point { x: frame.x, y: frame.y }),
@@ -383,32 +386,6 @@ impl Shape {
     }
 }
 
-/// The line through `points` as cubic curves from the first point: each
-/// inner point is the control of a quadratic from the middle of the side
-/// before it to the middle of the side after it, and the last side runs
-/// straight to the last point. The line stays inside the points' box.
-fn smooth(points: &[Point]) -> Vec<[Point; 3]> {
-    let mid = |a: Point, b: Point| Point { x: f64::midpoint(a.x, b.x), y: f64::midpoint(a.y, b.y) };
-    // A quadratic from `s` with control `c` to `e`, as the same cubic.
-    let quad = |s: Point, c: Point, e: Point| {
-        let toward = |from: Point| Point {
-            x: from.x + (c.x - from.x) * 2.0 / 3.0,
-            y: from.y + (c.y - from.y) * 2.0 / 3.0,
-        };
-        [toward(s), toward(e), e]
-    };
-    let (Some(&first), Some(&last)) = (points.first(), points.last()) else { return Vec::new() };
-    let mut at = first;
-    let mut curves = Vec::with_capacity(points.len());
-    for pair in points.windows(2).skip(1) {
-        let end = mid(pair[0], pair[1]);
-        curves.push(quad(at, pair[0], end));
-        at = end;
-    }
-    curves.push([at, last, last]);
-    curves
-}
-
 /// `ink`, or the theme's text colour when `ink` would not show on its
 /// background.
 fn legible(ink: Rgb, theme: &Theme) -> Rgb {
@@ -432,6 +409,8 @@ fn barbs(from: Point, to: Point) -> [Point; 2] {
         y: to.y - HEAD_LENGTH * angle.sin(),
     })
 }
+
+mod smooth;
 
 #[cfg(test)]
 mod tests;

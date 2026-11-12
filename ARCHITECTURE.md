@@ -181,6 +181,9 @@ store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
              Locks the data directory, so one store owns the record.
              Hands out the canvases, the workspaces and the sessions, so
              `answer` reaches all data one way.
+store/schema.rs  the file's layout, its version and the steps that bring
+             an older file up to date. The file keeps the machine name it
+             was created under, so a host rename keeps the tag.
 canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,
              so changes are numbered in the order they apply; append, sync,
              then reply. A failed write closes the canvas; the next request
@@ -331,6 +334,9 @@ canvases.rs  the canvas panes: one follower and mirror per page shown, each
              page turned to arrives); the pen's ink, the eraser's and
              lasso's work and the text, box and arrow tools' over each page,
              and the outbox they share. A selection no pane shows clears.
+             A press on a canvas closes the open entry (the sling's, the
+             feedback's, a page's new name's), but one on a button sends
+             the sling's.
 canvases/live.rs  the live items' pages: each showing a pane draws fetched
              once on a thread of its own, put over its item; a press on an
              item whose page shows goes to the page unless it grabs the
@@ -622,9 +628,10 @@ scene/palette.rs  the command palette (`show-commands`): open or closed,
              a subsequence (a paste goes in too), ranked: title prefix,
              word start, title subsequence, then group. Empty, the command
              it last ran leads, then by Group::ALL with Quit last. 44 pt
-             high, each with the group and the live key's chip. While open it takes every key and press; return or
-             a press on a row gives back the command, which main runs as
-             its key would. It draws as the key overlay's Overlay: a
+             high, each with the group and the live key's chip. While open it takes every key and press; return, or
+             a lift on the row the press held, gives back the command,
+             which main runs as its key would (as the key overlay's and
+             the page menu's rows do). It draws as the key overlay's Overlay: a
              rounded panel, the search with a count, the selected row on a
              filled slab. Pure.
 scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
@@ -766,8 +773,10 @@ did not get stays on screen and goes again before any after it; one it
 refuses (its canvas is gone) is dropped and shown as the problem. Local
 ink and the server's echo: a stroke draws from the ink until its canvas's
 feed has passed the line its `add` was written under; from then on the
-mirror holds it. So it never blinks out between the reply and the echo,
-and for that moment both draw it in the same place. Touch (a palm on a
+mirror holds it. So it never blinks out between the reply and the echo.
+The daemon's reply to an add says the ids it made, and the ink shows the
+item under that id from then on (and not at all once the mirror holds
+it), so it never draws twice. Touch (a palm on a
 tablet display) never draws. Each stroke's pen-to-paint delays go to
 stderr as one `ink:` line (SPEC O2). Ink not yet sent is lost if the app
 quits. The app binary has a size budget, and the release
@@ -777,7 +786,8 @@ profile builds it at `opt-level = "z"`, so it adds no async runtime.
 mirror with the ink laid over) and answer under the pen from the app's own
 copy, by the core's rules (`scene/select/hit.rs`): a round trip to the
 daemon per pen event would make the main thread wait or the eraser trail
-the pen. Only the server's items count, so ink still on its way is never
+the pen. Only the server's items count: ink shows under its server id as
+soon as the daemon has written it, so only ink not yet written is never
 erased or selected. A finished erase, move or delete joins the ink's queue
 as one `canvas_apply`, in turn with the strokes, and shows from there until
 the feed brings it. The user may erase, move and delete any item, an
