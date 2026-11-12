@@ -9,7 +9,7 @@ mod glyph;
 #[cfg(test)]
 mod tests;
 
-use glyph::glyph;
+use glyph::{glyph, zero_width};
 
 /// The pen width, in canvas units, of a box's edge and an arrow.
 const LINE_WIDTH: f64 = 2.0;
@@ -268,13 +268,14 @@ pub(super) fn columns(w: f64) -> usize {
 }
 
 /// Lines of characters: `text` cut at each `\n`, and wrapped at spaces to at
-/// most `columns` characters. A word longer than a line is cut.
+/// most `columns` characters. A word longer than a line is cut. Zero-width
+/// characters draw nothing, so they are left out and take no cell.
 pub(super) fn wrap(text: &str, columns: usize) -> Vec<Vec<char>> {
     let mut rows = Vec::new();
     for paragraph in text.split('\n') {
         let mut row: Vec<char> = Vec::new();
         for (i, word) in paragraph.split(' ').enumerate() {
-            let word: Vec<char> = word.chars().collect();
+            let word: Vec<char> = word.chars().filter(|&c| !zero_width(c)).collect();
             if i > 0 {
                 // The space before a word that does not fit becomes the line break.
                 if !row.is_empty() && row.len() + 1 + word.len() > columns {

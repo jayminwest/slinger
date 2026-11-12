@@ -133,6 +133,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Canvas:** zero-width characters (a joiner, a zero-width space, an emoji
+  variation selector) no longer take a blank cell in a text's picture or
+  widen its frame.
 - **Sessions:** an agent whose last conversation Claude Code no longer has
   (`--resume` fails) is no longer stuck. Its process shows as `exited`,
   and the next `slinger session start` begins a new conversation.
