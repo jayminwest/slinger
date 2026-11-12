@@ -1,9 +1,10 @@
-//! The pill's words: how long the agent has worked, and its answer in
-//! lines that fit the panel under the pill.
+//! The pill's words: how long the agent has worked, the way to its items,
+//! and its answer in lines that fit the panel under the pill.
 
 use std::time::Duration;
 
-use super::{CHAR, MOST, PAD};
+use super::{CHAR, MOST, PAD, View};
+use crate::layout::{Rect, Size};
 
 /// "4s", "59s", then "1m", "12m": how long the agent has worked.
 pub(super) fn elapsed(time: Duration) -> String {
@@ -63,4 +64,18 @@ pub fn wrap(text: &str, room: usize) -> Vec<String> {
 /// `n` as a number of points' worth.
 pub(super) fn count(n: usize) -> f64 {
     u32::try_from(n).map_or(f64::from(u32::MAX), f64::from)
+}
+
+/// " →" (or ←, ↑, ↓): the way from what `view` shows to `away`.
+pub(super) fn arrow(away: Rect, view: &View) -> String {
+    let seen = view.viewport.visible(Size { width: view.frame.width, height: view.frame.height });
+    let dx = (away.x + away.width / 2.0) - (seen.x + seen.width / 2.0);
+    let dy = (away.y + away.height / 2.0) - (seen.y + seen.height / 2.0);
+    let way = match (dx.abs() >= dy.abs(), dx >= 0.0, dy >= 0.0) {
+        (true, true, _) => '→',
+        (true, false, _) => '←',
+        (false, _, true) => '↓',
+        (false, _, false) => '↑',
+    };
+    format!(" {way}")
 }

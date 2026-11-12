@@ -251,8 +251,9 @@ pub fn view(
     canvases.show_live(&mut scene);
     canvases.show_sling(&mut scene, theme, &settings.config.keys, sidebar);
     scene.labels.splice(0..0, canvases.labels(&shared.panes, area, theme));
-    let (marks, marked, answer) = canvases.sling_marks(&shared.panes, area, theme);
-    scene.labels.extend(marks);
+    let sling = canvases.sling_marks(&shared.panes, area, theme);
+    scene.labels.extend(sling.labels);
+    scene.pills.extend(sling.pill);
     let pen = (tools.tool(), tools.colour());
     canvases.set_pen_width(tools.width().points());
     let keys = &settings.config.keys;
@@ -261,7 +262,7 @@ pub fn view(
     footers.extend(sidebar.foot(size.rect()).map(|foot| status::strip(foot, theme)));
     let rows = sidebar.targets(theme, size.rect()).into_iter();
     let mut targets = sidebar.notice_targets(area);
-    targets.extend(marked);
+    targets.extend(sling.targets);
     targets.extend(footers.iter().flat_map(|f| f.targets.clone()));
     targets.extend(rows.map(|(frame, index)| (frame, Tap::Workspace(index))));
     shared.taps.set(targets);
@@ -271,8 +272,9 @@ pub fn view(
     }
     if let Some(lit) = lit.filter(|&lit| !status::light(&mut footers, lit, theme)) {
         let (frame, fill) = lit;
-        if let Some(button) = scene.labels.iter_mut().find(|l| l.frame == frame && l.fill.is_some())
-        {
+        let pills = scene.pills.iter_mut().map(|p| &mut p.label);
+        let mut buttons = scene.labels.iter_mut().chain(pills);
+        if let Some(button) = buttons.find(|l| l.frame == frame && l.fill.is_some()) {
             // A button over the panes: its own fill lit.
             button.fill = Some(fill);
         } else {
@@ -289,7 +291,7 @@ pub fn view(
     let overlay = shared.overlay.shown(keys, theme, size);
     let overlay = overlay.or_else(|| shared.palette.shown(keys, theme, size));
     let overlay = overlay.or_else(|| shared.menu.shown(theme, size));
-    scene.overlay = overlay.or(answer).map(Box::new);
+    scene.overlay = overlay.or(sling.panel).map(Box::new);
     for pane in &mut scene.canvases {
         pane.cursor = cursor::over_canvas(tools, theme, pane.scene.viewport.zoom());
     }
