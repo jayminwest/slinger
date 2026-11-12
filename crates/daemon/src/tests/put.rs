@@ -10,7 +10,9 @@ use super::Daemon;
 fn idea(client: &Client) {
     client.canvas_create("idea").unwrap();
     let bx = json!({ "op": "add", "item": { "page": "p1", "kind": "box", "x": 0, "y": 0, "w": 1000, "h": 500 } });
-    client.canvas_apply(CanvasOps { canvas: "idea".into(), by: "user".into(), ops: bx }).unwrap();
+    client
+        .canvas_apply(CanvasOps { canvas: "idea".into(), by: "user".into(), ops: bx, once: None })
+        .unwrap();
 }
 
 fn landed(client: &Client) -> Vec<Value> {

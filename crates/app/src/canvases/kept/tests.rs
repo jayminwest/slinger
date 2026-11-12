@@ -3,6 +3,7 @@
 use slinger_control::Client;
 
 use super::*;
+use crate::backend::KeptStroke;
 use crate::backend::testing::wait_until;
 use crate::backend::tests::{open_notes, with_store};
 use crate::config::Rgb;
@@ -69,4 +70,64 @@ fn a_file_that_cannot_be_read_is_a_problem_and_a_new_stroke_replaces_it() {
     draw(&mut canvases, "notes", 1.0);
     canvases.poll();
     assert_eq!(Unsent::at(path).load().unwrap().len(), 1);
+}
+
+/// slinger-1d05ae: a stroke the daemon wrote but whose answer the app never
+/// heard (it quit) is kept, and sent again at the next start under the same
+/// key: the daemon does not write it twice.
+#[test]
+fn a_stroke_written_as_the_app_quit_is_not_written_twice() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("unsent-ink.json");
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let mut quit = Canvases::new(daemon.clone()).keeping(Unsent::at(path.clone()));
+        quit.outbox.reconnect(Client::new("/nonexistent/x.sock"));
+        draw(&mut quit, "notes", 1.0);
+        quit.poll();
+        let kept = Unsent::at(path.clone()).load().unwrap();
+        let [KeptStroke { once: Some(once), .. }] = kept.as_slice() else { panic!("{kept:?}") };
+        // What the outbox sent as the app quit, written, the answer lost.
+        let ops = crate::mirror::ops(&Change::Add(kept[0].stroke.clone()));
+        let by = "user".to_string();
+        let sent = slinger_control::CanvasOps {
+            canvas: "notes".into(),
+            by,
+            ops,
+            once: Some(once.clone()),
+        };
+        daemon.canvas_apply(sent).unwrap();
+        drop(quit);
+
+        let mut canvases = Canvases::new(daemon.clone()).keeping(Unsent::at(path.clone()));
+        wait_until(|| {
+            canvases.poll();
+            canvases.ink.settled("notes") && !path.exists()
+        });
+        assert_eq!(strokes(daemon), [10], "written once");
+    });
+}
+
+/// slinger-1d05ae: a second app running beside the first keeps nothing and
+/// says so, rather than write over the first's strokes.
+#[test]
+fn a_second_app_keeps_nothing_and_says_so() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("unsent-ink.json");
+    let down =
+        || Canvases::new(Client::new("/nonexistent/x.sock")).keeping(Unsent::at(path.clone()));
+    let mut one = down();
+    let mut two = down();
+    assert!(one.kept.as_ref().unwrap().problem().is_none());
+    let problem = two.kept.as_ref().unwrap().problem().unwrap();
+    assert!(problem.message.contains("another slinger app keeps it"), "{problem:?}");
+    draw(&mut one, "notes", 1.0);
+    one.poll();
+    draw(&mut two, "notes", 2.0);
+    two.poll();
+    draw(&mut one, "notes", 4.0);
+    one.poll();
+    let kept = Unsent::at(path.clone()).load().unwrap();
+    let xs: Vec<f64> = kept.iter().map(|k| k.stroke.points[0].x).collect();
+    assert_eq!(xs, [1.0, 4.0], "the first app's alone");
 }

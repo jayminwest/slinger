@@ -277,7 +277,12 @@ fn a_second_press_soon_after_selecting_a_text_drags_it() {
             "color": "#000000", "x": 1000, "y": 1000, "text": "hello"}});
         let by = "user".to_string();
         daemon
-            .canvas_apply(slinger_control::CanvasOps { canvas: "notes".into(), by, ops })
+            .canvas_apply(slinger_control::CanvasOps {
+                canvas: "notes".into(),
+                by,
+                ops,
+                once: None,
+            })
             .unwrap();
         let (mut canvases, panes) = (Canvases::new(daemon.clone()), split());
         wait_until(|| {
@@ -315,7 +320,12 @@ fn an_arrow_carried_with_the_items_it_joins_stays_bound_to_them_on_their_new_pag
         ]);
         let by = "user".to_string();
         daemon
-            .canvas_apply(slinger_control::CanvasOps { canvas: "notes".into(), by, ops })
+            .canvas_apply(slinger_control::CanvasOps {
+                canvas: "notes".into(),
+                by,
+                ops,
+                once: None,
+            })
             .unwrap();
         let [(left, a), (right, b)] = frames(&panes)[..] else { panic!() };
         assert!(canvases.command(&panes, (right, b), crate::commands::Command::NewPage));

@@ -82,7 +82,7 @@ pub(crate) fn user_stroke(daemon: &Client, canvas: &str) {
     let ops = serde_json::json!({"op": "add", "item": {"page": "p1", "kind": "stroke",
         "color": "#000000", "width": 20, "pts": [1000, 1000, 100, 100]}});
     let by = "user".to_string();
-    daemon.canvas_apply(control::CanvasOps { canvas: canvas.into(), by, ops }).unwrap();
+    daemon.canvas_apply(control::CanvasOps { canvas: canvas.into(), by, ops, once: None }).unwrap();
 }
 
 /// A stand-in Flick on a socket in `dir`: it answers each request line with

@@ -32,7 +32,9 @@ fn notes() -> (Daemon, [TempDir; 3], String) {
     open_with_agent(&client, &dirs[1], "notes", "scout");
     let ui = put(&client, &dirs[2], "pick", "<p>pick</p>");
     let bx = json!({ "op": "add", "item": { "page": "p1", "kind": "box", "x": 0, "y": 0, "w": 1000, "h": 500 } });
-    client.canvas_apply(CanvasOps { canvas: "notes".into(), by: "user".into(), ops: bx }).unwrap();
+    client
+        .canvas_apply(CanvasOps { canvas: "notes".into(), by: "user".into(), ops: bx, once: None })
+        .unwrap();
     (daemon, dirs, ui.hash)
 }
 

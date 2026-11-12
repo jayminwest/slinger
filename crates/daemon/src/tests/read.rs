@@ -17,7 +17,7 @@ fn stroke(x: i64) -> Value {
 }
 
 fn draw(client: &Client, x: i64) -> u64 {
-    let ops = CanvasOps { canvas: "idea".into(), by: "user".into(), ops: stroke(x) };
+    let ops = CanvasOps { canvas: "idea".into(), by: "user".into(), ops: stroke(x), once: None };
     client.canvas_apply(ops).unwrap().seq[0]
 }
 

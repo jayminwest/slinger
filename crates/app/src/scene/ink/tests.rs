@@ -36,6 +36,11 @@ fn next(ink: &mut Ink) -> Option<(u64, Stroke)> {
     })
 }
 
+/// The ids `main` p1's ink shows under.
+fn ids_of(ink: &Ink) -> Vec<ItemId> {
+    ink_of(ink, "main", "p1").iter().map(|i| i.id).collect()
+}
+
 fn first_x(ink: &Ink) -> Vec<f64> {
     let items = ink_of(ink, "main", "p1");
     items
@@ -58,7 +63,7 @@ fn the_stroke_under_the_pen_shows_at_once_point_by_point() {
     let items = ink_of(&ink, "main", "p1");
     let [item] = items.as_slice() else { panic!("{items:?}") };
     assert_eq!(item.colour, RED);
-    assert!(item.id.0 >= LOCAL, "ink never takes a server id");
+    assert!(item.id.0 >= PENDING, "ink never takes a server id");
     let Shape::Stroke { points, width } = &item.shape else { panic!() };
     assert_eq!((points.as_slice(), *width), ([pt(1.0, 2.0), pt(3.0, 4.0)].as_slice(), PEN_WIDTH));
     assert!(ink_of(&ink, "main", "p2").is_empty() && ink_of(&ink, "other", "p1").is_empty());
@@ -217,7 +222,7 @@ fn a_removal_or_a_move_shows_over_the_page_at_once_and_goes_in_turn() {
     let shown = ink.shown("main", "p1", &page);
     let ids: Vec<u64> = shown.iter().map(|i| i.id.0).collect();
     assert_eq!(ids[..2], [2, 3], "i1 is gone at once");
-    assert!(ids[2] >= LOCAL, "then the stroke drawn");
+    assert!(ids[2] >= PENDING, "then the stroke drawn");
     assert!(matches!(shown[0], Cow::Borrowed(_)), "an item no change touches is not copied");
     let Shape::Stroke { points, .. } = &shown[1].shape else { panic!() };
     assert_eq!(points[0], pt(13.0, 5.0), "i3 moved");
@@ -249,7 +254,9 @@ fn a_change_names_its_canvas_and_page() {
     let named: Vec<(&str, Option<&str>)> =
         [&add, &remove, &moved].map(|c| (c.canvas(), c.page())).into();
     assert_eq!(named, [("main", Some("p1")), ("c", Some("p2")), ("d", Some("p3"))]);
-    assert!(on_server(ItemId(LOCAL - 1)) && !on_server(ItemId(LOCAL)));
+    assert!(
+        on_server(ItemId(PENDING)) && on_server(ItemId(LOCAL - 1)) && !on_server(ItemId(LOCAL))
+    );
 }
 
 #[test]
@@ -281,7 +288,7 @@ fn a_put_an_edit_and_a_move_with_its_arrows_show_at_once() {
     let box_at = Shape::Box { frame, width: 2.0 };
     let moved = text("after").moved(pt(5.0, 0.0));
     assert_eq!(shapes, [&moved, &arrow(5.0), &box_at]);
-    assert!(shown[2].id.0 >= LOCAL, "a put has no server id yet");
+    assert!(shown[2].id.0 >= PENDING, "a put has no server id yet");
 }
 
 #[test]
@@ -335,7 +342,7 @@ fn an_item_made_shows_under_the_server_s_id_and_once_the_mirror_holds_it_from_th
     let mut ink = Ink::default();
     draw(&mut ink, &[(1.0, 0.0), (2.0, 0.0)]);
     let (key, _) = next(&mut ink).unwrap();
-    assert!(ink_of(&ink, "main", "p1")[0].id.0 >= LOCAL, "no server id until it says");
+    assert!(ink_of(&ink, "main", "p1")[0].id.0 >= PENDING, "no server id until it says");
     ink.answered(key, Answer::Made { seq: 3, ids: vec![ItemId(3)] });
     let items = ink_of(&ink, "main", "p1");
     assert_eq!(items.iter().map(|i| i.id).collect::<Vec<_>>(), [ItemId(3)]);
@@ -344,4 +351,75 @@ fn an_item_made_shows_under_the_server_s_id_and_once_the_mirror_holds_it_from_th
     assert!(matches!(shown.as_slice(), [Cow::Borrowed(_)]), "drawn once, the mirror's");
     ink.push(Change::Remove { canvas: "main".into(), page: "p1".into(), ids: vec![ItemId(3)] });
     assert_eq!(ink_of(&ink, "main", "p1"), [], "a removal by its server id takes it");
+}
+
+#[test]
+fn ink_not_yet_written_can_be_erased_and_moved_and_the_change_names_the_server_s_id() {
+    let mut ink = Ink::default();
+    draw(&mut ink, &[(1.0, 0.0), (2.0, 0.0)]);
+    draw(&mut ink, &[(5.0, 0.0), (6.0, 0.0)]);
+    let (one, _) = next(&mut ink).unwrap();
+    ink.answered(one, Answer::Unreachable(gone()));
+    let [first, second] = ids_of(&ink)[..] else { panic!() };
+    assert!(on_server(first) && on_server(second), "both can be taken");
+    let here = || ("main".to_string(), "p1".to_string());
+    let (canvas, page) = here();
+    ink.push(Change::Remove { canvas, page, ids: vec![first, ItemId(7)] });
+    let arrow = Shape::Arrow {
+        from: pt(0.0, 0.0),
+        to: pt(5.0, 0.0),
+        width: 2.0,
+        bound: [Some(second), None],
+    };
+    let follow = vec![Item { id: ItemId(8), colour: RED, shape: arrow }];
+    let (canvas, page) = here();
+    ink.push(Change::Move { canvas, page, ids: vec![second], by: pt(0.0, 3.0), follow });
+    assert_eq!(ids_of(&ink), [second], "erased at once");
+
+    let (key, _) = next(&mut ink).unwrap();
+    assert_eq!(key, one, "sent again");
+    let renamed = ink.answered(one, Answer::Made { seq: 1, ids: vec![ItemId(20)] });
+    assert_eq!(renamed, [(first, ItemId(20))]);
+    let (two, _) = next(&mut ink).unwrap();
+    assert_eq!(ink.answered(two, Answer::Made { seq: 2, ids: vec![ItemId(21)] }).len(), 1);
+    let (_, remove) = ink.next().unwrap();
+    let Change::Remove { ids, .. } = &remove else { panic!("{remove:?}") };
+    assert_eq!(ids, &[ItemId(20), ItemId(7)], "one removal, by the server's ids");
+    ink.answered(two + 1, Answer::Applied(3));
+    let (_, moved) = ink.next().unwrap();
+    let Change::Move { ids, follow, .. } = &moved else { panic!("{moved:?}") };
+    assert_eq!(ids, &[ItemId(21)]);
+    let Shape::Arrow { bound, .. } = &follow[0].shape else { panic!() };
+    assert_eq!(bound[0], Some(ItemId(21)), "the arrow follows it by its new id");
+    assert_eq!(ids_of(&ink), [ItemId(21)]);
+    let shown = ink_of(&ink, "main", "p1");
+    let Shape::Stroke { points, .. } = &shown[0].shape else { panic!() };
+    assert_eq!(points[0], pt(5.0, 3.0), "moved");
+}
+
+#[test]
+fn a_change_made_after_an_item_s_add_was_written_or_refused_names_what_is_there() {
+    let mut ink = Ink::default();
+    draw(&mut ink, &[(1.0, 0.0)]);
+    draw(&mut ink, &[(2.0, 0.0)]);
+    let [kept, lost] = ids_of(&ink)[..] else { panic!() };
+    let remove = |ids| Change::Remove { canvas: "main".into(), page: "p1".into(), ids };
+    let (one, _) = next(&mut ink).unwrap();
+    ink.answered(one, Answer::Made { seq: 1, ids: vec![ItemId(4)] });
+    ink.heard("main", 1);
+    ink.push(remove(vec![kept]));
+    let (two, _) = next(&mut ink).unwrap();
+    ink.push(remove(vec![lost]));
+    ink.push(remove(vec![lost, ItemId(9)]));
+    ink.answered(two, Answer::Refused(gone()));
+    assert_eq!(ink.next().map(|(_, c)| c), Some(remove(vec![ItemId(4)])), "by the id made");
+    ink.answered(two + 1, Answer::Applied(2));
+    let (_, other) = ink.next().unwrap();
+    assert_eq!(
+        other,
+        remove(vec![ItemId(9)]),
+        "a removal of only the item never made is dropped; this one leaves it out"
+    );
+    ink.answered(two + 3, Answer::Applied(3));
+    assert_eq!(ink.next(), None);
 }

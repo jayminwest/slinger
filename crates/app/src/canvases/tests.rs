@@ -98,6 +98,47 @@ fn escape_ends_a_text_and_the_next_box_drag_is_a_box() {
     });
 }
 
+/// slinger-b10c99: ink the daemon has not written yet (here it cannot be
+/// reached) is selected, moved and erased at once, and each goes in its
+/// turn as one step, naming the items by the ids the daemon made.
+#[test]
+fn ink_not_yet_written_is_selected_moved_and_erased_each_in_one_step() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+        wait_until(|| shown(&mut canvases, &panes) == 1);
+        canvases.outbox.reconnect(Client::new("/nonexistent/x.sock"));
+        gesture(&mut canvases, &panes, Tool::Pen, &[(100.0, 100.0), (110.0, 110.0)], 10.0);
+        gesture(&mut canvases, &panes, Tool::Pen, &[(300.0, 100.0), (310.0, 110.0)], 12.0);
+        let around = [(80.0, 80.0), (130.0, 80.0), (130.0, 130.0), (80.0, 130.0), (80.0, 81.0)];
+        gesture(&mut canvases, &panes, Tool::Lasso, &around, 14.0);
+        assert_eq!(canvases.selection().map(|s| s.ids.len()), Some(1), "the first is selected");
+        gesture(&mut canvases, &panes, Tool::Lasso, &[(105.0, 105.0), (155.0, 105.0)], 16.0);
+        gesture(&mut canvases, &panes, Tool::Eraser, &[(290.0, 90.0), (320.0, 120.0)], 18.0);
+        assert_eq!(held(daemon), Vec::<String>::new(), "nothing written yet");
+
+        canvases.outbox.reconnect(daemon.clone());
+        wait_until(|| {
+            shown(&mut canvases, &panes);
+            canvases.ink.settled("notes") && count(daemon, "stroke") == 1
+        });
+        let ids = canvases.selection().map(|s| s.ids.clone());
+        assert_eq!(
+            ids,
+            Some(vec![crate::scene::canvas::ItemId(1)]),
+            "still selected, by the id made"
+        );
+        let first_x = |d: &Client| d.canvas_show("notes", None).unwrap().items[0]["pts"][0].clone();
+        let moved = first_x(daemon);
+        let step = || slinger_control::CanvasStep { canvas: "notes".into(), by: "user".into() };
+        daemon.canvas_undo(step()).unwrap();
+        assert_eq!(count(daemon, "stroke"), 2, "one undo puts the erased stroke back");
+        daemon.canvas_undo(step()).unwrap();
+        assert_ne!(first_x(daemon), moved, "the next takes the move back");
+        assert_eq!(count(daemon, "stroke"), 2);
+    });
+}
+
 #[test]
 fn the_first_press_of_any_tool_after_a_text_left_open_ends_it_and_is_that_tool_s() {
     with_store(None, |daemon| {

@@ -28,7 +28,7 @@ use std::rc::Rc;
 
 use slinger_control::Client;
 
-use crate::backend::{Flick, Follower, News, Outbox, Problem, Slinger};
+use crate::backend::{Flick, Follower, News, Outbox, Problem, Slinger, run};
 use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Rect, Size, Viewport};
 use crate::mirror::{Applied, Mirror};
@@ -128,7 +128,7 @@ impl Canvases {
     /// yet written are kept nowhere until [`Canvases::keeping`].
     pub fn new(daemon: Client) -> Self {
         let (outbox, slinger) = (Outbox::start(daemon.clone()), Slinger::start(daemon.clone()));
-        let (ink, select, sling) = (Ink::default(), Select::default(), Sling::default());
+        let (ink, select, sling) = (Ink::named(run()), Select::default(), Sling::default());
         let (open, views) = (Vec::new(), Vec::new());
         let (shapes, asks, turning) = (Shapes::default(), Pages::default(), Vec::new());
         let (pen, unshown, lives) = (None, None, live::Lives::start(daemon.clone()));
@@ -225,7 +225,8 @@ impl Canvases {
             if let Answer::Made { ids, .. } = &answer {
                 self.select.made(key, ids);
             }
-            self.ink.answered(key, answer);
+            let renamed = self.ink.answered(key, answer);
+            self.select.renamed(&renamed);
         }
         // Every page of a canvas hears the same numbers: the slowest decides.
         let mut heard: Vec<(&str, u64)> = Vec::new();
@@ -239,7 +240,7 @@ impl Canvases {
             self.ink.heard(canvas, upto);
         }
         if let Some((key, change)) = self.ink.next() {
-            self.outbox.send(key, change);
+            self.outbox.send(key, self.ink.once(key), change);
         }
         self.keep();
         answered
