@@ -274,3 +274,15 @@ fn rows_that_do_not_fit_scroll_by_drag_scroll_or_arrow_and_a_drag_runs_nothing()
     }
     assert!(shown.lines.iter().any(|l| l.radius == BAR / 2.0), "a bar says where the rows are");
 }
+
+#[test]
+fn a_menu_choice_closes_it_and_runs_except_its_own_which_only_closes() {
+    let mut overlay = KeyOverlay::default();
+    assert_eq!(overlay.chosen(Command::Undo), Taken::No, "closed, the menu runs it");
+    let mut overlay = open();
+    assert_eq!(overlay.chosen(Command::Undo), Taken::Run(Command::Undo));
+    assert!(!overlay.is_open());
+    let mut overlay = open();
+    assert_eq!(overlay.chosen(Command::ShowKeys), Taken::Yes);
+    assert!(!overlay.is_open(), "show-keys from the menu does not open it again");
+}

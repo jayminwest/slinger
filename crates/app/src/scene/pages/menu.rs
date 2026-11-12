@@ -13,11 +13,14 @@
 //! above the footer, it opens on as many as do, the shown page kept in
 //! view, and a scroll or a drag of the pen on the panel (past a small slop,
 //! so it taps nothing) turns them a row at a time; the commands stay put.
+//! A ▲ at the end of the top page's row, or a ▼ at the bottom one's, says
+//! more pages are above or below.
 
 use crate::commands::{Chord, Command};
 use crate::config::Theme;
 use crate::layout::{PaneId, Point, Rect, Size};
 use crate::scene::overlay::{Align, Line, Overlay};
+use crate::scene::palette::Taken;
 use crate::scene::style;
 use crate::scene::taps::{Tap, Took};
 
@@ -119,6 +122,16 @@ impl PageMenu {
         closes
     }
 
+    /// A command chosen from the menu bar while open: the menu closes, and
+    /// the command runs. Closed, [`Took::No`].
+    pub fn chosen(&mut self, command: Command) -> Took {
+        if !self.is_open() {
+            return Took::No;
+        }
+        *self = PageMenu::default();
+        Taken::Run(command).into()
+    }
+
     /// A press at `at` in a window of `size`: outside the panel it closes
     /// the menu, inside it holds the row under it until the lift. Used up
     /// while open; [`Took::No`] when closed.
@@ -194,7 +207,8 @@ impl PageMenu {
 
     /// The open menu in a window of `size`, in `theme`'s colours: the panel,
     /// the row under the pen lit (more while pressed), each page's row with
-    /// the shown one marked and bold, a hairline, and the commands' rows.
+    /// the shown one marked and bold (and a sign where more pages are
+    /// above or below), a hairline, and the commands' rows.
     pub fn shown(&self, theme: &Theme, size: Size) -> Option<Overlay> {
         let (open, place) = (self.open.as_ref()?, self.place(size)?);
         let panel = Line {
@@ -222,6 +236,14 @@ impl PageMenu {
                         let mark = Rect { width: MARK, ..frame };
                         lines.push(Line::text("✓".into(), theme.text, mark, 13.0, Align::Centre));
                     }
+                    let more = more(&place, i);
+                    let text = if more.is_empty() {
+                        text
+                    } else {
+                        let arrow = Rect { x: frame.x + frame.width - MARK, width: MARK, ..frame };
+                        lines.push(Line::text(more.into(), theme.muted, arrow, 9.0, Align::Centre));
+                        Rect { width: text.width - MARK, ..text }
+                    };
                     let line = Line::text(name, theme.text, text, 13.0, Align::Left);
                     lines.push(Line { bold: here, ..line });
                 }
@@ -272,6 +294,21 @@ impl PageMenu {
         let after = below + RULE;
         rows.extend(COMMANDS.iter().enumerate().map(|(n, &(c, _))| (row(n, after), Tap::Run(c))));
         Some(Place { panel, rows, rule, first, most })
+    }
+}
+
+/// The sign at the right end of page `i`'s row, when the pages scroll: ▲
+/// on the first shown when there are pages above it, ▼ on the last shown
+/// when there are pages below it; else nothing.
+fn more(place: &Place, i: usize) -> &'static str {
+    let shown = place.rows.iter().filter(|(_, tap)| matches!(tap, Tap::Page(_))).count();
+    let up = i == place.first && place.first > 0;
+    let down = i + 1 == place.first + shown && place.first < place.most;
+    match (up, down) {
+        (true, true) => "▲▼",
+        (true, false) => "▲",
+        (false, true) => "▼",
+        (false, false) => "",
     }
 }
 

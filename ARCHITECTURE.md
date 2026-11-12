@@ -469,7 +469,9 @@ scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              first. `strip`: the open sidebar's foot, its hide button.
              `light`: the button under the pen. `tip`: a lit button that
              is only a glyph or a mark names its command and key just
-             above the footer. A hairline tops each. Pure.
+             above the footer, on a rounded panel with a hairline edge
+             that the footer carries (`Footer::tip`). A hairline tops
+             each. Pure.
 scene/status/cells.rs  how a footer's cells are laid: groups that stay or
              go together on the left, in the middle or on the right; the
              middle centred on the footer when there is room. Pure.
@@ -485,7 +487,8 @@ scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
              every press while open; the lift on the row pressed picks it,
              a press outside or escape closes it. Pages that do not fit
              scroll a row at a time with a scroll or a drag on the panel
-             (a drag taps nothing). No dim. Pure.
+             (a drag taps nothing); a ▲ or ▼ at a page row's end says
+             more pages are above or below. No dim. Pure.
 scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
              `<Tool> <key>` (a new width: `Width <n> <pick-width key>`),
              reload-config its title and key, a saved note "Feedback saved",

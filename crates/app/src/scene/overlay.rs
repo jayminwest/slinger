@@ -270,6 +270,17 @@ impl KeyOverlay {
         true
     }
 
+    /// A command chosen from the menu bar while open: the overlay closes,
+    /// and the command runs, except `show-keys`, which only closed it.
+    /// Closed, [`Taken::No`].
+    pub fn chosen(&mut self, command: Command) -> Taken {
+        if !self.open {
+            return Taken::No;
+        }
+        self.toggle();
+        if command == Command::ShowKeys { Taken::Yes } else { Taken::Run(command) }
+    }
+
     /// A press at `at` in a window of `size` while open: one outside the
     /// panel or on its ✕ closes it; one inside holds until the pen lifts
     /// ([`KeyOverlay::lift`]). Closed, [`Taken::No`].

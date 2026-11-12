@@ -108,6 +108,10 @@ bullet with the area in bold.
 
 ### Changed
 
+- **App:** a page menu with more pages than fit shows ▲ or ▼ at the end of
+  its top or bottom page row while more pages are above or below.
+- **App:** a footer button's tip now sits on a small panel with rounded
+  corners and a hairline edge, like the menus.
 - **App:** the selection's corner handles resize it, with the lasso or
   the select tool: drag one and the selection scales about the opposite
   corner. Strokes, boxes and arrows stretch; texts and agent UIs keep their
@@ -205,6 +209,9 @@ bullet with the area in bold.
 - **App:** choosing a menu bar item while the command palette is open now
   closes the palette before the command runs, instead of leaving it over
   the window. Choosing Show commands only closes it.
+- **App:** choosing a menu bar item while the key overlay or the page menu
+  is open now closes it before the command runs, as the palette does.
+  Choosing Show keys only closes the key overlay.
 - **App:** the key overlay, the command palette and the page menu now draw
   over an open sling prompt (and the feedback and rename fields), dimming
   it with the rest of the window, instead of leaving the prompt on top.

@@ -1,7 +1,7 @@
 //! Text: a label (its fill over its whole frame, its words centred in it
 //! both ways), a sidebar row in its font, and a pane's footer (its fill,
-//! the lit button's rounded fill, its marks, and each part's runs one after
-//! the other in one field). The scene decides every word, colour and frame.
+//! the lit button's rounded fill, its marks, each part's runs one after
+//! the other in one field, and the lit button's tip). The scene decides every word, colour and frame.
 
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
@@ -69,7 +69,8 @@ pub(super) fn sidebar_row(row: &Row, height: f64, mtm: MainThreadMarker) -> Reta
 }
 
 /// The views that show `footer` in a view `height` tall: its fill, its
-/// top hairline, the lit button's fill, the marks, then one field per part.
+/// top hairline, the lit button's fill, the marks, one field per part,
+/// then the lit button's tip above it.
 pub(super) fn footer(footer: &Footer, height: f64, mtm: MainThreadMarker) -> Vec<Retained<NSView>> {
     let filled = |frame, fill| {
         let block = Label { text: String::new(), colour: fill, fill: Some(fill), frame };
@@ -113,6 +114,7 @@ pub(super) fn footer(footer: &Footer, height: f64, mtm: MainThreadMarker) -> Vec
         field.setFrame(frame);
         views.push(Retained::into_super(Retained::into_super(field)));
     }
+    views.extend(footer.tip.iter().flat_map(|tip| super::overlay::line(tip, height, mtm)));
     views
 }
 
