@@ -67,9 +67,7 @@ fn a_paste_adds_the_items_to_the_page_centred_on_the_point() {
 
 #[test]
 fn a_pasted_arrow_keeps_only_the_ends_on_items_pasted_before_it() {
-    let arrow = |from: &str, to: &str| {
-        json!({"kind": "arrow", "color": "#0000ff", "pts": [0, 0, 100, 0], "from": from, "to": to})
-    };
+    let arrow = |from: &str, to: &str| json!({"kind": "arrow", "color": "#0000ff", "pts": [0, 0, 100, 0], "from": from, "to": to});
     let clip = json!([
         {"kind": "unknown"},
         {"kind": "box", "x": 0, "y": 0, "w": 100, "h": 40},

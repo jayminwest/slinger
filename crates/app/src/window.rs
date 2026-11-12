@@ -167,18 +167,22 @@ pub fn grabs(canvases: &Canvases, panes: &Panes, tools: &Tools, area: Rect, pen:
 
 /// The pointer, up, moved to `at` over the panes of `shared` laid in
 /// `area`: on a divider a press would grab (no pop-up open, not grabbing
-/// the selection: [`grabs`]), it shows the divider's cursor. Returns
-/// whether that changed.
+/// the selection: [`grabs`]), it shows the divider's cursor; on a handle
+/// of the selection with no pop-up open, the handle's
+/// ([`Canvases::hover_handle`]). Returns whether that changed.
 pub fn divider(
     shared: &mut Shared,
-    canvases: &Canvases,
+    canvases: &mut Canvases,
     tools: &Tools,
     area: Rect,
     at: Point,
 ) -> bool {
     let still = Pen { at, when: 0.0, touch: false, eraser: false, shift: false };
-    let free = tools.open_kind().is_none() && !grabs(canvases, &shared.panes, tools, area, still);
-    shared.dividers.hover(&shared.panes, area, free.then_some(at))
+    let open = tools.open_kind().is_some();
+    let under = pane_at(&shared.panes, area, at).filter(|_| !open);
+    let handle = canvases.hover_handle(&shared.panes, under, at, tools.tool());
+    let free = !open && !grabs(canvases, &shared.panes, tools, area, still);
+    shared.dividers.hover(&shared.panes, area, free.then_some(at)) | handle
 }
 
 /// A press of `pen` focuses the pane of `shared` under it, the panes laid
@@ -215,8 +219,8 @@ pub fn focus(panes: &Panes, area: Rect) -> (PaneId, Rect) {
 /// daemon, a canvas or the config (each said once), the notice, the
 /// sling's buttons and what became of it, the pop-up at the pen and the
 /// flash of a new tool, a page command, a sling or a saved note, the key
-/// overlay, the palette or the page menu on top, the tool's cursor, and the
-/// focused pane's canvas and its file in the title bar.
+/// overlay, the palette or the page menu on top, the tool's cursor (a
+/// selection handle's where the pointer is on one), and the focused pane's canvas and its file in the title bar.
 pub fn view(
     settings: &Settings,
     shared: &mut Shared,
@@ -279,10 +283,12 @@ pub fn view(
     let overlay = overlay.or_else(|| shared.palette.shown(keys, theme, size));
     let overlay = overlay.or_else(|| shared.menu.shown(theme, size));
     scene.overlay = overlay.or(answer).map(Box::new);
-    for pane in &mut scene.canvases {
-        pane.cursor = cursor::over_canvas(tools, theme, pane.scene.viewport.zoom());
-    }
     let free = !shared.modal() && tools.open_kind().is_none();
+    for pane in &mut scene.canvases {
+        let handle = canvases.handle_cursor(pane.pane).filter(|_| free);
+        let tool = || cursor::over_canvas(tools, theme, pane.scene.viewport.zoom());
+        pane.cursor = handle.unwrap_or_else(tool);
+    }
     scene.divider = shared.dividers.cursor().filter(|_| free);
     let now = Instant::now();
     tools.follow(keys, now);
