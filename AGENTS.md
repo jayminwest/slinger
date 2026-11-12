@@ -44,6 +44,7 @@ cargo test --workspace
 - A new verb changes four places, in this order: the core, `crates/control`, the daemon's `answer`, then each client. See "Adding a verb" in `docs/service.md`.
 - AppKit runs on the main thread only. Keep decisions in the pure modules (`scene`, `layout`) and out of `platform`.
 - Keep files under 500 lines. Budgets live in `budgets/` and only tighten.
+- Stop an app or daemon you started by its pid. `pkill -f target/debug/slinger-app` also kills the app that another worktree's tests are running (slinger-db4a8b).
 - Every TODO/FIXME/HACK/XXX cites a tracker id (`slinger-xxxx`), an issue (`#N`) or a URL on the same line.
 - Commits use conventional messages: `type(scope): summary (slinger-xxxx)`.
 - CHANGELOG entries go under `## [Unreleased]`, written for users.
