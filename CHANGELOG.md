@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **Canvas:** text can be any size. Drag a corner handle of a selection
+  with text in it and the text grows or shrinks with it (from 4 to 400
+  units). Agents give a text its size with `size` in `canvas apply`
+  (`slinger canvas schema` shows it), and the pictures an agent reads draw
+  each text at its own size. Canvases saved before read exactly as they did.
+
 - **App:** rename a page and leave feedback with the pen alone. Their
   entries have buttons beside them: ✓ Rename or ✓ Save does what return
   does, ✕ what escape does, and Dictate has Flick write the text in, as

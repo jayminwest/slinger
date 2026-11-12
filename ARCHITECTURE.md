@@ -104,8 +104,9 @@ render/      images of items (docs/design/packet.md, Images): a set of items or 
              box of a page in, PNGs out, at a fixed scale, cut into overlapping
              tiles past the size limit (SCALE, MAX_EDGE, OVERLAP, MARGIN). Owns
              the rasterizer (raster.rs) and the PNG container (png.rs). Pure and
-             deterministic: the same input gives the same bytes. text_size: the
-             frame text needs as drawn; text_frame: the one rule for a text
+             deterministic: the same input gives the same bytes. Text draws
+             at its item's size (one character cell of it a character).
+             text_size: the frame text needs as drawn; text_frame: the one rule for a text
              item's frame (Shape::fitted), which Canvas::apply and the file's
              snap both keep, so no text item covers less than it draws.
 sling.rs     the sling message (SPEC section 6, D10): a packet, the prompt, the
@@ -349,7 +350,8 @@ mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              (tenths, delta points, `#rrggbb`, an arrow's bound ends) into
              scene items, and writes the pen's changes as `canvas_apply`
              operations, and the frame a typed text is stored with (the
-             core's render cells). A text item reads in with the frame its
+             core's render cells at the text's size, `size` left out at the
+             usual 24 and `null` in a `set`). A text item reads in with the frame its
              glyphs fill (scene/glyphs.rs), never the stored width, so every
              hit test, the lasso, the selection and the caret follow the
              glyphs, texts saved earlier included. Keeps the canvas's pages,
@@ -669,8 +671,10 @@ scene/select/scale.rs  a drag of a corner handle scales the selection
              about the opposite corner, width and height apart (with shift,
              together by the larger), never below
              5% or turned over: a stroke's points, a box's corners and an
-             arrow's ends scale (line widths do not); a text, a button and
-             an agent UI keep their size and only their place moves; arrows
+             arrow's ends scale (line widths do not); a text's size scales
+             evenly (the geometric mean of the two sides' scales, within the
+             text sizes, 4 to 400 units); a button and an agent UI keep their
+             size and only their place moves; arrows
              bound to it follow. It shows as the pen goes; the lift writes
              it as one `set` an item, in one `canvas_apply`, so one undo
              step. Pure.
@@ -1014,7 +1018,7 @@ Each boundary has something that fails when it is broken:
 | Strokes not yet written survive a quit and are sent first after the next start; a refused one leaves the file | `crates/app/src/canvases/kept/tests.rs` and `crates/app/src/backend/unsent.rs`, against a real daemon |
 | An erase, a move and a delete are one change each and show at once; a lasso selects what it holds whole; the selection clears | `crates/app/src/scene/select/tests.rs` |
 | The select tool picks the topmost item under a press, a drawn box selects what it touches, shift adds or takes out, a drag moves the selection | `crates/app/src/scene/select/pick/tests.rs` |
-| A drag of a corner handle scales the selection about the opposite corner in one change, texts keep their size, bound arrows follow, no side turns over, shift keeps the shape | `crates/app/src/scene/select/scale/tests.rs` |
+| A drag of a corner handle scales the selection about the opposite corner in one change, a text's size scales evenly within its range, bound arrows follow, no side turns over, shift keeps the shape | `crates/app/src/scene/select/scale/tests.rs` |
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |

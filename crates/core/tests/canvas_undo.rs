@@ -22,7 +22,12 @@ fn stroke(x: f64) -> Shape {
 }
 
 fn text(s: &str) -> Shape {
-    Shape::Text { text: s.into(), frame: Rect::new(10.0, 20.0, 100.0, 40.0), colour: Colour::BLACK }
+    Shape::Text {
+        text: s.into(),
+        frame: Rect::new(10.0, 20.0, 100.0, 40.0),
+        colour: Colour::BLACK,
+        size: 24.0,
+    }
 }
 
 fn page_of(c: &Canvas, name: &str) -> PageId {

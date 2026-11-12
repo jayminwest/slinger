@@ -103,11 +103,21 @@ fn an_arrow_with_no_length_is_a_dot() {
 #[test]
 fn text_draws_glyphs_inside_its_frame() {
     let frame = Rect::new(10.0, 10.0, 80.0, 30.0);
-    let r = drawn(vec![Shape::Text { text: "Hi".into(), frame, colour: Colour::BLACK }]);
+    let r =
+        drawn(vec![Shape::Text { text: "Hi".into(), frame, colour: Colour::BLACK, size: 24.0 }]);
     assert!(ink(&r) > 10, "{}", ink(&r));
     assert_eq!(r.pixel(30, 30), WHITE, "below the line");
-    let blank = drawn(vec![Shape::Text { text: "  ".into(), frame, colour: Colour::BLACK }]);
+    let blank =
+        drawn(vec![Shape::Text { text: "  ".into(), frame, colour: Colour::BLACK, size: 24.0 }]);
     assert_eq!(ink(&blank), 0);
+}
+
+#[test]
+fn text_draws_at_its_own_size() {
+    let frame = Rect::new(0.0, 0.0, 0.0, 0.0);
+    let text = |size| Shape::Text { text: "H".into(), frame, colour: Colour::BLACK, size };
+    let (small, big) = (ink(&drawn(vec![text(12.0)])), ink(&drawn(vec![text(48.0)])));
+    assert!(big > small * 8, "{small} {big}");
 }
 
 #[test]
@@ -139,8 +149,10 @@ fn dashes_are_bars_of_growing_length_and_quotes_look_like_quotes() {
 #[test]
 fn an_em_dash_draws_as_a_line_not_a_question_mark() {
     let frame = Rect::new(10.0, 10.0, 80.0, 30.0);
-    let dash = drawn(vec![Shape::Text { text: "—".into(), frame, colour: Colour::BLACK }]);
-    let question = drawn(vec![Shape::Text { text: "?".into(), frame, colour: Colour::BLACK }]);
+    let dash =
+        drawn(vec![Shape::Text { text: "—".into(), frame, colour: Colour::BLACK, size: 24.0 }]);
+    let question =
+        drawn(vec![Shape::Text { text: "?".into(), frame, colour: Colour::BLACK, size: 24.0 }]);
     assert!(ink(&dash) > 0);
     assert_ne!(ink(&dash), ink(&question));
 }

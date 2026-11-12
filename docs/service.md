@@ -326,10 +326,10 @@ tenths of a unit.
 
 | `op` | fields |
 |---|---|
-| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000`. A `text` without `w` or `h` gets a frame that fits its words (the rule is in `docs/design/canvas-file.md`); a given size is kept. An arrow's `from` or `to` may be `$n` (`$0`, `$1`, ...): the item that `made[n]` of this same request names, made by an `add` before it, so items and the arrows between them are added in one step |
+| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000`. A `text` without `w` or `h` gets a frame that fits its words (the rule is in `docs/design/canvas-file.md`); a given size is kept. A `text`'s optional `size` (40 to 4000 tenths; missing, 240) is the size of its characters; outside that range it is `invalid`. An arrow's `from` or `to` may be `$n` (`$0`, `$1`, ...): the item that `made[n]` of this same request names, made by an `add` before it, so items and the arrows between them are added in one step |
 | `remove` | `ids`: list of item ids. Ids already gone are fine |
 | `move` | `ids`, `dx`, `dy` |
-| `set` | `id`, `fields`: item fields to replace, laid over the item's current ones. New `text` without `w` or `h` reads the missing one as 0, so the frame fits the new words by the same rule |
+| `set` | `id`, `fields`: item fields to replace, laid over the item's current ones. New `text` without `w` or `h` reads the missing one as 0, so the frame fits the new words (at the text's `size`) by the same rule; `"size": null` puts a text back to the usual 240 |
 | `page.add` | `name`. The page goes last |
 | `page.rename` | `page`, `name` |
 | `page.remove` | `page`. Its items go with it; the last page stays |

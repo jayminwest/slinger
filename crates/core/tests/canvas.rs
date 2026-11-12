@@ -25,7 +25,12 @@ fn stroke(points: &[(f64, f64)]) -> Shape {
 }
 
 fn text(s: &str) -> Shape {
-    Shape::Text { text: s.into(), frame: Rect::new(10.0, 20.0, 100.0, 40.0), colour: Colour::BLACK }
+    Shape::Text {
+        text: s.into(),
+        frame: Rect::new(10.0, 20.0, 100.0, 40.0),
+        colour: Colour::BLACK,
+        size: 24.0,
+    }
 }
 
 fn first_page(c: &Canvas) -> PageId {
@@ -145,6 +150,13 @@ fn add_rejects_a_missing_page_a_missing_target_and_shapes_that_cannot_be_drawn()
             text: "t".into(),
             frame: Rect::new(f64::INFINITY, 0.0, 1.0, 1.0),
             colour: Colour::BLACK,
+            size: 24.0,
+        },
+        Shape::Text {
+            text: "t".into(),
+            frame: Rect::new(0.0, 0.0, 1.0, 1.0),
+            colour: Colour::BLACK,
+            size: 0.0,
         },
         Shape::Arrow {
             from: End::free(Point::new(f64::NAN, 0.0)),

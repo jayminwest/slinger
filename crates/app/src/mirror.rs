@@ -33,7 +33,10 @@ pub use write::text_frame_at;
 pub const TEXT_SIZE: f64 = 24.0;
 /// The line width of boxes and arrows, in canvas units, as the packet draws them.
 pub const LINE_WIDTH: f64 = 2.0;
-/// How tall a line of text is in a stored frame, as a part of [`TEXT_SIZE`].
+/// The smallest and the largest text size, in canvas units, as the core
+/// takes them (`slinger_core::canvas::TEXT_SIZES`).
+pub const TEXT_SIZES: std::ops::RangeInclusive<f64> = 4.0..=400.0;
+/// How tall a line of text is in a stored frame, as a part of its size.
 const LINE_HEIGHT: f64 = 1.3;
 
 /// One page of a canvas, and where in the canvas's operations it stands.
@@ -310,7 +313,8 @@ fn read(o: &Map<String, Value>) -> Option<Item> {
         "stroke" => Shape::Stroke { points: points(o.get("pts")?)?, width: units("width")? },
         "text" => {
             let text = o.get("text")?.as_str()?.to_string();
-            Shape::Text { frame: drawn_frame(frame()?, &text), text, size: TEXT_SIZE }
+            let size = units("size").filter(|s| TEXT_SIZES.contains(s)).unwrap_or(TEXT_SIZE);
+            Shape::Text { frame: drawn_frame(frame()?, &text, size), text, size }
         }
         "box" => Shape::Box { frame: frame()?, width: LINE_WIDTH },
         "button" => Shape::Button { frame: frame()?, status: None },
@@ -345,13 +349,13 @@ fn points(pts: &Value) -> Option<Vec<Point>> {
     Some(points.collect())
 }
 
-/// The frame a stored text is drawn in, and hit in: the box its glyphs
-/// fill ([`glyphs::frame`]), wrapped to its stored width, never the stored
-/// width itself. A stored frame narrower than one character would wrap the
-/// text a character a line; such text is drawn unwrapped.
-fn drawn_frame(frame: Rect, text: &str) -> Rect {
-    let column = if frame.width >= TEXT_SIZE { frame.width } else { glyphs::UNWRAPPED };
-    glyphs::frame(Point { x: frame.x, y: frame.y }, text, TEXT_SIZE, column)
+/// The frame a stored text of `size` is drawn in, and hit in: the box its
+/// glyphs fill ([`glyphs::frame`]), wrapped to its stored width, never the
+/// stored width itself. A stored frame narrower than one character would
+/// wrap the text a character a line; such text is drawn unwrapped.
+fn drawn_frame(frame: Rect, text: &str, size: f64) -> Rect {
+    let column = if frame.width >= size { frame.width } else { glyphs::UNWRAPPED };
+    glyphs::frame(Point { x: frame.x, y: frame.y }, text, size, column)
 }
 
 /// `#rrggbb`, or `#rrggbbaa` with its alpha dropped; `None` for anything else.

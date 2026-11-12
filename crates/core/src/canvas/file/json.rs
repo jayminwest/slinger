@@ -9,7 +9,7 @@
 use serde_json::{Map, Value};
 
 use super::time;
-use crate::canvas::{Author, Colour, End, Item, ItemId, PageId, Point, Rect, Shape};
+use crate::canvas::{Author, Colour, End, Item, ItemId, PageId, Point, Rect, Shape, TEXT_SIZE};
 
 /// A JSON object, as read.
 pub(super) type Fields = Map<String, Value>;
@@ -22,6 +22,10 @@ pub(super) type Bad = String;
 pub(super) fn tenths(units: f64) -> i64 {
     (units * 10.0).round() as i64
 }
+
+/// [`TEXT_SIZE`] as stored. A text of this size is written without `size`.
+#[expect(clippy::cast_possible_truncation, reason = "24 units is 240 tenths")]
+const TEXT_TENTHS: i64 = (TEXT_SIZE * 10.0) as i64;
 
 /// A stored value, in canvas units.
 #[expect(clippy::cast_precision_loss, reason = "exact below 2^53 tenths, far past any canvas")]
@@ -147,8 +151,13 @@ pub(super) fn shape(o: Obj, s: &Shape) -> Obj {
             .str("color", &colour(*c))
             .int("width", tenths(*width).max(1))
             .raw("pts", &pts(points.iter().copied())),
-        Shape::Text { text, frame, colour: c } => {
-            rect(o.str("kind", "text").str("color", &colour(*c)), *frame).str("text", text)
+        Shape::Text { text, frame, colour: c, size } => {
+            let o = rect(o.str("kind", "text").str("color", &colour(*c)), *frame).str("text", text);
+            // The usual size is left out, so a line reads as it did before sizes.
+            match tenths(*size) {
+                TEXT_TENTHS => o,
+                size => o.int("size", size),
+            }
         }
         Shape::Box { frame, colour: c } => {
             rect(o.str("kind", "box").str("color", &colour(*c)), *frame)
@@ -214,16 +223,19 @@ pub(super) fn parse_author(s: &str) -> Option<Author> {
 
 /// A shape's fields as an object, as a `set` carries them. An optional field
 /// the shape lacks is `null`, so laying the fields over another shape's
-/// clears it.
+/// clears it (a text's `size` too: `null` is the usual size).
 pub(super) fn fields(s: &Shape) -> Fields {
     let mut m = match serde_json::from_str(&shape(Obj::new(), s).end()) {
         Ok(Value::Object(m)) => m,
         _ => Fields::new(),
     };
-    if matches!(s, Shape::Arrow { .. }) {
-        for key in ["from", "to"] {
-            m.entry(key).or_insert(Value::Null);
-        }
+    let optional: &[&str] = match s {
+        Shape::Arrow { .. } => &["from", "to"],
+        Shape::Text { .. } => &["size"],
+        _ => &[],
+    };
+    for &key in optional {
+        m.entry(key).or_insert(Value::Null);
     }
     m
 }
@@ -267,9 +279,10 @@ pub(super) fn read_shape(m: &Fields) -> Result<Option<Shape>, Bad> {
     let shape = match kind {
         "stroke" => Shape::Stroke { points: parse_pts(m)?, colour, width: units(int(m, "width")?) },
         "text" => {
-            let size = |k| opt_int(m, k).map(|v| units(v.unwrap_or(0)));
-            let frame = Rect::new(at("x")?, at("y")?, size("w")?, size("h")?);
-            Shape::Text { text: text(m, "text")?.to_owned(), frame, colour }
+            let length = |k| opt_int(m, k).map(|v| units(v.unwrap_or(0)));
+            let frame = Rect::new(at("x")?, at("y")?, length("w")?, length("h")?);
+            let size = units(opt_int(m, "size")?.unwrap_or(TEXT_TENTHS));
+            Shape::Text { text: text(m, "text")?.to_owned(), frame, colour, size }
         }
         "box" => {
             let frame = Rect::new(at("x")?, at("y")?, at("w")?, at("h")?);
