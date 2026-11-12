@@ -45,6 +45,8 @@ bullet with the area in bold.
 - **App:** the sling's prompt has the same pen buttons beside it: ✓ Sling
   sends, Dictate dictates and ✕ cancels, with no keyboard.
 
+- **App:** the sidebar and each canvas footer name the profile the agent
+  runs under (`scout (dev) · working`).
 - **Agents:** profiles per workspace. `slinger profile set <workspace> dev
   --dir ~/Projects/app --tool Edit --tool 'Bash(git *)'` gives the
   workspace's agent a named profile: a working directory and the Claude

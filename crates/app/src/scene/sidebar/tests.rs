@@ -14,7 +14,7 @@ const WINDOW: Rect = Rect { x: 0.0, y: 0.0, width: 960.0, height: 600.0 };
 
 /// A workspace named for its agent, `<agent>-ws`, with that status.
 fn ws(agent: &str, status: Option<Status>) -> Workspace {
-    let agent = Agent { name: agent.into(), status, note: None };
+    let agent = Agent { name: agent.into(), status, note: None, ..Agent::default() };
     let canvas = format!("{}-canvas", agent.name);
     Workspace { name: format!("{}-ws", agent.name), canvas, agent: Some(agent) }
 }
@@ -374,4 +374,14 @@ fn the_notice_sits_in_the_panes_area() {
     assert!(text.x >= panes.x && close.x + close.width <= panes.x + panes.width);
     let narrow = Rect { width: 10.0, ..WINDOW };
     assert!(sidebar.notice(&T, narrow).iter().all(|l| l.frame.width.abs() < f64::EPSILON));
+}
+
+#[test]
+fn an_agent_under_a_profile_says_which() {
+    let mut dev = ws("ada", Some(Status::Working));
+    dev.agent.as_mut().unwrap().profile = Some("dev".into());
+    let rows = heard(vec![dev, ws("bo", None)]).rows(&T, WINDOW);
+    let texts: Vec<&str> = shown(&rows).into_iter().map(|(text, _)| text).collect();
+    assert!(texts.contains(&"ada (dev) · working"), "{texts:?}");
+    assert!(texts.contains(&"bo"), "no profile, no mention: {texts:?}");
 }

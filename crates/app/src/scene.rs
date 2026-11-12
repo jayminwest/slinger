@@ -425,7 +425,7 @@ mod tests {
     fn an_open_sidebar_takes_the_left_and_the_notice_shows_over_the_panes() {
         use sidebar::{Agent, Status, Workspace};
         let ws = |status| {
-            let agent = Agent { name: "ada".into(), status, note: None };
+            let agent = Agent { name: "ada".into(), status, note: None, ..Agent::default() };
             vec![Workspace { name: "notes".into(), canvas: "notes".into(), agent: Some(agent) }]
         };
         let mut side = Sidebar::new(true);

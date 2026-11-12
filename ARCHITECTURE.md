@@ -316,8 +316,9 @@ shared.rs    the window's panes as the server keeps them for its workspace,
              commands.
 backend.rs   the app's IO: the one module that talks to the daemon, and the
              one that reads and watches the config files. Its Watch asks the
-             daemon for the workspaces and their agents' statuses
-             (workspace_list, session_list) and for the window's workspace's
+             daemon for the workspaces and their agents' statuses and the
+             profile each runs under (workspace_list, session_list:
+             backend/agents.rs) and for the window's workspace's
              panes (pane_list: the config's, else the first open one) every
              second on a thread of its own, and the window's timer takes the
              news without blocking. When the layout changes it fetches the
@@ -493,7 +494,9 @@ scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              (while it is collapsed, in the bottom-left pane), the pen's
              swatch, width bars and tool, `· typing` or `· N selected`,
              undo and redo; ‹ the page name and `i/n` › (the name opens
-             the page menu); − the zoom +; split right, split down and
+             the page menu); the canvas's agent (`<agent> (<profile>)`
+             under a profile) with its status, and ➤ Sling; − the zoom
+             +; split right, split down and
              close; the `show-keys` and `show-commands` keys, each only
              when bound. Each runs its command on its pane (the press
              focuses it first). A UI pane's has its name and the pane
@@ -556,7 +559,8 @@ scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
              their agents in; the sidebar's rows (a `WORKSPACES` heading; each
              workspace, the shown one bold on a lighter row; its agent's mark,
              round working, round green done, square red blocked, with
-             `<agent> · <status>` or `no agent`; a blocked agent's note),
+             `<agent> · <status>` (`<agent> (<profile>) · <status>` while it
+             runs under a profile) or `no agent`; a blocked agent's note),
              each workspace's rows a target a tap shows (`targets`,
              `pick`), the foot kept for the hide button (`foot`),
              where the panes go beside it, and
