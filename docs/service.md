@@ -85,7 +85,8 @@ Canvases live beside the record, one file per canvas:
 daemon is their only writer (SPEC K5). It makes the directory (mode `0700`)
 with the first canvas, reads a canvas on first use and keeps it open. A torn
 last line (a crash in the middle of a write) is cut off the file, with a line
-on stderr; nothing acknowledged is lost.
+on stderr; nothing acknowledged is lost. `slingerd` takes stderr's lock one
+write at a time, so any thread may write to it while the daemon serves.
 
 ## Socket
 

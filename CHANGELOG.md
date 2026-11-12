@@ -197,6 +197,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Daemon:** opening a canvas whose last line was torn by a crash no
+  longer hangs that request; `slingerd` cuts the line, says so on stderr
+  and answers.
 - **Workspaces:** one open workspace whose `slinger-workspace.toml` breaks
   a rule (say an `agent.tools` rule slinger does not know) no longer stops
   every other workspace from loading. The others work as before; the broken
