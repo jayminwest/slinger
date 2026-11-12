@@ -1,5 +1,6 @@
 //! How an agent changes or takes back what it put (SPEC section 7): new
-//! text, a new size or a new place for one item, or the item gone.
+//! text, a new text size, a new size or a new place for one item, or the
+//! item gone.
 //!
 //! Ids are as `put` takes them (`i12`, or a packet's `c12`, `t12`). Who may
 //! change what is the canvas's author rule ([`Canvas::apply`]): an agent
@@ -13,7 +14,7 @@
 //!
 //! [`Canvas::apply`]: crate::canvas::Canvas::apply
 
-use super::put::TEXT_COLUMNS;
+use super::put::{TEXT_COLUMNS, text_size};
 use std::collections::{HashMap, HashSet};
 
 use super::{Log, Placed, Written, json};
@@ -28,6 +29,9 @@ pub struct Edit {
     /// New words for a text item. Its frame grows or shrinks to hold them,
     /// unless `size` says otherwise.
     pub text: Option<String>,
+    /// A new size for a text item's characters, in tenths of a unit as the
+    /// file stores it. Its frame refits the words, as for new words.
+    pub text_size: Option<i64>,
     /// A new `[w, h]` for a text, a box or a live item, its top-left corner kept.
     pub size: Option<[i64; 2]>,
     /// Where the top-left corner of the item's box goes, `[x, y]`.
@@ -41,22 +45,32 @@ impl Log {
     ///
     /// `not_found` for an item that is not on the canvas, and `invalid` for
     /// an id that is not one, an item `by` did not make, blank text, text
-    /// for an item that is not text, a size for an item that has none, or a
-    /// size below zero.
+    /// or a text size for an item that is not text, a text size out of
+    /// [`TEXT_SIZES`], a size for an item that has none, or a size below
+    /// zero.
+    ///
+    /// [`TEXT_SIZES`]: crate::canvas::TEXT_SIZES
     pub fn edit(&mut self, by: &Author, at: Time, id: &str, edit: &Edit) -> Result<Placed> {
         let (item, _, page) = self.named(id)?;
         let shape = self.canvas().may_change(item, by)?.shape().clone();
         let mut new = shape.clone();
-        if let Some(text) = &edit.text {
+        if edit.text.is_some() || edit.text_size.is_some() {
             let Shape::Text { text: words, frame, size, .. } = &mut new else {
-                return Err(invalid("only a text item has text", "edit a text item's text"));
+                let what = if edit.text.is_some() { "text" } else { "a text size" };
+                let hint = format!("edit a text item's {what}");
+                return Err(invalid(&format!("only a text item has {what}"), &hint));
             };
-            if text.trim().is_empty() {
-                let hint = "pass the new words, or remove the item";
-                return Err(invalid("the text is blank", hint));
+            if let Some(text) = &edit.text {
+                if text.trim().is_empty() {
+                    let hint = "pass the new words, or remove the item";
+                    return Err(invalid("the text is blank", hint));
+                }
+                words.clone_from(text);
             }
-            let (w, h) = render::text_size(text, TEXT_COLUMNS, *size);
-            (*words, frame.w, frame.h) = (text.clone(), w, h);
+            if let Some(tenths) = edit.text_size {
+                *size = text_size(tenths)?;
+            }
+            (frame.w, frame.h) = render::text_size(words, TEXT_COLUMNS, *size);
         }
         if let Some([w, h]) = edit.size {
             let (Shape::Text { frame, .. }

@@ -2,7 +2,7 @@
 //! changes and removes what it made, and nothing else.
 
 use serde_json::json;
-use slinger_control::{CanvasEdit, CanvasOps, Client, Put};
+use slinger_control::{CanvasEdit, CanvasOps, CanvasPut, Client, Put};
 
 use super::Daemon;
 
@@ -44,6 +44,37 @@ fn an_agent_edits_its_own_text_its_size_and_its_place() {
         (&json!("looks wrong"), &json!(500), &json!("agent:scout"))
     );
     assert_eq!(shown.next, 5);
+    daemon.stop();
+}
+
+#[test]
+fn a_text_size_in_tenths_puts_and_edits_and_one_out_of_range_is_invalid() {
+    let daemon = Daemon::start();
+    let client = daemon.client();
+    idea(&client);
+    let put = CanvasPut {
+        canvas: "idea".into(),
+        agent: "scout".into(),
+        beside: "i1".into(),
+        what: Put::Text("hi".into()),
+        color: None,
+        at: None,
+        text_size: Some(480),
+    };
+    let placed = client.canvas_put_as(put.clone()).unwrap();
+    assert_eq!([placed.w, placed.h], [2 * 480, 480], "the frame fits the words at the size");
+    let small = CanvasEdit { text_size: Some(120), ..edit("scout", &placed.item) };
+    let edited = client.canvas_edit(small).unwrap();
+    assert_eq!([edited.w, edited.h], [2 * 120, 120]);
+    let shown = client.canvas_show("idea", None).unwrap();
+    assert_eq!(shown.items[2]["size"], json!(120));
+    let next = shown.next;
+    let err = client.canvas_put_as(CanvasPut { text_size: Some(4001), ..put }).unwrap_err();
+    assert_eq!(err.code(), "invalid");
+    assert!(err.hint().is_some_and(|h| h.contains("40 to 4000")), "{err:?}");
+    let err = client.canvas_edit(CanvasEdit { text_size: Some(39), ..edit("scout", "i2") });
+    assert_eq!(err.unwrap_err().code(), "invalid");
+    assert_eq!(client.canvas_show("idea", None).unwrap().next, next, "nothing written");
     daemon.stop();
 }
 

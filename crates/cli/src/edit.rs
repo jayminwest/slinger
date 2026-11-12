@@ -8,9 +8,9 @@ use slinger_control as control;
 use crate::output::Output;
 use crate::session::{AGENT_HELP, calling_agent};
 
-/// Change an item the agent made: its text, its size or its place; prints its id and box
+/// Change an item the agent made: its text, its text size, its size or its place; prints its id and box
 #[derive(Args)]
-#[command(group(ArgGroup::new("change").required(true).multiple(true).args(["text", "size", "to"])))]
+#[command(group(ArgGroup::new("change").required(true).multiple(true).args(["text", "text_size", "size", "to"])))]
 pub struct Edit {
     canvas: String,
     /// The item to change: an id from 'canvas show' (i12) or from a packet (t12)
@@ -19,6 +19,9 @@ pub struct Edit {
     /// New words for a text item
     #[arg(long, value_name = "TEXT")]
     text: Option<String>,
+    /// A new size for a text item's characters, in tenths like --box and --move: 40 to 4000 (default 240); the frame refits the words
+    #[arg(long = "size", value_name = "TENTHS")]
+    text_size: Option<i64>,
     /// A new size for a text or a box, w by h in tenths of a unit
     #[arg(long = "box", value_name = "W,H", value_parser = crate::put::size)]
     size: Option<[i64; 2]>,
@@ -46,6 +49,7 @@ pub fn edit(args: &Edit, daemon: &control::Client) -> anyhow::Result<Output> {
         agent: calling_agent(args.agent.as_deref())?,
         item: args.item.clone(),
         text: args.text.clone(),
+        text_size: args.text_size,
         size: args.size,
         to: args.to,
     })?;
