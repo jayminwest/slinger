@@ -112,3 +112,36 @@ fn a_narrow_pane_keeps_the_entry_inside_it() {
     let frame = feedback.entry(&T).unwrap().frame;
     assert!(frame.x >= 0.0 && frame.x + frame.width <= 200.0, "{frame:?}");
 }
+
+fn recent(text: &str) -> Recent {
+    Recent { text: text.into(), when: "11-11 14:02".into() }
+}
+
+#[test]
+fn the_open_entry_lists_the_recent_notes_under_any_problem() {
+    let mut feedback = Feedback::default();
+    assert!(!feedback.listed(vec![recent("old")]), "closed: nothing shown changes");
+    assert!(feedback.open(PANE, context()));
+    let header = ("Recent feedback".to_string(), T.muted);
+    assert_eq!(texts(&feedback), [header.clone(), ("11-11 14:02 · old".into(), T.muted)]);
+    assert!(!feedback.listed(vec![recent("old")]), "the same list");
+
+    let many: Vec<_> = (0..9).map(|n| recent(&n.to_string())).collect();
+    assert!(feedback.listed(many));
+    let lines = feedback.labels(&T);
+    assert_eq!(lines.len(), 1 + RECENT);
+    assert!(lines.windows(2).all(|two| two[0].frame.y < two[1].frame.y), "one under another");
+    assert!(lines[0].frame.y > feedback.entry(&T).unwrap().frame.y, "under the entry");
+
+    feedback.typed("slow");
+    feedback.send().unwrap();
+    assert_eq!(texts(&feedback), [("saving feedback…".to_string(), T.muted)]);
+    feedback.answered(Err(Problem { message: "gone".into(), hint: None }));
+    let lines = texts(&feedback);
+    assert_eq!(lines[..2], [("✗ gone".to_string(), T.error), header]);
+
+    // What dictation says goes under them all.
+    let said = feedback.under(&T, vec![("● Flick is listening".into(), T.muted)]);
+    let last = feedback.labels(&T).last().map(|l| l.frame.y).unwrap();
+    assert!(said.len() == 1 && said[0].frame.y > last, "{said:?}");
+}

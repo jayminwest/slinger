@@ -54,7 +54,7 @@ Each packet line is one item: id, kind, x,y, wxh, then fields. `# new` is ink wr
 /// A command the note can tell the agent to use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verb {
-    /// `canvas put`: add text, a box or an arrow beside an item.
+    /// `canvas put`: add text, a box, ink or an arrow beside an item.
     Put,
     /// `canvas crop`: an image of one item.
     Crop,
@@ -67,8 +67,10 @@ impl Verb {
             Self::Put => format!(
                 "Answer on the canvas, not in chat: the user reads the canvas.\n\
                  - `slinger canvas put {canvas} --beside <id> --text <text>` puts text beside \
-                 item <id>; `--box w,h` or `--arrow <from-id> <to-id>` in place of `--text` \
-                 puts a box or an arrow.\n"
+                 item <id>; `--box w,h`, `--ink x,y,dx,dy,...` or `--arrow <from-id> <to-id>` \
+                 in place of `--text` puts a box, a pen stroke or an arrow. `--color #rrggbb` \
+                 colours it; `--at x,y` puts its top-left corner there instead. Put lengths \
+                 are tenths: the packet's 120 is 1200.\n"
             ),
             Self::Crop => format!(
                 "- `slinger canvas crop {canvas} --item <id>` gives an image of an item the \

@@ -1,6 +1,7 @@
 //! Leaving feedback from the window: the `leave-feedback` command opens the
 //! entry ([`crate::scene::feedback`]) in the focused pane, with what the
 //! pane shows, and the thread that saves the note ([`Noter`]) sends it.
+//! Each open asks it for the recent notes to list under the entry.
 //! The entry takes the keys as the sling's does, and only one of the two
 //! is open. Runs on the main thread and never waits.
 
@@ -87,6 +88,7 @@ impl Canvases {
         if !self.notes.entry.open(frame, context) {
             return false;
         }
+        self.notes.noter.list();
         if self.sling.cancel() | self.asks.cancel_rename() {
             self.entry_closed();
         }
@@ -123,10 +125,11 @@ impl Canvases {
         typing
     }
 
-    /// Takes the daemon's answers to the notes. Returns whether anything
-    /// shown changed.
+    /// Takes the daemon's answers to the notes and its list of the recent
+    /// ones. Returns whether anything shown changed.
     pub(super) fn poll_feedback(&mut self) -> bool {
-        let mut changed = false;
+        let notes = &mut self.notes;
+        let mut changed = notes.noter.listed().is_some_and(|recent| notes.entry.listed(recent));
         for answer in self.notes.noter.answers() {
             changed |= self.notes.entry.answered(answer);
         }

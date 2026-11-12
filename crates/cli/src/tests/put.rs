@@ -62,3 +62,35 @@ fn a_put_beside_an_unknown_item_or_with_a_bad_shape_gets_its_exit_code() {
     );
     assert!(runs[2].err.contains("i9"), "{}", runs[2].err);
 }
+
+#[test]
+fn put_takes_a_colour_ink_and_a_place_of_its_own() {
+    let put = |more: &[&'static str]| {
+        let head = ["canvas", "put", "main", "--beside", "i1", "--agent", "scout"];
+        [&head[..], more].concat()
+    };
+    let runs = cli_each(&[
+        &["canvas", "create", "main"],
+        &["canvas", "apply", "main", BOX],
+        &put(&["--text", "yes", "--color", "#ffd400", "--at", "-500,2000"]),
+        &put(&["--ink", "0,0,400,0,0,-100", "--color", "#ff000080"]),
+        &["canvas", "show", "main", "--json"],
+        &put(&["--text", "x", "--color", "yellow"]),
+        &put(&["--arrow", "i1", "i2", "--at", "0,0"]),
+        &put(&["--ink", "0,0,400"]),
+    ]);
+    let codes: Vec<u8> = runs.iter().map(|r| r.code).collect();
+    let errs: Vec<&str> = runs.iter().map(|r| r.err.as_str()).collect();
+    assert_eq!(codes[..5], [exit::OK; 5], "{errs:?}");
+    assert_eq!(codes[5..], [exit::INVALID, exit::USAGE, exit::USAGE]);
+    assert!(runs[2].out.starts_with("i2\t-500,2000,"), "{}", runs[2].out);
+    // Beside the box, a gap to its right: the stroke's box takes half its width.
+    assert_eq!(runs[3].out, "i3\t1240,0,420,120\n");
+    let items = &json(&runs[4])["items"];
+    assert_eq!((&items[1]["color"], &items[1]["x"]), (&"#ffd400".into(), &(-500).into()));
+    assert_eq!(
+        (&items[2]["kind"], &items[2]["color"], &items[2]["width"]),
+        (&"stroke".into(), &"#ff000080".into(), &20.into())
+    );
+    assert!(runs[5].err.contains("not a colour"), "{}", runs[5].err);
+}

@@ -164,6 +164,18 @@ impl Colour {
     pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b, a: 255 }
     }
+
+    /// `#rrggbb`, or `#rrggbbaa` with alpha; `None` for anything else.
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Self> {
+        let hex = s.strip_prefix('#')?;
+        if !(hex.len() == 6 || hex.len() == 8) || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return None;
+        }
+        let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).unwrap_or(0);
+        let a = if hex.len() == 8 { byte(6) } else { 255 };
+        Some(Self { r: byte(0), g: byte(2), b: byte(4), a })
+    }
 }
 
 /// One end of an arrow: where it is, and the item it points at, if any.

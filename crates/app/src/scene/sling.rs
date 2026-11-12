@@ -302,7 +302,8 @@ impl Sling {
     /// dictation says.
     pub fn under(&self, theme: &Theme, lines: Vec<(String, Rgb)>) -> Vec<Label> {
         let Some((_, frame, Stage::Typing(problem))) = &self.open else { return Vec::new() };
-        under(*frame, problem.as_ref(), theme, lines)
+        let after = problem.as_ref().map_or(0, |p| 1 + usize::from(p.hint.is_some()));
+        under(*frame, after, theme, lines)
     }
 }
 
@@ -393,15 +394,10 @@ pub fn line(frame: Rect, n: f64, text: String, colour: Rgb, theme: &Theme) -> La
     Label { text, colour, fill: Some(theme.background), frame }
 }
 
-/// `lines` (text and colour) under the entry's box at `frame`, after the
-/// lines of its `problem`, if any.
-pub fn under(
-    frame: Rect,
-    problem: Option<&Problem>,
-    theme: &Theme,
-    lines: Vec<(String, Rgb)>,
-) -> Vec<Label> {
-    let first = problem.map_or(1, |p| 2 + u32::from(p.hint.is_some()));
+/// `lines` (text and colour) under the entry's box at `frame`, after
+/// `after` lines of its own (a problem and its hint).
+pub fn under(frame: Rect, after: usize, theme: &Theme, lines: Vec<(String, Rgb)>) -> Vec<Label> {
+    let first = u32::try_from(after).unwrap_or(u32::MAX).saturating_add(1);
     let placed = lines.into_iter().zip(first..);
     placed.map(|((text, colour), n)| line(frame, f64::from(n), text, colour, theme)).collect()
 }

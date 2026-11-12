@@ -90,17 +90,18 @@ impl Sessions {
 
     /// Starts the process of the agent of the open workspace `which` names,
     /// in the agent's home and within the workspace's limits on this machine,
-    /// and returns its session. A running one is left as it is.
+    /// and returns its session. A running one is left as it is, unless
+    /// `fresh`: then the agent starts a new session, its last one dropped.
     ///
     /// # Errors
     ///
     /// `not_found` for a workspace that is not open, `invalid` for one with
     /// no agent, and the process's error.
-    pub fn start(&self, store: &Store, which: &str) -> Result<Session> {
+    pub fn start(&self, store: &Store, which: &str, fresh: bool) -> Result<Session> {
         let opened = store.workspaces().show(which)?;
         let session = self.show(store, session::agent_of(&opened.workspace)?)?;
         let limits = stream::Limits::of(&opened.workspace, store.machine());
-        self.processes.start(&session.agent, &session.home, &limits)?;
+        self.processes.start(&session.agent, &session.home, &limits, fresh)?;
         Ok(session)
     }
 

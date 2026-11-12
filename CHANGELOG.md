@@ -17,6 +17,12 @@ bullet with the area in bold.
   in the sling's prompt (tap it again, ● Stop, when done). The dictate
   key works in these entries too.
 
+- **Feedback:** the app's feedback entry (`leave-feedback`, ⌘⇧F) lists
+  the five newest open notes under it, with when each was left, so you see
+  what is already said before you add to it.
+- **CLI:** `slinger session start <workspace> --fresh` starts the agent in a
+  new conversation instead of resuming its last one, stopping a running
+  agent first.
 - **App:** copy, cut and paste on the canvas. With a selection, Edit >
   Copy (⌘C) puts its items on the clipboard (other apps get the text of
   its texts), Cut (⌘X) also removes them, and Edit > Paste (⌘V) adds them
@@ -27,6 +33,10 @@ bullet with the area in bold.
   from another app pastes onto the page as a new text in the pen's
   colour.
 
+- **CLI:** `slinger canvas put` takes `--color` (`#rrggbb`, so an agent can
+  answer in yellow), `--at x,y` to put the item exactly where it wants
+  instead of beside the item, and `--ink` to draw a pen stroke (a bracket,
+  an underline, a check mark). The note in a first sling tells the agent.
 - **CLI:** `slinger canvas schema` prints the item kinds (text, box,
   arrow, stroke, button, live) with their fields and the operations
   `canvas apply` takes, without a daemon; `canvas apply --help` shows the
@@ -136,6 +146,13 @@ bullet with the area in bold.
 
 - **App:** ⌘Z and ⇧⌘Z undo and redo your typing in the sling's prompt
   (and a note of feedback or a page's new name) instead of doing nothing.
+- **Sessions:** an agent whose last conversation Claude Code no longer has
+  (`--resume` fails) is no longer stuck. Its process shows as `exited`,
+  and the next `slinger session start` begins a new conversation.
+- **CLI:** when an agent moves its item with `slinger canvas edit --move`,
+  its arrows bound to the item follow, as they do when you move it in the
+  app; they no longer point at where the item was.
+
 - **App:** a colour, shape, tool or width pop-up opened from a key before
   the pen or pointer has been in the window opens at the middle of the
   focused pane, wherever the window was sized, not at a fixed spot.

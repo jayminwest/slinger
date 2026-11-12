@@ -7,13 +7,15 @@
 //! change. That rule is checked before anything else about the edit, so an
 //! agent naming the user's item always hears that it is not its own.
 //! Removing an item already gone succeeds and writes nothing (B4), as does
-//! an edit that leaves the item as it was.
+//! an edit that leaves the item as it was. A move takes along the ends of
+//! the arrows bound to the item, in the same step, as a move in the app
+//! does; only the arrows the agent may change.
 //!
 //! [`Canvas::apply`]: crate::canvas::Canvas::apply
 
 use super::put::TEXT_COLUMNS;
 use super::{Log, Placed, Written, json};
-use crate::canvas::{Action, Author, Item, Point, Rect, Shape, Time};
+use crate::canvas::{Action, Author, End, Item, ItemId, Point, Rect, Shape, Time};
 use crate::render;
 use crate::{Error, Result};
 
@@ -68,18 +70,51 @@ impl Log {
             };
             (frame.w, frame.h) = (json::units(w), json::units(h));
         }
+        let mut by_moved = Point::new(0.0, 0.0);
         if let Some([x, y]) = edit.to {
             let Rect { x: left, y: top, .. } = new.bounds();
-            new = new.shifted(Point::new(json::units(x) - left, json::units(y) - top));
+            by_moved = Point::new(json::units(x) - left, json::units(y) - top);
+            new = new.shifted(by_moved);
         }
         let written = if new == shape {
             Written::default()
         } else {
-            self.step(by, at, vec![Action::Edit { item, shape: new }])?
+            let mut actions = vec![Action::Edit { item, shape: new }];
+            actions.extend(self.followers(by, item, by_moved));
+            self.step(by, at, actions)?
         };
         let frame = self.canvas().item(item).map(Item::bounds).unwrap_or_default();
         let frame = [frame.x, frame.y, frame.w, frame.h].map(json::tenths);
         Ok(Placed { written, item: json::item_id(item), page: json::page_id(page), frame })
+    }
+
+    /// The arrows that follow a move of `item` by `by_moved`, as edits: each
+    /// arrow `by` may change with an end bound to `item`, that end moved. An
+    /// arrow `by` may not change (an agent's move of its note, the user's
+    /// arrow to it) stays as it is, as the author rule says.
+    fn followers(&self, by: &Author, item: ItemId, by_moved: Point) -> Vec<Action> {
+        if by_moved == Point::new(0.0, 0.0) {
+            return Vec::new();
+        }
+        let Some(page) = self.canvas().item(item).map(Item::page) else { return Vec::new() };
+        let mut follow = Vec::new();
+        for arrow in self.canvas().items(page) {
+            let Shape::Arrow { from, to, colour } = arrow.shape() else { continue };
+            let on = |end: &End| end.item == Some(item);
+            if arrow.id() == item || !(on(from) || on(to)) || !by.may_change(arrow.author()) {
+                continue;
+            }
+            let shift = |end: &End| {
+                if on(end) {
+                    End { at: Point::new(end.at.x + by_moved.x, end.at.y + by_moved.y), ..*end }
+                } else {
+                    *end
+                }
+            };
+            let shape = Shape::Arrow { from: shift(from), to: shift(to), colour: *colour };
+            follow.push(Action::Edit { item: arrow.id(), shape });
+        }
+        follow
     }
 
     /// Takes the item `id` names off the canvas, as `by` at `at`, as one

@@ -19,7 +19,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
 use serde_json::Value;
-use slinger_core::canvas::file::{Edit, Log, Placed, Put, Shown, Written, check_id, parse_author};
+use slinger_core::canvas::file::{
+    Edit, How, Log, Placed, Put, Shown, Written, check_id, parse_author,
+};
 use slinger_core::canvas::{Author, Canvas, Time};
 use slinger_core::packet::Packet;
 use slinger_core::render::Image;
@@ -231,15 +233,22 @@ impl Canvases {
         self.change(id, |log| Ok(log.apply(&by, now(), ops)?))
     }
 
-    /// Puts `what` beside the item `beside` names, as `agent` (see
-    /// [`Log::put`]), after the line is on disk.
+    /// Puts `what` beside the item `beside` names, as `agent`, drawn as
+    /// `how` says (see [`Log::put_how`]), after the line is on disk.
     ///
     /// # Errors
     ///
-    /// The errors of [`Log::put`] and of reading and writing the file.
-    pub fn put(&self, id: &str, agent: &str, beside: &str, what: &Put) -> Result<Placed> {
+    /// The errors of [`Log::put_how`] and of reading and writing the file.
+    pub fn put(
+        &self,
+        id: &str,
+        agent: &str,
+        beside: &str,
+        what: &Put,
+        how: &How,
+    ) -> Result<Placed> {
         let by = Author::Agent(agent.into());
-        self.change(id, |log| Ok(log.put(&by, now(), beside, what)?))
+        self.change(id, |log| Ok(log.put_how(&by, now(), beside, what, how)?))
     }
 
     /// Puts `what` as [`Canvases::put`] does, once [`Log::check_put`] says it

@@ -175,7 +175,9 @@ mod tests {
     use slinger_control::Client;
 
     use super::*;
-    use crate::backend::testing::{fake_claude, fake_flick, ready, user_stroke, wait_until};
+    use crate::backend::testing::{
+        delivered, fake_claude, fake_flick, ready, user_stroke, wait_until,
+    };
     use crate::backend::tests::{open_notes, with_store};
     use crate::config::{Config, Rgb};
     use crate::layout::{CANVAS_MARGIN, WINDOW};
@@ -239,14 +241,14 @@ mod tests {
         assert!(canvases.selection().is_some());
     }
 
-    /// What the agent's process read, once it read anything.
-    fn delivered(home: &std::path::Path) -> String {
-        let mut message = String::new();
+    /// Waits until the sling is done with: its entry closed and no line of
+    /// it left, so it went. Any poll's news is not that: other news comes too.
+    fn gone(canvases: &mut Canvases) {
+        let theme = Config::default().theme;
         wait_until(|| {
-            message = std::fs::read_to_string(home.join("in.txt")).unwrap_or_default();
-            !message.is_empty()
+            canvases.poll();
+            !canvases.typing() && canvases.sling.labels(&theme).is_empty()
         });
-        message
     }
 
     /// Opens the entry at the selection, types `prompt` and sends it.
@@ -285,11 +287,11 @@ mod tests {
 
             daemon.session_start("notes").unwrap();
             assert!(canvases.sling_key(Chord::new(0, '\r')), "return tries again");
-            wait_until(|| canvases.poll() && !canvases.typing());
+            gone(&mut canvases);
             let went = shown(&canvases, &panes);
             assert_eq!((went.entry, went.labels.len()), (None, 0), "it went: nothing more shows");
-            let message = delivered(home.path());
-            assert!(message.contains("selected=c1") && message.contains("what is this?"));
+            let message = delivered(home.path(), "what is this?");
+            assert!(message.contains("selected=c1"), "{message}");
 
             assert!(canvases.open_sling(&panes, WINDOW.rect()));
             assert!(canvases.sling_key(Chord::new(0, '\u{1b}')), "escape cancels");
@@ -301,7 +303,7 @@ mod tests {
                 !canvases.sling_now(&selection, "again?", around, WINDOW.rect()),
                 "one at a time"
             );
-            wait_until(|| canvases.poll());
+            gone(&mut canvases);
 
             assert!(canvases.open_sling(&panes, WINDOW.rect()));
             let pen = Pen { at: Point { x: 400.0, y: 400.0 }, ..PEN };
@@ -365,8 +367,8 @@ mod tests {
             // Flick types what it heard into the focused entry.
             assert!(!canvases.sling_typed("what is this drawing?"));
             assert!(canvases.sling_key(Chord::new(0, '\r')));
-            wait_until(|| canvases.poll() && !canvases.typing());
-            assert!(delivered(home.path()).contains("what is this drawing?"));
+            gone(&mut canvases);
+            delivered(home.path(), "what is this drawing?");
 
             // Escape while Flick listens cancels the dictation.
             canvases.clear_selection(&panes, panes.focus());
@@ -404,8 +406,8 @@ mod tests {
 
             assert!(!canvases.sling_typed("typed instead"));
             assert!(canvases.sling_key(Chord::new(0, '\r')));
-            wait_until(|| canvases.poll() && !canvases.typing());
-            assert!(delivered(home.path()).contains("typed instead"));
+            gone(&mut canvases);
+            delivered(home.path(), "typed instead");
             daemon.session_stop("notes").unwrap();
         });
     }

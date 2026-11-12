@@ -153,7 +153,7 @@ impl Pages {
     /// dictation says.
     pub fn under(&self, theme: &Theme, lines: Vec<(String, Rgb)>) -> Vec<crate::scene::Label> {
         let Some(Ask::Rename { frame, .. }) = &self.ask else { return Vec::new() };
-        under(*frame, None, theme, lines)
+        under(*frame, 0, theme, lines)
     }
 
     /// Whether `at`, a point in the window, is on the new name's entry.
