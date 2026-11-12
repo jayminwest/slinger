@@ -27,7 +27,9 @@ bullet with the area in bold.
   entries have buttons beside them: ✓ Rename or ✓ Save does what return
   does, ✕ what escape does, and Dictate has Flick write the text in, as
   in the sling's prompt (tap it again, ● Stop, when done). The dictate
-  key works in these entries too.
+  key works in these entries too, and shows beneath them.
+- **App:** the sling's prompt has the same pen buttons beside it: ✓ Sling
+  sends, Dictate dictates and ✕ cancels, with no keyboard.
 
 - **Agents:** profiles per workspace. `slinger profile set <workspace> dev
   --dir ~/Projects/app --tool Edit --tool 'Bash(git *)'` gives the
@@ -185,6 +187,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** tapping the "send to agent" button while the feedback entry
+  or a page's new name is open closes it and slings, instead of doing
+  nothing.
 - **Canvas:** zero-width characters (a joiner, a zero-width space, an emoji
   variation selector) no longer take a blank cell in a text's picture or
   widen its frame.
@@ -203,7 +208,9 @@ bullet with the area in bold.
   wide as its words: a pill with symbols or wide letters no longer cuts
   them off or leaves a gap.
 - **App:** ⌘Z and ⇧⌘Z undo and redo your typing in the sling's prompt
-  (and a note of feedback or a page's new name) instead of doing nothing.
+  (and a note of feedback or a page's new name) instead of doing nothing,
+  and so do Edit > Undo and Redo chosen with the pointer, instead of
+  undoing the canvas.
 - **App:** the pointer turns into the resize cursor within reach of the
   divider between two panes, and keeps it while you drag the divider, so
   you can see where a press resizes the panes.

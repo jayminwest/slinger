@@ -725,10 +725,12 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              beside a selection's box, ➤ Sling (`sling-now`), + prompt
              (`sling`) and Delete (`delete-selection`), each a 28 pt target
              inside the pane; while a sling is out, Delete alone.
-             `sling/pen.rs`: the pen's buttons beside a
-             note's or a new name's box, ✓ Save or ✓ Rename (Tap::Send, as
-             return), Dictate (`dictate`; ● Stop while Flick listens) and ✕
-             (Tap::Cancel, as escape); the box narrows to make room.
+             `sling/pen.rs`: the pen's buttons beside every entry's box
+             (the prompt's, a note's, a new name's), ✓ Sling, ✓ Save or ✓
+             Rename (Tap::Send, as return), Dictate (`dictate`; ● Stop while
+             Flick listens) and ✕ (Tap::Cancel, as escape); the box narrows
+             or moves to make room. Every entry shows the live dictate key
+             beneath its box (Entry::dictated).
 scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
              sling's labelled field (Entry::framed), "Feedback" above and
              "↩ saves · esc cancels" beneath, centred in the focused pane

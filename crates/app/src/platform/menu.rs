@@ -3,9 +3,10 @@
 //! answer: chosen by its key, as that key press, so the keymap runs it once;
 //! chosen with the pointer, as [`Event::Command`]. A native item goes to the
 //! window or the text field with the focus (cut, copy, paste). The menu
-//! takes its keys before any field: an undo or a redo key the app passes on
-//! (the sling's entry has the keys) goes to the field as `undo:` or `redo:`
-//! along the responder chain, so cmd+Z undoes the typing there.
+//! takes its keys before any field: an undo or a redo, by its key or the
+//! pointer, that the app passes on (an entry has the keys) goes to the
+//! field as `undo:` or `redo:` along the responder chain, so it undoes the
+//! typing there.
 
 use std::cell::RefCell;
 
@@ -45,7 +46,7 @@ define_class!(
             let now = app.currentEvent();
             let key = now.filter(|e| e.r#type() == NSEventType::KeyDown).and_then(|e| chord(&e));
             let took = dispatch(key.map_or(Event::Command(command), Event::Key), mtm);
-            if let (false, Some(_), Some(action)) = (took, key, in_field(command)) {
+            if let (false, Some(action)) = (took, in_field(command)) {
                 // SAFETY: `undo:` and `redo:` take a sender; with no target
                 // they go to the first responder that answers them.
                 unsafe { app.sendAction_to_from(action, None, Some(item)) };
