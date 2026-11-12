@@ -2,7 +2,8 @@
 //! new name): a native text field, so typing, the caret, input methods and
 //! accents work as in any Mac app, in a rounded box with a border, its
 //! label above and its keys beneath. It lives while the scene has an
-//! entry, over every other view. Each edit goes to the app as
+//! entry, over every other view but the overlay (the key overlay, the
+//! palette, the page menu), which dims it with the rest. Each edit goes to the app as
 //! [`Event::Typed`] with the whole text. Return and escape never reach it:
 //! the window's `sendEvent:` hands every key to the app first, which keeps
 //! those two. The Edit menu's cut, copy, paste and select all reach the
@@ -96,6 +97,7 @@ impl EntryField {
 /// The entry on screen: its field, the views around it (the box, the
 /// label and the keys, lowest first) and what they were made from (the
 /// entry with no text), so they are made again only when that changes.
+/// The overlay alone draws over them.
 pub struct Kept {
     field: Retained<EntryField>,
     around: Vec<Retained<NSView>>,
@@ -158,13 +160,15 @@ impl Kept {
 /// and given the entry's text while it stays (its text only when it
 /// differs, so the caret stays where it is), the views around it made
 /// again when they change; all removed when the entry goes, the keyboard
-/// back to the window. While open, the field has the keyboard
-/// ([`Kept::focus`]).
+/// back to the window. A new field goes just under `under` (the overlay's
+/// lowest view), or on top with no overlay. While open, the field has the
+/// keyboard ([`Kept::focus`]).
 pub fn place(
     window: &NSWindow,
     view: &NSView,
     kept: &mut Option<Kept>,
     entry: Option<&Entry>,
+    under: Option<&NSView>,
     height: f64,
     mtm: MainThreadMarker,
 ) {
@@ -190,7 +194,12 @@ pub fn place(
         return;
     }
     let field = EntryField::new(entry, height, mtm);
-    view.addSubview(&field);
+    match under {
+        Some(over) => {
+            view.addSubview_positioned_relativeTo(&field, NSWindowOrderingMode::Below, Some(over));
+        }
+        None => view.addSubview(&field),
+    }
     let mut shown = Kept { field, around: Vec::new(), made_from: entry.clone() };
     shown.surround(view, entry, height, mtm);
     shown.focus(window);
