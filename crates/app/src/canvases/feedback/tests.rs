@@ -253,34 +253,39 @@ fn every_entry_shows_the_dictate_key_and_the_sling_s_has_the_pen_s_buttons() {
         let (labels, targets) = buttons(&canvases, &panes);
         assert_eq!(labels, ["✓ Sling", DICTATE, CROSS]);
         let entry = shown(&canvases, &panes).entry.unwrap();
-        let pane = panes.place(here.1)[0].2;
-        let last = targets[2].0;
+        let (pane, last) = (panes.place(here.1)[0].2, targets[2].0);
         assert!(targets[0].0.x > entry.frame.x + entry.frame.width, "right of the box");
         assert!(last.x + last.width <= pane.x + pane.width, "inside the pane");
         tap(&mut canvases, targets[2]);
         assert!(!canvases.typing(), "cancelled");
-        assert!(canvases.sling_command(Command::Sling, &panes, here.1));
-        canvases.sling_typed("why?");
-        let send = buttons(&canvases, &panes).1[0];
-        tap(&mut canvases, send);
-        assert!(!canvases.typing(), "sent");
-        // No agent runs: it goes, fails, and opens again with why.
-        wait_until(|| {
-            canvases.poll();
-            canvases.typing()
-        });
-        let lines = shown(&canvases, &panes).labels;
-        assert!(lines[0].text.starts_with("✗ "), "{lines:?}");
+        sling_by_the_button(&mut canvases, &panes);
     });
+}
+
+/// The sling's entry opened again, "why?" typed, and "✓ Sling" tapped: it
+/// goes and, with no agent running, fails and opens again with why.
+fn sling_by_the_button(canvases: &mut Canvases, panes: &Panes) {
+    assert!(canvases.sling_command(Command::Sling, panes, WINDOW.rect()));
+    canvases.sling_typed("why?");
+    let send = buttons(canvases, panes).1[0];
+    tap(canvases, send);
+    assert!(!canvases.typing(), "sent");
+    wait_until(|| {
+        canvases.poll();
+        canvases.typing()
+    });
+    let lines = shown(canvases, panes).labels;
+    assert!(lines[0].text.starts_with("✗ "), "{lines:?}");
 }
 
 /// A lasso round the stroke `user_stroke` made, with the pen.
 fn lasso_the_stroke(canvases: &mut Canvases, panes: &Panes) {
-    let here = Some((panes.focus(), WINDOW.rect()));
+    let at = (panes.focus(), WINDOW.rect());
+    let here = Some(at);
     let pen =
         |x, y| Pen { at: Point { x, y }, when: 0.0, touch: false, eraser: false, shift: false };
     let lasso = (Tool::Lasso, Config::default().theme.text);
-    assert!(canvases.pen_down(panes, here.unwrap(), pen(50.0, 50.0), lasso));
+    assert!(canvases.pen_down(panes, at, pen(50.0, 50.0), lasso));
     for (x, y) in [(200.0, 50.0), (200.0, 200.0), (50.0, 200.0)] {
         canvases.pen_drag(panes, pen(x, y), here);
     }
