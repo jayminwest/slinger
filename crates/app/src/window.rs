@@ -218,7 +218,9 @@ pub fn view(
     let overlay = overlay.or_else(|| shared.palette.shown(keys, theme, size));
     let overlay = overlay.or_else(|| shared.menu.shown(theme, size));
     scene.overlay = overlay.or(answer).map(Box::new);
-    scene.cursor = cursor::over_canvas(tools, theme);
+    for pane in &mut scene.canvases {
+        pane.cursor = cursor::over_canvas(tools, theme, pane.scene.viewport.zoom());
+    }
     let now = Instant::now();
     tools.follow(keys, now);
     let said = canvases.said();

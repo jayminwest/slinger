@@ -18,6 +18,7 @@
 mod button;
 mod drag;
 mod find;
+mod kept;
 mod live;
 mod paging;
 
@@ -30,6 +31,7 @@ use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Rect, Size, Viewport};
 use crate::mirror::{Applied, Mirror};
 use crate::panes::{Kind, Panes};
+use crate::scene::cursor::Cursor;
 use crate::scene::grid::Paper;
 use crate::scene::ink::{Answer, Ink, Pen};
 use crate::scene::pages::{self, Pages};
@@ -84,6 +86,8 @@ pub struct Canvases {
     zoomed: Option<String>,
     /// Whether every canvas pane shows the dotted grid.
     paper: Paper,
+    /// Where the strokes not yet written are kept, if anywhere.
+    kept: Option<kept::Kept>,
 }
 
 /// One canvas page followed: the page asked for (`None`: the first), as
@@ -116,7 +120,8 @@ impl Default for View {
 }
 
 impl Canvases {
-    /// None followed yet; [`Canvases::show`] starts following.
+    /// None followed yet; [`Canvases::show`] starts following. Strokes not
+    /// yet written are kept nowhere until [`Canvases::keeping`].
     pub fn new(daemon: Client) -> Self {
         let (outbox, slinger) = (Outbox::start(daemon.clone()), Slinger::start(daemon.clone()));
         let (ink, select, sling) = (Ink::default(), Select::default(), Sling::default());
@@ -147,6 +152,7 @@ impl Canvases {
             agents: None,
             zoomed: None,
             paper: Paper::default(),
+            kept: None,
         }
     }
 
@@ -230,12 +236,14 @@ impl Canvases {
         if let Some((key, change)) = self.ink.next() {
             self.outbox.send(key, change);
         }
+        self.keep();
         answered
     }
 
     /// What is wrong with any canvas followed, or with sending the ink.
     pub fn problems(&self) -> impl Iterator<Item = &Problem> {
-        self.open.iter().filter_map(|o| o.problem.as_ref()).chain(self.ink.problem())
+        let kept = self.kept.as_ref().and_then(kept::Kept::problem);
+        self.open.iter().filter_map(|o| o.problem.as_ref()).chain(self.ink.problem()).chain(kept)
     }
 
     /// The pen went down in `pane` of `panes`, laid at `frame` in the
@@ -385,7 +393,8 @@ impl Canvases {
     /// has arrived; a pane turned to a page still on its way keeps what it
     /// drew. Starts following each page a pane shows, stops following the
     /// others, forgets the views of panes that closed, and clears a
-    /// selection no pane shows.
+    /// selection no pane shows. Each pane's pointer is the arrow: the
+    /// window decides it from the pen.
     pub fn show(&mut self, panes: &Panes, area: Rect, theme: &Theme) -> Vec<CanvasPane> {
         // A canvas pane's canvas is what its footer leaves of it.
         let placed: Vec<_> = (panes.place(area).into_iter())
@@ -427,7 +436,12 @@ impl Canvases {
             let view = &mut self.views[at].1;
             let Some(mirror) = mirror else {
                 if let Some(last) = &view.last {
-                    scenes.push(CanvasPane { pane: id, frame, scene: Rc::clone(last) });
+                    scenes.push(CanvasPane {
+                        pane: id,
+                        frame,
+                        scene: Rc::clone(last),
+                        cursor: Cursor::Arrow,
+                    });
                 }
                 continue;
             };
@@ -447,7 +461,7 @@ impl Canvases {
             }
             let scene = Rc::new(scene);
             view.last = Some(Rc::clone(&scene));
-            scenes.push(CanvasPane { pane: id, frame, scene });
+            scenes.push(CanvasPane { pane: id, frame, scene, cursor: Cursor::Arrow });
         }
         scenes
     }
