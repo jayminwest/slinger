@@ -67,6 +67,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** ink is smoother. The pen's small wobbles no longer show as bumps
+  along a line's edges, most of all at the bold and marker widths; a line
+  still starts and ends where the pen did, and fine writing keeps its shape.
 - **App:** the sling's pill (`● scout working · 4s` and what follows it)
   and the ➤ Sling and + prompt buttons centre their words top to bottom,
   instead of sitting them at the top of their fill.
