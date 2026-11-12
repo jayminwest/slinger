@@ -228,7 +228,8 @@ processes.rs the agents' processes, one per agent: spawned in the agent's
              home within its limits, with `SLINGER_AGENT` and `SLINGER_SOCKET`,
              written to under one lock, read by a thread each so a pipe never
              fills. Keeps each session id in `sessions.json` once the output
-             names it. Dropping one closes its input, waits a grace period,
+             names it; drops it when a resume fails (an error exit before the
+             output names it) or on a `fresh` start. Dropping one closes its input, waits a grace period,
              then kills it; `serve` ends them all when it stops. No restart on death (D20).
              Each starts with the core's hooks in `--settings`, running the
              CLI at `--slinger` (default: beside slingerd).
@@ -902,7 +903,7 @@ Each boundary has something that fails when it is broken:
 | A put covers nothing: right of the item, else below, left, above, else further right | `crates/core/tests/canvas_put.rs` |
 | A put shows with its author; after a sling it lands `reply_landed`; an unknown item is `not_found` | `crates/daemon/src/tests/put.rs`, through a real socket |
 | An agent edits and removes only its own items; removing twice succeeds twice | `crates/core/tests/canvas_edit.rs`, and `crates/daemon/src/tests/edit.rs` through a real socket |
-| Three sends reach one process under one session id and their answers are read; a restart resumes it; a dead process makes a send `unavailable`; a daemon stop ends it | `crates/daemon/src/tests/process.rs`, with a stand-in for Claude Code |
+| Three sends reach one process under one session id and their answers are read; a restart resumes it; a dead process makes a send `unavailable`; a daemon stop ends it; a resume that fails drops the id and the next start is new; a fresh start ends the running process and begins a new session | `crates/daemon/src/tests/process.rs`, with a stand-in for Claude Code |
 | A session starts with the exact limits its workspace sets: by default its roots, the `slinger` CLI and no user config; wider with the agent's `dirs`, `tools` and `user_config` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
 | Three slings go into one conversation, each with its packet blob and `sling_sent`; old ink is not sent again; no running agent is `unavailable` and stores nothing; each verb the note names is served | `crates/daemon/src/tests/sling.rs`, with a stand-in for Claude Code |
 | An agent verb takes its agent from `--agent` or `SLINGER_AGENT`, else exits 2 | `crates/cli/tests/agent_env.rs`, against the real binary |

@@ -164,7 +164,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `arrow`: `[from, to]` item ids | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
 | `canvas_edit` | `canvas`: canvas id, `agent`: string, `item`: an item id, then any of `text`: string, `box`: `[w, h]` in tenths, `move`: `[x, y]` in tenths | `item`, `page`, `x`, `y`, `w`, `h`: its box now, `seq`: the numbers written (empty when nothing changed) |
 | `canvas_remove` | `canvas`: canvas id, `agent`: string, `item`: an item id | `seq`: the numbers written (empty when it was already gone) |
-| `session_start` | `workspace`: string, its name or the directory of its file | `session` |
+| `session_start` | `workspace`: string, its name or the directory of its file, `fresh`: bool (default `false`) | `session` |
 | `session_stop` | `workspace`: string | `session` |
 | `session_send` | `workspace`: string, `text`: string | `session` |
 | `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` |
@@ -607,7 +607,12 @@ workspace and still applies, so the owner can widen a session there too.
 start gives it a new session id (`--session-id`); once its output names that
 id, the daemon keeps it in `sessions.json`, and every later start, after a
 restart too, resumes it (`--resume`). Starting one that runs changes nothing;
-one that exited is started again. **`session_stop`** closes the process's
+one that exited is started again. A resume that fails (the process exits
+with an error code before its output names the id, as Claude Code does when
+it no longer has the conversation) drops the kept id: that process shows as
+`exited`, and the next start begins a new session. With `fresh` a start
+always begins a new session: the kept id is dropped and a running process
+is stopped first. **`session_stop`** closes the process's
 input, waits up to 3 seconds and then kills it; stopping one that is not
 running succeeds. **`session_send`** writes `text` to the process as one user
 message and returns: the answer is the agent's to deliver, through the CLI.

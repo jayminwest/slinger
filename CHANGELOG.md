@@ -11,6 +11,10 @@ bullet with the area in bold.
 
 ### Added
 
+- **CLI:** `slinger session start <workspace> --fresh` starts the agent in a
+  new conversation instead of resuming its last one, stopping a running
+  agent first.
+
 - **CLI:** `slinger canvas schema` prints the item kinds (text, box,
   arrow, stroke, button, live) with their fields and the operations
   `canvas apply` takes, without a daemon; `canvas apply --help` shows the
@@ -118,6 +122,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Sessions:** an agent whose last conversation Claude Code no longer has
+  (`--resume` fails) is no longer stuck. Its process shows as `exited`,
+  and the next `slinger session start` begins a new conversation.
 - **App:** the key overlay (⌘/) fits a narrow window. It drops to two
   columns, then one, instead of squeezing three until the titles and keys
   overlap; the rows scroll as before.
