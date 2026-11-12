@@ -137,6 +137,23 @@ fn a_tap_places_a_text_the_keyboard_types_and_escape_ends_as_one_add() {
 }
 
 #[test]
+fn a_paste_goes_in_at_the_end_its_lines_as_lines_and_ends_with_the_text() {
+    let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
+    assert!(!shapes.pasted("x"), "nothing to paste into");
+    assert!(down(&mut shapes, &mut ink, Tool::Text, (10.0, 215.6), 0.0, &[]));
+    assert!(shapes.typed("To do: ", &mut ink));
+    assert!(shapes.pasted("buy milk\r\ncall\u{1b} Sam"), "a pasted escape is not a key");
+    assert!(shapes.editing(), "the paste did not end the text");
+    assert!(changes(&mut ink).is_empty(), "nothing is sent while typing");
+    assert!(shapes.typed("\u{1b}", &mut ink));
+    let sent = changes(&mut ink);
+    let [Change::Put { shape: Shape::Text { text, .. }, .. }] = sent.as_slice() else {
+        panic!("one add")
+    };
+    assert_eq!(text, "To do: buy milk\ncall Sam");
+}
+
+#[test]
 fn a_tap_outside_ends_the_text_and_is_used_up_a_tap_inside_is_not() {
     let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
     assert!(down(&mut shapes, &mut ink, Tool::Text, (0.0, 0.0), 0.0, &[]));

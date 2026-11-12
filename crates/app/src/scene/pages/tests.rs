@@ -116,3 +116,47 @@ fn a_rename_takes_typed_keys_and_return_keeps_a_new_name() {
     assert_eq!(asks.typed("zz\u{1b}more"), None, "escape keeps the old name");
     assert!(!asks.asking());
 }
+
+#[test]
+fn a_paste_goes_into_a_new_name_on_one_line_and_a_removal_waits() {
+    let (here, _) = two_panes();
+    let [a, b] = &pages(&["a", "b"])[..] else { unreachable!() };
+    let mut asks = Pages::default();
+    assert!(!asks.pasted("x"), "no question takes it");
+    asks.rename(here, "main", a);
+    assert!(asks.pasted(" plan\r\nfor\u{1b} monday"), "a pasted escape is not a key");
+    assert!(asks.asking(), "a pasted line end does not answer");
+    let renamed = PageOp::Rename { page: "p1".into(), name: "a plan for monday".into() };
+    assert_eq!(asks.typed("\r"), Some(("main".into(), renamed)));
+
+    asks.remove(here, "main", b, 2);
+    assert!(asks.pasted("\r"));
+    assert!(asks.asking(), "only return removes it");
+}
+
+#[test]
+fn each_page_command_says_what_it_did_once() {
+    let (here, _) = two_panes();
+    let three = pages(&["Page 1", "ideas", "Page 3"]);
+    let mut asks = Pages::default();
+    assert_eq!(asks.said(), None);
+    asks.turned(&three, "p2");
+    assert_eq!(asks.said().as_deref(), Some("ideas · 2/3"));
+    assert_eq!(asks.said(), None, "said once");
+    asks.turned(&three, "p9");
+    assert_eq!(asks.said(), None, "a page not among them says nothing");
+
+    asks.changed(&three, &PageOp::Add { name: "Page 4".into() });
+    assert_eq!(asks.said().as_deref(), Some("New page: Page 4 · 4/4"));
+    asks.changed(&three, &PageOp::Rename { page: "p2".into(), name: "plan".into() });
+    assert_eq!(asks.said().as_deref(), Some("Renamed: plan"));
+    asks.changed(&three, &PageOp::Remove { page: "p2".into() });
+    assert_eq!(asks.said().as_deref(), Some("Removed: ideas"));
+    asks.kept_last();
+    assert_eq!(asks.said().as_deref(), Some("The last page stays"));
+
+    asks.rename(here, "main", &three[1]);
+    assert_eq!(asks.said().as_deref(), Some("Rename “ideas”"));
+    asks.remove(here, "main", &three[2], 4);
+    assert_eq!(asks.said().as_deref(), Some("Remove “Page 3”?"));
+}

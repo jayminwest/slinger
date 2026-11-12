@@ -1,12 +1,14 @@
 //! Pages (SPEC D6): which page a page command turns a pane to, the name a
 //! new page gets, where a pane goes when its page is removed, the line
 //! that names a pane's page in its footer, and the two questions a page command
-//! asks: a rename's new name, typed, and whether to remove a page that has
-//! items, asked once. Pure: `canvases` hands in the canvas's pages and the
+//! asks: a rename's new name, typed or pasted, and whether to remove a page
+//! that has items, asked once; and what a page command did, for the flash
+//! (SPEC P6: the footer's line alone is easy to miss). Pure: `canvases` hands in the canvas's pages and the
 //! typed keys, and sends the [`PageOp`] that comes out through the ink's
 //! queue, in turn with the pen's changes.
 
 use crate::layout::PaneId;
+use crate::scene::paste;
 
 /// A canvas page as the app knows it: its id and its name.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,10 +82,12 @@ enum Ask {
     Remove { pane: PaneId, canvas: String, page: Page, items: usize },
 }
 
-/// The question open, if any.
+/// The question open, if any, and what the last page command did, until
+/// the flash takes it.
 #[derive(Debug, Default)]
 pub struct Pages {
     ask: Option<Ask>,
+    said: Option<String>,
 }
 
 impl Pages {
@@ -92,6 +96,7 @@ impl Pages {
     pub fn rename(&mut self, pane: PaneId, canvas: &str, shown: &Page) {
         let (canvas, text) = (canvas.to_string(), shown.name.clone());
         self.ask = Some(Ask::Rename { pane, canvas, page: shown.id.clone(), text });
+        self.said = Some(format!("Rename “{}”", shown.name));
     }
 
     /// The remove-page command on page `shown` of `canvas`, in `pane`, with
@@ -112,7 +117,47 @@ impl Pages {
         }
         let canvas = canvas.to_string();
         self.ask = Some(Ask::Remove { pane, canvas, page: shown.clone(), items });
+        self.said = Some(format!("Remove “{}”?", shown.name));
         None
+    }
+
+    /// Pasted `text` answers the question: a rename takes it, on one line
+    /// ([`paste::one_line`]); a removal waits for return. Returns false when
+    /// no question is open.
+    pub fn pasted(&mut self, text: &str) -> bool {
+        match &mut self.ask {
+            Some(Ask::Rename { text: name, .. }) => name.push_str(&paste::one_line(text)),
+            Some(Ask::Remove { .. }) => {}
+            None => return false,
+        }
+        true
+    }
+
+    /// A pane turned to page `to` among `pages`: its line flashes.
+    pub fn turned(&mut self, pages: &[Page], to: &str) {
+        self.said = Some(line(pages, to)).filter(|l| !l.is_empty());
+    }
+
+    /// `op` goes to a canvas whose pages were `pages`: a new page flashes
+    /// its name and place (it comes last), a rename the new name, a removal
+    /// the old one.
+    pub fn changed(&mut self, pages: &[Page], op: &PageOp) {
+        let name = |id: &str| pages.iter().find(|p| p.id == id).map_or(id, |p| &p.name).to_string();
+        self.said = Some(match op {
+            PageOp::Add { name } => format!("New page: {name} · {n}/{n}", n = pages.len() + 1),
+            PageOp::Rename { name, .. } => format!("Renamed: {name}"),
+            PageOp::Remove { page } => format!("Removed: {}", name(page)),
+        });
+    }
+
+    /// The canvas's last page cannot go: says so.
+    pub fn kept_last(&mut self) {
+        self.said = Some("The last page stays".to_string());
+    }
+
+    /// What the last page command did, once: the flash shows it.
+    pub fn said(&mut self) -> Option<String> {
+        self.said.take()
     }
 
     /// Whether a question is open: the keys that type answer it.

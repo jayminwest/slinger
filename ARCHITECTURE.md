@@ -365,10 +365,15 @@ scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              when bound. A UI pane's has no tool part. A narrow pane drops
              the right part, then the middle. Pure.
 scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
-             `<Tool> <key>` (a saved note, "Feedback saved") in a 14 pt pill, a step lighter than the pane, at
+             `<Tool> <key>`, reload-config its title and key, a saved note
+             "Feedback saved", and a page command what it did
+             (scene/pages.rs's words), in a 14 pt pill, a step lighter than the pane, at
              the top centre of the focused pane for 0.8 s. The pill says when
              it goes; platform sets one timer for then (no repeating
              redraw). Pure.
+scene/paste.rs  pasted text made fit to type: line ends as `\n` (or a
+             space, on one line), tabs as spaces, no other control or
+             function-key character, so a paste is text, never keys. Pure.
 scene/cursor.rs  the pointer over a canvas pane, per tool: the pen a ring in
              its colour, the eraser a ring its width, the lasso and the
              shapes cross hairs, text an I-beam, the arrow while a pop-up is
@@ -407,7 +412,10 @@ scene/ink.rs  the pen's ink: the stroke under the pen and the finished changes
 scene/pages.rs  pages (SPEC D6): the next and previous page, a new page's
              name, where a pane goes when its page is removed, the page
              line, and the two questions a page command asks (a rename's
-             typed name; a removal of a page with items, asked once). Pure.
+             typed or pasted name; a removal of a page with items, asked
+             once); what each page command did, said once for the flash
+             (`Page 2 · 2/3`, `New page: Page 3 · 3/3`, `Renamed: plan`,
+             `Removed: ideas`, `The last page stays`). Pure.
 scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
              hides what it touches at once and removes it on the lift; a loop
              selects the items it holds whole, drawn as a tinted box with four
@@ -417,7 +425,8 @@ scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
              one undo step. The selection (canvas, page, server ids) is app
              state the sling and moves between panes read. Pure.
 scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
-             text and typed keys go into it until escape or a press outside
+             text and typed keys (and a paste, at its end) go into it until
+             escape or a press outside
              (while typed it shows a focus-colour caret, a dashed muted frame
              and a hint under it: `label`, chrome's 11 pt line),
              which with any tool but the text tool also starts that tool's
@@ -449,7 +458,7 @@ scene/palette.rs  the command palette (`show-commands`): open or closed,
              what is typed and the selected row. Typing is scene-drawn: it
              reads each character from the key's Chord (no NSTextField).
              Rows are Command::ALL whose title and group hold the typing as
-             a subsequence, 44 pt high, each with the group and the live
+             a subsequence (a paste goes in too), 44 pt high, each with the group and the live
              key's chip. While open it takes every key and press; return or
              a press on a row gives back the command, which main runs as
              its key would. It draws as the key overlay's Overlay. Pure.
@@ -500,6 +509,12 @@ platform/menu.rs  makes the menu bar a scene's menus say, again when they
              key press, so the keymap runs it once; chosen with the pointer,
              as Event::Command. Cut, copy, paste, select all, minimise and
              about go along the responder chain.
+platform/keys.rs  a key press as a chord and the text it types (none with
+             cmd held), and the clipboard's plain text. With no text field
+             focused, the window answers paste: (cmd+V, Edit > Paste) and
+             hands that text to main as Event::Paste: the palette's search,
+             then a text being typed or a page name asked, takes it; else
+             nothing. Flick's dictation pastes, so it lands there too.
 platform/overlay.rs  draws a scene's Overlay over the chrome: a box that
              dims the window, then a text field per line.
 platform/chrome.rs  the focus border, and the flash's pill (a rounded box
@@ -619,7 +634,9 @@ fires for a key hands main that key press, so a command never runs twice
 and the entry, the overlay and a pop-up still take their keys first. A key
 that types (no cmd or ctrl) stays off the menus, which would take it from a
 text field. Cut, copy, paste and select all keep their usual keys unless the
-keymap binds them (the window's close button quits too).
+keymap binds them (the window's close button quits too). Paste with no text
+field focused comes to main as text (platform/keys.rs); cut and copy then do
+nothing, and a key with cmd held never types.
 The sling's open entry takes every key before the keymap but the `dictate`
 chord: return and escape are its, and any other key goes on to the text
 field (delete deletes a character there, not the selection).

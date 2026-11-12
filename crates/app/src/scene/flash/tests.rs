@@ -73,3 +73,15 @@ fn the_pill_is_at_the_top_centre_of_the_pane_a_step_lighter() {
     let f = flash.pill(narrow, &T, now).unwrap().label.frame;
     assert_eq!((f.x, f.y, f.width), (0.0, 50.0, 40.0), "inside a pane too small for it");
 }
+
+#[test]
+fn said_text_flashes_in_place_of_the_last_and_goes_after_its_time() {
+    let (keys, now) = (Keymap::default(), Instant::now());
+    let flash = Flash::new(Tool::Pen);
+    flash.follow(Tool::Eraser, &keys, now);
+    flash.say("Page 2 · 2/3".into(), now);
+    assert_eq!(text(&flash, now).as_deref(), Some("Page 2 · 2/3"));
+    assert!(!flash.fade(now + SHOWN / 2));
+    assert!(flash.fade(now + SHOWN));
+    assert_eq!(text(&flash, now + SHOWN), None);
+}

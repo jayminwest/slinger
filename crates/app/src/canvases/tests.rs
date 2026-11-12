@@ -139,3 +139,36 @@ fn the_first_press_of_any_tool_after_a_text_left_open_ends_it_and_is_that_tool_s
         until(&mut canvases, &panes, daemon, |d| count(d, "text") == 5 && count(d, "stroke") == 1);
     });
 }
+
+#[test]
+fn a_paste_types_into_the_text_and_each_page_command_says_what_it_did() {
+    use crate::commands::Command;
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+        wait_until(|| shown(&mut canvases, &panes) == 1);
+        assert!(!canvases.pasted("no text is open"), "nothing takes it");
+        type_word(&mut canvases, &panes, (300.0, 300.0), 10.0);
+        assert!(canvases.pasted(" and\r\nmore"));
+        assert!(canvases.typed("\u{1b}"));
+        let pasted = |d: &Client| {
+            let items = d.canvas_show("notes", None).unwrap().items;
+            items.iter().any(|i| i["text"] == "word and\nmore")
+        };
+        until(&mut canvases, &panes, daemon, pasted);
+
+        let pane = (panes.focus(), WINDOW.rect());
+        assert_eq!(canvases.said(), None);
+        assert!(canvases.command(&panes, pane, Command::RemovePage));
+        assert_eq!(canvases.said().as_deref(), Some("The last page stays"));
+        assert!(canvases.command(&panes, pane, Command::NewPage));
+        assert_eq!(canvases.said().as_deref(), Some("New page: Page 2 · 2/2"));
+        wait_until(|| {
+            shown(&mut canvases, &panes);
+            footer(&canvases, &panes, Tool::Pen)[1].ends_with("Page 2 · 2/2")
+        });
+        assert!(canvases.command(&panes, pane, Command::NextPage));
+        assert_eq!(canvases.said().as_deref(), Some("Page 1 · 1/2"));
+        assert_eq!(canvases.said(), None, "said once");
+    });
+}

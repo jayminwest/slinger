@@ -65,10 +65,16 @@ impl Canvases {
         Some((canvas.to_string(), mirror.pages().to_vec(), mirror.page().to_string()))
     }
 
+    /// What the last page command did, once, for the flash.
+    pub fn said(&mut self) -> Option<String> {
+        self.asks.said()
+    }
+
     /// Turns `pane` to the next page, or the previous one.
     fn turn(&mut self, panes: &Panes, pane: PaneId, forward: bool) {
         let Some((canvas, list, at)) = self.pages_of(panes, pane) else { return };
         if let Some(to) = pages::step(&list, &at, forward) {
+            self.asks.turned(&list, to);
             self.view(pane).page = Some((canvas, to.to_string()));
         }
     }
@@ -77,6 +83,7 @@ impl Canvases {
     fn new_page(&mut self, panes: &Panes, pane: PaneId) {
         let Some((canvas, list, _)) = self.pages_of(panes, pane) else { return };
         let op = PageOp::Add { name: pages::new_name(&list) };
+        self.asks.changed(&list, &op);
         let key = self.ink.push_keyed(Change::Page { canvas: canvas.clone(), op });
         self.turning.push((key, pane, canvas));
         self.send();
@@ -92,25 +99,29 @@ impl Canvases {
     }
 
     /// Removes the page `pane` shows, asking first when it has items. The
-    /// last page stays.
+    /// last page stays, and says so.
     fn remove_page(&mut self, panes: &Panes, pane: PaneId) {
         let Some((canvas, list, at)) = self.pages_of(panes, pane) else { return };
-        let Some(shown) = list.iter().find(|p| p.id == at).filter(|_| list.len() > 1) else {
+        let Some(shown) = list.iter().find(|p| p.id == at) else { return };
+        if list.len() == 1 {
+            self.asks.kept_last();
             return;
-        };
+        }
         let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane).len();
         if let Some((canvas, op)) = self.asks.remove(pane, &canvas, shown, items) {
             self.change_pages(canvas, op);
         }
     }
 
-    /// Sends `op` on `canvas` in its turn. The panes on a page it removes
-    /// go to the page beside it at once.
+    /// Sends `op` on `canvas` in its turn, and flashes what it does. The
+    /// panes on a page it removes go to the page beside it at once.
     pub(super) fn change_pages(&mut self, canvas: String, op: PageOp) {
+        let mut open = self.open.iter().filter(|o| o.canvas == canvas);
+        let list = open.find_map(|o| o.mirror.as_ref()).map(|m| m.pages().to_vec());
+        let list = list.unwrap_or_default();
+        self.asks.changed(&list, &op);
         if let PageOp::Remove { page } = &op {
-            let mut pages = self.open.iter().filter(|o| o.canvas == canvas);
-            let pages = pages.find_map(|o| o.mirror.as_ref()).map(|m| m.pages().to_vec());
-            let next = pages::after_remove(pages.as_deref().unwrap_or_default(), page);
+            let next = pages::after_remove(&list, page);
             self.leave(&canvas, page, next.map(str::to_string).as_deref());
         }
         self.ink.push(Change::Page { canvas, op });
