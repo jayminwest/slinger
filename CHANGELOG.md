@@ -37,6 +37,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Daemon:** an agent can answer when `slingerd` was started with a
+  relative `--socket`. The agent runs in its own home, where that path
+  named no socket, so slings arrived but no reply ever landed.
+
 - **App:** dragging a selection between two panes works as it looks. The
   items stay under the pen the whole way, in whichever pane it is over,
   read through that pane's own pan and zoom, and land where you lift.

@@ -115,10 +115,13 @@ impl Processes {
         self.slinger = slinger;
     }
 
-    /// Names `socket` to every process started from now on.
+    /// Names `socket` to every process started from now on, as a full path:
+    /// a process runs in its agent's home, not where the daemon started, so
+    /// a relative path would name no socket there.
     pub fn serve_on(&self, socket: &Path) {
+        let full = full_path(socket);
         // A second call names the same socket: the first one stands.
-        let _ = self.socket.set(socket.to_owned());
+        let _ = self.socket.set(full);
     }
 
     /// Starts `agent`'s process in `home` within `limits`, resuming its last
@@ -370,4 +373,21 @@ fn new_id() -> io::Result<String> {
     let mut random = [0; 16];
     std::fs::File::open("/dev/urandom")?.read_exact(&mut random)?;
     Ok(stream::session_id(random))
+}
+
+/// `path` from the root: a relative one is taken from where the daemon runs.
+fn full_path(path: &Path) -> PathBuf {
+    std::path::absolute(path).unwrap_or_else(|_| path.to_owned())
+}
+
+#[cfg(test)]
+mod full_path_tests {
+    use super::*;
+
+    #[test]
+    fn a_relative_socket_is_named_to_agents_from_the_root() {
+        let here = std::env::current_dir().unwrap();
+        assert_eq!(full_path(Path::new("s.sock")), here.join("s.sock"));
+        assert_eq!(full_path(Path::new("/run/s.sock")), Path::new("/run/s.sock"));
+    }
 }
