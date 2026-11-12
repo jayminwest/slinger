@@ -9,7 +9,7 @@ use super::{Canvases, canvas_of, find, pane_shown, wanted};
 use crate::backend::Follower;
 use crate::commands::Command;
 use crate::config::Theme;
-use crate::layout::{self, PaneId, Point, Rect};
+use crate::layout::{self, PaneId, Point, Rect, Viewport};
 use crate::panes::{Kind, Panes};
 use crate::scene::Label;
 use crate::scene::ink::Change;
@@ -20,6 +20,8 @@ use crate::scene::status;
 const PAN_STEP: f64 = 80.0;
 /// How much a zoom command zooms in, or out.
 const ZOOM_STEP: f64 = 1.25;
+/// What a zoom command flashes when the focused pane shows no canvas.
+const NO_CANVAS: &str = "No canvas in this pane to zoom";
 
 impl Canvases {
     /// Runs a canvas command on `pane` of `panes`, laid at `frame`; false
@@ -37,8 +39,14 @@ impl Canvases {
             Command::PanRight => self.pan(pane, -PAN_STEP, 0.0),
             Command::PanUp => self.pan(pane, 0.0, PAN_STEP),
             Command::PanDown => self.pan(pane, 0.0, -PAN_STEP),
+            Command::ZoomIn | Command::ZoomOut | Command::ZoomReset
+                if canvas_of(panes, pane).is_none() =>
+            {
+                self.zoomed = Some(NO_CANVAS.to_string());
+            }
             Command::ZoomIn => self.zoom(pane, centre, ZOOM_STEP),
             Command::ZoomOut => self.zoom(pane, centre, 1.0 / ZOOM_STEP),
+            Command::ZoomReset => self.zoomed_to(pane, |view| view.zoom_to(centre, 1.0)),
             Command::NextPage | Command::PreviousPage => {
                 self.turn(panes, pane, command == Command::NextPage);
             }
@@ -65,9 +73,24 @@ impl Canvases {
         Some((canvas.to_string(), mirror.pages().to_vec(), mirror.page().to_string()))
     }
 
-    /// What the last page command did, once, for the flash.
+    /// What the last page command did, or the zoom a canvas went to, once,
+    /// for the flash.
     pub fn said(&mut self) -> Option<String> {
-        self.asks.said()
+        let zoomed = self.zoomed.take();
+        self.asks.said().or(zoomed)
+    }
+
+    /// Zooms `pane`'s canvas by `factor` about `about`, a point in the pane;
+    /// the new zoom flashes ("Zoom 150%").
+    pub fn zoom(&mut self, pane: PaneId, about: Point, factor: f64) {
+        self.zoomed_to(pane, |view| view.zoom_about(about, factor));
+    }
+
+    /// Moves `pane`'s view where `to` takes it, and flashes its zoom.
+    fn zoomed_to(&mut self, pane: PaneId, to: impl FnOnce(Viewport) -> Viewport) {
+        let view = self.view(pane);
+        view.viewport = to(view.viewport);
+        self.zoomed = Some(view.viewport.zoom_label());
     }
 
     /// Turns `pane` to the next page, or the previous one.

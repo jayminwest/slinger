@@ -11,6 +11,15 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** zoom works with a mouse: hold cmd (or ctrl) and turn the wheel,
+  or scroll with two fingers, to zoom about the pointer (away from you
+  zooms in). Every zoom, by key, pinch or scroll, flashes its level at the
+  top of the pane ("Zoom 150%"), so a zoom on an empty page shows too.
+  New `zoom-reset` (alt+0, Canvas > Zoom to 100%) goes back to 100%. The
+  zoom keys stay alt+= and alt+-; cmd+= and cmd+- grow and shrink the
+  pane. A zoom key with an agent UI pane focused says there is no canvas
+  to zoom there.
+
 - **App:** the eraser takes a text only where its letters are. Before, a
   text counted as about twice as wide as it looked, so erasing an arrow or
   a stroke just right of a text erased the text too. The lasso, the

@@ -25,7 +25,7 @@ use slinger_control::Client;
 
 use crate::backend::{Flick, Follower, News, Outbox, Problem, Slinger};
 use crate::config::{Rgb, Theme};
-use crate::layout::{PaneId, Point, Rect, Size, Viewport};
+use crate::layout::{PaneId, Rect, Size, Viewport};
 use crate::mirror::{Applied, Mirror};
 use crate::panes::{Kind, Panes};
 use crate::scene::canvas::ItemId;
@@ -70,6 +70,8 @@ pub struct Canvases {
     lives: live::Lives,
     /// Each open workspace's canvas and its agent's status, for the buttons.
     statuses: Vec<(String, Option<Status>)>,
+    /// The zoom a pane's canvas went to last, to flash once ("Zoom 150%").
+    zoomed: Option<String>,
 }
 
 /// One canvas page followed: the page asked for (`None`: the first), as
@@ -127,6 +129,7 @@ impl Canvases {
             turning,
             lives,
             statuses: Vec::new(),
+            zoomed: None,
         }
     }
 
@@ -387,12 +390,6 @@ impl Canvases {
     pub fn pan(&mut self, pane: PaneId, dx: f64, dy: f64) {
         let view = self.view(pane);
         view.viewport = view.viewport.pan(dx, dy);
-    }
-
-    /// Zooms `pane`'s canvas by `factor` about `about`, a point in the pane.
-    pub fn zoom(&mut self, pane: PaneId, about: Point, factor: f64) {
-        let view = self.view(pane);
-        view.viewport = view.viewport.zoom_about(about, factor);
     }
 
     fn view(&mut self, pane: PaneId) -> &mut View {

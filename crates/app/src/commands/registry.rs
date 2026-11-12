@@ -71,6 +71,7 @@ impl Command {
             Command::PanDown => "Pan down",
             Command::ZoomIn => "Zoom in",
             Command::ZoomOut => "Zoom out",
+            Command::ZoomReset => "Zoom to 100%",
             Command::NextPage => "Next page",
             Command::DeleteSelection => "Delete selection",
             Command::ClearSelection => "Select nothing",
@@ -118,6 +119,7 @@ impl Command {
             | Command::PanDown
             | Command::ZoomIn
             | Command::ZoomOut
+            | Command::ZoomReset
             | Command::DeleteSelection
             | Command::ClearSelection
             | Command::Undo

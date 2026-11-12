@@ -201,6 +201,7 @@ impl Panes {
             | Command::PanDown
             | Command::ZoomIn
             | Command::ZoomOut
+            | Command::ZoomReset
             | Command::NextPage
             | Command::DeleteSelection
             | Command::ClearSelection

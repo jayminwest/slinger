@@ -3,6 +3,10 @@
 //! wheel an [`Event::Scroll`] and a pinch an [`Event::Zoom`], each handed
 //! to the app. Makes no decisions, only translations:
 //!
+//! - A scroll (a wheel, two fingers) with command or control held is an
+//!   [`Event::Zoom`] about the pointer, as a pinch there would be: a mouse
+//!   has no pinch. A scroll away from the user (as the hand moved, natural
+//!   scrolling or not) zooms in ([`scroll_zoom`]).
 //! - A right-button drag is an [`Event::Scroll`] by how far the pointer
 //!   moved, at the point it was pressed, so it pans what a two-finger
 //!   scroll there would, and keeps to that pane.
@@ -20,17 +24,21 @@ use std::cell::Cell;
 use objc2::MainThreadMarker;
 use objc2::rc::Retained;
 use objc2_app_kit::{
-    NSCursor, NSEvent, NSEventSubtype, NSEventType, NSPointingDeviceType, NSView, NSWindow,
+    NSCursor, NSEvent, NSEventModifierFlags, NSEventSubtype, NSEventType, NSPointingDeviceType,
+    NSView, NSWindow,
 };
 use objc2_foundation::NSPoint;
 
 use super::keys::{chord, typed};
 use super::{Event, STATE, dispatch};
-use crate::layout::Point;
+use crate::layout::{Point, scroll_zoom};
 use crate::scene::ink::Pen;
 
 /// How far one line of a mouse wheel scrolls, in points. A trackpad gives points.
 const WHEEL_LINE: f64 = 16.0;
+/// A scroll with either of these held zooms.
+const ZOOMS: NSEventModifierFlags =
+    NSEventModifierFlags::Command.union(NSEventModifierFlags::Control);
 
 thread_local! {
     /// Whether the tablet pen near the tablet has its eraser end down.
@@ -87,6 +95,11 @@ pub(super) fn send(window: &NSWindow, event: &NSEvent, mtm: MainThreadMarker) ->
         NSEventType::ScrollWheel => {
             let unit = if event.hasPreciseScrollingDeltas() { 1.0 } else { WHEEL_LINE };
             let (dx, dy) = (event.scrollingDeltaX() * unit, event.scrollingDeltaY() * unit);
+            if event.modifierFlags().intersects(ZOOMS) {
+                // As the hand moved: natural scrolling turns the deltas round.
+                let away = if event.isDirectionInvertedFromDevice() { -dy } else { dy };
+                return dispatch(Event::Zoom { at: at(), factor: scroll_zoom(away) }, mtm);
+            }
             dispatch(Event::Scroll { at: at(), dx, dy }, mtm)
         }
         NSEventType::Magnify => {

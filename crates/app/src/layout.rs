@@ -160,15 +160,42 @@ impl Viewport {
     /// or less zooms all the way out. A factor that is not a number, or a
     /// point that is not finite, changes nothing.
     pub fn zoom_about(self, about: Point, factor: f64) -> Self {
-        let wanted = self.zoom * factor;
-        if wanted.is_nan() || !(about.x.is_finite() && about.y.is_finite()) {
+        self.zoom_to(about, self.zoom * factor)
+    }
+
+    /// The zoom set to `zoom`, held in `MIN_ZOOM..=MAX_ZOOM`, about a screen
+    /// point, as [`Viewport::zoom_about`].
+    pub fn zoom_to(self, about: Point, zoom: f64) -> Self {
+        if zoom.is_nan() || !(about.x.is_finite() && about.y.is_finite()) {
             return self;
         }
-        let zoom = wanted.clamp(MIN_ZOOM, MAX_ZOOM);
+        let zoom = zoom.clamp(MIN_ZOOM, MAX_ZOOM);
         let fixed = self.to_canvas(about);
         let origin = Point { x: fixed.x - about.x / zoom, y: fixed.y - about.y / zoom };
         Self { origin, zoom }
     }
+
+    /// The zoom as people read it: "Zoom 150%".
+    pub fn zoom_label(self) -> String {
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a zoom is 10% to 800%"
+        )]
+        let percent = (self.zoom * 100.0).round() as u32;
+        format!("Zoom {percent}%")
+    }
+}
+
+/// How much one screen point of scroll zooms, as a power of e: a wheel's
+/// line (16 points) zooms by about 17%.
+const ZOOM_PER_POINT: f64 = 0.01;
+
+/// The zoom factor of a scroll `dy` points away from the user (a wheel
+/// turned away, fingers moved up): above one zooms in, below one out. A
+/// scroll that is not a finite number zooms nothing.
+pub fn scroll_zoom(dy: f64) -> f64 {
+    if dy.is_finite() { (dy * ZOOM_PER_POINT).exp() } else { 1.0 }
 }
 
 /// A pop-up at the pen: its panel, and one cell per option, left to right.
