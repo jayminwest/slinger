@@ -11,8 +11,14 @@
 //! open the palette takes every key and every press: escape or the
 //! `show-commands` key closes it, return or a press on a row runs that
 //! row's command, a press outside closes it.
+//!
+//! Opened empty it lists the command it last ran first, then the commands
+//! by [`Group::ALL`] (the tools first) with Quit last, so return on a
+//! just-opened palette never quits. Typed, it ranks the matches: a title
+//! that starts with the search, then one with a word that does, then one
+//! that holds it in order, then one whose title and group hold it.
 
-use crate::commands::{Chord, Command, Keymap};
+use crate::commands::{Chord, Command, Group, Keymap};
 use crate::config::Theme;
 use crate::layout::{Point, Rect, Size};
 use crate::scene::overlay::{Align, CHIP_HIGH, Line, Overlay, chip_width};
@@ -65,13 +71,16 @@ pub enum Taken {
     Run(Command),
 }
 
-/// The palette: whether it is open, what is typed and the selected row.
+/// The palette: whether it is open, what is typed, the selected row and
+/// the command it last ran.
 #[derive(Debug, Default)]
 pub struct Palette {
     open: bool,
     query: String,
     /// The selected row among the matches.
     at: usize,
+    /// The command a row last ran, kept while the palette closes and opens.
+    last: Option<Command>,
 }
 
 impl Palette {
@@ -81,13 +90,26 @@ impl Palette {
 
     /// The `show-commands` command: opens the palette empty, or closes it.
     pub fn toggle(&mut self) {
-        *self = Palette { open: !self.open, ..Palette::default() };
+        *self = Palette { open: !self.open, last: self.last, ..Palette::default() };
     }
 
-    /// The commands whose title, then group, holds what is typed in order
-    /// (a subsequence, in any case), in the registry's order.
+    /// The commands whose title and group hold what is typed in order (a
+    /// subsequence, in any case), best first: by [`rank`], then the
+    /// [`order`] they list in. Empty, the command last run comes first.
     pub fn matches(&self) -> Vec<Command> {
-        Command::ALL.into_iter().map(|(c, _)| c).filter(|&c| holds(c, &self.query)).collect()
+        let query = self.query.to_lowercase();
+        let mut ranked: Vec<(u8, (usize, bool, usize), Command)> = Command::ALL
+            .into_iter()
+            .filter_map(|(c, _)| Some((rank(c, &query)?, order(c), c)))
+            .collect();
+        ranked.sort_unstable_by_key(|&(rank, order, _)| (rank, order));
+        let mut matches: Vec<Command> = ranked.into_iter().map(|(_, _, c)| c).collect();
+        if let Some(last) = self.last.filter(|_| query.is_empty())
+            && let Some(at) = matches.iter().position(|&c| c == last)
+        {
+            matches[..=at].rotate_right(1);
+        }
+        matches
     }
 
     /// A key press while open: up and down move the selection (round from
@@ -152,6 +174,9 @@ impl Palette {
         match self.matches().get(n) {
             Some(&command) => {
                 self.toggle();
+                if command != Command::Quit {
+                    self.last = Some(command);
+                }
                 Taken::Run(command)
             }
             None => Taken::Yes,
@@ -250,12 +275,38 @@ fn typed(chord: Chord) -> Option<char> {
     (chord.types() && !c.is_control() && !private).then_some(c)
 }
 
-/// Whether `query` is a subsequence of `command`'s title and group, in any
-/// case.
-fn holds(command: Command, query: &str) -> bool {
-    let words = command.title().chars().chain([' ']).chain(command.group().title().chars());
-    let mut hay = words.flat_map(char::to_lowercase);
-    query.chars().flat_map(char::to_lowercase).all(|q| hay.any(|h| h == q))
+/// How well lowercase `query` matches `command`, best first: 0 when the
+/// title starts with it, 1 when a word of the title does, 2 when the title
+/// holds it in order, 3 when only the title and group do; none when they do
+/// not hold it.
+fn rank(command: Command, query: &str) -> Option<u8> {
+    let title = command.title().to_lowercase();
+    let starts = |at: usize| title[at..].starts_with(query);
+    let mut words =
+        title.char_indices().filter(|&(_, c)| c == ' ').map(|(at, c)| at + c.len_utf8());
+    if starts(0) {
+        Some(0)
+    } else if words.any(starts) {
+        Some(1)
+    } else if holds(&title, query) {
+        Some(2)
+    } else {
+        holds(&format!("{title} {}", command.group().title().to_lowercase()), query).then_some(3)
+    }
+}
+
+/// Whether `query` is a subsequence of `hay`.
+fn holds(hay: &str, query: &str) -> bool {
+    let mut hay = hay.chars();
+    query.chars().all(|q| hay.any(|h| h == q))
+}
+
+/// Where `command` lists among equals: by its group's place in
+/// [`Group::ALL`] (the tools first), Quit after the rest of its group, then
+/// by the registry.
+fn order(command: Command) -> (usize, bool, usize) {
+    let group = Group::ALL.iter().position(|&g| g == command.group()).unwrap_or(Group::ALL.len());
+    (group, command == Command::Quit, command as usize)
 }
 
 /// Where the palette's parts sit in a window.
