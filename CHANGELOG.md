@@ -14,6 +14,9 @@ bullet with the area in bold.
 - **Canvas:** `canvas apply` can add items and the arrows between them in
   one step: an arrow's `from` or `to` may be `$n`, the item at `made[n]`
   of the same request, made by an `add` before it.
+- **Feedback:** the app's feedback entry (`leave-feedback`, ⌘⇧F) lists
+  the five newest open notes under it, with when each was left, so you see
+  what is already said before you add to it.
 - **CLI:** `slinger session start <workspace> --fresh` starts the agent in a
   new conversation instead of resuming its last one, stopping a running
   agent first.

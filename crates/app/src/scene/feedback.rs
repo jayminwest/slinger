@@ -3,10 +3,13 @@
 //! and its keys beneath. Return saves the note, with what the window shows
 //! ([`Context`]), and escape cancels; an empty note saves nothing. A saved
 //! note closes the entry and flashes "Feedback saved"; a failure opens it
-//! again with its text, and the problem under it.
+//! again with its text, and the problem under it. Under the open entry go
+//! the most recent open notes ([`Recent`]), as Flick lists them beside its
+//! own, so the user sees what is already said.
 //!
 //! Pure: `canvases` hands in the pane, the context, the text as it is typed,
-//! the keys and the daemon's answer, and reads back the entry and its lines.
+//! the keys, the daemon's answer and the recent notes, and reads back the
+//! entry and its lines.
 //! The entry looks like the sling's ([`Entry::framed`]); the platform shows
 //! whichever is open.
 
@@ -38,6 +41,17 @@ pub struct Note {
     pub context: Context,
 }
 
+/// A note saved before, as listed under the entry: its text and when.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Recent {
+    pub text: String,
+    /// When it was saved, as shown: `11-11 14:02`.
+    pub when: String,
+}
+
+/// How many recent notes the entry lists.
+pub const RECENT: usize = 5;
+
 /// Where an open note is.
 #[derive(Debug, Clone, PartialEq)]
 enum Stage {
@@ -47,12 +61,13 @@ enum Stage {
     Saving,
 }
 
-/// The note being left, if any, and whether one was saved since the
-/// window last flashed it.
+/// The note being left, if any, whether one was saved since the window
+/// last flashed it, and the recent notes listed under the entry.
 #[derive(Debug, Default)]
 pub struct Feedback {
     open: Option<(Note, Rect, Stage)>,
     saved: bool,
+    recent: Vec<Recent>,
 }
 
 impl Feedback {
@@ -118,6 +133,15 @@ impl Feedback {
         true
     }
 
+    /// The recent open notes are now `recent`, newest first; the entry
+    /// lists the first [`RECENT`]. Returns whether anything shown changed.
+    pub fn listed(&mut self, mut recent: Vec<Recent>) -> bool {
+        recent.truncate(RECENT);
+        let changed = recent != self.recent && self.is_typing();
+        self.recent = recent;
+        changed
+    }
+
     /// What to flash once a note is saved, once: "Feedback saved".
     pub fn flash(&mut self) -> Option<String> {
         std::mem::take(&mut self.saved).then(|| "Feedback saved".to_string())
@@ -139,22 +163,34 @@ impl Feedback {
     }
 
     /// The lines drawn for the note: where the entry was while it saves,
-    /// and under the open entry why the last try failed.
+    /// and under the open entry why the last try failed, then the recent
+    /// notes, newest first.
     pub fn labels(&self, theme: &Theme) -> Vec<Label> {
         let Some((_, frame, stage)) = &self.open else { return Vec::new() };
-        match stage {
-            Stage::Typing(None) => Vec::new(),
-            Stage::Typing(Some(problem)) => {
-                let text = format!("✗ {}", problem.message);
-                let mut lines = vec![line(*frame, 1.0, text, theme.error, theme)];
-                let hint = problem.hint.clone();
-                lines.extend(hint.map(|hint| line(*frame, 2.0, hint, theme.muted, theme)));
-                lines
-            }
+        let problem = match stage {
+            Stage::Typing(problem) => problem,
             Stage::Saving => {
-                vec![line(*frame, 0.0, "saving feedback…".into(), theme.muted, theme)]
+                return vec![line(*frame, 0.0, "saving feedback…".into(), theme.muted, theme)];
+            }
+        };
+        let (mut lines, mut n) = (Vec::new(), 0.0);
+        let mut below = |text: String, colour| {
+            n += 1.0;
+            lines.push(line(*frame, n, text, colour, theme));
+        };
+        if let Some(problem) = problem {
+            below(format!("✗ {}", problem.message), theme.error);
+            if let Some(hint) = &problem.hint {
+                below(hint.clone(), theme.muted);
             }
         }
+        if !self.recent.is_empty() {
+            below("Recent feedback".into(), theme.muted);
+        }
+        for recent in &self.recent {
+            below(format!("{} · {}", recent.when, recent.text), theme.muted);
+        }
+        lines
     }
 }
 

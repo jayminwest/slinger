@@ -69,7 +69,17 @@ fn a_note_saves_with_the_canvas_page_and_tool_then_flashes() {
         let scene = shown(&canvases, &panes);
         assert_eq!((scene.entry, scene.labels.len()), (None, 0));
         saved_with_its_context(daemon);
+        opens_listing_it(&mut canvases, &panes);
     });
+}
+
+/// Opening the entry again lists the note saved under it.
+fn opens_listing_it(canvases: &mut Canvases, panes: &Panes) {
+    assert!(open(canvases, panes));
+    wait_until(|| canvases.poll_feedback());
+    let lines: Vec<_> = shown(canvases, panes).labels.into_iter().map(|l| l.text).collect();
+    assert_eq!(lines.len(), 2, "{lines:?}");
+    assert!(lines[0] == "Recent feedback" && lines[1].ends_with(" · the pen lags"), "{lines:?}");
 }
 
 /// The daemon holds the note typed, with what the pane showed.
