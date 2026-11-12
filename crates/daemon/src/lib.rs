@@ -154,6 +154,8 @@ fn serve(
     // never touches the record. Held until the daemon stops.
     let stored = |e: StoreError| (code(e.code()), e.to_string(), e.hint());
     let dir = data_dir.map_or_else(default_data_dir, Ok).map_err(stored)?;
+    // Absolute, so the paths the daemon gives out (`canvas_show`) are.
+    let dir = std::path::absolute(&dir).unwrap_or(dir);
     // A relative --feedback is from where slingerd started.
     let feedback = feedback.map(|f| std::path::absolute(&f).unwrap_or(f));
     let store = Store::open(&dir, machine_name())

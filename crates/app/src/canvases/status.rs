@@ -4,13 +4,16 @@
 //! `scene::status`'s; this module finds the pane's page, view and state.
 //! Also the page menu's list, and a tap there that turns a pane to a page.
 
-use super::Canvases;
+use std::path::Path;
+
+use super::{Canvases, canvas_of};
 use crate::commands::Keymap;
 use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Rect};
 use crate::panes::{Kind, Panes};
 use crate::scene::pages;
 use crate::scene::status::{self, Footer, Pen, Shows, State};
+use crate::scene::title;
 use crate::scene::tools::Tool;
 
 impl Canvases {
@@ -101,5 +104,26 @@ impl Canvases {
         let Some(to) = list.get(index) else { return };
         self.asks.turned(&list, &to.id);
         self.view(pane).page = Some((canvas, to.id.clone()));
+    }
+
+    /// The canvas `pane` of `panes` shows, and its file once the daemon
+    /// has said where it is; `None` for an agent UI pane.
+    pub fn file<'a>(
+        &'a self,
+        panes: &'a Panes,
+        pane: PaneId,
+    ) -> Option<(&'a str, Option<&'a str>)> {
+        let canvas = canvas_of(panes, pane)?;
+        let mut open = self.open.iter().filter(|o| o.canvas == canvas);
+        Some((canvas, open.find_map(|o| o.file.as_deref())))
+    }
+
+    /// What `save` flashes for `pane` of `panes`, with `home` as `~`
+    /// ([`title::saved`]): every change is written as it is made.
+    pub(super) fn saved(&self, panes: &Panes, pane: PaneId, home: Option<&Path>) -> String {
+        let file = self.file(panes, pane);
+        let settled = file.is_none_or(|(canvas, _)| self.ink.settled(canvas));
+        let problem = self.ink.problem().map(|p| p.message.as_str());
+        title::saved(file, settled, problem, home)
     }
 }

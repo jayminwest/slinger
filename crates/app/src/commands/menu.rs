@@ -81,6 +81,8 @@ const BAR: [(&str, &[Action]); 8] = [
     (
         "File",
         &[
+            R(Command::Save),
+            R(Command::ShowCanvasFile),
             R(Command::NewPage),
             R(Command::RenamePage),
             R(Command::RemovePage),
