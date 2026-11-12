@@ -1,11 +1,16 @@
 //! What the keyboard and the clipboard give the app: a key press as a
-//! [`Chord`] and the text it types, and the clipboard's plain text for a
-//! paste (cmd+V, or Edit > Paste, when no text field has the focus).
+//! [`Chord`] and the text it types; and for a cut, copy or paste no text
+//! field takes, the clipboard as a [`Clip`]: its plain text, and a
+//! canvas's items under a type of the app's own, which other apps leave be.
 
 use objc2::MainThreadMarker;
-use objc2_app_kit::{NSEvent, NSEventModifierFlags, NSPasteboard, NSPasteboardTypeString};
+use objc2_app_kit::{
+    NSEvent, NSEventModifierFlags, NSPasteboard, NSPasteboardType, NSPasteboardTypeString,
+};
+use objc2_foundation::NSString;
 
 use crate::commands::Chord;
+use crate::scene::paste::Clip;
 
 /// The chord of a key press: the device-independent modifier flags, whose
 /// shift, control, option and command bits (17 to 20) are the [`Chord`]
@@ -31,11 +36,32 @@ pub(super) fn typed(event: &NSEvent) -> Option<String> {
     (chars.length() > 0).then(|| chars.to_string())
 }
 
-/// The clipboard's plain text, if it holds any.
-pub(super) fn pasted(_mtm: MainThreadMarker) -> Option<String> {
+/// The clipboard's type for a canvas's items: their file's objects, as JSON.
+const ITEMS: &str = "com.github.jayminwest.slinger.items";
+
+/// The clipboard's plain text, under `AppKit`'s type for it.
+fn text_type() -> &'static NSPasteboardType {
     // SAFETY: `NSPasteboardTypeString` is an `AppKit` constant, set before
     // any code runs and never changed.
-    let kind = unsafe { NSPasteboardTypeString };
-    let text = NSPasteboard::generalPasteboard().stringForType(kind)?;
-    Some(text.to_string()).filter(|t| !t.is_empty())
+    unsafe { NSPasteboardTypeString }
+}
+
+/// What the clipboard holds for the app.
+pub(super) fn clip(_mtm: MainThreadMarker) -> Clip {
+    let board = NSPasteboard::generalPasteboard();
+    let read = |kind: &NSPasteboardType| board.stringForType(kind).map(|s| s.to_string());
+    Clip::new(read(text_type()), read(&NSString::from_str(ITEMS)))
+}
+
+/// Puts `clip` on the clipboard in place of what it held.
+pub(super) fn copy(clip: &Clip, _mtm: MainThreadMarker) {
+    let board = NSPasteboard::generalPasteboard();
+    board.clearContents();
+    let items = NSString::from_str(ITEMS);
+    let kinds = [(&clip.text, text_type()), (&clip.items, &*items)];
+    for (value, kind) in kinds {
+        if let Some(value) = value {
+            board.setString_forType(&NSString::from_str(value), kind);
+        }
+    }
 }

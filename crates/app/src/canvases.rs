@@ -13,9 +13,11 @@
 //! Flick's thread do.
 //!
 //! Each pane keeps its own page, followed once however many panes show it:
-//! page commands, undo and redo are in [`paging`], live items' pages in [`live`].
+//! page commands, undo and redo are in [`paging`], live items' pages in [`live`];
+//! cut, copy and paste in [`clip`].
 
 mod button;
+mod clip;
 mod drag;
 mod find;
 mod kept;
