@@ -135,6 +135,10 @@ bullet with the area in bold.
   `Bash(git:*)`, or an MCP tool (`mcp__server__tool`). A file with another
   rule, or an agent name with a `#`, is refused with a hint naming it, so
   fix or drop that entry in `slinger-workspace.toml`.
+- **Agents:** a large drawing slung to an agent no longer sends the nearly
+  white parts of it: each tile of its picture is cut down to the ink, and a
+  tile with nothing new on it is left out. The fixture board costs about
+  13% fewer tokens (63 800 to 55 700 by the packet's estimate).
 - **App:** a page menu with more pages than fit shows ▲ or ▼ at the end of
   its top or bottom page row while more pages are above or below.
 - **App:** a footer button's tip now sits on a small panel with rounded
@@ -171,6 +175,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Canvas:** zero-width characters (a joiner, a zero-width space, an emoji
+  variation selector) no longer take a blank cell in a text's picture or
+  widen its frame.
 - **App:** after a sling, the agent's answer no longer flashes "answered
   in text" when its items are still on their way to the canvas: an answer
   with nothing on the canvas yet waits a second for them.
@@ -196,6 +203,9 @@ bullet with the area in bold.
 - **CLI:** when an agent moves its item with `slinger canvas edit --move`,
   its arrows bound to the item follow, as they do when you move it in the
   app; they no longer point at where the item was.
+- **CLI:** the same holds for a move with `slinger canvas apply`, and when
+  an agent resizes its item (`canvas edit --box`, or new words that resize
+  a text), its arrows' ends stay on the same spot of the item's edge.
 
 - **App:** a colour, shape, tool or width pop-up opened from a key before
   the pen or pointer has been in the window opens at the middle of the

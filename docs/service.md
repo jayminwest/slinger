@@ -320,7 +320,10 @@ the daemon's memory: a restart starts with nothing to undo.
 
 **Canvas operations.** `ops` of `canvas_apply` is one operation object or a
 list of them, applied in order as one undo step: all of them apply, or none
-do. Ids, items and units are as in the canvas file (`docs/design/canvas-file.md`):
+do. An arrow bound to an item the operations move or resize (`move`, or a
+`set` that changes its box) follows in the same step, as with `canvas_edit`,
+when `by` may change it and no operation touches the arrow itself: a client
+that places the arrows (the app does) sends a `set` for each. Ids, items and units are as in the canvas file (`docs/design/canvas-file.md`):
 item ids `i<n>`, page ids `p<n>`, and positions and lengths as integers in
 tenths of a unit.
 
@@ -844,9 +847,10 @@ item on another page is `invalid`; a line with none or two of `text`, `box`,
 **`canvas_edit`** changes an item the agent made, as one undo step: `text`
 gives a text item new words (its frame grows or shrinks to hold them),
 `box` gives a text or a box a new size `[w, h]`, and `move` puts the top-left
-corner of the item's box at `[x, y]`. A move takes along the end of each
-arrow bound to the item, in the same step, as a move in the app does; only
-arrows the agent made: another author's arrow stays as it is. What it
+corner of the item's box at `[x, y]`. A move or a resize takes along the
+end of each arrow bound to the item, in the same step, as a move in the app
+does (a resize keeps the end on the same spot of the item's box, scaled
+with it); only arrows the agent made: another author's arrow stays as it is. What it
 leaves out stays; an edit that leaves the item as it was writes nothing. **`canvas_remove`** takes an item
 the agent made off the canvas; an item already gone (or never there)
 succeeds and writes nothing (SPEC B4). Ids are as for `canvas_put`. The

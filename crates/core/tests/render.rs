@@ -172,12 +172,42 @@ fn a_very_wide_cluster_is_cut_into_tiles_that_overlap_by_the_constant() {
 #[test]
 fn a_tall_and_wide_picture_is_tiled_by_row_then_column() {
     let mut b = Board::new();
+    let line = b.stroke(Colour::BLACK, &[(0.0, 5000.0), (5000.0, 5000.0)]);
+    let corner = b.stroke(Colour::BLACK, &[(0.0, 0.0), (0.0, 5000.0)]);
+    let dot = b.stroke(Colour::BLACK, &[(5000.0, 0.0)]);
+    let tiles = render::items(&b.canvas, &[line, corner, dot], "c1");
+    let at: Vec<(u32, u32)> = tiles.iter().map(|t| (t.x, t.y)).collect();
+    let step = MAX_EDGE - OVERLAP;
+    let names: Vec<&str> = tiles.iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(names, ["c1-1.png", "c1-2.png", "c1-3.png", "c1-4.png"]);
+    // Each tile is cut down to its ink plus the margin: the left edge to a
+    // narrow column, the dot to a speck, the bottom edge to a strip.
+    assert_eq!((at[0], at[2].1), ((0, 0), step));
+    assert!(tiles[0].width < 30 && tiles[0].height == MAX_EDGE, "{:?}", tiles[0]);
+    assert!(tiles[1].width < 30 && tiles[1].height < 30 && tiles[1].y == 0, "{:?}", tiles[1]);
+    assert!(at[3].0 >= step && tiles[3].height < 30, "{:?}", tiles[3]);
+    let whole = px(5000.0 + 4.0 + 2.0 * MARGIN);
+    assert_eq!(tiles[3].x + tiles[3].width, whole, "the strip ends where the picture does");
+}
+
+#[test]
+fn a_tile_that_is_white_or_whose_ink_another_tile_holds_has_no_image() {
+    let mut b = Board::new();
+    // A diagonal crosses the top-right and bottom-left tiles only in their
+    // overlap with the top-left one: those two tiles add nothing.
     let line = b.stroke(Colour::BLACK, &[(0.0, 0.0), (5000.0, 5000.0)]);
     let tiles = render::items(&b.canvas, &[line], "c1");
     let at: Vec<(u32, u32)> = tiles.iter().map(|t| (t.x, t.y)).collect();
     let step = MAX_EDGE - OVERLAP;
-    assert_eq!(at, [(0, 0), (step, 0), (0, step), (step, step)]);
-    assert_eq!(tiles[3].name, "c1-4.png");
+    assert_eq!(at[0], (0, 0));
+    assert_eq!(at.len(), 2, "{at:?}");
+    assert!(at[1].0 >= step && at[1].1 >= step, "{at:?}");
+    // Ink in one corner of a big picture: one image, named as one.
+    let far = b.stroke(Colour::BLACK, &[(10_000.0, 10_000.0)]);
+    let dot = b.stroke(Colour::BLACK, &[(0.0, 0.0)]);
+    let tiles = render::items(&b.canvas, &[far, dot], "c2");
+    assert_eq!(tiles.len(), 2);
+    assert!(tiles.iter().all(|t| t.width < 30 && t.height < 30), "{tiles:?}");
 }
 
 /// Canvas units as whole pixels, rounded up.

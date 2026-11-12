@@ -79,8 +79,9 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              `How::colour`, as one undo step; check_put says first whether a
              put would go.
              edit.rs: the agent changes (text, size, place) or removes what it
-             put; a move takes along the bound ends of the agent's arrows, in
-             the same step. The author rule stays in Canvas (may_change),
+             put; a move or resize (here or by canvas_apply, Log::followed)
+             refits the bound ends of the arrows `by` may change, in the
+             same step. The author rule stays in Canvas (may_change),
              checked first.
 packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
              canvas page, the clusters of the user's ink and what changed, and gives
@@ -988,7 +989,7 @@ Each boundary has something that fails when it is broken:
 | A put takes a colour and a place; ink goes where any put goes; an arrow takes no place | `crates/core/tests/canvas_put.rs`, `crates/cli/src/tests/put.rs` |
 | A put shows with its author; after a sling it lands `reply_landed`; an unknown item is `not_found` | `crates/daemon/src/tests/put.rs`, through a real socket |
 | An agent edits and removes only its own items; removing twice succeeds twice | `crates/core/tests/canvas_edit.rs`, and `crates/daemon/src/tests/edit.rs` through a real socket |
-| An agent's move takes its bound arrows' ends along in one step, not another author's | `crates/core/tests/canvas_edit.rs` |
+| An agent's move or resize (edit or apply) takes its bound arrows' ends along in one step, not another author's | `crates/core/tests/canvas_edit.rs` |
 | Three sends reach one process under one session id and their answers are read; a restart resumes it; a dead process makes a send `unavailable`; a daemon stop ends it; a resume that fails drops the id and the next start is new; a fresh start ends the running process and begins a new session | `crates/daemon/src/tests/process.rs`, with a stand-in for Claude Code |
 | A session starts with the exact limits its workspace sets: by default its roots, the `slinger` CLI and no user config; wider with the agent's `dirs`, `tools` and `user_config` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
 | A profile is set, listed and removed in the workspace's file, and a bad name, rule or dir is refused loudly with nothing written; a session under one runs in its dir with its rules in place of the agent's and resumes its own conversation; a sling that names one reaches only a process under it | `crates/core/src/workspace/profile.rs`, `crates/core/src/session/stream.rs`, `crates/daemon/src/tests/profile.rs` with a stand-in for Claude Code, `crates/cli/src/tests/profile.rs` |
