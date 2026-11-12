@@ -207,6 +207,23 @@ fn a_page_sling_pins_the_pill_and_it_stays_inside_its_pane() {
 }
 
 #[test]
+fn a_sling_at_the_pane_s_top_left_puts_the_pill_under_it_its_text_on_its_fill() {
+    let now = Instant::now();
+    let mut slung = Slung::default();
+    let corner = Rect { x: 0.0, y: 0.0, width: 40.0, height: 30.0 };
+    slung.aim(("notes", "p1"), Some(corner), ItemId(0), now);
+    slung.went("scout", now);
+    let labels = slung.marks(&T, &[view(true)], now).labels;
+    let pill = &labels[0];
+    let under = (PANE.x + GAP, PANE.y + corner.height + GAP);
+    assert_eq!((pill.frame.x, pill.frame.y), under, "under the selection, inside the pane");
+    // One frame holds both the fill and the words: the window centres the
+    // words in it both ways.
+    assert_eq!((pill.fill, pill.frame.height), (Some(style::panel(&T)), HIGH));
+    assert!(pill.frame.width >= HIGH && pill.text.starts_with("● scout working"));
+}
+
+#[test]
 fn the_pill_shows_in_the_pane_with_the_sling_s_page_else_the_focused_one() {
     let now = Instant::now();
     let slung = out(now);

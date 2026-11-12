@@ -25,7 +25,8 @@
 #muted = "#8c8c8c"
 # Errors.
 #error = "#ff6b6b"
-# The focus border around the focused pane: the one line the window draws.
+# The accent: the border around the focused pane (drawn only with two or more panes), the
+# text caret, the selection, the sling field's edge and a working agent's mark.
 #focus = "#4c9aff"
 
 # --- daemon: how the app reaches slingerd.

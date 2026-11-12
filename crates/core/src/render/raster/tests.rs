@@ -118,6 +118,34 @@ fn a_character_the_font_lacks_draws_as_a_question_mark() {
 }
 
 #[test]
+fn typography_people_and_agents_type_has_a_glyph() {
+    let typed = "—–‐‑−‘’‚“”„′″‹›…•←→↑↓↔✓✔ é ü ñ ç ß ¿ ¡ « » ° ± × ÷ © λ π Ω ┌─┐ █ ░ あ ≤ ≥";
+    for c in typed.chars() {
+        assert_ne!(glyph(c), glyph('?'), "{c:?} (U+{:04X}) draws as `?`", u32::from(c));
+    }
+}
+
+#[test]
+fn dashes_are_bars_of_growing_length_and_quotes_look_like_quotes() {
+    let bar = |c| glyph(c)[3].count_ones();
+    assert!(bar('-') < bar('–') && bar('–') < bar('—'), "{} {} {}", bar('-'), bar('–'), bar('—'));
+    assert_eq!(glyph('—')[3], 0xFF, "an em dash spans its cell, so dashes join up");
+    assert_eq!(glyph('−'), glyph('-'));
+    assert_eq!(glyph('’'), glyph('\''));
+    assert_eq!(glyph('“'), glyph('"'));
+    assert_eq!(glyph('\u{200B}'), [0; 8], "a zero-width space draws nothing");
+}
+
+#[test]
+fn an_em_dash_draws_as_a_line_not_a_question_mark() {
+    let frame = Rect::new(10.0, 10.0, 80.0, 30.0);
+    let dash = drawn(vec![Shape::Text { text: "—".into(), frame, colour: Colour::BLACK }]);
+    let question = drawn(vec![Shape::Text { text: "?".into(), frame, colour: Colour::BLACK }]);
+    assert!(ink(&dash) > 0);
+    assert_ne!(ink(&dash), ink(&question));
+}
+
+#[test]
 fn a_shape_outside_the_tile_draws_nothing() {
     let r = drawn(vec![stroke(&[(500.0, 500.0), (600.0, 600.0)], Colour::BLACK, 6.0)]);
     assert_eq!(ink(&r), 0);

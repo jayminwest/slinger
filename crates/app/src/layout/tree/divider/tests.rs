@@ -31,6 +31,19 @@ fn each_split_has_one_divider_named_by_the_pane_before_it() {
 }
 
 #[test]
+fn a_divider_is_named_by_the_last_pane_before_it_however_deep() {
+    // `(0 / 2) | 1`: the row's divider comes after pane 2, the left column's last.
+    let mut tree = Tree::default();
+    tree.split(id(0), Axis::Row);
+    tree.split(id(0), Axis::Column);
+    let befores: Vec<PaneId> = tree.dividers(AREA).iter().map(|d| d.before).collect();
+    assert_eq!(befores, [id(2), id(0)]);
+    assert!(tree.set_ratio(id(2), 0.25));
+    let right = tree.rects(AREA).into_iter().find(|(p, _)| *p == id(1)).unwrap().1;
+    assert_eq!(right.x, 200.0, "pane 1 starts where the row's divider went");
+}
+
+#[test]
 fn the_pen_grabs_a_divider_within_reach_of_it_along_its_span() {
     let tree = three();
     let grab = |x, y| tree.divider_at(AREA, at(x, y)).map(|d| d.before);

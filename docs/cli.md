@@ -20,7 +20,6 @@ a "did you mean" suggestion.
 
 | Command | Prints |
 |---|---|
-| `hello [NAME]` | The greeting |
 | `record append <KIND> [PAYLOAD] [--source NAME] [--workspace NAME] [--agent NAME] [--canvas ID]` | The new event's number. `--json`: `event` |
 | `record list [--kind KIND] [--machine NAME] [--workspace NAME] [--agent NAME] [--canvas ID] [--after NUMBER]` | One line per event: number, kind, tags (`name=value`) and payload, separated by tabs. `--json`: `events` |
 | `blob put <FILE\|->` | The blob id (`sha256:<hex>`). `--json`: `id` |
@@ -247,8 +246,8 @@ agent or an id that is not one exits 5.
 ## JSON envelope
 
 ```json
-{ "success": true,  "command": "hello", "greeting": "hello, ada" }
-{ "success": false, "command": "hello", "error": "name is empty", "code": "invalid", "hint": "pass a non-empty name" }
+{ "success": true,  "command": "canvas create", "canvas": "main" }
+{ "success": false, "command": "canvas create", "error": "\"Main\" is not a canvas id", "code": "invalid", "hint": "use 1 to 64 of a-z, 0-9, '-', '_' and '.', not starting with '.'" }
 ```
 
 The data fields sit at the top level next to `success` and `command`. On
