@@ -128,7 +128,7 @@ fn window(mut settings: Settings) -> ExitCode {
     let mut socket = settings.socket();
     let watch = Watch::start(socket.clone(), settings.config.workspace.clone());
     let mut shown = settings.config.sidebar;
-    let mut sidebar = Sidebar::new(shown == Shown::Open);
+    let mut sidebar = Sidebar::new(Shown::starts_open(shown, platform::remembered_sidebar()));
     sidebar.show(settings.config.workspace.clone());
     let centre = Point { x: layout::WINDOW.width / 2.0, y: layout::WINDOW.height / 2.0 };
     let widths = settings.config.widths.clone();
@@ -151,11 +151,11 @@ fn window(mut settings: Settings) -> ExitCode {
     // workspace. Only a split, a close or a resize asks the daemon here.
     // Any pen or mouse press first focuses the pane under it; one an agent
     // UI's page takes still draws the new focus.
-    let answer = move |event| {
+    let step = move |event, sidebar: &mut Sidebar| {
         let area = sidebar.panes(shared.size.rect());
         // A press focuses the pane under it first, so the press works there.
         let refocused = match event {
-            Event::Press(pen) => window::press(&mut shared, &mut sidebar, &canvases, &tools, pen),
+            Event::Press(pen) => window::press(&mut shared, sidebar, &canvases, &tools, pen),
             _ => false,
         };
         let pass =
@@ -169,24 +169,24 @@ fn window(mut settings: Settings) -> ExitCode {
         let asked = asked(&event, &mut shared, &mut canvases, &mut tools, &settings);
         let force = match (asked, event) {
             (Ask::Draw, _) => {
-                return Step::Draw(view(&settings, &mut shared, &tools, &sidebar, &mut canvases));
+                return Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases));
             }
-            (Ask::Pass, _) => return pass(&mut shared, &mut canvases, &tools, &sidebar),
+            (Ask::Pass, _) => return pass(&mut shared, &mut canvases, &tools, sidebar),
             (Ask::Not, Event::Tick) => false,
             (Ask::Not, Event::Reply(line)) => {
                 return match shared.reply(&line, &socket) {
                     Ok(false) => Step::Stay,
                     Ok(true) => {
-                        Step::Draw(view(&settings, &mut shared, &tools, &sidebar, &mut canvases))
+                        Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases))
                     }
                     Err(why) => Step::Refuse(why),
                 };
             }
             (Ask::Tap(target), _) => {
-                if let Some(name) = tap(target, &mut canvases, &mut shared, &mut sidebar) {
+                if let Some(name) = tap(target, &mut canvases, &mut shared, sidebar) {
                     watch.want(Some(name));
                 }
-                return Step::Draw(view(&settings, &mut shared, &tools, &sidebar, &mut canvases));
+                return Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases));
             }
             (Ask::Run(Command::Quit), _) => return Step::Quit,
             // It flashes, and the window is drawn whether or not the files changed.
@@ -195,17 +195,17 @@ fn window(mut settings: Settings) -> ExitCode {
                 true
             }
             (Ask::Run(command), _) => {
-                if !run(command, &mut tools, &mut canvases, &mut sidebar, &mut shared, &socket) {
+                if !run(command, &mut tools, &mut canvases, sidebar, &mut shared, &socket) {
                     return Step::Pass;
                 }
-                return Step::Draw(view(&settings, &mut shared, &tools, &sidebar, &mut canvases));
+                return Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases));
             }
             // The pen, the mouse, the trackpad, typed text and a resize.
             (Ask::Not, event) => {
                 if !pen(&event, &mut tools, &mut canvases, &mut shared, area, &socket) {
-                    return pass(&mut shared, &mut canvases, &tools, &sidebar);
+                    return pass(&mut shared, &mut canvases, &tools, sidebar);
                 }
-                return Step::Draw(view(&settings, &mut shared, &tools, &sidebar, &mut canvases));
+                return Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases));
             }
         };
         let heard = watch.latest().is_some_and(|now| sidebar.update(now));
@@ -222,7 +222,7 @@ fn window(mut settings: Settings) -> ExitCode {
             tools.set_widths(settings.config.widths.clone());
             if settings.config.sidebar != shown {
                 shown = settings.config.sidebar;
-                sidebar.set_open(shown == Shown::Open);
+                sidebar.set_open(Shown::starts_open(shown, Some(sidebar.is_open())));
             }
             if settings.config.workspace != named {
                 named.clone_from(&settings.config.workspace);
@@ -236,11 +236,27 @@ fn window(mut settings: Settings) -> ExitCode {
                 socket = now;
             }
         }
-        Step::Draw(view(&settings, &mut shared, &tools, &sidebar, &mut canvases))
+        Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases))
     };
-    match platform::run(&first, answer) {
+    match platform::run(&first, remembering(step, sidebar)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => fail(&e.to_string(), None),
+    }
+}
+
+/// `step` with `sidebar`, which it may open or collapse: the sidebar starts
+/// the next launch as it is left.
+fn remembering(
+    mut step: impl FnMut(Event, &mut Sidebar) -> Step,
+    mut sidebar: Sidebar,
+) -> impl FnMut(Event) -> Step {
+    move |event| {
+        let was = sidebar.is_open();
+        let step = step(event, &mut sidebar);
+        if sidebar.is_open() != was {
+            platform::remember_sidebar(sidebar.is_open());
+        }
+        step
     }
 }
 

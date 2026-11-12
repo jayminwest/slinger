@@ -55,8 +55,8 @@
 # --- window: the window around the panes.
 [window]
 # The sidebar, which lists the open workspaces and each agent's status (working, blocked,
-# done): "open" or "closed" when the app starts. The toggle-sidebar command opens or
-# collapses it at any time.
+# done): "open" or "closed" when the app starts. Unset, it starts as you last left it
+# (open the first time). The toggle-sidebar command opens or collapses it at any time.
 #sidebar = "open"
 
 # --- canvas: the paper under the ink.

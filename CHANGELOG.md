@@ -51,6 +51,9 @@ bullet with the area in bold.
 - **App:** a button to hide the sidebar at its foot, and one to show it in
   the bottom-left footer while it is hidden, at the same spot. Tap a
   workspace in the sidebar to show its panes.
+- **App:** the window opens where you left it, at the size you left it,
+  and the sidebar opens or stays hidden as you last left it. A `[window]
+  sidebar` setting in the config still wins.
 
 ### Changed
 
