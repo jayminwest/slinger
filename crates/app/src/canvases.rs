@@ -289,7 +289,7 @@ impl Canvases {
         drop(items);
         self.close_entries();
         let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
-        if self.lives.under(&items, at) && !grabs {
+        if self.lives.under(&items, at, viewport.zoom()) && !grabs {
             return false;
         } else if self.shapes.down((tool, colour), here, press, &items, &mut self.ink) {
             drop(items);

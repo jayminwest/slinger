@@ -120,7 +120,7 @@ fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
         }
         _ => Step::Pass,
     };
-    match platform::run(&scene, answer) {
+    match platform::run(&scene, platform::Kept::Preview, answer) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => fail(&e.to_string(), None),
     }
@@ -195,7 +195,7 @@ fn window(mut settings: Settings) -> ExitCode {
         }
         Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases))
     };
-    match platform::run(&first, remembering(step, sidebar)) {
+    match platform::run(&first, platform::Kept::Window, remembering(step, sidebar)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => fail(&e.to_string(), None),
     }
