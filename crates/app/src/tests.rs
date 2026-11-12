@@ -22,38 +22,34 @@ struct World {
 }
 
 impl World {
-    /// Hands `event` in as the window's answer does; false for a pass.
-    fn send(&mut self, event: &Event) -> bool {
+    /// Hands `event` in as the window's answer does ([`route`]); false for
+    /// a pass. A tick takes only what the canvases' followers heard.
+    fn send(&mut self, event: Event) -> bool {
         let w = self;
-        let area = w.sidebar.panes(w.shared.size.rect());
-        if let Event::Press(pen) = *event {
-            window::press(&mut w.shared, &mut w.sidebar, &w.canvases, &w.tools, pen);
+        let routed = route(
+            event,
+            &mut w.shared,
+            &mut w.canvases,
+            &mut w.tools,
+            &w.settings,
+            &w.socket,
+            &mut w.sidebar,
+        );
+        match routed {
+            Routed::Answer(step) | Routed::Watch(_, step) => !matches!(step, Step::Pass),
+            Routed::News(_) => {
+                w.canvases.poll();
+                view(&w.settings, &mut w.shared, &w.tools, &w.sidebar, &mut w.canvases);
+                true
+            }
         }
-        let asked = asked(event, &mut w.shared, &mut w.canvases, &mut w.tools, &w.settings, area);
-        let used = match asked {
-            Ask::Draw(_) | Ask::Tap(_) => true,
-            Ask::Step(step) => !matches!(step, Step::Pass),
-            Ask::Pass => false,
-            Ask::Run(command) => run(
-                command,
-                &mut w.tools,
-                &mut w.canvases,
-                &mut w.sidebar,
-                &mut w.shared,
-                &w.socket,
-            ),
-            Ask::Not => pen(event, &mut w.tools, &mut w.canvases, &mut w.shared, area, &w.socket),
-        };
-        w.canvases.poll();
-        view(&w.settings, &mut w.shared, &w.tools, &w.sidebar, &mut w.canvases);
-        used
     }
 
     /// A key press as `platform` sends it: its chord, and when that passes,
     /// the text it types.
     fn key(&mut self, chord: Chord, text: &str) {
-        if !self.send(&Event::Key(chord)) && !text.is_empty() {
-            assert!(self.send(&Event::Text(text.into())), "{text:?} is typed");
+        if !self.send(Event::Key(chord)) && !text.is_empty() {
+            assert!(self.send(Event::Text(text.into())), "{text:?} is typed");
         }
     }
 }
@@ -88,7 +84,7 @@ impl World {
     /// Ticks until `met`, as the window's timer does.
     fn until(&mut self, met: impl Fn(&World) -> bool) {
         wait_until(|| {
-            self.send(&Event::Tick);
+            self.send(Event::Tick);
             met(self)
         });
     }
@@ -97,8 +93,8 @@ impl World {
     fn type_word(&mut self, x: f64, when: f64) {
         self.key(Chord::new(CMD, '4'), "4");
         assert_eq!(self.tools.tool(), Tool::Text);
-        assert!(self.send(&Event::Press(at(x, 300.0, when))));
-        self.send(&Event::Lift(at(x, 300.0, when + 0.1)));
+        assert!(self.send(Event::Press(at(x, 300.0, when))));
+        self.send(Event::Lift(at(x, 300.0, when + 0.1)));
         for c in ['w', 'o', 'r', 'd'] {
             self.key(Chord::new(0, c), &c.to_string());
         }
@@ -109,10 +105,10 @@ impl World {
     fn drag_box(&mut self, x: f64, when: f64) {
         self.key(Chord::new(CMD, '5'), "5");
         assert_eq!(self.tools.tool(), Tool::Box);
-        assert!(self.send(&Event::Press(at(x, 400.0, when))));
-        assert!(self.send(&Event::Drag(at(x + 50.0, 440.0, when + 0.1))));
-        assert!(self.send(&Event::Drag(at(x + 100.0, 480.0, when + 0.2))));
-        assert!(self.send(&Event::Lift(at(x + 100.0, 480.0, when + 0.3))));
+        assert!(self.send(Event::Press(at(x, 400.0, when))));
+        assert!(self.send(Event::Drag(at(x + 50.0, 440.0, when + 0.1))));
+        assert!(self.send(Event::Drag(at(x + 100.0, 480.0, when + 0.2))));
+        assert!(self.send(Event::Lift(at(x + 100.0, 480.0, when + 0.3))));
     }
 }
 
