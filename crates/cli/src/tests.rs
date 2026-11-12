@@ -2,9 +2,9 @@
 //! exit code out. Each run talks to a real daemon on its own socket.
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
 
 use serde_json::Value;
+use tempfile::TempDir;
 
 use slingerd as daemon;
 
@@ -30,11 +30,13 @@ struct Run {
     err: String,
 }
 
-/// A socket path that no other test uses. Short: socket paths have a length limit.
-fn socket_path() -> PathBuf {
-    static NEXT: AtomicU32 = AtomicU32::new(0);
-    let n = NEXT.fetch_add(1, Ordering::Relaxed);
-    std::env::temp_dir().join(format!("c-{}-{n}.sock", std::process::id()))
+/// A socket path in a new directory of its own, so no other test, process or
+/// leftover from an earlier run shares it, and it is removed on drop even
+/// when the test fails. Short: socket paths have a length limit.
+fn socket_path() -> (TempDir, PathBuf) {
+    let dir = TempDir::new().unwrap();
+    let socket = dir.path().join("d.sock");
+    (dir, socket)
 }
 
 /// Runs the CLI against a daemon that lives for this one call.
@@ -56,7 +58,7 @@ fn with_daemon<T>(f: impl FnOnce(&Path) -> T) -> T {
 
 /// [`with_daemon`], with each agent's process running `claude`.
 fn with_daemon_running<T>(claude: &Path, f: impl FnOnce(&Path) -> T) -> T {
-    let socket = socket_path();
+    let (_dir, socket) = socket_path();
     let data = tempfile::tempdir().unwrap();
     let store = daemon::Store::open(data.path(), "my-laptop").unwrap().with_claude(claude);
     let server = daemon::Server::bind(&socket).unwrap();
@@ -65,7 +67,6 @@ fn with_daemon_running<T>(claude: &Path, f: impl FnOnce(&Path) -> T) -> T {
     let result = f(&socket);
     stopper.stop();
     serving.join().unwrap().unwrap();
-    std::fs::remove_file(format!("{}.lock", socket.display())).unwrap();
     result
 }
 
@@ -152,7 +153,7 @@ fn json_errors_go_to_stdout_with_a_code() {
 
 #[test]
 fn no_daemon_is_unavailable_with_a_start_hint() {
-    let socket = socket_path();
+    let (_dir, socket) = socket_path();
     let r = cli_on(&socket, &["canvas", "list"]);
     assert_eq!((r.code, r.out.as_str()), (exit::UNAVAILABLE, ""));
     assert!(r.err.contains(" does not answer on "), "{}", r.err);

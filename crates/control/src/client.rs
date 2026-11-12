@@ -265,11 +265,10 @@ mod tests {
 
     /// A one-shot fake daemon that answers any request with `reply`. The real
     /// daemon's tests cover the real answers; this covers replies it never sends.
-    fn answering(reply: &'static str) -> (Client, PathBuf) {
-        static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-        let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let socket = std::env::temp_dir().join(format!("ctl-{}-{n}.sock", std::process::id()));
-        let _ = std::fs::remove_file(&socket);
+    /// Its socket is in a new directory, removed when the directory drops.
+    fn answering(reply: &'static str) -> (Client, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("d.sock");
         let listener = UnixListener::bind(&socket).unwrap();
         std::thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
@@ -277,14 +276,12 @@ mod tests {
             BufReader::new(&stream).read_line(&mut line).unwrap();
             stream.write_all(reply.as_bytes()).unwrap();
         });
-        (Client::new(&socket), socket)
+        (Client::new(&socket), dir)
     }
 
     fn list(reply: &'static str) -> Result<Vec<String>, RemoteError> {
-        let (client, socket) = answering(reply);
-        let result = client.canvas_list();
-        std::fs::remove_file(socket).unwrap();
-        result
+        let (client, _dir) = answering(reply);
+        client.canvas_list()
     }
 
     #[test]
