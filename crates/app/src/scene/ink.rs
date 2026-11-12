@@ -311,7 +311,7 @@ impl Ink {
     /// that the daemon has made under the ids it made; its key. A carry's
     /// items each show under a key of their own.
     fn queue(&mut self, mut change: Change, after: Option<u64>) -> u64 {
-        change.rename(|id| Some(self.made.known(id)));
+        change.rename(&|id| Some(self.made.known(id)));
         let key = self.next_key;
         let keys = match &change {
             Change::Carry { items, .. } => u64::try_from(items.len()).unwrap_or(1).max(1),
@@ -335,7 +335,7 @@ impl Ink {
             let at = self.pending.iter().position(|p| p.state == State::Waiting)?;
             let made = &self.made;
             let first = &mut self.pending[at];
-            if first.change.rename(|id| made.sent(id)) {
+            if first.change.rename(&|id| made.sent(id)) {
                 first.state = State::Sending;
                 return Some((first.key, first.change.clone()));
             }
@@ -356,7 +356,7 @@ impl Ink {
                 self.made.add(&renamed);
                 let made = &self.made;
                 for pending in &mut self.pending {
-                    pending.change.rename(|id| Some(made.known(id)));
+                    pending.change.rename(&|id| Some(made.known(id)));
                 }
                 self.problem = None;
                 return renamed;
