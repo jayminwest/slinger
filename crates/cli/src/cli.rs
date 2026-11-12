@@ -19,6 +19,7 @@ use crate::canvas::Canvas;
 use crate::feedback::Feedback;
 use crate::output::{Ctx, Failure, Output, exit};
 use crate::pane::Pane;
+use crate::profile::Profile;
 use crate::session::{Session, Status, Touch};
 use crate::sling::Sling;
 use crate::ui::Ui;
@@ -99,6 +100,9 @@ enum Command {
     /// List, start, stop and message the agents slingerd can reach
     #[command(subcommand)]
     Session(Session),
+    /// List, set and remove a workspace agent's profiles: a working directory and the tools it may use
+    #[command(subcommand)]
+    Profile(Profile),
     /// Report the calling agent's status: working, blocked or done
     #[command(subcommand)]
     Status(Status),
@@ -187,6 +191,7 @@ impl Command {
             Self::Workspace(workspace) => workspace.name(),
             Self::Pane(pane) => pane.name(),
             Self::Session(session) => session.name(),
+            Self::Profile(profile) => profile.name(),
             Self::Status(status) => status.name(),
             Self::Sling(sling) => sling.name(),
             Self::File(file) => file.name(),
@@ -265,6 +270,7 @@ fn execute(
         Command::Workspace(workspace) => crate::workspace::execute(workspace, daemon),
         Command::Pane(pane) => crate::pane::execute(pane, daemon),
         Command::Session(session) => crate::session::execute(session, daemon, input),
+        Command::Profile(profile) => crate::profile::execute(profile, daemon),
         Command::Status(status) => crate::session::set(status, daemon),
         Command::Sling(sling) => crate::sling::execute(sling, daemon, input),
         Command::File(file) => crate::session::touched(file, daemon, input),

@@ -8,7 +8,8 @@
 //! the window's `sendEvent:` hands every key to the app first, which keeps
 //! those two. The Edit menu's cut, copy, paste and select all reach the
 //! field along the responder chain: Flick's dictation pastes what it heard
-//! with cmd+V.
+//! with cmd+V. Its undo and redo keys come from the menu as `undo:` and
+//! `redo:` (`menu`), which the field editor's steps answer.
 //!
 //! Focus has one path, [`Kept::focus`], taken on every draw while the entry
 //! is open and each time the window becomes key: the field takes the
@@ -50,8 +51,11 @@ define_class!(
             let took: bool = unsafe { msg_send![super(self), becomeFirstResponder] };
             if let (true, Some(editor), Some(colour)) = (took, self.currentEditor(), self.textColor()) {
                 // SAFETY: a text field's field editor is an `NSTextView`,
-                // whose caret takes an `NSColor`.
-                let () = unsafe { msg_send![&*editor, setInsertionPointColor: &*colour] };
+                // whose caret takes an `NSColor` and which keeps undo steps.
+                unsafe {
+                    let () = msg_send![&*editor, setInsertionPointColor: &*colour];
+                    let () = msg_send![&*editor, setAllowsUndo: true];
+                }
             }
             took
         }

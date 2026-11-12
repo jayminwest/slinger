@@ -145,7 +145,8 @@ fn follow(
 /// went to.
 fn sling(daemon: &Client, ask: Ask) -> Result<String, Problem> {
     let select = ask.ids.into_iter().map(mirror::item_ref).collect();
-    let request = SlingAsk { canvas: ask.canvas, page: Some(ask.page), select, prompt: ask.prompt };
+    let (canvas, page, prompt) = (ask.canvas, Some(ask.page), ask.prompt);
+    let request = SlingAsk { canvas, page, select, prompt, profile: None };
     daemon.sling_send(request).map(|slung| slung.agent).map_err(Problem::from)
 }
 
@@ -283,6 +284,7 @@ mod tests {
                 page: None,
                 select: vec![],
                 prompt: "hi".into(),
+                profile: None,
             };
             d.sling_send(ask).unwrap();
             assert_eq!(shown(d), (Some(Status::Working), None), "one pending, no hook yet");

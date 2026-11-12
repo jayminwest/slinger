@@ -357,7 +357,17 @@ fn said_has(footer: &Footer, text: &str) -> bool {
 /// The tip of the button that runs `command` in `footer`, lit.
 fn tip_of(footer: &Footer, command: Command, keys: &Keymap, window: Rect) -> Option<Label> {
     let target = footer.targets.iter().find(|t| t.1 == run(command))?.0;
-    tip(std::slice::from_ref(footer), target, &T, keys, window)
+    let mut footers = [footer.clone()];
+    let given = tip(&mut footers, target, &T, keys, window);
+    let [footer] = footers;
+    assert_eq!(given, footer.tip.is_some());
+    let line = footer.tip?;
+    assert_eq!(
+        (line.radius, line.edge),
+        (TIP_RADIUS, Some(style::edge(&T))),
+        "rounded, a hairline"
+    );
+    Some(line.label)
 }
 
 #[test]

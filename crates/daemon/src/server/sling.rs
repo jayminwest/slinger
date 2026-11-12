@@ -6,7 +6,9 @@
 //! agent's running process; only then is it stored (R7) and `sling_sent`
 //! appended, which moves the marker. A sling that cannot be delivered leaves
 //! no trace, so the next one sends the same ink. Slinger never starts an
-//! agent for a sling (D10): with no running process it is `unavailable`.
+//! agent for a sling (D10): with no running process it is `unavailable`. A
+//! sling that names a profile goes only to a process under that profile
+//! (`conflict` otherwise): it never reaches an agent with other limits.
 
 use slinger_control::{RemoteError, Reply, SlingAsk, Slung};
 use slinger_core::record::{Body, Event, NamedBlob, SlingSent, Tags};
@@ -40,7 +42,9 @@ pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Reply, RemoteError> {
         first,
         verbs: &VERBS,
     });
-    sessions.deliver(store, &workspace, &stream::sling(&message)).map_err(|e| remote(&e))?;
+    let line = stream::sling(&message);
+    let profile = ask.profile.as_deref();
+    sessions.deliver(store, &workspace, &line, profile).map_err(|e| remote(&e))?;
 
     let id = store.put_blob(packet.text().as_bytes()).map_err(|e| stored(&e))?;
     let mut images = Vec::with_capacity(packet.images.len());

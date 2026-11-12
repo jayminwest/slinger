@@ -9,9 +9,12 @@
 //! - Paste puts the clipboard's text where typed text goes (a text being
 //!   typed, a page command's question); else its items on the focused
 //!   pane's page, centred in the pane, in one step, and they are the
-//!   selection once there. With neither, Edit > Paste greys out.
+//!   selection once there. Plain text alone (from another app) goes there
+//!   as one new text item of the pen's colour. With no page, Edit > Paste
+//!   greys out.
 
 use super::{Canvases, canvas_of, find, wanted};
+use crate::config::Rgb;
 use crate::layout::{Point, Rect, Viewport};
 use crate::mirror::{Mirror, clip};
 use crate::panes::Panes;
@@ -42,22 +45,22 @@ impl Canvases {
     }
 
     /// Whether a paste of `clip` has somewhere to go on the focused pane of
-    /// `panes`: its text where typed text goes, or its items on the page.
+    /// `panes`: its text where typed text goes, or its items (or its text,
+    /// as a new text item) on the page.
     pub fn can_paste(&self, clip: &Clip, panes: &Panes) -> bool {
         let page = || self.focused_page(panes).is_some();
-        !self.typing()
-            && if self.editing() { clip.text.is_some() } else { clip.items.is_some() && page() }
+        !self.typing() && if self.editing() { clip.text.is_some() } else { page() }
     }
 
     /// Pastes `clip` as the module says, on the focused pane of `panes`
-    /// laid in `area`. False when nothing took it.
-    pub fn paste(&mut self, clip: &Clip, panes: &Panes, area: Rect) -> bool {
+    /// laid in `area`, a new text in `colour`. False when nothing took it.
+    pub fn paste(&mut self, clip: &Clip, panes: &Panes, area: Rect, colour: Rgb) -> bool {
         if self.typing() || self.editing() {
             return clip.text.as_deref().is_some_and(|text| self.pasted(text));
         }
-        let (Some(items), Some((canvas, mirror))) = (&clip.items, self.focused_page(panes)) else {
-            return false;
-        };
+        let text = || clip.text.as_deref().and_then(|text| clip::text_items(text, colour));
+        let Some(items) = clip.items.clone().or_else(text) else { return false };
+        let Some((canvas, mirror)) = self.focused_page(panes) else { return false };
         let focus = panes.focus();
         let placed = panes.place(area).into_iter().find(|(id, _, _)| *id == focus);
         let Some(frame) = placed.map(|(_, _, frame)| crate::scene::status::content(frame)) else {
@@ -67,7 +70,7 @@ impl Canvases {
         let viewport = view.map_or_else(Viewport::start, |(_, v)| v.viewport);
         let centre = viewport.to_canvas(Point { x: frame.width / 2.0, y: frame.height / 2.0 });
         let page = mirror.page().to_string();
-        let items = clip::pasted(items, &page, centre);
+        let items = clip::pasted(&items, &page, centre);
         if items.is_empty() {
             return false;
         }

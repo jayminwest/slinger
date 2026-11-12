@@ -476,7 +476,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     // The border first, so a pop-up at the pen draws over it.
     shown.chrome.push(Retained::into_super(chrome::border(&scene.focus, height, mtm)));
     shown.chrome.extend(scene.labels.iter().flat_map(|line| text::line(line, height, mtm)));
-    shown.chrome.extend(overlay::lines(&scene.pills, height, mtm));
+    shown.chrome.extend(scene.pills.iter().flat_map(|line| overlay::line(line, height, mtm)));
     if let Some(pill) = &scene.flash {
         shown.chrome.push(Retained::into_super(chrome::pill(window, pill, height, mtm)));
     }

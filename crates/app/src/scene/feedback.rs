@@ -1,7 +1,9 @@
 //! Leaving feedback from the window, as Flick does: the `leave-feedback`
 //! command opens a one-line entry in the focused pane, "Feedback" above it
 //! and its keys beneath. Return saves the note, with what the window shows
-//! ([`Context`]), and escape cancels; an empty note saves nothing. A saved
+//! ([`Context`]), and escape cancels; an empty note saves nothing. The
+//! pen has buttons beside the box for both, and to dictate the note
+//! ([`crate::scene::sling::pen`]). A saved
 //! note closes the entry and flashes "Feedback saved"; a failure opens it
 //! again with its text, and the problem under it. Under the open entry go
 //! the most recent open notes ([`Recent`]), as Flick lists them beside its
@@ -15,10 +17,12 @@
 
 use crate::backend::Problem;
 use crate::commands::Chord;
+use crate::config::Rgb;
 use crate::config::Theme;
 use crate::layout::{Point, Rect};
 use crate::scene::Label;
-use crate::scene::sling::{Entry, Key, SEND, centred, line};
+use crate::scene::sling::pen::beside;
+use crate::scene::sling::{Entry, Key, SEND, line, under};
 
 /// What the window showed when the note was left. The daemon leaves out
 /// what is absent.
@@ -79,7 +83,7 @@ impl Feedback {
             return false;
         }
         let text = self.open.take().map(|(note, ..)| note.text).unwrap_or_default();
-        self.open = Some((Note { text, context }, centred(within), Stage::Typing(None)));
+        self.open = Some((Note { text, context }, beside(within), Stage::Typing(None)));
         true
     }
 
@@ -154,7 +158,15 @@ impl Feedback {
         let mut entry = Entry::framed(*frame, theme, "Feedback".into(), keys);
         entry.text.clone_from(&note.text);
         entry.placeholder = "what worked, what got in the way".into();
+        entry.done = Some("Save");
         Some(entry)
+    }
+
+    /// `lines` (text and colour) under the open entry, after its own (a
+    /// problem, the recent notes): what dictation says.
+    pub fn under(&self, theme: &Theme, lines: Vec<(String, Rgb)>) -> Vec<Label> {
+        let Some((_, frame, Stage::Typing(_))) = &self.open else { return Vec::new() };
+        under(*frame, self.labels(theme).len(), theme, lines)
     }
 
     /// Whether `at`, a point in the window, is on the open entry's box.

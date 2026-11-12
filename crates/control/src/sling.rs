@@ -22,6 +22,10 @@ pub struct SlingAsk {
     /// What the user asks. Empty is valid: the selection is the question.
     #[serde(default)]
     pub prompt: String,
+    /// The profile the agent must run under: a process under another one,
+    /// or under none, refuses the sling (`conflict`). Absent: any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
 }
 
 /// The reply to a sling: what went, and where.
@@ -51,7 +55,8 @@ impl Client {
     /// # Errors
     ///
     /// `unavailable` when the agent's process is not running or the daemon
-    /// does not answer, `not_found` for a canvas, page or workspace that is
+    /// does not answer, `conflict` when it runs under another profile than
+    /// the one asked for, `not_found` for a canvas, page or workspace that is
     /// not there, and `invalid` for a selected id that is not one or a
     /// workspace with no agent.
     pub fn sling_send(&self, ask: SlingAsk) -> Result<Slung, RemoteError> {

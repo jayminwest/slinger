@@ -26,21 +26,19 @@ pub(super) fn views(
     dim.setFillColor(&fill);
     dim.setFrame(flipped(height, overlay.frame));
     let mut views = vec![Retained::into_super(dim)];
-    views.extend(lines(&overlay.lines, height, mtm));
+    views.extend(overlay.lines.iter().flat_map(|line| self::line(line, height, mtm)));
     views
 }
 
-/// The views that draw `lines` in a view `height` tall, bottom first: each
-/// one's box, then its text.
-pub(super) fn lines(lines: &[Line], height: f64, mtm: MainThreadMarker) -> Vec<Retained<NSView>> {
+/// The views that draw `line` in a view `height` tall: the box behind it,
+/// if it has a fill or an edge, then its text, if any.
+pub(super) fn line(line: &Line, height: f64, mtm: MainThreadMarker) -> Vec<Retained<NSView>> {
     let mut views = Vec::new();
-    for line in lines {
-        if line.label.fill.is_some() || line.edge.is_some() {
-            views.push(Retained::into_super(back(line, height, mtm)));
-        }
-        if !line.label.text.is_empty() {
-            views.push(text(line, height, mtm));
-        }
+    if line.label.fill.is_some() || line.edge.is_some() {
+        views.push(Retained::into_super(back(line, height, mtm)));
+    }
+    if !line.label.text.is_empty() {
+        views.push(text(line, height, mtm));
     }
     views
 }

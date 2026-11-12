@@ -1,5 +1,6 @@
 use super::*;
 use crate::config::Rgb;
+use crate::scene::sling::pen::beside;
 
 const T: Theme = Theme {
     background: Rgb { r: 0, g: 0, b: 0 },
@@ -45,8 +46,7 @@ fn the_entry_opens_in_the_pane_labelled_feedback_with_its_keys() {
     assert_eq!((entry.text.as_str(), entry.dictate), ("the lasso is slow", None));
     let inside = |r: Rect| r.x >= PANE.x && r.x + r.width <= PANE.x + PANE.width;
     assert!(inside(entry.frame) && entry.frame.y > 40.0, "{:?}", entry.frame);
-    let centre = entry.frame.x + entry.frame.width / 2.0;
-    assert!((centre - (PANE.x + PANE.width / 2.0)).abs() < 1e-9, "centred");
+    assert_eq!((entry.frame, entry.done), (beside(PANE), Some("Save")), "the pen's buttons");
     let on = Point { x: entry.frame.x + 1.0, y: entry.frame.y + 1.0 };
     assert!(feedback.covers(on) && !feedback.covers(Point { x: 0.0, y: 0.0 }));
     assert_eq!(texts(&feedback), []);
@@ -139,4 +139,9 @@ fn the_open_entry_lists_the_recent_notes_under_any_problem() {
     feedback.answered(Err(Problem { message: "gone".into(), hint: None }));
     let lines = texts(&feedback);
     assert_eq!(lines[..2], [("✗ gone".to_string(), T.error), header]);
+
+    // What dictation says goes under them all.
+    let said = feedback.under(&T, vec![("● Flick is listening".into(), T.muted)]);
+    let last = feedback.labels(&T).last().map(|l| l.frame.y).unwrap();
+    assert!(said.len() == 1 && said[0].frame.y > last, "{said:?}");
 }

@@ -242,7 +242,7 @@ fn asked(
         }
         Event::Can(_) => return Ask::Step(Step::Pass),
         Event::Edit(edit) => {
-            return match window::edit(edit, shared, canvases, area) {
+            return match window::edit(edit, shared, canvases, tools, area) {
                 Edited::No => Ask::Step(Step::Stay),
                 Edited::Drawn(clip) => Ask::Draw(clip),
             };
@@ -281,7 +281,7 @@ enum Ask {
 }
 
 /// What `event` asks: a menu item chosen with the pointer runs its command,
-/// and closes the open command palette in `shared` first; the palette takes
+/// and closes what is open over `shared` first; the palette takes
 /// every key and press, and runs a command as its key would (a row on the
 /// lift, as the key overlay's); then a key goes to what takes keys first
 /// ([`taken`]), to the canvases (a text being typed), and to the keymap. A
@@ -303,7 +303,7 @@ fn ask(
             tools.moved(pen.at);
             shared.lift(pen.at)
         }
-        Event::Command(command) => shared.palette.chosen(command).into(),
+        Event::Command(command) => shared.chosen(command),
         _ => return Ask::Not,
     };
     match (palette, event) {
