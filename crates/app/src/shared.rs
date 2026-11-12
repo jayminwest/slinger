@@ -107,10 +107,14 @@ impl Shared {
     /// in `area`: the pane under it (what it shows or its footer) takes
     /// focus before the press does its work, so every focused-pane command
     /// acts there next. Under the key overlay or the palette (they take
-    /// the press), on a divider, or for a touch, focus stays. Returns
-    /// whether it moved.
-    pub fn press_focus(&mut self, area: Rect, at: Point, touch: bool) -> bool {
-        !touch && !self.modal() && self.panes.focus_at(area, at)
+    /// the press), on a divider, or for a touch, focus stays; a press that
+    /// `grabs` the selection there focuses its pane even on a divider.
+    /// Returns whether it moved.
+    pub fn press_focus(&mut self, area: Rect, at: Point, touch: bool, grabs: bool) -> bool {
+        if touch || self.modal() {
+            return false;
+        }
+        if grabs { self.panes.focus_in(area, at) } else { self.panes.focus_at(area, at) }
     }
 
     /// Whether the key overlay or the palette is open: either takes every

@@ -69,7 +69,7 @@ fn an_agent_s_live_item_shows_its_page_which_takes_presses_until_it_is_selected(
         assert!(!canvases.pen_down(&panes, (panes.focus(), area), on, lasso), "the page's");
         assert!(canvases.pen_down(&panes, (panes.focus(), area), pen(5.0, 5.0), lasso));
         for (x, y) in [(900.0, 5.0), (900.0, 600.0), (5.0, 600.0)] {
-            canvases.pen_drag(&panes, pen(x, y));
+            canvases.pen_drag(&panes, pen(x, y), Some((panes.focus(), area)));
         }
         canvases.pen_up(&panes, pen(5.0, 5.0), Some((panes.focus(), area)));
         assert_eq!(canvases.selection().map(|s| s.ids.len()), Some(2), "the stroke and the item");

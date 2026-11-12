@@ -50,7 +50,7 @@ use crate::scene::sidebar::Sidebar;
 use crate::scene::taps::{Tap, Target, Took};
 use crate::scene::tools::{Kind, Tools};
 use crate::shared::Shared;
-use crate::window::{pane_at, run, tap, view};
+use crate::window::{grabs, pane_at, run, tap, view};
 
 fn main() -> ExitCode {
     let settings = backend::Settings::load(backend::ConfigFiles::locate());
@@ -155,7 +155,7 @@ fn window(mut settings: Settings) -> ExitCode {
         let area = sidebar.panes(shared.size.rect());
         // A press focuses the pane under it first, so the press works there.
         let refocused = match event {
-            Event::Press(pen) => shared.press_focus(area, pen.at, pen.touch),
+            Event::Press(pen) => window::press_focus(&mut shared, &canvases, &tools, area, pen),
             _ => false,
         };
         let pass =
@@ -319,7 +319,8 @@ fn taken(
         || tools.key(chord)
 }
 
-/// Hands a press on a divider between panes (with no pop-up open), and the
+/// Hands a press on a divider between panes (with no pop-up open, and not
+/// grabbing the selection: [`grabs`]), and the
 /// drag and lift after it, to the panes of `shared` laid in `area`, which
 /// resize; a moved divider goes to the daemon on `socket`. A resized window
 /// lays its panes out again. A paste goes to the open palette's search,
@@ -350,7 +351,13 @@ fn pen(
         Event::Drag(pen) if shared.drag(pen.at) => true,
         Event::Scroll { dy, .. } if shared.scroll(dy) => true,
         Event::Lift(_) | Event::Zoom { .. } | Event::Text(_) if shared.modal() => true,
-        Event::Press(pen) if free && shared.dividers.down(&shared.panes, area, pen.at) => true,
+        Event::Press(pen)
+            if free
+                && !grabs(canvases, &shared.panes, tools, area, pen)
+                && shared.dividers.down(&shared.panes, area, pen.at) =>
+        {
+            true
+        }
         Event::Drag(pen) if shared.dividers.drag(&mut shared.panes, pen.at) => true,
         Event::Lift(pen) if shared.dividers.held() => {
             let moved = shared.dividers.up(&mut shared.panes, pen.at);
@@ -394,7 +401,7 @@ fn pointer(
         }
         Event::Drag(pen) => {
             tools.moved(pen.at);
-            canvases.pen_drag(panes, pen)
+            canvases.pen_drag(panes, pen, pane_at(panes, area, pen.at))
         }
         Event::Lift(pen) => {
             let ended = canvases.pen_up(panes, pen, pane_at(panes, area, pen.at));

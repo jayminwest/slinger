@@ -261,19 +261,35 @@ fn the_text_tool_on_a_text_edits_it_as_one_set_or_a_remove_when_emptied() {
 }
 
 #[test]
+fn a_double_tap_with_the_lasso_or_the_select_tool_edits_once_the_pen_lifts_where_it_went_down() {
+    let items = page();
+    let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
+    // The second press may be a drag of what the first tap selected.
+    for (tool, when) in [(Tool::Lasso, 0.5), (Tool::Select, 0.7)] {
+        assert!(!down(&mut shapes, &mut ink, tool, (310.0, 10.0), when, &items), "one tap");
+        assert!(!down(&mut shapes, &mut ink, tool, (312.0, 12.0), when + 0.1, &items), "{tool:?}");
+        assert!(!shapes.editing());
+        assert!(shapes.tapped(pt(313.0, 12.0)), "{tool:?}: lifted where it went down");
+        assert!(shapes.editing());
+        shapes.end(&mut ink);
+    }
+    assert!(!down(&mut shapes, &mut ink, Tool::Select, (310.0, 10.0), 0.9, &items));
+    assert!(!down(&mut shapes, &mut ink, Tool::Select, (310.0, 10.0), 1.0, &items));
+    assert!(!shapes.tapped(pt(410.0, 10.0)), "a drag: no edit");
+    assert!(!shapes.editing() && !shapes.tapped(pt(310.0, 10.0)), "asked once");
+}
+
+#[test]
 fn a_double_tap_on_a_text_edits_it_with_any_tool_but_the_pen() {
     let items = page();
     let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
-    assert!(
-        !down(&mut shapes, &mut ink, Tool::Lasso, (310.0, 10.0), 0.0, &items),
-        "one tap is the lasso's"
-    );
-    assert!(down(&mut shapes, &mut ink, Tool::Lasso, (312.0, 12.0), 0.3, &items));
+    assert!(!down(&mut shapes, &mut ink, Tool::Eraser, (310.0, 10.0), 0.0, &items));
+    assert!(down(&mut shapes, &mut ink, Tool::Eraser, (312.0, 12.0), 0.3, &items));
     assert!(shapes.editing());
     shapes.end(&mut ink);
 
-    assert!(!down(&mut shapes, &mut ink, Tool::Pen, (310.0, 10.0), 1.0, &items));
-    assert!(!down(&mut shapes, &mut ink, Tool::Pen, (310.0, 10.0), 1.1, &items), "the pen draws");
+    assert!(!down(&mut shapes, &mut ink, Tool::Pen, (310.0, 10.0), 1.4, &items));
+    assert!(!down(&mut shapes, &mut ink, Tool::Pen, (310.0, 10.0), 1.5, &items), "the pen draws");
     assert!(!down(&mut shapes, &mut ink, Tool::Eraser, (310.0, 10.0), 2.0, &items));
     assert!(!down(&mut shapes, &mut ink, Tool::Eraser, (310.0, 10.0), 2.5, &items), "too slow");
     assert!(!down(&mut shapes, &mut ink, Tool::Eraser, (330.0, 10.0), 2.6, &items), "too far");
@@ -295,8 +311,8 @@ fn a_double_tap_on_another_text_ends_the_one_being_typed_and_edits_it() {
         !down(&mut shapes, &mut ink, Tool::Lasso, (310.0, 10.0), 5.0, &items),
         "it ends the text and is the lasso's"
     );
-    assert!(down(&mut shapes, &mut ink, Tool::Lasso, (310.0, 10.0), 5.2, &items));
-    assert!(shapes.editing());
+    assert!(!down(&mut shapes, &mut ink, Tool::Lasso, (310.0, 10.0), 5.2, &items));
+    assert!(shapes.tapped(pt(310.0, 10.0)) && shapes.editing());
     assert_eq!(changes(&mut ink).len(), 1, "the new text went");
 }
 

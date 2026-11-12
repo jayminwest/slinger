@@ -94,8 +94,10 @@ pub enum Change {
     /// Item `id` drawn as `shape` from now on: one edit of a text.
     Set { canvas: String, page: String, id: ItemId, shape: Shape },
     /// Items carried in from another page, one `add` each: a selection
-    /// dragged into this page's pane ([`Ink::carry`]).
-    Carry { canvas: String, page: String, items: Vec<Carried> },
+    /// dragged into this page's pane. From a page of the same canvas,
+    /// `gone` names the items it takes from there, in the same step;
+    /// from another canvas it is empty ([`Ink::carry`]).
+    Carry { canvas: String, page: String, items: Vec<Carried>, gone: Vec<ItemId> },
     /// A change to the canvas's pages.
     Page { canvas: String, op: PageOp },
     /// The user's last step on the canvas undone, or redone when `redo`.
@@ -148,6 +150,8 @@ pub enum Answer {
     /// Written; the number of its last line in the canvas file, or 0 when
     /// it wrote none (an undo with nothing to undo): nothing to wait for.
     Applied(u64),
+    /// A carry written, under that number: the ids of the items it made.
+    Made { seq: u64, ids: Vec<ItemId> },
     /// A new page written, under that number: its id.
     NewPage { seq: u64, page: String },
     /// Not reached: send it again.
@@ -254,9 +258,11 @@ impl Ink {
     /// then the `remove` of them here, each one step on its canvas. Both
     /// show at once; the removal goes only once the add is written, and is
     /// dropped with it if the add is refused, so no item is ever lost.
-    pub fn carry(&mut self, to: Change, from: Change) {
+    /// Returns the key of the add.
+    pub fn carry(&mut self, to: Change, from: Change) -> u64 {
         let key = self.queue(to, None);
         self.queue(from, Some(key));
+        key
     }
 
     /// Queues `change` after every change before it; its key. A carry's
@@ -288,7 +294,7 @@ impl Ink {
     pub fn answered(&mut self, key: u64, answer: Answer) {
         let Some(at) = self.pending.iter().position(|p| p.key == key) else { return };
         match answer {
-            Answer::Applied(seq) | Answer::NewPage { seq, .. } => {
+            Answer::Applied(seq) | Answer::NewPage { seq, .. } | Answer::Made { seq, .. } => {
                 self.pending[at].state = State::Sent(seq);
                 self.problem = None;
             }
@@ -321,14 +327,21 @@ impl Ink {
     pub fn shown<'a>(&self, canvas: &str, page: &str, items: &'a [Item]) -> Vec<Cow<'a, Item>> {
         let mut shown: Vec<Cow<'a, Item>> = items.iter().map(Cow::Borrowed).collect();
         let here = |c: &str, p: &str| c == canvas && p == page;
-        let mine = |p: &&Pending| p.change.page().is_some_and(|page| here(p.change.canvas(), page));
+        // A carry within the canvas takes its items from whatever page they were on.
+        let mine = |p: &&Pending| {
+            let carry = matches!(&p.change, Change::Carry { gone, .. } if !gone.is_empty());
+            let on = p.change.page().is_some_and(|page| here(p.change.canvas(), page));
+            on || (carry && p.change.canvas() == canvas)
+        };
         for pending in self.pending.iter().filter(mine) {
             match &pending.change {
                 Change::Add(stroke) => shown.push(Cow::Owned(local(pending.key, stroke))),
-                Change::Carry { items, .. } => {
-                    shown.extend(items.iter().zip(pending.key..).map(|(c, key)| {
-                        Cow::Owned(Item { id: ItemId(LOCAL + key), ..c.item.clone() })
-                    }));
+                Change::Carry { page: to, items, gone, .. } => {
+                    let gone: HashSet<&ItemId> = gone.iter().collect();
+                    shown.retain(|i| !gone.contains(&i.id));
+                    shown.extend(items.iter().zip(pending.key..).filter(|_| to == page).map(
+                        |(c, key)| Cow::Owned(Item { id: ItemId(LOCAL + key), ..c.item.clone() }),
+                    ));
                 }
                 Change::Remove { ids, .. } => {
                     let ids: HashSet<&ItemId> = ids.iter().collect();

@@ -335,6 +335,10 @@ canvases/button.rs  the "send to agent" button (SPEC section 8): a tap slings
              status of its canvas's agent (`agents`, from the sidebar).
 canvases/find.rs  which page, canvas and items each pane shows; a window
              point in canvas points.
+canvases/drag.rs  the pen's drag and lift on the canvas panes: a drag of the
+             selection read through the pane under the pen; whether a press
+             grabs the selection (it wins over a divider within reach). The
+             selection is of a page, so every pane on its page shows it.
 canvases/paging.rs  the canvas commands on a pane: pan, zoom (in, out, to
              100%; a pinch and a cmd- or ctrl-scroll come here too, and each
              zoom flashes its level, "Zoom 150%"), `toggle-grid` (the
@@ -510,7 +514,9 @@ scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
              and a hint under it: `label`, chrome's 11 pt line),
              which with any tool but the text tool also starts that tool's
              gesture (the text tool on a text, or a double tap with any tool but
-             the pen, edits it); a drag makes a box or an arrow, whose ends
+             the pen, edits it; with the lasso or the select tool the edit
+             waits for a lift where the pen went down, as the second press
+             may drag the selection); a drag makes a box or an arrow, whose ends
              bind to the items they land on. An arrow bound to a moved item
              follows it (`follow`): the move's change carries the arrow's
              new ends, so it is still one `canvas_apply`. Each text, shape
@@ -528,11 +534,16 @@ scene/select/pick.rs  the select tool: a press picks the topmost item (a
              box; a press on empty canvas draws a box that selects what it
              touches; shift adds or takes out. The lasso's selection, so
              delete, sling, escape and moves act on it alike. Pure.
-scene/select/carry.rs  a drag of the selection that lifts over another
-             pane: on the same page it moves; on another page its items go
-             there (an `add` there, then a `remove` here, one undo step on
-             each canvas; a refused add takes the remove with it); outside
-             every canvas pane nothing moves. Pure.
+scene/select/carry.rs  a drag of the selection goes by the canvas pane
+             under the pen, read through that pane's own view, at every pen
+             event and at the lift: over a pane on the same page the items
+             follow the pen and move (one `move`); over a pane on another
+             page they show there and go there (on the same canvas one
+             `add` and `remove` in one `canvas_apply`, so one undo step;
+             onto another canvas an `add` there, then a `remove` here, one
+             step on each, a refused add taking the remove with it), and
+             are selected there once the server's ids arrive; outside every
+             canvas pane they show home and nothing moves. Pure.
 scene/resize.rs  the pen on a divider between panes: the press grabs it,
              each drag resizes the panes at once, the lift names it (the
              number of the pane before it, and its share) for

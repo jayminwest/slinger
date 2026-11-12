@@ -17,7 +17,10 @@
 //!   focus colour, a square handle at each corner (only a mark for now: a
 //!   drag on one moves the selection) and the number of items above it. It
 //!   is app state, read by what acts on it ([`Select::selection`]); delete
-//!   removes it in one `remove`.
+//!   removes it in one `remove`. It is of a page, not of a pane: every pane
+//!   on its page shows it, and its move, as the items themselves do.
+//! - A drag of the selection follows the pane under the pen, and can carry
+//!   it to another page ([`carry`]).
 //!
 //! Which items a path touches, a loop holds or a press picks is [`hit`]'s, the core's rules
 //! kept here so the answer comes at every pen event without the socket.
@@ -30,6 +33,7 @@ mod hit;
 mod pick;
 
 pub use carry::Landing;
+use carry::{Arriving, Target};
 
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -79,20 +83,30 @@ enum Gesture {
     Erase { ids: Vec<ItemId>, last: Point, radius: f64 },
     /// The loop so far.
     Lasso { points: Vec<Point> },
-    /// The selection dragged from `from`, `by` so far. `click` is the item
-    /// the select tool pressed on, selected alone if the pen lifts unmoved.
-    Move { from: Point, by: Point, click: Option<ItemId> },
+    /// The selection dragged from `from`, `by` so far, towards `to`.
+    /// `click` is the item the select tool pressed on, selected alone if
+    /// the pen lifts unmoved.
+    Move { from: Point, by: Point, click: Option<ItemId>, to: Target },
     /// The select tool's box, from `from` to `to`; `adding` (shift) adds
     /// what it touches to the selection.
     Marquee { from: Point, to: Point, adding: bool },
 }
 
-/// The gesture under the pen, if any, and the selection, if any.
+impl Gesture {
+    /// A drag of the selection pressed at `from`, not moved yet.
+    fn moving(from: Point, click: Option<ItemId>) -> Self {
+        Gesture::Move { from, by: Point { x: 0.0, y: 0.0 }, click, to: Target::Here }
+    }
+}
+
+/// The gesture under the pen, if any, the selection, if any, and the
+/// items a carry is bringing to another page ([`carry`]).
 #[derive(Debug, Default)]
 pub struct Select {
     /// The canvas and page the gesture is on, and the gesture.
     gesture: Option<(String, String, Gesture)>,
     selection: Option<Selection>,
+    arriving: Option<Arriving>,
 }
 
 impl Select {
@@ -109,11 +123,10 @@ impl Select {
         zoom: f64,
         items: &[Cow<'_, Item>],
     ) -> bool {
+        self.arriving = None;
         let gesture = match tool {
             Tool::Eraser => Gesture::Erase { ids: Vec::new(), last: at, radius: ERASER / zoom },
-            Tool::Lasso if self.grabs((canvas, page), at, zoom, items) => {
-                Gesture::Move { from: at, by: Point { x: 0.0, y: 0.0 }, click: None }
-            }
+            Tool::Lasso if self.grabs((canvas, page), at, zoom, items) => Gesture::moving(at, None),
             Tool::Lasso => {
                 self.selection = None;
                 Gesture::Lasso { points: vec![at] }
@@ -141,7 +154,10 @@ impl Select {
                     points.push(at);
                 }
             }
-            Gesture::Move { from, by, .. } => *by = Point { x: at.x - from.x, y: at.y - from.y },
+            Gesture::Move { from, by, to, .. } => {
+                *by = Point { x: at.x - from.x, y: at.y - from.y };
+                *to = Target::Here;
+            }
             Gesture::Marquee { to, .. } => *to = at,
         }
         true
@@ -218,7 +234,9 @@ impl Select {
     /// Lets go of the selected items no longer in `items`, the page shown of
     /// `canvas`: another client, or an agent, removed them. A selection
     /// left with no items is cleared.
+    /// Items a carry brought here, once all are in `items`, are selected.
     pub fn keep(&mut self, (canvas, page): (&str, &str), items: &[Cow<'_, Item>]) {
+        self.arrive((canvas, page), items);
         let Some(selection) = &mut self.selection else { return };
         if selection.canvas != canvas || selection.page != page {
             return;
@@ -232,9 +250,10 @@ impl Select {
 
     /// `items`, the page shown of `canvas`, with the gesture laid over it at
     /// `zoom` in `theme`'s colours: the items being erased hidden, the
-    /// selection where it is being dragged, then the selection's box, its
-    /// handles and its count, and the lasso's loop or the select tool's
-    /// box, thin and muted.
+    /// selection where it is being dragged (gone from here while it is
+    /// over a pane on another page, and shown there instead), then the
+    /// selection's box, its handles and its count, and the lasso's loop or
+    /// the select tool's box, thin and muted.
     pub fn shown<'a>(
         &self,
         (canvas, page): (&str, &str),
@@ -247,7 +266,10 @@ impl Select {
         let selection = self.selection.as_ref().filter(|s| here(&s.canvas, &s.page));
         match (gesture, selection) {
             (Some(Gesture::Erase { ids, .. }), _) => items.retain(|i| !ids.contains(&i.id)),
-            (Some(Gesture::Move { by, .. }), Some(selection)) => {
+            (Some(Gesture::Move { to: Target::Away { .. }, .. }), Some(selection)) => {
+                items.retain(|i| !selection.ids.contains(&i.id));
+            }
+            (Some(Gesture::Move { by, to: Target::Here, .. }), Some(selection)) => {
                 let follow = shapes::follow(&items, &selection.ids, *by);
                 let ids: HashSet<&ItemId> = selection.ids.iter().collect();
                 for item in &mut items {
@@ -262,7 +284,12 @@ impl Select {
             _ => {}
         }
         let width = THIN / zoom;
-        let boxed = selection.and_then(|s| Some((bounds(&items, &s.ids)?, s.ids.len())));
+        let mut boxed = selection.and_then(|s| Some((bounds(&items, &s.ids)?, s.ids.len())));
+        if let Some(coming) = self.coming((canvas, page)) {
+            let ids: Vec<ItemId> = coming.iter().map(|i| i.id).collect();
+            boxed = bounds(&coming, &ids).map(|b| (b, ids.len()));
+            items.extend(coming);
+        }
         if let Some((frame, count)) = boxed {
             items.extend(chrome(frame.outset(MARGIN / zoom), count, zoom, theme));
         }

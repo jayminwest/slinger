@@ -37,6 +37,19 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** dragging a selection between two panes works as it looks. The
+  items stay under the pen the whole way, in whichever pane it is over,
+  read through that pane's own pan and zoom, and land where you lift.
+  Before, they vanished as the pen crossed into the other pane. Over a
+  pane on another page they show there as you drag; the move is one undo
+  step, and the items stay selected on their new page. Over a footer, the
+  sidebar or an agent pane they go back home, and a lift there moves
+  nothing.
+- **App:** a quick second press on a text you just selected drags it with
+  the select tool or the lasso, instead of opening it for editing. A
+  double tap that lifts in place still edits the text.
+- **App:** a press inside the selection near a pane divider drags the
+  selection instead of the divider.
 - **App:** a pen or mouse press on a pane focuses it, so with two panes
   open the zoom, pan, page, split and close commands act on the pane you
   last touched. The first stroke in the other pane still draws, and a
