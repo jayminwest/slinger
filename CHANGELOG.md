@@ -57,6 +57,11 @@ bullet with the area in bold.
 
 ### Changed
 
+- **App:** the selection's corner handles resize it, with the lasso or
+  the select tool: drag one and the selection scales about the opposite
+  corner. Strokes, boxes and arrows stretch; texts and agent UIs keep their
+  size and move with the rest; arrows pointing at the items follow. One
+  undo puts it back.
 - **App:** the "<agent> is done" bar goes on its own: 5 s after it shows,
   or at the pen's next press. A blocked agent's bar stays until you tap its
   ✕ (or ⌘.). The bar sits above the footers, so it hides no button, and a

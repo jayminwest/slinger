@@ -538,9 +538,10 @@ scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
              hides the strokes, text, boxes and arrows it touches at once and
              removes them on the lift (one change, one undo step); a loop
              selects the items it holds whole, drawn as a tinted box with four
-             corner handles (marks only, no resize) and its item count above
+             corner handles and its item count above
              it, all in the focus colour, at screen size; a drag inside
-             the box moves them (with the lasso or the select tool); delete
+             the box moves them, and a drag of a handle resizes them
+             (with the lasso or the select tool); delete
              removes them. Each is one change, so
              one undo step. The selection (canvas, page, server ids) is app
              state the sling and moves between panes read. Pure.
@@ -581,6 +582,14 @@ scene/select/carry.rs  a drag of the selection goes by the canvas pane
              step on each, a refused add taking the remove with it), and
              are selected there once the server's ids arrive; outside every
              canvas pane they show home and nothing moves. Pure.
+scene/select/scale.rs  a drag of a corner handle scales the selection
+             about the opposite corner, width and height apart, never below
+             5% or turned over: a stroke's points, a box's corners and an
+             arrow's ends scale (line widths do not); a text, a button and
+             an agent UI keep their size and only their place moves; arrows
+             bound to it follow. It shows as the pen goes; the lift writes
+             it as one `set` an item, in one `canvas_apply`, so one undo
+             step. Pure.
 scene/resize.rs  the pen on a divider between panes: the press grabs it,
              each drag resizes the panes at once, the lift names it (the
              number of the pane before it, and its share) for
@@ -883,6 +892,7 @@ Each boundary has something that fails when it is broken:
 | Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |
 | An erase, a move and a delete are one change each and show at once; a lasso selects what it holds whole; the selection clears | `crates/app/src/scene/select/tests.rs` |
 | The select tool picks the topmost item under a press, a drawn box selects what it touches, shift adds or takes out, a drag moves the selection | `crates/app/src/scene/select/pick/tests.rs` |
+| A drag of a corner handle scales the selection about the opposite corner in one change, texts keep their size, bound arrows follow, no side turns over | `crates/app/src/scene/select/scale/tests.rs` |
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |
