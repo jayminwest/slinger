@@ -168,16 +168,22 @@ fn each_canvas_has_its_workspaces_agent_for_its_button_and_footer() {
 
 #[test]
 fn the_daemon_s_count_of_pending_messages_wins_over_what_the_agent_said() {
+    use crate::scene::sidebar::Process::{Absent, Exited, Running};
     use Status::{Blocked, Done, Stopped, Working};
-    assert_eq!(Status::of(Some(Done), false, 0, true), Some(Stopped), "no process");
-    assert_eq!(Status::of(None, false, 1, false), Some(Stopped));
-    assert_eq!(Status::of(None, true, 0, false), None, "started, nothing asked");
-    assert_eq!(Status::of(Some(Done), true, 1, true), Some(Working), "a hook is late");
-    assert_eq!(Status::of(None, true, 2, false), Some(Working), "no hooks at all");
-    assert_eq!(Status::of(Some(Blocked), true, 1, false), Some(Blocked));
-    assert_eq!(Status::of(Some(Working), true, 0, true), Some(Done), "it answered");
-    assert_eq!(Status::of(None, true, 0, true), Some(Done), "answered with no hooks");
-    assert_eq!(Status::of(Some(Blocked), true, 0, false), Some(Done));
+    assert_eq!(Status::of(Some(Done), Exited, 0, true), Some(Stopped), "it ended");
+    assert_eq!(Status::of(None, Exited, 1, false), Some(Stopped));
+    assert_eq!(Status::of(None, Absent, 0, false), Some(Stopped), "none, and no hooks");
+    assert_eq!(Status::of(Some(Working), Absent, 0, true), Some(Working), "run outside slingerd");
+    assert_eq!(Status::of(Some(Blocked), Absent, 0, false), Some(Blocked));
+    assert_eq!(Status::of(None, Running, 0, false), None, "started, nothing asked");
+    assert_eq!(Status::of(Some(Done), Running, 1, true), Some(Working), "a hook is late");
+    assert_eq!(Status::of(None, Running, 2, false), Some(Working), "no hooks at all");
+    assert_eq!(Status::of(Some(Blocked), Running, 1, false), Some(Blocked));
+    assert_eq!(Status::of(Some(Working), Running, 0, true), Some(Done), "it answered");
+    assert_eq!(Status::of(None, Running, 0, true), Some(Done), "answered with no hooks");
+    assert_eq!(Status::of(Some(Blocked), Running, 0, false), Some(Done));
+    let named = [(Some("running"), true), (Some("exited"), true), (None, true), (None, false)];
+    assert_eq!(named.map(|(n, s)| Process::named(n, s)), [Running, Exited, Exited, Absent]);
     let stopped = heard(vec![ws("ada", Some(Stopped))]);
     let rows = stopped.rows(&T, WINDOW);
     assert!(

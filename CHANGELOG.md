@@ -169,6 +169,17 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** after a sling, the agent's answer no longer flashes "answered
+  in text" when its items are still on their way to the canvas: an answer
+  with nothing on the canvas yet waits a second for them.
+- **App:** the sidebar shows what an agent's hooks say for an agent you
+  run yourself, outside slingerd, instead of "not running". An agent
+  slingerd started and that has stopped still says "not running".
+- **App:** while a sling is out, only Delete stands beside the selection:
+  ➤ Sling and + prompt come back once the agent answers.
+- **App:** the sling's pill has round corners, like the flash, and is as
+  wide as its words: a pill with symbols or wide letters no longer cuts
+  them off or leaves a gap.
 - **App:** ⌘Z and ⇧⌘Z undo and redo your typing in the sling's prompt
   (and a note of feedback or a page's new name) instead of doing nothing.
 - **App:** the pointer turns into the resize cursor within reach of the
