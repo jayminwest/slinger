@@ -79,8 +79,9 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              `How::colour`, as one undo step; check_put says first whether a
              put would go.
              edit.rs: the agent changes (text, size, place) or removes what it
-             put; a move takes along the bound ends of the agent's arrows, in
-             the same step. The author rule stays in Canvas (may_change),
+             put; a move or resize (here or by canvas_apply, Log::followed)
+             refits the bound ends of the arrows `by` may change, in the
+             same step. The author rule stays in Canvas (may_change),
              checked first.
 packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
              canvas page, the clusters of the user's ink and what changed, and gives
@@ -264,7 +265,7 @@ server/session.rs  the session verbs on the wire, each session with its process.
 server/sling.rs  `sling_send`: the workspace of the canvas, the marker, the
              packet, `sling::message` with the verbs this daemon serves
              (VERBS), delivery to the agent's process, then the blobs and
-             `sling_sent`. Nothing is stored when delivery fails. One sling at a
+             `sling_sent`. The reply carries the message's token estimate. Nothing is stored when delivery fails. One sling at a
              time (`Sessions::slinging`), so packets never overlap.
 server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
              agent's latest sling on the canvas (`sling::landed`), if any,
@@ -375,7 +376,9 @@ canvases.rs  the canvas panes: one follower and mirror per page shown, each
 canvases/live.rs  the live items' pages: each showing a pane draws fetched
              once on a thread of its own, put over its item; a press on an
              item whose page shows goes to the page unless it grabs the
-             selection.
+             selection, or the item is under 48 points wide on the screen.
+             A view kept off the screen (scene/live/away.rs) due to close
+             draws the window again.
 canvases/button.rs  the "send to agent" button (SPEC section 8): a tap slings
              what is new on its page (`sling_now`, nothing selected, the
              config's prompt), or sends the open entry; `place-button` puts
@@ -565,8 +568,9 @@ scene/sidebar/notice.rs  the notice: a 28 pt bar above the footers (it
              its status moves on. Pure.
 scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
              made (a page's sling at its top left), inside its pane, what
-             the agent is doing: "● scout working · 4s", "■ scout blocked:
-             <note>", "✓ scout answered · N new items" (a tap brings them
+             the agent is doing: "● scout working · 4s · ~12k", "■ scout
+             blocked: <note> · ~12k" (the sling's tokens, when the daemon's
+             Slung reply counts them), "✓ scout answered · N new items" (a tap brings them
              into view, the next clears it), "✓ scout answered in text · tap
              to read" (a tap opens the answer's panel), "✓ scout is done,
              with nothing on the canvas", a failure's "✗ <message>" and hint,
@@ -576,7 +580,8 @@ scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
              goes 30 s later. The pill is a Line with a field's round
              corners, as wide as its words measure (scene/glyphs.rs). `out`:
              a sling is on its way or worked on. `slung/words.rs`: the
-             elapsed time, the arrow to the items, the answer's lines. Pure.
+             elapsed time, the tokens, the arrow to the items, the answer's
+             lines (wrapped as scene/glyphs.rs measures them). Pure.
 scene/button.rs  the "send to agent" button: an item of kind `button`, drawn
              as an outline with the agent's status mark (the sidebar's) and
              its label; which button is under a point; where a new one goes.
@@ -601,7 +606,13 @@ scene/grid.rs  the dotted grid: display only, never an item (nothing
              and on an edit of `background`; `toggle-grid` between, not
              saved). A new paper repaints the whole pane (`Scene::on`). Pure.
 scene/live.rs  where each live item's page shows: over its item's visible
-             mark in each canvas pane, cut off at the pane, at its zoom. Pure.
+             mark in each canvas pane, cut off at the pane, at its zoom; and
+             how (Shows): its page, still (under 48 points wide on the
+             screen: no presses) or away; and the note of a reply its agent
+             did not take, along the item's top. Pure.
+scene/live/away.rs  the live items gone off the screen (or their pane turned
+             to another page): each view kept, hidden, for 30 s after it
+             went, then closed; the clock is the caller's. Pure.
 scene/ink.rs  the pen's ink: the stroke under the pen and the finished changes
              (strokes, removals, moves) the server's page does not hold yet,
              laid over it; which change goes next (one at a time, oldest
@@ -718,10 +729,12 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              beside a selection's box, ➤ Sling (`sling-now`), + prompt
              (`sling`) and Delete (`delete-selection`), each a 28 pt target
              inside the pane; while a sling is out, Delete alone.
-             `sling/pen.rs`: the pen's buttons beside a
-             note's or a new name's box, ✓ Save or ✓ Rename (Tap::Send, as
-             return), Dictate (`dictate`; ● Stop while Flick listens) and ✕
-             (Tap::Cancel, as escape); the box narrows to make room.
+             `sling/pen.rs`: the pen's buttons beside every entry's box
+             (the prompt's, a note's, a new name's), ✓ Sling, ✓ Save or ✓
+             Rename (Tap::Send, as return), Dictate (`dictate`; ● Stop while
+             Flick listens) and ✕ (Tap::Cancel, as escape); the box narrows
+             or moves to make room. Every entry shows the live dictate key
+             beneath its box (Entry::dictated).
 scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
              sling's labelled field (Entry::framed), "Feedback" above and
              "↩ saves · esc cancels" beneath, centred in the focused pane
@@ -774,6 +787,14 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              layout::SMALLEST) and says its new size as Event::Resized; main
              lays the scene out again at it. All unsafe, objc2 and AppKit
              code. No decisions.
+platform/window.rs  makes the window (its style, smallest size and
+             delegate) and puts it at its saved frame.
+platform/remember.rs  what the window keeps in the user defaults from one
+             launch to the next: its frame, and whether the sidebar was open.
+             main says whose frame a run keeps (platform::Kept): the app's
+             window, or a preview's (`--preview`, which the tests run), saved
+             under a name of its own so a preview never moves the app's
+             window; a preview never reads or writes the sidebar's.
 platform/files.rs  sets the title bar a scene's Title says (title, subtitle,
              represented file), and shows a file in the Finder
              (`show-canvas-file`, from main).
@@ -817,8 +838,8 @@ platform/web.rs  agent UIs in WKWebViews: the scheme handler, navigation and
              call to its ui::Bridge, the rule list (compiled once; no view
              loads before it is on), and a view kept across draws while its
              page is shown; a live item's in a clip at its pane, just over
-             the pane's canvas, at the canvas's pageZoom. A reply goes to
-             main as Event::Reply.
+             the pane's canvas, at the canvas's pageZoom, hidden while it
+             is away. A reply goes to main as Event::Reply.
 ```
 
 **Threading rule:** AppKit runs on the main thread only. Every `platform`
@@ -992,7 +1013,7 @@ Each boundary has something that fails when it is broken:
 | A put takes a colour and a place; ink goes where any put goes; an arrow takes no place | `crates/core/tests/canvas_put.rs`, `crates/cli/src/tests/put.rs` |
 | A put shows with its author; after a sling it lands `reply_landed`; an unknown item is `not_found` | `crates/daemon/src/tests/put.rs`, through a real socket |
 | An agent edits and removes only its own items; removing twice succeeds twice | `crates/core/tests/canvas_edit.rs`, and `crates/daemon/src/tests/edit.rs` through a real socket |
-| An agent's move takes its bound arrows' ends along in one step, not another author's | `crates/core/tests/canvas_edit.rs` |
+| An agent's move or resize (edit or apply) takes its bound arrows' ends along in one step, not another author's | `crates/core/tests/canvas_edit.rs` |
 | Three sends reach one process under one session id and their answers are read; a restart resumes it; a dead process makes a send `unavailable`; a daemon stop ends it; a resume that fails drops the id and the next start is new; a fresh start ends the running process and begins a new session | `crates/daemon/src/tests/process.rs`, with a stand-in for Claude Code |
 | A session starts with the exact limits its workspace sets: by default its roots, the `slinger` CLI and no user config; wider with the agent's `dirs`, `tools` and `user_config` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
 | A profile is set, listed and removed in the workspace's file, and a bad name, rule or dir is refused loudly with nothing written; a session under one runs in its dir with its rules in place of the agent's and resumes its own conversation; a sling that names one reaches only a process under it | `crates/core/src/workspace/profile.rs`, `crates/core/src/session/stream.rs`, `crates/daemon/src/tests/profile.rs` with a stand-in for Claude Code, `crates/cli/src/tests/profile.rs` |

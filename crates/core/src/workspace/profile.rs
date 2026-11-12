@@ -5,8 +5,9 @@
 //! A profile names a working directory and the Claude Code permission rules
 //! its session may use. It never widens a session by itself: a session runs
 //! under a profile only when a start names it, its rules take the place of
-//! the agent's `tools` (the `slinger` CLI stays), and each rule must name a
-//! tool this module knows. A rule it cannot read is refused, never passed on.
+//! the agent's `tools` (the `slinger` CLI stays). Each rule, a profile's or
+//! the agent's own, must name a tool this module knows or an MCP tool
+//! ([`check_rule`]). A rule it cannot read is refused, never passed on.
 
 use serde::{Deserialize, Serialize};
 
@@ -94,29 +95,57 @@ impl Profile {
 }
 
 /// Checks one permission rule: a tool of [`TOOLS`], alone (`Edit`) or with
-/// a pattern in parentheses (`Bash(git *)`, `Edit(src/**)`).
+/// a pattern in parentheses (`Bash(git *)`, `Bash(git:*)`, `Edit(src/**)`),
+/// or an MCP rule: `mcp__<server>`, `mcp__<server>__<tool>` or
+/// `mcp__<server>__*`, where a server and a tool are letters, digits, `-`
+/// and `_`.
 ///
 /// # Errors
 ///
-/// [`Error::Invalid`] for a blank rule, a tool not in [`TOOLS`], or a
-/// pattern that is blank or not closed.
+/// [`Error::Invalid`] for a blank rule, a tool not in [`TOOLS`], a pattern
+/// that is blank or not closed, or an MCP rule that is not of that shape.
 pub fn check_rule(rule: &str) -> Result<()> {
-    let (tool, pattern) = match rule.split_once('(') {
-        Some((tool, rest)) => (tool, Some(rest.strip_suffix(')').unwrap_or_default())),
-        None => (rule, None),
+    let known = match rule.split_once('(') {
+        _ if rule.starts_with(MCP) => is_mcp(rule),
+        Some((tool, rest)) => rest.strip_suffix(')').is_some_and(|p| {
+            TOOLS.contains(&tool) && !p.trim().is_empty() && !p.contains(['\n', '\r'])
+        }),
+        None => TOOLS.contains(&rule),
     };
-    let known = TOOLS.contains(&tool);
-    if !known || pattern.is_some_and(|p| p.trim().is_empty() || p.contains(['\n', '\r'])) {
+    if !known {
         return Err(Error::Invalid {
             message: format!("{rule:?} is not a permission rule slinger knows"),
             hint: Some(format!(
-                "a rule is a tool, or a tool and a pattern in parentheses (Edit, Bash(git *)); \
-                 the tools are {}",
+                "a rule is a tool, or a tool and a pattern in parentheses (Edit, Bash(git *)), \
+                 or an MCP tool (mcp__server, mcp__server__tool); the tools are {}",
                 TOOLS.join(", ")
             )),
         });
     }
     Ok(())
+}
+
+/// The prefix of an MCP rule.
+const MCP: &str = "mcp__";
+
+/// Whether `rule` is an MCP rule [`check_rule`] takes.
+fn is_mcp(rule: &str) -> bool {
+    let Some(rest) = rule.strip_prefix(MCP) else { return false };
+    let word = |w: &str| {
+        !w.is_empty() && w.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    };
+    match rest.split_once("__") {
+        Some((server, tool)) => word(server) && (tool == "*" || word(tool)),
+        None => word(rest),
+    }
+}
+
+/// Whether a rule names a tool of [`TOOLS`]: one Claude Code must be given
+/// (`--tools`) for the rule to mean anything. An MCP rule does not.
+#[must_use]
+pub fn builtin(rule: &str) -> Option<&str> {
+    let tool = rule.split_once('(').map_or(rule, |(tool, _)| tool);
+    TOOLS.contains(&tool).then_some(tool)
 }
 
 /// Checks a list of profiles: each one, and no name twice.
@@ -208,10 +237,34 @@ mod tests {
 
     #[test]
     fn a_rule_names_a_known_tool_alone_or_with_a_pattern() {
-        for rule in ["Edit", "Bash(git *)", "Edit(src/**)", "WebFetch(domain:example.com)"] {
+        for rule in [
+            "Edit",
+            "Bash(git *)",
+            "Bash(git:*)",
+            "Edit(src/**)",
+            "WebFetch(domain:example.com)",
+            "mcp__github",
+            "mcp__github__get_issue",
+            "mcp__my-server__*",
+        ] {
             assert!(check_rule(rule).is_ok(), "{rule}");
         }
-        for rule in ["", " ", "edit", "Shell", "mcp__x", "Bash()", "Bash( )", "Bash(git", " Edit"] {
+        for rule in [
+            "",
+            " ",
+            "edit",
+            "Shell",
+            "Shell(ls)",
+            "Bash()",
+            "Bash( )",
+            "Bash(git",
+            " Edit",
+            "mcp__",
+            "mcp____tool",
+            "mcp__x__",
+            "mcp__x(y)",
+            "mcp__x__y z",
+        ] {
             let err = check_rule(rule).unwrap_err();
             assert_eq!(err.code(), "invalid", "{rule:?}");
             assert!(err.hint().unwrap().contains("Bash, Edit"), "{rule:?}");
@@ -219,9 +272,18 @@ mod tests {
     }
 
     #[test]
+    fn a_rule_names_the_builtin_tool_it_needs() {
+        assert_eq!(builtin("Edit(src/**)"), Some("Edit"));
+        assert_eq!(builtin("WebFetch"), Some("WebFetch"));
+        assert_eq!(builtin("mcp__github__get_issue"), None);
+    }
+
+    #[test]
     fn a_profile_needs_a_plain_name_and_an_absolute_dir() {
         assert!(Profile::new("dev-1_a", Some("/src".into()), vec!["Edit".into()]).is_ok());
-        for (name, dir) in [("", None), ("Dev", None), ("a b", None), ("dev", Some("src"))] {
+        for (name, dir) in
+            [("", None), ("Dev", None), ("a b", None), ("a#b", None), ("dev", Some("src"))]
+        {
             let err = Profile::new(name, dir.map(str::to_string), Vec::new()).unwrap_err();
             assert_eq!(err.code(), "invalid", "{name:?}");
             assert!(err.hint().is_some());

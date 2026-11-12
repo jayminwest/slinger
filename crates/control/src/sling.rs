@@ -45,6 +45,11 @@ pub struct Slung {
     pub agent: String,
     /// The conversation it went into.
     pub session_id: String,
+    /// About how many tokens the agent reads for it: the packet, its images
+    /// and the sling's wrapper (the note and the prompt). Absent from a
+    /// daemon that does not count.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tokens: Option<u64>,
 }
 
 impl Client {
@@ -61,5 +66,20 @@ impl Client {
     /// workspace with no agent.
     pub fn sling_send(&self, ask: SlingAsk) -> Result<Slung, RemoteError> {
         self.call(&SessionAsk::SlingSend(ask))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_reply_without_tokens_from_an_older_daemon_still_reads() {
+        let old =
+            r#"{"event":1,"packet":"p","from":1,"to":2,"strokes":1,"agent":"a","session_id":"s"}"#;
+        let slung: Slung = serde_json::from_str(old).unwrap();
+        assert_eq!(slung.tokens, None);
+        let text = serde_json::to_string(&Slung { tokens: Some(9), ..slung }).unwrap();
+        assert!(text.ends_with(r#""tokens":9}"#), "{text}");
     }
 }

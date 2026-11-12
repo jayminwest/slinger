@@ -180,13 +180,15 @@ impl Packet {
         self.header.tokens = Some(tokens);
     }
 
-    fn estimate(chars: u64, images: &[Image]) -> u64 {
+    /// About how many tokens `chars` characters of text and `images` cost:
+    /// the rule of [`Packet::tokens`], for whatever holds a packet.
+    pub(crate) fn estimate<'a>(chars: u64, images: impl IntoIterator<Item = &'a Image>) -> u64 {
         let image = |i: &Image| {
             (u64::from(i.width) * u64::from(i.height))
                 .div_ceil(PIXELS_PER_TOKEN)
                 .min(MAX_IMAGE_TOKENS)
         };
-        chars.div_ceil(CHARS_PER_TOKEN) + images.iter().map(image).sum::<u64>()
+        chars.div_ceil(CHARS_PER_TOKEN) + images.into_iter().map(image).sum::<u64>()
     }
 }
 

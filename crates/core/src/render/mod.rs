@@ -6,7 +6,9 @@
 //! readable (SPEC R3). Ink is drawn in its own colour on white. An image whose
 //! long edge is over [`MAX_EDGE`] pixels is cut into tiles that overlap by
 //! [`OVERLAP`] pixels, so a word cut at one tile's edge is whole in the next
-//! (Spike B finding 3).
+//! (Spike B finding 3). An image of items is cut down to its ink plus
+//! [`MARGIN`], tile by tile, and a tile with no ink of its own (white, or
+//! ink only in its overlap with a tile kept) is left out.
 //!
 //! Pure and deterministic: no IO, no clock, and the same input gives the same
 //! bytes. There are no errors: ids not on the canvas are skipped, and nothing
@@ -47,7 +49,9 @@ pub struct Image {
 
 /// Draws `items` in the order given, framed by the box around them plus
 /// [`MARGIN`] on every side. Images are named after `id`. Ids not on the
-/// canvas are skipped; when none is left there are no images.
+/// canvas are skipped; when none is left there are no images. A picture cut
+/// into tiles keeps only the tiles with ink of their own, each cut down to
+/// its ink plus the margin; `x` and `y` place each in the whole picture.
 #[must_use]
 pub fn items(canvas: &Canvas, items: &[ItemId], id: &str) -> Vec<Image> {
     let found: Vec<&Item> = items.iter().filter_map(|i| canvas.item(*i)).collect();
@@ -60,7 +64,7 @@ pub fn items(canvas: &Canvas, items: &[ItemId], id: &str) -> Vec<Image> {
         frame.w + 2.0 * MARGIN,
         frame.h + 2.0 * MARGIN,
     );
-    draw(&found, frame, id)
+    draw(&found, frame, id, true)
 }
 
 /// Draws what is on `page` inside `area`, cut at its edges: every item that
@@ -70,7 +74,7 @@ pub fn items(canvas: &Canvas, items: &[ItemId], id: &str) -> Vec<Image> {
 pub fn crop(canvas: &Canvas, page: PageId, area: Rect, id: &str) -> Vec<Image> {
     let found: Vec<&Item> =
         canvas.items_in_box(page, area).into_iter().filter_map(|i| canvas.item(i)).collect();
-    draw(&found, area, id)
+    draw(&found, area, id, false)
 }
 
 /// The frame size, in canvas units, that holds `text` as it is drawn at
@@ -102,25 +106,73 @@ pub fn text_frame(text: &str, w: f64, h: f64, size: f64) -> (f64, f64) {
 }
 
 /// Draws `items` into the picture of `frame`, as one image or as tiles.
-fn draw(items: &[&Item], frame: Rect, id: &str) -> Vec<Image> {
+/// With `trim`, tiles are cut down to their ink ([`trimmed`]); without, each
+/// tile is whole, white or not.
+fn draw(items: &[&Item], frame: Rect, id: &str, trim: bool) -> Vec<Image> {
     let (width, height) = (pixels(frame.w), pixels(frame.h));
-    let tiles: Vec<(u32, u32, u32, u32)> = spans(height)
+    let drawn: Vec<([u32; 4], Raster)> = spans(height)
         .into_iter()
-        .flat_map(|(y, h)| spans(width).into_iter().map(move |(x, w)| (x, y, w, h)))
-        .collect();
-    let single = tiles.len() == 1;
-    tiles
-        .into_iter()
-        .enumerate()
-        .map(|(n, (x, y, w, h))| {
+        .flat_map(|(y, h)| spans(width).into_iter().map(move |(x, w)| [x, y, w, h]))
+        .map(|[x, y, w, h]| {
             let mut raster = Raster::new(frame, x, y, w, h);
             for item in items {
                 raster.item(item);
             }
-            let name = if single { format!("{id}.png") } else { format!("{id}-{}.png", n + 1) };
-            Image { name, x, y, width: w, height: h, png: raster.png() }
+            ([x, y, w, h], raster)
+        })
+        .collect();
+    let whole = |tile: [u32; 4]| [0, 0, tile[2], tile[3]];
+    let parts: Vec<(usize, [u32; 4])> = if trim {
+        trimmed(&drawn)
+    } else {
+        drawn.iter().enumerate().map(|(n, (tile, _))| (n, whole(*tile))).collect()
+    };
+    let single = parts.len() == 1;
+    let name = |n: usize| if single { format!("{id}.png") } else { format!("{id}-{n}.png") };
+    (1..)
+        .zip(parts)
+        .map(|(n, (k, part @ [x, y, w, h]))| {
+            let ([left, top, ..], raster) = &drawn[k];
+            let (x, y) = (left + x, top + y);
+            Image { name: name(n), x, y, width: w, height: h, png: raster.png(part) }
         })
         .collect()
+}
+
+/// The tiles worth an image, in reading order, each as its index and the
+/// part of it to keep: its ink plus [`MARGIN`], within the tile. A tile with
+/// no ink is left out, and so is one whose ink the tiles kept already hold
+/// (it lies in their overlaps); tiles are weighed largest ink first, so the
+/// tile that holds the most stays. When no tile has ink (white ink), the
+/// first is kept whole, so ink always has an image.
+fn trimmed(drawn: &[([u32; 4], Raster)]) -> Vec<(usize, [u32; 4])> {
+    let pad = pixels(MARGIN);
+    let mut by_ink: Vec<(usize, [u32; 4])> = drawn
+        .iter()
+        .enumerate()
+        .filter_map(|(i, ([left, top, ..], raster))| {
+            raster.inked().map(|[x, y, w, h]| (i, [left + x, top + y, w, h]))
+        })
+        .collect();
+    by_ink.sort_by_key(|&(i, [.., w, h])| (std::cmp::Reverse(u64::from(w) * u64::from(h)), i));
+    let mut kept: Vec<(usize, [u32; 4])> = Vec::new();
+    for (i, [x, y, w, h]) in by_ink {
+        let (tile, raster) = &drawn[i];
+        let held: Vec<[u32; 4]> = kept.iter().map(|&(k, _)| drawn[k].0).collect();
+        if raster.inked_within(&held) {
+            continue;
+        }
+        let [left, top, tw, th] = *tile;
+        let (x0, y0) = (x.saturating_sub(pad).max(left), y.saturating_sub(pad).max(top));
+        let (x1, y1) = ((x + w + pad).min(left + tw), (y + h + pad).min(top + th));
+        kept.push((i, [x0 - left, y0 - top, x1 - x0, y1 - y0]));
+    }
+    if kept.is_empty() {
+        let first = drawn.first().map(|([.., w, h], _)| (0, [0, 0, *w, *h]));
+        return first.into_iter().collect();
+    }
+    kept.sort_unstable_by_key(|&(i, _)| i);
+    kept
 }
 
 /// A length in canvas units as pixels: rounded up, and at least one.

@@ -32,7 +32,7 @@ fn out(now: Instant) -> Slung {
     let mut slung = Slung::default();
     slung.aim(("notes", "p1"), Some(AT), ItemId(5), now);
     assert_eq!(slung.marks(&T, &[view(true)], now), Marks::default(), "the entry's line says it");
-    assert!(slung.went("scout", now));
+    assert!(slung.went("scout", None, now));
     slung
 }
 
@@ -154,6 +154,29 @@ fn a_long_answer_shows_its_start_and_where_the_rest_is() {
     assert_eq!(lines.len(), MOST + 1);
     assert_eq!(lines[MOST - 1], "… the rest: slinger session show scout");
     assert_eq!(lines[MOST], "tap to close");
+    let at = Point { x: 0.0, y: 0.0 };
+    for line in &lines[..MOST - 1] {
+        let wide = glyphs::frame(at, line, TEXT, glyphs::UNWRAPPED).width;
+        assert!(wide <= PANEL - 2.0 * PAD, "each line fits as measured: {line:?}");
+        assert!(wide > PANEL - 2.0 * PAD - 40.0, "and fills the panel: {line:?}");
+    }
+}
+
+#[test]
+fn the_pill_says_what_the_sling_costs_when_the_daemon_counts_it() {
+    let now = Instant::now();
+    let mut slung = Slung::default();
+    slung.aim(("notes", "p1"), Some(AT), ItemId(5), now);
+    assert!(slung.went("scout", Some(12_345), now));
+    assert_eq!(said(&slung, &[view(true)], now), ["● scout working · 0s · ~12k"]);
+    let blocked = Progress { blocked: Some("which key?".into()), ..working(1) };
+    slung.heard(&blocked, now);
+    assert_eq!(said(&slung, &[view(true)], now), ["■ scout blocked: which key? · ~12k"]);
+    slung.heard(&answered(None), now);
+    assert!(!said(&slung, &[view(true)], now)[0].contains('~'), "only while it is out");
+    let costs = [840, 1_234, 9_960, 999_499, 1_250_000].map(|n| words::cost(Some(n)));
+    assert_eq!(costs, [" · ~840", " · ~1.2k", " · ~10k", " · ~999k", " · ~1.3M"]);
+    assert_eq!(words::cost(None), "", "an older daemon does not count");
 }
 
 #[test]
@@ -217,13 +240,13 @@ fn a_page_sling_pins_the_pill_and_it_stays_inside_its_pane() {
     let now = Instant::now();
     let mut slung = Slung::default();
     slung.aim(("notes", "p1"), None, ItemId(0), now);
-    slung.went("scout", now);
+    slung.went("scout", None, now);
     let pill = slung.marks(&T, &[view(true)], now).all()[0].frame;
     assert_eq!((pill.x, pill.y), (PANE.x + GAP, PANE.y + GAP), "the pane's top left");
 
     let mut low = Slung::default();
     low.aim(("notes", "p1"), Some(Rect { x: 790.0, y: 590.0, ..AT }), ItemId(0), now);
-    low.went("scout", now);
+    low.went("scout", None, now);
     let pill = low.marks(&T, &[view(true)], now).all()[0].frame;
     assert!(pill.x + pill.width <= PANE.x + PANE.width - GAP, "{pill:?}");
     assert!(pill.y + pill.height <= PANE.y + PANE.height - GAP, "{pill:?}");
@@ -235,7 +258,7 @@ fn a_sling_at_the_pane_s_top_left_puts_the_pill_under_it_its_text_on_its_fill() 
     let mut slung = Slung::default();
     let corner = Rect { x: 0.0, y: 0.0, width: 40.0, height: 30.0 };
     slung.aim(("notes", "p1"), Some(corner), ItemId(0), now);
-    slung.went("scout", now);
+    slung.went("scout", None, now);
     let line = slung.marks(&T, &[view(true)], now).pill.expect("the pill");
     let pill = &line.label;
     let under = (PANE.x + GAP, PANE.y + corner.height + GAP);
@@ -273,7 +296,9 @@ fn a_new_sling_takes_the_last_one_s_place() {
 
 #[test]
 fn wrap_breaks_between_words_and_keeps_each_line() {
-    assert_eq!(wrap("one two three", 7), ["one two", "three"]);
-    assert_eq!(wrap("a\n\nb", 10), ["a", "", "b"]);
-    assert_eq!(wrap("abcdefghij", 4), ["abcd", "efgh", "ij"]);
+    let room = |n: usize| move |line: &str| line.chars().count() <= n;
+    assert_eq!(wrap("one two three", room(7)), ["one two", "three"]);
+    assert_eq!(wrap("a\n\nb", room(10)), ["a", "", "b"]);
+    assert_eq!(wrap("abcdefghij", room(4)), ["abcd", "efgh", "ij"]);
+    assert_eq!(wrap("ab cd", room(0)), ["a", "b", "c", "d"], "a character at least");
 }
