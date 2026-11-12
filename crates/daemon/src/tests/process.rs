@@ -57,7 +57,7 @@ pub(super) fn fake_claude(dir: &Path) -> PathBuf {
 }
 
 /// Asks for `agent`'s session until `done` holds for it, or fails after 10 s.
-fn wait_for(client: &Client, agent: &str, done: impl Fn(&Session) -> bool) -> Session {
+pub(super) fn wait_for(client: &Client, agent: &str, done: impl Fn(&Session) -> bool) -> Session {
     let mut last = None;
     until(|| {
         let session = client.session_show(agent).unwrap();
@@ -245,13 +245,13 @@ fn the_cli_the_hooks_run_comes_first_on_the_agents_path() {
     let daemons = std::env::var("PATH").unwrap();
 
     // A bare name is looked up on the daemon's PATH, as it is.
-    processes.start("scout", home.path(), &Limits::default(), false).unwrap();
+    processes.start("scout", None, home.path(), &Limits::default(), false).unwrap();
     assert_eq!(wait_lines(&home.path().join("path.txt"), 1), std::slice::from_ref(&daemons));
     processes.stop("scout");
 
     std::fs::remove_file(home.path().join("path.txt")).unwrap();
     processes.set_slinger(PathBuf::from("/opt/slinger/bin/slinger"));
-    processes.start("scout", home.path(), &Limits::default(), false).unwrap();
+    processes.start("scout", None, home.path(), &Limits::default(), false).unwrap();
     let path = wait_lines(&home.path().join("path.txt"), 1);
     assert_eq!(path, [format!("/opt/slinger/bin:{daemons}")]);
     processes.stop("scout");

@@ -24,6 +24,7 @@ mod live;
 mod look;
 mod pane;
 mod process;
+mod profile;
 mod put;
 mod read;
 mod session;

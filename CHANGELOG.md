@@ -17,6 +17,16 @@ bullet with the area in bold.
   in the sling's prompt (tap it again, ● Stop, when done). The dictate
   key works in these entries too.
 
+- **Agents:** profiles per workspace. `slinger profile set <workspace> dev
+  --dir ~/Projects/app --tool Edit --tool 'Bash(git *)'` gives the
+  workspace's agent a named profile: a working directory and the Claude
+  Code tools it may use there. `slinger session start <workspace> --profile
+  dev` runs the agent under it, in a conversation of its own, and `slinger
+  sling send --profile dev` sends only to an agent running under it. A
+  start with no profile keeps the agent's own narrow limits, and a tool
+  slinger does not know is refused rather than passed on. `profile list`
+  and `profile remove` show and drop them; they live in
+  `slinger-workspace.toml` under `[[agent.profile]]`.
 - **Canvas:** `canvas apply` can add items and the arrows between them in
   one step: an arrow's `from` or `to` may be `$n`, the item at `made[n]`
   of the same request, made by an `add` before it.

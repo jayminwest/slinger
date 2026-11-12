@@ -25,6 +25,9 @@ pub enum Sling {
         /// What to ask, or - to read standard input [default: none: the selection is the question]
         #[arg(long, value_name = "TEXT")]
         prompt: Option<String>,
+        /// Send only if the agent runs under this profile
+        #[arg(long, value_name = "NAME")]
+        profile: Option<String>,
     },
 }
 
@@ -41,7 +44,7 @@ pub fn execute(
     daemon: &control::Client,
     input: &mut dyn Read,
 ) -> anyhow::Result<Output> {
-    let Sling::Send { canvas, page, select, prompt } = command;
+    let Sling::Send { canvas, page, select, prompt, profile } = command;
     let mut prompt = prompt.clone().unwrap_or_default();
     if prompt == "-" {
         prompt.clear();
@@ -52,6 +55,7 @@ pub fn execute(
         page: page.clone(),
         select: select.clone(),
         prompt,
+        profile: profile.clone(),
     };
     let slung = daemon.sling_send(ask)?;
     Ok(Output::new(serde_json::to_value(slung)?, String::new()))
