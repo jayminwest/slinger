@@ -121,6 +121,9 @@ pub enum Step {
     /// Nothing more.
     Stay,
     Draw(Box<Scene>),
+    /// Draw, and let the event go on as with [`Step::Pass`]: a press that
+    /// focused an agent UI's pane still reaches its page.
+    Through(Box<Scene>),
     Quit,
     /// The reply cannot go on, and why.
     Refuse(String),
@@ -225,7 +228,7 @@ define_class!(
 );
 
 /// Hands `event` to the app's answer and does what it says. Returns false
-/// when the answer is [`Step::Pass`].
+/// when the answer is [`Step::Pass`] or [`Step::Through`].
 fn dispatch(event: Event, mtm: MainThreadMarker) -> bool {
     let Some(state) = STATE.get() else { return false };
     // An event that comes while the answer runs (none should) is dropped.
@@ -234,6 +237,10 @@ fn dispatch(event: Event, mtm: MainThreadMarker) -> bool {
     drop(answer);
     match step {
         Step::Pass => return false,
+        Step::Through(scene) => {
+            draw(state, &scene, mtm);
+            return false;
+        }
         Step::Stay | Step::Refuse(_) => {}
         Step::Draw(scene) => draw(state, &scene, mtm),
         // The window quits the app as it closes.
@@ -252,7 +259,7 @@ fn reply(line: String, mtm: MainThreadMarker) -> Result<(), String> {
     let step = (state.answer.borrow_mut())(Event::Reply(line));
     match step {
         Step::Refuse(why) => return Err(why),
-        Step::Draw(scene) => draw(state, &scene, mtm),
+        Step::Draw(scene) | Step::Through(scene) => draw(state, &scene, mtm),
         Step::Quit => state.window.close(),
         Step::Pass | Step::Stay => {}
     }

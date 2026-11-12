@@ -252,7 +252,11 @@ server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
 main.rs      wires the modules below. The only caller of platform. With
              `--preview UI [--data JSON]` it shows one agent UI alone and
              writes each reply's `ui_reply` line to stdout instead. It routes
-             each event: keys, the pen, the mouse, the trackpad.
+             each event: keys, the pen, the mouse, the trackpad. A pen or
+             mouse press first focuses the pane under it (its content or its
+             footer; not a touch, a divider, or under the key overlay or the
+             palette), then does its work there; a press an agent UI's page
+             takes still draws the new focus (Step::Through).
 window.rs    runs a command on the focused pane, builds the window's scene
              (`view`), and finds the canvas pane under a point and the
              focused pane's frame.
@@ -357,7 +361,7 @@ panes.rs     the window's panes: what each shows (a canvas or an agent UI, by
              name), how they tile (a layout::Tree), the one focused pane and
              the pane commands. `follow` builds them from the server's pane
              tree, focus kept by number; the pane commands' one dispatch
-             (`command`). Always one pane at least. Pure.
+             (`command`); `focus_at` focuses the pane under a press. Always one pane at least. Pure.
 scene.rs     decides what the window shows: each pane's placeholder, an
              agent UI pane's page (a Web) or its name and why it cannot
              show, a note over a UI pane whose agent did not take its reply,

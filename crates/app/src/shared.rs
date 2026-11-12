@@ -95,6 +95,16 @@ impl Shared {
         }
     }
 
+    /// A pen or mouse press at `at`, a point in the window, with the panes
+    /// in `area`: the pane under it (what it shows or its footer) takes
+    /// focus before the press does its work, so every focused-pane command
+    /// acts there next. Under the key overlay or the palette (they take
+    /// the press), on a divider, or for a touch, focus stays. Returns
+    /// whether it moved.
+    pub fn press_focus(&mut self, area: Rect, at: Point, touch: bool) -> bool {
+        !touch && !self.modal() && self.panes.focus_at(area, at)
+    }
+
     /// Whether the key overlay or the palette is open: either takes every
     /// pen, mouse and trackpad event.
     pub fn modal(&self) -> bool {
@@ -191,3 +201,6 @@ impl Shared {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

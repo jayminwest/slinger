@@ -143,6 +143,19 @@ impl Panes {
         }
     }
 
+    /// Moves focus to the pane under `at` (what it shows or its footer)
+    /// when the panes fill `area`. Away from every pane, or on a divider
+    /// between two (the pen grabs it), focus stays. Returns whether it moved.
+    pub fn focus_at(&mut self, area: Rect, at: Point) -> bool {
+        if self.divider_at(area, at).is_some() {
+            return false;
+        }
+        let Some((id, _)) = self.tree.rects(area).into_iter().find(|(_, f)| f.contains(at)) else {
+            return false;
+        };
+        std::mem::replace(&mut self.focus, id) != id
+    }
+
     /// Moves focus to the next pane in order, back to the first after the last.
     pub fn focus_next(&mut self) {
         self.focus = self.tree.next(self.focus);

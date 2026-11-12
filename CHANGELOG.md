@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a pen or mouse press on a pane focuses it, so with two panes
+  open the zoom, pan, page, split and close commands act on the pane you
+  last touched. The first stroke in the other pane still draws, and a
+  press on its footer or on an agent UI pane focuses it too.
+
 - **App:** the feedback, sling and rename entries take the keyboard each
   time they open, and get it back after you click elsewhere or switch apps,
   so what you type lands in them. Their caret now shows on the dark box.

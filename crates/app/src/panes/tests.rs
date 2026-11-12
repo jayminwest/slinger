@@ -166,3 +166,20 @@ fn pane_commands_run_on_the_panes_and_others_do_nothing() {
     panes.command(Command::ClosePane, AREA);
     assert_eq!(shown(&panes).0.len(), 2);
 }
+
+#[test]
+fn a_press_focuses_the_pane_under_it_but_not_on_a_divider_or_outside() {
+    // a | (b / c): a at x < 400; b above y 300, c below.
+    let mut panes = Panes::follow(&three(), 1);
+    let at = |x, y| Point { x, y };
+    assert!(panes.focus_at(AREA, at(600.0, 450.0)), "a press in c moves focus there");
+    assert_eq!(shown(&panes).1, 2);
+    assert!(!panes.focus_at(AREA, at(600.0, 500.0)), "c again: focus stays");
+    assert!(panes.focus_at(AREA, at(600.0, 285.0)), "b's footer is b's");
+    assert_eq!(shown(&panes).1, 1, "an agent UI pane takes focus too");
+    assert!(!panes.focus_at(AREA, at(401.0, 100.0)), "on the divider the pen grabs it");
+    assert!(!panes.focus_at(AREA, at(900.0, 100.0)), "outside every pane");
+    assert_eq!(shown(&panes).1, 1);
+    assert!(panes.focus_at(AREA, at(10.0, 590.0)));
+    assert_eq!(shown(&panes).1, 0);
+}

@@ -146,14 +146,28 @@ fn window(mut settings: Settings) -> ExitCode {
     // agents and the panes and what the canvases' followers heard; the watch
     // and the followers follow an edit that moves the socket or the
     // workspace. Only a split, a close or a resize asks the daemon here.
+    // Any pen or mouse press first focuses the pane under it; one an agent
+    // UI's page takes still draws the new focus.
     let answer = move |event| {
         let area = sidebar.panes(shared.size.rect());
+        // A press focuses the pane under it first, so the press works there.
+        let refocused = match event {
+            Event::Press(pen) => shared.press_focus(area, pen.at, pen.touch),
+            _ => false,
+        };
+        let pass = |shared: &Shared, canvases: &mut Canvases, tools: &Tools, sidebar: &Sidebar| {
+            if refocused {
+                Step::Through(view(&settings, shared, tools, sidebar, canvases))
+            } else {
+                Step::Pass
+            }
+        };
         let asked = asked(&event, &mut shared, &mut canvases, &mut tools, &settings);
         let force = match (asked, event) {
             (Ask::Draw, _) => {
                 return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
             }
-            (Ask::Pass, _) => return Step::Pass,
+            (Ask::Pass, _) => return pass(&shared, &mut canvases, &tools, &sidebar),
             (Ask::Not, Event::Tick) => false,
             (Ask::Not, Event::Reply(line)) => {
                 return match shared.reply(&line, &socket) {
@@ -179,7 +193,7 @@ fn window(mut settings: Settings) -> ExitCode {
             // The pen, the mouse, the trackpad, typed text and a resize.
             (Ask::Not, event) => {
                 if !pen(&event, &mut tools, &mut canvases, &mut shared, area, &socket) {
-                    return Step::Pass;
+                    return pass(&shared, &mut canvases, &tools, &sidebar);
                 }
                 return Step::Draw(view(&settings, &shared, &tools, &sidebar, &mut canvases));
             }
