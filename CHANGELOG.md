@@ -95,6 +95,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **CLI:** `canvas apply`, `canvas undo` and `canvas redo` act as the agent
+  named by `SLINGER_AGENT` when there is no `--agent`, as `canvas put` does.
+  What an agent applies no longer lands in your undo history as yours.
 - **Agents:** a drawing reaches the agent as one image when its strokes
   touch, instead of one image per long stroke (an airplane arrived as
   fuselage, wings and belly). An underline joins the words it touches. A

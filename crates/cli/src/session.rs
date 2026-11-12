@@ -19,6 +19,10 @@ pub const AGENT_ENV: &str = "SLINGER_AGENT";
 /// Help for `--agent`: a string, because a doc comment may not hold `$SLINGER_AGENT` bare.
 pub const AGENT_HELP: &str = "The calling agent [default: $SLINGER_AGENT]";
 
+/// Help for `--agent` where the user acts when no agent is named.
+pub const AGENT_OR_USER_HELP: &str =
+    "Act as this agent, with its own undo history [default: $SLINGER_AGENT, else the user]";
+
 #[derive(Subcommand)]
 pub enum Session {
     /// List the sessions, by agent: agent, status, home and note per line
@@ -170,10 +174,15 @@ pub fn touched(
     Ok(Output::new(serde_json::to_value(touched)?, String::new()))
 }
 
+/// The agent a command acts as, if any: `--agent`, else `$SLINGER_AGENT`.
+pub fn named_agent(flag: Option<&str>) -> Option<String> {
+    let agent = flag.map(str::to_string).or_else(|| std::env::var(AGENT_ENV).ok());
+    agent.filter(|a| !a.trim().is_empty())
+}
+
 /// The agent an agent verb acts as: `--agent`, else `$SLINGER_AGENT`.
 pub fn calling_agent(flag: Option<&str>) -> Result<String, control::RemoteError> {
-    let agent = flag.map(str::to_string).or_else(|| std::env::var(AGENT_ENV).ok());
-    agent.filter(|a| !a.trim().is_empty()).ok_or_else(|| {
+    named_agent(flag).ok_or_else(|| {
         let hint = format!("pass --agent <NAME>, or set {AGENT_ENV}");
         control::RemoteError::new("usage", "no agent name", Some(hint))
     })

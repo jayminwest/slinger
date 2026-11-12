@@ -52,6 +52,27 @@ fn agent_verbs_take_the_agent_from_the_flag_or_the_environment_or_fail_as_usage(
     let shown = client.canvas_show("main", None).unwrap();
     assert_eq!(shown.items[1]["by"], "agent:scout");
 
+    // `canvas apply`, `undo` and `redo` act as $SLINGER_AGENT too, and as the user without it.
+    let text = r#"{"op":"add","item":{"page":"p1","kind":"text","x":0,"y":900,"text":"a"}}"#;
+    assert_eq!(
+        slinger(&socket, Some("scout"), &["canvas", "apply", "main", text]).status.code(),
+        Some(0)
+    );
+    assert_eq!(slinger(&socket, None, &["canvas", "apply", "main", text]).status.code(), Some(0));
+    let makers = |client: &Client| -> Vec<String> {
+        let shown = client.canvas_show("main", None).unwrap();
+        shown.items.iter().map(|i| i["by"].as_str().unwrap().to_string()).collect()
+    };
+    assert_eq!(makers(&client), ["user", "agent:scout", "agent:scout", "user"]);
+    assert_eq!(slinger(&socket, Some("scout"), &["canvas", "undo", "main"]).status.code(), Some(0));
+    assert_eq!(
+        makers(&client),
+        ["user", "agent:scout", "user"],
+        "the agent's undo takes its own step"
+    );
+    assert_eq!(slinger(&socket, Some("scout"), &["canvas", "redo", "main"]).status.code(), Some(0));
+    assert_eq!(makers(&client).iter().filter(|by| *by == "agent:scout").count(), 2);
+
     // An agent's process finds the daemon that started it by SLINGER_SOCKET.
     let mut list = Command::new(env!("CARGO_BIN_EXE_slinger"));
     let list = list.args(["canvas", "list"]).env("SLINGER_SOCKET", &socket).output().unwrap();
