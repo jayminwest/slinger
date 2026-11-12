@@ -73,6 +73,8 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** a handwritten line with wide gaps between its words reaches
+  the agent as one image, instead of one image per few words.
 - **App:** the sling's pill (`● scout working · 4s` and what follows it)
   and the ➤ Sling and + prompt buttons centre their words top to bottom,
   instead of sitting them at the top of their fill.

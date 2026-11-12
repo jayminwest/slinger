@@ -49,11 +49,11 @@ fn every_fixture_page_has_its_recorded_cluster_count() {
     assert_eq!(
         counts,
         [
-            ("inital-planning", 73),
+            ("inital-planning", 67),
             ("claude", 4),
             ("slinger-diagrams", 12),
-            ("fable-5.2", 30),
-            ("spec", 16)
+            ("fable-5.2", 27),
+            ("spec", 13)
         ]
     );
 }
@@ -76,6 +76,25 @@ fn two_notes_of_different_colours_side_by_side_stay_two_clusters() {
         canvas.bounds_of(yellow.iter().copied()).unwrap(),
     );
     assert!(apart < 40.0, "{apart}");
+}
+
+#[test]
+fn a_note_with_wide_word_gaps_is_one_cluster_per_paragraph() {
+    // On "spec", "I have an agent working on the / Scaffolding now. Lets do
+    // the spikes while the other / agent works." has word gaps of 124 to 152
+    // canvas units, about four size units (slinger-c94c3e). A blank line
+    // splits it in two.
+    let canvas = board();
+    let page = canvas.page_named("spec").unwrap().id();
+    let clusters = page_clusters(&canvas, page);
+    let firsts: Vec<u64> = clusters.iter().map(|c| c[0].get()).collect();
+    for id in [7729, 7773] {
+        assert!(firsts.contains(&id), "{firsts:?}");
+    }
+    for id in [7744, 7793, 7798] {
+        assert!(!firsts.contains(&id), "{firsts:?}");
+        assert!(clusters.iter().any(|c| c.contains(&ItemId::new(id))));
+    }
 }
 
 #[test]
@@ -172,6 +191,18 @@ fn letters_close_together_join_and_a_far_note_does_not() {
     a.extend(p.note(BLACK, 0.0, 40.0, 3));
     let far = p.note(BLACK, 0.0, 200.0, 3);
     assert_eq!(p.clusters(), [a, far]);
+}
+
+#[test]
+fn words_on_one_line_join_further_apart_than_lines_do() {
+    let mut p = Page::new();
+    // Letters about 20 tall, so a size unit is about 20: words about 80
+    // apart, near four units.
+    let mut line = p.note(BLACK, 0.0, 0.0, 3);
+    line.extend(p.note(BLACK, 160.0, 0.0, 3));
+    // A gap a little wider, down the page, is a new note.
+    let below = p.note(BLACK, 0.0, 110.0, 3);
+    assert_eq!(p.clusters(), [line, below]);
 }
 
 #[test]
