@@ -106,10 +106,31 @@ fn an_answer_with_items_counts_them_and_a_tap_pans_to_those_out_of_sight() {
 }
 
 #[test]
+fn items_that_land_after_the_answer_count_and_it_never_says_in_text() {
+    let now = Instant::now();
+    let mut slung = out(now);
+    slung.flash();
+    assert!(slung.heard(&answered(Some("done")), now));
+    assert!(!slung.tick(now + SETTLE / 2));
+    assert_eq!(slung.flash(), None, "not yet");
+    let mine = agent_item(7, Rect { x: 150.0, y: 300.0, width: 100.0, height: 40.0 });
+    assert!(slung.landed(("notes", "p1"), [mine]));
+    assert!(slung.tick(now + SETTLE / 2));
+    assert_eq!(slung.flash().as_deref(), Some("scout answered"));
+    assert!(!slung.tick(now + SETTLE), "once");
+    assert_eq!(slung.flash(), None);
+    assert_eq!(said(&slung, &[view(true)], now), ["✓ scout answered · 1 new item"]);
+}
+
+#[test]
 fn an_answer_in_words_opens_under_the_pill_and_a_tap_closes_it() {
     let now = Instant::now();
     let mut slung = out(now);
     assert!(slung.heard(&answered(Some("It is two.\nAnd three.")), now));
+    slung.flash();
+    assert_eq!(slung.flash(), None, "its items may be on their way");
+    assert_eq!(said(&slung, &[view(true)], now), ["✓ scout answered"]);
+    assert!(slung.tick(now + SETTLE), "none landed");
     assert_eq!(slung.flash().as_deref(), Some("scout answered in text"));
     let marks = slung.marks(&T, &[view(true)], now);
     assert_eq!(marks.labels[0].text, "✓ scout answered in text · tap to read");
@@ -141,6 +162,8 @@ fn an_agent_done_with_no_answer_says_so_and_it_all_clears_in_time() {
     let now = Instant::now();
     let mut slung = out(now);
     assert!(slung.heard(&answered(None), now));
+    slung.flash();
+    slung.tick(now + SETTLE);
     assert_eq!(slung.flash().as_deref(), Some("scout is done"));
     assert_eq!(said(&slung, &[view(true)], now), ["✓ scout is done, with nothing on the canvas"]);
     assert!(!slung.tick(now + CLEAR / 2));

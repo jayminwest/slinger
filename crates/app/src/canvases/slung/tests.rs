@@ -87,12 +87,13 @@ fn one_tap_slings_the_selection_with_the_config_s_words_and_the_pill_follows_the
         let message = delivered(home.path(), PROMPT);
         assert!(message.contains("selected=c1"), "{message}");
         let working = until_marked(&mut canvases, &panes, "● scout working");
-        assert_eq!(working[..3], beside, "still there: {working:?}");
+        assert_eq!((working[0].as_str(), working.len()), (buttons::DELETE, 2), "one at a time");
         assert_eq!(canvases.said().as_deref(), Some("Slung to scout"));
 
         daemon.canvas_put("notes", "scout", "c1", Put::Text("a reply".into())).unwrap();
         std::fs::write(home.path().join("go"), "").unwrap();
         let answered = until_marked(&mut canvases, &panes, "✓ scout answered ·");
+        assert_eq!(answered[..3], beside, "it answered: the buttons are back");
         assert_eq!(answered[3], "✓ scout answered · 1 new item");
         assert!(canvases.tap_slung(&panes, WINDOW.rect()), "in sight: a tap clears it");
         assert!(canvases.sling_marks(&panes, WINDOW.rect(), &theme).0.len() == 3, "the buttons");
@@ -112,7 +113,7 @@ fn one_tap_with_nothing_selected_slings_what_is_new_on_the_page() {
         assert!(canvases.sling_now_command(&panes, WINDOW.rect()), "no list yet: it tries");
         let message = delivered(home.path(), PROMPT);
         assert!(message.contains("canvas=notes\\n") && message.contains("c1 ink"), "{message}");
-        let done = until_marked(&mut canvases, &panes, "✓ scout");
+        let done = until_marked(&mut canvases, &panes, "✓ scout answered in");
         assert_eq!(done, ["✓ scout answered in text · tap to read"]);
         assert!(canvases.tap_slung(&panes, WINDOW.rect()));
         let (_, _, answer) = canvases.sling_marks(&panes, WINDOW.rect(), &Config::default().theme);

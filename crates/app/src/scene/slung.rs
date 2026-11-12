@@ -25,7 +25,10 @@
 //!   agent's process ended before it answered, or the daemon went away.
 //!
 //! The sling going flashes "Slung to scout", its answer "scout answered"
-//! (or "scout answered in text"). A tap clears an answer or a failure, and
+//! (or "scout answered in text"). The agent's items can land after the
+//! daemon says it answered: an answer with none yet waits [`SETTLE`] for
+//! them before it says "in text", and its pill says only `✓ scout
+//! answered` meanwhile. A tap clears an answer or a failure, and
 //! so does [`CLEAR`] passing: nothing stays on the canvas for good.
 
 use std::time::{Duration, Instant};
@@ -41,6 +44,9 @@ use words::{count, elapsed, page};
 
 /// How long an answer or a failure stays untapped.
 pub const CLEAR: Duration = Duration::from_secs(30);
+/// How long an answer with nothing on the canvas yet waits for the agent's
+/// items to land before it says it answered in text.
+pub const SETTLE: Duration = Duration::from_secs(1);
 /// The pill's height: the pen taps it.
 const HIGH: f64 = style::TAP;
 /// The room inside the pill's ends, and around it in its pane.
@@ -129,6 +135,8 @@ struct Out {
     since: Instant,
     items: Vec<(ItemId, Rect)>,
     reading: bool,
+    /// Its answer was flashed: the items it brought are known.
+    told: bool,
     /// The time the pill last said.
     drawn: String,
 }
@@ -165,6 +173,7 @@ impl Slung {
             since: now,
             items,
             reading: false,
+            told: false,
             drawn,
         };
         self.out = Some(out);
@@ -208,12 +217,6 @@ impl Slung {
         let next = if !progress.running {
             Stage::Stopped
         } else if progress.pending == 0 {
-            let flash = match (&progress.answer, out.items.is_empty()) {
-                (_, false) => "answered",
-                (Some(_), true) => "answered in text",
-                (None, true) => "is done",
-            };
-            self.flash = Some(format!("{} {flash}", out.agent));
             Stage::Answered(progress.answer.clone())
         } else if let Some(note) = &progress.blocked {
             Stage::Blocked(note.clone())
@@ -224,7 +227,30 @@ impl Slung {
         if changed {
             out.to(next, now);
         }
+        self.tell(now);
         changed
+    }
+
+    /// Flashes the answer once what it brought is known: its items landed,
+    /// or [`SETTLE`] passed with none. Returns whether it did.
+    fn tell(&mut self, now: Instant) -> bool {
+        let Some(out) = self.out.as_mut().filter(|o| !o.told) else { return false };
+        let Stage::Answered(answer) = &out.stage else { return false };
+        let flash = match (answer, out.items.is_empty()) {
+            (_, false) => "answered",
+            _ if out.since + SETTLE > now => return false,
+            (Some(_), true) => "answered in text",
+            (None, true) => "is done",
+        };
+        self.flash = Some(format!("{} {flash}", out.agent));
+        out.told = true;
+        true
+    }
+
+    /// Whether a sling is out: on its way, or the agent works on it.
+    pub fn out(&self) -> bool {
+        let out = self.out.as_ref().map(|o| &o.stage);
+        matches!(out, Some(Stage::Aimed | Stage::Working | Stage::Blocked(_)))
     }
 
     /// The canvas page the agent's answer lands on, while the sling is out
@@ -255,10 +281,11 @@ impl Slung {
         changed
     }
 
-    /// The time is `now`: whether what the pill says changed (its time, or
-    /// an answer or a failure that has shown for [`CLEAR`] goes, unless its
+    /// The time is `now`: whether what the pill says changed (its time, an
+    /// answer settled ([`SETTLE`]), or an answer or a failure that has shown for [`CLEAR`] goes, unless its
     /// answer is open).
     pub fn tick(&mut self, now: Instant) -> bool {
+        let told = self.tell(now);
         let Some(out) = self.out.as_mut() else { return false };
         match out.stage {
             Stage::Working | Stage::Blocked(_) => {
@@ -273,7 +300,7 @@ impl Slung {
                 self.out = None;
                 true
             }
-            _ => false,
+            _ => told,
         }
     }
 
@@ -422,6 +449,7 @@ impl Out {
     fn answered(&self, text: bool, view: &View) -> String {
         let agent = &self.agent;
         match self.items.len() {
+            0 if !self.told => format!("✓ {agent} answered"),
             0 if text => format!("✓ {agent} answered in text · tap to read"),
             0 => format!("✓ {agent} is done, with nothing on the canvas"),
             n => {

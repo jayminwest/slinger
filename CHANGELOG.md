@@ -126,6 +126,14 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** after a sling, the agent's answer no longer flashes "answered
+  in text" when its items are still on their way to the canvas: an answer
+  with nothing on the canvas yet waits a second for them.
+- **App:** the sidebar shows what an agent's hooks say for an agent you
+  run yourself, outside slingerd, instead of "not running". An agent
+  slingerd started and that has stopped still says "not running".
+- **App:** while a sling is out, only Delete stands beside the selection:
+  ➤ Sling and + prompt come back once the agent answers.
 - **App:** a colour, shape, tool or width pop-up opened from a key before
   the pen or pointer has been in the window opens at the middle of the
   focused pane, wherever the window was sized, not at a fixed spot.

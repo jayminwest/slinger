@@ -175,8 +175,8 @@ impl Canvases {
 
     /// What the window draws for the sling over the canvas panes of
     /// `panes` laid in `area`, in `theme`'s colours: "➤ Sling" and "+
-    /// prompt" beside the selection while nothing is being slung, and the
-    /// pill; their labels, tap targets, and the answer's panel.
+    /// prompt" beside the selection while no sling is out, "Delete" beside
+    /// it, and the pill; their labels, tap targets, and the answer's panel.
     pub fn sling_marks(
         &self,
         panes: &Panes,
@@ -187,7 +187,7 @@ impl Canvases {
         let idle = self.sling.canvas().is_none() && !self.typing();
         let selected = self.selection_in(panes, area).filter(|(s, ..)| idle && !s.ids.is_empty());
         if let Some((_, around, within)) = selected {
-            (labels, targets) = buttons::buttons(around, within, theme);
+            (labels, targets) = buttons::buttons(around, within, theme, self.slung.out());
         }
         let seen = self.seen(panes, area);
         let marks = self.slung.marks(theme, &views(&seen), Instant::now());

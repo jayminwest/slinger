@@ -20,7 +20,7 @@ use std::time::{Duration, SystemTime};
 use slinger_control::{self as control, Client, PaneKind, PaneLayout, RemoteError};
 
 use crate::config::{self, Config, Layer};
-use crate::scene::sidebar::{Agent, Status, Workspace};
+use crate::scene::sidebar::{Agent, Process, Status, Workspace};
 use crate::ui::Shown;
 
 mod feedback;
@@ -69,11 +69,12 @@ pub fn workspaces(daemon: &Client) -> Result<Vec<Workspace>, Problem> {
     let agent = |name: String| {
         let session = sessions.iter().find(|s| s.agent == name);
         let said = session.and_then(|s| Status::parse(s.status.as_deref()?));
-        let running = session.is_some_and(|s| s.process.as_deref() == Some("running"));
+        let started = session.is_some_and(|s| s.session_id.is_some());
+        let process = Process::named(session.and_then(|s| s.process.as_deref()), started);
         let pending = session.and_then(|s| s.pending).unwrap_or(0);
         let answered = session.is_some_and(|s| s.answer.is_some());
         Agent {
-            status: Status::of(said, running, pending, answered),
+            status: Status::of(said, process, pending, answered),
             note: session.and_then(|s| s.note.clone()),
             name,
         }
@@ -353,7 +354,8 @@ pub(crate) mod tests {
             let _dir = open_notes(d);
             assert_eq!(workspaces(d), Ok(notes(Some(Status::Stopped), None)), "no process");
             d.status_set("scout", "blocked", Some("which key?")).unwrap();
-            assert_eq!(workspaces(d), Ok(notes(Some(Status::Stopped), Some("which key?"))));
+            let hooks = notes(Some(Status::Blocked), Some("which key?"));
+            assert_eq!(workspaces(d), Ok(hooks), "never started: its hooks say");
         });
     }
 
@@ -384,7 +386,7 @@ pub(crate) mod tests {
             watch.follow(socket.to_path_buf());
             until(&watch, &Ok(notes(Some(Status::Stopped), None)));
             d.status_set("scout", "blocked", Some("which key?")).unwrap();
-            until(&watch, &Ok(notes(Some(Status::Stopped), Some("which key?"))));
+            until(&watch, &Ok(notes(Some(Status::Blocked), Some("which key?"))));
         });
     }
 

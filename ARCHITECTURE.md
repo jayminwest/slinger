@@ -514,9 +514,10 @@ scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
              where the panes go beside it, and
              the one notice when an agent becomes blocked or done out. The
              first list is the baseline; a status that moves on clears its
-             notice. An agent whose session has no process is `not running`
-             (hollow, muted), and one with a message pending is working
-             though no hook said so (`Status::of`). `agents`: each
+             notice. An agent whose process exited or was stopped is `not
+             running` (hollow, muted), one slingerd never started (no
+             session id) shows what its hooks said, and one with a message
+             pending is working though no hook said so (`Status::of`). `agents`: each
              workspace's agent. Pure.
 scene/sidebar/notice.rs  the notice: a 28 pt bar above the footers (it
              hides none), "<agent> is blocked: <note>" or "is done", with a
@@ -531,8 +532,10 @@ scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
              into view, the next clears it), "✓ scout answered in text · tap
              to read" (a tap opens the answer's panel), "✓ scout is done,
              with nothing on the canvas", a failure's "✗ <message>" and hint,
-             "✗ scout stopped before it answered". An ending pill goes 30 s
-             later. `slung/words.rs`: the elapsed time, the answer's lines.
+             "✗ scout stopped before it answered". An answer with no items
+             yet waits 1 s for them to land (the pill says "✓ scout
+             answered") before it says "in text" (`SETTLE`). An ending pill
+             goes 30 s later. `out`: a sling is on its way or worked on. `slung/words.rs`: the elapsed time, the answer's lines.
              Pure.
 scene/button.rs  the "send to agent" button: an item of kind `button`, drawn
              as an outline with the agent's status mark (the sidebar's) and
@@ -670,7 +673,7 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              opened again. Pure. `sling/buttons.rs`: the three buttons
              beside a selection's box, ➤ Sling (`sling-now`), + prompt
              (`sling`) and Delete (`delete-selection`), each a 28 pt target
-             inside the pane.
+             inside the pane; while a sling is out, Delete alone.
 scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
              sling's labelled field (Entry::framed), "Feedback" above and
              "↩ saves · esc cancels" beneath, centred in the focused pane
