@@ -80,8 +80,10 @@ impl Feedback {
     /// `invalid` for blank text, and [`FeedbackError::Io`] when the file
     /// cannot be written.
     pub fn add(&self, text: &str, context: Context) -> Result<Entry> {
-        let entry = feedback::note(text, context, now(), &self.build)?;
         let _held = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
+        let (unix_ms, offset) = clock();
+        let ts = feedback::stamp(&self.text()?, unix_ms, offset);
+        let entry = feedback::note(text, context, ts, &self.build)?;
         self.append(&entry.line())?;
         Ok(entry)
     }
@@ -105,7 +107,9 @@ impl Feedback {
     /// read or written.
     pub fn resolve(&self, ts: &str, note: Option<String>) -> Result<Resolution> {
         let _held = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
-        let resolution = feedback::resolve(&self.text()?, ts, now(), note)?;
+        let (unix_ms, offset) = clock();
+        let at = feedback::timestamp(unix_ms, offset);
+        let resolution = feedback::resolve(&self.text()?, ts, at, note)?;
         self.append(&resolution.line())?;
         Ok(resolution)
     }
@@ -138,14 +142,14 @@ pub fn default_file(data: &Path) -> PathBuf {
     checkout.filter(|dir| dir.is_dir()).unwrap_or_else(|| data.to_path_buf()).join(FILE)
 }
 
-/// Now, as local time with its UTC offset. The offset is what `date`
-/// says, so it follows the system's time zone and its daylight saving;
-/// UTC when `date` cannot say.
-fn now() -> String {
-    let unix = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
+/// Now, in Unix milliseconds, and the local UTC offset in seconds. The
+/// offset is what `date` says, so it follows the system's time zone and
+/// its daylight saving; UTC when `date` cannot say.
+fn clock() -> (i64, i32) {
+    let unix = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis());
     let said = Command::new("date").arg("+%z").output().ok();
     let offset = said.and_then(|out| feedback::offset(&String::from_utf8_lossy(&out.stdout)));
-    feedback::timestamp(i64::try_from(unix).unwrap_or(i64::MAX), offset.unwrap_or(0))
+    (i64::try_from(unix).unwrap_or(i64::MAX), offset.unwrap_or(0))
 }
 
 #[cfg(test)]
@@ -166,12 +170,17 @@ mod tests {
         let notes = Feedback::new(dir.path().join("sub/feedback.jsonl"));
         assert_eq!(notes.list(false, 5).unwrap(), []);
         let saved = notes.add("slow", Context::default()).unwrap();
-        assert!(saved.ts.len() == 25 && saved.ts.contains('T'), "{}", saved.ts);
+        assert!(saved.ts.len() == 29 && saved.ts.contains('T'), "{}", saved.ts);
+        let same: Vec<_> = (0..4).map(|_| notes.add("same", Context::default()).unwrap()).collect();
+        notes.resolve(&same[1].ts, None).unwrap();
+        let open: Vec<_> = notes.list(false, 9).unwrap().into_iter().map(|e| e.ts).collect();
+        let want = [&same[3], &same[2], &same[0], &saved].map(|e| e.ts.clone());
+        assert_eq!(open, want, "each note its own");
         notes.resolve(&saved.ts, None).unwrap();
-        assert_eq!(notes.list(false, 5).unwrap(), []);
-        assert_eq!(notes.list(true, 5).unwrap().len(), 1);
+        assert_eq!(notes.list(false, 9).unwrap().len(), 3);
+        assert_eq!(notes.list(true, 9).unwrap().len(), 5);
         let lines = fs::read_to_string(notes.path()).unwrap();
-        assert_eq!(lines.lines().count(), 2);
+        assert_eq!(lines.lines().count(), 7);
 
         let unusable = Feedback::new(dir.path().to_path_buf());
         let err = unusable.add("x", Context::default()).unwrap_err();

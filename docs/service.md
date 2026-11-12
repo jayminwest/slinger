@@ -729,14 +729,17 @@ runs, and a person or an agent reads it with any tool.
 - **A note** is `{ts, text, build}` and, from the app, what it showed:
   `workspace`, `canvas`, `page` (its name), `tool` and `selected` (how many
   items; absent when none). `ts` is the local time with its offset, to the
-  second (RFC 3339); it names the note. `build` is the commit `slingerd`
+  millisecond (RFC 3339: `2026-11-11T14:02:09.120-08:00`); it names the
+  note, and no two notes in the file share one (a note saved in the same
+  millisecond as another takes the next free one). `build` is the commit `slingerd`
   was built from, with `-dirty` for uncommitted changes, or `dev` when the
   build did not say. A blank text is `invalid`.
 - **A resolution** is a line of its own, `{resolves, ts, note}`: `resolves`
   is the note's `ts`. A resolved note is out of `feedback_list` unless
   `all`, where it carries `resolved: {ts, note}`. A `ts` no note has is
-  `not_found`; one resolved already is `conflict`. Two notes saved in the
-  same second share a `ts`, and one resolution resolves both.
+  `not_found`; one resolved already is `conflict`. Older files name notes
+  to the second, so two of their notes can share a `ts`; they still read,
+  and one resolution resolves both.
 - A file the daemon cannot write or read is `invalid`, with a hint to start
   it with a `--feedback` it can write.
 - The app's entry lists the five newest open notes under it, from one
@@ -744,9 +747,9 @@ runs, and a person or an agent reads it with any tool.
 
 ```json
 { "v": 1, "op": "feedback_add", "text": "the lasso is slow", "canvas": "notes", "page": "Page 1", "tool": "lasso", "selected": 3 }
-{ "ok": true, "path": "/Users/me/slinger/feedback.jsonl", "entry": { "ts": "2026-11-11T14:02:09-08:00", "text": "the lasso is slow", "build": "93ea49d", "canvas": "notes", "page": "Page 1", "tool": "lasso", "selected": 3 } }
-{ "v": 1, "op": "feedback_resolve", "ts": "2026-11-11T14:02:09-08:00", "note": "slinger-1234" }
-{ "ok": true, "path": "/Users/me/slinger/feedback.jsonl", "resolves": "2026-11-11T14:02:09-08:00", "ts": "2026-11-11T15:40:00-08:00", "note": "slinger-1234" }
+{ "ok": true, "path": "/Users/me/slinger/feedback.jsonl", "entry": { "ts": "2026-11-11T14:02:09.120-08:00", "text": "the lasso is slow", "build": "93ea49d", "canvas": "notes", "page": "Page 1", "tool": "lasso", "selected": 3 } }
+{ "v": 1, "op": "feedback_resolve", "ts": "2026-11-11T14:02:09.120-08:00", "note": "slinger-1234" }
+{ "ok": true, "path": "/Users/me/slinger/feedback.jsonl", "resolves": "2026-11-11T14:02:09.120-08:00", "ts": "2026-11-11T15:40:00.031-08:00", "note": "slinger-1234" }
 ```
 
 #### Agent canvas verbs

@@ -1,7 +1,7 @@
 use super::*;
 
-/// 2026-10-09 18:31:01 UTC.
-const TS: i64 = 1_791_570_661;
+/// 2026-10-09 18:31:01.250 UTC, in milliseconds.
+const TS: i64 = 1_791_570_661_250;
 
 fn entry(ts: &str, text: &str) -> Entry {
     note(text, Context::default(), ts.into(), "dev").unwrap()
@@ -13,11 +13,35 @@ fn file(lines: &[String]) -> String {
 
 #[test]
 fn times_are_local_rfc3339_with_the_offset() {
-    assert_eq!(timestamp(TS, 0), "2026-10-09T18:31:01+00:00");
-    assert_eq!(timestamp(TS, -25_200), "2026-10-09T11:31:01-07:00");
-    assert_eq!(timestamp(TS, 19_800), "2026-10-10T00:01:01+05:30");
-    assert_eq!(timestamp(0, -3600), "1969-12-31T23:00:00-01:00");
-    assert_eq!(timestamp(951_782_400, 0), "2000-02-29T00:00:00+00:00");
+    assert_eq!(timestamp(TS, 0), "2026-10-09T18:31:01.250+00:00");
+    assert_eq!(timestamp(TS, -25_200), "2026-10-09T11:31:01.250-07:00");
+    assert_eq!(timestamp(TS, 19_800), "2026-10-10T00:01:01.250+05:30");
+    assert_eq!(timestamp(0, -3600), "1969-12-31T23:00:00.000-01:00");
+    assert_eq!(timestamp(-1, 0), "1969-12-31T23:59:59.999+00:00");
+    assert_eq!(timestamp(951_782_400_007, 0), "2000-02-29T00:00:00.007+00:00");
+}
+
+#[test]
+fn a_stamp_is_the_time_or_the_first_after_it_no_entry_has() {
+    assert_eq!(stamp("", TS, 0), "2026-10-09T18:31:01.250+00:00");
+    let mut text = String::new();
+    for _ in 0..3 {
+        text.push_str(&entry(&stamp(&text, TS, 0), "same instant").line());
+    }
+    let names: Vec<_> = read(&text, 5, true).into_iter().map(|e| e.ts).collect();
+    let at = |ms| format!("2026-10-09T18:31:01.{ms}+00:00");
+    assert_eq!(names, [at(252), at(251), at(250)]);
+    let done = resolve(&text, &at(251), "r".into(), None).unwrap();
+    assert!(!stamp(&(text + &done.line()), TS, 0).ends_with(".251+00:00"), "a name stays taken");
+}
+
+#[test]
+fn notes_named_to_the_second_still_read_and_resolve() {
+    let old = "2026-11-11T21:18:33-08:00";
+    let text = file(&[entry(old, "one").line(), entry(old, "two").line()]);
+    assert_eq!(read(&text, 5, false).len(), 2);
+    let done = resolve(&text, old, "r".into(), None).unwrap();
+    assert_eq!(read(&(text + &done.line()), 5, false), [], "one resolution resolves both");
 }
 
 #[test]
