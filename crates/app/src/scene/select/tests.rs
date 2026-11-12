@@ -283,3 +283,21 @@ fn one_selected_item_is_counted_as_one() {
     let over = select.shown(HERE, shown(&page), 1.0, &THEME);
     assert!(matches!(&over.last().unwrap().shape, Shape::Text { text, .. } if text == "1 item"));
 }
+
+#[test]
+fn ink_the_daemon_has_written_can_be_erased_before_the_feed_echoes_it() {
+    let (mut select, mut ink) = (Select::default(), Ink::default());
+    ink.down("main", "p1", RED, pt(0.0, 0.0));
+    ink.up(Some(pt(10.0, 0.0)));
+    let (key, _) = ink.next().unwrap();
+    let across = [(5.0, 10.0), (5.0, -10.0)];
+    let page: Vec<Item> = ink.shown("main", "p1", &[]).into_iter().map(Cow::into_owned).collect();
+    gesture(&mut select, &mut ink, Tool::Eraser, &across, &page);
+    assert_eq!(ink.next(), None, "not yet written: out of reach");
+    ink.answered(key, crate::scene::ink::Answer::Made { seq: 1, ids: vec![ItemId(1)] });
+    let page: Vec<Item> = ink.shown("main", "p1", &[]).into_iter().map(Cow::into_owned).collect();
+    gesture(&mut select, &mut ink, Tool::Eraser, &across, &page);
+    let removed = Change::Remove { canvas: "main".into(), page: "p1".into(), ids: vec![ItemId(1)] };
+    assert_eq!(ink.next().map(|(_, change)| change), Some(removed));
+    assert!(ink.shown("main", "p1", &[]).is_empty(), "gone at once");
+}

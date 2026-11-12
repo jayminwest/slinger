@@ -78,6 +78,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** the eraser, the lasso and the select tool take a stroke, a text,
+  a box or an arrow as soon as the daemon has written it, instead of only
+  once the canvas's feed has echoed it back. A stroke no longer draws twice
+  for that moment either.
 - **Daemon:** a second `slingerd` started on another socket but the same
   data directory now stops with exit 4 and `✗ data directory <path> is in
   use by another slingerd`, instead of writing to the same record as the

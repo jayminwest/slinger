@@ -752,8 +752,10 @@ did not get stays on screen and goes again before any after it; one it
 refuses (its canvas is gone) is dropped and shown as the problem. Local
 ink and the server's echo: a stroke draws from the ink until its canvas's
 feed has passed the line its `add` was written under; from then on the
-mirror holds it. So it never blinks out between the reply and the echo,
-and for that moment both draw it in the same place. Touch (a palm on a
+mirror holds it. So it never blinks out between the reply and the echo.
+The daemon's reply to an add says the ids it made, and the ink shows the
+item under that id from then on (and not at all once the mirror holds
+it), so it never draws twice. Touch (a palm on a
 tablet display) never draws. Each stroke's pen-to-paint delays go to
 stderr as one `ink:` line (SPEC O2). Ink not yet sent is lost if the app
 quits. The app binary has a size budget, and the release
@@ -763,7 +765,8 @@ profile builds it at `opt-level = "z"`, so it adds no async runtime.
 mirror with the ink laid over) and answer under the pen from the app's own
 copy, by the core's rules (`scene/select/hit.rs`): a round trip to the
 daemon per pen event would make the main thread wait or the eraser trail
-the pen. Only the server's items count, so ink still on its way is never
+the pen. Only the server's items count: ink shows under its server id as
+soon as the daemon has written it, so only ink not yet written is never
 erased or selected. A finished erase, move or delete joins the ink's queue
 as one `canvas_apply`, in turn with the strokes, and shows from there until
 the feed brings it. The user may erase, move and delete any item, an

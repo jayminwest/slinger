@@ -329,3 +329,19 @@ fn an_undo_and_a_page_change_wait_their_turn_show_nothing_and_leave_when_heard()
     ink.heard("main", 0);
     assert_eq!(ink.pending, [], "a step that wrote nothing leaves at once");
 }
+
+#[test]
+fn an_item_made_shows_under_the_server_s_id_and_once_the_mirror_holds_it_from_there_alone() {
+    let mut ink = Ink::default();
+    draw(&mut ink, &[(1.0, 0.0), (2.0, 0.0)]);
+    let (key, _) = next(&mut ink).unwrap();
+    assert!(ink_of(&ink, "main", "p1")[0].id.0 >= LOCAL, "no server id until it says");
+    ink.answered(key, Answer::Made { seq: 3, ids: vec![ItemId(3)] });
+    let items = ink_of(&ink, "main", "p1");
+    assert_eq!(items.iter().map(|i| i.id).collect::<Vec<_>>(), [ItemId(3)]);
+    let echoed = items.clone();
+    let shown = ink.shown("main", "p1", &echoed);
+    assert!(matches!(shown.as_slice(), [Cow::Borrowed(_)]), "drawn once, the mirror's");
+    ink.push(Change::Remove { canvas: "main".into(), page: "p1".into(), ids: vec![ItemId(3)] });
+    assert_eq!(ink_of(&ink, "main", "p1"), [], "a removal by its server id takes it");
+}
