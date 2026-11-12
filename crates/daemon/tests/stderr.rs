@@ -14,6 +14,7 @@ use slinger_control::Client;
 /// A running slingerd, killed if dropped before [`Daemon::stop`].
 struct Daemon(Option<Child>);
 
+#[expect(clippy::unwrap_used, clippy::panic, reason = "a test helper fails its test")]
 impl Daemon {
     fn start(socket: &Path, data: &Path) -> Self {
         let child = Command::new(env!("CARGO_BIN_EXE_slingerd"))
