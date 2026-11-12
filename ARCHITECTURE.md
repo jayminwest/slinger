@@ -73,12 +73,15 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              look.rs: what an agent asks beyond the packet (R5, R6): crop (an
              item, a cluster c<n> or a box, as render images, at most MAX_CROP
              units a side) and strokes (a stroke's or a cluster's points).
-             put.rs: an agent's answer (SPEC section 7): text, a box, an arrow
-             or a live item (an agent UI's showing, kind `live`) beside an
-             item, placed by free_beside, as one undo step; check_put says
-             first whether a put would go.
+             put.rs: an agent's answer (SPEC section 7): text, a box, ink, an
+             arrow or a live item (an agent UI's showing, kind `live`) beside
+             an item, placed by free_beside or at the agent's `How::at`, in
+             `How::colour`, as one undo step; check_put says first whether a
+             put would go.
              edit.rs: the agent changes (text, size, place) or removes what it
-             put. The author rule stays in Canvas (may_change), checked first.
+             put; a move takes along the bound ends of the agent's arrows, in
+             the same step. The author rule stays in Canvas (may_change),
+             checked first.
 packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
              canvas page, the clusters of the user's ink and what changed, and gives
              the `new`, `made` and `page` lines in reading order, plus the render list:
@@ -940,8 +943,10 @@ Each boundary has something that fails when it is broken:
 | A crop is limited in size; an empty box is a white image; an unknown id is `not_found` | `crates/core/tests/canvas_look.rs`, and `crates/daemon/src/tests/look.rs` through a real socket |
 | A status set shows in the session list and the record; blocked and done survive a restart | `crates/daemon/src/tests/session.rs`, through a real socket |
 | A put covers nothing: right of the item, else below, left, above, else further right | `crates/core/tests/canvas_put.rs` |
+| A put takes a colour and a place; ink goes where any put goes; an arrow takes no place | `crates/core/tests/canvas_put.rs`, `crates/cli/src/tests/put.rs` |
 | A put shows with its author; after a sling it lands `reply_landed`; an unknown item is `not_found` | `crates/daemon/src/tests/put.rs`, through a real socket |
 | An agent edits and removes only its own items; removing twice succeeds twice | `crates/core/tests/canvas_edit.rs`, and `crates/daemon/src/tests/edit.rs` through a real socket |
+| An agent's move takes its bound arrows' ends along in one step, not another author's | `crates/core/tests/canvas_edit.rs` |
 | Three sends reach one process under one session id and their answers are read; a restart resumes it; a dead process makes a send `unavailable`; a daemon stop ends it; a resume that fails drops the id and the next start is new; a fresh start ends the running process and begins a new session | `crates/daemon/src/tests/process.rs`, with a stand-in for Claude Code |
 | A session starts with the exact limits its workspace sets: by default its roots, the `slinger` CLI and no user config; wider with the agent's `dirs`, `tools` and `user_config` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
 | Three slings go into one conversation, each with its packet blob and `sling_sent`; old ink is not sent again; no running agent is `unavailable` and stores nothing; each verb the note names is served | `crates/daemon/src/tests/sling.rs`, with a stand-in for Claude Code |

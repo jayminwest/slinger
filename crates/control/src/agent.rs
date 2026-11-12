@@ -13,7 +13,8 @@ use crate::{Client, RemoteError};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum AgentAsk {
-    /// Put text, a box or an arrow beside an item, where it covers nothing.
+    /// Put text, a box, ink or an arrow beside an item, where it covers
+    /// nothing or where the agent says.
     CanvasPut(CanvasPut),
     /// Change an item the agent made: its text, its size or its place.
     CanvasEdit(CanvasEdit),
@@ -30,12 +31,19 @@ pub struct CanvasPut {
     pub agent: String,
     /// The item it goes beside: `i12`, or a packet's `c12`, `t12`.
     pub beside: String,
-    /// What goes there: one of `text`, `box` or `arrow` on the wire.
+    /// What goes there: one of `text`, `box`, `ink` or `arrow` on the wire.
     #[serde(flatten)]
     pub what: Put,
+    /// Its colour, `#rrggbb` or `#rrggbbaa`; black when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    /// Where the top-left corner of its box goes, `[x, y]` in tenths of a
+    /// unit, in place of the free space beside `beside`. Not for an arrow.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<[i64; 2]>,
 }
 
-/// A put as the line holds it: exactly one of `text`, `box` and `arrow`.
+/// A put as the line holds it: exactly one of `text`, `box`, `ink` and `arrow`.
 #[derive(Deserialize)]
 struct PutLine {
     canvas: String,
@@ -44,20 +52,25 @@ struct PutLine {
     text: Option<String>,
     #[serde(rename = "box")]
     frame: Option<[i64; 2]>,
+    ink: Option<Vec<i64>>,
     arrow: Option<[String; 2]>,
+    color: Option<String>,
+    at: Option<[i64; 2]>,
 }
 
 impl TryFrom<PutLine> for CanvasPut {
     type Error = &'static str;
 
     fn try_from(line: PutLine) -> Result<Self, Self::Error> {
-        let what = match (line.text, line.frame, line.arrow) {
-            (Some(text), None, None) => Put::Text(text),
-            (None, Some(size), None) => Put::Box(size),
-            (None, None, Some(ends)) => Put::Arrow(ends),
-            _ => return Err("a put takes exactly one of `text`, `box` and `arrow`"),
+        let what = match (line.text, line.frame, line.ink, line.arrow) {
+            (Some(text), None, None, None) => Put::Text(text),
+            (None, Some(size), None, None) => Put::Box(size),
+            (None, None, Some(pts), None) => Put::Ink(pts),
+            (None, None, None, Some(ends)) => Put::Arrow(ends),
+            _ => return Err("a put takes exactly one of `text`, `box`, `ink` and `arrow`"),
         };
-        Ok(Self { canvas: line.canvas, agent: line.agent, beside: line.beside, what })
+        let (color, at) = (line.color, line.at);
+        Ok(Self { canvas: line.canvas, agent: line.agent, beside: line.beside, what, color, at })
     }
 }
 
@@ -68,6 +81,9 @@ pub enum Put {
     Text(String),
     /// `[w, h]`.
     Box([i64; 2]),
+    /// A pen stroke: x,y pairs, the first where it starts, each next the
+    /// step from the one before. Only its shape counts.
+    Ink(Vec<i64>),
     /// `[from, to]`: two item ids, as `beside` takes them.
     Arrow([String; 2]),
 }
@@ -144,13 +160,12 @@ pub struct CanvasRemoved {
 }
 
 impl Client {
-    /// Puts `what` on `canvas` beside the item `beside`, as `agent`.
+    /// Puts `what` on `canvas` beside the item `beside`, as `agent`, in
+    /// black where it covers nothing.
     ///
     /// # Errors
     ///
-    /// `not_found` for a canvas or item that is not there, `invalid` for a
-    /// blank agent, an id that is not one or a put that cannot be drawn, and
-    /// `unavailable` when the daemon does not answer.
+    /// As [`Client::canvas_put_as`]'s.
     pub fn canvas_put(
         &self,
         canvas: &str,
@@ -159,7 +174,19 @@ impl Client {
         what: Put,
     ) -> Result<CanvasPlaced, RemoteError> {
         let (canvas, agent, beside) = (canvas.into(), agent.into(), beside.into());
-        self.call(&AgentAsk::CanvasPut(CanvasPut { canvas, agent, beside, what }))
+        self.canvas_put_as(CanvasPut { canvas, agent, beside, what, color: None, at: None })
+    }
+
+    /// Puts what `put` asks for.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a canvas or item that is not there, `invalid` for a
+    /// blank agent, an id that is not one, a colour that is not one, a place
+    /// for an arrow or a put that cannot be drawn, and `unavailable` when the
+    /// daemon does not answer.
+    pub fn canvas_put_as(&self, put: CanvasPut) -> Result<CanvasPlaced, RemoteError> {
+        self.call(&AgentAsk::CanvasPut(put))
     }
 
     /// Changes an item the agent of `edit` made.
@@ -205,6 +232,8 @@ mod tests {
             agent: "scout".into(),
             beside: "c12".into(),
             what,
+            color: None,
+            at: None,
         })
     }
 
@@ -215,6 +244,17 @@ mod tests {
             (put(Put::Text("hi".into())), r#""text":"hi"}"#),
             (put(Put::Box([200, 100])), r#""box":[200,100]}"#),
             (put(Put::Arrow(["c1".into(), "t2".into()])), r#""arrow":["c1","t2"]}"#),
+            (put(Put::Ink(vec![0, 0, 50, 10])), r#""ink":[0,0,50,10]}"#),
+            (
+                {
+                    let AgentAsk::CanvasPut(mut ask) = put(Put::Box([1, 2])) else {
+                        unreachable!()
+                    };
+                    (ask.color, ask.at) = (Some("#ffd400".into()), Some([10, 20]));
+                    AgentAsk::CanvasPut(ask)
+                },
+                r##""box":[1,2],"color":"#ffd400","at":[10,20]}"##,
+            ),
         ] {
             let line = format!("{head},{tail}");
             assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
@@ -261,6 +301,8 @@ mod tests {
             r#","beside":"c12","text":"hi","box":[1,2]}"#,
             r#","text":"hi"}"#,
             r#","beside":"c12","box":[1]}"#,
+            r#","beside":"c12","ink":[1,2],"arrow":["a","b"]}"#,
+            r#","beside":"c12","text":"hi","at":[1]}"#,
         ] {
             let line = format!("{head}{tail}");
             let err = crate::read_request(&mut line.as_bytes()).unwrap_err();

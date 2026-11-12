@@ -43,7 +43,7 @@ fn new_text_resizes_its_frame_unless_a_size_is_given() {
     let edit = Edit { text: Some("short".into()), size: Some([900, 300]), to: Some([-50, 70]) };
     let edited = log.edit(&scout(), AT, "i2", &edit).unwrap();
     assert_eq!(edited.frame, [-50, 70, 900, 300]);
-    assert_eq!(edited.written.seq.len(), 1);
+    assert_eq!(edited.written.seq.len(), 2, "the text, and the arrow that follows it");
     // Undo takes back one edit at a time.
     log.undo(&scout(), AT);
     let item = log.show(None).unwrap().items[1].clone();
@@ -75,4 +75,45 @@ fn the_user_may_edit_anything_and_an_agent_only_its_own() {
     assert_eq!(log.remove(&scout(), AT, "i2").unwrap().seq.len(), 1);
     assert_eq!(log.remove(&scout(), AT, "i2").unwrap().bytes, "");
     assert_eq!(log.remove(&scout(), AT, "x2").unwrap_err().code(), "invalid");
+}
+
+/// The field `key` of the item `id`, as `canvas show` gives it.
+fn field(log: &Log, id: &str, key: &str) -> serde_json::Value {
+    let shown = log.show(None).unwrap();
+    shown.items.iter().find(|i| i["id"] == id).unwrap()[key].clone()
+}
+
+/// The `pts` of the arrow `id`: the start, then the step to the end.
+fn pts(log: &Log, id: &str) -> Vec<i64> {
+    let pts = field(log, id, "pts");
+    pts.as_array().unwrap().iter().map(|n| n.as_i64().unwrap()).collect()
+}
+
+#[test]
+fn a_move_takes_the_ends_of_the_agents_arrows_bound_to_the_item_along() {
+    let mut log = log();
+    // The user's arrow from scout's text to the user's box; scout's i3 runs
+    // the other way.
+    let theirs = serde_json::json!({ "op": "add", "item": { "page": "p1", "kind": "arrow",
+        "pts": [1300, 100, -400, 0], "from": "i2", "to": "i1" } });
+    log.apply(&Author::User, AT, &theirs).unwrap();
+    let (ours, user) = (pts(&log, "i3"), pts(&log, "i4"));
+    let [x, y] = ["x", "y"].map(|k| field(&log, "i2", k).as_i64().unwrap());
+    let to = Edit { to: Some([x + 100, y + 2000]), ..Edit::default() };
+    let moved = log.edit(&scout(), AT, "i2", &to).unwrap();
+    assert_eq!(moved.written.seq.len(), 2, "the text and scout's arrow, in one step");
+    let after = pts(&log, "i3");
+    assert_eq!(after[..2], ours[..2], "the end on the user's box stays");
+    let end = |p: &[i64]| [p[0] + p[2], p[1] + p[3]];
+    assert_eq!(
+        end(&after),
+        [end(&ours)[0] + 100, end(&ours)[1] + 2000],
+        "the end on the text follows"
+    );
+    assert_eq!(pts(&log, "i4"), user, "the user's arrow is not scout's to change");
+    log.undo(&scout(), AT);
+    assert_eq!(pts(&log, "i3"), ours, "one undo puts both back");
+    // An edit that does not move the item leaves its arrows be.
+    let words = Edit { text: Some("hello".into()), ..Edit::default() };
+    assert_eq!(log.edit(&scout(), AT, "i2", &words).unwrap().written.seq.len(), 1);
 }

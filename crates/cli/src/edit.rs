@@ -23,7 +23,7 @@ pub struct Edit {
     #[arg(long = "box", value_name = "W,H", value_parser = crate::put::size)]
     size: Option<[i64; 2]>,
     /// Move the item's top-left corner to x,y in tenths of a unit
-    #[arg(long = "move", value_name = "X,Y", value_parser = point)]
+    #[arg(long = "move", value_name = "X,Y", value_parser = crate::put::point)]
     to: Option<[i64; 2]>,
     #[arg(long, value_name = "NAME", help = AGENT_HELP)]
     agent: Option<String>,
@@ -57,9 +57,4 @@ pub fn remove(args: &Remove, daemon: &control::Client) -> anyhow::Result<Output>
     let agent = calling_agent(args.agent.as_deref())?;
     let removed = daemon.canvas_remove(&args.canvas, &agent, &args.item)?;
     Ok(Output::new(serde_json::to_value(removed)?, String::new()))
-}
-
-/// `x,y` as two integers.
-fn point(text: &str) -> Result<[i64; 2], String> {
-    crate::put::size(text).map_err(|_| format!("{text:?} is not x,y in tenths of a unit"))
 }

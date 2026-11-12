@@ -25,6 +25,10 @@ bullet with the area in bold.
   Paste grey out in the Edit menu when they would do nothing, such as
   Copy with nothing selected or while typing a text.
 
+- **CLI:** `slinger canvas put` takes `--color` (`#rrggbb`, so an agent can
+  answer in yellow), `--at x,y` to put the item exactly where it wants
+  instead of beside the item, and `--ink` to draw a pen stroke (a bracket,
+  an underline, a check mark). The note in a first sling tells the agent.
 - **CLI:** `slinger canvas schema` prints the item kinds (text, box,
   arrow, stroke, button, live) with their fields and the operations
   `canvas apply` takes, without a daemon; `canvas apply --help` shows the
@@ -141,6 +145,10 @@ bullet with the area in bold.
 - **Sessions:** an agent whose last conversation Claude Code no longer has
   (`--resume` fails) is no longer stuck. Its process shows as `exited`,
   and the next `slinger session start` begins a new conversation.
+- **CLI:** when an agent moves its item with `slinger canvas edit --move`,
+  its arrows bound to the item follow, as they do when you move it in the
+  app; they no longer point at where the item was.
+
 - **App:** a colour, shape, tool or width pop-up opened from a key before
   the pen or pointer has been in the window opens at the middle of the
   focused pane, wherever the window was sized, not at a fixed spot.
