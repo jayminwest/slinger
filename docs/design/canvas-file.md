@@ -46,13 +46,14 @@ Both alternatives use these. They are part of the pick.
   Deltas are small, so the median stroke is about 120 bytes.
 - **Ids** are opaque strings to the codec, at most 64 bytes. The model seed decides how
   they are made.
-- **Undo is not in the file.** Undo and redo write the inverse change as ordinary
-  operations (undo of `add` is `remove`; undo of `remove` is `restore` with the whole
-  item, which the daemon holds in memory, and
+- **Undo writes ordinary operations.** Undo and redo write the inverse change as
+  ordinary operations (undo of `add` is `remove`; undo of `remove` is `restore` with
+  the whole item, which the daemon holds in memory, and
   `page.restore` puts back a removed page with its items; undo of a `move` is a
   `set` of the old shape, so it is exact). The undo stack lives in the daemon's
-  memory, per canvas, and is empty after a restart. If a persisted undo stack is ever
-  wanted, an optional `"undoes": n` field adds it with no version change.
+  memory, per canvas. Each line says which step it belongs to (optional `step`,
+  `undoes` and `redoes` fields, added with no version change), so the stack is
+  built again from the file on open (see "Undo steps").
 - **A drag writes once.** A client sends one `move` when the pen lifts, never one per
   frame. This keeps the log the size of the decisions, not of the motion.
 
@@ -240,6 +241,34 @@ string as black.
 - A workspace's new canvas has the user's button as its line 1 (SPEC section 8):
   an ordinary `add`, so the format does not change.
 
+### Undo steps
+
+Each operation line may end in one of three optional fields, an integer `s` above 0,
+after the operation's own fields. They say where the line stands in its author's
+undo history (slinger-2628e5):
+
+| field | the line is part of |
+|---|---|
+| `step` | a new step: one request, all its lines, by one author. `s` is the step's first line's `n`, which marks the step |
+| `undoes` | the undo of the step marked `s`. The undo's lines form a step the author can redo, marked by their first `n` |
+| `redoes` | the redo of the step marked `s`, the undo it takes back. Its lines form a step the author can undo, marked by their first `n` |
+
+- A line with none of them is no undo step: nothing takes it back. A workspace's
+  first-line button, an import's lines, and every line from before the fields
+  existed. A value that is not an integer above 0 reads as none.
+- The lines of one step are next to each other (one write), by one author, with
+  the same field and value.
+- On open, the reader replays the lines and builds each author's undo and redo
+  stacks as the daemon built them: a `step` clears the author's redo; an `undoes`
+  pops the author's undo stack down to the step it names (the steps above it were
+  dropped by that undo, having nothing left to take back) and pushes its inverse
+  onto redo; a `redoes` does the same from redo to undo. Each step's inverse comes
+  from the canvas as the lines rebuild it, so it is the one the daemon held.
+- An undo that found nothing to take back wrote no line, so the steps it dropped
+  are back after a restart; undoing them again skips what no longer applies.
+- A reader from before the fields ignores them: the canvas reads the same, with
+  nothing to undo after a restart.
+
 ### Versions (B5)
 
 - New operation kinds, new item kinds and new optional fields are additive. They do
@@ -289,5 +318,4 @@ string as black.
 
 - Compaction. Add it when a real canvas file is several times its live size. The
   `first` header field already makes room for it.
-- A persisted undo stack (see shared choices).
 - Images (but for PDF pages, the `pdf` kind), frames, rotation (SPEC section 4).

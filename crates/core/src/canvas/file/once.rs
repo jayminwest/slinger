@@ -3,7 +3,7 @@
 //! before it came) sends it again under the same key, and the second is
 //! not written twice. The log keeps the keys of its last [`ONCES`] such
 //! changes, and what each wrote, in memory: a restart of the daemon
-//! forgets them, as it forgets the undo history.
+//! forgets them.
 
 use std::collections::VecDeque;
 

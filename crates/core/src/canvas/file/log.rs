@@ -1,7 +1,8 @@
 //! A canvas file held open: the one place a stored canvas changes.
 //!
 //! [`Log`] keeps the canvas its lines build, the undo [`History`] beside it
-//! and the number of the next line. Each change returns the bytes to append
+//! (each line says where it stands in it, so opening rebuilds it) and the
+//! number of the next line. Each change returns the bytes to append
 //! ([`Written`]); the caller appends them, syncs, and only then answers. The
 //! log in memory has already moved on, so a caller whose write fails drops
 //! the log and opens the file again.
@@ -22,7 +23,8 @@ use super::json::{self, Fields};
 use super::once::Onces;
 use super::{File, Header, Line, read, snap};
 use crate::canvas::{
-    Action, Applied, Author, Canvas, History, ItemId, Op, Page, Point, Rect, Shape, Time,
+    Action, Applied, Author, Canvas, History, ItemId, Op, Page, Point, Rebuild, Rect, Shape, Step,
+    Time,
 };
 use crate::{Error, Result};
 
@@ -170,7 +172,7 @@ impl Log {
         let op = snap(Op { by: Author::User, at, action });
         let done = log.canvas.apply(op.clone())?;
         let mut written = Written::default();
-        log.write(&op, done, &mut written);
+        log.write(&op, done, Step::None, &mut written);
         bytes += &written.bytes;
         Ok((log, bytes))
     }
@@ -211,15 +213,17 @@ impl Log {
     /// The errors of [`read`] and [`File::canvas`].
     pub fn open(bytes: &[u8]) -> Result<(Self, usize)> {
         let file: File = read(bytes)?;
-        let (mut ops, mut lines) = (Vec::new(), Vec::new());
-        let canvas = file.replay(|n, op| {
-            lines.push(n);
-            ops.push(op);
+        let (mut ops, mut lines, mut rebuild) = (Vec::new(), Vec::new(), Rebuild::default());
+        let canvas = file.replay(|canvas, n, op, step| {
+            if rebuild.apply(canvas, n, op.clone(), step) {
+                lines.push(n);
+                ops.push(op);
+            }
         })?;
         let whole = &bytes[..bytes.len() - file.torn];
         let ends = whole.iter().enumerate().filter(|(_, b)| **b == b'\n');
         let ends = ends.map(|(i, _)| i as u64 + 1).collect();
-        let (history, onces) = (History::new(), Onces::default());
+        let (history, onces) = (rebuild.finish(), Onces::default());
         let log = Self { canvas, history, next: file.next(), ops, lines, ends, onces };
         Ok((log, file.torn))
     }
@@ -296,7 +300,8 @@ impl Log {
         let ops: Vec<Op> =
             actions.into_iter().map(|action| snap(Op { by: by.clone(), at, action })).collect();
         let actions = ops.iter().map(|op| op.action.clone()).collect();
-        let applied = self.history.apply(&mut self.canvas, by, at, actions)?;
+        let mark = self.next;
+        let applied = self.history.apply(&mut self.canvas, by, at, mark, actions)?;
         let mut written = Written::default();
         for (op, done) in ops.iter().zip(applied) {
             match done {
@@ -304,7 +309,7 @@ impl Log {
                 Applied::PageAdded(page) => written.made.push(json::page_id(page)),
                 Applied::Changed | Applied::Unchanged => {}
             }
-            self.write(op, done, &mut written);
+            self.write(op, done, Step::New(mark), &mut written);
         }
         Ok(written)
     }
@@ -312,14 +317,14 @@ impl Log {
     /// Takes back the last step of `by` (see [`History::undo`]). Nothing to
     /// undo writes nothing.
     pub fn undo(&mut self, by: &Author, at: Time) -> Written {
-        let ops = self.history.undo(&mut self.canvas, by, at);
-        self.write_all(&ops)
+        let walked = self.history.undo(&mut self.canvas, by, at, self.next);
+        self.write_all(&walked.ops, walked.step)
     }
 
     /// Puts back the last step `by` undid (see [`History::redo`]).
     pub fn redo(&mut self, by: &Author, at: Time) -> Written {
-        let ops = self.history.redo(&mut self.canvas, by, at);
-        self.write_all(&ops)
+        let walked = self.history.redo(&mut self.canvas, by, at, self.next);
+        self.write_all(&walked.ops, walked.step)
     }
 
     /// One page: the one with this id (`p<n>`) or name, or the first.
@@ -362,16 +367,16 @@ impl Log {
         })
     }
 
-    fn write_all(&mut self, ops: &[Op]) -> Written {
+    fn write_all(&mut self, ops: &[Op], step: Step) -> Written {
         let mut written = Written::default();
         for op in ops {
-            self.write(op, Applied::Changed, &mut written);
+            self.write(op, Applied::Changed, step, &mut written);
         }
         written
     }
 
-    fn write(&mut self, op: &Op, applied: Applied, written: &mut Written) {
-        if let Some(line) = Line::of(self.next, op, applied) {
+    fn write(&mut self, op: &Op, applied: Applied, step: Step, written: &mut Written) {
+        if let Some(line) = Line::of(self.next, op, applied).map(|line| line.in_step(step)) {
             self.ops.push(op.clone());
             self.lines.push(self.next);
             let line = line.encode();
