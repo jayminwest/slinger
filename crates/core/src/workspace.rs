@@ -69,8 +69,9 @@ pub struct Agent {
     #[serde(default, skip_serializing_if = "is_false")]
     pub durable: bool,
     /// Whether its session loads the owner's own Claude Code settings and
-    /// instructions (the user scope). Off by default.
-    #[serde(default, skip_serializing_if = "is_false")]
+    /// instructions (the user scope), as a session started by hand does. On
+    /// by default (slinger-a1c1db), so only `false` is written.
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
     pub user_config: bool,
     /// More directories on this machine its session may read, beyond the
     /// workspace's roots. Absolute.
@@ -132,7 +133,7 @@ impl Agent {
         Self {
             name: name.into(),
             durable,
-            user_config: false,
+            user_config: true,
             dirs: Vec::new(),
             tools: Vec::new(),
             profiles: Vec::new(),
@@ -375,6 +376,18 @@ fn default_canvas() -> String {
 )]
 fn is_false(b: &bool) -> bool {
     !b
+}
+
+#[expect(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde's skip_serializing_if passes a reference"
+)]
+fn is_true(b: &bool) -> bool {
+    *b
+}
+
+fn yes() -> bool {
+    true
 }
 
 #[cfg(test)]

@@ -661,13 +661,15 @@ answer. `session_id` names its conversation.
   (`--allowedTools 'Bash(slinger *)' Edit Write`). Whatever else would need
   a permission (another command, a web fetch, an MCP tool) is denied, since
   nobody is there to ask (`--permission-mode dontAsk`);
-- loads the settings and the instructions (`CLAUDE.md`) of its home, but not
-  the owner's own (`--setting-sources project,local`).
+- loads the settings and the instructions (`CLAUDE.md`) of its home and the
+  owner's own, with the owner's skills, plugins and permission rules, as a
+  session started by hand does (`--setting-sources user,project,local`,
+  slinger-a1c1db).
 
 The agent's `dirs` adds directories, its `tools` adds permission rules
-(`WebFetch`, `Bash(git *)`, `mcp__github`), and `user_config = true` loads the
-owner's settings and instructions too (`--setting-sources
-user,project,local`). The home's own `.claude/settings.json` belongs to the
+(`WebFetch`, `Bash(git *)`, `mcp__github`), and `user_config = false` leaves
+out the owner's own settings and instructions (`--setting-sources
+project,local`). The home's own `.claude/settings.json` belongs to the
 workspace and still applies, so the owner can widen a session there too.
 
 **Profiles.** An agent can have profiles (`[[agent.profile]]` in its

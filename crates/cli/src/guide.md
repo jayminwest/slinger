@@ -146,8 +146,8 @@ slinger session show <AGENT>      # its status and its last answer
 
 A sling with no profile goes to a listener when one listens, and waits for
 one when the agent has no process. `session show` says which: `deliver`,
-`listening` and `pending`. That agent has every Claude Code tool and its
-MCP servers, but nobody answers its permission prompts: without asking it
+`listening` and `pending`. That agent has every Claude Code tool, its
+MCP servers and the user's own Claude Code config, but nobody answers its permission prompts: without asking it
 runs `slinger`, read-only commands and file edits, plus the rules in its
 workspace's `agent.tools`. A profile narrows it.
 
