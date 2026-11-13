@@ -8,7 +8,7 @@ pub enum Status {
     Working,
     Blocked,
     Done,
-    /// Its process is not running: a sling cannot reach it.
+    /// Its process is not running: the next sling starts it.
     Stopped,
 }
 
