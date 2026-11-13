@@ -135,6 +135,19 @@ impl Unsent {
     }
 }
 
+impl Drop for Unsent {
+    /// Lets go of the file. Closing the lock alone is not enough: a process
+    /// spawned from another thread holds a copy of it from the fork until
+    /// its program starts, and the lock lasts while any copy is open
+    /// (slinger-3229b9). Unlocking frees it for every copy at once.
+    fn drop(&mut self) {
+        if let Some(lock) = &self.lock {
+            // Closed next, which lets go too, but for this copy alone.
+            let _ = lock.unlock();
+        }
+    }
+}
+
 /// The changes `file` keeps, oldest first, leaving out any this app cannot
 /// read.
 fn changes(file: &Value) -> Vec<Kept> {
