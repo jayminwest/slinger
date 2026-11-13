@@ -195,3 +195,33 @@ fn a_raw_request_reaches_the_canvas() {
     assert_eq!(listed, json!({ "ok": true, "canvases": [{ "canvas": "main" }] }));
     daemon.stop();
 }
+
+#[test]
+fn a_canvas_made_from_a_file_of_operations_is_made_whole_or_not_at_all() {
+    let data = TempDir::new().unwrap();
+    let daemon = Daemon::start_in(data.path());
+    let client = daemon.client();
+    let file = data.path().join("ops.json");
+    // More than one request line holds: the file is read on this machine.
+    let many: Vec<Value> = (0..1000).map(bx).collect();
+    std::fs::write(&file, Value::Array(many.clone()).to_string()).unwrap();
+    client.canvas_create_with("big", &file).unwrap();
+    let shown = client.canvas_show("big", None).unwrap();
+    assert_eq!((shown.page.as_str(), shown.items.len(), shown.next), ("p1", 1000, 1001));
+    assert_eq!(shown.items[999]["by"], "user");
+    assert_eq!(client.canvas_create_with("big", &file).unwrap_err().code(), "conflict");
+
+    let mut torn = many;
+    torn.push(json!({ "op": "add", "item": { "page": "p9", "kind": "box", "x": 0, "y": 0, "w": 1, "h": 1 } }));
+    std::fs::write(&file, Value::Array(torn).to_string()).unwrap();
+    assert_eq!(client.canvas_create_with("torn", &file).unwrap_err().code(), "not_found");
+    std::fs::write(&file, "[{").unwrap();
+    assert_eq!(client.canvas_create_with("torn", &file).unwrap_err().code(), "invalid");
+    let gone = data.path().join("gone.json");
+    assert_eq!(client.canvas_create_with("torn", &gone).unwrap_err().code(), "not_found");
+    assert_eq!(client.canvas_list().unwrap(), ["big"], "no partial canvas");
+    daemon.stop();
+    let daemon = Daemon::start_in(data.path());
+    assert_eq!(daemon.client().canvas_show("big", None).unwrap().items.len(), 1000);
+    daemon.stop();
+}

@@ -11,11 +11,11 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde_json::Value;
-use slinger_control::{CanvasOps, Client, PaneKind};
+use slinger_control::{Client, PaneKind};
 
 use super::Problem;
 use crate::mirror;
-use crate::scene::pdf::{BATCH, canvas_id, pages};
+use crate::scene::pdf::{canvas_id, pages};
 
 /// Each page's size of the PDF at a path, in page points as displayed, or
 /// why it cannot be read, for the user (`platform::pdf::pages`).
@@ -24,7 +24,10 @@ pub type Pages = fn(&Path) -> Result<Vec<(f64, f64)>, String>;
 /// The most canvas ids [`open`] tries for one PDF (`-2`, `-3`, ...).
 const TRIES: u32 = 999;
 
-/// The part files [`fetch`] has written in this process.
+/// The page every new canvas starts with, which holds an opened PDF's pages.
+const FIRST_PAGE: &str = "p1";
+
+/// The part files [`fetch`] and [`open`] have written in this process.
 static PARTS: AtomicU64 = AtomicU64::new(0);
 
 /// The directory the PDFs are fetched to: the app's own, in the temporary
@@ -77,39 +80,51 @@ pub struct Opening {
 
 /// Makes the PDF `ask.file` a new canvas, and opens a pane on it beside
 /// `ask.beside` in `ask.workspace`: reads its page sizes with `sizes`,
-/// stores it as a blob, makes the canvas ([`canvas_id`], the next id when
-/// one is taken), adds one `pdf` item per page to its first page in page
-/// order, [`BATCH`] to a `canvas_apply`. Returns the canvas's id.
+/// stores it as a blob, and makes the canvas ([`canvas_id`], the next id
+/// when one is taken) holding one `pdf` item per page on its first page,
+/// in page order. The canvas is made whole in one request or not at all:
+/// its `add`s go in a file of operations in `scratch`, as no request line
+/// would hold a long PDF's. Returns the canvas's id.
 ///
 /// # Errors
 ///
-/// A PDF that cannot be read, with nothing made; then the daemon's, with
-/// the blob, and maybe the canvas, made.
-pub fn open(daemon: &Client, sizes: Pages, ask: &Opening) -> Result<String, Problem> {
+/// A PDF that cannot be read, or a scratch file that cannot be written,
+/// with nothing made; then the daemon's, with the blob, and maybe the whole
+/// canvas without its pane, made.
+pub fn open(
+    daemon: &Client,
+    sizes: Pages,
+    ask: &Opening,
+    scratch: &Path,
+) -> Result<String, Problem> {
     let sizes = sizes(&ask.file).map_err(|why| Problem::new(why, None))?;
     if sizes.is_empty() {
         let name = ask.file.display();
         return Err(Problem::new(format!("{name} has no pages"), None));
     }
     let hash = daemon.blob_put(&ask.file)?;
-    let canvas = create(daemon, &ask.file)?;
-    let first = daemon.canvas_show(&canvas, None)?.page;
-    for batch in pages(&sizes, &hash, &ask.file).chunks(BATCH) {
-        let ops = Value::Array(batch.iter().map(|p| mirror::add_pdf(&first, p)).collect());
-        let (canvas, by) = (canvas.clone(), "user".to_string());
-        daemon.canvas_apply(CanvasOps { canvas, by, ops, once: None })?;
-    }
+    let adds: Vec<Value> =
+        pages(&sizes, &hash, &ask.file).iter().map(|p| mirror::add_pdf(FIRST_PAGE, p)).collect();
+    let n = PARTS.fetch_add(1, Ordering::Relaxed);
+    let ops = scratch.join(format!("open.{}-{n}.json", std::process::id()));
+    let written = fs::create_dir_all(scratch)
+        .and_then(|()| fs::write(&ops, Value::Array(adds).to_string()))
+        .map_err(|e| unwritable(&ops, &e));
+    let canvas = written.and_then(|()| create(daemon, &ask.file, &ops));
+    let _ = fs::remove_file(&ops);
+    let canvas = canvas?;
     if let Some(workspace) = &ask.workspace {
         daemon.pane_open(workspace, PaneKind::Canvas, &canvas, ask.beside, false)?;
     }
     Ok(canvas)
 }
 
-/// Makes the canvas for the PDF `file`: the first of its ids not taken.
-fn create(daemon: &Client, file: &Path) -> Result<String, Problem> {
+/// Makes the canvas for the PDF `file`, holding the operations in the file
+/// `ops`: the first of its ids not taken.
+fn create(daemon: &Client, file: &Path, ops: &Path) -> Result<String, Problem> {
     for n in 1..=TRIES {
         let id = canvas_id(file, n);
-        match daemon.canvas_create(&id) {
+        match daemon.canvas_create_with(&id, ops) {
             Ok(()) => return Ok(id),
             Err(e) if e.code() == "conflict" => {}
             Err(e) => return Err(e.into()),

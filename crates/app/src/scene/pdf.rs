@@ -16,9 +16,6 @@ use crate::layout::Rect;
 pub const PAGE_WIDTH: f64 = 1600.0;
 /// The space between two pages of an opened PDF, in canvas units.
 pub const PAGE_GAP: f64 = 40.0;
-/// How many `add`s one `canvas_apply` of an opened PDF carries: a request
-/// line holds 65536 bytes.
-pub const BATCH: usize = 100;
 /// The longest part of a canvas id made from a file's stem.
 const STEM: usize = 56;
 /// The longest file name a `pdf` item keeps, in bytes.
