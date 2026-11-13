@@ -189,8 +189,10 @@ agent, so its `reply` rejects with `unavailable`; `slinger-app --preview`
 writes each reply's `ui_reply` line to its stdout instead.
 
 **The test** (acceptance 2 of the plan, `crates/app/tests/sandbox.rs`):
-it runs the real app, `slinger-app --preview escape --data '{"port":N}'`,
-against a daemon of its own. The fixture UI (`tests/fixtures/escape.html`)
+it runs the real app, `slinger-app --preview escape --data '{"port":N}'
+--background`, against a daemon of its own. `--background` never shows the
+window and keeps the app out of the Dock, so a test run takes no focus;
+`WebKit` loads and runs the UI all the same. The fixture UI (`tests/fixtures/escape.html`)
 shows its context, then tries each way out against a TCP listener the test
 owns: `fetch`, XHR, WebSocket, EventSource, a beacon, an `<img>`, an
 iframe, a form post, `location = "http://…"` and `window.open`; and against

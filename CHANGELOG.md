@@ -11,6 +11,9 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** `slinger-app --preview <UI> ... --background` runs a preview
+  without showing its window or a Dock icon. The project's own tests use it,
+  so running them no longer opens windows over your work.
 - **PDF:** open a PDF and write on it. Open PDF… (`open-pdf`, ⌘O) is
   in the File menu, and under a new File group in the key overlay and the
   command palette. It asks for a `.pdf` file and opens it as a new canvas
