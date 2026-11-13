@@ -49,6 +49,9 @@ same thing by drawing, or never needs to.
 | `session list`, `session show` | The sidebar's mark and note per agent; the sling pill and its answer ("tap to read") |
 | `profile list` | The sling's profile menu lists the agent's profiles |
 | `sling send` (`--page`, `--select`, `--prompt`, `--profile`) | `sling`, `sling-now`, `dictate`, the send-to-agent button, the profile menu |
+| `session start` | `start-agent` (opt+cmd+A, Tools menu, palette; the sidebar's "Start agent" line under a shown workspace's agent that does not run), slinger-35e7d5 |
+| `session start --fresh` | `restart-agent` (opt+shift+cmd+A, Tools menu, palette), slinger-dd0783 |
+| `session stop` | `stop-agent` (opt+cmd+., Tools menu, palette), slinger-5f4959 |
 | `session start --profile` | Implied: a sling under a picked profile starts the process under it |
 | `pane open`, `close`, `resize`, `list` | `split-right`, `split-down`, `close-pane`, `grow-pane`, `shrink-pane`, a divider dragged with the pen |
 | `feedback add`, `feedback ls` | `leave-feedback` (shift+cmd+F), with the recent notes under the entry |
@@ -64,9 +67,6 @@ a rough size. Known ones name their seed.
 | The person cannot | Verb | Size | Seed |
 |---|---|---|---|
 | Make a workspace with no folder, from a typed name | `workspace_open` (`name`) | design | slinger-59bf85 |
-| Start a workspace's agent, or see that it is not running | `session_start` | ui | slinger-35e7d5 |
-| Stop a workspace's agent | `session_stop` | arm | new |
-| Start the agent in a new conversation | `session_start` (`fresh`) | arm | new |
 | Send the agent a plain message, with nothing from the canvas | `session_send` | ui | new |
 | Set or remove an agent's profiles | `profile_set`, `profile_remove` | design | slinger-fbd4d3 |
 | Show a stored agent UI in a pane | `pane_open` (`ui`), `ui_list` | ui | new |
@@ -80,9 +80,11 @@ a rough size. Known ones name their seed.
 
 Notes on the new rows:
 
-- **Stop** and **fresh** sit next to slinger-35e7d5's start; one change to
-  the sidebar's agent row or two palette commands can carry all three.
-  `stop-agent` and `restart-agent` act on the focused pane's workspace.
+- **The agent's lifecycle** (`start-agent`, `stop-agent`,
+  `restart-agent`) acts on the workspace the window shows. Start and
+  restart reuse `session_start`, which the sling's profile menu already
+  calls, so start cost the binary about 750 bytes and no new verb;
+  `session_stop`, new to the app, cost about 700.
 - **A plain message** reuses the sling entry's one-line text field; the
   question is whether it is a mode of the sling entry or its own command.
 - **A UI in a pane** needs a picker over `ui_list`; the pane verbs are

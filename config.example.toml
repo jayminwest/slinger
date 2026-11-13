@@ -228,3 +228,13 @@
 # its agent stay; open its folder again to bring it back. A workspace whose file is broken
 # shows "Close workspace" under why in the sidebar while the window shows it.
 #close-workspace = "cmd+alt+w"
+# Start the agent of the workspace the window shows, with its own limits, in its last
+# conversation (one that runs stays as it is); a flash names it, or says why not. While its
+# agent is not running, the sidebar shows "Start agent" under it: a tap does the same.
+#start-agent = "cmd+alt+a"
+# Stop the agent of the workspace the window shows: its process ends, and its conversation
+# stays for the next start-agent.
+#stop-agent = "cmd+alt+."
+# Start the agent of the workspace the window shows in a new conversation: a running
+# process ends first, and its last conversation is dropped.
+#restart-agent = "cmd+alt+shift+a"

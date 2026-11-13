@@ -465,6 +465,22 @@ fn close_takes_the_workspace_the_window_shows_and_the_first_shows_next() {
 }
 
 #[test]
+fn a_shown_workspace_s_stopped_agent_has_a_start_line_whose_tap_starts_it() {
+    let mut a = ws("ada", Some(Status::Stopped));
+    a.dir = "/w/ada".into();
+    let mut sidebar = heard(vec![a, ws("bo", Some(Status::Stopped)), ws("cy", None)]);
+    let start = Tap::Run(Command::StartAgent);
+    let taps = |s: &Sidebar| s.targets(&T, WINDOW).into_iter().map(|t| t.1).collect::<Vec<_>>();
+    let three = [Tap::Workspace(0), start, Tap::Workspace(1), Tap::Workspace(2)];
+    assert_eq!(taps(&sidebar), three, "the shown one's only");
+    assert!(shown(&sidebar.rows(&T, WINDOW)).contains(&(START, T.focus)));
+    assert_eq!(sidebar.shown_dir(), Some(PathBuf::from("/w/ada")), "what it starts");
+    sidebar.pick(2);
+    assert!(!taps(&sidebar).contains(&start), "an agent that runs: no line");
+    assert_eq!(Sidebar::new(true).shown_dir(), None, "nothing heard yet");
+}
+
+#[test]
 fn with_none_named_the_first_usable_workspace_stands_out_as_the_panes_show_it() {
     let mut sidebar = heard(vec![broken("", "nameless"), ws("ada", None), ws("bo", None)]);
     let bold = |s: &Sidebar| -> Vec<String> {
