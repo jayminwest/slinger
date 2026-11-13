@@ -21,10 +21,14 @@ const OPS_HELP: &str = "One operation as a JSON object, or a list of them; - rea
 
 #[derive(Subcommand)]
 pub enum Canvas {
-    /// Make a new, empty canvas with one page
+    /// Make a new canvas with one page: empty, or made from a file of operations
     Create {
         /// The canvas id: a-z, 0-9, '-', '_' and '.'
         canvas: String,
+        /// A file holding a JSON list of operations, as 'canvas apply' takes, made as the
+        /// user's in one step: the whole canvas or none
+        #[arg(long, value_name = "FILE")]
+        ops: Option<PathBuf>,
     },
     /// List the canvases, one id per line
     List,
@@ -127,8 +131,11 @@ pub fn execute(
     input: &mut dyn Read,
 ) -> anyhow::Result<Output> {
     match command {
-        Canvas::Create { canvas } => {
-            daemon.canvas_create(canvas)?;
+        Canvas::Create { canvas, ops } => {
+            match ops {
+                Some(file) => daemon.canvas_create_with(canvas, file)?,
+                None => daemon.canvas_create(canvas)?,
+            }
             Ok(Output::new(json!({ "canvas": canvas }), String::new()))
         }
         Canvas::List => {

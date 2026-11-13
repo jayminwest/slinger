@@ -80,6 +80,43 @@ fn failures_map_to_their_exit_codes() {
     assert!(runs[5].err.contains("agent ada may not change"), "{}", runs[5].err);
 }
 
+#[test]
+fn create_with_ops_makes_the_whole_canvas_or_none() {
+    let dir = tempfile::TempDir::new().unwrap();
+    let file = |name: &str, text: &str| {
+        let path = dir.path().join(name);
+        std::fs::write(&path, text).unwrap();
+        path.to_str().unwrap().to_string()
+    };
+    let text = r#"{"op":"add","item":{"page":"p1","kind":"text","x":0,"y":0,"text":"plan"}}"#;
+    let two = file("two.json", &format!("[{BOX},{text}]"));
+    // Its second box is on a page the canvas does not have.
+    let refused = file("refused.json", &format!("[{BOX},{}]", BOX.replace("p1", "p9")));
+    let not_json = file("not.json", "{not json");
+    let gone = dir.path().join("gone.json");
+    let runs = cli_each(&[
+        &["canvas", "create", "plan", "--ops", &two],
+        &["canvas", "show", "plan"],
+        &["canvas", "create", "half", "--ops", &refused],
+        &["canvas", "create", "bad", "--ops", &not_json, "--json"],
+        &["canvas", "create", "none", "--ops", gone.to_str().unwrap()],
+        &["canvas", "list"],
+    ]);
+    let codes: Vec<u8> = runs.iter().map(|r| r.code).collect();
+    assert_eq!(
+        codes,
+        [exit::OK, exit::OK, exit::NOT_FOUND, exit::INVALID, exit::NOT_FOUND, exit::OK]
+    );
+    assert_eq!((runs[0].out.as_str(), runs[0].err.as_str()), ("", ""));
+    let lines: Vec<&str> = runs[1].out.lines().collect();
+    assert_eq!(lines.len(), 2, "{}", runs[1].out);
+    assert!(lines[0].starts_with("i1\tbox\tuser\t{"), "{}", lines[0]);
+    assert!(lines[1].starts_with("i2\ttext\tuser\t{"), "{}", lines[1]);
+    assert_eq!(json(&runs[3])["code"], "invalid");
+    // Only the canvas whose every operation applied is there.
+    assert_eq!(runs[5].out, "plan\n");
+}
+
 const BOARD: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../core/tests/fixtures/idea.tldraw");
 
 #[test]
