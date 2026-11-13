@@ -356,6 +356,40 @@ fn on_a_pdfs_canvas_the_select_tool_and_the_lasso_never_take_a_page() {
     assert_eq!(ink.next(), None, "nothing moved");
 }
 
+/// slinger-f6d05b: a snippet pasted onto a PDF's own canvas has a crop, so
+/// the select tool and the lasso take it while the page under it stays put.
+#[test]
+fn on_a_pdfs_canvas_a_pasted_snippet_is_taken_by_a_tap_and_a_lasso() {
+    const PDF: (&str, &str) = ("paper.pdf", "p1");
+    let (hash, page_size) = ("sha256:9f".to_string(), (612.0, 792.0));
+    let whole = frame(0.0, 0.0, 100.0, 100.0);
+    let page = Shape::Pdf {
+        frame: whole,
+        hash: hash.clone(),
+        pdf_page: 1,
+        page_size,
+        crop: None,
+        name: None,
+    };
+    let crop = Some(frame(72.0, 180.0, 300.0, 120.0));
+    let at = frame(20.0, 20.0, 50.0, 20.0);
+    let snippet = Shape::Pdf { frame: at, hash, pdf_page: 1, page_size, crop, name: None };
+    let page = [item(1, page), item(2, snippet)];
+    let (items, mut select, mut ink) = (shown(&page), Select::default(), Ink::default());
+    select.pick(PDF, pt(40.0, 30.0), 1.0, false, &items);
+    assert!(select.up(None, &items, &mut ink));
+    assert_eq!(select.selection().unwrap().ids, [ItemId(2)], "a tap takes the snippet");
+    select.pick(PDF, pt(60.0, 80.0), 1.0, false, &items);
+    assert!(select.up(None, &items, &mut ink));
+    assert_eq!(select.selection(), None, "a tap beside it, on the page, takes nothing");
+    let around = [pt(-5.0, -5.0), pt(105.0, -5.0), pt(105.0, 105.0), pt(-5.0, 105.0)];
+    assert!(select.down(Tool::Lasso, PDF, around[0], 1.0, &items));
+    around[1..].iter().for_each(|&at| assert!(select.drag(at, &items)));
+    assert!(select.up(None, &items, &mut ink));
+    assert_eq!(select.selection().unwrap().ids, [ItemId(2)], "a lasso takes it, not the page");
+    assert_eq!(ink.next(), None, "nothing moved");
+}
+
 #[test]
 fn a_colour_recolours_the_selected_strokes_texts_boxes_and_arrows_in_one_change() {
     let blue = Rgb { r: 0, g: 0, b: 255 };

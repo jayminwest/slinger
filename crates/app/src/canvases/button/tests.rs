@@ -81,8 +81,7 @@ fn press(canvases: &mut Canvases, panes: &Panes, on: Rect, tool: Tool) -> bool {
     canvases.pen_down(panes, (panes.focus(), WINDOW.rect()), pen, (tool, colour))
 }
 
-/// Puts a button on the page, as a workspace's new canvas has one, and
-/// waits for the pane to show it; its box.
+/// Puts a button on the page and waits for the pane to show it; its box.
 fn place(canvases: &mut Canvases, panes: &Panes, daemon: &Client) -> Rect {
     let ops = serde_json::json!({"op": "add", "item": {"page": "p1", "kind": "button",
         "x": 3000, "y": 2000, "w": 1600, "h": 400}});
@@ -230,20 +229,13 @@ fn a_tap_closes_the_feedback_or_rename_entry_and_slings() {
     });
 }
 
-/// slinger-0d9e90: a workspace's new canvas comes with its button, in the
-/// pane's top left, and `sling` with nothing selected opens beside it.
+/// `sling` with nothing selected opens beside the page's button.
 #[test]
-fn a_new_workspace_s_canvas_shows_its_button_and_the_sling_opens_beside_it() {
+fn the_sling_opens_beside_a_button() {
     with_store(None, |daemon| {
-        let home = tempfile::tempdir().unwrap();
-        let file = "version = 1\nname = \"notes\"\ncanvas = \"notes\"\n";
-        std::fs::write(home.path().join("slinger-workspace.toml"), file).unwrap();
-        daemon.workspace_open(Some(home.path()), None).unwrap();
+        let _home = open_notes(daemon);
         let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
-        let (frame, label) = button(&mut canvases, &panes, daemon);
-        assert_eq!(label, "○ send to agent");
-        let margin = crate::layout::CANVAS_MARGIN;
-        assert_eq!((frame.x, frame.y), (margin, margin), "at the canvas's origin: {frame:?}");
+        let frame = placed_with_no_agent(&mut canvases, &panes, daemon);
         assert!(canvases.open_sling(&panes, WINDOW.rect()));
         let entry = canvases.sling.entry(&Config::default().theme, None, None).unwrap();
         assert!(entry.frame.y > frame.y, "beside the button: {entry:?}");

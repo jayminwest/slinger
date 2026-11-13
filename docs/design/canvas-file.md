@@ -238,8 +238,6 @@ string as black.
   `set` or `remove` of the id finds no item and changes nothing, so the rest of the
   file replays the same. A `button` is added the same way, and so is a `pdf` item
   (`docs/design/pdf.md`): an app from before it draws nothing for one.
-- A workspace's new canvas has the user's button as its line 1 (SPEC section 8):
-  an ordinary `add`, so the format does not change.
 
 ### Undo steps
 
@@ -253,8 +251,8 @@ undo history (slinger-2628e5):
 | `undoes` | the undo of the step marked `s`. The undo's lines form a step the author can redo, marked by their first `n` |
 | `redoes` | the redo of the step marked `s`, the undo it takes back. Its lines form a step the author can undo, marked by their first `n` |
 
-- A line with none of them is no undo step: nothing takes it back. A workspace's
-  first-line button, an import's lines, and every line from before the fields
+- A line with none of them is no undo step: nothing takes it back. The first-line button
+  a workspace's new canvas got before slinger-694ffc, an import's lines, and every line from before the fields
   existed. A value that is not an integer above 0 reads as none.
 - The lines of one step are next to each other (one write), by one author, with
   the same field and value.

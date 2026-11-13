@@ -21,10 +21,6 @@ bullet with the area in bold.
   still win, and it can use the app's colours as `var(--slinger-ink)`,
   `--slinger-muted`, `--slinger-accent`, `--slinger-error` and
   `--slinger-paper`.
-- **Canvas:** a new workspace's canvas comes with a "send to agent" button
-  in its top left, so a tap slings what is new without placing one first.
-  It is an ordinary item: move it, or delete it and it stays gone. Canvases
-  you already have are left as they are.
 - **Service:** `canvas_create` takes an optional `path`: a file of canvas
   operations the new canvas starts with. The canvas is made with all of them
   or not at all.
@@ -96,7 +92,8 @@ bullet with the area in bold.
   width, a scroll moves up and down only and stops at the first and last
   page, and pinch and the zoom keys do nothing. A pane resized refits the
   pages. The select tool and the lasso never pick up a page there, so you
-  cannot move the paper by mistake.
+  cannot move the paper by mistake. A snippet pasted onto a PDF they pick
+  up as on any canvas.
 - **PDF:** snippets. Crop PDF (`crop-pdf`, ⌘8, in the Tools menu): drag a
   box over a page and that part of it goes on the clipboard. Paste (⌘V)
   puts it on any canvas, centred in the focused pane. A snippet is still

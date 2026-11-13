@@ -49,7 +49,7 @@ mod time;
 mod whole;
 
 pub use edit::Edit;
-pub use log::{BUTTON, Log, Shown, Span, Written, check_id, id_from_name, lines, parse_author};
+pub use log::{Log, Shown, Span, Written, check_id, id_from_name, lines, parse_author};
 pub use look::MAX_CROP;
 pub use once::ONCES;
 pub use packet::{backdrop, rect_tenths, size_tenths};

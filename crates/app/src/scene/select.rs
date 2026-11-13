@@ -21,8 +21,8 @@
 //!   texts, boxes and arrows in one `set` each ([`Select::recolour`]). It
 //!   is of a page, not of a pane: every pane on its page shows it, and its
 //!   move, as the items themselves do.
-//! - On a PDF's canvas the select tool and the lasso do not take `pdf`
-//!   items ([`takes`]): the pages are fixed paper.
+//! - On a PDF's canvas the select tool and the lasso do not take its pages
+//!   ([`takes`]): the pages are fixed paper. A snippet pasted there is taken.
 //! - A drag of the selection follows the pane under the pen, and can carry
 //!   it to another page ([`carry`]).
 //!
@@ -415,10 +415,12 @@ fn chrome(frame: Rect, count: usize, zoom: f64, theme: &Theme) -> Vec<Cow<'stati
 }
 
 /// Whether the select tool and the lasso may take `item` on `canvas`:
-/// not a `pdf` item on a PDF's canvas, where the pages are the paper and
-/// a tap or a drag on one never moves it (docs/design/pdf.md).
+/// not a page on a PDF's canvas (a `pdf` item with no crop), where the
+/// pages are the paper and a tap or a drag on one never moves it
+/// (docs/design/pdf.md). A snippet always has a crop, so one pasted there
+/// is taken as anywhere.
 fn takes(canvas: &str, item: &Item) -> bool {
-    !(pdf::reader(canvas) && matches!(item.shape, Shape::Pdf { .. }))
+    !(pdf::reader(canvas) && matches!(item.shape, Shape::Pdf { crop: None, .. }))
 }
 
 /// The box around the items of `items` whose ids are `ids`; `None` when

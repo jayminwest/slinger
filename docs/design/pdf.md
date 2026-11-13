@@ -243,21 +243,23 @@ with no PDF is refused (the drag slides back).
   down only; x stays at the fitted column; pinch zoom does nothing. Scrolling
   stops at the column's top and at its bottom.
 - **The paper is fixed.** On a PDF's canvas, the select tool and the lasso do
-  not take `pdf` items, so a tap or a drag on a page never moves it. Every
+  not take its pages (`pdf` items with no `crop`), so a tap or a drag on a page
+  never moves it. A snippet pasted there (a `pdf` item with a `crop`) is taken
+  as on any canvas (slinger-f6d05b). Every
   tool works over the pages as on any canvas; pages stack and undo as usual.
 - Nothing else changes: no page thumbnails, no PDF navigation, no new chrome.
 
 ## Snippets (step 5)
 
-- A tool `crop-pdf` (in the registry, a key in `config.example.toml`). A drag
-  draws a box; the lift intersects it with the topmost `pdf` item under the
-  press and puts the cropped item on the clipboard as the clip format writes it
+- A tool `crop-pdf` (in the registry; its key is cmd+8, in
+  `config.example.toml`). A drag draws a box; the lift intersects it with the
+  topmost `pdf` item under the press and puts the cropped item on the clipboard as the clip format writes it
   (`mirror/clip.rs`, a one-object JSON array): the same `hash`, `pdfpage`,
   `pagesize` and `name`, `crop` = the box mapped to page points (the mapping
   above, from the source's shown region, so a crop of a crop works), frame
   `w`, `h` = the box's size. The canvas does not change. A box that touches no
   `pdf` item does nothing.
-- Paste is the existing paste: the object lands centred at the pointer, on
+- Paste is the existing paste: the object lands centred in the focused pane, on
   any canvas of this daemon, and is an ordinary `add`. On a canvas of another
   machine's daemon the blob is missing and it draws grey (O8).
 - The crop arithmetic is a pure function outside `platform`, tested with real

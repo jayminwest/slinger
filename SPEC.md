@@ -102,7 +102,7 @@ Rules:
 - An agent UI is a small interface that an agent builds for one task.
 - It can be shown in its own pane, or as an item on a canvas that moves and scales with the canvas.
 - The first live canvas item is the "send to agent" button. It is built in, not a script copied into each canvas.
-- Every workspace's canvas gets one: when the daemon makes the canvas for a workspace, the core puts the user's button on its first page, at the origin (slinger-0d9e90). It is an ordinary item, not an undo step: the user moves or removes it, and nothing puts it back. Other pages, canvases that exist already, a PDF's canvas and a bare `canvas create` get none, and the app has no command to place one (slinger-b2f35e): the bottom bar's Sling does the job. A tap on a button slings; the eraser never does (nor erases it: a button is not ink). The `sling` entry opens beside a page's first button.
+- No canvas gets one by itself: a workspace's new canvas starts empty (slinger-694ffc), and the app has no command to place one (slinger-b2f35e): the bottom bar's Sling does the job. An `add` of kind `button` places one, and a canvas that has one already keeps it until the user removes it. A tap on a button slings; the eraser never does (nor erases it: a button is not ink). The `sling` entry opens beside a page's first button.
 - An agent UI gets no network. It talks to Slinger through a bridge with two calls: read the context it was given, and reply with JSON.
 - The code is stored in the record as a blob (D19). Each UI has a name, and each change is a new blob, so every version stays. `ui export` writes one out as files when you want to read or keep it.
 - See O1 for what the code is, and `docs/design/live-items.md` for the bridge.
