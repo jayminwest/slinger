@@ -47,7 +47,7 @@ use crate::commands::{Chord, Command};
 use crate::config::Shown;
 use crate::layout::Rect;
 use crate::panes::Panes;
-use crate::platform::{Event, Step};
+use crate::platform::{Event, Pick, Step};
 use crate::route::{Routed, route};
 use crate::scene::paste::Clip;
 use crate::scene::sidebar::Sidebar;
@@ -280,14 +280,14 @@ fn asked(
             window::finder(c, shared, canvases, sidebar)
         }
         Ask::Run(Command::OpenWorkspace) => {
-            return platform::choose_folder().map_or(Ask::Draw(None), Ask::Open);
+            return platform::choose(Pick::Workspace).map_or(Ask::Draw(None), Ask::Open);
         }
         Ask::Run(Command::ExportUi) => {
-            let Some(dir) = platform::choose_folder() else { return Ask::Draw(None) };
+            let Some(dir) = platform::choose(Pick::ExportTo) else { return Ask::Draw(None) };
             window::export_ui(shared, &dir)
         }
         Ask::Run(Command::OpenPdf) => {
-            let file: Vec<_> = platform::pdf::choose().into_iter().collect();
+            let file: Vec<_> = platform::choose(Pick::Document).into_iter().collect();
             window::open_pdf(&file, None, shared, canvases, area, platform::pdf::pages);
             return Ask::Draw(None);
         }
