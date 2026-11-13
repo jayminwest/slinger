@@ -1,10 +1,12 @@
-use slinger_control::{Client, EventFilter, Put};
+use slinger_control::{CanvasOps, Client, EventFilter, Put};
 
 use super::*;
 use crate::backend::testing::{fake_claude, user_stroke, wait_until};
 use crate::backend::tests::{open_notes, with_store};
 use crate::commands::{Chord, Command};
 use crate::config::Config;
+use crate::config::Rgb;
+use crate::layout::Point;
 use crate::layout::WINDOW;
 use crate::panes::{Kind, Pane};
 use crate::scene::canvas::{Draw, Mark};
@@ -68,28 +70,26 @@ fn recorded(canvases: &mut Canvases, daemon: &Client, n: usize) {
 }
 
 fn tap(canvases: &mut Canvases, panes: &Panes, on: Rect) -> bool {
-    let at = Point { x: on.x + on.width / 2.0, y: on.y + on.height / 2.0 };
-    let pen = Pen { at, when: 0.0, touch: false, eraser: false, shift: false };
-    canvases.pen_down(
-        panes,
-        (panes.focus(), WINDOW.rect()),
-        pen,
-        (Tool::Pen, Rgb { r: 0, g: 0, b: 0 }),
-    )
+    press(canvases, panes, on, Tool::Pen)
 }
 
-/// Places a button on the pane once its page has come; its box.
+/// The pen goes down with `tool` in the middle of `on`.
+fn press(canvases: &mut Canvases, panes: &Panes, on: Rect, tool: Tool) -> bool {
+    let at = Point { x: on.x + on.width / 2.0, y: on.y + on.height / 2.0 };
+    let pen = Pen { at, when: 0.0, touch: false, eraser: false, shift: false };
+    let colour = Rgb { r: 0, g: 0, b: 0 };
+    canvases.pen_down(panes, (panes.focus(), WINDOW.rect()), pen, (tool, colour))
+}
+
+/// Puts a button on the page, as a workspace's new canvas has one, and
+/// waits for the pane to show it; its box.
 fn place(canvases: &mut Canvases, panes: &Panes, daemon: &Client) -> Rect {
-    let area = WINDOW.rect();
-    wait_until(|| {
-        draws(canvases, panes);
-        canvases.pages_of(panes, panes.focus()).is_some()
-    });
-    assert!(canvases.command(panes, (panes.focus(), area), Command::PlaceButton));
+    let ops = serde_json::json!({"op": "add", "item": {"page": "p1", "kind": "button",
+        "x": 3000, "y": 2000, "w": 1600, "h": 400}});
+    let by = "user".to_string();
+    daemon.canvas_apply(CanvasOps { canvas: "notes".into(), by, ops, once: None }).unwrap();
     let (frame, label) = button(canvases, panes, daemon);
     assert_eq!(label, "○ send to agent", "no status yet");
-    let middle = (frame.x + frame.width / 2.0, frame.y + frame.height / 2.0);
-    assert_eq!(middle, (area.width / 2.0, area.height / 2.0), "in the middle of the pane");
     frame
 }
 
@@ -153,12 +153,7 @@ fn a_placed_button_shows_its_agent_s_status_and_a_tap_slings_what_is_new() {
 /// The button placed on a pane with no agent running, once the window has
 /// heard of it: its box.
 fn placed_with_no_agent(canvases: &mut Canvases, panes: &Panes, daemon: &Client) -> Rect {
-    wait_until(|| {
-        draws(canvases, panes);
-        canvases.pages_of(panes, panes.focus()).is_some()
-    });
-    assert!(canvases.command(panes, (panes.focus(), WINDOW.rect()), Command::PlaceButton));
-    let (frame, _) = button(canvases, panes, daemon);
+    let frame = place(canvases, panes, daemon);
     assert!(canvases.agent_of("notes").is_none());
     // The button the daemon holds: wait for it to be heard.
     wait_until(|| {
@@ -252,5 +247,35 @@ fn a_new_workspace_s_canvas_shows_its_button_and_the_sling_opens_beside_it() {
         assert!(canvases.open_sling(&panes, WINDOW.rect()));
         let entry = canvases.sling.entry(&Config::default().theme, None, None).unwrap();
         assert!(entry.frame.y > frame.y, "beside the button: {entry:?}");
+    });
+}
+
+/// slinger-b2f35e: the eraser over a button never slings; the button is
+/// not ink, so it stays (select it to delete it).
+#[test]
+fn the_eraser_over_a_button_slings_nothing() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+        let frame = placed_with_no_agent(&mut canvases, &panes, daemon);
+        assert!(press(&mut canvases, &panes, frame, Tool::Eraser), "an erase starts");
+        let (y, here) = (frame.y + frame.height / 2.0, Some((panes.focus(), WINDOW.rect())));
+        let pen = |x: f64, when: f64| Pen {
+            at: Point { x, y },
+            when,
+            touch: false,
+            eraser: false,
+            shift: false,
+        };
+        assert!(canvases.pen_drag(&panes, pen(frame.x + 10.0, 0.1), here), "the erase goes on");
+        assert!(canvases.pen_drag(&panes, pen(frame.x + frame.width - 10.0, 0.2), here));
+        canvases.pen_up(&panes, pen(frame.x + frame.width - 10.0, 0.3), here);
+        canvases.poll();
+        let theme = Config::default().theme;
+        let lines = canvases.sling_marks(&panes, WINDOW.rect(), &theme).all();
+        assert!(lines.is_empty(), "nothing slung: {lines:?}");
+        assert!(!canvases.typing());
+        let held = daemon.canvas_show("notes", None).unwrap().items;
+        assert!(held.iter().any(|i| i["kind"] == "button"), "not ink: it stays");
     });
 }

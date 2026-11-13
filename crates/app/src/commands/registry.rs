@@ -96,7 +96,6 @@ impl Command {
             Command::Undo => "Undo",
             Command::Redo => "Redo",
             Command::Dictate => "Dictate prompt",
-            Command::PlaceButton => "Place send button",
             Command::ShowKeys => "Show keys",
             Command::ShowCommands => "Show commands",
             Command::LeaveFeedback => "Leave feedback…",
@@ -126,9 +125,7 @@ impl Command {
             Command::PickColour | Command::PickShape | Command::PickTool | Command::PickWidth => {
                 Group::PopUps
             }
-            Command::Sling | Command::SlingNow | Command::Dictate | Command::PlaceButton => {
-                Group::Sling
-            }
+            Command::Sling | Command::SlingNow | Command::Dictate => Group::Sling,
             Command::PanLeft
             | Command::PanRight
             | Command::PanUp

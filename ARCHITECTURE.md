@@ -484,9 +484,9 @@ canvases/reader.rs  reader mode on a pane showing a PDF's canvas (its id
              down only, stopping at the column's ends; zoom does nothing.
 canvases/button.rs  the "send to agent" button (SPEC section 8): a tap slings
              what is new on its page (`sling_now`, nothing selected, the
-             config's prompt), or sends the open entry; `place-button` puts
-             one in the focused pane through the ink's queue. A failure
-             shows in the sling's pill, never the keyboard entry.
+             config's prompt), or sends the open entry; the eraser never
+             taps one. A failure shows in the sling's pill, never the
+             keyboard entry.
 canvases/slung.rs  the one-tap sling and what follows it: `sling-now` (the
              selection's ➤ Sling, the footer's ➤ Sling) sends the open
              entry, else the selection, else what is new on the page, with
@@ -621,8 +621,7 @@ scene/taps.rs  the footers' and the sidebar's buttons as last drawn: the
              lift off it does nothing. Pure.
 scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
              above the name, one 28 pt row per page (the shown one ✓ and
-             bold), then New page, Rename page…, Place send button and
-             Remove page. It takes
+             bold), then New page, Rename page… and Remove page. It takes
              every press while open; the lift on the row pressed picks it,
              a press outside or escape closes it. Pages that do not fit
              scroll a row at a time with a scroll or a drag on the panel
@@ -775,7 +774,8 @@ scene/pages.rs  pages (SPEC D6): the next and previous page, a new page's
              its pane with the pen's buttons beside it; a removal of a page with items, asked once in the
              footer); what each page command did, said once for the flash
              (`Page 2 · 2/3`, `New page: Page 3 · 3/3`, `Renamed: plan`,
-             `Removed: ideas`, `The last page stays`). Pure.
+             `Removed: ideas · Undo brings it back`, `The last page
+             stays`). Pure.
 scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
              hides the strokes, text, boxes and arrows it touches at once and
              removes them on the lift (one change, one undo step); a loop
@@ -886,14 +886,18 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              Rename (Tap::Send, as return), Dictate (`dictate`; ● Stop while
              Flick listens) and ✕ (Tap::Cancel, as escape); the box narrows
              or moves to make room. Every entry shows the live dictate key
-             beneath its box (Entry::dictated).
+             at the end of its keys' one row beneath its box
+             (Entry::dictated): a second row aligned right drew over the
+             first, as a field does not align styled text.
 scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
              sling's labelled field (Entry::framed), "Feedback" above and
              "↩ saves · esc cancels" beneath, centred in the focused pane
              below the flash with the pen's buttons beside it. Return saves, escape cancels, an empty note
              saves nothing; "saving feedback…" while it goes, a failure's
              message and hint under the entry opened again, and "Feedback
-             saved" flashed once on success. Pure.
+             saved" flashed once on success. The entry, its label, keys and
+             lines stand on a card in the panel's colour (Feedback::card),
+             not the canvas's. Pure.
 scene/dictation.rs  the dictation into the open entry: start, then stop, one
              request to Flick at a time; that Flick listens, or why it
              failed (Flick not running, or its refusal) and what to do, under
@@ -1219,7 +1223,7 @@ Each boundary has something that fails when it is broken:
 | A button is one `add` line that needs an area; the packet says it as a `u` line; an agent puts beside it but cannot remove it | `crates/core/tests/canvas_button.rs` |
 | A workspace's new canvas starts with the user's button (`Log::start`): line 1, no undo step, the user may remove it; the pane shows it and the `sling` entry opens beside it | `crates/core/tests/canvas_button.rs`, `crates/daemon/src/tests/workspace.rs`, `crates/app/src/canvases/button/tests.rs` |
 | The button's mark and colour follow its agent's status (none, working, blocked, done), scale with the canvas and repaint on a change | `crates/app/src/scene/button/tests.rs` |
-| `place-button` places a button; a tap slings what is new with no selection, the reply lands beside the note, a typed prompt goes with a tap, a failure shows under the button | `crates/app/src/canvases/button/tests.rs` against a real daemon and a stand-in for Claude Code |
+| a button on the page (put through the daemon); a tap slings what is new with no selection, the reply lands beside the note, a typed prompt goes with a tap, a failure shows under the button, the eraser over it slings nothing | `crates/app/src/canvases/button/tests.rs` against a real daemon and a stand-in for Claude Code |
 | A follower shows the page, hands on each change, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
 | A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |
 | Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |

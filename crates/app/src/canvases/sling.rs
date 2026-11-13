@@ -141,7 +141,7 @@ impl Canvases {
         let dictate = keys.chord(Command::Dictate);
         let entry = self.sling.entry(theme, agent, dictate);
         let (note, lines) = self.notes.shown(theme);
-        let other = note.or_else(|| self.asks.entry(theme)).map(|e| e.dictated(theme, dictate));
+        let other = note.or_else(|| self.asks.entry(theme)).map(|e| e.dictated(dictate));
         scene.entry = other.or(entry).map(Box::new);
         scene.labels.extend(self.sling.labels(theme));
         scene.labels.extend(lines);
@@ -271,8 +271,8 @@ mod tests {
         assert!(y > 110.0 && x <= 100.0, "under the stroke: {entry:?}");
         assert_eq!(entry.title.label.text, "Sling", "no workspace list: no agent to name");
         let dictate = Keymap::default().chord(Command::Dictate).map(Chord::glyphs);
-        let shown_key = entry.dictate.map(|row| row.label.text);
-        assert_eq!(shown_key, dictate.map(|key| format!("{key} dictate")), "the live key");
+        let keys = format!("↩ sends · esc cancels · {} dictate", dictate.unwrap());
+        assert_eq!(entry.keys.label.text, keys, "the live key, on the keys' one row");
         let on = Point { x: entry.frame.x + 1.0, y: entry.frame.y + 1.0 };
         assert!(canvases.sling_covers(on) && canvases.typing());
         assert!(!canvases.sling_key(Chord::new(0, 'w')), "a letter is the entry's");

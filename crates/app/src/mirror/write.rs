@@ -7,6 +7,7 @@ use super::{LINE_HEIGHT, TEXT_SIZE, item_ref};
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::glyphs;
 use crate::scene::ink::{Carried, Change, Stroke};
 use crate::scene::pages::PageOp;
 
@@ -190,9 +191,19 @@ fn fields(shape: &Shape) -> Map<String, Value> {
     };
     match shape {
         // The file keeps the core's cells, whatever the glyphs fill.
-        Shape::Text { frame: r, text, size, .. } => {
+        Shape::Text { frame: r, text, size, column } => {
             o.insert("kind".into(), "text".into());
-            frame(&mut o, &text_frame_at(Point { x: r.x, y: r.y }, text, *size));
+            let unwrapped = text_frame_at(Point { x: r.x, y: r.y }, text, *size);
+            // A column as wide as its longest line is one that does not wrap.
+            let wraps = |w: &f64| tenths(*w) != tenths(unwrapped.width);
+            match column.and_then(|c| stored_column(c, *size)).filter(wraps) {
+                Some(width) => {
+                    let rows = glyphs::rows(text, *size, width).split('\n').count();
+                    let rows = u32::try_from(rows).map_or(f64::from(u32::MAX), f64::from);
+                    frame(&mut o, &Rect { width, height: rows * size, ..unwrapped });
+                }
+                None => frame(&mut o, &unwrapped),
+            }
             o.insert("text".into(), text.as_str().into());
             // The usual size is left out, as the core writes it.
             if tenths(*size) != tenths(TEXT_SIZE) {
@@ -260,6 +271,28 @@ pub fn text_frame_at(at: Point, text: &str, size: f64) -> Rect {
         width: count(longest) * size,
         height: (lines * size * LINE_HEIGHT * 10.0).round() / 10.0,
     }
+}
+
+/// The width a text of `size` wrapped in `column` is stored at: the column
+/// on whole tenths, or, when rounding it there would change how many whole
+/// cells of the stored size it holds, the middle of its last cell. `None`
+/// for a text that does not wrap: a typed one ([`glyphs::UNWRAPPED`]), or
+/// a column narrower than a cell (docs/design/canvas-file.md). So an agent's
+/// paragraph resized, carried or edited reads back in the same rows.
+#[expect(clippy::cast_precision_loss, reason = "canvas units are far inside 2^52 tenths")]
+fn stored_column(column: f64, size: f64) -> Option<f64> {
+    let cells = |w: f64, size: f64| (w >= size).then(|| (w / size).floor());
+    let n = cells(column, size).filter(|_| column < glyphs::UNWRAPPED)?;
+    let (w, cell) = (tenths(column), tenths(size));
+    let w = if cells(w as f64 / 10.0, cell as f64 / 10.0) == Some(n) {
+        w
+    } else {
+        // n is a whole count of cells far below 2^52.
+        #[expect(clippy::cast_possible_truncation, reason = "a whole count of cells")]
+        let n = n as i64;
+        n * cell + cell / 2
+    };
+    Some(w as f64 / 10.0)
 }
 
 /// `colour` as the canvas file writes it: `#rrggbb`.

@@ -87,6 +87,8 @@ pub fn line(pages: &[Page], at: &str) -> String {
 
 /// The most characters of a page's name a footer shows.
 const NAME: usize = 18;
+/// What a removal says after the page's name: it can be taken back.
+const UNDO: &str = "Undo brings it back";
 
 /// A question a page command asks, in the pane it was asked in.
 #[derive(Debug, Clone, PartialEq)]
@@ -179,7 +181,7 @@ impl Pages {
         }
         let canvas = canvas.to_string();
         self.ask = Some(Ask::Remove { pane, canvas, page: shown.clone(), items });
-        self.said = Some(format!("Remove “{}”?", shown.name));
+        self.said = Some(format!("Remove “{}”? {UNDO}", shown.name));
         None
     }
 
@@ -202,13 +204,13 @@ impl Pages {
 
     /// `op` goes to a canvas whose pages were `pages`: a new page flashes
     /// its name and place (it comes last), a rename the new name, a removal
-    /// the old one.
+    /// the old one and that undo brings it back (slinger-5e2587).
     pub fn changed(&mut self, pages: &[Page], op: &PageOp) {
         let name = |id: &str| pages.iter().find(|p| p.id == id).map_or(id, |p| &p.name).to_string();
         self.said = Some(match op {
             PageOp::Add { name } => format!("New page: {name} · {n}/{n}", n = pages.len() + 1),
             PageOp::Rename { name, .. } => format!("Renamed: {name}"),
-            PageOp::Remove { page } => format!("Removed: {}", name(page)),
+            PageOp::Remove { page } => format!("Removed: {} · {UNDO}", name(page)),
         });
     }
 

@@ -14,8 +14,7 @@ bullet with the area in bold.
 - **Canvas:** a new workspace's canvas comes with a "send to agent" button
   in its top left, so a tap slings what is new without placing one first.
   It is an ordinary item: move it, or delete it and it stays gone. Canvases
-  you already have are left as they are; Place send button still adds one
-  anywhere.
+  you already have are left as they are.
 - **Service:** `canvas_create` takes an optional `path`: a file of canvas
   operations the new canvas starts with. The canvas is made with all of them
   or not at all.
@@ -327,6 +326,10 @@ bullet with the area in bold.
 - **CLI and daemon:** the `hello` command and the `hello` verb, a
   placeholder from the first build. To check that the daemon answers, run
   `slinger canvas list`. `--verbose` now names the command and the socket.
+- **App:** the Place send button command (the page menu's row, the command
+  palette's entry and `cmd+shift+b`). The bottom bar's Sling does the same
+  job. A config that still binds `place-button` says "unknown command":
+  remove that line.
 
 ### Fixed
 
@@ -342,12 +345,26 @@ bullet with the area in bold.
   at what the sling cost when it went. A session that listens for its
   slings has no count to show, so its pill keeps the sling's cost.
   `slinger session show` has the count as `context`.
+- **App:** removing a page now says that Undo brings it back ("Removed:
+  ideas · Undo brings it back"), and so does the question before a page
+  with items goes. Undo returns the page and its items, also after the app
+  restarts, while the daemon keeps running.
+- **App:** the feedback entry is easier to read: it stands on a card in the
+  panel's colour instead of the canvas's, and the dictate key no longer
+  draws over "↩ saves · esc cancels" beneath an entry: it ends that row.
+- **App:** the eraser no longer slings when it touches a "send to agent"
+  button. It passes over the button, as before; select the button to
+  delete it.
 - **App:** a text on the canvas now breaks into the same lines, a line
   every size, as the box `slinger canvas put` reports and the picture
   `canvas crop` draws. Before, the app set an agent's long text in fewer,
   shorter lines, so notes you wrote below it landed inside its box and on
   top of it in the agent's picture. Canvas text is a little smaller and
   its lines a little closer than before.
+- **App:** an agent's paragraph you resize, move to another page or edit
+  keeps its lines. Before, it was saved as one long line each, so after a
+  reload it no longer wrapped, and an edit unwrapped it as you typed. Text
+  you type yourself still does not wrap.
 - **App:** the sling's pill keeps counting, and a short message still goes
   away on time, while you resize the window or have a menu open. Before,
   both froze until you let go.

@@ -44,7 +44,7 @@ fn the_entry_opens_in_the_pane_labelled_feedback_with_its_keys() {
     let entry = feedback.entry(&T).unwrap();
     assert_eq!(entry.title.label.text, "Feedback");
     assert_eq!(entry.keys.label.text, "↩ saves · esc cancels");
-    assert_eq!((entry.text.as_str(), entry.dictate), ("the lasso is slow", None));
+    assert_eq!(entry.text, "the lasso is slow");
     let inside = |r: Rect| r.x >= PANE.x && r.x + r.width <= PANE.x + PANE.width;
     assert!(inside(entry.frame) && entry.frame.y > 40.0, "{:?}", entry.frame);
     assert_eq!((entry.frame, entry.done), (beside(PANE), Some("Save")), "the pen's buttons");
@@ -200,4 +200,38 @@ fn a_note_that_does_not_resolve_says_why_under_the_entry_until_the_next_try() {
     assert!(first.abs() < 0.01, "the notes under the problem");
     assert_eq!(feedback.resolve(0).as_deref(), Some("ts 0"));
     assert_eq!(texts(&feedback)[0].0, "Recent feedback", "the problem goes");
+}
+
+/// slinger-d03fb8: the open entry stands on a card in the panel's colour,
+/// not the canvas's: from its label to its last line, with room around.
+#[test]
+fn the_entry_and_its_lines_stand_on_a_card_in_the_panel_s_colour() {
+    let mut feedback = typed("");
+    let panel = Some(style::panel(&T));
+    let real = Theme::default();
+    assert_ne!(style::panel(&real), real.background, "not the canvas's colour");
+    let entry = feedback.entry(&T).unwrap();
+    assert_eq!((entry.title.label.fill, entry.keys.label.fill), (panel, panel));
+    let box_ = entry.frame;
+    let card = feedback.card(&T).unwrap();
+    assert_eq!((card.text.as_str(), card.fill), ("", panel));
+    let (x, y, width) = (box_.x - CARD, box_.y - SMALL - CARD, box_.width + 2.0 * CARD);
+    assert_eq!((card.frame.x, card.frame.y, card.frame.width), (x, y, width), "with room");
+    let tall = SMALL + HEIGHT + SMALL + 2.0 * CARD;
+    assert!((card.frame.height - tall).abs() < 1e-9, "the label, the box and the keys");
+
+    feedback.listed(vec![recent("old")]);
+    let lines = feedback.labels(&T);
+    assert!(lines.iter().all(|l| l.fill == panel), "{lines:?}");
+    let last = lines.last().unwrap().frame;
+    let card = feedback.card(&T).unwrap().frame;
+    let end = last.y + last.height + CARD;
+    assert!((card.y + card.height - end).abs() < 1e-9, "down to the last note");
+    let said = feedback.under(&T, vec![("a".into(), T.muted)]);
+    assert_eq!(said[0].fill, panel, "what dictation says too");
+
+    feedback.typed("slow");
+    feedback.send().unwrap();
+    assert_eq!(feedback.card(&T), None, "saving: only its line");
+    assert_eq!(feedback.labels(&T)[0].fill, panel);
 }

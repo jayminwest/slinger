@@ -223,7 +223,6 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
             "cmd+z",
             "cmd+shift+z",
             "cmd+shift+return",
-            "cmd+shift+b",
             "cmd+/",
             "cmd+k",
             "cmd+shift+f",
