@@ -1,13 +1,18 @@
 //! The window's file: the title bar that names the focused pane's canvas,
-//! its file under it and that file's proxy icon, the Finder showing it, and
-//! the open panel that picks a workspace's folder.
+//! its file under it and that file's proxy icon, the Finder showing it,
+//! the open panel that picks a workspace's folder, and files dropped on it.
 
 use std::path::PathBuf;
 
 use objc2::MainThreadMarker;
-use objc2_app_kit::{NSModalResponseOK, NSOpenPanel, NSWindow, NSWorkspace};
-use objc2_foundation::NSString;
+use objc2::runtime::ProtocolObject;
+use objc2_app_kit::{
+    NSDraggingInfo, NSModalResponseOK, NSOpenPanel, NSPasteboardType, NSPasteboardTypeFileURL,
+    NSWindow, NSWorkspace,
+};
+use objc2_foundation::{NSArray, NSString, NSURL};
 
+use crate::layout::Point;
 use crate::scene::title::Title;
 
 /// Makes the title bar of `window` say `title`; each part set only when it
@@ -45,4 +50,30 @@ pub fn choose_folder() -> Option<PathBuf> {
         return None;
     }
     panel.URLs().firstObject()?.to_file_path()
+}
+
+/// `AppKit`'s pasteboard type for a file's URL.
+fn file_url() -> &'static NSPasteboardType {
+    // SAFETY: an `AppKit` constant, set before any code runs and never changed.
+    unsafe { NSPasteboardTypeFileURL }
+}
+
+/// Lets files be dragged onto `window` (`draggingEntered:`).
+pub(super) fn take_drops(window: &NSWindow) {
+    window.registerForDraggedTypes(&NSArray::from_slice(&[file_url()]));
+}
+
+/// Where the drag `info` is in `window`'s content, from the top left, and
+/// the files it holds; the app says what to do with them.
+pub(super) fn dropped(
+    window: &NSWindow,
+    info: &ProtocolObject<dyn NSDraggingInfo>,
+) -> (Point, Vec<PathBuf>) {
+    let at = info.draggingLocation();
+    let height = window.contentView().map_or(0.0, |v| v.frame().size.height);
+    let items = info.draggingPasteboard().pasteboardItems().unwrap_or_default();
+    let url = |s: &NSString| NSURL::URLWithString(s)?.to_file_path();
+    let item = |n| items.objectAtIndex(n).stringForType(file_url());
+    let files = (0..items.count()).filter_map(|n| url(&*item(n)?)).collect();
+    (Point { x: at.x, y: height - at.y }, files)
 }

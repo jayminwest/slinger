@@ -40,6 +40,9 @@ bullet with the area in bold.
   paper, under everything else, and the eraser never takes them. A PDF
   that cannot be read, such as one locked with a password, makes nothing
   and says why, and an open that fails partway leaves no half-made canvas.
+  Or drop a PDF from the Finder on the window: it opens the same way,
+  beside the pane you dropped it on. Of several files dropped, the first
+  PDF opens; a drop with no PDF is refused.
 - **PDF:** a PDF's canvas reads like a document. Its pages fit the pane's
   width, a scroll moves up and down only and stops at the first and last
   page, and pinch and the zoom keys do nothing. A pane resized refits the
@@ -62,9 +65,9 @@ bullet with the area in bold.
   crop` draws one as a grey frame (`pdf p<page>`). `sling send` from the
   terminal sends ink over a PDF on white, naming the pages but not
   quoting their words: only the app can read a PDF.
-- **PDF:** not in this release: dropping a PDF on the window, a PDF pane,
-  exporting a PDF, making PDF items from the CLI, the page under the ink
-  in `canvas crop`, and a PDF opened on one machine shown on another.
+- **PDF:** not in this release: a PDF pane, exporting a PDF, making PDF
+  items from the CLI, the page under the ink in `canvas crop`, and a PDF
+  opened on one machine shown on another.
 
 - **Agents:** a Claude Code session of your own can take a workspace's
   slings. Say `/slinger-listen` in it (the plugin and `slinger skill

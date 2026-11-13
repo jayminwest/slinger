@@ -228,7 +228,8 @@ fn remembering(
 /// `open-workspace` (its folder) are
 /// done here, as only `platform` reaches the Finder and the open panel: the
 /// focused pane's canvas file shows there, or the flash says why it cannot;
-/// the PDF chosen opens as a canvas, its pages read by `platform`. A cut, copy or paste no text
+/// the PDF chosen, or dropped on the window, opens as a canvas, its pages
+/// read by `platform`. A cut, copy or paste no text
 /// field took is [`window::edit`]'s in `area` (a pass greys its menu item).
 fn asked(
     event: &Event,
@@ -243,6 +244,11 @@ fn asked(
             return Ask::Step(Step::Stay);
         }
         Event::Can(_) => return Ask::Step(Step::Pass),
+        Event::Dropped(at, files) => {
+            let pdf = platform::pdf::pages;
+            let opened = window::open_pdf(files, Some(*at), shared, canvases, area, pdf);
+            return if opened { Ask::Draw(None) } else { Ask::Step(Step::Pass) };
+        }
         Event::Edit(edit) => {
             return match window::edit(edit, shared, canvases, tools, area) {
                 Edited::No => Ask::Step(Step::Stay),
@@ -257,10 +263,8 @@ fn asked(
             return platform::choose_folder().map_or(Ask::Draw(None), Ask::Open);
         }
         Ask::Run(Command::OpenPdf) => {
-            if let Some(file) = platform::pdf::choose() {
-                let (panes, workspace) = (&shared.panes, shared.workspace.as_deref());
-                canvases.open_pdf(panes, workspace, file, platform::pdf::pages);
-            }
+            let file: Vec<_> = platform::pdf::choose().into_iter().collect();
+            window::open_pdf(&file, None, shared, canvases, area, platform::pdf::pages);
             return Ask::Draw(None);
         }
         _ => return asked,
