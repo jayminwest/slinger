@@ -1,0 +1,6 @@
+#!/bin/sh
+# A stand-in for Claude Code, for the CLI's tests (src/tests/{session,profile,sling}.rs):
+# it keeps every line it is sent in in.txt, where it runs. Not `exec`: the
+# shell keeps the process's stdout open, as Claude Code does. Without it the
+# daemon reads the end of that output and counts the process as ended.
+cat >> in.txt

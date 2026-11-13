@@ -55,11 +55,20 @@ fn cli_each(runs: &[&[&str]]) -> Vec<Run> {
 /// call. An agent's process cannot start: its program is not there, so no
 /// test runs the real Claude Code by accident.
 fn with_daemon<T>(f: impl FnOnce(&Path) -> T) -> T {
-    with_daemon_running(Path::new("/nonexistent/claude"), f)
+    with_daemon_on(Path::new("/nonexistent/claude"), f)
 }
 
-/// [`with_daemon`], with each agent's process running `claude`.
-fn with_daemon_running<T>(claude: &Path, f: impl FnOnce(&Path) -> T) -> T {
+/// [`with_daemon`], with each agent's process running the stand-in for
+/// Claude Code (`tests/claude`, which says what it does). One file kept in
+/// the tree, not one written per test: macOS checks a new executable on its
+/// first exec, one at a time across the machine, and under load a stand-in
+/// written per test started too late for the tests (slinger-6d54ed).
+fn with_daemon_running<T>(f: impl FnOnce(&Path) -> T) -> T {
+    with_daemon_on(&Path::new(env!("CARGO_MANIFEST_DIR")).join("src/tests/claude"), f)
+}
+
+/// Runs `f` against a new daemon whose agents' processes run `claude`.
+fn with_daemon_on<T>(claude: &Path, f: impl FnOnce(&Path) -> T) -> T {
     let (_dir, socket) = socket_path();
     let data = tempfile::tempdir().unwrap();
     let store = daemon::Store::open(data.path(), "my-laptop").unwrap().with_claude(claude);
