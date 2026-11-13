@@ -989,8 +989,10 @@ platform/panel.rs  the open panel, for a Pick: a folder for `open-workspace`
              so no app key shadows the panel's own (⇧⌘D, ⇧⌘O, ⌘1...). The
              panel runs out of process and reads the guarded folders
              (Desktop, Documents, Downloads) as the bundle, whose Info.plist
-             (crates/app/Info.plist, scripts/bundle.sh) says why. An agent
-             UI's reply while it is up is refused (the app is busy).
+             (crates/app/Info.plist, scripts/bundle.sh) says why. A bare
+             slinger-app (cargo run, a shell, ssh) has no bundle identity
+             and gets no folder access: check files by hand from the bundle.
+             An agent UI's reply while it is up is refused (the app is busy).
 platform/menu.rs  makes the menu bar a scene's menus say, again when they
              change. A command item chosen by its key goes to main as that
              key press, so the keymap runs it once; chosen with the pointer,

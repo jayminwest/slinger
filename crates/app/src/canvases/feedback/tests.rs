@@ -142,6 +142,48 @@ fn escape_cancels_and_a_lost_daemon_opens_the_entry_again() {
     assert_eq!(canvases.take_flash(), None);
 }
 
+/// Whether the canvas pane draws a text's caret.
+fn has_caret(canvases: &mut Canvases, panes: &Panes) -> bool {
+    let shown = canvases.show(panes, WINDOW.rect(), &Config::default().theme);
+    let mut draws = shown.iter().flat_map(|pane| &pane.scene.draws);
+    draws.any(|d| matches!(d.mark, crate::scene::canvas::Mark::Caret { .. }))
+}
+
+#[test]
+fn the_entry_ends_the_text_being_typed_so_its_caret_is_the_only_one() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        user_stroke(daemon, "notes");
+        let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+        wait_until(|| {
+            canvases.poll();
+            !canvases.show(&panes, WINDOW.rect(), &Config::default().theme).is_empty()
+        });
+        let here = (panes.focus(), WINDOW.rect());
+        let pen = Pen {
+            at: Point { x: 300.0, y: 300.0 },
+            when: 0.0,
+            touch: false,
+            eraser: false,
+            shift: false,
+        };
+        assert!(canvases.pen_down(&panes, here, pen, (Tool::Text, Config::default().theme.text)));
+        canvases.pen_up(&panes, Pen { when: 0.1, ..pen }, Some(here));
+        assert!(canvases.typed("h") && canvases.typed("i") && canvases.editing());
+        assert!(has_caret(&mut canvases, &panes), "the text's caret, while it is typed");
+
+        assert!(open(&mut canvases, &panes));
+        assert!(!canvases.editing(), "the text ended");
+        assert!(!has_caret(&mut canvases, &panes), "only the entry's caret");
+        assert!(!canvases.sling_typed("its own text"));
+        wait_until(|| {
+            canvases.poll();
+            let items = daemon.canvas_show("notes", None).unwrap().items;
+            items.iter().any(|i| i["kind"] == "text")
+        });
+    });
+}
+
 /// The labels and the targets of what the window draws for the sling
 /// and the entries: here, the pen's buttons beside the open entry.
 fn buttons(canvases: &Canvases, panes: &Panes) -> (Vec<String>, Vec<Target>) {

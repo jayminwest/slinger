@@ -46,6 +46,7 @@ cargo test --workspace
 - A change to how agents use slinger (a new common task, a renamed verb or flag) changes `crates/cli/src/guide.md` in the same commit. The tests in `crates/cli/src/tests/guide.rs` fail on a command or flag that is gone.
 - AppKit runs on the main thread only. Keep decisions in the pure modules (`scene`, `layout`) and out of `platform`.
 - Keep files under 500 lines. Budgets live in `budgets/` and only tighten.
+- Hand-check the app as the bundle: `scripts/bundle.sh && open target/slinger.app`. Anything that touches files (open a workspace, a PDF or a drawing, export a UI) needs it: macOS gives folder access to the bundle's identity, so a bare `slinger-app` (`cargo run`, a shell, ssh) gets none.
 - Stop an app or daemon you started by its pid. `pkill -f target/debug/slinger-app` also kills the app that another worktree's tests are running (slinger-db4a8b).
 - Every TODO/FIXME/HACK/XXX cites a tracker id (`slinger-xxxx`), an issue (`#N`) or a URL on the same line.
 - Commits use conventional messages: `type(scope): summary (slinger-xxxx)`.

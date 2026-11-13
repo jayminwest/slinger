@@ -375,6 +375,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** opening the feedback entry while typing a text on the canvas
+  ends that text, as renaming a page does. Its caret no longer stays
+  frozen on the canvas beside the entry's own, and the text is kept.
 - **Agents:** stopping an agent ends its "working" at once. A process
   stopped mid-turn, or a listening session, never said it was done, so
   the sidebar and `slinger session show` kept the agent working after the
