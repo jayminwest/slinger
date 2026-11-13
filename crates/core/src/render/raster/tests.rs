@@ -157,18 +157,20 @@ fn an_accented_letter_no_set_has_draws_as_its_letter() {
     assert_ne!(glyph('Ỳ'), glyph('Y'), "font8x8 has its own Ỳ");
 }
 
-/// The Russian alphabet, capitals then small letters.
-const RUSSIAN: &str = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя";
+/// The Russian alphabet, then the Ukrainian, Belarusian and Serbian letters
+/// it lacks, capitals then small letters.
+const CYRILLIC: &str = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя\
+                        ІЇЄҐЎЈЉЊЋЏЂіїєґўјљњћџђ";
 
 #[test]
-fn russian_draws_every_letter_and_no_two_alike() {
-    // slinger-caf6ba: Cyrillic drew as empty boxes.
+fn cyrillic_draws_every_letter_and_no_two_alike() {
+    // slinger-caf6ba: Cyrillic drew as empty boxes; slinger-7c8678: beyond Russian too.
     let mut seen = std::collections::BTreeSet::new();
-    for c in RUSSIAN.chars() {
+    for c in CYRILLIC.chars() {
         assert_ne!(glyph(c), glyph::TOFU, "{c:?} has no glyph");
         assert!(seen.insert(glyph(c)), "{c:?} draws like another letter");
     }
-    assert_eq!(seen.len(), 66);
+    assert_eq!(seen.len(), 66 + 22);
 }
 
 #[test]
@@ -177,14 +179,16 @@ fn a_cyrillic_letter_shaped_like_a_latin_one_draws_as_it() {
     assert_eq!(word("АВЕКМНОРСТХ"), word("ABEKMHOPCTX"));
     assert_eq!(word("аеорсух Ёё"), word("aeopcyx Ëë"));
     assert_eq!(word("ГПФЗ"), word("ΓΠΦ3"));
+    assert_eq!(word("ІЇЈ іїј"), word("IÏJ iïj"));
     assert_ne!(glyph('И'), glyph('N'));
     assert_ne!(glyph('У'), glyph('Y'));
 }
 
 #[test]
-fn russian_takes_one_cell_a_letter() {
+fn cyrillic_takes_one_cell_a_letter() {
     let size = |t| crate::render::text_size(t, usize::MAX, 24.0);
     assert_eq!(size("Привет, мир"), size("Privet, mir"));
+    assert_eq!(size("Їжак, Ђорђе, Љубљана"), size("Izak, Dorde, Lubjana"));
 }
 
 #[test]

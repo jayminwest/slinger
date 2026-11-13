@@ -106,8 +106,8 @@ slinger canvas apply <CANVAS> '[{"op":"add","item":{"page":"p1","kind":"box","x"
 slinger canvas undo <CANVAS> --agent claude
 ```
 
-Make a whole new canvas in one step from a file of the same operations; it
-is made whole or not at all:
+Make a whole new canvas in one step from a file of the same operations
+(`--ops -` reads them from standard input); it is made whole or not at all:
 
 ```bash
 slinger canvas create <CANVAS> --ops ./ops.json --agent claude
