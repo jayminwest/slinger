@@ -1177,6 +1177,7 @@ Each boundary has something that fails when it is broken:
 | An agent opens a UI as a live item: a refused open records nothing; the item, the showing and its data come back; one undo step | `crates/daemon/src/tests/live.rs`, through a real socket |
 | A live item's page shows over its box, follows a pan and a zoom, and takes presses until it is selected | `crates/app/src/scene/live/tests.rs`, and `crates/app/src/canvases/live/tests.rs` against a real daemon |
 | A button is one `add` line that needs an area; the packet says it as a `u` line; an agent puts beside it but cannot remove it | `crates/core/tests/canvas_button.rs` |
+| A workspace's new canvas starts with the user's button (`Log::start`): line 1, no undo step, the user may remove it; the pane shows it and the `sling` entry opens beside it | `crates/core/tests/canvas_button.rs`, `crates/daemon/src/tests/workspace.rs`, `crates/app/src/canvases/button/tests.rs` |
 | The button's mark and colour follow its agent's status (none, working, blocked, done), scale with the canvas and repaint on a change | `crates/app/src/scene/button/tests.rs` |
 | `place-button` places a button; a tap slings what is new with no selection, the reply lands beside the note, a typed prompt goes with a tap, a failure shows under the button | `crates/app/src/canvases/button/tests.rs` against a real daemon and a stand-in for Claude Code |
 | A follower shows the page, hands on each change, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |

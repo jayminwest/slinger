@@ -33,7 +33,7 @@ fn a_sling_waits_for_a_listener_or_goes_to_the_running_agent_quietly() {
             cli_on(socket, &["canvas", "apply", "notes", stroke]),
             cli_on(socket, &["session", "start", "notes"]),
         ];
-        let args = ["sling", "send", "notes", "--select", "i1", "--prompt", "-"];
+        let args = ["sling", "send", "notes", "--select", "i2", "--prompt", "-"];
         runs.push(cli_raw(socket, &args, b"what is this?", &mut Vec::new()));
         runs.push(cli_on(socket, &["sling", "send", "notes", "--json"]));
         runs.push(cli_on(socket, &["sling", "send", "nowhere"]));
@@ -53,7 +53,7 @@ fn a_sling_waits_for_a_listener_or_goes_to_the_running_agent_quietly() {
     let none = json(&runs[6]);
     assert_eq!((&none["command"], &none["agent"]), (&"session listen".into(), &"scout".into()));
     assert!(none.get("sling").is_none(), "{none}");
-    // A started process takes the next ones.
+    // A started process takes the next ones; i1 is the canvas's button.
     assert_eq!((runs[10].out.as_str(), runs[10].err.as_str()), ("", ""));
     let slung = json(&runs[11]);
     assert_eq!((&slung["command"], &slung["strokes"]), (&"sling send".into(), &0.into()));
@@ -62,6 +62,6 @@ fn a_sling_waits_for_a_listener_or_goes_to_the_running_agent_quietly() {
     let first: Value = serde_json::from_str(sent.lines().next().unwrap()).unwrap();
     let blocks = first["message"]["content"].as_array().unwrap();
     let text = blocks.iter().filter_map(|b| b["text"].as_str()).collect::<String>();
-    assert!(text.starts_with("slinger-sling 1 canvas=notes selected=c1\n"), "{text}");
+    assert!(text.starts_with("slinger-sling 1 canvas=notes selected=c2\n"), "{text}");
     assert!(text.ends_with("# prompt\nwhat is this?"), "{text}");
 }

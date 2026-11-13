@@ -232,3 +232,23 @@ fn a_tap_closes_the_feedback_or_rename_entry_and_slings() {
         }
     });
 }
+
+/// slinger-0d9e90: a workspace's new canvas comes with its button, in the
+/// pane's top left, and `sling` with nothing selected opens beside it.
+#[test]
+fn a_new_workspace_s_canvas_shows_its_button_and_the_sling_opens_beside_it() {
+    with_store(None, |daemon| {
+        let home = tempfile::tempdir().unwrap();
+        let file = "version = 1\nname = \"notes\"\ncanvas = \"notes\"\n";
+        std::fs::write(home.path().join("slinger-workspace.toml"), file).unwrap();
+        daemon.workspace_open(Some(home.path()), None).unwrap();
+        let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+        let (frame, label) = button(&mut canvases, &panes, daemon);
+        assert_eq!(label, "○ send to agent");
+        let margin = crate::layout::CANVAS_MARGIN;
+        assert_eq!((frame.x, frame.y), (margin, margin), "at the canvas's origin: {frame:?}");
+        assert!(canvases.open_sling(&panes, WINDOW.rect()));
+        let entry = canvases.sling.entry(&Config::default().theme, None, None).unwrap();
+        assert!(entry.frame.y > frame.y, "beside the button: {entry:?}");
+    });
+}

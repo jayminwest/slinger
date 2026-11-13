@@ -237,6 +237,8 @@ string as black.
   `set` or `remove` of the id finds no item and changes nothing, so the rest of the
   file replays the same. A `button` is added the same way, and so is a `pdf` item
   (`docs/design/pdf.md`): an app from before it draws nothing for one.
+- A workspace's new canvas has the user's button as its line 1 (SPEC section 8):
+  an ordinary `add`, so the format does not change.
 
 ### Versions (B5)
 

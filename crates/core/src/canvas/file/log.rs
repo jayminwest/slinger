@@ -22,12 +22,16 @@ use super::json::{self, Fields};
 use super::once::Onces;
 use super::{File, Header, Line, read, snap};
 use crate::canvas::{
-    Action, Applied, Author, Canvas, History, ItemId, Op, Page, Point, Shape, Time,
+    Action, Applied, Author, Canvas, History, ItemId, Op, Page, Point, Rect, Shape, Time,
 };
 use crate::{Error, Result};
 
 /// The longest canvas id, in bytes.
 const MAX_ID: usize = 64;
+
+/// Where a new canvas's button sits ([`Log::start`]): at the origin, the
+/// app's size for a new one.
+pub const BUTTON: Rect = Rect { x: 0.0, y: 0.0, w: 160.0, h: 40.0 };
 
 /// What requests may be shaped like.
 const OPS_HINT: &str = "see \"Canvas operations\" in docs/service.md";
@@ -148,6 +152,26 @@ impl Log {
             ends: vec![bytes.len() as u64],
             onces: Onces::default(),
         };
+        Ok((log, bytes))
+    }
+
+    /// A workspace's new canvas, where the user talks to its agent, and the
+    /// bytes of its file: the user's "send to agent" button ([`BUTTON`]) on
+    /// its first page, at `at`, as an ordinary `add` that is no undo step.
+    /// It moves and goes like any item, and nothing puts it back.
+    ///
+    /// # Errors
+    ///
+    /// As [`Log::create`].
+    pub fn start(id: &str, at: Time) -> Result<(Self, String)> {
+        let (mut log, mut bytes) = Self::create(id)?;
+        let page = log.page(None)?.id();
+        let action = Action::Add { page, shape: Shape::Button { frame: BUTTON } };
+        let op = snap(Op { by: Author::User, at, action });
+        let done = log.canvas.apply(op.clone())?;
+        let mut written = Written::default();
+        log.write(&op, done, &mut written);
+        bytes += &written.bytes;
         Ok((log, bytes))
     }
 
