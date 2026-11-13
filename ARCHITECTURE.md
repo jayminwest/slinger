@@ -464,6 +464,10 @@ canvases/clip.rs  cut, copy and paste on the canvas panes: copy takes the
              centred in it, one step, selected once there. A text being
              typed has no selection inside it (its caret is at its end), so
              copy and cut grey out while one is.
+canvases/keys.rs  what the keys do on the canvas panes: typed and pasted
+             text answer a page command's question or go into the text being
+             typed; delete and escape act on the selection from any pane
+             that shows its page.
 canvases/find.rs  which page, canvas and items each pane shows; a window
              point in canvas points.
 canvases/drag.rs  the pen's drag and lift on the canvas panes: a drag of the
