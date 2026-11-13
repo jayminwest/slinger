@@ -15,7 +15,8 @@
 //!
 //! Each pane keeps its own page, followed once however many panes show it:
 //! page commands, undo and redo are in [`paging`], live items' pages in [`live`];
-//! cut, copy and paste in [`clip`]; the PDFs `pdf` items show, and opening
+//! typed text and the selection's keys in [`keys`]; cut, copy and paste in
+//! [`clip`]; the PDFs `pdf` items show, and opening
 //! one, in [`pdf`]; a PDF's canvas in reader mode, in [`reader`].
 
 mod button;
@@ -23,6 +24,7 @@ mod clip;
 mod drag;
 mod find;
 mod kept;
+mod keys;
 mod live;
 mod paging;
 mod pdf;
@@ -42,7 +44,7 @@ use crate::scene::cursor::Cursor;
 use crate::scene::grid::Paper;
 use crate::scene::ink::{Answer, Ink, Pen};
 use crate::scene::pages::{self, Pages};
-use crate::scene::select::{Select, Selection};
+use crate::scene::select::Select;
 use crate::scene::shapes::{Press, Shapes};
 use crate::scene::sidebar::Agent;
 use crate::scene::sling::Sling;
@@ -322,70 +324,6 @@ impl Canvases {
         self.pen = Some((pane, frame));
         self.unshown = Some(pen.when);
         true
-    }
-
-    /// Whether a text is being typed, or a page command asks: the keys
-    /// that type go to it.
-    pub fn editing(&self) -> bool {
-        self.shapes.editing() || self.asks.asking()
-    }
-
-    /// Typed `text` answers a page command's question, or goes into the
-    /// text being typed; escape ends it, and the text goes to the daemon.
-    /// Returns false when neither is open.
-    pub fn typed(&mut self, text: &str) -> bool {
-        // The sling's open entry has the keys: its text is not the canvas's.
-        if self.typing() {
-            return false;
-        }
-        if self.asks.asking() {
-            if let Some((canvas, op)) = self.asks.typed(text) {
-                self.change_pages(canvas, op);
-            }
-            return true;
-        }
-        let used = self.shapes.typed(text, &mut self.ink);
-        if used {
-            self.send();
-        }
-        used
-    }
-
-    /// Pasted `text` goes where typed text goes, as text, not keys. False
-    /// when nothing takes it (the sling's entry pastes for itself).
-    pub fn pasted(&mut self, text: &str) -> bool {
-        !self.typing() && (self.asks.pasted(text) || self.shapes.pasted(text))
-    }
-
-    /// The selection, if any: one page's items, by the server's ids.
-    pub fn selection(&self) -> Option<&Selection> {
-        self.select.selection()
-    }
-
-    /// Whether `pane` of `panes` shows the selection's page.
-    fn shows_selection(&self, panes: &Panes, pane: PaneId) -> bool {
-        let Some(s) = self.selection() else { return false };
-        let asked = wanted(&self.views, pane, &s.canvas);
-        let open = find(&self.open, &s.canvas, asked).and_then(|o| o.mirror.as_ref());
-        let showing = asked.or(open.map(Mirror::page));
-        canvas_of(panes, pane) == Some(&s.canvas) && showing == Some(&s.page)
-    }
-
-    /// Removes the selection, in one step, when `pane` of `panes` shows its
-    /// page. Returns false when it does not, or there is none.
-    pub fn delete_selection(&mut self, panes: &Panes, pane: PaneId) -> bool {
-        let shown = self.shows_selection(panes, pane);
-        shown && self.select.delete(&mut self.ink) && {
-            self.send();
-            true
-        }
-    }
-
-    /// Clears the selection when `pane` of `panes` shows its page.
-    /// Returns false when it does not, or there is none.
-    pub fn clear_selection(&mut self, panes: &Panes, pane: PaneId) -> bool {
-        let shown = self.shows_selection(panes, pane);
-        shown && self.select.clear()
     }
 
     /// A paint showed ink `delay` seconds after its pen event.
