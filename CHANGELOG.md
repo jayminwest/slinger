@@ -33,6 +33,9 @@ bullet with the area in bold.
   new one in the panel, and it opens as a workspace named after the folder
   (its `slinger-workspace.toml` is made the first time) and the window turns
   to it. A folder that cannot be opened says why.
+- **App:** `slinger-app --preview <UI> ... --background` runs a preview
+  without showing its window or a Dock icon. The project's own tests use it,
+  so running them no longer opens windows over your work.
 - **PDF:** open a PDF and write on it. Open PDF… (`open-pdf`, ⌘O) is
   in the File menu, and under a new File group in the key overlay and the
   command palette. It asks for a `.pdf` file and opens it as a new canvas

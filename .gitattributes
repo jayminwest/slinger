@@ -1,4 +1,4 @@
-.seeds/issues.jsonl merge=union
-.seeds/templates.jsonl merge=union
-.seeds/plans.jsonl merge=union
 *.tldraw binary
+.seeds/issues.jsonl merge=seeds-jsonl
+.seeds/templates.jsonl merge=seeds-jsonl
+.seeds/plans.jsonl merge=seeds-jsonl
