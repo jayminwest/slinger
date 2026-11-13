@@ -230,6 +230,7 @@ impl Panes {
             | Command::ToolBox
             | Command::ToolArrow
             | Command::ToolSelect
+            | Command::CropPdf
             | Command::Sling
             | Command::PreviousPage
             | Command::NewPage

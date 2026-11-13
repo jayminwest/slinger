@@ -12,6 +12,8 @@
 //!   selection once there. Plain text alone (from another app) goes there
 //!   as one new text item of the pen's colour. With no page, Edit > Paste
 //!   greys out.
+//! - The crop tool's lift puts its snippet of a PDF there
+//!   ([`Canvases::cropped`]); the canvas does not change.
 
 use super::{Canvases, canvas_of, find, wanted};
 use crate::config::Rgb;
@@ -94,6 +96,12 @@ impl Canvases {
         self.select.pasted(key, &canvas, &page);
         self.send();
         true
+    }
+
+    /// The snippet the crop tool's last lift made, as the clipboard takes
+    /// it, once (docs/design/pdf.md).
+    pub fn cropped(&mut self) -> Option<Clip> {
+        self.crop.take().as_ref().and_then(clip::snippet)
     }
 
     /// The canvas the focused pane of `panes` shows, and its page, once it

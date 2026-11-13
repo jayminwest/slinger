@@ -77,8 +77,13 @@ pub fn route(
             Step::Draw(view(settings, shared, tools, sidebar, canvases))
         }
         // The pen, the mouse, the trackpad, typed text and a resize.
+        // A crop's lift puts its snippet on the clipboard.
         (Ask::Not, event) if pen(&event, tools, canvases, shared, area, socket) => {
-            Step::Draw(view(settings, shared, tools, sidebar, canvases))
+            let scene = view(settings, shared, tools, sidebar, canvases);
+            match canvases.cropped() {
+                Some(clip) => Step::Copy(clip, scene),
+                None => Step::Draw(scene),
+            }
         }
         (Ask::Pass | Ask::Not, _) if refocused => {
             Step::Through(view(settings, shared, tools, sidebar, canvases))

@@ -143,6 +143,7 @@ fn command(tool: Tool) -> Command {
         Tool::Box => Command::ToolBox,
         Tool::Arrow => Command::ToolArrow,
         Tool::Select => Command::ToolSelect,
+        Tool::CropPdf => Command::CropPdf,
     }
 }
 
