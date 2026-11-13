@@ -10,8 +10,9 @@ use serde_json::json;
 use slinger_control as control;
 
 use crate::cli::{NAME, Scratch};
+use crate::env::Env;
 use crate::output::Output;
-use crate::session::{AGENT_HELP, calling_agent};
+use crate::session::AGENT_HELP;
 use crate::workspace::which;
 
 #[derive(Subcommand)]
@@ -86,6 +87,7 @@ impl Ui {
         &self,
         daemon: &control::Client,
         input: &mut dyn Read,
+        env: &Env,
     ) -> anyhow::Result<Output> {
         match self {
             Self::Put { name, file, source } => {
@@ -114,7 +116,7 @@ impl Ui {
                 };
                 let mut ask = control::UiOpen {
                     ui: ui.clone(),
-                    agent: calling_agent(agent.as_deref())?,
+                    agent: env.calling_agent(agent.as_deref())?,
                     data,
                     ..control::UiOpen::default()
                 };

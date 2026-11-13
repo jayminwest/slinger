@@ -5,8 +5,9 @@ use clap::{ArgGroup, Args};
 
 use slinger_control as control;
 
+use crate::env::Env;
 use crate::output::Output;
-use crate::session::{AGENT_HELP, calling_agent};
+use crate::session::AGENT_HELP;
 
 /// Change an item the agent made: its text, its text size, its size or its place; prints its id and box
 #[derive(Args)]
@@ -43,10 +44,10 @@ pub struct Remove {
     agent: Option<String>,
 }
 
-pub fn edit(args: &Edit, daemon: &control::Client) -> anyhow::Result<Output> {
+pub fn edit(args: &Edit, daemon: &control::Client, env: &Env) -> anyhow::Result<Output> {
     let edited = daemon.canvas_edit(control::CanvasEdit {
         canvas: args.canvas.clone(),
-        agent: calling_agent(args.agent.as_deref())?,
+        agent: env.calling_agent(args.agent.as_deref())?,
         item: args.item.clone(),
         text: args.text.clone(),
         text_size: args.text_size,
@@ -57,8 +58,8 @@ pub fn edit(args: &Edit, daemon: &control::Client) -> anyhow::Result<Output> {
     Ok(Output::new(serde_json::to_value(edited)?, human))
 }
 
-pub fn remove(args: &Remove, daemon: &control::Client) -> anyhow::Result<Output> {
-    let agent = calling_agent(args.agent.as_deref())?;
+pub fn remove(args: &Remove, daemon: &control::Client, env: &Env) -> anyhow::Result<Output> {
+    let agent = env.calling_agent(args.agent.as_deref())?;
     let removed = daemon.canvas_remove(&args.canvas, &agent, &args.item)?;
     Ok(Output::new(serde_json::to_value(removed)?, String::new()))
 }

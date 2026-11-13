@@ -1,6 +1,6 @@
 //! `slinger canvas ...` against a real daemon.
 
-use super::{cli, cli_bare, cli_each, cli_on, cli_raw, json, with_daemon};
+use super::{cli, cli_as, cli_bare, cli_each, cli_on, cli_raw, json, with_daemon};
 use crate::output::exit;
 
 const BOX: &str = r#"{"op":"add","item":{"page":"p1","kind":"box","x":10,"y":20,"w":100,"h":50}}"#;
@@ -28,6 +28,27 @@ fn create_apply_show_and_list_print_their_results() {
     assert_eq!(out[4], "main\n");
     assert_eq!(out[5], "");
     assert!(out[6].starts_with("i2\t"), "{}", out[6]);
+}
+
+/// The agent comes from the environment the run is given, `--agent` before
+/// it; with none, the user acts, whatever this test process's own
+/// `SLINGER_AGENT` says (slinger-09c5b5).
+#[test]
+fn the_agent_comes_from_the_runs_environment_and_the_flag_wins() {
+    let shown = with_daemon(|socket| {
+        assert_eq!(cli_on(socket, &["canvas", "create", "main"]).code, exit::OK);
+        for run in [
+            cli_on(socket, &["canvas", "apply", "main", BOX]),
+            cli_as("scout", socket, &["canvas", "apply", "main", BOX]),
+            cli_as("scout", socket, &["canvas", "apply", "main", BOX, "--agent", "ada"]),
+            cli_as("scout", socket, &["canvas", "put", "main", "--beside", "i1", "--text", "hi"]),
+        ] {
+            assert_eq!((run.code, run.err.as_str()), (exit::OK, ""), "{}", run.out);
+        }
+        cli_on(socket, &["canvas", "show", "main"]).out
+    });
+    let by: Vec<&str> = shown.lines().map(|l| l.split('\t').nth(2).unwrap()).collect();
+    assert_eq!(by, ["user", "agent:scout", "agent:ada", "agent:scout"]);
 }
 
 #[test]
