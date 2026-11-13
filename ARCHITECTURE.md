@@ -222,6 +222,9 @@ store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
 store/schema.rs  the file's layout, its version and the steps that bring
              an older file up to date. The file keeps the machine name it
              was created under, so a host rename keeps the tag.
+store/waiting.rs  the slings that wait for a listener, kept in the record
+             (a table of their own, layout 3) from `sling_sent` until the
+             listener deals with them, on the record's connection.
 canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,
              so changes are numbered in the order they apply; append, sync,
              then reply. A failed write closes the canvas; the next request
@@ -282,7 +285,11 @@ listeners.rs the listeners, one per agent (`session::listen`), behind one
              comes, the wait passes or the daemon stops. Each lock finds a
              listener whose worker process ended `gone` (`alive`: kill 0);
              `freed` names those agents, and `sessions.rs` drops the
-             `working` their sling set.
+             `working` their sling set. Writes each change through to
+             `store/waiting.rs` under the same lock: a sling is kept when it
+             waits and forgotten when the listener deals with it (asks again,
+             says done or blocked, or is released); a restart starts with
+             every kept sling waiting and nobody there.
 processes.rs the agents' processes, one per agent: spawned in the agent's
              home (or its profile's dir) within its limits, with `SLINGER_AGENT` and `SLINGER_SOCKET`,
              written to under one lock, read by a thread each so a pipe never
@@ -665,6 +672,14 @@ scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
              session id) shows what its hooks said, and one with a message
              pending is working though no hook said so (`Status::of`). `agents`: each
              workspace's agent. Pure.
+scene/sidebar/agent.rs  an agent as the sidebar shows it: its `Status`,
+             read against its `Process` (`Status::of`), and its profiles.
+             Pure.
+scene/sidebar/broken.rs  a workspace whose file the daemon cannot use:
+             under its name a red ✗ and the error's message (less the file's
+             path: backend/agents.rs), the field that broke a rule and the
+             hint, each wrapped to the sidebar's width (`slung::wrap`). No
+             agent line. Pure.
 scene/sidebar/notice.rs  the notice: a 28 pt bar above the footers (it
              hides none), "<agent> is blocked: <note>" or "is done", with a
              ✕ (`dismiss-notice`); a tap on the rest shows the agent's
@@ -1174,7 +1189,7 @@ Each boundary has something that fails when it is broken:
 | An agent edits and removes only its own items; removing twice succeeds twice | `crates/core/tests/canvas_edit.rs`, and `crates/daemon/src/tests/edit.rs` through a real socket |
 | An agent's move or resize (edit or apply) takes its bound arrows' ends along in one step, not another author's | `crates/core/tests/canvas_edit.rs` |
 | Three sends reach one process under one session id and their answers are read; a restart resumes it; a dead process makes a send `unavailable`; a daemon stop ends it; a resume that fails drops the id and the next start is new; a fresh start ends the running process and begins a new session | `crates/daemon/src/tests/process.rs`, with a stand-in for Claude Code |
-| A session starts with the exact limits its workspace sets: by default its roots, the `slinger` CLI, the rules that write files and no user config; wider with the agent's `dirs`, `tools` and `user_config` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
+| A session starts with the exact limits its workspace sets: by default its roots, every built-in tool and its MCP servers, the `slinger` CLI and the rules that write files without asking, and no user config; a profile has only the tools its rules name; wider with the agent's `dirs`, `tools` and `user_config` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
 | A profile is set, listed and removed in the workspace's file, and a bad name, rule or dir is refused loudly with nothing written; a session under one runs in its dir with its rules in place of the agent's and resumes its own conversation; a sling that names one reaches only a process under it | `crates/core/src/workspace/profile.rs`, `crates/core/src/session/stream.rs`, `crates/daemon/src/tests/profile.rs` with a stand-in for Claude Code, `crates/cli/src/tests/profile.rs` |
 | Three slings go into one conversation, each with its packet blob and `sling_sent`; old ink is not sent again; a sling that cannot go stores nothing; each verb the note names is served | `crates/daemon/src/tests/sling.rs`, with a stand-in for Claude Code |
 | A sling with no process waits for a listener, who takes it as text with its images as files and whose put answers it; a listener outranks a running process and a sling that names a profile goes only to a process; a listener that is gone (its reply unread, or the process it named ended mid-sling) loses no sling, `done` ends its work, and a daemon stop ends an open ask | `crates/core/src/session/listen.rs`, `crates/daemon/src/tests/listen.rs` through a real socket, `crates/cli/src/tests/sling.rs` |
@@ -1227,6 +1242,10 @@ The rules are in `budgets/layer-rules.json`. To exempt one file, add an
   front end that needs it.
 - **A command:** see "Adding a command" in `docs/cli.md`.
 - **A verb:** see "Adding a verb" in `docs/service.md`.
+- **A command a person would use:** it comes to the app too, as a command in
+  `Command::ALL` (palette, key overlay and menu bar) or a tap target, or
+  with a row in `docs/app-parity.md` saying why not or naming the seed
+  that brings it.
 - **Something on screen:** get the data in `backend.rs`, decide what to show
   in `scene.rs`, place it in `layout.rs`, and draw it in `platform/`. If
   `platform` needs an `if` about content, the decision is in the wrong module.

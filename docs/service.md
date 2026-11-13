@@ -68,6 +68,8 @@ writer; other programs reach the record through the socket.
   when no open workspace, or more than one, matches.
 - Blobs are keyed by their id (`sha256:<hex>`). Storing the same bytes again
   stores nothing new.
+- Beside the log, the file keeps the slings that wait for a listener until
+  it deals with them ("Listening"), so a restart loses none.
 - `packets/<hex>/` holds each packet `canvas_read` wrote, named by the hex
   of its text's blob id: `packet.txt` and its images. It is derived from
   the record and safe to delete; the next read writes it again.
@@ -168,7 +170,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_list` | none | `sessions`: list of sessions, sorted by agent |
 | `session_show` | `agent`: string | `session` |
 | `status_set` | `agent`: string, `status`: `working`, `blocked` or `done`, `note`: string (optional) | `agent`, `status`, `note` (absent when none), `event`: the number of the event appended (absent for `working`) |
-| `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `ink`: a `pts` list in tenths, `arrow`: `[from, to]` item ids; optional `color`: `#rrggbb` or `#rrggbbaa`, `at`: `[x, y]` in tenths, `size`: a text's character size in tenths (40 to 4000, default 240; text only) | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
+| `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `ink`: a `pts` list in tenths, `arrow`: `[from, to]` item ids; optional `color`: `#rrggbb` or `#rrggbbaa`, `at`: `[x, y]` in tenths, `size`: a text's character size in tenths (40 to 4000; text only). Without `color` or `size`, they match the user's writing beside the item ("Agent canvas verbs") | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
 | `canvas_edit` | `canvas`: canvas id, `agent`: string, `item`: an item id, then any of `text`: string, `size`: a text's character size in tenths (40 to 4000; the frame refits the words), `box`: `[w, h]` in tenths, `move`: `[x, y]` in tenths | `item`, `page`, `x`, `y`, `w`, `h`: its box now, `seq`: the numbers written (empty when nothing changed) |
 | `canvas_remove` | `canvas`: canvas id, `agent`: string, `item`: an item id | `seq`: the numbers written (empty when it was already gone) |
 | `session_start` | `workspace`: string, its name or the directory of its file, `fresh`: bool (default `false`), `profile`: a profile's name (optional) | `session` |
@@ -652,18 +654,18 @@ answer. `session_id` names its conversation.
 
 - reads its home and the workspace's other roots on this machine, and
   nothing else (`--add-dir` for each root that is not the home);
-- has the built-in tools that read, run commands and write files (`--tools
-  Read,Glob,Grep,Bash,Edit,Write`). It runs only the `slinger` CLI and
+- has every built-in tool of Claude Code (no `--tools`) and the MCP servers
+  its settings name (no `--strict-mcp-config`), as a session started by hand
+  does (slinger-29bb9f). Without asking it runs only the `slinger` CLI and
   read-only commands inside those directories, and it writes files
   (`--allowedTools 'Bash(slinger *)' Edit Write`). Whatever else would need
-  a permission is denied, since nobody is there to ask (`--permission-mode
-  dontAsk`);
+  a permission (another command, a web fetch, an MCP tool) is denied, since
+  nobody is there to ask (`--permission-mode dontAsk`);
 - loads the settings and the instructions (`CLAUDE.md`) of its home, but not
-  the owner's own (`--setting-sources project,local`), and no MCP server
-  (`--strict-mcp-config`).
+  the owner's own (`--setting-sources project,local`).
 
-The agent's `dirs` adds directories, its `tools` adds permission rules (and
-the built-in tool each rule names), and `user_config = true` loads the
+The agent's `dirs` adds directories, its `tools` adds permission rules
+(`WebFetch`, `Bash(git *)`, `mcp__github`), and `user_config = true` loads the
 owner's settings and instructions too (`--setting-sources
 user,project,local`). The home's own `.claude/settings.json` belongs to the
 workspace and still applies, so the owner can widen a session there too.
@@ -674,7 +676,9 @@ start names one. A profile runs the process in its `dir` (the home when
 it has none), which then reads the home and the other directories too,
 and its `tools` take the place of the agent's and of the default `Edit`
 and `Write`: the `slinger` CLI stays, the agent's `dirs` and `user_config`
-stay, and nothing else is added. So a profile with no `tools` cannot
+stay, and nothing else is added. Its built-in tools are only those that
+read and run commands and those its rules name (`--tools
+Read,Glob,Grep,Bash,Edit` for `Edit`). So a profile with no `tools` cannot
 write, and is narrower than the agent, never wider. A
 start under no profile runs within the agent's own limits. Claude Code
 loads the settings of the directory it runs in (`.claude/settings.json`
@@ -688,7 +692,7 @@ rule is a Claude Code tool, alone or with a pattern in parentheses (`Edit`,
 `Bash(git *)`), and the tool is one of `Bash`, `Edit`, `Glob`, `Grep`,
 `MultiEdit`, `NotebookEdit`, `Read`, `WebFetch`, `WebSearch` and `Write`;
 or an MCP tool (`mcp__server`, `mcp__server__tool`, `mcp__server__*`),
-which is allowed but adds no built-in tool. The agent's own `tools` keep
+which is allowed but adds no built-in tool to a profile's. The agent's own `tools` keep
 the same rule.
 A name, rule or `dir` the daemon cannot read is `invalid`, and nothing is
 written: a blank rule, another tool or an empty pattern is never passed on.
@@ -812,8 +816,11 @@ is dealt with. While slings wait or a listener is there, the session has
 `deliver` as `listen`, `listening` (whether one is there) and `pending` (the
 slings that wait, and the one worked on). `session_start` and `session_stop`
 forget who listened; the slings that wait stay for the next to listen. The
-slings that wait are held in memory: a daemon that stops loses them, though
-each is in the record. A stopping daemon ends every open request with no
+record keeps each sling from the time it waits until its listener deals with
+it, so a daemon that stops loses none: after a restart every sling not dealt
+with waits, oldest first, the one a listener worked on too (the stop ended
+its claim, as a `pid` that ends does), and nobody listens until one asks.
+A stopping daemon ends every open request with no
 sling. A workspace that is not open is `not_found`, one with no agent
 `invalid`.
 
@@ -969,8 +976,13 @@ right, past whatever is in the way. It never comes within 12 units of
 another item. With `at`, the top-left corner of its box goes at `[x, y]`
 instead, wherever that is on the page. An arrow joins `from` and `to`, two
 items on that page, from the edge of one to the edge of the other, and
-points at both; it takes no `at`. `color` draws any of them in that colour;
-without it they are black. The reply gives the new item's id and its box. When a
+points at both; it takes no `at`. `color` draws any of them in that colour,
+and `size` sizes a text's characters. What a put leaves out matches the
+user's writing near it: the colour and size of the user's ink or text it goes
+beside (a stroke counts with its whole cluster), else of the user's ink and
+text on that page, else black and 240. The colour is the one most of those
+items have; the size is the median of a text's own size and, for a cluster
+of ink, the median height of its lines of writing. The reply gives the new item's id and its box. When a
 `sling_sent` tagged with the agent and the canvas is in the record, the put
 answers the latest such sling: the daemon appends `reply_landed` (`sling`,
 `items`: the new item) with the agent as source and tags it with the agent

@@ -247,11 +247,13 @@ tenths, the first where it starts, each next the step from the one before,
 as `pts` in `canvas schema`) or an arrow between two items, placed beside
 `--beside`, an id from `canvas show` (`i12`) or a packet (`c12` is the whole
 cluster), where it covers nothing (`docs/service.md`, "Agent canvas verbs").
-`--color` draws it in `#rrggbb` or `#rrggbbaa` (default black). `--at X,Y`
+`--color` draws it in `#rrggbb` or `#rrggbbaa`. `--at X,Y`
 puts the top-left corner of its box there instead, in tenths, on the page of
 `--beside`; an arrow takes no `--at`. `--size` sizes a text's characters,
-in tenths of a unit like `--at` and `--box` (40 to 4000, default 240: the
-packet's 24); the frame fits the words at that size. After a sling to that agent on that
+in tenths of a unit like `--at` and `--box` (40 to 4000); the frame fits the
+words at that size. Without `--color` or `--size`, the put matches the
+user's writing it goes beside (the default rule in `docs/service.md`, "Agent
+canvas verbs"): its colour, and the height of its lines of writing. After a sling to that agent on that
 canvas, the put also appends `reply_landed` to the record. An item that is
 not there exits 3 (`not_found`); none or two of `--text`, `--box`, `--ink`
 and `--arrow`, a `--box` or `--at` that is not two integers, `--ink` that is
@@ -368,3 +370,5 @@ others. Never renumber.
 4. Add tests to `crates/cli/src/tests.rs`. They run against a real daemon.
 5. If agents use the command often, show it under "Tasks" in `crates/cli/src/guide.md`.
    `slinger guide` lists every command without this step.
+6. Give the app its entry, or add a row to `docs/app-parity.md` saying
+   why not (an agent verb, plumbing) or naming the seed that brings it.

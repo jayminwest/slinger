@@ -33,6 +33,10 @@ bullet with the area in bold.
   new one in the panel, and it opens as a workspace named after the folder
   (its `slinger-workspace.toml` is made the first time) and the window turns
   to it. A folder that cannot be opened says why.
+- **App:** a workspace whose `slinger-workspace.toml` is broken says why in
+  the sidebar: under its name, a red ✗ and the error, the field at fault,
+  and the hint, wrapped to fit, in place of "(invalid file)" after its name.
+  A file that names no workspace shows its folder's name.
 - **App:** `slinger-app --preview <UI> ... --background` runs a preview
   without showing its window or a Dock icon. The project's own tests use it,
   so running them no longer opens windows over your work.
@@ -246,6 +250,20 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Agents:** a workspace's agent now has every Claude Code tool (subagents,
+  to-do lists, skills, web search and the rest) and the MCP servers its
+  settings name, as a session you start by hand does. What it may do without
+  asking is unchanged: the `slinger` CLI, read-only commands and writing
+  files, plus the rules in `agent.tools` (add `"WebFetch"` or
+  `"mcp__github"` there to let it use those). A profile still limits a
+  session to the tools its rules name.
+- **Canvas:** an agent's reply matches the writing it goes beside. Text an
+  agent puts without a colour or size takes the colour of your ink there and
+  the height of your lines of writing, so it shows on a dark page and next
+  to large handwriting; boxes, ink and arrows take the colour too. Beside
+  something that is not your writing, it matches your writing on that page;
+  on a page with none, it is black and 240 as before. A colour or size the
+  agent gives still wins.
 - **Agents:** the first sling to an agent now ends its note with
   `slinger guide`, so the agent knows where to find every other command
   and flag.
@@ -308,6 +326,11 @@ bullet with the area in bold.
 - **App:** the sling's pill keeps counting, and a short message still goes
   away on time, while you resize the window or have a menu open. Before,
   both froze until you let go.
+- **Agents:** slings that wait for a listening session survive a daemon
+  restart. Before, stopping `slingerd` lost them. A sling a listener was
+  working on when the daemon stopped waits again, first in line, for the
+  next one to listen. The record's file moves to layout 3: an older
+  `slingerd` no longer opens it.
 - **Agents:** `slinger ui open` from a session Slinger started opens its
   pane in that session's workspace when `--workspace` is not given. Before,
   it failed with `workspace "" not found`. A sling's reply notes now say

@@ -34,7 +34,8 @@ pub struct CanvasPut {
     /// What goes there: one of `text`, `box`, `ink` or `arrow` on the wire.
     #[serde(flatten)]
     pub what: Put,
-    /// Its colour, `#rrggbb` or `#rrggbbaa`; black when absent.
+    /// Its colour, `#rrggbb` or `#rrggbbaa`; when absent, the colour of the
+    /// user's writing beside it, else black.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
     /// Where the top-left corner of its box goes, `[x, y]` in tenths of a
@@ -42,7 +43,8 @@ pub struct CanvasPut {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub at: Option<[i64; 2]>,
     /// The size of a text's characters, in tenths of a unit (40 to 4000);
-    /// 240 when absent. Only for text.
+    /// when absent, the size of the user's writing beside it, else 240. Only
+    /// for text.
     #[serde(default, rename = "size", skip_serializing_if = "Option::is_none")]
     pub text_size: Option<i64>,
 }

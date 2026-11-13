@@ -91,7 +91,8 @@ pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Reply, RemoteError> {
     let event = store.append(Event::new(0, "slingerd", tags, body)).map_err(|e| stored(&e))?;
     let event = event.number.unwrap_or_default();
     if listens {
-        sessions.listeners().push(&agent, Heard { event, canvas, dir, text: message.text() });
+        let sling = Heard { event, canvas, dir, text: message.text() };
+        sessions.listeners().push(&agent, sling).map_err(|e| stored(&e))?;
     }
     let deliver = if listens { Delivery::Listen } else { Delivery::Process };
     Ok(Reply::SlingSend(Slung {

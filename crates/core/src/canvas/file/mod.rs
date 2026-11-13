@@ -40,6 +40,7 @@ mod edit;
 mod json;
 mod log;
 mod look;
+mod near;
 mod once;
 mod packet;
 mod put;

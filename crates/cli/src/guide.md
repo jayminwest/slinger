@@ -94,7 +94,9 @@ slinger canvas remove <CANVAS> --item i14 --agent claude
 ```
 
 Keep each text short: a few lines. Use more puts, each beside its subject,
-in place of one long text. Each put prints the new item's id and its box.
+in place of one long text. Leave out `--color` and `--size`: a put matches
+the colour and size of the user's writing it goes beside, so it shows on
+their page. Give them only to stand out on purpose. Each put prints the new item's id and its box.
 
 Make many items in one undo step:
 
@@ -144,7 +146,10 @@ slinger session show <AGENT>      # its status and its last answer
 
 A sling with no profile goes to a listener when one listens, and waits for
 one when the agent has no process. `session show` says which: `deliver`,
-`listening` and `pending`.
+`listening` and `pending`. That agent has every Claude Code tool and its
+MCP servers, but nobody answers its permission prompts: without asking it
+runs `slinger`, read-only commands and file edits, plus the rules in its
+workspace's `agent.tools`. A profile narrows it.
 
 Take a workspace's slings yourself, in this session, with your own tools and
 permissions. Each run waits for one sling and prints it:

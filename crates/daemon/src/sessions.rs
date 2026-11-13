@@ -74,12 +74,12 @@ pub struct Sessions {
 }
 
 impl Sessions {
-    /// No statuses set and no processes held. Each process runs `program`
-    /// (Claude Code); `ids` is the file that keeps the session ids.
+    /// No statuses set and no processes held, with the agents' `listeners`.
+    /// Each process runs `program` (Claude Code); `ids` is the file that
+    /// keeps the session ids.
     #[must_use]
-    pub fn new(program: PathBuf, ids: PathBuf) -> Self {
+    pub fn new(program: PathBuf, ids: PathBuf, listeners: Listeners) -> Self {
         let processes = Processes::new(program, ids);
-        let listeners = Listeners::default();
         Self { set: Mutex::default(), processes, listeners, slinging: Mutex::default() }
     }
 
@@ -123,7 +123,7 @@ impl Sessions {
             }
             .into());
         }
-        let sling = self.listeners.listen(&agent, wait, by);
+        let sling = self.listeners.listen(&agent, wait, by)?;
         // A listener found gone in this ask is forgotten before this one works.
         drop(self.statuses());
         if sling.is_some() {
@@ -172,7 +172,7 @@ impl Sessions {
         }
         self.processes.start(&session.agent, profile, &session.home, &limits, fresh)?;
         // A listener that went away without a word no longer takes its slings.
-        self.listeners.release(&session.agent);
+        self.listeners.release(&session.agent)?;
         Ok(session)
     }
 
@@ -185,7 +185,7 @@ impl Sessions {
     pub fn stop(&self, store: &Store, which: &str) -> Result<Session> {
         let session = self.of_workspace(store, which)?;
         self.processes.stop(&session.agent);
-        self.listeners.release(&session.agent);
+        self.listeners.release(&session.agent)?;
         Ok(session)
     }
 
@@ -332,7 +332,7 @@ impl Sessions {
         };
         if status != Status::Working {
             // Its listener, if it has one, dealt with the sling it took.
-            self.listeners.done(agent);
+            self.listeners.done(agent)?;
         }
         let report = Report { status, note };
         set.insert(agent.to_string(), report.clone());

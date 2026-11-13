@@ -258,6 +258,27 @@ fn open_workspace_opens_a_folder_and_shows_it_and_flashes_why_it_cannot() {
     });
 }
 
+#[test]
+fn a_broken_workspace_shows_why_its_field_and_its_hint_less_its_file_s_path() {
+    with_socket(|socket| {
+        let theme = crate::config::Theme::default();
+        let mut sidebar = Sidebar::new(true);
+        let daemon = control::Client::new(socket);
+        let notes = open_notes(&daemon);
+        let file = notes.path().join("slinger-workspace.toml");
+        let broken = "version = 1\nname = \"notes\"\ncanvas = \"notes\"\n\
+                      [agent]\nname = \"scout\"\ntools = [\"Shell\"]\n";
+        std::fs::write(&file, broken).unwrap();
+        sidebar.update(backend::workspaces(&daemon));
+        let rows = sidebar.rows(&theme, layout::WINDOW.rect());
+        let texts: Vec<_> = rows.iter().map(|r| r.label.text.as_str()).collect();
+        assert!(texts.contains(&"notes") && texts.contains(&"field: agent.tools"), "{texts:?}");
+        let at = texts.iter().position(|t| *t == "✗").unwrap();
+        assert!(texts[at + 1].starts_with("workspace \"notes\""), "no path: {texts:?}");
+        assert!(texts.iter().any(|t| t.contains("\"Shell\"")), "why: {texts:?}");
+    });
+}
+
 #[expect(clippy::unnecessary_wraps, reason = "it stands in for platform::pdf::pages")]
 fn one_page(_: &Path) -> Result<Vec<(f64, f64)>, String> {
     Ok(vec![(612.0, 792.0)])
