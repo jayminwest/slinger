@@ -5,7 +5,8 @@
 # environment (env.txt, and its PATH in path.txt) and each line it was sent
 # (in.txt). Its store of conversations is known.txt, one id per line: a
 # resume of an id not there fails, as Claude Code's does. For each line it
-# names its session and answers.
+# names its session and answers, but for the message "mid-turn": its turn
+# runs on, and takes the next message in, so the two get one answer.
 printf '%s\n' "$*" >> args.txt
 printf '%s %s\n' "$SLINGER_AGENT" "$SLINGER_SOCKET" > env.txt
 printf '%s\n' "$PATH" > path.txt
@@ -25,5 +26,6 @@ while IFS= read -r line; do
   n=$((n + 1))
   printf '%s\n' "$line" >> in.txt
   printf '{"type":"system","subtype":"init","session_id":"%s"}\n' "$id"
+  case "$line" in *'"content":"mid-turn"'*) continue ;; esac
   printf '{"type":"result","subtype":"success","session_id":"%s","result":"answer %s"}\n' "$id" "$n"
 done

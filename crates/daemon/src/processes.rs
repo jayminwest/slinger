@@ -28,6 +28,9 @@ use std::time::{Duration, Instant};
 use slinger_core::session::hooks;
 use slinger_core::session::stream::{self, Limits, Start};
 
+mod turns;
+use turns::Turns;
+
 /// How long a stop waits for a process to end after its input closes, before
 /// it kills the process.
 const GRACE: Duration = Duration::from_secs(3);
@@ -238,13 +241,10 @@ impl Processes {
         let Held { stdin, heard, .. } = process;
         let stdin = stdin.as_mut().ok_or_else(|| not("its input is closed"))?;
         let heard = || heard.lock().unwrap_or_else(PoisonError::into_inner);
-        // Counted before it is written: the answer can come back, and be
-        // counted off, before the write returns (slinger-d71082).
-        heard().pending += 1;
+        heard().turns.send(Instant::now());
         let written = stdin.write_all(line.as_bytes()).and_then(|()| stdin.flush());
         if written.is_err() {
-            let mut heard = heard();
-            heard.pending = heard.pending.saturating_sub(1);
+            heard().turns.unsend();
             return Err(not("it exited"));
         }
         Ok(())
@@ -272,8 +272,8 @@ impl Processes {
         let mut held = self.lock();
         let process = held.get_mut(agent)?;
         let running = process.running();
-        let heard = process.heard();
-        let pending = if running { heard.pending } else { 0 };
+        let mut heard = process.heard();
+        let pending = if running { heard.turns.pending(Instant::now()) } else { 0 };
         let answer = heard.answer.clone();
         let profile = process.profile.clone();
         Some(Shown { running, pid: process.child.id(), pending, answer, profile })
@@ -356,7 +356,7 @@ impl Drop for Held {
 #[derive(Debug, Default)]
 struct Heard {
     session_id: Option<String>,
-    pending: u32,
+    turns: Turns,
     answer: Option<String>,
     /// Its output closed: it ended, or soon will.
     ended: bool,
@@ -374,8 +374,8 @@ fn listen(out: ChildStdout, key: &str, heard: &Arc<Mutex<Heard>>, ids: &Arc<Ids>
             let said = stream::read(&String::from_utf8_lossy(&line));
             line.clear();
             let mut heard = heard.lock().unwrap_or_else(PoisonError::into_inner);
+            heard.turns.heard(said.answer.is_some(), Instant::now());
             if said.answer.is_some() {
-                heard.pending = heard.pending.saturating_sub(1);
                 heard.answer = said.answer;
             }
             if let Some(id) = said.session_id

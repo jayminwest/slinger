@@ -109,6 +109,27 @@ fn three_sends_go_to_one_session_and_a_restart_resumes_it() {
 }
 
 #[test]
+fn a_message_sent_mid_turn_and_answered_in_that_turn_leaves_none_pending() {
+    // Claude Code takes a message sent while a turn runs into that turn: two
+    // messages, one result (slinger-b84853).
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
+    let client = daemon.client();
+    let home = open_with_agent(&client, &projects, "notes", "scout");
+    client.session_start("notes").unwrap();
+    client.session_send("notes", "mid-turn").unwrap();
+    wait_lines(&home.join("in.txt"), 1);
+    assert_eq!(client.session_show("scout").unwrap().pending, Some(1), "its turn runs");
+    client.session_send("notes", "two").unwrap();
+    let answered = wait_for(&client, "scout", |s| s.pending == Some(0));
+    assert_eq!(answered.answer.as_deref(), Some("answer 2"));
+    client.session_send("notes", "three").unwrap();
+    let answered = wait_for(&client, "scout", |s| s.answer.as_deref() == Some("answer 3"));
+    assert_eq!(answered.pending, Some(0), "a later answer is not counted against");
+    daemon.stop();
+}
+
+#[test]
 fn a_process_that_dies_shows_as_exited_and_a_send_is_unavailable() {
     let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
     let daemon = Daemon::start_with_claude(data.path(), &fake_claude());

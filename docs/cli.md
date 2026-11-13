@@ -317,7 +317,8 @@ with `listening` (whether one is there: it asks, asked within 10 seconds, or
 works on a sling it took, until it sets `done` or `blocked`) and `pending`
 (the slings that wait, and the one it works on). `--pid` names the process
 of the session that works on the sling (`$PPID` in Claude Code): if it ends
-first, nobody listens and the sling waits for the next listener; a pid that
+first, nobody listens, the sling waits for the next listener and the
+agent's status is the one it had before it took the sling; a pid that
 is not running exits 5. `--wait 0` takes a waiting sling or prints nothing at once.
 The slings that wait are lost when `slingerd` stops; each is in the record.
 `session start` and `session stop` end a listener's claim on the agent: the

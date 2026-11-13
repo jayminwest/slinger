@@ -8,7 +8,7 @@
 //! a listener named: when that ends while it works on a sling, the listener
 //! is gone and the sling waits again.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
@@ -31,6 +31,8 @@ pub struct Listeners {
     /// A sling came, or the daemon stops.
     came: Condvar,
     stopping: AtomicBool,
+    /// The agents whose listener was found gone, since [`Listeners::freed`].
+    freed: Mutex<HashSet<String>>,
 }
 
 impl Listeners {
@@ -97,6 +99,15 @@ impl Listeners {
         }
     }
 
+    /// The agents whose listener was found gone since the last call: each
+    /// one's process ended while it worked on a sling, and the sling waits
+    /// again.
+    pub fn freed(&self) -> Vec<String> {
+        let _all = self.lock();
+        let mut freed = self.freed.lock().unwrap_or_else(PoisonError::into_inner);
+        freed.drain().collect()
+    }
+
     /// Ends every wait, now and from now on: each ask gets its reply.
     pub fn stop(&self) {
         self.stopping.store(true, Ordering::SeqCst);
@@ -108,14 +119,17 @@ impl Listeners {
     /// The listeners, each one whose process ended while it worked found gone.
     fn lock(&self) -> MutexGuard<'_, HashMap<String, Listener>> {
         let mut all = self.by_agent.lock().unwrap_or_else(PoisonError::into_inner);
-        let mut freed = false;
-        for listener in all.values_mut() {
-            if listener.worker().is_some_and(|pid| !alive(pid)) {
+        let gone: Vec<&String> = all
+            .iter_mut()
+            .filter(|(_, listener)| listener.worker().is_some_and(|pid| !alive(pid)))
+            .map(|(agent, listener)| {
                 listener.gone();
-                freed = true;
-            }
-        }
-        if freed {
+                agent
+            })
+            .collect();
+        if !gone.is_empty() {
+            let mut freed = self.freed.lock().unwrap_or_else(PoisonError::into_inner);
+            freed.extend(gone.into_iter().cloned());
             self.came.notify_all();
         }
         all
