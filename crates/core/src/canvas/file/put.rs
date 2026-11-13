@@ -24,8 +24,9 @@ use crate::canvas::{
 use crate::render;
 use crate::{Error, Result};
 
-/// The widest a put text runs before it wraps, in characters.
-pub const TEXT_COLUMNS: usize = 40;
+/// The widest a put text runs before it wraps, in characters: 40 sizes
+/// wide ([`render::CELL`]).
+pub const TEXT_COLUMNS: usize = 80;
 
 /// The width of put ink, in canvas units: the app's thinnest pen.
 pub const INK_WIDTH: f64 = 2.0;

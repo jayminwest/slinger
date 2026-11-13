@@ -13,7 +13,7 @@ pub const SCHEMA: &str = "\
 unit\tlength\tpositions and lengths are integers in tenths of a unit
 unit\tpts\ta flat list of x,y pairs: the first pair is the start, each next pair the step from the one before
 item\tany\tid (i<n>), page (p<n>), kind, color (#rrggbb or #rrggbbaa, default #000000; not on live or button), then the kind's fields; 'canvas show' adds by and t
-kind\ttext\tx, y, text; optional w, h (the frame; missing, it fits the words); optional size (one character, 40 to 4000; missing or null, 240; as 'canvas put' and 'canvas edit' --size take it)
+kind\ttext\tx, y, text; optional w, h (the frame; missing, it fits the words); optional size (a character's height, twice its width, 40 to 4000; missing or null, 240; as 'canvas put' and 'canvas edit' --size take it)
 kind\tbox\tx, y, w, h
 kind\tarrow\tpts (two or more pairs); optional from, to (the item ids it points at)
 kind\tstroke\twidth, pts (one or more pairs)

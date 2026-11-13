@@ -102,15 +102,21 @@ pub fn crop(canvas: &Canvas, page: PageId, area: Rect, id: &str) -> Vec<Image> {
     draw(&found, area, id, false, &[])
 }
 
+/// How wide a character's cell is, as a part of the text's size: about what
+/// a character of the app's font takes, so a row that fills its frame here
+/// fills it there too (slinger-ce52ee). A cell is one size tall.
+pub const CELL: f64 = 0.5;
+
 /// The frame size, in canvas units, that holds `text` as it is drawn at
 /// `size` when wrapped to at most `columns` characters a line (at least
-/// one): one character cell of `size` per character, a line per row.
+/// one): one character cell ([`CELL`] of `size` wide, `size` tall) per
+/// character, a line per row.
 #[must_use]
 pub fn text_size(text: &str, columns: usize, size: f64) -> (f64, f64) {
     let rows = raster::wrap(text, columns.max(1));
     let longest = rows.iter().map(Vec::len).max().unwrap_or(0);
     let cells = |n: usize| u32::try_from(n).map_or(f64::from(u32::MAX), f64::from);
-    (cells(longest) * size, cells(rows.len()) * size)
+    (cells(longest) * size * CELL, cells(rows.len()) * size)
 }
 
 /// The frame size, in canvas units, that text drawn at `size` in a frame
@@ -120,12 +126,12 @@ pub fn text_size(text: &str, columns: usize, size: f64) -> (f64, f64) {
 /// gets the unwrapped text's size, at least one character wide.
 #[must_use]
 pub fn text_frame(text: &str, w: f64, h: f64, size: f64) -> (f64, f64) {
-    match (w >= size, h > 0.0) {
+    match (w >= size * CELL, h > 0.0) {
         (true, true) => (w, h),
         (true, false) => (w, text_size(text, raster::columns(w, size), size).1),
         (false, _) => {
             let (w, h) = text_size(text, usize::MAX, size);
-            (w.max(size), h)
+            (w.max(size * CELL), h)
         }
     }
 }

@@ -976,8 +976,8 @@ its own.
 
 **`canvas_put`** adds text, a box, ink or an arrow, placed beside the item
 `beside` names (ids as for crops, above: `c<n>` on the user's ink is its
-whole cluster) on that item's page. Text is wrapped at 40 characters a
-line, in a frame that holds it; a box is `w` by `h` tenths; ink is a pen
+whole cluster) on that item's page. Text is wrapped at 80 characters a
+line (40 sizes wide: a character's cell is half the text's size wide), in a frame that holds it; a box is `w` by `h` tenths; ink is a pen
 stroke 2 units wide through `pts` (as an item's, under "Canvas operations":
 the first pair where it starts, each next the step from the one before),
 and only its shape counts. Each goes in free space: 24 units right of the

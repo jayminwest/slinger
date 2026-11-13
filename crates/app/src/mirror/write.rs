@@ -258,7 +258,7 @@ pub fn add_pdf(page: &str, shape: &Shape) -> Value {
 }
 
 /// The frame of `text` of `size` set with its top left at `at`, as the
-/// canvas file stores it: a character cell of `size` a character of its
+/// canvas file stores it: a character cell ([`glyphs::CELL`] of `size`) a character of its
 /// longest line (the core's render cell, so the text never wraps there), and
 /// a line of [`LINE_HEIGHT`] a line, on whole tenths. Empty text is one cell.
 pub fn text_frame_at(at: Point, text: &str, size: f64) -> Rect {
@@ -268,7 +268,7 @@ pub fn text_frame_at(at: Point, text: &str, size: f64) -> Rect {
     Rect {
         x: at.x,
         y: at.y,
-        width: count(longest) * size,
+        width: count(longest) * size * glyphs::CELL,
         height: (lines * size * LINE_HEIGHT * 10.0).round() / 10.0,
     }
 }
@@ -281,18 +281,15 @@ pub fn text_frame_at(at: Point, text: &str, size: f64) -> Rect {
 /// paragraph resized, carried or edited reads back in the same rows.
 #[expect(clippy::cast_precision_loss, reason = "canvas units are far inside 2^52 tenths")]
 fn stored_column(column: f64, size: f64) -> Option<f64> {
-    let cells = |w: f64, size: f64| (w >= size).then(|| (w / size).floor());
-    let n = cells(column, size).filter(|_| column < glyphs::UNWRAPPED)?;
-    let (w, cell) = (tenths(column), tenths(size));
-    let w = if cells(w as f64 / 10.0, cell as f64 / 10.0) == Some(n) {
-        w
-    } else {
-        // n is a whole count of cells far below 2^52.
-        #[expect(clippy::cast_possible_truncation, reason = "a whole count of cells")]
-        let n = n as i64;
-        n * cell + cell / 2
+    let cells = |w: f64, size: f64| {
+        let cell = size * glyphs::CELL;
+        (w >= cell).then(|| (w / cell).floor())
     };
-    Some(w as f64 / 10.0)
+    let n = cells(column, size).filter(|_| column < glyphs::UNWRAPPED)?;
+    // The file holds both on whole tenths.
+    let (w, size) = (tenths(column) as f64 / 10.0, tenths(size) as f64 / 10.0);
+    let middle = tenths((n + 0.5) * size * glyphs::CELL) as f64 / 10.0;
+    Some(if cells(w, size) == Some(n) { w } else { middle })
 }
 
 /// `colour` as the canvas file writes it: `#rrggbb`.

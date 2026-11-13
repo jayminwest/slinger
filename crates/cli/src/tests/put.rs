@@ -22,7 +22,7 @@ fn put_prints_the_new_item_and_its_box_and_it_shows_with_its_author() {
     for r in &runs {
         assert_eq!((r.code, r.err.as_str()), (exit::OK, ""), "{}", r.out);
     }
-    assert_eq!(runs[2].out, "i2\t1240,0,2640,240\n");
+    assert_eq!(runs[2].out, "i2\t1240,0,1320,240\n");
     let shown: Vec<&str> = runs[3].out.lines().collect();
     assert!(shown[1].starts_with("i2\ttext\tagent:scout\t{"), "{}", shown[1]);
     let put = json(&runs[4]);
@@ -120,7 +120,7 @@ fn put_and_edit_take_a_text_size_in_tenths() {
     assert_eq!(codes[..4], [exit::OK; 4], "{errs:?}");
     assert_eq!(codes[4..], [exit::INVALID, exit::INVALID, exit::INVALID, exit::USAGE]);
     assert!(runs[6].err.contains("only text"), "{}", runs[6].err);
-    assert_eq!(runs[2].out, "i2\t0,1000,960,480\n", "two characters at 48 units");
-    assert_eq!(runs[3].out, "i2\t0,1000,240,120\n");
+    assert_eq!(runs[2].out, "i2\t0,1000,480,480\n", "two characters at 24 units");
+    assert_eq!(runs[3].out, "i2\t0,1000,120,120\n");
     assert!(runs[4].err.contains("40 to 4000 tenths"), "{}", runs[4].err);
 }

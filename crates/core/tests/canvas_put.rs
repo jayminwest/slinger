@@ -117,11 +117,11 @@ fn bx(x: i64, y: i64, w: i64, h: i64) -> Value {
 fn put_text_lands_beside_the_item_as_the_agents_at_its_time() {
     let mut log = log_of(&bx(0, 0, 1000, 500));
     let placed = log.put(&scout(), AT, "b1", &Put::Text("looks right".into())).unwrap();
-    assert_eq!(render::text_size("looks right", TEXT_COLUMNS, 24.0), (264.0, 24.0));
+    assert_eq!(render::text_size("looks right", TEXT_COLUMNS, 24.0), (132.0, 24.0));
     assert_eq!(placed.item, "i2");
     assert_eq!(placed.page, "p1");
     // Lengths in tenths: right of the box by a gap, top-aligned.
-    assert_eq!(placed.frame, [1000 + 240, 0, 2640, 240]);
+    assert_eq!(placed.frame, [1000 + 240, 0, 1320, 240]);
     assert_eq!(placed.written.seq, [2]);
     let item = log.canvas().item(ItemId::new(2)).unwrap();
     assert_eq!((item.author(), item.time()), (&scout(), AT));
@@ -133,12 +133,12 @@ fn put_text_lands_beside_the_item_as_the_agents_at_its_time() {
 
 #[test]
 fn long_text_wraps_and_its_frame_holds_every_line() {
-    // Eight words fit a line of 40; thirty make four lines.
+    // Sixteen words fit a line of 80; thirty make two lines.
     let words = "word ".repeat(30);
-    assert_eq!(render::text_size(&words, TEXT_COLUMNS, 24.0), (39.0 * 24.0, 4.0 * 24.0));
+    assert_eq!(render::text_size(&words, TEXT_COLUMNS, 24.0), (79.0 * 12.0, 2.0 * 24.0));
     let mut log = log_of(&bx(0, 0, 10, 10));
     let placed = log.put(&scout(), AT, "i1", &Put::Text(words)).unwrap();
-    assert_eq!(placed.frame[2..], [9360, 960]);
+    assert_eq!(placed.frame[2..], [9480, 480]);
 }
 
 #[test]
@@ -233,18 +233,18 @@ fn text_applied_without_a_size_gets_one_so_a_put_beside_it_does_not_cover_it() {
     // slinger-981b5c: the user's text had no box, and the put landed on it.
     let (mut log, mut file) = Log::create("main").unwrap();
     file += &log.apply(&Author::User, AT, &text(0, 0, "plan")).unwrap().bytes;
-    assert_eq!(frame_of(&log, "i1"), [0, 0, 960, 240]);
+    assert_eq!(frame_of(&log, "i1"), [0, 0, 480, 240]);
     let placed = log.put(&scout(), AT, "i1", &Put::Text("agent reply".into())).unwrap();
-    assert_eq!(placed.frame, [960 + 240, 0, 2640, 240]);
+    assert_eq!(placed.frame, [480 + 240, 0, 1320, 240]);
     let page = log.canvas().pages().next().unwrap().id();
     let plan = log.canvas().item(ItemId::new(1)).unwrap().bounds();
     let reply = log.canvas().item(ItemId::new(2)).unwrap().bounds();
     assert!(plan.x + plan.w < reply.x, "{plan:?} {reply:?}");
     assert_eq!(log.canvas().items_in_box(page, reply), [ItemId::new(2)]);
     // The line holds the box, so the file reads back to the same canvas.
-    assert!(file.contains(r#""w":960,"h":240"#), "{file}");
+    assert!(file.contains(r#""w":480,"h":240"#), "{file}");
     let (reopened, _) = Log::open(file.as_bytes()).unwrap();
-    assert_eq!(frame_of(&reopened, "i1"), [0, 0, 960, 240]);
+    assert_eq!(frame_of(&reopened, "i1"), [0, 0, 480, 240]);
 }
 
 #[test]
@@ -253,9 +253,9 @@ fn a_text_with_a_size_keeps_it_and_one_with_no_height_gets_its_lines() {
     let no_height = json!({ "op": "add", "item": { "page": "p1", "kind": "text", "x": 0, "y": 0, "w": 1200, "text": "one two three" } });
     let log = log_of(&json!([sized, no_height, text(0, 0, "a\nlonger line")]));
     assert_eq!(frame_of(&log, "i1"), [0, 0, 480, 312]);
-    // Five characters a line: "one", "two" and "three", a line each.
-    assert_eq!(frame_of(&log, "i2"), [0, 0, 1200, 3 * 240]);
-    assert_eq!(frame_of(&log, "i3"), [0, 0, 11 * 240, 2 * 240]);
+    // Ten characters a line: "one two", then "three".
+    assert_eq!(frame_of(&log, "i2"), [0, 0, 1200, 2 * 240]);
+    assert_eq!(frame_of(&log, "i3"), [0, 0, 11 * 120, 2 * 240]);
 }
 
 #[test]
@@ -267,7 +267,7 @@ fn old_text_with_no_box_reads_back_with_one() {
         "\n",
     );
     let (log, _) = Log::open(file.as_bytes()).unwrap();
-    assert_eq!(frame_of(&log, "i1"), [0, 0, 960, 240]);
+    assert_eq!(frame_of(&log, "i1"), [0, 0, 480, 240]);
 }
 
 #[test]
@@ -275,7 +275,7 @@ fn a_set_of_new_text_without_a_size_refits_the_box() {
     let mut log = log_of(&text(0, 0, "plan"));
     let set = |fields: Value| json!({ "op": "set", "id": "i1", "fields": fields });
     log.apply(&Author::User, AT, &set(json!({ "text": "a longer plan" }))).unwrap();
-    assert_eq!(frame_of(&log, "i1"), [0, 0, 13 * 240, 240]);
+    assert_eq!(frame_of(&log, "i1"), [0, 0, 13 * 120, 240]);
     log.apply(&Author::User, AT, &set(json!({ "text": "ab", "w": 5000, "h": 900 }))).unwrap();
     assert_eq!(frame_of(&log, "i1"), [0, 0, 5000, 900]);
     log.apply(&Author::User, AT, &set(json!({ "x": 100 }))).unwrap();
@@ -287,7 +287,7 @@ fn a_put_text_takes_a_size_in_tenths_and_its_frame_fits_it() {
     let mut log = log_of(&bx(0, 0, 1000, 500));
     let big = How { text_size: Some(480), at: Some([0, 1000]), ..How::default() };
     let placed = log.put_how(&scout(), AT, "i1", &Put::Text("hi".into()), &big).unwrap();
-    assert_eq!(placed.frame, [0, 1000, 2 * 480, 480]);
+    assert_eq!(placed.frame, [0, 1000, 2 * 240, 480]);
     assert_eq!(log.show(None).unwrap().items[1]["size"], 480);
     let next = log.next();
     for (what, tenths) in [
@@ -335,7 +335,7 @@ fn a_reply_with_no_colour_or_size_matches_the_writing_it_goes_beside() {
     let mut log = log_of(&json!(note()));
     let placed = log.put(&scout(), AT, "c1", &Put::Text("noted".into())).unwrap();
     assert_eq!(look_of(&log, &placed.item), ("#cc0000".into(), 620), "a line's height, red");
-    assert_eq!(placed.frame[2..], [5 * 620, 620]);
+    assert_eq!(placed.frame[2..], [5 * 310, 620]);
     // A single stroke counts with its whole note; a box takes the colour.
     let placed = log.put(&scout(), AT, "i2", &Put::Text("again".into())).unwrap();
     assert_eq!(look_of(&log, &placed.item), ("#cc0000".into(), 620));

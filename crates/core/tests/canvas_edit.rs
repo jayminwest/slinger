@@ -75,10 +75,10 @@ fn a_new_text_size_refits_the_frame_and_one_out_of_range_fails() {
     let mut log = log();
     let edit = Edit { text_size: Some(480), ..Edit::default() };
     let edited = log.edit(&scout(), AT, "i2", &edit).unwrap();
-    assert_eq!(edited.frame[2..], [2 * 480, 480], "\"hi\" at 48 units a character");
+    assert_eq!(edited.frame[2..], [2 * 240, 480], "\"hi\" at 24 units a character");
     assert_eq!(field(&log, "i2", "size"), 480);
     let both = Edit { text: Some("abc".into()), text_size: Some(100), ..Edit::default() };
-    assert_eq!(log.edit(&scout(), AT, "i2", &both).unwrap().frame[2..], [300, 100]);
+    assert_eq!(log.edit(&scout(), AT, "i2", &both).unwrap().frame[2..], [150, 100]);
     let next = log.next();
     for tenths in [0, 39, 4001] {
         let edit = Edit { text_size: Some(tenths), ..Edit::default() };

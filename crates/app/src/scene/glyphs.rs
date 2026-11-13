@@ -2,8 +2,8 @@
 //! the frame every hit test, selection, lasso and caret of a text uses.
 //!
 //! A canvas file stores a text's frame in the core's render cells (a cell
-//! of [`TEXT_SIZE`](crate::mirror::TEXT_SIZE) a character, so an agent's
-//! image never wraps it), which is far wider than the system font's glyphs.
+//! [`CELL`] of its size wide a character, so an agent's image never wraps
+//! it), which is about, not exactly, what the system font's glyphs take.
 //! The app never trusts that width for a hit: it takes the box the glyphs
 //! fill. So texts saved before this rule hit right too, with nothing
 //! rewritten.
@@ -34,6 +34,10 @@ pub const UNWRAPPED: f64 = 1e7;
 /// the text's size: about the system font's.
 const CHAR_WIDTH: f64 = 0.55;
 const LINE_HEIGHT: f64 = 1.2;
+/// How wide the core's character cell is, as a part of the text's size
+/// (the core's `render::CELL`): about a character of the [`FONT`], so a
+/// full row fills its column (slinger-ce52ee).
+pub const CELL: f64 = 0.5;
 /// A canvas text's font size, as a part of its size: the system font's
 /// line at this size is just under a size tall, so its rows sit one size
 /// apart, as the core's do.
@@ -66,11 +70,12 @@ pub fn frame(at: Point, text: &str, size: f64) -> Rect {
 
 /// `text` cut into the core's rows for a `column` that wide at `size`, one
 /// a line: at each line end, and at spaces to at most as many characters
-/// as whole cells of `size` fit (a word longer is cut). A column narrower
+/// as whole cells ([`CELL`] of `size` wide) fit (a word longer is cut). A column narrower
 /// than a cell does not wrap. Zero-width characters take no cell.
 #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "floored, >= 1")]
 pub fn rows(text: &str, size: f64, column: f64) -> String {
-    let cells = if column >= size { (column / size) as usize } else { usize::MAX };
+    let cell = size * CELL;
+    let cells = if column >= cell { (column / cell) as usize } else { usize::MAX };
     let mut rows = String::new();
     for paragraph in text.split('\n') {
         // The cells the row so far takes.
