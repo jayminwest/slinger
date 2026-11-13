@@ -76,6 +76,27 @@ fn a_pdf_that_cannot_be_opened_is_a_problem_until_the_next() {
     });
 }
 
+/// slinger-99061d: the open panel's and a drop's tldraw file is imported,
+/// not read as a PDF, and shows beside the focused pane.
+#[test]
+fn a_tldraw_file_opens_as_an_imported_canvas_in_a_pane() {
+    assert!(pdf::is_tldraw(Path::new("a.TLDR")) && pdf::is_tldraw(Path::new("b.tldraw")));
+    assert!(!pdf::is_tldraw(Path::new("c.pdf")) && !pdf::is_tldraw(Path::new("tldraw")));
+    with_daemon(|daemon| {
+        let _notes = open_notes(daemon);
+        let notes = Panes::new(Pane { kind: Kind::Canvas, name: "notes".into() });
+        let mut canvases = Canvases::new(daemon.clone());
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let board = manifest.join("../core/tests/fixtures/idea.tldraw");
+        canvases.open_pdf(&notes, Some("notes"), board, unreadable);
+        wait_until(|| canvases.poll() && canvases.pdfs.opened.is_none());
+        assert_eq!(canvases.problems().next(), None, "not read as a PDF");
+        assert!(daemon.canvas_list().unwrap().contains(&"idea".to_string()));
+        let layout = daemon.pane_list("notes").unwrap().layout;
+        assert!(serde_json::to_string(&layout).unwrap().contains("\"idea\""), "{layout:?}");
+    });
+}
+
 #[test]
 fn a_pdf_that_did_not_come_is_asked_for_again_the_next_time_it_is_drawn() {
     with_daemon(|daemon| {

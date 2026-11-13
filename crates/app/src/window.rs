@@ -151,10 +151,11 @@ pub fn finder<'a>(
     }
 }
 
-/// Opens the PDF `file` as a canvas beside the focused pane of `shared`,
-/// its pages read by `sizes` ([`Canvases::open_pdf`]): `open-pdf`'s file,
-/// or the first PDF of files dropped on the window, which focuses the pane
-/// under `at` (a point in `area`) first. False when no file is a PDF.
+/// Opens the PDF or tldraw `file` as a canvas beside the focused pane of
+/// `shared`, a PDF's pages read by `sizes` ([`Canvases::open_pdf`]):
+/// `open-pdf`'s file, or the first PDF or tldraw file of files dropped on
+/// the window, which focuses the pane under `at` (a point in `area`)
+/// first. False when no file is either.
 pub fn open_pdf(
     files: &[PathBuf],
     at: Option<Point>,
@@ -163,7 +164,9 @@ pub fn open_pdf(
     area: Rect,
     sizes: Pages,
 ) -> bool {
-    let pdf = |f: &&PathBuf| f.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf"));
+    let pdf = |f: &&PathBuf| {
+        f.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf")) || backend::pdf::is_tldraw(f)
+    };
     let Some(file) = files.iter().find(pdf) else { return false };
     if let Some(at) = at {
         shared.panes.focus_at(area, at);

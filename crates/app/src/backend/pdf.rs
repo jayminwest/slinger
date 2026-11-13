@@ -2,7 +2,7 @@
 //! a PDF's blob to a file of the app's own, once per blob id, for the
 //! canvas view to draw from. [`open`] makes a PDF a new canvas: the blob,
 //! the canvas, one `pdf` item per page stacked on its first page, and a
-//! pane that shows it. Each blocks until the daemon answers or its client
+//! pane that shows it; or a tldraw file, by `canvas_import`. Each blocks until the daemon answers or its client
 //! gives up. Only `platform` reads a PDF: `open` is handed its page sizes'
 //! reader ([`Pages`]).
 
@@ -69,6 +69,13 @@ pub fn fetch(daemon: &Client, hash: &str, dir: &Path) -> Result<PathBuf, Problem
     fetched.map(|()| file)
 }
 
+/// Whether `file` is a tldraw file, by its extension (`.tldraw`, or the
+/// older `.tldr`): [`open`] imports it rather than reading it as a PDF.
+pub fn is_tldraw(file: &Path) -> bool {
+    let ext = file.extension().unwrap_or_default();
+    ext.eq_ignore_ascii_case("tldraw") || ext.eq_ignore_ascii_case("tldr")
+}
+
 /// What [`open`] is asked: the PDF's file, and the workspace whose window
 /// shows it beside its pane number `beside` (no workspace: no pane).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,7 +86,9 @@ pub struct Opening {
 }
 
 /// Makes the PDF `ask.file` a new canvas, and opens a pane on it beside
-/// `ask.beside` in `ask.workspace`: reads its page sizes with `sizes`,
+/// `ask.beside` in `ask.workspace`. A tldraw file ([`is_tldraw`]) the
+/// daemon imports (`canvas_import`, named after the file). A PDF: reads its
+/// page sizes with `sizes`,
 /// stores it as a blob, and makes the canvas ([`canvas_id`], the next id
 /// when one is taken) holding one `pdf` item per page on its first page,
 /// in page order. The canvas is made whole in one request or not at all:
@@ -97,26 +106,39 @@ pub fn open(
     ask: &Opening,
     scratch: &Path,
 ) -> Result<String, Problem> {
-    let sizes = sizes(&ask.file).map_err(|why| Problem::new(why, None))?;
-    if sizes.is_empty() {
-        let name = ask.file.display();
-        return Err(Problem::new(format!("{name} has no pages"), None));
+    let canvas = if is_tldraw(&ask.file) {
+        daemon.canvas_import_id(&ask.file, None)?
+    } else {
+        pdf_canvas(daemon, sizes, &ask.file, scratch)?
+    };
+    if let Some(workspace) = &ask.workspace {
+        daemon.pane_open(workspace, PaneKind::Canvas, &canvas, ask.beside, false)?;
     }
-    let hash = daemon.blob_put(&ask.file)?;
+    Ok(canvas)
+}
+
+/// The canvas [`open`] makes for the PDF `file`.
+fn pdf_canvas(
+    daemon: &Client,
+    sizes: Pages,
+    file: &Path,
+    scratch: &Path,
+) -> Result<String, Problem> {
+    let sizes = sizes(file).map_err(|why| Problem::new(why, None))?;
+    if sizes.is_empty() {
+        return Err(Problem::new(format!("{} has no pages", file.display()), None));
+    }
+    let hash = daemon.blob_put(file)?;
     let adds: Vec<Value> =
-        pages(&sizes, &hash, &ask.file).iter().map(|p| mirror::add_pdf(FIRST_PAGE, p)).collect();
+        pages(&sizes, &hash, file).iter().map(|p| mirror::add_pdf(FIRST_PAGE, p)).collect();
     let n = PARTS.fetch_add(1, Ordering::Relaxed);
     let ops = scratch.join(format!("open.{}-{n}.json", std::process::id()));
     let written = fs::create_dir_all(scratch)
         .and_then(|()| fs::write(&ops, Value::Array(adds).to_string()))
         .map_err(|e| unwritable(&ops, &e));
-    let canvas = written.and_then(|()| create(daemon, &ask.file, &ops));
+    let canvas = written.and_then(|()| create(daemon, file, &ops));
     let _ = fs::remove_file(&ops);
-    let canvas = canvas?;
-    if let Some(workspace) = &ask.workspace {
-        daemon.pane_open(workspace, PaneKind::Canvas, &canvas, ask.beside, false)?;
-    }
-    Ok(canvas)
+    canvas
 }
 
 /// Makes the canvas for the PDF `file`, holding the operations in the file

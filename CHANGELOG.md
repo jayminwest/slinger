@@ -42,6 +42,11 @@ bullet with the area in bold.
   is in the File menu and the command palette: the Finder shows the folder
   of the workspace the window shows, as Show canvas file in Finder does for
   the canvas's file.
+- **App:** import a tldraw board without the CLI. Open PDF or tldraw…
+  (`open-pdf`, ⌘O) also takes a `.tldraw` or `.tldr` file, and so does a
+  drop on the window: the board becomes a canvas named after the file, its
+  pages and items as `slinger canvas import` makes them, in a pane beside
+  the focused one. A name already taken says so.
 - **App:** a workspace whose `slinger-workspace.toml` is broken says why in
   the sidebar: under its name, a red ✗ and the error, the field at fault,
   and the hint, wrapped to fit. A file that names no workspace shows its

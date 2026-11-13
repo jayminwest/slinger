@@ -106,7 +106,8 @@ pub enum Command {
     /// Show the focused pane's canvas file in the Finder.
     ShowCanvasFile,
     /// Open a PDF as a new canvas, one page under the next, in a pane
-    /// beside the focused one (docs/design/pdf.md).
+    /// beside the focused one (docs/design/pdf.md); or a tldraw file,
+    /// imported as a canvas (`canvas_import`), in a pane there.
     OpenPdf,
     /// Make the pen crop a PDF: a box dragged on a `pdf` item puts that
     /// part of its page on the clipboard (docs/design/pdf.md).

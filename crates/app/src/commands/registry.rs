@@ -102,7 +102,7 @@ impl Command {
             Command::ToggleGrid => "Dotted grid",
             Command::Save => "Save",
             Command::ShowCanvasFile => "Show canvas file in Finder",
-            Command::OpenPdf => "Open PDF…",
+            Command::OpenPdf => "Open PDF or tldraw…",
             Command::CropPdf => "Crop PDF",
             Command::OpenWorkspace => "Open workspace…",
             Command::CloseWorkspace => "Close workspace",

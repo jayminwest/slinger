@@ -55,6 +55,7 @@ same thing by drawing, or never needs to.
 | `feedback add`, `feedback ls` | `leave-feedback` (shift+cmd+F), with the recent notes under the entry |
 | `ui open` (a person's reply) | A UI pane or live item takes the reply (`ui_reply`) |
 | `canvas create --ops` of a PDF | `open-pdf` (cmd+O) and a PDF dropped on the window |
+| `canvas import` | `open-pdf` (cmd+O) with a `.tldraw`/`.tldr` file, or one dropped on the window: imported, then shown beside the focused pane (`pane_open`), slinger-99061d |
 | `canvas put --color` | `pick-colour` and recolouring a selection |
 
 ## Gaps
@@ -72,7 +73,6 @@ a rough size. Known ones name their seed.
 | Set or remove an agent's profiles | `profile_set`, `profile_remove` | design | slinger-fbd4d3 |
 | Show a stored agent UI in a pane | `pane_open` (`ui`), `ui_list` | ui | new |
 | Make a new empty canvas, or show another canvas in a pane | `canvas_create`, `canvas_list`, `pane_open` (`canvas`) | design | slinger-16a66e |
-| Import a tldraw file as a canvas | `canvas_import`, `pane_open` | arm | new |
 | Pick the size of a new text, or resize a text's characters | `canvas_put`/`canvas_edit` `size` (agent side); the app's own text tool | design | slinger-34a2ae |
 | Read the thinking record (what was slung, answered, touched) | `record_list` | design | slinger-895bde |
 | Browse a UI's versions, or save one to a file | `ui_list`, `ui_show`, `ui_export` | ui | new |
@@ -87,5 +87,3 @@ Notes on the new rows:
   question is whether it is a mode of the sling entry or its own command.
 - **A UI in a pane** needs a picker over `ui_list`; the pane verbs are
   already in the app.
-- **tldraw import** reuses `open-pdf`'s open panel with a `.tldraw`/`.tldr`
-  filter, then opens the canvas beside the focused pane as a PDF does.

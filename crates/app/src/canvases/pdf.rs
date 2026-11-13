@@ -6,7 +6,8 @@
 //! not hold it, O8, or the daemon could not be read) is asked for again
 //! the next time a pane draws it, after a wait that doubles with each miss
 //! from [`RETRY`] to [`RETRY_MOST`]: no timer, nothing asked while unseen. The
-//! `open-pdf` command's file becomes a canvas on a thread of its own
+//! `open-pdf` command's file (a PDF, or a tldraw file to import) becomes a
+//! canvas on a thread of its own
 //! ([`backend::pdf::open`]); what went wrong shows as a problem until the
 //! next. Runs on the main thread and never waits.
 

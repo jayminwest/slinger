@@ -215,6 +215,23 @@ impl Client {
         self.call(&Request::CanvasImport { path, canvas })
     }
 
+    /// As [`Client::canvas_import`], but returns only the new canvas's id:
+    /// a binary that never reads what the import made and skipped (the app,
+    /// whose size budget is nearly full) carries no code for it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Client::canvas_import`].
+    pub fn canvas_import_id(
+        &self,
+        file: &Path,
+        canvas: Option<&str>,
+    ) -> Result<String, RemoteError> {
+        let (path, canvas) = (absolute(file)?, canvas.map(str::to_string));
+        let info: CanvasInfo = self.call(&Request::CanvasImport { path, canvas })?;
+        Ok(info.canvas)
+    }
+
     /// Redoes the last step `step.by` undid on the canvas.
     ///
     /// # Errors

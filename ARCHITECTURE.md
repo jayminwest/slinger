@@ -436,7 +436,9 @@ backend/pdf.rs  PDFs (docs/design/pdf.md): `fetch` gets a pdf item's blob
              on a taken id) with a file of operations: one whole-page item a
              page stacked down its first page (scene/pdf.rs), so the canvas
              is made whole or not at all; then `pane_open` beside the
-             focused pane. A file that cannot be read makes nothing.
+             focused pane. A file that cannot be read makes nothing. A
+             tldraw file (`is_tldraw`, by its extension) is made a canvas
+             by `canvas_import_id` instead, then the same `pane_open`.
 mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              feed reply applied in order; reads the canvas file's items
              (tenths, delta points, `#rrggbb`, an arrow's bound ends) into
@@ -475,7 +477,8 @@ canvases/live.rs  the live items' pages: each showing a pane draws fetched
              selection, or the item is under 48 points wide on the screen.
              A view kept off the screen (scene/live/away.rs) due to close
              draws the window again.
-canvases/pdf.rs  the `open-pdf` command (cmd+o: the open panel, then
+canvases/pdf.rs  the `open-pdf` command (cmd+o: the open panel, a PDF or
+             a tldraw file, then
              backend/pdf.rs's `open` on a thread, one at a time; a failure
              is a problem until the next open) and each pdf item's file:
              asked for once per hash on a thread as a pane first shows it,
@@ -1009,7 +1012,8 @@ platform/web.rs  agent UIs in WKWebViews: the scheme handler, navigation and
 platform/pdf.rs  every CoreGraphics PDF call: a PDF's page sizes as displayed
              (crop box, `/Rotate` applied; on any thread), a pdf item's part
              of its page drawn stretched into its frame on white (each
-             document opened once), and the open panel for `open-pdf`.
+             document opened once), and the open panel for `open-pdf`
+             (a `.pdf`, `.tldraw` or `.tldr` file).
              backdrop: one sling area as raw RGB at the packet's scale, and
              the page's words there (PDFKit) in canvas tenths.
 ```
