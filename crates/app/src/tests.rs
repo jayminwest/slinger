@@ -7,6 +7,7 @@ use crate::backend::ConfigFiles;
 use crate::backend::testing::wait_until;
 use crate::backend::tests::{open_notes, with_agents, with_socket, with_store};
 use crate::commands::{CMD, Chord};
+use crate::layout::Point;
 use crate::panes::{Kind as PaneKind, Pane};
 use crate::scene::ink::Pen;
 use crate::scene::paste::Edit;

@@ -96,6 +96,9 @@ pub struct Sidebar {
     notice: Vec<notice::Noticed>,
     /// The workspace whose panes the window shows; `None`: the first usable.
     shown: Option<Shown>,
+    /// The workspace the window showed when the app last quit: the one
+    /// shown while none is named or tapped, if it is open and usable.
+    last: Option<String>,
 }
 
 /// How the sidebar knows the workspace the window shows: by the name the
@@ -110,7 +113,14 @@ enum Shown {
 impl Sidebar {
     /// An empty sidebar, open or collapsed.
     pub fn new(open: bool) -> Self {
-        Self { open, workspaces: None, problem: None, notice: Vec::new(), shown: None }
+        Self { open, workspaces: None, problem: None, notice: Vec::new(), shown: None, last: None }
+    }
+
+    /// The sidebar, showing `last` (the workspace the window showed when the
+    /// app last quit) while none is named or tapped, as the panes do.
+    #[must_use]
+    pub fn preferring(self, last: Option<String>) -> Self {
+        Self { last, ..self }
     }
 
     /// Marks `workspace` as the one the window shows; `None`: the first
@@ -239,14 +249,25 @@ impl Sidebar {
         Some(self.workspaces.as_ref()?.get(self.at()?)?.dir.clone())
     }
 
+    /// The name of the workspace the window shows, to show it again at the
+    /// next launch. `None` when none shows, and for a broken file that names
+    /// none.
+    pub fn shown_name(&self) -> Option<&str> {
+        let name = self.workspaces.as_ref()?.get(self.at()?)?.name.as_str();
+        Some(name).filter(|n| !n.is_empty())
+    }
+
     /// The index of the workspace the window shows: the one named or
-    /// tapped, else the first that is not broken, as the panes show.
+    /// tapped, else the last shown if it is open and not broken, else the
+    /// first that is not broken, as the panes show (`backend::panes::layout`).
     fn at(&self) -> Option<usize> {
-        let mut list = self.workspaces.as_ref()?.iter();
+        let list = self.workspaces.as_ref()?;
+        let at = |is: &dyn Fn(&Workspace) -> bool| list.iter().position(is);
         match &self.shown {
-            Some(Shown::Name(name)) => list.position(|w| w.name == *name),
-            Some(Shown::Dir(dir)) => list.position(|w| w.dir == *dir),
-            None => list.position(|w| w.broken.is_none()),
+            Some(Shown::Name(name)) => at(&|w| w.name == *name),
+            Some(Shown::Dir(dir)) => at(&|w| w.dir == *dir),
+            None => at(&|w| w.broken.is_none() && Some(&w.name) == self.last.as_ref())
+                .or_else(|| at(&|w| w.broken.is_none())),
         }
     }
 
