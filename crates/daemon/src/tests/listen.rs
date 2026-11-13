@@ -177,20 +177,30 @@ fn a_listener_whose_process_ends_mid_sling_is_gone_and_one_that_says_done_is_not
         .stdout(Stdio::null())
         .spawn()
         .unwrap();
+    client.status_set("scout", "blocked", Some("need the key")).unwrap();
     draw(&client, 0);
     let slung = sling(&client, "first");
     let taken = client.session_listen_in("notes", LONG, Some(session.id())).unwrap();
     assert_eq!(taken.sling.unwrap().event, slung.event);
-    assert_eq!(heard(&client.session_show("scout").unwrap()), ("listen", Some(true), Some(1)));
+    let working = client.session_show("scout").unwrap();
+    assert_eq!(heard(&working), ("listen", Some(true), Some(1)));
+    assert_eq!(working.status.as_deref(), Some("working"));
 
-    // It is closed before it says it is done: nobody listens, and the sling waits again.
+    // It is closed before it says it is done: nobody listens, the sling waits
+    // again and nobody works on it: the status is the one from before
+    // (slinger-feaf29).
     session.kill().unwrap();
     session.wait().unwrap();
-    assert_eq!(heard(&client.session_show("scout").unwrap()), ("listen", Some(false), Some(1)));
+    let waiting = client.session_show("scout").unwrap();
+    assert_eq!(heard(&waiting), ("listen", Some(false), Some(1)));
+    let before = (waiting.status.as_deref(), waiting.note.as_deref());
+    assert_eq!(before, (Some("blocked"), Some("need the key")));
     let err = client.session_listen_in("notes", NONE, Some(session.id())).unwrap_err();
     assert_eq!(err.code(), "invalid", "{err}");
     let again = client.session_listen("notes", NONE).unwrap().sling.unwrap();
     assert_eq!(again.event, slung.event, "the next listener takes it");
+    let working = client.session_show("scout").unwrap().status;
+    assert_eq!(working.as_deref(), Some("working"), "and works on it");
 
     // Saying done (or blocked) ends the work, and the listener stays to ask again.
     client.status_set("scout", "done", None).unwrap();

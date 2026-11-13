@@ -617,7 +617,7 @@ with the note as its `reason` (empty without one) and `done` appends
 `agent_done` with the note as its `summary`; the event's source and `agent`
 tag are the agent, and its workspace tag follows the rule under "Data
 directory". `working` has no event in the record: the daemon holds it until
-it stops. A session shows the status set last since the daemon started, else
+it stops, or until the listener whose sling set it is gone ("Listening"). A session shows the status set last since the daemon started, else
 the last `agent_blocked` or `agent_done` with its agent tag in the record, so
 `blocked` and `done` survive a restart. An agent no open workspace names may
 set a status too: the record keeps it, and the session shows it once a
@@ -799,8 +799,9 @@ holds the packet's images, and a note that says to pass `--agent`, to set
 that is gone loses none. With `pid`, the listener works on the sling in that
 process (the Claude Code session, not the CLI that asked): when it ends
 before the listener says it is done, the listener is gone and the sling
-waits again, the oldest, for the next to listen (the agent's status stays
-`working`). A `pid` that is not running is `invalid`.
+waits again, the oldest, for the next to listen. Nobody works on it, so
+the `working` that taking it set is dropped: the session shows the status
+from before, its last `blocked` or `done`, or none. A `pid` that is not running is `invalid`.
 
 One listener state per agent (`slinger_core::session::listen`). A listener
 is there while a request of its is open, for 10 seconds after one ended, and

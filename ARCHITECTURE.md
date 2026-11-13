@@ -280,7 +280,9 @@ sessions.rs  the statuses agents set since the daemon started (`working`
 listeners.rs the listeners, one per agent (`session::listen`), behind one
              lock and a condvar: `listen` holds an ask open until a sling
              comes, the wait passes or the daemon stops. Each lock finds a
-             listener whose worker process ended `gone` (`alive`: kill 0).
+             listener whose worker process ended `gone` (`alive`: kill 0);
+             `freed` names those agents, and `sessions.rs` drops the
+             `working` their sling set.
 processes.rs the agents' processes, one per agent: spawned in the agent's
              home (or its profile's dir) within its limits, with `SLINGER_AGENT` and `SLINGER_SOCKET`,
              written to under one lock, read by a thread each so a pipe never
