@@ -827,6 +827,9 @@ record keeps each sling from the time it waits until its listener deals with
 it, so a daemon that stops loses none: after a restart every sling not dealt
 with waits, oldest first, the one a listener worked on too (the stop ended
 its claim, as a `pid` that ends does), and nobody listens until one asks.
+A sling handed out whose packet directory lacks a file (deleted while the
+daemon was down, say) has its text and images written there again from the
+record first.
 A stopping daemon ends every open request with no
 sling. A workspace that is not open is `not_found`, one with no agent
 `invalid`.
