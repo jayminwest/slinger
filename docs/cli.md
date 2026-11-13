@@ -194,7 +194,15 @@ slingerd's own. `--select c42,t12` keeps only those items in the outline.
 A read changes nothing. The packet is stored as a blob (`packet` in
 `--json`), and so is each image (`images`), for `blob get`. A canvas or
 page that is not there exits 3 (`not_found`), an id that is not one exits
-5 (`invalid`).
+5 (`invalid`). A page of a PDF (a `pdf` item, `d3` in a packet) is a text
+line naming its page and its blob, never an image; the outline holds one only
+when new ink lies over it (the ink's line says `over=d3`) or it is selected.
+`blob get` with its `blob=` fetches the PDF.
+
+`canvas show` lists the pages of a PDF the app opened as `pdf` items. The
+CLI makes none: `canvas put` has no PDF, `canvas schema` does not list the
+kind, and only the app reads a PDF's page sizes. Like the user's ink, an
+agent cannot edit or remove them.
 
 `canvas changes` prints nothing and exits 0 when nothing is newer. With
 `--wait`, it first waits up to that many milliseconds (at most 60000) for a
@@ -211,7 +219,8 @@ tenths of a unit, like every canvas command, on the first page unless
 beside it in tiles, `<stem>-1.png` and on (an item's tiles cut down to
 their ink, as in a packet; a box's tiles whole). Both or neither of `--item` and
 `--box` exit 2 (`usage`); a box too large, over 16000 units a side, exits
-5 (`invalid`). `canvas strokes` prints the raw points of a stroke or of every
+5 (`invalid`). A `pdf` item draws as its frame in grey with `pdf p<page>`:
+only the app can draw a PDF's page. `canvas strokes` prints the raw points of a stroke or of every
 stroke of a cluster; an item that is not ink exits 5. An item that is not
 there exits 3 (`not_found`).
 
@@ -290,7 +299,10 @@ process; with neither it waits for a listener, and `--json` has `deliver` as
 profile: with none running it exits 6 (`unavailable`) with a hint to
 `session start` it, and sends and records nothing. A canvas no open
 workspace has exits 3, a workspace with no agent or an id that is not one
-exits 5.
+exits 5. Only the app can render a PDF: ink slung from the CLI over a PDF's
+page goes on white, its line naming the page (`over=`) but not quoting the
+PDF's words under it, as a sling from the app does (`docs/service.md`, "The
+page under the ink").
 
 `session listen` makes the session that runs it the agent's listener: it
 waits for the next sling to the workspace's agent, prints it and exits, so a

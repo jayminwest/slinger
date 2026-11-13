@@ -543,7 +543,7 @@ is not enough: an image of one item or one box (R5), and the raw points of
 ink (R6).
 
 **Ids.** `of` and `item` take an item id as `canvas_show` gives it (`i12`)
-or as a packet gives it (`c12`, `t12`, `b12`, `a12`). The number is the
+or as a packet gives it (`c12`, `t12`, `b12`, `a12`, `d12`). The number is the
 item's. `c<n>` on a stroke of the user's names every stroke of the cluster
 it is in, clustered on the page as it is now; on anything else it names the
 item alone. An id that is not one is `invalid`; an item that is not there
@@ -554,7 +554,9 @@ in its colour on white, and tiles of at most 1568 pixels a side, overlapping
 by 64. An item is framed by a 16-unit margin. A box `of` is `x,y,w,h` in
 tenths of a unit on the first page, or `<page>:x,y,w,h` on the page with
 that id or name; it is cut at its edges, and a box with nothing in it is a
-white image. A crop is at most 16000 units a side (at most 4 by 4 tiles):
+white image. A `pdf` item draws as its frame in grey with `pdf p<page>`
+at its top left: only the app can draw a PDF's page, and a crop takes no
+backdrop (docs/design/pdf.md). A crop is at most 16000 units a side (at most 4 by 4 tiles):
 a larger one, or a negative size, is `invalid` with a hint. The daemon
 writes one image to `path`, making its directory if missing; tiles go
 beside it as `<stem>-1.png`, `<stem>-2.png`, ... in reading order. Each image
