@@ -372,6 +372,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a sling that waits for a listener keeps saying "nobody listens"
+  when you start the agent's process meanwhile. The process does not take
+  it, but its pill said the agent was done. Once a listener takes it, it
+  says "working".
 - **App:** a sling to a started agent says "working" while the agent works
   on it, with about how many tokens its context holds (`· ~2.0k`), and is
   answered when the agent's turn ends. Once a sling had waited for a

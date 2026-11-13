@@ -2,10 +2,13 @@
 //! each [`Ask`] as one `sling_send` and hands back what the daemon said, so
 //! the main thread never waits on the socket. The daemon picks the agent
 //! (the agent of the open workspace whose canvas it is) and replies once
-//! the message is in the agent's process. The thread then follows the
-//! agent's session (`session_show`, every [`EVERY`]) until the agent has
-//! no message pending or its process is gone, handing back each change, so
-//! the window can say it works and when it answered (SPEC P6).
+//! the message is in the agent's process, or waits for its listener. The
+//! thread then follows the agent's session (`session_show`, every
+//! [`EVERY`]) until the agent has no message pending or its process is
+//! gone, handing back each change, so the window can say it works and when
+//! it answered (SPEC P6). The session is read as the way the sling went
+//! ([`progress`]): a process started while it waits for a listener does
+//! not take it.
 //!
 //! Over a PDF, the sling first asks the daemon which areas of its pages lie
 //! under the new ink (`sling_backdrops`), renders each with the [`Render`]
@@ -80,7 +83,7 @@ impl Slinger {
             let client = || theirs.lock().unwrap_or_else(PoisonError::into_inner).clone();
             let mut next = to_send.recv().ok();
             while let Some(ask) = next.take() {
-                let (agent, tokens) = match sling(&client(), ask, render.as_ref()) {
+                let (agent, tokens, to) = match sling(&client(), ask, render.as_ref()) {
                     Ok(went) => went,
                     Err(problem) => {
                         if tell.send(Heard::Failed(problem)).is_err() {
@@ -93,7 +96,7 @@ impl Slinger {
                 if tell.send(Heard::Went(agent.clone(), tokens)).is_err() {
                     return;
                 }
-                next = match follow(&client, &agent, &to_send, &tell) {
+                next = match follow(&client, (&agent, to), &to_send, &tell) {
                     Some(Followed::Over) => to_send.recv().ok(),
                     Some(Followed::Next(ask)) => Some(ask),
                     None => return,
@@ -130,12 +133,12 @@ enum Followed {
     Next(Ask),
 }
 
-/// Follows `agent`'s session through the daemon `client` gives, telling
-/// each change to `tell`, until it is over or a new ask comes on `asks`.
-/// `None`: the slinger was dropped.
+/// Follows `agent`'s session through the daemon `client` gives, as the
+/// sling went `to` it, telling each change to `tell`, until it is over or
+/// a new ask comes on `asks`. `None`: the slinger was dropped.
 fn follow(
     client: &impl Fn() -> Client,
-    agent: &str,
+    (agent, to): (&str, Option<To>),
     asks: &Receiver<Ask>,
     tell: &Sender<Heard>,
 ) -> Option<Followed> {
@@ -152,7 +155,7 @@ fn follow(
         }
         let (heard, over) = match client().session_show(agent) {
             Ok(session) => {
-                let now = progress(&session);
+                let now = progress(&session, to);
                 let over = !now.running || now.pending == 0;
                 if last.as_ref() == Some(&now) {
                     continue;
@@ -176,11 +179,13 @@ fn follow(
 /// under another), and the sling goes only to that profile. Returns the
 /// agent it went to and the tokens it costs. With `render` and the PDFs'
 /// directory, the page under the new ink goes with it ([`backdrops`]).
+/// Returns the agent it went to, the tokens it costs and the way it went
+/// (`None`: the daemon does not say).
 fn sling(
     daemon: &Client,
     ask: Ask,
     render: Option<&(Render, PathBuf)>,
-) -> Result<(String, Option<u64>), Problem> {
+) -> Result<(String, Option<u64>, Option<To>), Problem> {
     let profile = match ask.profile {
         Profile::Running => None,
         Profile::Picked(profile) => {
@@ -204,7 +209,8 @@ fn sling(
     let slung = daemon.sling_send(request);
     let _ = fs::remove_dir_all(&dir);
     let slung = slung.map_err(Problem::from)?;
-    Ok((slung.agent, slung.tokens))
+    let to = slung.deliver.map(|d| if d == "listen" { To::Listener } else { To::Process });
+    Ok((slung.agent, slung.tokens, to))
 }
 
 /// The page under the new ink of `canvas`'s `page`, rendered with `render`
@@ -246,20 +252,39 @@ fn backdrops(
     out
 }
 
-/// What the window wants of the agent's `session` while a sling is out.
-fn progress(session: &Session) -> Progress {
+/// The way a sling went to its agent (`deliver` in the sling's reply).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum To {
+    Process,
+    /// It waits for a listener to take it.
+    Listener,
+}
+
+/// What the window wants of the agent's `session` while a sling that went
+/// `to` it is out (`None`: as the session says its next sling goes). The
+/// session tells of what takes its next sling: when that is not what took
+/// this one, the session does not count this sling's pending.
+fn progress(session: &Session, to: Option<To>) -> Progress {
     let blocked = session.status.as_deref() == Some("blocked");
+    let shown = if session.deliver == "listen" { To::Listener } else { To::Process };
+    let to = to.unwrap_or(shown);
     // A sling a listener takes has no process to end: it is out until taken and answered.
-    let listen = session.deliver == "listen";
-    let pending = session.pending.unwrap_or(0);
+    let listen = to == To::Listener;
+    let running = listen || session.process.as_deref() == Some("running");
+    // Not the session's to count: a process started since, which a sling
+    // waiting for a listener still waits through, nobody listening; or a
+    // listener came while the process works on it.
+    let pending = if to == shown { session.pending.unwrap_or(0) } else { u32::from(running) };
+    let listening = if to == shown { session.listening } else { Some(false) };
     Progress {
-        running: listen || session.process.as_deref() == Some("running"),
+        running,
         pending,
-        unheard: listen && pending > 0 && session.listening == Some(false),
+        unheard: listen && pending > 0 && listening == Some(false),
         blocked: blocked.then(|| session.note.clone().unwrap_or_default()),
         answer: session.answer.clone(),
         profile: session.profile.clone(),
-        tokens: session.context,
+        // A process's context is not what a listener reads.
+        tokens: session.context.filter(|_| to == shown),
     }
 }
 
