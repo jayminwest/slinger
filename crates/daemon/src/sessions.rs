@@ -99,21 +99,33 @@ impl Sessions {
 
     /// The agent of the open workspace `which` names, and the next sling
     /// that waits for its listener, waiting up to `wait` for one. Taking a
-    /// sling sets the agent `working`: no hook of the listener's does.
+    /// sling sets the agent `working`: no hook of the listener's does. The
+    /// listener works on it in the process `by` when it names one, and is
+    /// gone once that process ends.
     ///
     /// # Errors
     ///
-    /// `not_found` for a workspace that is not open and `invalid` for one
-    /// with no agent.
+    /// `not_found` for a workspace that is not open, `invalid` for one with
+    /// no agent or a process `by` that is not running.
     pub fn listen(
         &self,
         store: &Store,
         which: &str,
         wait: Duration,
+        by: Option<u32>,
     ) -> Result<(String, Option<Heard>)> {
         let opened = store.workspaces().show(which)?;
         let agent = session::agent_of(&opened.workspace)?.to_string();
-        let sling = self.listeners.listen(&agent, wait);
+        if let Some(pid) = by.filter(|&pid| !crate::listeners::alive(pid)) {
+            return Err(slinger_core::Error::Invalid {
+                message: format!("no process {pid} is running to listen in"),
+                hint: Some("pass the pid of the session that listens, or none".into()),
+            }
+            .into());
+        }
+        let sling = self.listeners.listen(&agent, wait, by);
+        // A listener found gone in this ask is forgotten before this one works.
+        drop(self.statuses());
         if sling.is_some() {
             self.set(store, &agent, Status::Working.name(), None)?;
         }
@@ -261,7 +273,7 @@ impl Sessions {
     /// The error of the list of workspaces or of the record.
     pub fn list(&self, store: &Store) -> Result<Vec<Session>> {
         let open = store.workspaces().usable()?;
-        let set = self.set.lock().unwrap_or_else(PoisonError::into_inner);
+        let set = self.statuses();
         let mut failed = None;
         let mut sessions = session::list(open.iter().map(|o| (&o.dir, &o.workspace)), |agent| {
             set.get(agent).cloned().or_else(|| {
@@ -310,7 +322,7 @@ impl Sessions {
     ) -> Result<(Report, Option<Event>)> {
         session::check_agent(agent)?;
         let status = Status::parse(status)?;
-        let mut set = self.set.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut set = self.statuses();
         let event = match status.body(note.as_deref()) {
             Some(body) => {
                 let tags = Tags { agent: Some(agent.into()), ..Tags::on("") };
@@ -318,9 +330,26 @@ impl Sessions {
             }
             None => None,
         };
+        if status != Status::Working {
+            // Its listener, if it has one, dealt with the sling it took.
+            self.listeners.done(agent);
+        }
         let report = Report { status, note };
         set.insert(agent.to_string(), report.clone());
         Ok((report, event))
+    }
+
+    /// The statuses set since the daemon started, less the `working` of each
+    /// agent whose listener was found gone: it no longer works on the sling
+    /// it took, which waits again. Its session shows the status from before.
+    fn statuses(&self) -> MutexGuard<'_, HashMap<String, Report>> {
+        let mut set = self.set.lock().unwrap_or_else(PoisonError::into_inner);
+        for agent in self.listeners.freed() {
+            if set.get(&agent).is_some_and(|r| r.status == Status::Working) {
+                set.remove(&agent);
+            }
+        }
+        set
     }
 
     /// Records that `agent` wrote the file at `path`, or at the path a

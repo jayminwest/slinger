@@ -17,7 +17,8 @@
 //! opened the showing (`backend::ui::reply`); the pane notes one its agent
 //! did not take. `slinger-app --preview UI [--data JSON]` shows one agent UI
 //! (or a showing) alone in the window, `--as item` as a live item on a
-//! canvas, and writes each of its replies to stdout, one `ui_reply` line each.
+//! canvas, and writes each of its replies to stdout, one `ui_reply` line each;
+//! with `--background` last its window is never shown (the tests pass it).
 
 mod backend;
 mod canvases;
@@ -62,9 +63,12 @@ fn main() -> ExitCode {
     match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
         [] => window(settings),
         ["--preview", reference, ref more @ ..] => preview(&settings, reference, more),
-        _ => fail("usage: slinger-app [--preview UI [--data JSON] [--as item]]", None),
+        _ => fail(USAGE, None),
     }
 }
+
+/// What to type, said when the arguments are not these.
+const USAGE: &str = "usage: slinger-app [--preview UI [--data JSON] [--as item] [--background]]";
 
 /// Writes `message` and its `hint` to stderr; the exit code for a failure.
 fn fail(message: &str, hint: Option<&str>) -> ExitCode {
@@ -79,11 +83,16 @@ fn fail(message: &str, hint: Option<&str>) -> ExitCode {
 /// Shows the agent UI `reference` names (or a showing, by its id) alone,
 /// with `--data` as its context's data (else the showing's), as a pane or
 /// `--as item`, and writes each reply to stdout until the window closes.
+/// With `--background` last the window is never shown.
 fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
+    let (more, kept) = match more {
+        [more @ .., "--background"] => (more, platform::Kept::Background),
+        _ => (more, platform::Kept::Preview),
+    };
     let (data, item) = match more {
         [] | ["--as", "item"] => (None, !more.is_empty()),
         ["--data", data] | ["--data", data, "--as", "item"] => (Some(*data), more.len() > 2),
-        _ => return fail("usage: slinger-app --preview UI [--data JSON] [--as item]", None),
+        _ => return fail(USAGE, None),
     };
     let data = match data.map(ui::data).transpose() {
         Ok(data) => data,
@@ -120,7 +129,7 @@ fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
         }
         _ => Step::Pass,
     };
-    match platform::run(&scene, platform::Kept::Preview, answer) {
+    match platform::run(&scene, kept, answer) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => fail(&e.to_string(), None),
     }
@@ -228,7 +237,8 @@ fn remembering(
 /// `open-workspace` (its folder) are
 /// done here, as only `platform` reaches the Finder and the open panel: the
 /// focused pane's canvas file shows there, or the flash says why it cannot;
-/// the PDF chosen opens as a canvas, its pages read by `platform`. A cut, copy or paste no text
+/// the PDF chosen, or dropped on the window, opens as a canvas, its pages
+/// read by `platform`. A cut, copy or paste no text
 /// field took is [`window::edit`]'s in `area` (a pass greys its menu item).
 fn asked(
     event: &Event,
@@ -243,6 +253,11 @@ fn asked(
             return Ask::Step(Step::Stay);
         }
         Event::Can(_) => return Ask::Step(Step::Pass),
+        Event::Dropped(at, files) => {
+            let pdf = platform::pdf::pages;
+            let opened = window::open_pdf(files, Some(*at), shared, canvases, area, pdf);
+            return if opened { Ask::Draw(None) } else { Ask::Step(Step::Pass) };
+        }
         Event::Edit(edit) => {
             return match window::edit(edit, shared, canvases, tools, area) {
                 Edited::No => Ask::Step(Step::Stay),
@@ -257,10 +272,8 @@ fn asked(
             return platform::choose_folder().map_or(Ask::Draw(None), Ask::Open);
         }
         Ask::Run(Command::OpenPdf) => {
-            if let Some(file) = platform::pdf::choose() {
-                let (panes, workspace) = (&shared.panes, shared.workspace.as_deref());
-                canvases.open_pdf(panes, workspace, file, platform::pdf::pages);
-            }
+            let file: Vec<_> = platform::pdf::choose().into_iter().collect();
+            window::open_pdf(&file, None, shared, canvases, area, platform::pdf::pages);
             return Ask::Draw(None);
         }
         _ => return asked,

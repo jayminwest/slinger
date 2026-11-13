@@ -1,7 +1,7 @@
 //! `slinger session ...`, `slinger status set` and `slinger file touched`
-//! against a real daemon. The name from `SLINGER_AGENT` is tested against the
-//! real binary, in `tests/agent_env.rs`: these tests run in one process and
-//! share its environment.
+//! against a real daemon. Each run gets its own environment, not this
+//! process's; the name from `SLINGER_AGENT` is tested against the real
+//! binary too, in `tests/agent_env.rs`.
 
 use serde_json::Value;
 
@@ -70,18 +70,14 @@ fn bad_statuses_and_unknown_sessions_get_their_exit_codes() {
 
 #[test]
 fn a_session_starts_takes_messages_and_stops_quietly() {
-    let (projects, bin) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let projects = tempfile::tempdir().unwrap();
     let dir = projects.path().join("notes");
     std::fs::create_dir(&dir).unwrap();
     let dir = dir.canonicalize().unwrap();
     let file = "version = 1\nname = \"notes\"\n[agent]\nname = \"scout\"\n";
     std::fs::write(dir.join("slinger-workspace.toml"), file).unwrap();
-    // A stand-in for Claude Code: it keeps every line it is sent, in its home.
-    let claude = bin.path().join("claude");
-    std::fs::write(&claude, "#!/bin/sh\nexec cat >> in.txt\n").unwrap();
-    std::fs::set_permissions(&claude, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
     let path = dir.to_str().unwrap();
-    let runs = with_daemon_running(&claude, |socket| {
+    let runs = with_daemon_running(|socket| {
         let mut runs = vec![
             cli_on(socket, &["session", "send", "notes", "early"]),
             cli_on(socket, &["workspace", "open", path]),

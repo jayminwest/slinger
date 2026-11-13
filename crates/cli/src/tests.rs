@@ -9,6 +9,7 @@ use tempfile::TempDir;
 use slingerd as daemon;
 
 use crate::cli::{NAME, run};
+use crate::env::Env;
 use crate::output::{Ctx, color_enabled, exit};
 
 mod canvas;
@@ -55,11 +56,20 @@ fn cli_each(runs: &[&[&str]]) -> Vec<Run> {
 /// call. An agent's process cannot start: its program is not there, so no
 /// test runs the real Claude Code by accident.
 fn with_daemon<T>(f: impl FnOnce(&Path) -> T) -> T {
-    with_daemon_running(Path::new("/nonexistent/claude"), f)
+    with_daemon_on(Path::new("/nonexistent/claude"), f)
 }
 
-/// [`with_daemon`], with each agent's process running `claude`.
-fn with_daemon_running<T>(claude: &Path, f: impl FnOnce(&Path) -> T) -> T {
+/// [`with_daemon`], with each agent's process running the stand-in for
+/// Claude Code (`tests/claude`, which says what it does). One file kept in
+/// the tree, not one written per test: macOS checks a new executable on its
+/// first exec, one at a time across the machine, and under load a stand-in
+/// written per test started too late for the tests (slinger-6d54ed).
+fn with_daemon_running<T>(f: impl FnOnce(&Path) -> T) -> T {
+    with_daemon_on(&Path::new(env!("CARGO_MANIFEST_DIR")).join("src/tests/claude"), f)
+}
+
+/// Runs `f` against a new daemon whose agents' processes run `claude`.
+fn with_daemon_on<T>(claude: &Path, f: impl FnOnce(&Path) -> T) -> T {
     let (_dir, socket) = socket_path();
     let data = tempfile::tempdir().unwrap();
     let store = daemon::Store::open(data.path(), "my-laptop").unwrap().with_claude(claude);
@@ -78,10 +88,22 @@ fn cli_on(socket: &Path, args: &[&str]) -> Run {
 
 /// Runs the CLI with `input` on stdin and `out` as stdout, keeping a copy of stdout.
 fn cli_raw(socket: &Path, args: &[&str], input: &[u8], out: &mut dyn Write) -> Run {
+    cli_in(&Env::default(), socket, args, input, out)
+}
+
+/// Runs the CLI as an agent's process would: with `agent` as `$SLINGER_AGENT`.
+fn cli_as(agent: &str, socket: &Path, args: &[&str]) -> Run {
+    let env = Env { agent: Some(agent.into()), ..Env::default() };
+    cli_in(&env, socket, args, b"", &mut Vec::new())
+}
+
+/// [`cli_raw`] in the environment `env`: a run sees only the environment it
+/// is given, never this process's (slinger-09c5b5).
+fn cli_in(env: &Env, socket: &Path, args: &[&str], input: &[u8], out: &mut dyn Write) -> Run {
     let socket = socket.to_str().unwrap();
     let args: Vec<&str> = args.iter().copied().chain(["--socket", socket]).collect();
     let mut copy = Vec::new();
-    let mut run = cli_with(&args, input, &mut Tee(out, &mut copy));
+    let mut run = cli_with(env, &args, input, &mut Tee(out, &mut copy));
     run.out = String::from_utf8_lossy(&copy).into();
     run
 }
@@ -103,16 +125,16 @@ impl Write for Tee<'_> {
 
 fn cli_bare(args: &[&str]) -> Run {
     let mut out = Vec::new();
-    let mut run = cli_with(args, b"", &mut out);
+    let mut run = cli_with(&Env::default(), args, b"", &mut out);
     run.out = String::from_utf8_lossy(&out).into();
     run
 }
 
 /// Runs the CLI; `out` gets stdout, which the returned run leaves empty.
-fn cli_with(args: &[&str], input: &[u8], out: &mut dyn Write) -> Run {
+fn cli_with(env: &Env, args: &[&str], input: &[u8], out: &mut dyn Write) -> Run {
     let mut err = Vec::new();
     let argv0_and_args = std::iter::once(NAME).chain(args.iter().copied());
-    let code = run(argv0_and_args, &mut &input[..], out, &mut err, false);
+    let code = run(argv0_and_args, env, &mut &input[..], out, &mut err, false);
     Run { code, out: String::new(), err: String::from_utf8_lossy(&err).into() }
 }
 

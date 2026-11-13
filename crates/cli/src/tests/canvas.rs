@@ -1,6 +1,6 @@
 //! `slinger canvas ...` against a real daemon.
 
-use super::{cli, cli_bare, cli_each, cli_on, cli_raw, json, with_daemon};
+use super::{cli, cli_as, cli_bare, cli_each, cli_on, cli_raw, json, with_daemon};
 use crate::output::exit;
 
 const BOX: &str = r#"{"op":"add","item":{"page":"p1","kind":"box","x":10,"y":20,"w":100,"h":50}}"#;
@@ -28,6 +28,27 @@ fn create_apply_show_and_list_print_their_results() {
     assert_eq!(out[4], "main\n");
     assert_eq!(out[5], "");
     assert!(out[6].starts_with("i2\t"), "{}", out[6]);
+}
+
+/// The agent comes from the environment the run is given, `--agent` before
+/// it; with none, the user acts, whatever this test process's own
+/// `SLINGER_AGENT` says (slinger-09c5b5).
+#[test]
+fn the_agent_comes_from_the_runs_environment_and_the_flag_wins() {
+    let shown = with_daemon(|socket| {
+        assert_eq!(cli_on(socket, &["canvas", "create", "main"]).code, exit::OK);
+        for run in [
+            cli_on(socket, &["canvas", "apply", "main", BOX]),
+            cli_as("scout", socket, &["canvas", "apply", "main", BOX]),
+            cli_as("scout", socket, &["canvas", "apply", "main", BOX, "--agent", "ada"]),
+            cli_as("scout", socket, &["canvas", "put", "main", "--beside", "i1", "--text", "hi"]),
+        ] {
+            assert_eq!((run.code, run.err.as_str()), (exit::OK, ""), "{}", run.out);
+        }
+        cli_on(socket, &["canvas", "show", "main"]).out
+    });
+    let by: Vec<&str> = shown.lines().map(|l| l.split('\t').nth(2).unwrap()).collect();
+    assert_eq!(by, ["user", "agent:scout", "agent:ada", "agent:scout"]);
 }
 
 #[test]
@@ -78,6 +99,43 @@ fn failures_map_to_their_exit_codes() {
         [exit::OK, exit::CONFLICT, exit::INVALID, exit::INVALID, exit::OK, exit::INVALID]
     );
     assert!(runs[5].err.contains("agent ada may not change"), "{}", runs[5].err);
+}
+
+#[test]
+fn create_with_ops_makes_the_whole_canvas_or_none() {
+    let dir = tempfile::TempDir::new().unwrap();
+    let file = |name: &str, text: &str| {
+        let path = dir.path().join(name);
+        std::fs::write(&path, text).unwrap();
+        path.to_str().unwrap().to_string()
+    };
+    let text = r#"{"op":"add","item":{"page":"p1","kind":"text","x":0,"y":0,"text":"plan"}}"#;
+    let two = file("two.json", &format!("[{BOX},{text}]"));
+    // Its second box is on a page the canvas does not have.
+    let refused = file("refused.json", &format!("[{BOX},{}]", BOX.replace("p1", "p9")));
+    let not_json = file("not.json", "{not json");
+    let gone = dir.path().join("gone.json");
+    let runs = cli_each(&[
+        &["canvas", "create", "plan", "--ops", &two],
+        &["canvas", "show", "plan"],
+        &["canvas", "create", "half", "--ops", &refused],
+        &["canvas", "create", "bad", "--ops", &not_json, "--json"],
+        &["canvas", "create", "none", "--ops", gone.to_str().unwrap()],
+        &["canvas", "list"],
+    ]);
+    let codes: Vec<u8> = runs.iter().map(|r| r.code).collect();
+    assert_eq!(
+        codes,
+        [exit::OK, exit::OK, exit::NOT_FOUND, exit::INVALID, exit::NOT_FOUND, exit::OK]
+    );
+    assert_eq!((runs[0].out.as_str(), runs[0].err.as_str()), ("", ""));
+    let lines: Vec<&str> = runs[1].out.lines().collect();
+    assert_eq!(lines.len(), 2, "{}", runs[1].out);
+    assert!(lines[0].starts_with("i1\tbox\tuser\t{"), "{}", lines[0]);
+    assert!(lines[1].starts_with("i2\ttext\tuser\t{"), "{}", lines[1]);
+    assert_eq!(json(&runs[3])["code"], "invalid");
+    // Only the canvas whose every operation applied is there.
+    assert_eq!(runs[5].out, "plan\n");
 }
 
 const BOARD: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../core/tests/fixtures/idea.tldraw");

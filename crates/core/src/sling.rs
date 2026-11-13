@@ -71,6 +71,9 @@ pub enum Verb {
     Put,
     /// `canvas crop`: an image of one item.
     Crop,
+    /// `ui put` and `ui open`: a page of the agent's own, shown in a pane,
+    /// for when words on the canvas are not enough.
+    Ui,
 }
 
 impl Verb {
@@ -89,6 +92,10 @@ impl Verb {
                 "- `slinger canvas crop {canvas} --item <id>` gives an image of an item the \
                  packet shows only as a line.\n"
             ),
+            Self::Ui => "- When words on the canvas are not enough, show a page: `slinger ui put \
+                 <name> <file>` stores an HTML file and `slinger ui open <name>` opens it in a \
+                 pane, `--data <json>` its data.\n"
+                .to_string(),
         }
     }
 
@@ -99,6 +106,7 @@ impl Verb {
                 format!("answer with `slinger canvas put {canvas} --beside <id>`, not in chat")
             }
             Self::Crop => format!("`slinger canvas crop {canvas} --item <id>` for an image"),
+            Self::Ui => "`slinger ui put` and `slinger ui open` for a page in a pane".to_string(),
         }
     }
 }
@@ -133,16 +141,17 @@ pub struct Listener<'a> {
 }
 
 impl Listener<'_> {
-    /// The note's lines for a listener.
-    fn note(self) -> String {
+    /// The note's lines for a listener that can run `verbs`.
+    fn note(self, verbs: &[Verb]) -> String {
         let Self { agent, workspace } = self;
+        let ui = if verbs.contains(&Verb::Ui) { ", `ui open`" } else { "" };
         format!(
             "You took this sling by listening, as agent `{agent}`. Each `img=` names a PNG in \
              the packet's `at=` directory: read the ones you need.\n\
-             - Add `--agent {agent}` to each `canvas put` and `status set`.\n\
+             - Add `--agent {agent}` to each `canvas put`{ui} and `status set`.\n\
              - When you have answered, run `slinger status set done --agent {agent}` (or \
-             `blocked --note <what you need>`), then `slinger session listen {workspace}` \
-             for the next sling.\n"
+             `blocked --note <what you need>`), then `slinger session listen {workspace} --pid \
+             $PPID` for the next sling.\n"
         )
     }
 }
@@ -263,7 +272,7 @@ fn header(sling: &Sling<'_>) -> String {
 /// listener's lines. Nothing on a later sling when there are no verbs
 /// to name and no listener.
 fn note(canvas: &str, first: bool, verbs: &[Verb], listener: Option<Listener<'_>>) -> String {
-    let theirs = listener.map(Listener::note).unwrap_or_default();
+    let theirs = listener.map(|l| l.note(verbs)).unwrap_or_default();
     if first {
         let mut out = format!("# reply\n{INTRO}");
         for verb in verbs {

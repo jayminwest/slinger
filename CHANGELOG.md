@@ -19,6 +19,9 @@ bullet with the area in bold.
 - **Service:** `canvas_create` takes an optional `path`: a file of canvas
   operations the new canvas starts with. The canvas is made with all of them
   or not at all.
+- **CLI:** `slinger canvas create <ID> --ops FILE` makes a canvas that
+  starts with the operations in the file (a JSON list, as `canvas apply`
+  takes), all of them or no canvas at all.
 
 - **App:** recolour what you selected. Picking a colour from the colour
   pop-up with a selection makes its strokes, texts, boxes and arrows that
@@ -38,6 +41,9 @@ bullet with the area in bold.
   the sidebar: under its name, a red ✗ and the error, the field at fault,
   and the hint, wrapped to fit. Tap it, and a Close workspace line under the
   error closes it.
+- **App:** `slinger-app --preview <UI> ... --background` runs a preview
+  without showing its window or a Dock icon. The project's own tests use it,
+  so running them no longer opens windows over your work.
 - **PDF:** open a PDF and write on it. Open PDF… (`open-pdf`, ⌘O) is
   in the File menu, and under a new File group in the key overlay and the
   command palette. It asks for a `.pdf` file and opens it as a new canvas
@@ -48,6 +54,9 @@ bullet with the area in bold.
   paper, under everything else, and the eraser never takes them. A PDF
   that cannot be read, such as one locked with a password, makes nothing
   and says why, and an open that fails partway leaves no half-made canvas.
+  Or drop a PDF from the Finder on the window: it opens the same way,
+  beside the pane you dropped it on. Of several files dropped, the first
+  PDF opens; a drop with no PDF is refused.
 - **PDF:** a PDF's canvas reads like a document. Its pages fit the pane's
   width, a scroll moves up and down only and stops at the first and last
   page, and pinch and the zoom keys do nothing. A pane resized refits the
@@ -70,9 +79,9 @@ bullet with the area in bold.
   crop` draws one as a grey frame (`pdf p<page>`). `sling send` from the
   terminal sends ink over a PDF on white, naming the pages but not
   quoting their words: only the app can read a PDF.
-- **PDF:** not in this release: dropping a PDF on the window, a PDF pane,
-  exporting a PDF, making PDF items from the CLI, the page under the ink
-  in `canvas crop`, and a PDF opened on one machine shown on another.
+- **PDF:** not in this release: a PDF pane, exporting a PDF, making PDF
+  items from the CLI, the page under the ink in `canvas crop`, and a PDF
+  opened on one machine shown on another.
 
 - **Agents:** a Claude Code session of your own can take a workspace's
   slings. Say `/slinger-listen` in it (the plugin and `slinger skill
@@ -303,6 +312,22 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** `slinger ui open` from a session Slinger started opens its
+  pane in that session's workspace when `--workspace` is not given. Before,
+  it failed with `workspace "" not found`. A sling's reply notes now say
+  that an agent can show a page in a pane (`ui put`, `ui open`) when words
+  on the canvas are not enough.
+- **Agents:** a sling or message sent while the agent was still working no
+  longer leaves it showing as working forever. When the agent answers both
+  in one go, the session's `pending` goes back to 0 within about two
+  seconds.
+- **Listening:** a Claude Code session that was closed while it worked on a
+  sling no longer keeps the agent's slings. `session listen --pid $PPID`
+  names the session's process (the `slinger-listen` skill passes it): when
+  it ends, the app shows that nobody listens and the sling waits for the
+  next listener, and the agent no longer shows as working: it shows the
+  status it had before it took the sling. Setting `done` or `blocked` also
+  ends the work on a sling.
 - **PDF:** a PDF page that stayed a grey frame because its file could not
   be fetched is tried again the next time it is on screen, after a wait
   that grows from a second to about a minute. Before, it stayed grey until

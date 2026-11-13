@@ -27,9 +27,9 @@ a "did you mean" suggestion.
 | `ui list` | One line per UI, its latest version: `<name>@<version>`, hash, bytes, source and time, separated by tabs. `--json`: `uis` |
 | `ui show <NAME>` | One line per version of that UI, oldest first, as `ui list`. `--json`: `uis` |
 | `ui export <UI> [--out DIR]` | The path of the file written, `<DIR>/<name>.v<version>.html`. `--json`: `ui`, `path` |
-| `ui open <UI> --workspace W [--as pane] [--data JSON\|-] [--beside N] [--below] [--agent NAME]`, `ui open <UI> --as item --canvas C --beside ITEM [--size W,H] [--data JSON\|-] [--agent NAME]` | `<open>\t<pane>`: the showing's id (`pick-slot#12`) and the new pane's number, or `<open>\t<item>` and the live item's id. `--json`: `open`, `ui`, `workspace`, `pane` or `item` (`canvas`, `item`, `page`, `x`, `y`, `w`, `h`, `seq`), `event` |
+| `ui open <UI> [--workspace W] [--as pane] [--data JSON\|-] [--beside N] [--below] [--agent NAME]`, `ui open <UI> --as item --canvas C --beside ITEM [--size W,H] [--data JSON\|-] [--agent NAME]` | `<open>\t<pane>`: the showing's id (`pick-slot#12`) and the new pane's number, or `<open>\t<item>` and the live item's id. `--json`: `open`, `ui`, `workspace`, `pane` or `item` (`canvas`, `item`, `page`, `x`, `y`, `w`, `h`, `seq`), `event` |
 | `blob get <ID> [--out FILE]` | The blob's bytes, exactly, on stdout. With `--out`: nothing, and the file holds the bytes. `--json` (needs `--out`): `id`, `size` |
-| `canvas create <ID>` | Nothing. `--json`: `canvas` |
+| `canvas create <ID> [--ops FILE]` | Nothing. With `--ops`, the canvas starts with the operations in the file (a JSON list, as `canvas apply` takes), made as the user's in one step: an operation the canvas refuses makes no canvas and fails as `canvas apply` would. `--json`: `canvas` |
 | `canvas list` | One canvas id per line. `--json`: `canvases` (list of ids) |
 | `canvas show <ID> [--page PAGE]` | One line per item on the page, in drawing order: id, kind, maker and the item as JSON, separated by tabs. `--json`: `canvas`, `next`, `page`, `pages`, `items`, `path` (the canvas's file) |
 | `canvas apply <ID> <OPS\|-> [--agent NAME]` | The ids the operations made, one per line. `--json`: `seq`, `made` |
@@ -54,7 +54,7 @@ a "did you mean" suggestion.
 | `profile list <WORKSPACE>` | One line per profile, in its file's order: name, directory (`-` for the agent's home) and rules joined by `, ` (`-` for none), separated by tabs. `--json`: `workspace`, `profiles` |
 | `profile set <WORKSPACE> <NAME> [--dir DIR] [--tool RULE]...`, `profile remove <WORKSPACE> <NAME>` | Nothing. `--json`: `workspace`, `profiles` |
 | `session send <WORKSPACE> <TEXT\|->` | Nothing. `--json`: `session` |
-| `session listen <WORKSPACE> [--wait SECONDS]` | The next sling to the workspace's agent, as text: line 1 `slinger-sling 1 … agent=<NAME>`, the packet (its `at=` names the directory of its images), the note and the prompt. Nothing when `--wait` passes with none. `--json`: `agent`, and `sling` (`event`, `canvas`, `dir`, `text`) when one came |
+| `session listen <WORKSPACE> [--wait SECONDS] [--pid PID]` | The next sling to the workspace's agent, as text: line 1 `slinger-sling 1 … agent=<NAME>`, the packet (its `at=` names the directory of its images), the note and the prompt. Nothing when `--wait` passes with none. `--json`: `agent`, and `sling` (`event`, `canvas`, `dir`, `text`) when one came |
 | `sling send <ID> [--page PAGE] [--select IDS] [--prompt TEXT\|-] [--profile NAME]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id` (empty when a listener takes it), `deliver` (`process` or `listen`), `tokens` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
 | `file touched (<PATH> \| --hook) [--agent NAME]` | Nothing. `--json`: `agent`, `path`, `hash`, `event` |
@@ -127,7 +127,8 @@ if missing. An unknown UI exits 3 (`not_found`). `ui list` with no UIs
 prints nothing and exits 0.
 
 `ui open` is an agent verb (see `status set`): the calling agent shows one
-version of a UI in a new pane of the workspace's window, with `--data` (JSON,
+version of a UI in a new pane of the workspace's window (`--workspace`, by
+default the calling agent's own), with `--data` (JSON,
 `-` reads stdin) as its context's data. Each reply the user makes in it is
 recorded and reaches that agent's running session as one JSON line,
 `{"v":1,"kind":"ui_reply","ui","version","hash","open","value"}`; a reply
@@ -137,7 +138,8 @@ it on canvas `C` instead, as a live item beside `--beside ITEM` (`i12`,
 the user moves, deletes and undoes it like any item. Data that is not JSON
 or over 16384 bytes, a size not above 0, or a window that holds 64 panes,
 exits 5 (`invalid`); a UI, workspace, `--beside` pane or item that is not
-there exits 3 (`not_found`). A refused open records nothing.
+there exits 3 (`not_found`), as does no `--workspace` for an agent with no
+workspace. A refused open records nothing.
 
 `canvas apply` takes one operation as a JSON object, or a list of them, as
 one undo step (the operations are in `docs/service.md`, "Canvas
@@ -312,8 +314,12 @@ names its agent on line 1 (`agent=<NAME>`): the listener passes it as
 `--agent` to `canvas put` and `status set`, then listens again. `session
 show` has `deliver` as `listen` while slings wait or a listener is there,
 with `listening` (whether one is there: it asks, asked within 10 seconds, or
-works on a sling it took) and `pending` (the slings that wait, and the one
-it works on). `--wait 0` takes a waiting sling or prints nothing at once.
+works on a sling it took, until it sets `done` or `blocked`) and `pending`
+(the slings that wait, and the one it works on). `--pid` names the process
+of the session that works on the sling (`$PPID` in Claude Code): if it ends
+first, nobody listens, the sling waits for the next listener and the
+agent's status is the one it had before it took the sling; a pid that
+is not running exits 5. `--wait 0` takes a waiting sling or prints nothing at once.
 The slings that wait are lost when `slingerd` stops; each is in the record.
 `session start` and `session stop` end a listener's claim on the agent: the
 next slings go to the process.

@@ -4,9 +4,11 @@
 //! The core decides what waits and who counts as there
 //! ([`slinger_core::session::listen`]). This module holds one listener per
 //! agent behind a lock, reads the clock, and holds an ask open until a sling
-//! comes, the wait is over or the daemon stops.
+//! comes, the wait is over or the daemon stops. It also looks at the process
+//! a listener named: when that ends while it works on a sling, the listener
+//! is gone and the sling waits again.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
@@ -29,6 +31,8 @@ pub struct Listeners {
     /// A sling came, or the daemon stops.
     came: Condvar,
     stopping: AtomicBool,
+    /// The agents whose listener was found gone, since [`Listeners::freed`].
+    freed: Mutex<HashSet<String>>,
 }
 
 impl Listeners {
@@ -38,14 +42,15 @@ impl Listeners {
         self.came.notify_all();
     }
 
-    /// The oldest sling that waits for `agent`'s listener. With none, waits
-    /// up to `wait` for one, or until [`Listeners::stop`].
-    pub fn listen(&self, agent: &str, wait: Duration) -> Option<Heard> {
+    /// The oldest sling that waits for `agent`'s listener, to work on in the
+    /// process `by` when it names one. With none, waits up to `wait` for
+    /// one, or until [`Listeners::stop`].
+    pub fn listen(&self, agent: &str, wait: Duration, by: Option<u32>) -> Option<Heard> {
         let deadline = Instant::now() + wait;
         let mut all = self.lock();
         all.entry(agent.to_string()).or_default().asked();
         let sling = loop {
-            let taken = all.get_mut(agent).and_then(Listener::take);
+            let taken = all.get_mut(agent).and_then(|listener| listener.take(by));
             let left = deadline.saturating_duration_since(Instant::now());
             if taken.is_some() || left.is_zero() || self.stopping.load(Ordering::SeqCst) {
                 break taken;
@@ -62,6 +67,13 @@ impl Listeners {
     pub fn put_back(&self, agent: &str, sling: Heard) {
         self.lock().entry(agent.to_string()).or_default().put_back(sling);
         self.came.notify_all();
+    }
+
+    /// `agent`'s listener said it dealt with the sling it took.
+    pub fn done(&self, agent: &str) {
+        if let Some(listener) = self.lock().get_mut(agent) {
+            listener.done(Instant::now());
+        }
     }
 
     /// Whether a listener of `agent`'s is there now.
@@ -87,6 +99,15 @@ impl Listeners {
         }
     }
 
+    /// The agents whose listener was found gone since the last call: each
+    /// one's process ended while it worked on a sling, and the sling waits
+    /// again.
+    pub fn freed(&self) -> Vec<String> {
+        let _all = self.lock();
+        let mut freed = self.freed.lock().unwrap_or_else(PoisonError::into_inner);
+        freed.drain().collect()
+    }
+
     /// Ends every wait, now and from now on: each ask gets its reply.
     pub fn stop(&self) {
         self.stopping.store(true, Ordering::SeqCst);
@@ -95,9 +116,34 @@ impl Listeners {
         self.came.notify_all();
     }
 
+    /// The listeners, each one whose process ended while it worked found gone.
     fn lock(&self) -> MutexGuard<'_, HashMap<String, Listener>> {
-        self.by_agent.lock().unwrap_or_else(PoisonError::into_inner)
+        let mut all = self.by_agent.lock().unwrap_or_else(PoisonError::into_inner);
+        let gone: Vec<&String> = all
+            .iter_mut()
+            .filter(|(_, listener)| listener.worker().is_some_and(|pid| !alive(pid)))
+            .map(|(agent, listener)| {
+                listener.gone();
+                agent
+            })
+            .collect();
+        if !gone.is_empty() {
+            let mut freed = self.freed.lock().unwrap_or_else(PoisonError::into_inner);
+            freed.extend(gone.into_iter().cloned());
+            self.came.notify_all();
+        }
+        all
     }
+}
+
+/// Whether the process `pid` is there. One of another user's is.
+#[must_use]
+pub fn alive(pid: u32) -> bool {
+    let pid = i32::try_from(pid).ok().and_then(rustix::process::Pid::from_raw);
+    pid.is_some_and(|pid| match rustix::process::test_kill_process(pid) {
+        Ok(()) => true,
+        Err(e) => e != rustix::io::Errno::SRCH,
+    })
 }
 
 #[cfg(test)]
@@ -114,11 +160,11 @@ mod tests {
         assert_eq!(listeners.shown("scout"), None);
         listeners.push("scout", sling(1));
         assert_eq!(listeners.shown("scout"), Some(Listening { attached: false, pending: 1 }));
-        assert_eq!(listeners.listen("ada", Duration::ZERO), None, "another agent's sling");
-        assert_eq!(listeners.listen("scout", Duration::from_secs(30)), Some(sling(1)));
+        assert_eq!(listeners.listen("ada", Duration::ZERO, None), None, "another agent's sling");
+        assert_eq!(listeners.listen("scout", Duration::from_secs(30), None), Some(sling(1)));
         assert_eq!(listeners.shown("scout"), Some(Listening { attached: true, pending: 1 }));
         let began = Instant::now();
-        assert_eq!(listeners.listen("scout", Duration::from_millis(30)), None);
+        assert_eq!(listeners.listen("scout", Duration::from_millis(30), None), None);
         assert!(began.elapsed() >= Duration::from_millis(30));
         assert_eq!(listeners.shown("scout"), Some(Listening { attached: true, pending: 0 }));
         listeners.release("scout");
@@ -129,21 +175,25 @@ mod tests {
     fn an_open_ask_wakes_for_a_sling_and_for_a_stop() {
         let listeners = Listeners::default();
         std::thread::scope(|scope| {
-            let ask = scope.spawn(|| listeners.listen("scout", Duration::from_secs(30)));
+            let ask = scope.spawn(|| listeners.listen("scout", Duration::from_secs(30), None));
             while !listeners.attached("scout") {
                 std::thread::yield_now();
             }
             listeners.push("scout", sling(7));
             assert_eq!(ask.join().unwrap(), Some(sling(7)));
-            let ask = scope.spawn(|| listeners.listen("scout", Duration::from_secs(30)));
+            let ask = scope.spawn(|| listeners.listen("scout", Duration::from_secs(30), None));
             while listeners.shown("scout").is_none_or(|s| s.pending > 0) {
                 std::thread::yield_now();
             }
             listeners.stop();
             assert_eq!(ask.join().unwrap(), None);
         });
-        assert_eq!(listeners.listen("scout", Duration::from_secs(30)), None, "stopped for good");
+        assert_eq!(
+            listeners.listen("scout", Duration::from_secs(30), None),
+            None,
+            "stopped for good"
+        );
         listeners.put_back("scout", sling(7));
-        assert_eq!(listeners.listen("scout", Duration::ZERO), Some(sling(7)));
+        assert_eq!(listeners.listen("scout", Duration::ZERO, None), Some(sling(7)));
     }
 }

@@ -11,11 +11,8 @@ use serde_json::json;
 
 use slinger_control as control;
 
+use crate::env::Env;
 use crate::output::Output;
-
-/// Where an agent verb finds the calling agent's name when `--agent` is not
-/// given (docs/cli.md).
-pub const AGENT_ENV: &str = "SLINGER_AGENT";
 
 /// Help for `--agent`: a string, because a doc comment may not hold `$SLINGER_AGENT` bare.
 pub const AGENT_HELP: &str = "The calling agent [default: $SLINGER_AGENT]";
@@ -63,6 +60,9 @@ pub enum Session {
         /// Give up after this long and print nothing [default: wait until a sling comes]
         #[arg(long, value_name = "SECONDS")]
         wait: Option<u64>,
+        /// The process of the session that works on the sling (in Claude Code, $PPID): once it ends, the sling waits for the next listener
+        #[arg(long, value_name = "PID")]
+        pid: Option<u32>,
     },
 }
 
@@ -159,11 +159,12 @@ pub fn execute(
             };
             Ok(quiet(&daemon.session_send(workspace, text)?))
         }
-        Session::Listen { workspace, wait } => {
+        Session::Listen { workspace, wait, pid } => {
             let until = wait.map(|seconds| Instant::now() + Duration::from_secs(seconds));
             loop {
                 let left = until.map(|u| u.saturating_duration_since(Instant::now()));
-                let heard = daemon.session_listen(workspace, left.map_or(ASK, |l| l.min(ASK)))?;
+                let ask = left.map_or(ASK, |l| l.min(ASK));
+                let heard = daemon.session_listen_in(workspace, ask, *pid)?;
                 if heard.sling.is_some() || left.is_some_and(|l| l <= ASK) {
                     let text = heard.sling.as_ref().map(|s| s.text.clone()).unwrap_or_default();
                     return Ok(Output::new(serde_json::to_value(heard)?, text));
@@ -178,9 +179,9 @@ fn quiet(session: &control::Session) -> Output {
     Output::new(json!({ "session": session }), String::new())
 }
 
-pub fn set(command: &Status, daemon: &control::Client) -> anyhow::Result<Output> {
+pub fn set(command: &Status, daemon: &control::Client, env: &Env) -> anyhow::Result<Output> {
     let Status::Set { status, note, agent } = command;
-    let agent = calling_agent(agent.as_deref())?;
+    let agent = env.calling_agent(agent.as_deref())?;
     let set = daemon.status_set(&agent, status, note.as_deref())?;
     Ok(Output::new(serde_json::to_value(set)?, String::new()))
 }
@@ -189,9 +190,10 @@ pub fn touched(
     command: &Touch,
     daemon: &control::Client,
     input: &mut dyn Read,
+    env: &Env,
 ) -> anyhow::Result<Output> {
     let Touch::Touched { path, hook, agent } = command;
-    let agent = calling_agent(agent.as_deref())?;
+    let agent = env.calling_agent(agent.as_deref())?;
     let mut payload = String::new();
     let absolute;
     let what = if let Some(path) = path {
@@ -205,20 +207,6 @@ pub fn touched(
     };
     let touched = daemon.file_touched(&agent, what)?;
     Ok(Output::new(serde_json::to_value(touched)?, String::new()))
-}
-
-/// The agent a command acts as, if any: `--agent`, else `$SLINGER_AGENT`.
-pub fn named_agent(flag: Option<&str>) -> Option<String> {
-    let agent = flag.map(str::to_string).or_else(|| std::env::var(AGENT_ENV).ok());
-    agent.filter(|a| !a.trim().is_empty())
-}
-
-/// The agent an agent verb acts as: `--agent`, else `$SLINGER_AGENT`.
-pub fn calling_agent(flag: Option<&str>) -> Result<String, control::RemoteError> {
-    named_agent(flag).ok_or_else(|| {
-        let hint = format!("pass --agent <NAME>, or set {AGENT_ENV}");
-        control::RemoteError::new("usage", "no agent name", Some(hint))
-    })
 }
 
 /// One session for `list`: agent, status (`-` for none) and home, by tabs,

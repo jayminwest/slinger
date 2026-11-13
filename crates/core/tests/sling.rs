@@ -9,7 +9,7 @@ use slinger_core::render::Image;
 use slinger_core::sling::{Block, Message, Sling, VERSION, Verb, message};
 
 const PACKET: &str = include_str!("fixtures/packet/packet-v1.txt");
-const ALL: &[Verb] = &[Verb::Put, Verb::Crop];
+const ALL: &[Verb] = &[Verb::Put, Verb::Crop, Verb::Ui];
 
 /// The stored v1 packet, with a stand-in image for each `img=` name.
 fn packet() -> Packet {
@@ -171,11 +171,13 @@ fn the_note_names_only_the_verbs_given() {
             if first {
                 names.push("guide");
             }
+            names.sort_unstable();
             names
         };
-        assert_eq!(with(ALL), guide(vec!["canvas crop", "canvas put"]));
+        assert_eq!(with(ALL), guide(vec!["canvas crop", "canvas put", "ui open", "ui put"]));
         assert_eq!(with(&[Verb::Put]), guide(vec!["canvas put"]));
         assert_eq!(with(&[Verb::Crop]), guide(vec!["canvas crop"]));
+        assert_eq!(with(&[Verb::Ui]), guide(vec!["ui open", "ui put"]));
         assert_eq!(with(&[]), Vec::<String>::new());
     }
     // A later sling with nothing to name has no note at all.
@@ -200,13 +202,15 @@ fn a_listeners_sling_names_its_agent_and_says_what_a_listener_does_itself() {
             show(&m).replace("<image c42.png>\n", "").replace("<image c51.png>\n", "")
         );
         assert!(text.contains("img=c42.png") && text.ends_with("# prompt\nWhat is missing here?"));
-        let mut named = vec!["canvas crop", "canvas put", "session listen", "status set"];
+        let mut named =
+            vec!["canvas crop", "canvas put", "session listen", "status set", "ui open", "ui put"];
         if first {
             named.insert(2, "guide");
         }
         assert_eq!(commands(&text), named, "{text}");
         assert!(text.contains("`slinger status set done --agent scout`"));
-        assert!(text.contains("`slinger session listen notes`"));
+        assert!(text.contains("`slinger session listen notes --pid $PPID`"));
+        assert!(!first || text.contains("`--agent scout` to each `canvas put`, `ui open` and"));
     }
     // With no verb to name, a later sling still tells a listener what to do.
     let bare = Sling { listener, verbs: &[], ..sling(&p, &[], false) };

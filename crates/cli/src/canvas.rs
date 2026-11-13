@@ -10,8 +10,9 @@ use serde_json::{Value, json};
 
 use slinger_control as control;
 
+use crate::env::Env;
 use crate::output::Output;
-use crate::session::{AGENT_OR_USER_HELP, named_agent};
+use crate::session::AGENT_OR_USER_HELP;
 
 /// Help for `canvas apply`'s operations: a string, because a doc comment wants the JSON bare.
 const OPS_HELP: &str = "One operation as a JSON object, or a list of them; - reads standard \
@@ -21,10 +22,14 @@ const OPS_HELP: &str = "One operation as a JSON object, or a list of them; - rea
 
 #[derive(Subcommand)]
 pub enum Canvas {
-    /// Make a new, empty canvas with one page
+    /// Make a new canvas with one page: empty, or made from a file of operations
     Create {
         /// The canvas id: a-z, 0-9, '-', '_' and '.'
         canvas: String,
+        /// A file holding a JSON list of operations, as 'canvas apply' takes, made as the
+        /// user's in one step: the whole canvas or none
+        #[arg(long, value_name = "FILE")]
+        ops: Option<PathBuf>,
     },
     /// List the canvases, one id per line
     List,
@@ -125,10 +130,14 @@ pub fn execute(
     command: &Canvas,
     daemon: &control::Client,
     input: &mut dyn Read,
+    env: &Env,
 ) -> anyhow::Result<Output> {
     match command {
-        Canvas::Create { canvas } => {
-            daemon.canvas_create(canvas)?;
+        Canvas::Create { canvas, ops } => {
+            match ops {
+                Some(file) => daemon.canvas_create_with(canvas, file)?,
+                None => daemon.canvas_create(canvas)?,
+            }
             Ok(Output::new(json!({ "canvas": canvas }), String::new()))
         }
         Canvas::List => {
@@ -157,7 +166,7 @@ pub fn execute(
             })?;
             let request = control::CanvasOps {
                 canvas: canvas.clone(),
-                by: by(agent.as_deref()),
+                by: by(env, agent.as_deref()),
                 ops,
                 once: None,
             };
@@ -165,10 +174,10 @@ pub fn execute(
         }
         Canvas::Schema => Ok(crate::schema::schema()),
         Canvas::Undo { canvas, agent } => {
-            change(&daemon.canvas_undo(step(canvas, agent.as_deref()))?)
+            change(&daemon.canvas_undo(step(canvas, env, agent.as_deref()))?)
         }
         Canvas::Redo { canvas, agent } => {
-            change(&daemon.canvas_redo(step(canvas, agent.as_deref()))?)
+            change(&daemon.canvas_redo(step(canvas, env, agent.as_deref()))?)
         }
         Canvas::Import { file, name } => {
             let imported = daemon.canvas_import(file, name.as_deref())?;
@@ -193,21 +202,21 @@ pub fn execute(
         }
         Canvas::Crop(args) => crate::look::crop(args, daemon),
         Canvas::Strokes(args) => crate::look::strokes(args, daemon),
-        Canvas::Put(args) => crate::put::put(args, daemon),
-        Canvas::Edit(args) => crate::edit::edit(args, daemon),
-        Canvas::Remove(args) => crate::edit::remove(args, daemon),
+        Canvas::Put(args) => crate::put::put(args, daemon, env),
+        Canvas::Edit(args) => crate::edit::edit(args, daemon, env),
+        Canvas::Remove(args) => crate::edit::remove(args, daemon, env),
     }
 }
 
 /// Who asks: the agent named by `--agent` or `$SLINGER_AGENT`, else the user,
 /// so an agent's process acts as that agent and its steps stay off the user's
 /// undo history.
-fn by(agent: Option<&str>) -> String {
-    named_agent(agent).map_or_else(|| "user".into(), |name| format!("agent:{name}"))
+fn by(env: &Env, agent: Option<&str>) -> String {
+    env.named_agent(agent).map_or_else(|| "user".into(), |name| format!("agent:{name}"))
 }
 
-fn step(canvas: &str, agent: Option<&str>) -> control::CanvasStep {
-    control::CanvasStep { canvas: canvas.to_string(), by: by(agent) }
+fn step(canvas: &str, env: &Env, agent: Option<&str>) -> control::CanvasStep {
+    control::CanvasStep { canvas: canvas.to_string(), by: by(env, agent) }
 }
 
 /// What a change wrote: for people, the ids it made, one per line.

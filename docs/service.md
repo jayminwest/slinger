@@ -174,7 +174,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_start` | `workspace`: string, its name or the directory of its file, `fresh`: bool (default `false`), `profile`: a profile's name (optional) | `session` |
 | `session_stop` | `workspace`: string | `session` |
 | `session_send` | `workspace`: string, `text`: string | `session` |
-| `session_listen` | `workspace`: string, `wait`: milliseconds to hold the request open (default 0, at most 60000) | `agent`, `sling`: `{event, canvas, dir, text}`, the oldest sling that waits (absent when none came) |
+| `session_listen` | `workspace`: string, `wait`: milliseconds to hold the request open (default 0, at most 60000), `pid`: the process that works on the sling (optional) | `agent`, `sling`: `{event, canvas, dir, text}`, the oldest sling that waits (absent when none came) |
 | `sling_backdrops` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `backdrops`: list of `{item, hash, pdfpage, pagesize, crop, frame, area, width, height}`, the areas of PDF pages under the new ink (empty when none) |
 | `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty), `profile`: a profile's name (optional), `backdrops`: list of `{item, area, image, words}` (optional) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` (empty when a listener takes it), `deliver`: `process` or `listen`, `tokens`: about how many tokens the agent reads for it (optional) |
 | `profile_list` | `workspace`: as `workspace_show` | `workspace`: its name, `profiles`: list of `{name, dir, tools}`, in its file's order |
@@ -617,7 +617,7 @@ with the note as its `reason` (empty without one) and `done` appends
 `agent_done` with the note as its `summary`; the event's source and `agent`
 tag are the agent, and its workspace tag follows the rule under "Data
 directory". `working` has no event in the record: the daemon holds it until
-it stops. A session shows the status set last since the daemon started, else
+it stops, or until the listener whose sling set it is gone ("Listening"). A session shows the status set last since the daemon started, else
 the last `agent_blocked` or `agent_done` with its agent tag in the record, so
 `blocked` and `done` survive a restart. An agent no open workspace names may
 set a status too: the record keeps it, and the session shows it once a
@@ -641,7 +641,10 @@ When `--slinger` is an absolute path, its folder comes first on the process's
 daemon's. A session adds what the daemon knows of it: `process` (`running`,
 or `exited` when it ended without a stop; absent when there is none), and
 while it runs its `pid` and `pending`, the messages sent that it has not
-answered (a `result` line ends an answer). `answer` is the text of its last
+answered (a `result` line ends an answer). Claude Code takes a message sent
+mid-turn into that turn, so one result can answer several: a message still
+unanswered when a result has come and the process has said nothing more for
+2 seconds counts as answered. `answer` is the text of its last
 answer. `session_id` names its conversation.
 
 **Limits.** A session has stated limits, set by its workspace's file
@@ -793,12 +796,19 @@ knows whom it acts as, its packet header with `at=<dir>`, the directory that
 holds the packet's images, and a note that says to pass `--agent`, to set
 `done` and to listen again. Taking a sling sets the agent's status to
 `working`. A reply that cannot be written puts the sling back, so a listener
-that is gone loses none.
+that is gone loses none. With `pid`, the listener works on the sling in that
+process (the Claude Code session, not the CLI that asked): when it ends
+before the listener says it is done, the listener is gone and the sling
+waits again, the oldest, for the next to listen. Nobody works on it, so
+the `working` that taking it set is dropped: the session shows the status
+from before, its last `blocked` or `done`, or none. A `pid` that is not running is `invalid`.
 
 One listener state per agent (`slinger_core::session::listen`). A listener
 is there while a request of its is open, for 10 seconds after one ended, and
-while it works on a sling it took, until it asks again: asking says the last
-one is dealt with. While slings wait or a listener is there, the session has
+while it works on a sling it took, until it asks again or its agent sets
+`done` or `blocked` (then for 10 seconds, so its next ask finds the slings
+still its own), or until the `pid` it named ends. Asking says the last one
+is dealt with. While slings wait or a listener is there, the session has
 `deliver` as `listen`, `listening` (whether one is there) and `pending` (the
 slings that wait, and the one worked on). `session_start` and `session_stop`
 forget who listened; the slings that wait stay for the next to listen. The
@@ -822,7 +832,8 @@ selection as `canvas_read` takes it. The message
 (`slinger_core::sling::message`) is line 1 `slinger-sling 1` with the
 selection as packet ids (a stroke is named by its cluster), the packet with
 each image under the line that names it, a `# reply` note naming only the
-agent verbs this daemon serves (`canvas put`, `canvas crop`), and the
+agent verbs this daemon serves (`canvas put`, `canvas crop`, `ui put` with
+`ui open`), and the
 prompt last. The first sling into a conversation (no `sling_sent` of the
 agent names its session id) gets the whole note, which ends by pointing at
 `slinger guide`, later ones one line. It

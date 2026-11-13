@@ -29,7 +29,8 @@ fn alone(args: &[&str]) -> Run {
     let mut line = vec!["slinger", "--socket", "/nonexistent/slinger.sock"];
     line.extend(args);
     let (mut out, mut err) = (Vec::new(), Vec::new());
-    let code = run(line, &mut std::io::empty(), &mut out, &mut err, false);
+    let code =
+        run(line, &crate::env::Env::default(), &mut std::io::empty(), &mut out, &mut err, false);
     let text = |bytes: Vec<u8>| String::from_utf8(bytes).unwrap();
     Run { code, out: text(out), err: text(err) }
 }
@@ -52,7 +53,7 @@ fn guide_prints_the_written_part_and_every_command_with_no_daemon() {
 fn guide_shows_a_command_as_the_user_types_it() {
     let all = entries(&command_tree());
     let usage = |name: &str| all.iter().find(|e| e.name == name).unwrap().usage.clone();
-    assert_eq!(usage("slinger canvas create"), "slinger canvas create <CANVAS>");
+    assert_eq!(usage("slinger canvas create"), "slinger canvas create <CANVAS> [--ops <FILE>]");
     assert_eq!(
         usage("slinger session start"),
         "slinger session start <WORKSPACE> [--fresh] [--profile <NAME>]"

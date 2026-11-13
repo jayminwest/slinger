@@ -104,12 +104,20 @@ slinger canvas apply <CANVAS> '[{"op":"add","item":{"page":"p1","kind":"box","x"
 slinger canvas undo <CANVAS> --agent claude
 ```
 
+Make a whole new canvas in one step from a file of the same operations; it
+is made whole or not at all. Its items are the user's, so you cannot edit or
+remove them after:
+
+```bash
+slinger canvas create <CANVAS> --ops ./ops.json
+```
+
 Show the user a UI in place of a long answer. A UI is one HTML file with
 everything in it:
 
 ```bash
 slinger ui put pick-slot ./pick-slot.html
-slinger ui open pick-slot --workspace <WORKSPACE> --data '{"slots":[9,10]}' --agent claude
+slinger ui open pick-slot --data '{"slots":[9,10]}' --agent claude   # in your session's workspace, else pass --workspace <WORKSPACE>
 slinger ui open pick-slot --as item --canvas <CANVAS> --beside i7 --agent claude
 ```
 
@@ -142,10 +150,13 @@ Take a workspace's slings yourself, in this session, with your own tools and
 permissions. Each run waits for one sling and prints it:
 
 ```bash
-slinger session listen <WORKSPACE>            # run in the background; act when it exits
+slinger session listen <WORKSPACE> --pid $PPID   # in the background; act when it exits
 slinger canvas put <CANVAS> --beside c12 --text "The answer" --agent <NAME>
 slinger status set done --agent <NAME>        # then listen again
 ```
+
+`--pid` names your session's process (`$PPID` in Claude Code): if it ends
+before you set `done` or `blocked`, the sling waits for the next listener.
 
 When slinger itself gets in your way, leave a note for its maker:
 
