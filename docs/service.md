@@ -808,7 +808,8 @@ selection as packet ids (a stroke is named by its cluster), the packet with
 each image under the line that names it, a `# reply` note naming only the
 agent verbs this daemon serves (`canvas put`, `canvas crop`), and the
 prompt last. The first sling into a conversation (no `sling_sent` of the
-agent names its session id) gets the whole note, later ones one line. It
+agent names its session id) gets the whole note, which ends by pointing at
+`slinger guide`, later ones one line. It
 reaches the process as one stream-json user message: text blocks and a
 base64 PNG image block per image. The reply's `tokens` estimates the whole
 message by the packet's rule (a token per four characters, and per 750
