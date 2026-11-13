@@ -39,12 +39,14 @@ pub enum Edit {
     Paste(Clip),
 }
 
-/// Which view has the keyboard while no entry is open. `AppKit` sends
-/// cut, copy and paste (and Flick's dictation, a paste) to the view with
-/// the keyboard. A press that goes on to an agent UI's page gives that page
-/// the keyboard. A press the app takes moves nothing, so without this a
-/// page clicked once kept every paste meant for a canvas text or the
-/// palette (slinger-145162).
+/// Which view has the keyboard. `AppKit` sends cut, copy and paste (and
+/// Flick's dictation, a paste) to the view with the keyboard. A press that
+/// goes on to an agent UI's page gives that page the keyboard. A press the
+/// app takes moves nothing, so without this a page clicked once kept every
+/// paste meant for a canvas text or the palette (slinger-145162). An open
+/// entry keeps it through a press on a page, which still gets the press:
+/// the entry's keys (return, escape) and its caret stay true
+/// (slinger-8d4191).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Keyboard {
     /// The window, so the app does the edit ([`Edit`]): the last press was
@@ -53,6 +55,24 @@ pub enum Keyboard {
     Window,
     /// The view the last press went on to (an agent UI's page) keeps it.
     Pressed,
+    /// The open entry's field (the sling's, the feedback's, a rename's),
+    /// taken back at once from a page a press went on to.
+    Entry,
+}
+
+/// Why a paste went nowhere, in a few words for the flash: `clip` (`None`
+/// when only its key came, its Edit menu item greyed) held nothing the app
+/// can use, or nothing takes it: no text of the app takes `typing`, and
+/// no `page` of a canvas pane has the focus (slinger-acc9ee).
+pub fn unpasted(clip: Option<&Clip>, typing: bool, page: bool) -> &'static str {
+    const NOTHING: &str = "Nothing on the clipboard to paste";
+    match clip {
+        Some(clip) if clip.is_empty() => NOTHING,
+        Some(Clip { text: Some(_), .. }) if typing => NOTHING,
+        _ if typing => "No text on the clipboard to paste",
+        _ if !page => "Nowhere to paste here",
+        _ => NOTHING,
+    }
 }
 
 /// `text` with each line end (`\r\n`, `\r` or `\n`) as `\n`, each tab as a
@@ -99,6 +119,18 @@ mod tests {
         let clip = Clip::new(Some(String::new()), Some("[]".into()));
         assert_eq!(clip, Clip { text: None, items: Some("[]".into()) });
         assert!(Clip::new(None, Some(String::new())).is_empty());
+    }
+
+    #[test]
+    fn a_paste_that_went_nowhere_says_why() {
+        let (empty, items) = (Clip::default(), Clip::new(None, Some("[]".into())));
+        let text = Clip::new(Some("\u{1b}".into()), None);
+        assert_eq!(unpasted(Some(&empty), true, true), "Nothing on the clipboard to paste");
+        assert_eq!(unpasted(Some(&items), false, true), "Nothing on the clipboard to paste");
+        assert_eq!(unpasted(Some(&text), true, false), "Nothing on the clipboard to paste");
+        assert_eq!(unpasted(Some(&items), true, true), "No text on the clipboard to paste");
+        assert_eq!(unpasted(None, true, false), "No text on the clipboard to paste");
+        assert_eq!(unpasted(None, false, false), "Nowhere to paste here");
     }
 
     #[test]

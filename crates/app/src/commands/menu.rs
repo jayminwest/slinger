@@ -62,7 +62,7 @@ impl Native {
     }
 
     /// The usual macOS key: `cmd+x` for cut.
-    const fn key(self) -> Option<Chord> {
+    pub const fn key(self) -> Option<Chord> {
         let key = match self {
             Native::About => return None,
             Native::Cut => 'x',

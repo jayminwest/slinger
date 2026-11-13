@@ -29,7 +29,7 @@ use objc2_app_kit::{
     NSControl, NSFocusRingType, NSFont, NSResponder, NSTextField, NSView, NSWindow,
     NSWindowOrderingMode,
 };
-use objc2_foundation::{NSObject, NSString};
+use objc2_foundation::{NSObject, NSRange, NSString};
 
 use super::chrome::border;
 use super::text::sidebar_row;
@@ -123,6 +123,19 @@ impl Kept {
     pub fn focus(&self, window: &NSWindow) {
         if self.field.currentEditor().is_none() {
             window.makeFirstResponder(Some(&self.field));
+        }
+    }
+
+    /// Takes the keyboard back for the field from the view a press went on
+    /// to (an agent UI's page), the caret at the end of its text: typing
+    /// goes on after it, not over it all selected.
+    pub fn take_back(&self, window: &NSWindow) {
+        if self.field.currentEditor().is_some() {
+            return;
+        }
+        window.makeFirstResponder(Some(&self.field));
+        if let Some(editor) = self.field.currentEditor() {
+            editor.setSelectedRange(NSRange::new(self.field.stringValue().length(), 0));
         }
     }
 
