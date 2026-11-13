@@ -363,6 +363,8 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** an agent UI that is showing takes a new theme from the config
+  at once, keeping its state, instead of when it next opens.
 - **App:** of two broken workspaces whose files name none, a tap on one
   highlights that one only, and the panes no longer ask for a workspace
   with an empty name (they keep what they show).

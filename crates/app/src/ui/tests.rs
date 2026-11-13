@@ -144,7 +144,7 @@ fn the_policy_is_one_header_line() {
 #[test]
 fn a_page_starts_from_the_themes_paper_ink_and_type_under_its_own_styles() {
     let theme = Theme::default();
-    let dark = script(&theme);
+    let dark = script(&theme, SHIM);
     assert!(dark.starts_with(SHIM), "the bridge first");
     assert!(dark.contains("--slinger-paper:#1e1e1e;--slinger-ink:#e6e6e6;"), "{dark}");
     assert!(dark.contains("--slinger-accent:#4c9aff;") && dark.contains("color-scheme:dark"));
@@ -155,14 +155,17 @@ fn a_page_starts_from_the_themes_paper_ink_and_type_under_its_own_styles() {
     assert!(LOOK.contains("var(--slinger-paper)") && LOOK.contains("system-ui"));
     assert!(!LOOK.contains('`') && !LOOK.contains('\\') && !LOOK.contains("${"));
     let white = Rgb { r: 0xfa, g: 0xfa, b: 0xf7 };
-    let light = script(&Theme { background: white, ..theme });
+    let light = script(&Theme { background: white, ..theme }, SHIM);
     assert!(light.contains("--slinger-paper:#fafaf7;") && light.contains("color-scheme:light"));
+    let open = script(&Theme { background: white, ..theme }, "");
+    assert!(light.ends_with(&open) && open.starts_with("(()=>"), "an open page: the look alone");
+    assert!(open.contains("getElementById(i)||"), "again: the same element");
 }
 
 #[test]
 fn the_guide_names_only_colours_a_page_is_given() {
     let guide = include_str!("../../../cli/src/guide.md");
-    let given = script(&Theme::default());
+    let given = script(&Theme::default(), SHIM);
     let named: Vec<_> = guide.split("var(").skip(1).filter_map(|t| t.split(')').next()).collect();
     assert!(named.len() >= 5, "{named:?}");
     for name in named {

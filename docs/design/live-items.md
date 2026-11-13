@@ -235,8 +235,9 @@ element first in its document (`crates/app/src/ui.rs`, `script` and
 - Every rule is `:where()`, so any rule of the page's own wins.
 
 The web view draws no background of its own, so nothing white shows before
-the page paints. The look is set when the view opens: a theme changed
-while a page shows reaches it the next time it opens. Still open (needs the
+the page paints. A theme changed while a page shows reaches it in place:
+the app runs the same script again, which rewrites that style element
+(`id="slinger-look"`), and the page keeps its state (slinger-8abae4). Still open (needs the
 owner's eye): chrome around a live item, ink over it (slinger-c9f363), and
 whether O1's closed blocks (alternative B) come now.
 
