@@ -7,6 +7,7 @@ use std::time::Instant;
 
 use crate::canvases::Canvases;
 use crate::commands::Command;
+use crate::scene::paste::Keyboard;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::tools::Tools;
 use crate::shared::Shared;
@@ -37,8 +38,13 @@ pub fn route(
 ) -> Routed {
     let area = sidebar.panes(shared.size.rect());
     // A press focuses the pane under it first, so the press works there.
+    // The app takes it, and the window the keyboard, unless it goes on.
+    let pressed = matches!(event, Event::Press(_));
     let refocused = match event {
-        Event::Press(pen) => window::press(shared, sidebar, canvases, tools, pen),
+        Event::Press(pen) => {
+            shared.keyboard = Keyboard::Window;
+            window::press(shared, sidebar, canvases, tools, pen)
+        }
         _ => false,
     };
     let asked = asked(&event, shared, canvases, tools, settings, sidebar);
@@ -91,9 +97,14 @@ pub fn route(
             }
         }
         (Ask::Pass | Ask::Not, _) if refocused => {
+            shared.keyboard = Keyboard::Pressed;
             Step::Through(view(settings, shared, tools, sidebar, canvases))
         }
         (Ask::Pass | Ask::Not, _) => Step::Pass,
     };
+    // A press that goes on gives the view under it the keyboard.
+    if pressed && matches!(step, Step::Pass) {
+        shared.keyboard = Keyboard::Pressed;
+    }
     Routed::Answer(step)
 }

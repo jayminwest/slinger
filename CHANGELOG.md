@@ -405,6 +405,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** cmd+V and Flick's dictation paste into the canvas text you are
+  typing, a page rename and the command palette again after you clicked an
+  agent UI. Before, the agent UI you last clicked took every paste until
+  it closed.
 - **Agents:** the `slinger-listen` skill says what happens to a sling
   sent after you stop listening: in the first 10 seconds it waits for the
   next listener, after that it starts the agent itself. It no longer says

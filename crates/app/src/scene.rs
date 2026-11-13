@@ -149,6 +149,8 @@ pub struct Scene {
     /// The pointer within reach of a divider between panes, or holding one:
     /// its cursor ([`cursor::over_divider`]), over every pane and the chrome.
     pub divider: Option<cursor::Cursor>,
+    /// Which view has the keyboard while no entry is open.
+    pub keyboard: paste::Keyboard,
 }
 
 /// The focus border's width, in points.
@@ -237,6 +239,7 @@ pub fn build(
         overlay: None,
         flash: None,
         divider: None,
+        keyboard: paste::Keyboard::Window,
     }
 }
 
@@ -267,6 +270,8 @@ pub fn preview(page: Arc<Page>, theme: &Theme, item: bool, size: Size) -> Scene 
         overlay: None,
         flash: None,
         divider: None,
+        // The page fills the window: it keeps the keyboard a press gives it.
+        keyboard: paste::Keyboard::Pressed,
     }
 }
 

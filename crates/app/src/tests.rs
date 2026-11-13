@@ -13,6 +13,8 @@ use crate::scene::ink::Pen;
 use crate::scene::paste::Edit;
 use crate::scene::tools::Tool;
 
+mod keyboard;
+
 /// The window's state, as `window` keeps it, with no watch.
 struct World {
     settings: Settings,

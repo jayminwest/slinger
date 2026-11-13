@@ -18,7 +18,9 @@
 //! colour each time it starts editing ([`EntryField`]'s
 //! `becomeFirstResponder`), not the system's dark default, which is
 //! invisible on the dark box. An entry of another kind (feedback after the
-//! sling's) gets a field of its own, with its own placeholder.
+//! sling's) gets a field of its own, with its own placeholder. With no
+//! entry open, the window takes the keyboard back from a page when the
+//! scene says ([`Keyboard`]), so a paste goes to the app (slinger-145162).
 
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
@@ -32,6 +34,8 @@ use objc2_foundation::{NSObject, NSString};
 use super::chrome::border;
 use super::text::sidebar_row;
 use super::{Event, color, dispatch, flipped};
+use crate::scene::Scene;
+use crate::scene::paste::Keyboard;
 use crate::scene::sling::Entry;
 
 define_class!(
@@ -153,7 +157,7 @@ impl Kept {
     }
 }
 
-/// Makes `view` (`height` tall) of `window` show `entry`: a field made
+/// Makes `view` of `window` show `scene`'s entry: a field made
 /// when the entry appears (or turns into an entry of another kind: its
 /// title or placeholder differ), in its box with its label and keys; moved
 /// and given the entry's text while it stays (its text only when it
@@ -161,16 +165,17 @@ impl Kept {
 /// again when they change; all removed when the entry goes, the keyboard
 /// back to the window. A new field goes just under `under` (the overlay's
 /// lowest view), or on top with no overlay. While open, the field has the
-/// keyboard ([`Kept::focus`]).
+/// keyboard ([`Kept::focus`]); with none, the window takes it back from a
+/// page when the scene says ([`Keyboard`]).
 pub fn place(
     window: &NSWindow,
     view: &NSView,
     kept: &mut Option<Kept>,
-    entry: Option<&Entry>,
+    scene: &Scene,
     under: Option<&NSView>,
-    height: f64,
     mtm: MainThreadMarker,
 ) {
+    let (entry, height) = (scene.entry.as_deref(), scene.size.height);
     let same = |kept: &Kept, entry: &Entry| {
         kept.made_from.title.label.text == entry.title.label.text
             && kept.made_from.placeholder == entry.placeholder
@@ -179,7 +184,14 @@ pub fn place(
         old.remove();
         window.makeFirstResponder(None);
     }
-    let Some(entry) = entry else { return };
+    let Some(entry) = entry else {
+        let me: &NSResponder = window;
+        let held = window.firstResponder().is_some_and(|r| !std::ptr::eq(Retained::as_ptr(&r), me));
+        if held && scene.keyboard == Keyboard::Window {
+            window.makeFirstResponder(None);
+        }
+        return;
+    };
     if let Some(kept) = kept.as_mut() {
         kept.field.setFrame(flipped(height, entry.field));
         let text = NSString::from_str(&entry.text);

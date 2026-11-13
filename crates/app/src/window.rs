@@ -19,7 +19,7 @@ use crate::layout::{PaneId, Point, Rect};
 use crate::panes::{self, Panes};
 use crate::scene::ink::Pen;
 use crate::scene::pages::menu::List;
-use crate::scene::paste::{Clip, Edit};
+use crate::scene::paste::{Clip, Edit, Keyboard};
 use crate::scene::sidebar::Row;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::sling::{CANCEL, Profile, SEND};
@@ -387,6 +387,9 @@ pub fn view(
     }
     let (size, uis, notes) = (shared.size, &shared.uis, &shared.notes);
     let mut scene = scene::build(size, &shared.panes, theme, &problems, sidebar, drawn, uis, notes);
+    // One of the app's own texts takes typing: it takes the paste too.
+    let typing = shared.palette.is_open() || canvases.editing();
+    scene.keyboard = if typing { Keyboard::Window } else { shared.keyboard };
     canvases.show_live(&mut scene, notes, theme);
     canvases.show_sling(&mut scene, theme, &settings.config.keys, sidebar);
     scene.labels.splice(0..0, canvases.labels(&shared.panes, area, theme));
