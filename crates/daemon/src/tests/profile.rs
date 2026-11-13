@@ -218,3 +218,25 @@ fn a_sling_that_names_a_profile_reaches_only_a_process_under_it() {
     assert_eq!(slings(), 2);
     daemon.stop();
 }
+
+#[test]
+fn an_agent_that_only_ran_under_a_profile_keeps_its_conversation_after_a_stop() {
+    // The app reads a session with no id as never started (slinger-c6daa5).
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let claude = fake_claude();
+    let daemon = Daemon::start_with_claude(data.path(), &claude);
+    let client = daemon.client();
+    open_with_profile(&client, &projects);
+    let dev = client.session_start_with("notes", Some("dev"), false).unwrap();
+    let dev_id = dev.session_id.unwrap();
+    client.session_send("notes", "hi").unwrap();
+    wait_for(&client, "scout", |s| s.pending == Some(0));
+
+    let stopped = client.session_stop("notes").unwrap();
+    assert_eq!((stopped.process, stopped.session_id.as_deref()), (None, Some(dev_id.as_str())));
+    daemon.stop();
+    let daemon = Daemon::start_with_claude(data.path(), &claude);
+    let shown = daemon.client().session_show("scout").unwrap();
+    assert_eq!(shown.session_id.as_deref(), Some(dev_id.as_str()), "after a restart too");
+    daemon.stop();
+}

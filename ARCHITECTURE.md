@@ -316,6 +316,9 @@ processes.rs the agents' processes, one per agent: spawned in the agent's
              messages its turn took in, so one still unanswered 2 s after a
              result with no output since was taken into that turn. The
              reader keeps the context of the last model reply (`context`).
+             `processes/ids.rs` is the file of ids. A session's id is its
+             process's, else its last process's key (kept after a stop),
+             else the agent's own, else one of its profiles'.
 feedback.rs  the feedback file (`--feedback`, default `feedback.jsonl` in
              the checkout it was built from, else the data directory): one
              lock, each note and resolution appended as one line, the

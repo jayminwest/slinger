@@ -652,7 +652,10 @@ answer. `context` is about how many tokens its conversation holds, from
 the usage of its last model reply (an `assistant` line that is not a
 subagent's): its input, cached or not, and its output; absent until it
 replied, and under `listen`, whose session the daemon does not see.
-`session_id` names its conversation.
+`session_id` names its conversation: its process's; after a stop, the one
+its last process had, under its profile if it ran under one; after a
+restart, the one kept under no profile, else one of its profiles'. It is
+absent while slingerd keeps none, as for an agent it never ran.
 
 **Limits.** A session has stated limits, set by its workspace's file
 (`[agent]` in docs/workspace.md). By default it:

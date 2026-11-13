@@ -405,6 +405,10 @@ bullet with the area in bold.
   stopped mid-turn, or a listening session, never said it was done, so
   the sidebar and `slinger session show` kept the agent working after the
   stop; now the agent shows the status it had before.
+- **Agents:** an agent that only ran under a profile shows as stopped after
+  you stop it, and after slingerd restarts. The sidebar took it for one
+  never started and showed its last status, because `slinger session show`
+  gave no `session_id` for it; now it names that profile's conversation.
 - **App:** a sling that waits for a listener keeps saying "nobody listens"
   when you start the agent's process meanwhile. The process does not take
   it, but its pill said the agent was done. Once a listener takes it, it

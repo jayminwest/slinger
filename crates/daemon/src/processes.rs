@@ -18,7 +18,7 @@
 //! ([`slinger_core::session::hooks`]), so it reports its status and the files
 //! it writes through the CLI.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
@@ -28,7 +28,9 @@ use std::time::{Duration, Instant};
 use slinger_core::session::hooks;
 use slinger_core::session::stream::{self, Limits, Start};
 
+mod ids;
 mod turns;
+use ids::{Ids, key};
 use turns::Turns;
 
 /// How long a stop waits for a process to end after its input closes, before
@@ -113,6 +115,8 @@ pub struct Processes {
     socket: OnceLock<PathBuf>,
     ids: Arc<Ids>,
     held: Mutex<HashMap<String, Held>>,
+    /// The key in the file of ids of each agent's last process, held or not.
+    last: Mutex<HashMap<String, String>>,
 }
 
 impl Processes {
@@ -120,9 +124,10 @@ impl Processes {
     /// looked up on `PATH`); `ids` is the file of session ids.
     #[must_use]
     pub fn new(program: PathBuf, ids: PathBuf) -> Self {
-        let ids = Arc::new(Ids { path: ids, lock: Mutex::new(()) });
+        let ids = Arc::new(Ids::new(ids));
         let slinger = crate::store::SLINGER.into();
-        Self { program, slinger, socket: OnceLock::new(), ids, held: Mutex::default() }
+        let (socket, held, last) = (OnceLock::new(), Mutex::default(), Mutex::default());
+        Self { program, slinger, socket, ids, held, last }
     }
 
     /// Starts `program` from now on, in place of the one [`Processes::new`] took.
@@ -211,6 +216,8 @@ impl Processes {
             listen(out, &key, &heard, &self.ids);
         }
         let profile = profile.map(str::to_string);
+        let mut last = self.last.lock().unwrap_or_else(PoisonError::into_inner);
+        last.insert(agent.to_string(), key.clone());
         let process = Held { child, id, key, profile, resumed: resume, stdin, heard };
         held.insert(agent.to_string(), process);
         Ok(())
@@ -281,8 +288,10 @@ impl Processes {
         Some(Shown { running, pid: process.child.id(), pending, answer, profile, context })
     }
 
-    /// The session id `agent`'s conversation has: the one its process uses,
-    /// else the one the next start with no profile resumes.
+    /// The session id `agent`'s conversation has: the one its process uses;
+    /// else the one its last process kept, under the profile it ran under;
+    /// else one it kept before the daemon started, under no profile first.
+    /// An agent that only ran under a profile has one too (slinger-c6daa5).
     ///
     /// # Errors
     ///
@@ -292,7 +301,11 @@ impl Processes {
             let heard = process.heard().session_id.clone();
             return Ok(Some(heard.unwrap_or_else(|| process.id.clone())));
         }
-        self.ids.get(agent)
+        let last = self.last.lock().unwrap_or_else(PoisonError::into_inner).get(agent).cloned();
+        match last.map(|key| self.ids.get(&key)).transpose()?.flatten() {
+            Some(id) => Ok(Some(id)),
+            None => self.ids.any_of(agent),
+        }
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, Held>> {
@@ -393,63 +406,6 @@ fn listen(out: ChildStdout, key: &str, heard: &Arc<Mutex<Heard>>, ids: &Arc<Ids>
         }
         heard.lock().unwrap_or_else(PoisonError::into_inner).ended = true;
     });
-}
-
-/// The key of a conversation in the file of ids: the agent's name, or
-/// `<agent>#<profile>` for one of its profiles.
-fn key(agent: &str, profile: Option<&str>) -> String {
-    profile.map_or_else(|| agent.to_string(), |p| format!("{agent}#{p}"))
-}
-
-/// The file of session ids: `{key: id}` as JSON, keyed by [`key`].
-#[derive(Debug)]
-struct Ids {
-    path: PathBuf,
-    /// Held across a read and its write, so two writers do not lose one.
-    lock: Mutex<()>,
-}
-
-impl Ids {
-    fn get(&self, key: &str) -> Result<Option<String>> {
-        let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
-        Ok(self.load()?.remove(key))
-    }
-
-    fn set(&self, key: &str, id: &str) -> Result<()> {
-        self.change(|all| {
-            all.insert(key.to_string(), id.to_string());
-        })
-    }
-
-    /// Drops `key`'s id: its next start begins a new session.
-    fn forget(&self, key: &str) -> Result<()> {
-        self.change(|all| {
-            all.remove(key);
-        })
-    }
-
-    fn change(&self, edit: impl FnOnce(&mut BTreeMap<String, String>)) -> Result<()> {
-        let _guard = self.lock.lock().unwrap_or_else(PoisonError::into_inner);
-        let mut all = self.load()?;
-        edit(&mut all);
-        let text = serde_json::to_string_pretty(&all).map_err(|e| self.failed(e.into()))?;
-        let next = self.path.with_extension("json.next");
-        std::fs::write(&next, text + "\n")
-            .and_then(|()| std::fs::rename(&next, &self.path))
-            .map_err(|source| self.failed(source))
-    }
-
-    fn load(&self) -> Result<BTreeMap<String, String>> {
-        match std::fs::read(&self.path) {
-            Ok(bytes) => serde_json::from_slice(&bytes).map_err(|e| self.failed(e.into())),
-            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(BTreeMap::new()),
-            Err(e) => Err(self.failed(e)),
-        }
-    }
-
-    fn failed(&self, source: io::Error) -> ProcessError {
-        ProcessError::Ids { path: self.path.clone(), source }
-    }
 }
 
 /// The daemon's `PATH` with the folder of `slinger` first, when `slinger`
