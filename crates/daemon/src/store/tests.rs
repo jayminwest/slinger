@@ -1,12 +1,11 @@
 //! The store against a real SQLite file in a temporary directory.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use rusqlite::Connection;
 use slinger_core::record::{self, BlobId, Body, Event, Tags};
 
-use super::{FILE, Query, Result, Store, StoreError, data_dir_in, machine_from};
-use crate::testing::when_free;
+use super::{FILE, Query, Store, StoreError, data_dir_in, machine_from};
 
 const MACHINE: &str = "test-machine";
 
@@ -17,12 +16,6 @@ fn event(kind: &str, workspace: Option<&str>) -> Event {
     let body = Body::Other { kind: kind.to_owned(), payload: serde_json::json!({}) };
     // Through the format, so a known kind comes back typed as the store returns it.
     record::decode(&record::encode(&Event::new(7, "test", tags, body))).unwrap()
-}
-
-/// Opens `dir` again once the store that had it is dropped, waiting out its
-/// lock while another test's new process still holds a copy of it.
-fn reopen(dir: &Path, machine: &str) -> Result<Store> {
-    when_free(|| Store::open(dir, machine), |e| matches!(e, StoreError::Taken(_)))
 }
 
 fn numbers(events: &[Event]) -> Vec<u64> {
@@ -42,7 +35,7 @@ fn appended_events_survive_a_reopen_in_order() {
     assert!((before..=after).contains(&first.time), "{} not in {before}..={after}", first.time);
     drop(store);
 
-    let store = reopen(dir.path(), MACHINE).unwrap();
+    let store = Store::open(dir.path(), MACHINE).unwrap();
     let all = store.events(&Query::default()).unwrap();
     assert_eq!(numbers(&all), [1, 2, 3]);
     assert_eq!(all[0], first);
@@ -64,7 +57,7 @@ fn the_machine_name_is_on_every_stored_event() {
 fn the_record_keeps_its_machine_name_when_the_host_is_renamed() {
     let dir = tempfile::tempdir().unwrap();
     drop(Store::open(dir.path(), MACHINE).unwrap());
-    let store = reopen(dir.path(), "renamed-host").unwrap();
+    let store = Store::open(dir.path(), "renamed-host").unwrap();
     assert_eq!(store.machine(), MACHINE);
     let added = store.append(event("agent_done", None)).unwrap();
     assert_eq!(added.tags.machine, MACHINE);
@@ -95,7 +88,7 @@ fn a_layout_1_record_keeps_the_name_on_its_first_event() {
     let store = Store::open(dir.path(), MACHINE).unwrap();
     assert_eq!(store.machine(), "old-host");
     drop(store);
-    assert_eq!(reopen(dir.path(), "third").unwrap().machine(), "old-host");
+    assert_eq!(Store::open(dir.path(), "third").unwrap().machine(), "old-host");
     let empty = layout_1_record(&[]);
     assert_eq!(Store::open(empty.path(), MACHINE).unwrap().machine(), MACHINE);
 }
@@ -183,7 +176,7 @@ fn putting_the_same_bytes_twice_gives_one_row() {
     assert_eq!(rows, 2);
     drop(store);
 
-    let store = reopen(dir.path(), MACHINE).unwrap();
+    let store = Store::open(dir.path(), MACHINE).unwrap();
     assert_eq!(store.blob(id).unwrap().as_deref(), Some(&b"packet"[..]));
     assert_eq!(store.blob(other).unwrap().as_deref(), Some(&b""[..]));
     assert_eq!(store.blob(BlobId::of(b"never put")).unwrap(), None);
@@ -197,7 +190,7 @@ fn a_record_from_a_newer_slingerd_is_refused() {
         .unwrap()
         .pragma_update(None, "user_version", 9)
         .unwrap();
-    let err = reopen(dir.path(), MACHINE).unwrap_err();
+    let err = Store::open(dir.path(), MACHINE).unwrap_err();
     assert!(matches!(err, StoreError::Newer { found: 9, .. }), "{err:?}");
     assert_eq!(err.code(), "conflict");
     assert!(err.hint().unwrap().contains("newer slingerd"));
@@ -223,7 +216,7 @@ fn a_held_data_dir_is_a_conflict_until_its_store_is_gone() {
     assert_eq!(err.to_string(), message);
     assert_eq!(err.hint().unwrap(), "stop that daemon, or pass another --data-dir");
     drop(first);
-    let again = reopen(dir.path(), MACHINE).unwrap();
+    let again = Store::open(dir.path(), MACHINE).unwrap();
     assert_eq!(again.events(&Query::default()).unwrap(), []);
 }
 

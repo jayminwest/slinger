@@ -11,8 +11,6 @@ use serde_json::json;
 use slinger_control::{Client, EventFilter, MAX_LINE, NewEvent, NewTags};
 use tempfile::TempDir;
 
-use crate::StoreError;
-use crate::testing::when_free;
 use crate::{Server, StartError, Stopper, Store, run};
 
 mod canvas;
@@ -46,10 +44,9 @@ fn socket_path() -> (TempDir, PathBuf) {
     (dir, socket)
 }
 
-/// Opens the record in `data`, waiting out a lock a store or daemon that
-/// stopped a moment ago released.
+/// Opens the record in `data`.
 fn open(data: &Path) -> Store {
-    when_free(|| Store::open(data, "test-machine"), |e| matches!(e, StoreError::Taken(_))).unwrap()
+    Store::open(data, "test-machine").unwrap()
 }
 
 /// Serves `server` with the record in `data` on a new thread. An agent's

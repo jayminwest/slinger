@@ -4,7 +4,6 @@
 mod agent;
 mod feedback;
 mod import;
-mod lock;
 mod pane;
 mod profile;
 mod read;
@@ -38,6 +37,7 @@ use slinger_core::ui;
 use slinger_core::workspace::FILE_NAME;
 
 use crate::canvases::CanvasError;
+use crate::lock::Lock;
 use crate::store::{Query, Store, StoreError};
 use crate::workspaces::{Broken, Listed, Opened, WorkspaceError};
 
@@ -81,7 +81,7 @@ pub struct Server {
     listener: UnixListener,
     socket: PathBuf,
     /// Held for the server's life: the lock, not the socket file, says who owns the path.
-    _lock: lock::Lock,
+    _lock: Lock,
     stopping: Arc<AtomicBool>,
 }
 
@@ -113,7 +113,9 @@ impl Server {
         if let Some(dir) = socket.parent() {
             fs::create_dir_all(dir).map_err(io)?;
         }
-        let lock = lock::Lock::take(socket).map_err(io)?;
+        let mut path = socket.as_os_str().to_owned();
+        path.push(".lock");
+        let lock = Lock::take(Path::new(&path)).map_err(io)?;
         let lock = lock.ok_or_else(|| StartError::Taken(socket.to_owned()))?;
         // The lock is ours, so a socket file here is left over from a daemon that died.
         match fs::remove_file(socket) {
