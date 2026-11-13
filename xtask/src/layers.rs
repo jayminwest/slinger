@@ -219,4 +219,23 @@ mod tests {
         });
         assert_eq!(parse(&config).err().map(|e| e.len()), Some(2));
     }
+
+    #[test]
+    fn the_pdf_rule_holds_pdf_code_to_one_file() {
+        let config: Value = serde_json::from_str(include_str!("../../budgets/layer-rules.json"))
+            .expect("the rules parse");
+        let (rules, _) = parse(&config).unwrap_or_default();
+        let pdf: Vec<Rule> =
+            rules.into_iter().filter(|r| r.name == "pdf-lives-in-platform-pdf").collect();
+        let src = sources(&[
+            ("crates/app/src/platform/pdf.rs", "let d = CGPDFDocument::with_url(u);\n"),
+            ("crates/app/src/platform/canvas.rs", "let d = AnyClass::get(c\"PDFDocument\");\n"),
+            ("crates/core/src/render/raster.rs", "const PDF_GREY: Colour = grey();\n"),
+            ("crates/daemon/src/pdf.rs", "use lopdf::Document;\n"),
+        ]);
+        let errors = evaluate(&pdf, &[], &src);
+        assert_eq!(errors.len(), 2, "{errors:?}");
+        assert!(errors[0].starts_with("crates/app/src/platform/canvas.rs:1:"));
+        assert!(errors[1].starts_with("crates/daemon/src/pdf.rs:1:"));
+    }
 }

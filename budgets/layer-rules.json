@@ -84,6 +84,29 @@
 				"crate::platform",
 				"super::platform"
 			]
+		},
+		{
+			"name": "pdf-lives-in-platform-pdf",
+			"why": "one file reads PDFs, through CoreGraphics and PDFKit; the core, the daemon, control and the CLI take a PDF only as a blob and its pages only as the backdrops and words the app sends",
+			"paths": [
+				"crates"
+			],
+			"except": [
+				"crates/app/src/platform/pdf.rs"
+			],
+			"forbid": [
+				"CGPDF*",
+				"PDFKit",
+				"PDFDocument",
+				"PDFPage",
+				"PDFSelection",
+				"objc2_pdf_kit",
+				"lopdf",
+				"pdf_extract",
+				"pdfium*",
+				"mupdf*",
+				"poppler*"
+			]
 		}
 	],
 	"allow": []
