@@ -363,6 +363,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** of two broken workspaces whose files name none, a tap on one
+  highlights that one only, and the panes no longer ask for a workspace
+  with an empty name (they keep what they show).
 - **App:** with a broken workspace first in the list and none named in the
   config, the sidebar highlights the workspace the panes show (the first
   usable one), not the broken one.

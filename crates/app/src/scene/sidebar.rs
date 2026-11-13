@@ -95,7 +95,16 @@ pub struct Sidebar {
     /// The agents in the notice, oldest first, with the status each became.
     notice: Vec<notice::Noticed>,
     /// The workspace whose panes the window shows; `None`: the first usable.
-    shown: Option<String>,
+    shown: Option<Shown>,
+}
+
+/// How the sidebar knows the workspace the window shows: by the name the
+/// config or an open gave, or by the folder of the one tapped, which is
+/// unique even among broken files that name none.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Shown {
+    Name(String),
+    Dir(PathBuf),
 }
 
 impl Sidebar {
@@ -107,7 +116,7 @@ impl Sidebar {
     /// Marks `workspace` as the one the window shows; `None`: the first
     /// that is not broken, as the panes do (`backend::panes::layout`).
     pub fn show(&mut self, workspace: Option<String>) {
-        self.shown = workspace;
+        self.shown = workspace.map(Shown::Name);
     }
 
     pub fn is_open(&self) -> bool {
@@ -206,11 +215,13 @@ impl Sidebar {
     }
 
     /// Shows the workspace with index `index` in the list (the window
-    /// shows its panes): its name, or `None` past the last.
+    /// shows its panes): its name, for the panes to ask for; `None` past
+    /// the last, and for a broken file that names none.
     pub fn pick(&mut self, index: usize) -> Option<String> {
-        let name = self.workspaces.as_ref()?.get(index)?.name.clone();
-        self.shown = Some(name.clone());
-        Some(name)
+        let workspace = self.workspaces.as_ref()?.get(index)?;
+        let name = Some(workspace.name.clone()).filter(|n| !n.is_empty());
+        self.shown = Some(Shown::Dir(workspace.dir.clone()));
+        name
     }
 
     /// Takes the workspace the window shows out of the list, and shows the
@@ -228,12 +239,13 @@ impl Sidebar {
         Some(self.workspaces.as_ref()?.get(self.at()?)?.dir.clone())
     }
 
-    /// The index of the workspace the window shows: the one named, else
-    /// the first that is not broken, as the panes show.
+    /// The index of the workspace the window shows: the one named or
+    /// tapped, else the first that is not broken, as the panes show.
     fn at(&self) -> Option<usize> {
         let mut list = self.workspaces.as_ref()?.iter();
         match &self.shown {
-            Some(name) => list.position(|w| w.name == *name),
+            Some(Shown::Name(name)) => list.position(|w| w.name == *name),
+            Some(Shown::Dir(dir)) => list.position(|w| w.dir == *dir),
             None => list.position(|w| w.broken.is_none()),
         }
     }
