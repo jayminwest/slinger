@@ -428,7 +428,12 @@ mod tests {
         use sidebar::{Agent, Status, Workspace};
         let ws = |status| {
             let agent = Agent { name: "ada".into(), status, note: None, ..Agent::default() };
-            vec![Workspace { name: "notes".into(), canvas: "notes".into(), agent: Some(agent) }]
+            vec![Workspace {
+                name: "notes".into(),
+                canvas: "notes".into(),
+                agent: Some(agent),
+                ..Workspace::default()
+            }]
         };
         let mut side = Sidebar::new(true);
         side.update(Ok(ws(Some(Status::Working))));

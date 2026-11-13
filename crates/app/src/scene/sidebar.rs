@@ -5,7 +5,8 @@
 //! agent with one mark: working, blocked or done; the workspace the window
 //! shows stands out. It is optional: one command opens or collapses
 //! it, and the panes take the space it leaves. Agent status is a glance, not
-//! a dashboard. A tap on a workspace's rows shows its panes; the foot is
+//! a dashboard. A workspace whose file the daemon cannot use shows why
+//! ([`broken`]). A tap on a workspace's rows shows its panes; the foot is
 //! kept for the button that hides the sidebar, at the spot where the
 //! bottom-left footer shows it while the sidebar is collapsed.
 //!
@@ -14,129 +15,32 @@
 //! it starts or after the daemon comes back, is where it starts counting:
 //! no notice for what was already so.
 
+use std::path::PathBuf;
+
 use crate::backend::Problem;
 use crate::config::{Rgb, Theme};
 use crate::layout::Rect;
 use crate::scene::{Label, status, style};
 
+mod agent;
+pub mod broken;
 pub mod notice;
 
-/// An agent's status as the window shows it: what it last set with
-/// `slinger status set`, read against its process ([`Status::of`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Status {
-    Working,
-    Blocked,
-    Done,
-    /// Its process is not running: a sling cannot reach it.
-    Stopped,
-}
-
-/// An agent's process as slingerd holds it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Process {
-    Running,
-    /// It ended, or was stopped: slingerd started it before.
-    Exited,
-    /// slingerd never started it: the agent may run outside it, and its
-    /// hooks say how it is.
-    Absent,
-}
-
-impl Process {
-    /// The process the daemon calls `name` (`running` or `exited`; `None`:
-    /// it holds none) for an agent it `started` before (it holds a session
-    /// id for it).
-    pub fn named(name: Option<&str>, started: bool) -> Process {
-        match name {
-            Some("running") => Process::Running,
-            None if !started => Process::Absent,
-            _ => Process::Exited,
-        }
-    }
-}
-
-impl Status {
-    /// The status to show for an agent that `said` it is at a status, whose
-    /// `process` has `pending` messages it has not answered, and which has
-    /// `answered` one: the daemon's own count wins over what the agent's
-    /// hooks last said, which may be late or never come. A process that
-    /// exited is [`Status::Stopped`]; for an agent slingerd never started,
-    /// what its hooks said shows (stopped when they said nothing). A running one with a
-    /// message pending is working, or blocked when it says so; with none
-    /// it is done once it said anything or answered, and has no status
-    /// before.
-    pub fn of(
-        said: Option<Status>,
-        process: Process,
-        pending: u32,
-        answered: bool,
-    ) -> Option<Status> {
-        match process {
-            Process::Running => {}
-            Process::Exited => return Some(Status::Stopped),
-            Process::Absent => return said.or(Some(Status::Stopped)),
-        }
-        if pending > 0 {
-            let blocked = said == Some(Status::Blocked);
-            return Some(if blocked { Status::Blocked } else { Status::Working });
-        }
-        (said.is_some() || answered).then_some(Status::Done)
-    }
-
-    /// The status the daemon calls `name`; `None` for any other word.
-    pub fn parse(name: &str) -> Option<Status> {
-        match name {
-            "working" => Some(Status::Working),
-            "blocked" => Some(Status::Blocked),
-            "done" => Some(Status::Done),
-            _ => None,
-        }
-    }
-
-    pub fn word(self) -> &'static str {
-        match self {
-            Status::Working => "working",
-            Status::Blocked => "blocked",
-            Status::Done => "done",
-            Status::Stopped => "not running",
-        }
-    }
-}
+pub use agent::{Agent, Process, Status};
+pub use broken::Broken;
 
 /// One open workspace, as the daemon last said.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Workspace {
+    /// Empty only for a broken file that names none.
     pub name: String,
     /// Its default canvas's id: where its agent's button shows its status.
     pub canvas: String,
     pub agent: Option<Agent>,
-}
-
-/// The agent of a workspace.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Agent {
-    pub name: String,
-    /// `None` until the agent sets one.
-    pub status: Option<Status>,
-    /// What the agent said with its status.
-    pub note: Option<String>,
-    /// The profile its running process runs under; `None` while it runs
-    /// within its own limits or does not run.
-    pub profile: Option<String>,
-    /// The names of its profiles, in its workspace file's order.
-    pub profiles: Vec<String>,
-}
-
-impl Agent {
-    /// How the window names it: `scout`, or `scout (dev)` while it runs
-    /// under the profile `dev`.
-    pub fn label(&self) -> String {
-        match &self.profile {
-            Some(profile) => format!("{} ({profile})", self.name),
-            None => self.name.clone(),
-        }
-    }
+    /// The directory of its file: what closes it, whatever the file holds.
+    pub dir: PathBuf,
+    /// Why the daemon cannot use its file, if it cannot.
+    pub broken: Option<Broken>,
 }
 
 /// The sidebar's width, in points, when it is open.
@@ -213,10 +117,9 @@ impl Sidebar {
     /// and has become blocked or done joins the notice; an agent in the
     /// notice whose status moved on leaves it. A problem empties the list,
     /// so the next list is a new start. Returns whether anything shown
-    /// changed.
+    /// changed: the notice changes only with the list.
     pub fn update(&mut self, now: Result<Vec<Workspace>, Problem>) -> bool {
-        let before = self.clone();
-        match now {
+        let same = match now {
             Ok(now) => {
                 let agents = || now.iter().filter_map(|w| w.agent.as_ref());
                 self.notice
@@ -234,14 +137,18 @@ impl Sidebar {
                         self.notice.push(notice::Noticed::new(agent, status));
                     }
                 }
+                let same = self.problem.is_none() && self.workspaces.as_ref() == Some(&now);
                 (self.workspaces, self.problem) = (Some(now), None);
+                same
             }
             Err(problem) => {
+                let same = self.problem.as_ref() == Some(&problem.message);
                 (self.workspaces, self.problem) = (None, Some(problem.message));
                 self.notice.clear();
+                same
             }
-        }
-        *self != before
+        };
+        !same
     }
 
     /// Each open workspace's canvas and its agent, as last heard: what the
@@ -407,18 +314,27 @@ impl Line {
             workspace: None,
         }
     }
+
+    /// A line under a workspace's name, without a mark.
+    fn under(text: String, colour: Rgb) -> Self {
+        Self { under: true, ..Line::new(text, colour, Font::PLAIN) }
+    }
 }
 
-/// A workspace's lines: its name, its agent and status, and a blocked
-/// agent's note.
+/// A workspace's lines: its name (its folder's for a broken file that
+/// names none), then why a broken one cannot be used, or its agent and
+/// status, and a blocked agent's note.
 fn block(workspace: &Workspace, shown: bool, theme: &Theme) -> Vec<Line> {
     let font = Font { bold: shown, ..Font::PLAIN };
-    let name = Line { gap: GAP, ..Line::new(workspace.name.clone(), theme.text, font) };
-    let mut lines = vec![name];
-    match &workspace.agent {
-        None => lines
-            .push(Line { under: true, ..Line::new("no agent".into(), theme.muted, Font::PLAIN) }),
-        Some(agent) => {
+    let mut name = workspace.name.clone();
+    if name.is_empty() {
+        name = workspace.dir.file_name().unwrap_or_default().to_string_lossy().into();
+    }
+    let mut lines = vec![Line { gap: GAP, ..Line::new(name, theme.text, font) }];
+    match (&workspace.broken, &workspace.agent) {
+        (Some(broken), _) => lines.extend(broken.lines(theme)),
+        (None, None) => lines.push(Line::under("no agent".into(), theme.muted)),
+        (None, Some(agent)) => {
             let text = match agent.status {
                 Some(status) => format!("{} · {}", agent.label(), status.word()),
                 None => agent.label(),
@@ -426,10 +342,7 @@ fn block(workspace: &Workspace, shown: bool, theme: &Theme) -> Vec<Line> {
             let mark = Some(mark(agent.status, theme));
             lines.push(Line { under: true, mark, ..Line::new(text, theme.muted, Font::PLAIN) });
             if let (Some(Status::Blocked), Some(note)) = (agent.status, &agent.note) {
-                lines.push(Line {
-                    under: true,
-                    ..Line::new(note.clone(), theme.muted, Font::PLAIN)
-                });
+                lines.push(Line::under(note.clone(), theme.muted));
             }
         }
     }

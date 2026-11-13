@@ -665,6 +665,14 @@ scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
              session id) shows what its hooks said, and one with a message
              pending is working though no hook said so (`Status::of`). `agents`: each
              workspace's agent. Pure.
+scene/sidebar/agent.rs  an agent as the sidebar shows it: its `Status`,
+             read against its `Process` (`Status::of`), and its profiles.
+             Pure.
+scene/sidebar/broken.rs  a workspace whose file the daemon cannot use:
+             under its name a red ✗ and the error's message (less the file's
+             path: backend/agents.rs), the field that broke a rule and the
+             hint, each wrapped to the sidebar's width (`slung::wrap`). No
+             agent line. Pure.
 scene/sidebar/notice.rs  the notice: a 28 pt bar above the footers (it
              hides none), "<agent> is blocked: <note>" or "is done", with a
              ✕ (`dismiss-notice`); a tap on the rest shows the agent's
