@@ -29,13 +29,13 @@ pub struct Put {
     /// Put an arrow from one item to another, on the page of the item it goes beside
     #[arg(long, num_args = 2, value_names = ["FROM", "TO"])]
     arrow: Option<Vec<String>>,
-    /// Draw it in this colour: #rrggbb, or #rrggbbaa with alpha (default black)
+    /// Draw it in this colour: #rrggbb, or #rrggbbaa with alpha (default: the colour of the user's writing beside it, else black)
     #[arg(long, value_name = "COLOR")]
     color: Option<String>,
     /// Put the top-left corner of its box here, in tenths, not beside the item; not for an arrow
     #[arg(long, value_name = "X,Y", value_parser = point, conflicts_with = "arrow", allow_hyphen_values = true)]
     at: Option<[i64; 2]>,
-    /// Size the text's characters, in tenths like --at and --box: 40 to 4000 (default 240); only with --text
+    /// Size the text's characters, in tenths like --at and --box: 40 to 4000 (default: the size of the user's writing beside it, else 240); only with --text
     #[arg(long = "size", value_name = "TENTHS")]
     text_size: Option<i64>,
     #[arg(long, value_name = "NAME", help = AGENT_HELP)]

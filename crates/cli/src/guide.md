@@ -94,7 +94,9 @@ slinger canvas remove <CANVAS> --item i14 --agent claude
 ```
 
 Keep each text short: a few lines. Use more puts, each beside its subject,
-in place of one long text. Each put prints the new item's id and its box.
+in place of one long text. Leave out `--color` and `--size`: a put matches
+the colour and size of the user's writing it goes beside, so it shows on
+their page. Give them only to stand out on purpose. Each put prints the new item's id and its box.
 
 Make many items in one undo step:
 

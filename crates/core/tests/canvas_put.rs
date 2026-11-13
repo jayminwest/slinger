@@ -302,3 +302,68 @@ fn a_put_text_takes_a_size_in_tenths_and_its_frame_fits_it() {
     }
     assert_eq!(log.next(), next, "a refused put writes nothing");
 }
+
+/// A stroke of the user's in red, from `x,y` down `h` tenths, 2 units wide.
+fn letter(x: i64, y: i64, h: i64) -> Value {
+    json!({ "op": "add", "item": { "page": "p1", "kind": "stroke", "color": "#cc0000",
+        "width": 20, "pts": [x, y, 0, h] } })
+}
+
+/// Two lines of red writing, letters 62 units tall with the pen's width
+/// (some half that), and a bracket two lines tall that touches the first
+/// letter, so all of it is one cluster, `c1`.
+fn note() -> Vec<Value> {
+    let mut ops = Vec::new();
+    for y in [0, 900] {
+        ops.extend([letter(0, y, 600), letter(150, y + 300, 300), letter(300, y, 600)]);
+    }
+    ops.push(letter(0, 0, 1500));
+    ops
+}
+
+/// The colour and size, in tenths, of the item `id` as `canvas show` gives
+/// them (`size` is absent at the default).
+fn look_of(log: &Log, id: &str) -> (String, i64) {
+    let shown = log.show(None).unwrap();
+    let item = shown.items.iter().find(|i| i["id"] == id).unwrap();
+    (item["color"].as_str().unwrap().to_owned(), item["size"].as_i64().unwrap_or(240))
+}
+
+#[test]
+fn a_reply_with_no_colour_or_size_matches_the_writing_it_goes_beside() {
+    // slinger-1da937: replies came out 240 and black, whatever the ink.
+    let mut log = log_of(&json!(note()));
+    let placed = log.put(&scout(), AT, "c1", &Put::Text("noted".into())).unwrap();
+    assert_eq!(look_of(&log, &placed.item), ("#cc0000".into(), 620), "a line's height, red");
+    assert_eq!(placed.frame[2..], [5 * 620, 620]);
+    // A single stroke counts with its whole note; a box takes the colour.
+    let placed = log.put(&scout(), AT, "i2", &Put::Text("again".into())).unwrap();
+    assert_eq!(look_of(&log, &placed.item), ("#cc0000".into(), 620));
+    let placed = log.put(&scout(), AT, "c1", &Put::Box { w: 100, h: 100 }).unwrap();
+    assert_eq!(look_of(&log, &placed.item).0, "#cc0000");
+}
+
+#[test]
+fn what_the_agent_gives_wins_and_beside_no_writing_the_page_decides() {
+    let mut ops = note();
+    let blue = json!({ "op": "add", "item": { "page": "p1", "kind": "text", "x": 0, "y": 5000,
+        "text": "a", "size": 480, "color": "#0000ff" } });
+    ops.extend([blue.clone(), blue, bx(9000, 0, 100, 100)]);
+    let mut log = log_of(&json!(ops));
+    let how = How { colour: Some("#00ff00".into()), text_size: Some(300), ..How::default() };
+    let placed = log.put_how(&scout(), AT, "c1", &Put::Text("mine".into()), &how).unwrap();
+    assert_eq!(look_of(&log, &placed.item), ("#00ff00".into(), 300));
+    let size_only = How { text_size: Some(300), ..How::default() };
+    let placed = log.put_how(&scout(), AT, "c1", &Put::Text("half".into()), &size_only).unwrap();
+    assert_eq!(look_of(&log, &placed.item), ("#cc0000".into(), 300));
+    // Beside the user's box: the page's marks, seven red strokes against
+    // two blue texts, and sizes 620 (the note), 480 and 480.
+    let placed = log.put(&scout(), AT, "b10", &Put::Text("page".into())).unwrap();
+    assert_eq!(look_of(&log, &placed.item), ("#cc0000".into(), 480));
+    // The agent's own replies do not count, and a page with no writing
+    // gives the old default.
+    let mut log = log_of(&bx(0, 0, 100, 100));
+    log.put_how(&scout(), AT, "i1", &Put::Text("x".into()), &how).unwrap();
+    let placed = log.put(&scout(), AT, "i2", &Put::Text("plain".into())).unwrap();
+    assert_eq!(look_of(&log, &placed.item), ("#000000".into(), 240));
+}

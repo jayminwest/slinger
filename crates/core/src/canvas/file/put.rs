@@ -7,8 +7,9 @@
 //! on that item's page, in the free space [`Canvas::free_beside`] finds. An
 //! arrow joins two items on that page instead, from the edge of one to the
 //! edge of the other, and points at both. [`How`] gives the item a colour
-//! (black by default) and, for all but an arrow, a place of the agent's
-//! choosing: the top-left corner of its box, and text a size other than
+//! and, for all but an arrow, a place of the agent's choosing: the top-left
+//! corner of its box, and text a size. A colour or size it leaves out
+//! matches the user's ink near the item (`near`), else is black and
 //! [`TEXT_SIZE`]. Lengths are in tenths of a
 //! unit, as everywhere in a request. The put is one undo step of its
 //! author, and the item carries the author and the time, as every item does.
@@ -32,7 +33,7 @@ pub const INK_WIDTH: f64 = 2.0;
 /// What a put adds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Put {
-    /// Text at [`TEXT_SIZE`] (or [`How::text_size`]), wrapped to at most [`TEXT_COLUMNS`] characters a line.
+    /// Text at [`How::text_size`], wrapped to at most [`TEXT_COLUMNS`] characters a line.
     Text(String),
     /// An empty box, `w` by `h` tenths of a unit.
     Box { w: i64, h: i64 },
@@ -50,14 +51,16 @@ pub enum Put {
 /// How a put draws what it adds; what it leaves out is the default.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct How {
-    /// `#rrggbb` or `#rrggbbaa`; black when absent. A live item has none.
+    /// `#rrggbb` or `#rrggbbaa`; when absent, the colour of the user's ink
+    /// near the item (`near`), else black. A live item has none.
     pub colour: Option<String>,
     /// Where the top-left corner of the item's box goes, `[x, y]` in tenths
     /// of a unit, in place of the free space beside the item. Not for an
     /// arrow, whose ends are its items'.
     pub at: Option<[i64; 2]>,
     /// The size of a text's characters, in tenths of a unit as the file
-    /// stores it ([`TEXT_SIZES`] in tenths); [`TEXT_SIZE`] when absent. Only
+    /// stores it ([`TEXT_SIZES`] in tenths); when absent, the size of the
+    /// user's writing near the item (`near`), else [`TEXT_SIZE`]. Only
     /// for text: its frame fits the words at this size.
     pub text_size: Option<i64>,
 }
@@ -106,6 +109,13 @@ impl Log {
     ) -> Result<Placed> {
         let (colour, size) = self.check_put_how(beside, what, how)?;
         let (_, near, page) = self.named(beside)?;
+        let (colour, size) = match (colour, size) {
+            (Some(c), Some(s)) => (c, s),
+            (colour, size) => {
+                let (c, s) = super::near::look(self.canvas(), page, &self.resolve(beside)?);
+                (colour.or(c).unwrap_or(Colour::BLACK), size.or(s).unwrap_or(TEXT_SIZE))
+            }
+        };
         let origin = |w, h| Rect::new(0.0, 0.0, w, h);
         let shape = match what {
             Put::Text(text) => {
@@ -163,8 +173,13 @@ impl Log {
     }
 
     /// [`Log::check_put`], and that `how` fits `what`; the colour to draw in
-    /// and the size of a text's characters, in canvas units.
-    fn check_put_how(&self, beside: &str, what: &Put, how: &How) -> Result<(Colour, f64)> {
+    /// and the size of a text's characters, in canvas units, that `how` gives.
+    fn check_put_how(
+        &self,
+        beside: &str,
+        what: &Put,
+        how: &How,
+    ) -> Result<(Option<Colour>, Option<f64>)> {
         self.named(beside)?;
         match what {
             Put::Text(text) if text.trim().is_empty() => {
@@ -194,12 +209,12 @@ impl Log {
             }
             _ => {}
         }
-        let size = how.text_size.map_or(Ok(TEXT_SIZE), text_size)?;
+        let size = how.text_size.map(text_size).transpose()?;
         let colour = match &how.colour {
-            None => Colour::BLACK,
-            Some(c) => Colour::parse(c).ok_or_else(|| {
+            None => None,
+            Some(c) => Some(Colour::parse(c).ok_or_else(|| {
                 invalid(&format!("{c:?} is not a colour"), "give #rrggbb or #rrggbbaa")
-            })?,
+            })?),
         };
         Ok((colour, size))
     }
@@ -232,8 +247,8 @@ pub(super) fn text_size(tenths: i64) -> Result<f64> {
     Err(invalid(
         &format!("the text size {tenths} is not from {min} to {max} tenths"),
         &format!(
-            "give a size from {min} to {max} tenths of a unit, or leave it out for {}",
-            json::tenths(TEXT_SIZE)
+            "give a size from {min} to {max} tenths of a unit, or leave it out to match \
+             the writing beside it"
         ),
     ))
 }
