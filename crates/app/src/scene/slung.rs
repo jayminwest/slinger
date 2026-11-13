@@ -6,10 +6,11 @@
 //! target on it, the answer's panel and what to flash.
 //!
 //! One sling is followed at a time: a new one takes the last one's place,
-//! so marks never pile up. The pill stands under where the sling was made
-//! (the selection, or the button tapped), moves with the canvas, and is
-//! held inside the pane when that place is off screen; a sling of the whole
-//! page from the footer pins it to the pane's top left. It says, in turn:
+//! so marks never pile up. The pill has one place, however the sling was
+//! made: the top right of the pane that shows the sling's page (the
+//! focused one first; else the focused pane), its lines under it. The
+//! canvas's own button sits at the top left, the flash at the top centre
+//! and the sidebar's notice at the bottom. It says, in turn:
 //!
 //! - `● scout working · 4s · ~12k` (`● scout (dev) working …` under a
 //!   profile) from the moment the sling is in the
@@ -33,22 +34,27 @@
 //! (or "scout answered in text"). The agent's items can land after the
 //! daemon says it answered: an answer with none yet waits [`SETTLE`] for
 //! them before it says "in text", and its pill says only `✓ scout
-//! answered` meanwhile. A tap clears an answer or a failure, and
-//! so does [`CLEAR`] passing: nothing stays on the canvas for good.
+//! answered` meanwhile. An answer whose items are on the canvas, or that
+//! is done with none, goes [`DONE`] after it is told; one in text and a
+//! failure go after [`CLEAR`]. A tap clears an answer or a failure, and so
+//! does the pen going down on the canvas: nothing stays on it for good.
 
 use std::time::{Duration, Instant};
 
 use crate::backend::Problem;
 use crate::config::Theme;
-use crate::layout::{Point, Rect, Size, Viewport};
+use crate::layout::{Point, Rect, Viewport};
 use crate::scene::canvas::ItemId;
 use crate::scene::overlay::{Align, Line, Overlay};
 use crate::scene::taps::{Tap, Target};
 use crate::scene::{Label, glyphs, style};
 use words::{cost, count, elapsed, page};
 
-/// How long an answer or a failure stays untapped.
+/// How long an answer in text or a failure stays untapped.
 pub const CLEAR: Duration = Duration::from_secs(30);
+/// How long an answer stays once its items are on the canvas, or it is
+/// done with none: as long as the sidebar's done notice.
+pub const DONE: Duration = Duration::from_secs(5);
 /// How long an answer with nothing on the canvas yet waits for the agent's
 /// items to land before it says it answered in text.
 pub const SETTLE: Duration = Duration::from_secs(1);
@@ -145,7 +151,6 @@ enum Stage {
 struct Out {
     canvas: String,
     page: String,
-    at: Option<Rect>,
     /// The newest item on its page when it went: the agent's items above
     /// it are its answer.
     newest: ItemId,
@@ -157,6 +162,7 @@ struct Out {
     tokens: Option<u64>,
     went: Instant,
     stage: Stage,
+    /// When it moved to its stage, or its answer was told.
     since: Instant,
     items: Vec<(ItemId, Rect)>,
     reading: bool,
@@ -174,13 +180,12 @@ pub struct Slung {
 }
 
 impl Slung {
-    /// A sling of `page` of `canvas` leaves from `at` (canvas units; `None`:
-    /// the page as a whole) at `now`, under the profile `under`, with
-    /// `newest` the newest item there. What showed for the last sling goes.
+    /// A sling of `page` of `canvas` leaves at `now`, under the profile
+    /// `under`, with `newest` the newest item there. What showed for the
+    /// last sling goes.
     pub fn aim(
         &mut self,
         (canvas, page): (&str, &str),
-        at: Option<Rect>,
         under: Option<&str>,
         newest: ItemId,
         now: Instant,
@@ -191,7 +196,6 @@ impl Slung {
         let out = Out {
             canvas,
             page,
-            at,
             newest,
             agent,
             under: under.map(str::to_string),
@@ -280,7 +284,7 @@ impl Slung {
             (None, true) => "is done",
         };
         self.flash = Some(format!("{} {flash}", out.agent));
-        out.told = true;
+        (out.told, out.since) = (true, now);
         true
     }
 
@@ -322,8 +326,9 @@ impl Slung {
     }
 
     /// The time is `now`: whether what the pill says changed (its time, an
-    /// answer settled ([`SETTLE`]), or an answer or a failure that has shown for [`CLEAR`] goes, unless its
-    /// answer is open).
+    /// answer settled ([`SETTLE`]), or an answer or a failure that has
+    /// shown long enough ([`DONE`], [`CLEAR`]) goes, unless its answer is
+    /// open).
     pub fn tick(&mut self, now: Instant) -> bool {
         let told = self.tell(now);
         let Some(out) = self.out.as_mut() else { return false };
@@ -335,13 +340,26 @@ impl Slung {
                 changed
             }
             Stage::Answered(_) | Stage::Failed(_) | Stage::Stopped
-                if !out.reading && out.since + CLEAR <= now =>
+                if !out.reading && out.since + out.lasts() <= now =>
             {
                 self.out = None;
                 true
             }
             _ => told,
         }
+    }
+
+    /// The pen went down on the canvas: an answer that was told (open or
+    /// not), or a failure, goes. Returns whether it did.
+    pub fn pressed(&mut self) -> bool {
+        let ending = self
+            .out
+            .as_ref()
+            .is_some_and(|o| o.told || matches!(o.stage, Stage::Failed(_) | Stage::Stopped));
+        if ending {
+            self.out = None;
+        }
+        ending
     }
 
     /// What to flash, once.
@@ -423,14 +441,16 @@ impl Slung {
         let lines = answer.map_or_else(|| under.clone(), |a| page(a, block, &out.agent));
         let tall =
             HIGH + count(lines.len()) * LINE + if answer.is_some() { 2.0 * GAP } else { 0.0 };
-        let pill = out.place(&view, Size { width: wide.min(block), height: tall });
+        let pill = out::place(&view, wide.min(block));
+        // The lines under the pill end where it does.
+        let left = pill.x + pill.width - block;
         let fill = style::panel(theme);
         let label = Label { text, colour, fill: Some(fill), frame: pill };
         let line = Line::text(String::new(), colour, pill, TEXT, Align::Centre);
         let line = Line { label, radius: style::FIELD_RADIUS, ..line };
         let (mut labels, mut target) = (Vec::new(), pill);
         let panel = answer.map(|_| {
-            let frame = Rect { y: pill.y + HIGH, width: block, height: tall - HIGH, ..pill };
+            let frame = Rect { x: left, y: pill.y + HIGH, width: block, height: tall - HIGH };
             target = target.union(frame);
             let mut shown = vec![Line {
                 edge: Some(style::edge(theme)),
@@ -448,8 +468,12 @@ impl Slung {
         });
         if panel.is_none() {
             for (n, line) in lines.into_iter().enumerate() {
-                let frame =
-                    Rect { y: pill.y + HIGH + count(n) * LINE, height: LINE, width: block, ..pill };
+                let frame = Rect {
+                    x: left,
+                    y: pill.y + HIGH + count(n) * LINE,
+                    width: block,
+                    height: LINE,
+                };
                 labels.push(Label {
                     text: line,
                     colour: theme.muted,
