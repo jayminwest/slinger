@@ -10,6 +10,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+use crate::Event;
 use crate::backend::pdf::Pages;
 use crate::backend::{self, Problem, Settings};
 use crate::canvases::Canvases;
@@ -445,4 +446,19 @@ pub fn view(
     scene.title = title::window(file, std::env::home_dir().as_deref());
     scene.menus = commands::menu::bar(keys, status::command(tools.chosen()));
     Box::new(scene)
+}
+
+/// Pans or zooms the canvas of the pane of `panes` laid in `area` under a
+/// scroll or a pinch; false when no pane is under it, or for another event.
+pub fn gesture(canvases: &mut Canvases, panes: &Panes, area: Rect, event: &Event) -> bool {
+    let (Event::Scroll { at, .. } | Event::Zoom { at, .. }) = *event else { return false };
+    let Some((pane, frame)) = pane_at(panes, area, at) else { return false };
+    match *event {
+        Event::Scroll { dx, dy, .. } => canvases.pan(pane, dx, dy),
+        Event::Zoom { factor, .. } => {
+            canvases.zoom(pane, Point { x: at.x - frame.x, y: at.y - frame.y }, factor);
+        }
+        _ => return false,
+    }
+    true
 }

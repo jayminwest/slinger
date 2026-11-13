@@ -45,7 +45,7 @@ use crate::backend::{Settings, Watch};
 use crate::canvases::Canvases;
 use crate::commands::{Chord, Command};
 use crate::config::Shown;
-use crate::layout::{Point, Rect};
+use crate::layout::Rect;
 use crate::panes::Panes;
 use crate::platform::{Event, Step};
 use crate::route::{Routed, route};
@@ -138,9 +138,11 @@ fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
 /// the pen.
 fn window(mut settings: Settings) -> ExitCode {
     let mut socket = settings.socket();
-    let watch = Watch::start(socket.clone(), settings.config.workspace.clone());
+    let last = platform::remembered_workspace();
+    let watch = Watch::start(socket.clone(), settings.config.workspace.clone(), last.clone());
     let mut shown = settings.config.sidebar;
-    let mut sidebar = Sidebar::new(Shown::starts_open(shown, platform::remembered_sidebar()));
+    let open = Shown::starts_open(shown, platform::remembered_sidebar());
+    let mut sidebar = Sidebar::new(open).preferring(last);
     sidebar.show(settings.config.workspace.clone());
     let widths = settings.config.widths.clone();
     let mut tools = Tools::new(settings.config.palette.clone()).with_widths(widths);
@@ -216,17 +218,23 @@ fn canvases(socket: &Path) -> Canvases {
     backend::Unsent::locate().into_iter().fold(canvases, Canvases::keeping)
 }
 
-/// `step` with `sidebar`, which it may open or collapse: the sidebar starts
-/// the next launch as it is left.
+/// `step` with `sidebar`, which it may open or collapse or show another
+/// workspace in: the next launch starts with the sidebar as it is left,
+/// showing the workspace it shows.
 fn remembering(
     mut step: impl FnMut(Event, &mut Sidebar) -> Step,
     mut sidebar: Sidebar,
 ) -> impl FnMut(Event) -> Step {
+    let mut kept = platform::remembered_workspace();
     move |event| {
         let was = sidebar.is_open();
         let step = step(event, &mut sidebar);
         if sidebar.is_open() != was {
             platform::remember_sidebar(sidebar.is_open());
+        }
+        if let Some(name) = sidebar.shown_name().filter(|n| kept.as_deref() != Some(*n)) {
+            platform::remember_workspace(name);
+            kept = Some(name.to_string());
         }
         step
     }
@@ -477,23 +485,8 @@ fn pointer(
             }
             ended
         }
-        _ => gesture(canvases, panes, area, event),
+        _ => window::gesture(canvases, panes, area, event),
     }
-}
-
-/// Pans or zooms the canvas of the pane of `panes` laid in `area` under a
-/// scroll or a pinch; false when no pane is under it, or for another event.
-fn gesture(canvases: &mut Canvases, panes: &Panes, area: Rect, event: &Event) -> bool {
-    let (Event::Scroll { at, .. } | Event::Zoom { at, .. }) = *event else { return false };
-    let Some((pane, frame)) = pane_at(panes, area, at) else { return false };
-    match *event {
-        Event::Scroll { dx, dy, .. } => canvases.pan(pane, dx, dy),
-        Event::Zoom { factor, .. } => {
-            canvases.zoom(pane, Point { x: at.x - frame.x, y: at.y - frame.y }, factor);
-        }
-        _ => return false,
-    }
-    true
 }
 
 #[cfg(test)]

@@ -18,7 +18,7 @@
 //! sets its title bar, shows a canvas's file in the Finder and hands on files
 //! dropped on the window; `pdf` reads and draws PDFs, and asks for one to open;
 //! `window` makes it; `remember` keeps its frame, and whether the sidebar was
-//! open, for the next launch.
+//! open and the workspace it showed, for the next launch.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
 //! that touches `AppKit` takes a `MainThreadMarker`, which only the main thread
@@ -56,6 +56,7 @@ use self::canvas::CanvasView;
 use self::chrome::{color, flipped, label};
 pub use self::files::{choose_folder, reveal};
 pub use self::remember::{Kept, remember_sidebar, sidebar as remembered_sidebar};
+pub use self::remember::{remember_workspace, workspace as remembered_workspace};
 use crate::commands::{Chord, Command};
 use crate::layout::{PaneId, Point, Size};
 use crate::scene::flash::Pill;

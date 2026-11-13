@@ -11,22 +11,30 @@ use slinger_control::{Client, PaneKind, PaneLayout, PaneTree};
 use super::Problem;
 use crate::panes::{Kind, Pane};
 
-/// The server's panes for `wanted` (the config's workspace), else for the
-/// first open workspace.
+/// The server's panes for `wanted` (the config's workspace, or the one
+/// tapped or opened), else for `last` (the workspace the window showed when
+/// the app last quit) while it is open and usable, else for the first open
+/// workspace that is usable.
 ///
 /// # Errors
 ///
 /// The daemon's, and a problem when no workspace is open.
-pub fn layout(daemon: &Client, wanted: Option<&str>) -> Result<PaneLayout, Problem> {
+pub fn layout(
+    daemon: &Client,
+    wanted: Option<&str>,
+    last: Option<&str>,
+) -> Result<PaneLayout, Problem> {
     let workspace = if let Some(wanted) = wanted {
         wanted.to_string()
     } else {
-        let mut usable = daemon.workspace_list()?.into_iter().filter(|w| w.error.is_none());
-        let first = usable.next().ok_or_else(|| {
+        let usable: Vec<_> =
+            daemon.workspace_list()?.into_iter().filter(|w| w.error.is_none()).collect();
+        let first = usable.iter().find(|w| Some(w.name.as_str()) == last).or(usable.first());
+        let first = first.ok_or_else(|| {
             let hint = Some("open one: 'slinger workspace open <DIR>'");
             Problem::new("no workspace is open".into(), hint)
         })?;
-        first.name
+        first.name.clone()
     };
     Ok(daemon.pane_list(&workspace)?)
 }
@@ -91,7 +99,7 @@ mod tests {
     fn follows_the_servers_panes_and_sends_its_own_changes() {
         with_daemon(|d| {
             d.workspace_open(None, Some("notes")).unwrap();
-            let first = layout(d, None).unwrap();
+            let first = layout(d, None, None).unwrap();
             assert_eq!(
                 (first.workspace.as_str(), words(&first.layout)),
                 ("notes", vec!["1:notes".to_string()])
@@ -99,26 +107,42 @@ mod tests {
 
             // Another client, as `slinger pane open` from a terminal.
             d.pane_open("notes", PaneKind::Canvas, "notes", None, false).unwrap();
-            assert_eq!(words(&layout(d, Some("notes")).unwrap().layout), ["1:notes", "2:notes"]);
+            assert_eq!(
+                words(&layout(d, Some("notes"), None).unwrap().layout),
+                ["1:notes", "2:notes"]
+            );
 
             let pane = Pane { kind: Kind::Canvas, name: "notes".into() };
             let (tree, number) = open(d, "notes", &pane, 1, true).unwrap();
             assert_eq!((words(&tree).len(), number), (3, 2));
-            assert_eq!(layout(d, None).unwrap().layout, tree, "the server keeps it");
+            assert_eq!(layout(d, None, None).unwrap().layout, tree, "the server keeps it");
             assert_eq!(words(&close(d, "notes", 2).unwrap()).len(), 2);
             assert_eq!(words(&close(d, "notes", 9).unwrap()).len(), 2, "already gone");
             let resized = resize(d, "notes", 1, 0.3).unwrap();
             let PaneTree::Split { ratio, .. } = resized else { panic!("{resized:?}") };
             assert_eq!(ratio, 0.3);
-            assert_eq!(layout(d, None).unwrap().layout, resized, "the server keeps it");
+            assert_eq!(layout(d, None, None).unwrap().layout, resized, "the server keeps it");
+        });
+    }
+
+    #[test]
+    fn the_last_shown_workspace_shows_while_none_is_wanted_and_it_is_open() {
+        with_daemon(|d| {
+            d.workspace_open(None, Some("ada")).unwrap();
+            d.workspace_open(None, Some("notes")).unwrap();
+            let shows = |wanted, last| layout(d, wanted, last).unwrap().workspace;
+            assert_eq!(shows(None, None), "ada", "the first open");
+            assert_eq!(shows(None, Some("notes")), "notes", "the last shown");
+            assert_eq!(shows(None, Some("gone")), "ada", "the last shown was closed");
+            assert_eq!(shows(Some("ada"), Some("notes")), "ada", "the one wanted wins");
         });
     }
 
     #[test]
     fn a_workspace_that_is_not_open_or_none_at_all_is_a_problem() {
         with_daemon(|d| {
-            assert_eq!(layout(d, None).unwrap_err().message, "no workspace is open");
-            let problem = layout(d, Some("nope")).unwrap_err();
+            assert_eq!(layout(d, None, None).unwrap_err().message, "no workspace is open");
+            let problem = layout(d, Some("nope"), None).unwrap_err();
             assert_eq!(problem.message, "open workspace \"nope\" not found");
             assert!(problem.hint.is_some());
         });
@@ -126,7 +150,7 @@ mod tests {
 
     #[test]
     fn no_daemon_is_a_problem_that_says_how_to_start_it() {
-        let problem = layout(&Client::new("/nonexistent/x.sock"), None).unwrap_err();
+        let problem = layout(&Client::new("/nonexistent/x.sock"), None, None).unwrap_err();
         assert!(problem.hint.unwrap().starts_with("start it with '"));
     }
 }

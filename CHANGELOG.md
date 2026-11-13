@@ -286,6 +286,9 @@ bullet with the area in bold.
 
 ### Changed
 
+- **App:** the app opens on the workspace it showed when you last quit it,
+  while that workspace is still open, instead of the first one by name. A
+  `workspace` set in the config still wins.
 - **Agents:** a workspace's agent now has every Claude Code tool (subagents,
   to-do lists, skills, web search and the rest) and the MCP servers its
   settings name, as a session you start by hand does. What it may do without

@@ -3,6 +3,8 @@ use crate::layout::Point;
 use crate::scene::glyphs;
 use crate::scene::taps::Tap;
 
+mod shown;
+
 const T: Theme = Theme {
     background: Rgb { r: 0, g: 0, b: 0 },
     text: Rgb { r: 1, g: 1, b: 1 },
@@ -449,50 +451,4 @@ fn a_shown_broken_workspace_has_a_close_line_whose_tap_closes_it() {
     let names: Vec<_> = sidebar.agents().unwrap().into_iter().map(|(c, _)| c).collect();
     assert_eq!(names, ["ada-canvas"], "out of the list");
     assert!(shown(&sidebar.rows(&T, WINDOW)).contains(&("ada-ws", T.text)));
-}
-
-#[test]
-fn close_takes_the_workspace_the_window_shows_and_the_first_shows_next() {
-    let mut sidebar = heard(vec![ws("ada", None), ws("bo", None), ws("cy", None)]);
-    sidebar.pick(1);
-    sidebar.close().unwrap();
-    let left: Vec<_> = sidebar.agents().unwrap().into_iter().map(|(c, _)| c).collect();
-    assert_eq!(left, ["ada-canvas", "cy-canvas"]);
-    let bold: Vec<_> = sidebar.rows(&T, WINDOW).into_iter().filter(|r| r.font.bold).collect();
-    assert_eq!(bold[0].label.text, "ada-ws", "the first shows");
-    sidebar.show(Some("gone".into()));
-    assert_eq!(sidebar.close(), None, "the shown one is not in the list");
-    assert_eq!(Sidebar::new(true).close(), None, "nothing heard yet");
-}
-
-#[test]
-fn a_shown_workspace_s_stopped_agent_has_a_start_line_whose_tap_starts_it() {
-    let stopped = Some(Status::Stopped);
-    let mut sidebar = heard(vec![ws("ada", stopped), ws("bo", stopped), ws("cy", None)]);
-    let start = Tap::Run(Command::StartAgent);
-    let taps = |s: &Sidebar| s.targets(&T, WINDOW).into_iter().map(|t| t.1).collect::<Vec<_>>();
-    let three = [Tap::Workspace(0), start, Tap::Workspace(1), Tap::Workspace(2)];
-    assert_eq!(taps(&sidebar), three, "the shown one's only");
-    assert!(shown(&sidebar.rows(&T, WINDOW)).contains(&(START, T.focus)));
-    assert_eq!(sidebar.shown_dir(), Some(PathBuf::from("/w/ada")), "what it starts");
-    sidebar.pick(2);
-    assert!(!taps(&sidebar).contains(&start), "an agent that runs: no line");
-    assert_eq!(Sidebar::new(true).shown_dir(), None, "nothing heard yet");
-}
-
-#[test]
-fn with_none_named_the_first_usable_workspace_stands_out_as_the_panes_show_it() {
-    let mut sidebar = heard(vec![broken("", "nameless"), ws("ada", None), ws("bo", None)]);
-    let bold = |s: &Sidebar| -> Vec<String> {
-        let rows = s.rows(&T, WINDOW).into_iter().filter(|r| r.font.bold);
-        rows.map(|r| r.label.text).collect()
-    };
-    assert_eq!(bold(&sidebar), ["ada-ws"], "not the broken first");
-    assert!(!sidebar.rows(&T, WINDOW).iter().any(|r| r.label.text == broken::CLOSE));
-    assert_eq!(sidebar.close(), Some(PathBuf::from("/w/ada")), "closes the one shown: ada's");
-    assert_eq!(bold(&sidebar), ["bo-ws"]);
-    sidebar.update(Ok(vec![broken("", "one"), broken("", "two")]));
-    // Of two that name none: by its folder, and no name for the panes to ask for.
-    let two = (sidebar.pick(1), bold(&sidebar), sidebar.shown_dir());
-    assert_eq!(two, (None, vec!["two".into()], Some("/w/two".into())));
 }

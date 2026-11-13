@@ -1,6 +1,6 @@
 //! What the window keeps from one launch to the next, in the app's user
 //! defaults: its frame, which `AppKit` saves each time it moves or resizes,
-//! and whether the sidebar was open.
+//! whether the sidebar was open, and the workspace it showed.
 
 use objc2_app_kit::NSWindow;
 use objc2_foundation::{NSString, NSUserDefaults};
@@ -54,6 +54,23 @@ pub fn sidebar() -> Option<bool> {
 /// Keeps whether the sidebar is `open`, for the next launch.
 pub fn remember_sidebar(open: bool) {
     NSUserDefaults::standardUserDefaults().setBool_forKey(open, &NSString::from_str(SIDEBAR));
+}
+
+/// The key for the name of the workspace the window showed.
+const WORKSPACE: &str = "workspace shown";
+
+/// The name of the workspace the window showed when last left; `None`
+/// before it ever showed one.
+pub fn workspace() -> Option<String> {
+    let key = NSString::from_str(WORKSPACE);
+    NSUserDefaults::standardUserDefaults().stringForKey(&key).map(|name| name.to_string())
+}
+
+/// Keeps `name` as the workspace the window shows, for the next launch.
+pub fn remember_workspace(name: &str) {
+    let (defaults, key) = (NSUserDefaults::standardUserDefaults(), NSString::from_str(WORKSPACE));
+    // SAFETY: a string is a property-list value, which user defaults keep.
+    unsafe { defaults.setObject_forKey(Some(&NSString::from_str(name)), &key) };
 }
 
 #[cfg(test)]

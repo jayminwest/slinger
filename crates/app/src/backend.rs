@@ -98,8 +98,8 @@ fn load(daemon: &Client, layout: &PaneLayout) -> Vec<(String, Result<Shown, Prob
 impl Watch {
     /// Starts asking the daemon on `socket`. The thread ends after the
     /// watch is dropped, at its next answer that differs from the last.
-    /// The panes are those of `wanted` (see [`panes::layout`]).
-    pub fn start(socket: PathBuf, wanted: Option<String>) -> Self {
+    /// The panes are those of `wanted`, else of `last` (see [`panes::layout`]).
+    pub fn start(socket: PathBuf, wanted: Option<String>, last: Option<String>) -> Self {
         let socket = Arc::new(Mutex::new(socket));
         let wanted = Arc::new(Mutex::new(wanted));
         let (agents, news) = mpsc::channel();
@@ -107,19 +107,19 @@ impl Watch {
         let (uis, codes) = mpsc::channel();
         let (theirs, their_wanted) = (Arc::clone(&socket), Arc::clone(&wanted));
         std::thread::spawn(move || {
-            let (mut last, mut drawn) = (None, None);
+            let (mut heard, mut drawn) = (None, None);
             loop {
                 let daemon =
                     Client::new(theirs.lock().unwrap_or_else(PoisonError::into_inner).clone());
                 let wanted = their_wanted.lock().unwrap_or_else(PoisonError::into_inner).clone();
-                let layout = panes::layout(&daemon, wanted.as_deref());
+                let layout = panes::layout(&daemon, wanted.as_deref(), last.as_deref());
                 let fresh = drawn.as_ref() != Some(&layout);
                 let loaded = match &layout {
                     Ok(now) if fresh => uis.send(load(&daemon, now)).is_ok(),
                     _ => true,
                 };
                 if !loaded
-                    || !tell(&agents, &mut last, workspaces(&daemon))
+                    || !tell(&agents, &mut heard, workspaces(&daemon))
                     || !tell(&panes, &mut drawn, layout)
                 {
                     return;
@@ -361,7 +361,7 @@ pub(crate) mod tests {
 
     #[test]
     fn a_watch_hears_a_status_change_and_follows_a_new_socket() {
-        let watch = Watch::start(PathBuf::from("/nonexistent/x.sock"), None);
+        let watch = Watch::start(PathBuf::from("/nonexistent/x.sock"), None, None);
         let deadline = std::time::Instant::now() + Duration::from_secs(10);
         let lost = loop {
             if let Some(answer) = watch.latest() {
@@ -386,7 +386,7 @@ pub(crate) mod tests {
         with_socket(|socket| {
             let d = &Client::new(socket);
             let _dir = open_notes(d);
-            let watch = Watch::start(socket.to_path_buf(), Some("nope".into()));
+            let watch = Watch::start(socket.to_path_buf(), Some("nope".into()), None);
             let deadline = std::time::Instant::now() + Duration::from_secs(10);
             let count = || {
                 assert!(std::time::Instant::now() < deadline, "timed out");

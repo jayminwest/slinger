@@ -99,7 +99,7 @@ pub struct Config {
     /// `None` is the daemon's default socket.
     pub socket: Option<String>,
     /// The workspace whose panes the window shows, by name; `None` is the
-    /// first open workspace.
+    /// one it showed when the app last quit, while open, else the first open.
     pub workspace: Option<String>,
     pub keys: Keymap,
     pub palette: Palette,
