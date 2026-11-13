@@ -20,7 +20,7 @@ pub struct Env {
     /// `$SLINGER_AGENT`, when set and not blank.
     pub agent: Option<String>,
     /// `$SLINGER_SOCKET`, else the socket the daemon named in the default
-    /// data directory, when either is there.
+    /// data directory while something listens on it, when either is there.
     pub socket: Option<PathBuf>,
 }
 

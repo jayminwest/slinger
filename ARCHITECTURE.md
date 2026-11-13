@@ -407,7 +407,7 @@ shared.rs    the window's panes as the server keeps them for its workspace,
 backend.rs   the app's IO: the one module that talks to the daemon, and the
              one that reads and watches the config files and the daemon's
              name for its socket (backend/place.rs: the config's socket,
-             else the live one the daemon named, else the default). Its Watch asks the
+             else the live one the daemon named (control::live_socket), else the default). Its Watch asks the
              daemon for the workspaces and their agents' statuses, the
              profile each runs under and the names of its profiles
              (workspace_list, session_list: backend/agents.rs) and for the window's workspace's
@@ -1233,7 +1233,7 @@ Each boundary has something that fails when it is broken:
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
 | The canvas file format is readable by older readers | `crates/core/tests/canvas_file.rs`, with a stored v1 fixture |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
-| A daemon names its socket in its data directory while it serves and takes the name back as it stops; `slinger` given no socket finds it there, on any path, and so does the app with no `[daemon] socket`, passing over a name nothing listens on (docs/service.md) | `crates/control/src/place.rs` tests, `crates/daemon/tests/signals.rs`, `crates/cli/tests/agent_env.rs`, `crates/app/src/backend/place.rs` tests |
+| A daemon names its socket in its data directory while it serves and takes the name back as it stops; `slinger` given no socket finds it there, on any path, and so does the app with no `[daemon] socket`; both pass over a name nothing listens on (`control::live_socket`), and an explicit socket is kept (docs/service.md) | `crates/control/src/place.rs` tests, `crates/daemon/tests/signals.rs`, `crates/cli/tests/agent_env.rs`, `crates/app/src/backend/place.rs` tests |
 | The client takes a reply slower than 5 s (the daemon under disk load) as an answer, not `unavailable`; it waits 30 s at most, and no reply in that time hints to retry or restart, not to start the daemon (docs/service.md) | `crates/control/src/client.rs` tests, with a fake daemon |
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
 | The packet's image rules: scale, margin, tiles, same bytes for the same input | `crates/core/tests/render.rs`, with golden images |

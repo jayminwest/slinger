@@ -42,8 +42,8 @@ pub use look::{CanvasImage, CanvasImages, CanvasStrokes};
 pub use packet::{CanvasPacket, PacketAsk, PacketImage};
 pub use pane::{Pane, PaneAsk, PaneKind, PaneLayout, PaneSplit, PaneTree};
 pub use place::{
-    default_data_dir, default_socket, name_socket, named_socket, running_socket, socket_name_file,
-    unname_socket,
+    default_data_dir, default_socket, live_socket, name_socket, named_socket, running_socket,
+    socket_name_file, unname_socket,
 };
 pub use profile::{Profile, ProfileAsk, Profiles};
 pub use session::{

@@ -1,12 +1,10 @@
 //! Where the app finds the daemon (docs/service.md, "Socket"), as the CLI
 //! does: the socket the config sets, else the one the running daemon named
 //! in its data directory, else the default. A name left by a daemon that
-//! died is passed over: the app takes a named socket only while something
-//! listens on it, so a stale name never holds the window on a dead socket
-//! (slinger-41f3b9). [`super::ConfigFiles`] stamps the name's file, so the
+//! died is passed over ([`control::live_socket`]), so a stale name never
+//! holds the window on a dead socket (slinger-41f3b9). [`super::ConfigFiles`] stamps the name's file, so the
 //! window follows a daemon that starts, moves or stops after it opened.
 
-use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 
 use slinger_control as control;
@@ -14,15 +12,7 @@ use slinger_control as control;
 /// `set` (the config's socket), else the live socket the daemon serving
 /// `data_dir` named, else [`control::default_socket`].
 pub(super) fn socket(set: Option<PathBuf>, data_dir: Option<&Path>) -> PathBuf {
-    set.or_else(|| data_dir.and_then(control::named_socket).filter(|named| listens(named)))
-        .unwrap_or_else(control::default_socket)
-}
-
-/// Whether a daemon takes connections on `socket`. A daemon that died
-/// leaves its socket file, which refuses them. The daemon reads the closed
-/// connection as no request and answers nothing.
-fn listens(socket: &Path) -> bool {
-    UnixStream::connect(socket).is_ok()
+    set.or_else(|| data_dir.and_then(control::live_socket)).unwrap_or_else(control::default_socket)
 }
 
 #[cfg(test)]

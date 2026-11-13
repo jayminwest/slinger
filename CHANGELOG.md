@@ -302,7 +302,9 @@ bullet with the area in bold.
   the default one: the daemon names its socket in its data directory while
   it runs. A session no longer needs `--socket` when you start `slingerd`
   with `--socket`, or when its temporary directory differs from the
-  daemon's. `--socket` and `$SLINGER_SOCKET` still win.
+  daemon's. `--socket` and `$SLINGER_SOCKET` still win. A name left by a
+  daemon that crashed is ignored, so `slinger` goes on to the default
+  socket instead of failing on a dead one.
 - **App:** the app finds the running `slingerd` the same way, and follows
   it when it starts, moves to another socket or stops while the window is
   open. A `[daemon] socket` in the config still wins. A name left by a

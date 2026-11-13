@@ -131,3 +131,35 @@ fn a_daemon_on_another_socket_is_found_by_the_name_in_its_data_directory() {
     stopper.stop();
     serving.join().unwrap().unwrap();
 }
+
+/// A name left by a daemon that died uncleanly names a socket nothing
+/// listens on: `slinger` passes over it to the default socket, where the
+/// daemon now serves, and an explicit socket is never second-guessed
+/// (slinger-a5678b).
+#[test]
+fn a_name_left_by_a_daemon_that_died_is_passed_over_for_the_default_socket() {
+    let (home, temp) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let data = home.path().join("slinger");
+    std::fs::create_dir(&data).unwrap();
+    let dead = home.path().join("dead.sock");
+    // A socket file nothing listens on, as an unclean death leaves it.
+    drop(std::os::unix::net::UnixListener::bind(&dead).unwrap());
+    slinger_control::name_socket(&data, &dead).unwrap();
+    let store = slingerd::Store::open(&data, "my-laptop").unwrap();
+    let server = slingerd::Server::bind(&temp.path().join("slinger.sock")).unwrap();
+    let stopper = server.stopper();
+    let serving = std::thread::spawn(move || server.serve(&store));
+    let list = |socket: Option<&Path>| {
+        let mut list = Command::new(env!("CARGO_BIN_EXE_slinger"));
+        list.args(["canvas", "list"]).env_remove("SLINGER_SOCKET").env_remove("XDG_RUNTIME_DIR");
+        if let Some(socket) = socket {
+            list.env("SLINGER_SOCKET", socket);
+        }
+        list.env("XDG_DATA_HOME", home.path()).env("TMPDIR", temp.path()).output().unwrap()
+    };
+    let found = list(None);
+    assert_eq!((found.status.code(), found.stdout.as_slice()), (Some(0), &b""[..]));
+    assert_eq!(list(Some(&dead)).status.code(), Some(6), "an explicit socket is kept");
+    stopper.stop();
+    serving.join().unwrap().unwrap();
+}

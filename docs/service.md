@@ -103,16 +103,18 @@ write at a time, so any thread may write to it while the daemon serves.
   absolute path of its socket, one line, to `socket` in its data
   directory, and removes the file as it stops. A client given no socket
   (and no `$SLINGER_SOCKET`) takes the one named in the default data
-  directory, else the default path. So `slinger` finds the daemon of the
-  user's record on any path, and from a process whose `$TMPDIR` differs
-  from the daemon's. A daemon that died leaves its name; the next one on
-  that data directory writes its own.
+  directory while something listens on it, else the default path. So
+  `slinger` finds the daemon of the user's record on any path, and from a
+  process whose `$TMPDIR` differs from the daemon's. A daemon that died
+  uncleanly leaves its name and a socket file that refuses connections; a
+  client passes over that name (one connect-and-close, which the daemon
+  reads as no request), and the next daemon on that data directory writes
+  its own. A socket given by `--socket` or `$SLINGER_SOCKET` is used as
+  given, live or not.
 - **The app finds the daemon the same way.** Its config's `[daemon]
-  socket` wins; else it takes the socket named in the default data
-  directory while something listens on it, else the default path. It
-  passes over a name left by a daemon that died, and it watches the name,
-  so the window follows a daemon that starts, moves or stops after it
-  opened.
+  socket` wins; else the live named socket, else the default path. It
+  watches the name, so the window follows a daemon that starts, moves or
+  stops after it opened.
 - There is no network transport.
 
 ## Protocol
