@@ -16,9 +16,9 @@
 //! pill. `text` sets styled text: the sidebar's rows and the panes' footers. The
 //! window resizes, down to [`layout::SMALLEST`], and says its new size; `files`
 //! sets its title bar, shows a canvas's file in the Finder and hands on files
-//! dropped on the window; `pdf` reads and draws PDFs, and asks for one to open;
-//! `window` makes it; `remember` keeps its frame, and whether the sidebar was
-//! open, for the next launch.
+//! dropped on the window; `pdf` reads and draws PDFs; `panel` asks for a
+//! folder or a file to open; `window` makes it; `remember` keeps its frame,
+//! and whether the sidebar was open, for the next launch.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
 //! that touches `AppKit` takes a `MainThreadMarker`, which only the main thread
@@ -34,6 +34,7 @@ mod input;
 mod keys;
 mod menu;
 mod overlay;
+mod panel;
 pub mod pdf;
 mod remember;
 mod text;
@@ -54,7 +55,8 @@ use objc2_foundation::{NSNotification, NSObject, NSRect, NSTimer};
 
 use self::canvas::CanvasView;
 use self::chrome::{color, flipped, label};
-pub use self::files::{choose_folder, reveal};
+pub use self::files::reveal;
+pub use self::panel::{Pick, choose};
 pub use self::remember::{Kept, remember_sidebar, sidebar as remembered_sidebar};
 use crate::commands::{Chord, Command};
 use crate::layout::{PaneId, Point, Size};
@@ -324,7 +326,12 @@ fn dispatch(event: Event, mtm: MainThreadMarker) -> bool {
 /// Why the answer refused it.
 fn reply(line: String, mtm: MainThreadMarker) -> Result<(), String> {
     let Some(state) = STATE.get() else { return Err("the app is not running".into()) };
-    let step = (state.answer.borrow_mut())(Event::Reply(line));
+    // A reply that comes while the answer runs (an open panel is up) waits for none.
+    let Ok(mut answer) = state.answer.try_borrow_mut() else {
+        return Err("the app is busy: a panel is open".into());
+    };
+    let step = answer(Event::Reply(line));
+    drop(answer);
     match step {
         Step::Refuse(why) => return Err(why),
         Step::Draw(scene) | Step::Through(scene) | Step::Copy(_, scene) => {
