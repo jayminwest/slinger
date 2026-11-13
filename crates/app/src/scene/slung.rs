@@ -17,6 +17,8 @@
 //!   minute past one, so the window is drawn at most once a second), then
 //!   about how many tokens the agent reads for it, when the daemon counts;
 //! - `■ scout blocked: <note> · ~12k` (its profile named too) while the agent says it waits;
+//! - `○ scout: nobody listens · 4s` while the sling waits for a listener
+//!   and none listens, with how to listen under it;
 //! - `✓ scout answered · 2 new items` once it answered, with an arrow
 //!   toward them (`→`) when none of them shows in the pane: a tap pans
 //!   there, and the next tap clears it;
@@ -75,6 +77,8 @@ pub struct Progress {
     pub answer: Option<String>,
     /// The profile its process runs under, when it runs under one.
     pub profile: Option<String>,
+    /// The sling waits for a listener and nobody listens.
+    pub unheard: bool,
 }
 
 /// One canvas pane as the pill sees it: its frame in the window (above its
@@ -126,6 +130,8 @@ enum Stage {
     /// On its way to the daemon: `scene::sling` shows it.
     Aimed,
     Working,
+    /// It waits for a listener: nobody listens for the agent.
+    Queued,
     Blocked(String),
     /// Answered, with the text of the answer.
     Answered(Option<String>),
@@ -216,9 +222,9 @@ impl Slung {
     /// daemon went away while the agent worked: the pill says why.
     pub fn failed(&mut self, problem: Problem, now: Instant) -> bool {
         let out = self.out.as_mut();
-        let Some(out) =
-            out.filter(|o| matches!(o.stage, Stage::Aimed | Stage::Working | Stage::Blocked(_)))
-        else {
+        let Some(out) = out.filter(|o| {
+            matches!(o.stage, Stage::Aimed | Stage::Working | Stage::Queued | Stage::Blocked(_))
+        }) else {
             return false;
         };
         out.to(Stage::Failed(problem), now);
@@ -234,7 +240,7 @@ impl Slung {
     /// The agent's session at `now`, while it works on the sling.
     pub fn heard(&mut self, progress: &Progress, now: Instant) -> bool {
         let Some(out) = self.out.as_mut() else { return false };
-        if !matches!(out.stage, Stage::Working | Stage::Blocked(_)) {
+        if !matches!(out.stage, Stage::Working | Stage::Queued | Stage::Blocked(_)) {
             return false;
         }
         // The sidebar's last poll may predate a restart: the running
@@ -247,6 +253,8 @@ impl Slung {
             Stage::Stopped
         } else if progress.pending == 0 {
             Stage::Answered(progress.answer.clone())
+        } else if progress.unheard {
+            Stage::Queued
         } else if let Some(note) = &progress.blocked {
             Stage::Blocked(note.clone())
         } else {
@@ -279,14 +287,17 @@ impl Slung {
     /// Whether a sling is out: on its way, or the agent works on it.
     pub fn out(&self) -> bool {
         let out = self.out.as_ref().map(|o| &o.stage);
-        matches!(out, Some(Stage::Aimed | Stage::Working | Stage::Blocked(_)))
+        matches!(out, Some(Stage::Aimed | Stage::Working | Stage::Queued | Stage::Blocked(_)))
     }
 
     /// The canvas page the agent's answer lands on, while the sling is out
     /// or answered: what [`Slung::landed`] wants.
     pub fn watching(&self) -> Option<(&str, &str)> {
         let out = self.out.as_ref()?;
-        let on = matches!(out.stage, Stage::Working | Stage::Blocked(_) | Stage::Answered(_));
+        let on = matches!(
+            out.stage,
+            Stage::Working | Stage::Queued | Stage::Blocked(_) | Stage::Answered(_)
+        );
         on.then_some((out.canvas.as_str(), out.page.as_str()))
     }
 
@@ -317,7 +328,7 @@ impl Slung {
         let told = self.tell(now);
         let Some(out) = self.out.as_mut() else { return false };
         match out.stage {
-            Stage::Working | Stage::Blocked(_) => {
+            Stage::Working | Stage::Queued | Stage::Blocked(_) => {
                 let time = elapsed(now.saturating_duration_since(out.went));
                 let changed = time != out.drawn;
                 out.drawn = time;
@@ -343,7 +354,9 @@ impl Slung {
     pub fn tapped(&mut self, views: &[View]) -> Tapped {
         let Some(out) = self.out.as_mut() else { return Tapped::Nothing };
         match &out.stage {
-            Stage::Aimed | Stage::Working | Stage::Blocked(_) => return Tapped::Nothing,
+            Stage::Aimed | Stage::Working | Stage::Queued | Stage::Blocked(_) => {
+                return Tapped::Nothing;
+            }
             Stage::Answered(_) if !out.items.is_empty() => {
                 if let Some((index, view)) = out.view(views)
                     && let Some(away) = out.away(&view)
@@ -376,6 +389,11 @@ impl Slung {
             Stage::Working => {
                 let time = elapsed(now.saturating_duration_since(out.went));
                 (format!("● {who} working · {time}{cost}"), theme.text, Vec::new())
+            }
+            Stage::Queued => {
+                let time = elapsed(now.saturating_duration_since(out.went));
+                let hint = "run /slinger-listen in a Claude Code session".to_string();
+                (format!("○ {who}: nobody listens · {time}"), theme.muted, vec![hint])
             }
             Stage::Blocked(note) => {
                 let note = if note.is_empty() { String::new() } else { format!(": {note}") };

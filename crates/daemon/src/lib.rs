@@ -9,6 +9,7 @@
 
 mod canvases;
 mod feedback;
+mod listeners;
 mod processes;
 mod server;
 mod sessions;
@@ -32,6 +33,7 @@ use slinger_control as control;
 
 pub use canvases::{CanvasError, Canvases};
 pub use feedback::{Feedback, FeedbackError};
+pub use listeners::{Listeners, Listening};
 pub use processes::{ProcessError, Processes, Shown};
 pub use server::{Server, StartError, Stopper};
 pub use sessions::{SessionError, Sessions};

@@ -43,8 +43,12 @@ pub struct Slung {
     pub strokes: u64,
     /// The agent it went to.
     pub agent: String,
-    /// The conversation it went into.
+    /// The conversation it went into. Empty when it waits for a listener.
     pub session_id: String,
+    /// How it goes: `process`, or `listen` when it waits for a listener to
+    /// take it. Absent from a daemon that only knows `process`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deliver: Option<String>,
     /// About how many tokens the agent reads for it: the packet, its images
     /// and the sling's wrapper (the note and the prompt). Absent from a
     /// daemon that does not count.
@@ -53,17 +57,19 @@ pub struct Slung {
 }
 
 impl Client {
-    /// Sends the new ink of a canvas page and a prompt to the running agent
-    /// of the canvas's workspace, and returns once it is delivered. The
+    /// Sends the new ink of a canvas page and a prompt to the agent of the
+    /// canvas's workspace: to its listener when it has one or no process of
+    /// its runs (the sling then waits to be taken), else to its process.
+    /// A sling that names a profile goes only to a process under it. The
     /// answer comes as the agent's canvas puts and its status.
     ///
     /// # Errors
     ///
-    /// `unavailable` when the agent's process is not running or the daemon
-    /// does not answer, `conflict` when it runs under another profile than
-    /// the one asked for, `not_found` for a canvas, page or workspace that is
-    /// not there, and `invalid` for a selected id that is not one or a
-    /// workspace with no agent.
+    /// `unavailable` when a profile is named and the agent's process is not
+    /// running, or the daemon does not answer, `conflict` when it runs under
+    /// another profile than the one asked for, `not_found` for a canvas,
+    /// page or workspace that is not there, and `invalid` for a selected id
+    /// that is not one or a workspace with no agent.
     pub fn sling_send(&self, ask: SlingAsk) -> Result<Slung, RemoteError> {
         self.call(&SessionAsk::SlingSend(ask))
     }

@@ -2,7 +2,8 @@
 //! slinger. The guide is the text in `guide.md` and then one entry per
 //! command, made from the commands themselves, so the reference is never
 //! behind the binary that prints it. The skill (`plugin/skills/slinger`) only
-//! says when to use slinger and to run `slinger guide`. Neither needs a daemon.
+//! says when to use slinger and to run `slinger guide`; `slinger-listen` says
+//! how a session takes a workspace's slings. Neither command needs a daemon.
 
 use std::fmt::Write as _;
 use std::fs;
@@ -19,6 +20,12 @@ use crate::output::Output;
 /// The skill file, the same bytes the Claude Code plugin ships.
 pub const SKILL: &str = include_str!("../../../plugin/skills/slinger/SKILL.md");
 
+/// The skill that makes a session take a workspace's slings.
+pub const LISTEN: &str = include_str!("../../../plugin/skills/slinger-listen/SKILL.md");
+
+/// Every skill `skill install` writes: its folder and its file.
+pub const SKILLS: [(&str, &str); 2] = [("slinger", SKILL), ("slinger-listen", LISTEN)];
+
 /// The part of the guide a person wrote: the ideas and the common tasks.
 pub const GUIDE: &str = include_str!("guide.md");
 
@@ -28,7 +35,7 @@ const DIR_HELP: &str =
 
 #[derive(Subcommand)]
 pub enum Skill {
-    /// Write the slinger skill where an agent harness finds it; prints the file's path
+    /// Write the slinger skills where an agent harness finds them; prints each file's path
     Install {
         #[arg(long, value_name = "DIR", help = DIR_HELP)]
         dir: Option<PathBuf>,
@@ -63,17 +70,23 @@ fn default_dir(config: Option<PathBuf>, home: Option<PathBuf>) -> Option<PathBuf
     config.or_else(|| home.map(|h| h.join(".claude"))).map(|c| c.join("skills"))
 }
 
-/// Writes the skill to `<dir>/slinger/SKILL.md`, unless it holds these bytes.
+/// Writes each skill to `<dir>/<name>/SKILL.md`, unless it holds these bytes.
 fn install(dir: &Path) -> anyhow::Result<Output> {
-    let folder = dir.join("slinger");
-    let path = folder.join("SKILL.md");
-    let new = fs::read_to_string(&path).map_or(true, |old| old != SKILL);
-    if new {
-        fs::create_dir_all(&folder).with_context(|| format!("cannot make {}", folder.display()))?;
-        fs::write(&path, SKILL).with_context(|| format!("cannot write {}", path.display()))?;
+    let (mut list, mut paths) = (Vec::new(), Vec::new());
+    for (name, skill) in SKILLS {
+        let folder = dir.join(name);
+        let path = folder.join("SKILL.md");
+        let new = fs::read_to_string(&path).map_or(true, |old| old != skill);
+        if new {
+            fs::create_dir_all(&folder)
+                .with_context(|| format!("cannot make {}", folder.display()))?;
+            fs::write(&path, skill).with_context(|| format!("cannot write {}", path.display()))?;
+        }
+        let shown = path.display().to_string();
+        list.push(json!({ "name": name, "path": shown, "new": new }));
+        paths.push(shown);
     }
-    let shown = path.display().to_string();
-    Ok(Output::new(json!({ "path": shown, "new": new }), shown))
+    Ok(Output::new(json!({ "skills": list }), paths.join("\n")))
 }
 
 /// One command an agent can run: its words, its arguments and what it does.

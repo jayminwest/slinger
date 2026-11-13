@@ -41,7 +41,9 @@ pub use look::{CanvasImage, CanvasImages, CanvasStrokes};
 pub use packet::{CanvasPacket, PacketAsk, PacketImage};
 pub use pane::{Pane, PaneAsk, PaneKind, PaneLayout, PaneSplit, PaneTree};
 pub use profile::{Profile, ProfileAsk, Profiles};
-pub use session::{FileTouched, Session, SessionAsk, SessionInfo, Sessions, StatusSet, Touched};
+pub use session::{
+    FileTouched, Listened, Session, SessionAsk, SessionInfo, Sessions, StatusSet, Taken, Touched,
+};
 pub use sling::{SlingAsk, Slung};
 pub use ui::{LIVE_SIZE, LiveItem, UiAsk, UiOpen, UiOpened, UiReplied, UiShown};
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
@@ -141,7 +143,7 @@ pub enum Request {
     CanvasStrokes { canvas: String, item: String },
     /// The session verbs (`session_list`, `session_show`, `status_set`,
     /// `session_start`, `session_stop`, `session_send`, `sling_send`,
-    /// `file_touched`), read by their own `op`s. One variant for them all,
+    /// `session_listen`, `file_touched`), read by their own `op`s. One variant for them all,
     /// written only by clients that send them: each variant here adds code to
     /// the app, which sends none of them (its size budget is nearly full).
     #[serde(untagged, skip_serializing)]
@@ -204,6 +206,7 @@ pub enum Reply {
     SessionSend(SessionInfo),
     StatusSet(StatusSet),
     SlingSend(Slung),
+    SessionListen(Listened),
     FileTouched(FileTouched),
     CanvasPut(CanvasPlaced),
     CanvasEdit(CanvasEdited),

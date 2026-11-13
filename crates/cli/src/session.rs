@@ -4,6 +4,7 @@
 
 use std::io::Read;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use clap::Subcommand;
 use serde_json::json;
@@ -55,7 +56,19 @@ pub enum Session {
         /// The message, or - to read standard input
         text: String,
     },
+    /// Wait for the next sling to a workspace's agent and print it: a session of your own takes the agent's slings
+    Listen {
+        /// The open workspace: its name, or the directory of its file
+        workspace: String,
+        /// Give up after this long and print nothing [default: wait until a sling comes]
+        #[arg(long, value_name = "SECONDS")]
+        wait: Option<u64>,
+    },
 }
+
+/// How long one ask of `session listen` is held open: the daemon knows
+/// within this long that a listener is gone.
+const ASK: Duration = Duration::from_secs(20);
 
 #[derive(Subcommand)]
 pub enum Status {
@@ -103,6 +116,7 @@ impl Session {
             Self::Start { .. } => "session start",
             Self::Stop { .. } => "session stop",
             Self::Send { .. } => "session send",
+            Self::Listen { .. } => "session listen",
         }
     }
 }
@@ -144,6 +158,17 @@ pub fn execute(
                 text
             };
             Ok(quiet(&daemon.session_send(workspace, text)?))
+        }
+        Session::Listen { workspace, wait } => {
+            let until = wait.map(|seconds| Instant::now() + Duration::from_secs(seconds));
+            loop {
+                let left = until.map(|u| u.saturating_duration_since(Instant::now()));
+                let heard = daemon.session_listen(workspace, left.map_or(ASK, |l| l.min(ASK)))?;
+                if heard.sling.is_some() || left.is_some_and(|l| l <= ASK) {
+                    let text = heard.sling.as_ref().map(|s| s.text.clone()).unwrap_or_default();
+                    return Ok(Output::new(serde_json::to_value(heard)?, text));
+                }
+            }
         }
     }
 }
@@ -216,6 +241,9 @@ fn fields(s: &control::Session) -> String {
         format!("deliver\t{}", s.deliver),
         format!("status\t{}", s.status.as_deref().unwrap_or("-")),
     ];
+    if let Some(listening) = s.listening {
+        lines.push(format!("listening\t{listening}"));
+    }
     if let Some(note) = &s.note {
         lines.push(format!("note\t{note}"));
     }

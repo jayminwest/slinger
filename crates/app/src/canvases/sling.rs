@@ -280,13 +280,16 @@ mod tests {
             let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
             select_the_stroke(&mut canvases, &panes);
 
+            // No open workspace has the canvas: the sling cannot go.
+            daemon.workspace_close("notes").unwrap();
             sling(&mut canvases, &panes, "what is this?");
             wait_until(|| canvases.poll() && canvases.typing());
             let failed = shown(&canvases, &panes);
             assert_eq!(failed.entry.as_ref().map(|e| e.text.as_str()), Some("what is this?"));
             let lines = texts(&failed);
-            assert!(lines[0].starts_with("✗ ") && lines[1].contains("session start"), "{lines:?}");
+            assert!(lines[0].starts_with("✗ "), "{lines:?}");
 
+            daemon.workspace_open(Some(home.path()), None).unwrap();
             daemon.session_start("notes").unwrap();
             assert!(canvases.sling_key(Chord::new(0, '\r')), "return tries again");
             gone(&mut canvases);

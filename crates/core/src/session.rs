@@ -8,6 +8,7 @@
 //! the workspaces and the events.
 
 pub mod hooks;
+pub mod listen;
 pub mod stream;
 
 use std::path::PathBuf;
@@ -89,11 +90,12 @@ impl Report {
     }
 }
 
-/// How a message reaches a session. One kind in v1: a process the server
-/// holds (SPEC D10). No trait until a second kind arrives (B7).
+/// How a message reaches a session: a process the server holds (SPEC D10),
+/// or a session of the user's own that listens ([`listen`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Delivery {
     Process,
+    Listen,
 }
 
 impl Delivery {
@@ -102,6 +104,7 @@ impl Delivery {
     pub fn name(self) -> &'static str {
         match self {
             Self::Process => "process",
+            Self::Listen => "listen",
         }
     }
 }

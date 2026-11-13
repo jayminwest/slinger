@@ -321,6 +321,13 @@ impl Store {
         &self.sessions
     }
 
+    /// Ends every request that waits (a canvas feed, a listener), now and
+    /// from now on: each gets its reply.
+    pub fn stop_waits(&self) {
+        self.canvases().stop();
+        self.sessions.listeners().stop();
+    }
+
     /// Runs `program` as each agent's process, in place of `claude` on `PATH`.
     #[must_use]
     pub fn with_claude(mut self, program: impl Into<PathBuf>) -> Self {

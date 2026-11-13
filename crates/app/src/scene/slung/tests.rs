@@ -20,12 +20,12 @@ fn view(focused: bool) -> View<'static> {
 }
 
 fn working(pending: u32) -> Progress {
-    Progress { running: true, pending, blocked: None, answer: None, profile: None }
+    Progress { running: true, pending, blocked: None, answer: None, profile: None, unheard: false }
 }
 
 fn answered(answer: Option<&str>) -> Progress {
     let answer = answer.map(str::to_string);
-    Progress { running: true, pending: 0, blocked: None, answer, profile: None }
+    Progress { running: true, pending: 0, blocked: None, answer, profile: None, unheard: false }
 }
 
 /// A sling of page p1 of notes made at [`AT`] at `now`, gone to scout.
@@ -337,4 +337,21 @@ fn wrap_breaks_between_words_and_keeps_each_line() {
     assert_eq!(wrap("a\n\nb", room(10)), ["a", "", "b"]);
     assert_eq!(wrap("abcdefghij", room(4)), ["abcd", "efgh", "ij"]);
     assert_eq!(wrap("ab cd", room(0)), ["a", "b", "c", "d"], "a character at least");
+}
+
+#[test]
+fn a_sling_nobody_listens_for_says_how_to_listen_until_one_takes_it() {
+    let now = Instant::now();
+    let mut slung = out(now);
+    assert!(slung.heard(&Progress { unheard: true, ..working(1) }, now));
+    let marks = slung.marks(&T, &[view(true)], now);
+    let texts: Vec<String> = marks.all().into_iter().map(|l| l.text).collect();
+    let hint = "run /slinger-listen in a Claude Code session";
+    assert_eq!(texts, ["○ scout: nobody listens · 0s", hint]);
+    assert!(slung.tick(now + CLEAR), "its time counts");
+    assert!(slung.out(), "it waits, and is not cleared");
+    // A listener takes it, then answers.
+    assert!(slung.heard(&working(1), now));
+    assert_eq!(said(&slung, &[view(true)], now), ["● scout working · 0s"]);
+    assert!(slung.heard(&answered(None), now));
 }

@@ -116,8 +116,12 @@ fn follow(
     tell: &Sender<Heard>,
 ) -> Option<Followed> {
     let mut last = None;
+    // The first look is at once: a sling nobody listens for says so from the start.
+    let mut pause = Duration::ZERO;
     loop {
-        match asks.recv_timeout(EVERY) {
+        let waited = asks.recv_timeout(pause);
+        pause = EVERY;
+        match waited {
             Ok(ask) => return Some(Followed::Next(ask)),
             Err(RecvTimeoutError::Disconnected) => return None,
             Err(RecvTimeoutError::Timeout) => {}
@@ -170,9 +174,13 @@ fn sling(daemon: &Client, ask: Ask) -> Result<(String, Option<u64>), Problem> {
 /// What the window wants of the agent's `session` while a sling is out.
 fn progress(session: &Session) -> Progress {
     let blocked = session.status.as_deref() == Some("blocked");
+    // A sling a listener takes has no process to end: it is out until taken and answered.
+    let listen = session.deliver == "listen";
+    let pending = session.pending.unwrap_or(0);
     Progress {
-        running: session.process.as_deref() == Some("running"),
-        pending: session.pending.unwrap_or(0),
+        running: listen || session.process.as_deref() == Some("running"),
+        pending,
+        unheard: listen && pending > 0 && session.listening == Some(false),
         blocked: blocked.then(|| session.note.clone().unwrap_or_default()),
         answer: session.answer.clone(),
         profile: session.profile.clone(),
@@ -233,12 +241,18 @@ mod tests {
 
             slinger.reconnect(daemon.clone());
             slinger.send(ask(vec![ItemId(1)], "what is missing?"));
-            let idle = failed(wait(&slinger, got));
-            assert!(idle.hint.unwrap().contains("session start"), "{}", idle.message);
+            assert_eq!(went(wait(&slinger, got)), "scout");
+            let Heard::Progress(waits) = wait(&slinger, got) else { panic!("no progress") };
+            assert!(waits.running && waits.unheard, "no process: it waits for a listener");
 
             daemon.session_start("notes").unwrap();
             slinger.send(ask(vec![ItemId(1)], "what is missing?"));
-            assert_eq!(went(wait(&slinger, got)), "scout");
+            let to = loop {
+                if let Heard::Went(agent, _) = wait(&slinger, got) {
+                    break agent;
+                }
+            };
+            assert_eq!(to, "scout");
             let message = delivered(home.path(), "what is missing?");
             assert!(message.contains("slinger-sling 1 canvas=notes selected=c1"), "{message}");
             assert!(message.contains("what is missing?"), "{message}");
@@ -266,14 +280,26 @@ mod tests {
 
             slinger.send(ask(vec![ItemId(1)], "what is missing?"));
             assert_eq!(went(wait(&slinger, got)), "scout");
-            let working =
-                Progress { running: true, pending: 1, blocked: None, answer: None, profile: None };
+            let working = Progress {
+                running: true,
+                pending: 1,
+                blocked: None,
+                answer: None,
+                profile: None,
+                unheard: false,
+            };
             assert_eq!(wait(&slinger, got), Heard::Progress(working));
 
             std::fs::write(home.path().join("go"), "").unwrap();
             let answer = Some("ok".to_string());
-            let answered =
-                Progress { running: true, pending: 0, blocked: None, answer, profile: None };
+            let answered = Progress {
+                running: true,
+                pending: 0,
+                blocked: None,
+                answer,
+                profile: None,
+                unheard: false,
+            };
             assert_eq!(wait(&slinger, got), Heard::Progress(answered));
             std::thread::sleep(3 * EVERY);
             assert_eq!(slinger.heard(), [], "no more once it answered");

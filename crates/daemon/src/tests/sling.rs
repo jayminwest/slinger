@@ -1,6 +1,7 @@
 //! `sling_send` through the real socket, with the stand-in for Claude Code:
 //! slings go into one conversation, each is in the record with its packet,
-//! old ink is not sent again, and with no running agent nothing is sent.
+//! old ink is not sent again, and a sling that cannot go leaves no trace.
+//! `listen.rs` has the slings a listener takes.
 
 use std::path::Path;
 
@@ -124,7 +125,7 @@ fn three_slings_go_into_one_conversation_and_each_is_in_the_record() {
 }
 
 #[test]
-fn with_no_running_agent_a_sling_is_unavailable_and_leaves_no_trace() {
+fn a_sling_that_cannot_go_leaves_no_trace() {
     let (data, projects, bin) =
         (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
     let daemon = Daemon::start_with_claude(data.path(), &fake_claude(bin.path()));
@@ -134,9 +135,9 @@ fn with_no_running_agent_a_sling_is_unavailable_and_leaves_no_trace() {
     assert_eq!(err.code(), "not_found", "no open workspace has the canvas: {err}");
     open_with_agent(&client, &projects, "notes", "scout");
     draw(&client, 0);
-    let err = client.sling_send(ask.clone()).unwrap_err();
-    assert_eq!(err.code(), "unavailable", "{err}");
-    assert!(err.hint().unwrap().contains("session start"));
+    // A profile the agent does not have: no process could be under it.
+    let under = SlingAsk { profile: Some("dev".into()), ..ask.clone() };
+    assert_eq!(client.sling_send(under).unwrap_err().code(), "not_found");
     assert_eq!(sent(&client), Vec::<Value>::new());
 
     // The ink a failed sling did not send is still new for the next one.

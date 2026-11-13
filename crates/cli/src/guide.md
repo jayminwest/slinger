@@ -23,8 +23,10 @@ guide comes from the `slinger` binary you run, so it fits that binary.
 - **Agent name.** The verbs that change things for an agent (`canvas put`,
   `canvas edit`, `canvas remove`, `status set`, `ui open`) need the agent's
   name. A session that slinger started has `SLINGER_AGENT` set: pass nothing.
-  From another terminal, pass `--agent <NAME>` with a name for yourself, such
-  as `--agent claude`. The user sees that name as the maker of your items.
+  A sling you took by listening names its agent on line 1 (`agent=<NAME>`):
+  pass that name. From another terminal, pass `--agent <NAME>` with a name
+  for yourself, such as `--agent claude`. The user sees that name as the
+  maker of your items.
 - **Ownership.** You can edit and remove only the items your agent name made.
   Never change the user's ink.
 
@@ -107,6 +109,19 @@ slinger session list
 slinger session start <WORKSPACE>
 slinger sling send <CANVAS> --prompt "Sum up this page"
 slinger session show <AGENT>      # its status and its last answer
+```
+
+A sling with no profile goes to a listener when one listens, and waits for
+one when the agent has no process. `session show` says which: `deliver`,
+`listening` and `pending`.
+
+Take a workspace's slings yourself, in this session, with your own tools and
+permissions. Each run waits for one sling and prints it:
+
+```bash
+slinger session listen <WORKSPACE>            # run in the background; act when it exits
+slinger canvas put <CANVAS> --beside c12 --text "The answer" --agent <NAME>
+slinger status set done --agent <NAME>        # then listen again
 ```
 
 When slinger itself gets in your way, leave a note for its maker:

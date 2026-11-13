@@ -10,7 +10,7 @@ use tempfile::TempDir;
 
 use super::{Run, json};
 use crate::cli::{command_tree, run};
-use crate::guide::{GUIDE, SKILL, entries};
+use crate::guide::{GUIDE, LISTEN, SKILL, SKILLS, entries};
 use crate::output::exit;
 
 const PLUGIN: &str = include_str!("../../../../plugin/.claude-plugin/plugin.json");
@@ -68,18 +68,26 @@ fn skill_install_writes_the_plugins_skill_once() {
     let dir = TempDir::new().unwrap();
     let skills = dir.path().join("made").join("skills");
     let path = skills.join("slinger").join("SKILL.md");
+    let listen = skills.join("slinger-listen").join("SKILL.md");
     let (skills, shown) = (skills.to_str().unwrap(), path.to_str().unwrap());
     let first = alone(&["skill", "install", "--dir", skills]);
-    assert_eq!((first.code, first.out.trim_end()), (exit::OK, shown));
+    let both = format!("{shown}\n{}", listen.display());
+    assert_eq!((first.code, first.out.trim_end()), (exit::OK, both.as_str()));
     assert_eq!(fs::read_to_string(&path).unwrap(), SKILL);
+    assert_eq!(fs::read_to_string(&listen).unwrap(), LISTEN);
 
     let again = json(&alone(&["skill", "install", "--json", "--dir", skills]));
-    assert_eq!((&again["new"], &again["path"]), (&false.into(), &shown.into()));
+    let again = again["skills"].as_array().unwrap();
+    assert_eq!((&again[0]["new"], &again[0]["path"]), (&false.into(), &shown.into()));
+    assert_eq!((&again[1]["new"], &again[1]["name"]), (&false.into(), &"slinger-listen".into()));
 
-    // An older skill is replaced by this binary's.
+    // An older skill is replaced by this binary's; the other is left.
     fs::write(&path, "old").unwrap();
     let newer = json(&alone(&["skill", "install", "--json", "--dir", skills]));
-    assert_eq!(newer["new"], true);
+    assert_eq!(
+        (&newer["skills"][0]["new"], &newer["skills"][1]["new"]),
+        (&true.into(), &false.into())
+    );
     assert_eq!(fs::read_to_string(&path).unwrap(), SKILL);
 }
 
@@ -95,13 +103,16 @@ fn skill_install_fails_loudly_where_it_cannot_write() {
 
 #[test]
 fn skill_has_the_front_matter_a_harness_needs_and_sends_the_agent_to_the_guide() {
-    let mut parts = SKILL.splitn(3, "---\n");
-    let (before, front, body) = (parts.next(), parts.next().unwrap(), parts.next().unwrap());
-    assert_eq!(before, Some(""));
-    assert!(front.lines().any(|l| l == "name: slinger"), "{front}");
-    let description = front.lines().find_map(|l| l.strip_prefix("description: ")).unwrap();
-    assert!((40..=1024).contains(&description.len()), "{}", description.len());
-    assert!(body.contains("slinger guide"));
+    for (name, skill) in SKILLS {
+        let mut parts = skill.splitn(3, "---\n");
+        let (before, front, body) = (parts.next(), parts.next().unwrap(), parts.next().unwrap());
+        assert_eq!(before, Some(""));
+        assert!(front.lines().any(|l| l == format!("name: {name}")), "{front}");
+        let description = front.lines().find_map(|l| l.strip_prefix("description: ")).unwrap();
+        assert!((40..=1024).contains(&description.len()), "{}", description.len());
+        assert!(body.contains("slinger guide"));
+    }
+    assert!(LISTEN.contains("slinger session listen <WORKSPACE>"));
 }
 
 #[test]
@@ -114,7 +125,9 @@ fn plugin_has_the_version_of_the_binary_and_the_marketplace_lists_it() {
     let listed = &market["plugins"][0];
     assert_eq!((&listed["name"], &listed["source"]), (&"slinger".into(), &"./plugin".into()));
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    assert!(root.join("plugin/skills/slinger/SKILL.md").is_file());
+    for (name, _) in SKILLS {
+        assert!(root.join("plugin/skills").join(name).join("SKILL.md").is_file());
+    }
 }
 
 /// Each `slinger ...` command a document shows: in a code block, a line that
@@ -163,7 +176,8 @@ fn fault(root: &Command, line: &str) -> Option<String> {
 #[test]
 fn guide_and_skill_show_only_commands_and_flags_the_cli_has() {
     let root = command_tree();
-    for (name, doc, least) in [("guide.md", GUIDE, 25), ("SKILL.md", SKILL, 4)] {
+    let docs = [("guide.md", GUIDE, 27), ("SKILL.md", SKILL, 4), ("slinger-listen", LISTEN, 6)];
+    for (name, doc, least) in docs {
         let lines = shown(doc);
         assert!(lines.len() >= least, "{name} shows {} commands", lines.len());
         let faults: Vec<String> = lines.iter().filter_map(|line| fault(&root, line)).collect();

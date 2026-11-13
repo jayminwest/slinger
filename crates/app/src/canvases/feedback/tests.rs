@@ -274,12 +274,13 @@ fn every_entry_shows_the_dictate_key_and_the_sling_s_has_the_pen_s_buttons() {
         assert!(last.x + last.width <= pane.x + pane.width, "inside the pane");
         tap(&mut canvases, targets[2]);
         assert!(!canvases.typing(), "cancelled");
+        daemon.workspace_close("notes").unwrap();
         sling_by_the_button(&mut canvases, &panes);
     });
 }
 
 /// The sling's entry opened again, "why?" typed, and "✓ Sling" tapped: it
-/// goes and, with no agent running, fails and opens again with why.
+/// goes and, with no open workspace for its canvas, fails and opens again with why.
 fn sling_by_the_button(canvases: &mut Canvases, panes: &Panes) {
     assert!(canvases.sling_command(Command::Sling, panes, WINDOW.rect()));
     canvases.sling_typed("why?");

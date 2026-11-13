@@ -11,6 +11,15 @@ bullet with the area in bold.
 
 ### Added
 
+- **Agents:** a Claude Code session of your own can take a workspace's
+  slings. Say `/slinger-listen` in it (the plugin and `slinger skill
+  install` ship the skill): it waits with `slinger session listen
+  <WORKSPACE>`, answers each sling on the canvas with its own tools and
+  permissions, and listens again. A sling with no profile goes to the
+  listener when one is there, else to the agent's running process. With
+  neither, it now waits for a listener instead of failing, and the app's
+  pill says "nobody listens" until one takes it. `slinger session show`
+  has `listening` and `pending`.
 - **Agents:** slinger ships a skill, so an agent knows when and how to use
   it. In Claude Code, `/plugin marketplace add jayminwest/slinger` then
   `/plugin install slinger@slinger`; for another harness, `slinger skill

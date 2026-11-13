@@ -168,7 +168,8 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_start` | `workspace`: string, its name or the directory of its file, `fresh`: bool (default `false`), `profile`: a profile's name (optional) | `session` |
 | `session_stop` | `workspace`: string | `session` |
 | `session_send` | `workspace`: string, `text`: string | `session` |
-| `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty), `profile`: a profile's name (optional) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id`, `tokens`: about how many tokens the agent reads for it (optional) |
+| `session_listen` | `workspace`: string, `wait`: milliseconds to hold the request open (default 0, at most 60000) | `agent`, `sling`: `{event, canvas, dir, text}`, the oldest sling that waits (absent when none came) |
+| `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty), `profile`: a profile's name (optional) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` (empty when a listener takes it), `deliver`: `process` or `listen`, `tokens`: about how many tokens the agent reads for it (optional) |
 | `profile_list` | `workspace`: as `workspace_show` | `workspace`: its name, `profiles`: list of `{name, dir, tools}`, in its file's order |
 | `profile_set` | `workspace`, `name`: string, `dir`: absolute path of a directory (optional), `tools`: list of permission rules (optional) | `workspace`, `profiles` |
 | `profile_remove` | `workspace`, `name`: string | `workspace`, `profiles` |
@@ -581,8 +582,9 @@ A session is an agent the daemon can reach (SPEC section 5): the agent of an
 open workspace, one session per agent name. A session is `{agent, home,
 deliver, status, note}`: `home` is the directory of its workspace's file (the
 first workspace by name, when several name the agent), `deliver` is how a
-message reaches it (`process`, a process the daemon holds, is the one kind in
-v1), and `status` and `note` are what the agent last set, absent until it sets
+message reaches it (`process`, a process the daemon holds, or `listen`, a
+session that asks for the agent's slings: see "Listening" below), and
+`status` and `note` are what the agent last set, absent until it sets
 one. **`session_show`** of an agent no open workspace names is `not_found`.
 
 **`status_set`** sets an agent's status. `blocked` appends `agent_blocked`
@@ -755,6 +757,36 @@ ask once more: `session show checker` has the same `session_id`, and the
 answer is still the word. `scripts/e2e-sling.sh` does the same for three
 slings and checks what they leave on the canvas and in the record.
 
+**Listening.** **`session_listen`** makes its caller the listener of the
+workspace's agent (SPEC section 5): a session the daemon did not start, such
+as a plain Claude Code session, takes the agent's slings by asking for them,
+and answers with its own tools and permissions. The request is a long poll,
+as `canvas_changes` is: it replies with the oldest sling that waits, or
+after `wait` with none. A sling is `{event, canvas, dir, text}`: `text` is
+the sling's message as text, its line 1 with `agent=<name>` so the listener
+knows whom it acts as, its packet header with `at=<dir>`, the directory that
+holds the packet's images, and a note that says to pass `--agent`, to set
+`done` and to listen again. Taking a sling sets the agent's status to
+`working`. A reply that cannot be written puts the sling back, so a listener
+that is gone loses none.
+
+One listener state per agent (`slinger_core::session::listen`). A listener
+is there while a request of its is open, for 10 seconds after one ended, and
+while it works on a sling it took, until it asks again: asking says the last
+one is dealt with. While slings wait or a listener is there, the session has
+`deliver` as `listen`, `listening` (whether one is there) and `pending` (the
+slings that wait, and the one worked on). `session_start` and `session_stop`
+forget who listened; the slings that wait stay for the next to listen. The
+slings that wait are held in memory: a daemon that stops loses them, though
+each is in the record. A stopping daemon ends every open request with no
+sling. A workspace that is not open is `not_found`, one with no agent
+`invalid`.
+
+```json
+{ "v": 1, "op": "session_listen", "workspace": "notes", "wait": 20000 }
+{ "ok": true, "agent": "scout", "sling": { "event": 14, "canvas": "notes", "dir": "/Users/me/Library/Application Support/slinger/packets/5e1f…", "text": "slinger-sling 1 canvas=notes agent=scout\n…" } }
+```
+
 #### Slings
 
 **`sling_send`** is the sling (SPEC section 6): the packet of one canvas
@@ -784,12 +816,19 @@ the marker, so a sling that fails sends the same ink next time. Selecting
 old items again sends a packet with nothing new (`strokes` 0). Slings go one
 at a time, so two packets never cover the same operation.
 
-Slinger never starts an agent for a sling (D10): with no running process
-the reply is `unavailable` with a hint to `session start` the workspace,
-and nothing is stored. A sling with `profile` goes only to a process that
-runs under that profile: one under another, or under none, is `conflict`
-with a hint to start it under that profile, and a profile the agent does
-not have is `not_found`. Either way nothing is stored. So a sling the user
+Slinger never starts an agent for a sling (D10). A sling with no `profile`
+goes to the agent's listener when one is there ("Listening" above), else to
+its running process; with neither it waits for a listener, so it is never
+refused for want of one, and the session shows that nobody listens. A
+listener outranks a process: the user who listens in a session of their own
+means that session to answer. A sling for a listener is stored and its
+`sling_sent` appended (with no `session`) when it joins those that wait; the
+reply's `deliver` is `listen` and its `session_id` is empty. A sling with
+`profile` goes only to a process that runs under that profile, never to a
+listener: with no running process it is `unavailable` with a hint to
+`session start` the workspace, one under another profile, or under none, is
+`conflict` with a hint to start it under that profile, and a profile the
+agent does not have is `not_found`. Each way nothing is stored. So a sling the user
 meant for a narrow profile never reaches a wider one. A canvas no open workspace has is `not_found`, a
 workspace with no agent `invalid`, and the canvas, page and selection fail
 as in `canvas_read`.
@@ -803,7 +842,7 @@ lose which question it belonged to.
 
 ```json
 { "v": 1, "op": "sling_send", "canvas": "notes", "select": ["c42"], "prompt": "what is missing here?" }
-{ "ok": true, "event": 14, "packet": "sha256:5e1f…", "from": 42, "to": 58, "strokes": 23, "agent": "scout", "session_id": "6f1c0d52-8a3e-4b7d-9c1e-2f4a5b6c7d8e", "tokens": 2310 }
+{ "ok": true, "event": 14, "packet": "sha256:5e1f…", "from": 42, "to": 58, "strokes": 23, "agent": "scout", "session_id": "6f1c0d52-8a3e-4b7d-9c1e-2f4a5b6c7d8e", "deliver": "process", "tokens": 2310 }
 ```
 
 #### Feedback
@@ -936,7 +975,7 @@ The protocol adds:
 | `bad_request` | The line is not JSON, has no `v`, names no known `op`, or has wrong arguments |
 | `too_large` | The request line is over the limit |
 | `unsupported_version` | `v` is not a version this daemon speaks |
-| `unavailable` | The agent's process is not running (`session_send`, `sling_send`); made by the client when the daemon did not answer |
+| `unavailable` | The agent's process is not running (`session_send`, `sling_send` with a `profile`); made by the client when the daemon did not answer |
 | `internal` | The daemon could not read or write its record, or the client could not read the reply |
 
 `not_found` also covers a blob the record does not hold, a file to put

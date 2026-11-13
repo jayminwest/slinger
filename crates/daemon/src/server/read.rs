@@ -43,7 +43,7 @@ pub(super) fn packet(store: &Store, ask: PacketAsk) -> Result<Reply, RemoteError
 }
 
 /// Writes the text and the images into `dir`, creating it.
-fn write(dir: &Path, packet: &Packet, text: &str) -> Result<(), RemoteError> {
+pub(super) fn write(dir: &Path, packet: &Packet, text: &str) -> Result<(), RemoteError> {
     fs::create_dir_all(dir).map_err(|e| unusable(dir, &e))?;
     let files = packet.images.iter().map(|i| (i.name.as_str(), i.png.as_slice()));
     for (name, bytes) in files.chain([(TEXT_FILE, text.as_bytes())]) {

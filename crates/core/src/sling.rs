@@ -27,6 +27,12 @@
 //! session gets the whole note; later slings, whose session remembers it
 //! (D10), get one line.
 //!
+//! A sling a listener takes (a plain Claude Code session, SPEC section 5)
+//! names the agent it answers as on line 1 (`agent=scout`) and adds what a
+//! listener must do itself to the note ([`Listener`]). It reads the message
+//! as text ([`Message::text`]): the images are files in the packet's `at=`
+//! directory.
+//!
 //! [`first`] says which slings get the whole note. [`landed`] is the other
 //! end: the record's `reply_landed` when the agent answers on the canvas.
 
@@ -105,6 +111,33 @@ pub struct Sling<'a> {
     pub first: bool,
     /// The verbs the agent can run. The note names these and no others.
     pub verbs: &'a [Verb],
+    /// The listener that takes it. `None`: it goes to the agent's process.
+    pub listener: Option<Listener<'a>>,
+}
+
+/// Who takes a sling by listening: a session nobody started as the agent,
+/// so its commands do not know the agent's name and no hook sets its status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Listener<'a> {
+    /// The agent it answers as.
+    pub agent: &'a str,
+    /// The workspace it listens on.
+    pub workspace: &'a str,
+}
+
+impl Listener<'_> {
+    /// The note's lines for a listener.
+    fn note(self) -> String {
+        let Self { agent, workspace } = self;
+        format!(
+            "You took this sling by listening, as agent `{agent}`. Each `img=` names a PNG in \
+             the packet's `at=` directory: read the ones you need.\n\
+             - Add `--agent {agent}` to each `canvas put` and `status set`.\n\
+             - When you have answered, run `slinger status set done --agent {agent}` (or \
+             `blocked --note <what you need>`), then `slinger session listen {workspace}` \
+             for the next sling.\n"
+        )
+    }
 }
 
 /// One piece of a message, in order.
@@ -137,6 +170,17 @@ impl Message {
         });
         Packet::estimate(chars.sum(), images)
     }
+
+    /// The message as a listener reads it: its text, top to bottom. Each
+    /// image is a file the packet's lines name, so none is lost.
+    #[must_use]
+    pub fn text(&self) -> String {
+        let text = self.blocks.iter().filter_map(|b| match b {
+            Block::Text(text) => Some(text.as_str()),
+            Block::Image(_) => None,
+        });
+        text.collect()
+    }
 }
 
 /// The message for `sling`. Every sling has one: there is nothing to reject.
@@ -159,7 +203,7 @@ pub fn message(sling: &Sling<'_>) -> Message {
         }
     }
     out.text.extend(rest);
-    out.text.push_str(&note(canvas, sling.first, sling.verbs));
+    out.text.push_str(&note(canvas, sling.first, sling.verbs, sling.listener));
     out.text.push_str("# prompt\n");
     out.text.push_str(sling.prompt);
     out.finish()
@@ -192,6 +236,9 @@ pub fn first(slings: &[Event], session: &str) -> bool {
 fn header(sling: &Sling<'_>) -> String {
     let packet = sling.packet;
     let mut out = format!("{MAGIC} {VERSION} canvas={}", packet.header.canvas);
+    if let Some(listener) = sling.listener {
+        let _ = write!(out, " agent={}", listener.agent);
+    }
     let all = || packet.new.iter().chain(&packet.made).chain(&packet.page);
     let mut selected = sling.selection.iter().filter(|id| all().any(|e| &e.id == *id));
     if let Some(first) = selected.next() {
@@ -204,21 +251,24 @@ fn header(sling: &Sling<'_>) -> String {
     out
 }
 
-/// The `# reply` section: the whole note on a first sling, one line after.
-/// Nothing on a later sling when there are no verbs to name.
-fn note(canvas: &str, first: bool, verbs: &[Verb]) -> String {
+/// The `# reply` section: the whole note on a first sling, one line after,
+/// then a listener's lines. Nothing on a later sling when there are no verbs
+/// to name and no listener.
+fn note(canvas: &str, first: bool, verbs: &[Verb], listener: Option<Listener<'_>>) -> String {
+    let theirs = listener.map(Listener::note).unwrap_or_default();
     if first {
         let mut out = format!("# reply\n{INTRO}");
         for verb in verbs {
             out.push_str(&verb.full(canvas));
         }
-        return out;
+        return out + &theirs;
     }
-    if verbs.is_empty() {
+    if verbs.is_empty() && theirs.is_empty() {
         return String::new();
     }
     let line: Vec<String> = verbs.iter().map(|v| v.short(canvas)).collect();
-    format!("# reply\n{}.\n", capitalize(&line.join("; ")))
+    let line = if line.is_empty() { String::new() } else { capitalize(&line.join("; ")) + ".\n" };
+    format!("# reply\n{line}{theirs}")
 }
 
 fn capitalize(s: &str) -> String {

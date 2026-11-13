@@ -1,9 +1,13 @@
 //! `session_list`, `session_show`, `status_set`, `session_start`,
-//! `session_stop`, `session_send` and `file_touched`: the sessions as they cross the socket.
+//! `session_stop`, `session_send`, `session_listen` and `file_touched`: the
+//! sessions as they cross the socket.
 
-use slinger_control::{self as control, RemoteError, Reply, SessionAsk};
+use std::time::Duration;
+
+use slinger_control::{self as control, Listened, RemoteError, Reply, SessionAsk, Taken};
 use slinger_core::record::Body;
-use slinger_core::session::Session;
+use slinger_core::session::listen::Heard;
+use slinger_core::session::{Delivery, Session};
 
 use crate::processes::ProcessError;
 use crate::sessions::SessionError;
@@ -27,6 +31,14 @@ pub fn answer(store: &Store, ask: SessionAsk) -> Result<Reply, RemoteError> {
             Ok(Reply::SessionSend(info(store, session)?))
         }
         SessionAsk::SlingSend(ask) => super::sling::send(store, ask),
+        SessionAsk::SessionListen { workspace, wait } => {
+            let wait = Duration::from_millis(wait.min(control::MAX_WAIT_MS));
+            let (agent, sling) =
+                store.sessions().listen(store, &workspace, wait).map_err(|e| remote(&e))?;
+            let sling =
+                sling.map(|Heard { event, canvas, dir, text }| Taken { event, canvas, dir, text });
+            Ok(Reply::SessionListen(Listened { agent, sling }))
+        }
         SessionAsk::FileTouched { agent, path, hook } => {
             let touched = store.sessions().touched(store, &agent, path, hook.as_deref());
             let event = touched.map_err(|e| remote(&e))?;
@@ -41,6 +53,15 @@ pub fn answer(store: &Store, ask: SessionAsk) -> Result<Reply, RemoteError> {
                 event: event.as_ref().and_then(|e| e.number),
             }))
         }
+    }
+}
+
+/// A `session_listen` reply that could not be written: the listener is gone,
+/// so the sling it took waits again, the oldest.
+pub(super) fn unheard(store: &Store, reply: &Result<Reply, RemoteError>) {
+    if let Ok(Reply::SessionListen(Listened { agent, sling: Some(taken) })) = reply {
+        let Taken { event, canvas, dir, text } = taken.clone();
+        store.sessions().listeners().put_back(agent, Heard { event, canvas, dir, text });
     }
 }
 
@@ -88,15 +109,19 @@ fn wire(store: &Store, s: Session) -> Result<control::Session, RemoteError> {
     let profile = shown.as_ref().and_then(|p| p.profile.clone());
     let running = shown.filter(|p| p.running);
     let (status, note) = s.status.map_or((None, None), |r| (Some(r.status.name().into()), r.note));
+    // A listened-for agent's slings are its listener's, not its process's.
+    let listener = store.sessions().listeners().shown(&s.agent);
+    let listener = listener.filter(|_| s.deliver == Delivery::Listen);
     Ok(control::Session {
         agent: s.agent,
         home: s.home,
         deliver: s.deliver.name().into(),
+        listening: listener.map(|l| l.attached),
         status,
         note,
         process,
         pid: running.as_ref().map(|p| p.pid),
-        pending: running.map(|p| p.pending),
+        pending: listener.map(|l| l.pending).or(running.map(|p| p.pending)),
         answer,
         session_id,
         profile,

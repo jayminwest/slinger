@@ -151,8 +151,8 @@ impl Server {
         store.sessions().processes().serve_on(&self.socket);
         let accepted = std::thread::scope(|scope| {
             let accepted = self.accept(scope, store);
-            // A request waiting on a canvas feed answers now, so the scope ends.
-            store.canvases().stop();
+            // A request waiting on a canvas feed or a sling answers now, so the scope ends.
+            store.stop_waits();
             accepted
         });
         // The agents' processes end with the daemon.
@@ -187,7 +187,8 @@ fn converse(stream: &UnixStream, store: &Store) -> io::Result<()> {
         Ok(Some(request)) => answer(request, store),
         Err(error) => Err(error),
     };
-    control::write_reply(&mut &*stream, &reply)
+    let written = control::write_reply(&mut &*stream, &reply);
+    written.inspect_err(|_| session::unheard(store, &reply))
 }
 
 /// Request in, core call, reply out. One arm per verb, and no logic of its own.

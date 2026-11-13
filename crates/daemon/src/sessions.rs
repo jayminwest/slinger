@@ -6,16 +6,20 @@
 //! daemon started, so `working` (which the record does not hold) shows; an
 //! agent with none here gets its last `agent_blocked` or `agent_done` from
 //! the record, so `blocked` and `done` survive a restart. It reaches each
-//! agent through the process [`Processes`] holds for it.
+//! agent through the process [`Processes`] holds for it, or through the
+//! session that listens for it ([`Listeners`]).
 
 use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::time::Duration;
 
 use slinger_core::record::{BlobId, Body, Event, FileTouched, Tags};
-use slinger_core::session::{self, Report, Session, Status, hooks, stream};
+use slinger_core::session::listen::Heard;
+use slinger_core::session::{self, Delivery, Report, Session, Status, hooks, stream};
 
+use crate::listeners::Listeners;
 use crate::processes::{ProcessError, Processes};
 use crate::store::{Query, Store, StoreError};
 use crate::workspaces::{Listed, WorkspaceError};
@@ -65,6 +69,7 @@ type Result<T> = std::result::Result<T, SessionError>;
 pub struct Sessions {
     set: Mutex<HashMap<String, Report>>,
     processes: Processes,
+    listeners: Listeners,
     slinging: Mutex<()>,
 }
 
@@ -74,7 +79,45 @@ impl Sessions {
     #[must_use]
     pub fn new(program: PathBuf, ids: PathBuf) -> Self {
         let processes = Processes::new(program, ids);
-        Self { set: Mutex::default(), processes, slinging: Mutex::default() }
+        let listeners = Listeners::default();
+        Self { set: Mutex::default(), processes, listeners, slinging: Mutex::default() }
+    }
+
+    /// The agents' listeners.
+    #[must_use]
+    pub fn listeners(&self) -> &Listeners {
+        &self.listeners
+    }
+
+    /// Whether a sling to `agent` waits for a listener: one is there, or no
+    /// process of the agent's runs, so nothing else could take it.
+    #[must_use]
+    pub fn listens(&self, agent: &str) -> bool {
+        let running = self.processes.shown(agent).is_some_and(|p| p.running);
+        self.listeners.attached(agent) || !running
+    }
+
+    /// The agent of the open workspace `which` names, and the next sling
+    /// that waits for its listener, waiting up to `wait` for one. Taking a
+    /// sling sets the agent `working`: no hook of the listener's does.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a workspace that is not open and `invalid` for one
+    /// with no agent.
+    pub fn listen(
+        &self,
+        store: &Store,
+        which: &str,
+        wait: Duration,
+    ) -> Result<(String, Option<Heard>)> {
+        let opened = store.workspaces().show(which)?;
+        let agent = session::agent_of(&opened.workspace)?.to_string();
+        let sling = self.listeners.listen(&agent, wait);
+        if sling.is_some() {
+            self.set(store, &agent, Status::Working.name(), None)?;
+        }
+        Ok((agent, sling))
     }
 
     /// The agents' processes.
@@ -116,6 +159,8 @@ impl Sessions {
             return Err(slinger_core::Error::NotFound { what, hint }.into());
         }
         self.processes.start(&session.agent, profile, &session.home, &limits, fresh)?;
+        // A listener that went away without a word no longer takes its slings.
+        self.listeners.release(&session.agent);
         Ok(session)
     }
 
@@ -128,6 +173,7 @@ impl Sessions {
     pub fn stop(&self, store: &Store, which: &str) -> Result<Session> {
         let session = self.of_workspace(store, which)?;
         self.processes.stop(&session.agent);
+        self.listeners.release(&session.agent);
         Ok(session)
     }
 
@@ -217,7 +263,7 @@ impl Sessions {
         let open = store.workspaces().usable()?;
         let set = self.set.lock().unwrap_or_else(PoisonError::into_inner);
         let mut failed = None;
-        let sessions = session::list(open.iter().map(|o| (&o.dir, &o.workspace)), |agent| {
+        let mut sessions = session::list(open.iter().map(|o| (&o.dir, &o.workspace)), |agent| {
             set.get(agent).cloned().or_else(|| {
                 last_report(store, agent).unwrap_or_else(|e| {
                     failed.get_or_insert(e);
@@ -225,6 +271,11 @@ impl Sessions {
                 })
             })
         });
+        for session in &mut sessions {
+            if self.listeners.shown(&session.agent).is_some() {
+                session.deliver = Delivery::Listen;
+            }
+        }
         failed.map_or(Ok(sessions), |e| Err(e.into()))
     }
 

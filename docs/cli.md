@@ -49,12 +49,13 @@ a "did you mean" suggestion.
 | `canvas crop <ID> (--item ITEM \| --box X,Y,W,H [--page PAGE]) [--out FILE]` | The path of each image written, one per line, tiles in reading order. `--json`: `images` (`path`, `x`, `y`, `width`, `height`) |
 | `canvas strokes <ID> --item ITEM` | One stroke per line, as JSON with absolute `points` in tenths. `--json`: `strokes` |
 | `session list` | One line per session, by agent: agent, status (`-` for none) and home, then the note if there is one, separated by tabs. `--json`: `sessions` |
-| `session show <AGENT>` | One field per line, the name and the value separated by a tab: `agent`, `home`, `deliver`, `status`, then those it has of `note`, `process`, `pid`, `profile`, `pending`, `session_id` and `answer` (its line breaks as `\n`). `--json`: `session` |
+| `session show <AGENT>` | One field per line, the name and the value separated by a tab: `agent`, `home`, `deliver`, `status`, then those it has of `listening`, `note`, `process`, `pid`, `profile`, `pending`, `session_id` and `answer` (its line breaks as `\n`). `--json`: `session` |
 | `session start <WORKSPACE> [--fresh] [--profile NAME]`, `session stop <WORKSPACE>` | Nothing. `--json`: `session` |
 | `profile list <WORKSPACE>` | One line per profile, in its file's order: name, directory (`-` for the agent's home) and rules joined by `, ` (`-` for none), separated by tabs. `--json`: `workspace`, `profiles` |
 | `profile set <WORKSPACE> <NAME> [--dir DIR] [--tool RULE]...`, `profile remove <WORKSPACE> <NAME>` | Nothing. `--json`: `workspace`, `profiles` |
 | `session send <WORKSPACE> <TEXT\|->` | Nothing. `--json`: `session` |
-| `sling send <ID> [--page PAGE] [--select IDS] [--prompt TEXT\|-] [--profile NAME]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id`, `tokens` |
+| `session listen <WORKSPACE> [--wait SECONDS]` | The next sling to the workspace's agent, as text: line 1 `slinger-sling 1 … agent=<NAME>`, the packet (its `at=` names the directory of its images), the note and the prompt. Nothing when `--wait` passes with none. `--json`: `agent`, and `sling` (`event`, `canvas`, `dir`, `text`) when one came |
+| `sling send <ID> [--page PAGE] [--select IDS] [--prompt TEXT\|-] [--profile NAME]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id` (empty when a listener takes it), `deliver` (`process` or `listen`), `tokens` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
 | `file touched (<PATH> \| --hook) [--agent NAME]` | Nothing. `--json`: `agent`, `path`, `hash`, `event` |
 | `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --ink PTS \| --arrow FROM TO) [--color COLOR] [--at X,Y] [--size TENTHS] [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
@@ -65,7 +66,7 @@ a "did you mean" suggestion.
 | `feedback resolve <TS> [NOTE]...` | Nothing. `--json`: `path`, `resolves`, `ts`, `note` |
 | `feedback path` | The feedback file's path. `--json`: `path` |
 | `guide` | The guide for agents: the ideas and the common tasks, then every command with its arguments and what it does. Needs no daemon. `--json`: `guide`, `commands` (`name`, `usage`, `about`) |
-| `skill install [--dir DIR]` | The path of the skill file written, `<DIR>/slinger/SKILL.md`. Needs no daemon. `--json`: `path`, `new` |
+| `skill install [--dir DIR]` | The path of each skill file written, one per line: `<DIR>/slinger/SKILL.md`, `<DIR>/slinger-listen/SKILL.md`. Needs no daemon. `--json`: `skills`, a list of `name`, `path`, `new` |
 
 `profile` keeps the profiles of a workspace's agent in its file
 (`docs/service.md`, "Profiles"): each a working directory and the Claude
@@ -84,7 +85,9 @@ the agent runs under that profile, and exits 4 (`conflict`) otherwise.
 text in `crates/cli/src/guide.md` and then one entry per command, made from
 the commands themselves, so the reference always fits the binary that prints
 it. The skill (`plugin/skills/slinger/SKILL.md`) says when to use slinger and
-to run `slinger guide`; the Claude Code plugin in `plugin/` ships it, and
+to run `slinger guide`; `slinger-listen` (`plugin/skills/slinger-listen/SKILL.md`)
+says how a session takes a workspace's slings with `session listen`. The
+Claude Code plugin in `plugin/` ships both, and
 `skill install` writes the same bytes for a harness with no plugins. `--dir`
 defaults to `$CLAUDE_CONFIG_DIR/skills`, else `~/.claude/skills`; it is made
 if missing. A skill that holds these bytes already stays as it is (`new` is
@@ -280,10 +283,28 @@ prompt (`-` reads it from stdin; none is valid: the selection is the
 question) to the agent of the canvas's open workspace, and returns once it
 is delivered. The answer arrives on the canvas, as the agent's `canvas put`s,
 and as its status. Each sling is in the record (`sling_sent`, with its packet
-as a blob). With no running agent it exits 6 (`unavailable`) with a hint to
-`session start` it, and sends and records nothing; slinger never starts one
-for a sling. A canvas no open workspace has exits 3, a workspace with no
-agent or an id that is not one exits 5.
+as a blob). Slinger never starts an agent for a sling. A sling with no
+`--profile` goes to a listener when one listens, else to the agent's running
+process; with neither it waits for a listener, and `--json` has `deliver` as
+`listen`. A sling with `--profile` goes only to a process under that
+profile: with none running it exits 6 (`unavailable`) with a hint to
+`session start` it, and sends and records nothing. A canvas no open
+workspace has exits 3, a workspace with no agent or an id that is not one
+exits 5.
+
+`session listen` makes the session that runs it the agent's listener: it
+waits for the next sling to the workspace's agent, prints it and exits, so a
+Claude Code session of your own answers the agent's slings with its own
+tools and permissions (the skill `slinger-listen` runs the loop). The sling
+names its agent on line 1 (`agent=<NAME>`): the listener passes it as
+`--agent` to `canvas put` and `status set`, then listens again. `session
+show` has `deliver` as `listen` while slings wait or a listener is there,
+with `listening` (whether one is there: it asks, asked within 10 seconds, or
+works on a sling it took) and `pending` (the slings that wait, and the one
+it works on). `--wait 0` takes a waiting sling or prints nothing at once.
+The slings that wait are lost when `slingerd` stops; each is in the record.
+`session start` and `session stop` end a listener's claim on the agent: the
+next slings go to the process.
 
 ## Output
 

@@ -21,7 +21,7 @@ fn packet() -> Packet {
 }
 
 fn sling<'a>(packet: &'a Packet, selection: &'a [String], first: bool) -> Sling<'a> {
-    Sling { packet, prompt: "What is missing here?", selection, first, verbs: ALL }
+    Sling { packet, prompt: "What is missing here?", selection, first, verbs: ALL, listener: None }
 }
 
 /// The message as text, each image as an `<image name>` line.
@@ -162,6 +162,37 @@ fn the_note_names_only_the_verbs_given() {
     // A later sling with nothing to name has no note at all.
     let s = Sling { verbs: &[], ..sling(&p, &[], false) };
     assert!(!show(&message(&s)).contains("# reply"));
+}
+
+#[test]
+fn a_listeners_sling_names_its_agent_and_says_what_a_listener_does_itself() {
+    use slinger_core::sling::Listener;
+    let mut p = packet();
+    p.header.at = Some("/data/packets/ab".into());
+    let listener = Some(Listener { agent: "scout", workspace: "notes" });
+    for first in [true, false] {
+        let m = message(&Sling { listener, ..sling(&p, &ids(&["c51"]), first) });
+        let text = m.text();
+        assert!(text.starts_with("slinger-sling 1 canvas=idea agent=scout selected=c51\n"));
+        assert!(text.lines().nth(1).unwrap().contains(" at=/data/packets/ab"), "{text}");
+        // The images are files: the text names them and holds none.
+        assert_eq!(
+            text,
+            show(&m).replace("<image c42.png>\n", "").replace("<image c51.png>\n", "")
+        );
+        assert!(text.contains("img=c42.png") && text.ends_with("# prompt\nWhat is missing here?"));
+        assert_eq!(
+            commands(&text),
+            ["canvas crop", "canvas put", "session listen", "status set"],
+            "{text}"
+        );
+        assert!(text.contains("`slinger status set done --agent scout`"));
+        assert!(text.contains("`slinger session listen notes`"));
+    }
+    // With no verb to name, a later sling still tells a listener what to do.
+    let bare = Sling { listener, verbs: &[], ..sling(&p, &[], false) };
+    let text = message(&bare).text();
+    assert!(text.contains("# reply\nYou took this sling by listening, as agent `scout`."));
 }
 
 #[test]

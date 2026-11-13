@@ -6,10 +6,12 @@
 //! them.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Client, RemoteError, SlingAsk};
+use crate::client::TIMEOUT;
+use crate::{Client, MAX_WAIT_MS, RemoteError, SlingAsk};
 
 /// A session request, as a client writes it and the daemon reads it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -42,6 +44,14 @@ pub enum SessionAsk {
     SessionSend { workspace: String, text: String },
     /// Send a canvas's new ink and a prompt to the agent of its workspace.
     SlingSend(SlingAsk),
+    /// Take the next sling that waits for a listener of a workspace's
+    /// agent. With `wait`, the reply waits up to that many milliseconds for
+    /// one (at most [`crate::MAX_WAIT_MS`]).
+    SessionListen {
+        workspace: String,
+        #[serde(default)]
+        wait: u64,
+    },
     /// An agent wrote a file: the absolute `path`, or the one a Claude Code
     /// `PostToolUse` hook's payload (`hook`) names. One of the two.
     FileTouched {
@@ -67,8 +77,12 @@ pub struct Session {
     pub agent: String,
     /// The agent's home: the directory of its workspace's file.
     pub home: PathBuf,
-    /// How a message reaches it: `process` in v1.
+    /// How a sling reaches it: `process`, a process the daemon holds, or
+    /// `listen`, a session that asks for its slings (`session_listen`).
     pub deliver: String,
+    /// Under `listen`, whether a listener is there now. Absent under `process`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub listening: Option<bool>,
     /// `working`, `blocked` or `done`; absent until the agent sets one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
@@ -83,6 +97,8 @@ pub struct Session {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pid: Option<u32>,
     /// Messages sent to the running process that it has not answered yet.
+    /// Under `listen`: the slings that wait, and the one the listener took
+    /// and has not asked past.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pending: Option<u32>,
     /// The text of the process's last answer.
@@ -119,6 +135,28 @@ pub struct StatusSet {
     pub note: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub event: Option<u64>,
+}
+
+/// The reply to [`SessionAsk::SessionListen`]: the agent listened for, and
+/// the sling taken. No sling: none came within the wait.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Listened {
+    pub agent: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sling: Option<Taken>,
+}
+
+/// One sling as a listener takes it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Taken {
+    /// The number of its `sling_sent` event.
+    pub event: u64,
+    /// The canvas it was slung on.
+    pub canvas: String,
+    /// The directory that holds the packet's images, which `text` names.
+    pub dir: PathBuf,
+    /// The sling's message: the packet, the note and the prompt.
+    pub text: String,
 }
 
 /// The reply to [`SessionAsk::FileTouched`]: the file, its hash and the
@@ -243,6 +281,21 @@ impl Client {
         Ok(self.call::<_, SessionInfo>(&ask)?.session)
     }
 
+    /// Takes the next sling that waits for a listener of `workspace`'s
+    /// agent, waiting up to `wait` (at most [`MAX_WAIT_MS`]) for one. The
+    /// agent counts as listened for from this call on: slings with no
+    /// profile go to its listener, not to its process.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a workspace that is not open, `invalid` for one with
+    /// no agent, and `unavailable` when the daemon does not answer.
+    pub fn session_listen(&self, workspace: &str, wait: Duration) -> Result<Listened, RemoteError> {
+        let wait = u64::try_from(wait.as_millis()).unwrap_or(u64::MAX).min(MAX_WAIT_MS);
+        let ask = SessionAsk::SessionListen { workspace: workspace.into(), wait };
+        self.call_within(&ask, TIMEOUT + Duration::from_millis(wait))
+    }
+
     /// Reports that `agent` wrote a file. The daemon hashes it and appends a
     /// `file_touched` event with its path and hash, never its contents.
     ///
@@ -326,6 +379,10 @@ mod tests {
             (
                 SessionAsk::SlingSend(SlingAsk { canvas: "c".into(), ..SlingAsk::default() }),
                 r#"{"v":1,"op":"sling_send","canvas":"c","prompt":""}"#,
+            ),
+            (
+                SessionAsk::SessionListen { workspace: "w".into(), wait: 250 },
+                r#"{"v":1,"op":"session_listen","workspace":"w","wait":250}"#,
             ),
             (
                 SessionAsk::FileTouched { agent: "a".into(), path: Some("/f".into()), hook: None },

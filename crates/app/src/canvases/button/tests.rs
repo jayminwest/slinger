@@ -183,17 +183,29 @@ fn sling_lines(canvases: &mut Canvases, panes: &Panes) -> Vec<crate::scene::Labe
 }
 
 #[test]
-fn a_tap_with_no_agent_running_says_why_under_the_button() {
+fn a_tap_with_no_agent_running_says_under_the_button_that_nobody_listens() {
     with_store(None, |daemon| {
         let _home = open_notes(daemon);
         let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
         let frame = placed_with_no_agent(&mut canvases, &panes, daemon);
         assert!(tap(&mut canvases, &panes, frame));
-        let lines = sling_lines(&mut canvases, &panes);
+        let mut lines = Vec::new();
+        wait_until(|| {
+            lines = sling_lines(&mut canvases, &panes);
+            lines[0].text.starts_with("○ scout: nobody listens")
+        });
         assert!(!canvases.typing(), "no entry: the pen cannot press escape");
-        assert!(lines[0].text.starts_with("✗ "), "{lines:?}");
-        assert!(lines[1].text.contains("session start"), "its hint: {lines:?}");
+        assert!(lines[1].text.contains("/slinger-listen"), "its hint: {lines:?}");
         assert!(lines[0].frame.y > frame.y + frame.height, "under the button: {lines:?}");
+
+        // A sling that cannot go says why there too.
+        daemon.workspace_close("notes").unwrap();
+        assert!(tap(&mut canvases, &panes, frame));
+        wait_until(|| {
+            lines = sling_lines(&mut canvases, &panes);
+            lines[0].text.starts_with("✗ ")
+        });
+        assert!(!canvases.typing());
     });
 }
 
@@ -216,7 +228,7 @@ fn a_tap_closes_the_feedback_or_rename_entry_and_slings() {
             assert!(tap(&mut canvases, &panes, frame));
             assert!(!canvases.typing(), "{open:?} closed");
             let lines = sling_lines(&mut canvases, &panes);
-            assert!(lines[0].text.starts_with("✗ "), "it slung: {lines:?}");
+            assert!(lines[0].text.contains("scout"), "it slung: {lines:?}");
         }
     });
 }
