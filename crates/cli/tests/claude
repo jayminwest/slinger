@@ -3,7 +3,9 @@
 # It reads each hook's command from --settings by its event, and runs it with
 # sh -c, its payload on stdin. Per message: UserPromptSubmit; then, once the
 # test creates `go` in its home, a write of out.txt and its PostToolUse; the
-# answer; and Stop.
+# answer; and Stop. It waits for `go` only while the test that started it
+# runs: a test that fails first never creates it, and a stand-in still waiting
+# would outlive the test (slinger-0e8be0).
 settings=
 while [ $# -gt 0 ]; do
   case "$1" in --settings) settings="$2"; shift ;; esac
@@ -16,7 +18,7 @@ hook() {
 while IFS= read -r line; do
   printf '{"hook_event_name":"UserPromptSubmit","cwd":"%s","prompt":"hi"}' "$PWD" |
     sh -c "$(hook UserPromptSubmit)"
-  while [ ! -f go ]; do sleep 0.02; done
+  while [ ! -f go ]; do kill -0 "$PPID" 2>/dev/null || exit 1; sleep 0.02; done
   rm go
   printf 'written by the agent' > out.txt
   printf '{"hook_event_name":"PostToolUse","cwd":"%s","tool_name":"Write","tool_input":{"file_path":"out.txt","content":"x"}}' "$PWD" |

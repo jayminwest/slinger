@@ -31,8 +31,9 @@ use crate::workspace::Workspace;
 pub const NAME: &str = "slinger";
 
 /// Help for `--socket`: a string, because a doc comment may not hold `$XDG_RUNTIME_DIR` bare.
-const SOCKET_HELP: &str = "Daemon control socket [default: $SLINGER_SOCKET, else in \
-     $XDG_RUNTIME_DIR, else in the temporary directory]";
+const SOCKET_HELP: &str = "Daemon control socket [default: $SLINGER_SOCKET, else the one the \
+     running slingerd named in its data directory, else in $XDG_RUNTIME_DIR, else in the \
+     temporary directory]";
 
 /// Help for an event's kind: a string, because a doc comment wants the kind names in backticks.
 const KIND_HELP: &str = "The event's kind: sling_sent, reply_landed, file_touched, pane_moved, \
