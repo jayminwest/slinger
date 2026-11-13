@@ -219,6 +219,27 @@ rule list alone stopped every attempt. The policy alone does not stop a
 top-level navigation; the navigation delegate does. No layer is redundant
 for every attempt, so all four stay.
 
+### How a page looks
+
+A page should read as part of the canvas, not as a window onto another
+app (slinger-3169bc). The app gives every page, with the shim, a style
+element first in its document (`crates/app/src/ui.rs`, `script` and
+`ui/look.css`):
+
+- `--slinger-paper`, `--slinger-ink`, `--slinger-muted`, `--slinger-accent`
+  and `--slinger-error` on `:root`, from the app's theme, and the
+  `color-scheme` (light or dark) its paper calls for.
+- The page on the paper, in the ink, in the system font at 13 px, with a
+  12 px margin; controls in the page's font; links and controls in the
+  accent.
+- Every rule is `:where()`, so any rule of the page's own wins.
+
+The web view draws no background of its own, so nothing white shows before
+the page paints. The look is set when the view opens: a theme changed
+while a page shows reaches it the next time it opens. Still open (needs the
+owner's eye): chrome around a live item, ink over it (slinger-c9f363), and
+whether O1's closed blocks (alternative B) come now.
+
 ### How it scales on a zoomed canvas
 
 - The item's box is in canvas units, and one CSS pixel is one canvas unit.

@@ -394,7 +394,7 @@ pub fn run(
 fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     let window = &state.window;
     files::title(window, &scene.title);
-    window.setBackgroundColor(Some(&color(scene.background)));
+    window.setBackgroundColor(Some(&color(scene.theme.background)));
     menu::show(&scene.menus, mtm);
     let Some(view) = window.contentView() else { return };
     let shown = &mut *state.shown.borrow_mut();
@@ -426,7 +426,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
         let found = shown.canvases.iter().find(|(p, _)| *p == pane);
         found.map(|(_, canvas)| Retained::into_super(canvas.clone()))
     };
-    web::place(&view, &scene.webs, height, canvas, mtm);
+    web::place(&view, &scene.webs, &scene.theme, height, canvas, mtm);
     let under = shown.overlay.first().cloned();
     let entry = scene.entry.as_deref();
     entry::place(window, &view, &mut shown.entry, entry, under.as_deref(), height, mtm);

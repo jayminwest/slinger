@@ -433,6 +433,7 @@ fn a_broken_workspace_shows_why_the_field_and_the_hint_wrapped_to_the_sidebar() 
 #[test]
 fn a_shown_broken_workspace_has_a_close_line_whose_tap_closes_it() {
     let mut sidebar = heard(vec![broken("", "nameless"), ws("ada", None)]);
+    sidebar.pick(0);
     let rows = sidebar.rows(&T, WINDOW);
     assert!(rows.iter().any(|r| r.label.text == "nameless"), "a file with no name: its folder's");
     let close = rows.iter().find(|r| r.label.text == broken::CLOSE).unwrap().label.frame;
@@ -477,4 +478,17 @@ fn a_shown_workspace_s_stopped_agent_has_a_start_line_whose_tap_starts_it() {
     sidebar.pick(2);
     assert!(!taps(&sidebar).contains(&start), "an agent that runs: no line");
     assert_eq!(Sidebar::new(true).shown_dir(), None, "nothing heard yet");
+}
+
+#[test]
+fn with_none_named_the_first_usable_workspace_stands_out_as_the_panes_show_it() {
+    let mut sidebar = heard(vec![broken("", "nameless"), ws("ada", None), ws("bo", None)]);
+    let bold = |s: &Sidebar| -> Vec<String> {
+        let rows = s.rows(&T, WINDOW).into_iter().filter(|r| r.font.bold);
+        rows.map(|r| r.label.text).collect()
+    };
+    assert_eq!(bold(&sidebar), ["ada-ws"], "not the broken first");
+    assert!(!sidebar.rows(&T, WINDOW).iter().any(|r| r.label.text == broken::CLOSE));
+    assert_eq!(sidebar.close(), Some(PathBuf::from("")), "closes the one shown: ada's");
+    assert_eq!(bold(&sidebar), ["bo-ws"]);
 }
