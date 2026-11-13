@@ -28,7 +28,10 @@ impl Canvases {
     /// focused pane of `panes` laid in `area` shows it; else beside the
     /// first button on that pane's page, to sling what is new there. False
     /// when it shows neither, a sling is on its way, or feedback is open. A
-    /// page's new name's entry closes.
+    /// page's new name's entry closes, and once it opens a text being typed
+    /// ends and goes to the daemon, as the feedback entry ends it: the
+    /// entry's caret is the only one, and the text is on the page the sling
+    /// waits for (slinger-cd5a58).
     pub fn open_sling(&mut self, panes: &Panes, area: Rect) -> bool {
         if self.notes.is_typing() {
             return false;
@@ -39,7 +42,11 @@ impl Canvases {
         else {
             return false;
         };
-        self.sling.open(&selection, around, within)
+        let opened = self.sling.open(&selection, around, within);
+        if opened && self.shapes.end(&mut self.ink) {
+            self.send();
+        }
+        opened
     }
 
     /// Slings `selection` (no ids: what is new on its page) with `prompt`
@@ -279,6 +286,51 @@ mod tests {
         assert!(!canvases.sling_typed(prompt));
         assert!(canvases.sling_key(Chord::new(0, '\r')));
         assert_eq!(texts(&shown(canvases, panes)), [format!("slinging 1 item: {prompt}")]);
+    }
+
+    /// Whether the canvas pane draws a text's caret.
+    fn has_caret(canvases: &mut Canvases, panes: &Panes) -> bool {
+        let shown = canvases.show(panes, WINDOW.rect(), &Config::default().theme);
+        let mut draws = shown.iter().flat_map(|pane| &pane.scene.draws);
+        draws.any(|d| matches!(d.mark, crate::scene::canvas::Mark::Caret { .. }))
+    }
+
+    #[test]
+    fn the_entry_ends_the_text_being_typed_so_its_caret_is_the_only_one() {
+        let bin = tempfile::tempdir().unwrap();
+        with_store(Some(&fake_claude(bin.path())), |daemon| {
+            let home = open_notes(daemon);
+            user_stroke(daemon, "notes");
+            daemon.session_start("notes").unwrap();
+            let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+            select_the_stroke(&mut canvases, &panes);
+            let here = (panes.focus(), WINDOW.rect());
+            let pen = Pen { at: Point { x: 300.0, y: 300.0 }, ..PEN };
+            assert!(canvases.pen_down(
+                &panes,
+                here,
+                pen,
+                (Tool::Text, Config::default().theme.text)
+            ));
+            canvases.pen_up(&panes, Pen { when: 0.1, ..pen }, Some(here));
+            assert!(canvases.typed("h") && canvases.typed("i") && canvases.editing());
+            assert!(has_caret(&mut canvases, &panes), "the text's caret, while it is typed");
+
+            assert!(canvases.open_sling(&panes, WINDOW.rect()), "the selection stays");
+            assert!(!canvases.editing(), "the text ended");
+            assert!(!has_caret(&mut canvases, &panes), "only the entry's caret");
+            assert!(!canvases.sling_typed("and this?"));
+            assert!(!canvases.typed("x"), "the entry's, not the text's");
+            assert!(canvases.sling_key(Chord::new(0, '\r')));
+            gone(&mut canvases);
+            let message = delivered(home.path(), "and this?");
+            assert!(message.contains("selected=c1"), "{message}");
+            let items = daemon.canvas_show("notes", None).unwrap().items;
+            let texts: Vec<_> = items.iter().filter(|i| i["kind"] == "text").collect();
+            assert_eq!(texts.len(), 1, "the typed text is on the page it slung: {items:?}");
+            assert_eq!(texts[0]["text"], "hi");
+            daemon.session_stop("notes").unwrap();
+        });
     }
 
     #[test]

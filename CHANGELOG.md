@@ -375,6 +375,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** opening the sling entry while typing a text on the canvas
+  ends that text, as the feedback entry does. Its caret no longer stays
+  on the canvas beside the entry's own, and the text is on the page
+  before the sling goes.
 - **App:** opening the feedback entry while typing a text on the canvas
   ends that text, as renaming a page does. Its caret no longer stays
   frozen on the canvas beside the entry's own, and the text is kept.
