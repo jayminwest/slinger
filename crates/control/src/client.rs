@@ -128,22 +128,30 @@ impl Client {
     /// `unavailable` when the daemon does not answer.
     pub fn canvas_create(&self, canvas: &str) -> Result<(), RemoteError> {
         let _: CanvasInfo =
-            self.call(&Request::CanvasCreate { canvas: canvas.into(), path: None })?;
+            self.call(&Request::CanvasCreate { canvas: canvas.into(), path: None, by: None })?;
         Ok(())
     }
 
     /// Makes a new canvas that holds the operations in the file `ops` (a
-    /// JSON list, as [`CanvasOps::ops`]) applied as the user: the whole
-    /// canvas, or none. Its first page is `p1`.
+    /// JSON list, as [`CanvasOps::ops`]) applied as `by` (`user` or
+    /// `agent:<name>`; `None`: the user), so only that author's edits and
+    /// removes reach them later: the whole canvas, or none. Its first page
+    /// is `p1`.
     ///
     /// # Errors
     ///
     /// As [`Client::canvas_create`], `not_found` for a file that is not
-    /// there, and `invalid` for one that is not JSON or an operation the
-    /// canvas refuses.
-    pub fn canvas_create_with(&self, canvas: &str, ops: &Path) -> Result<(), RemoteError> {
-        let path = Some(absolute(ops)?);
-        let _: CanvasInfo = self.call(&Request::CanvasCreate { canvas: canvas.into(), path })?;
+    /// there, and `invalid` for one that is not JSON, an operation the
+    /// canvas refuses or a `by` that is not an author.
+    pub fn canvas_create_with(
+        &self,
+        canvas: &str,
+        ops: &Path,
+        by: Option<&str>,
+    ) -> Result<(), RemoteError> {
+        let (path, by) = (Some(absolute(ops)?), by.map(str::to_string));
+        let _: CanvasInfo =
+            self.call(&Request::CanvasCreate { canvas: canvas.into(), path, by })?;
         Ok(())
     }
 

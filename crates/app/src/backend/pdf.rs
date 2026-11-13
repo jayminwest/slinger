@@ -124,7 +124,7 @@ pub fn open(
 fn create(daemon: &Client, file: &Path, ops: &Path) -> Result<String, Problem> {
     for n in 1..=TRIES {
         let id = canvas_id(file, n);
-        match daemon.canvas_create_with(&id, ops) {
+        match daemon.canvas_create_with(&id, ops, None) {
             Ok(()) => return Ok(id),
             Err(e) if e.code() == "conflict" => {}
             Err(e) => return Err(e.into()),

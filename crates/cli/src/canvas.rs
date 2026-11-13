@@ -26,10 +26,12 @@ pub enum Canvas {
     Create {
         /// The canvas id: a-z, 0-9, '-', '_' and '.'
         canvas: String,
-        /// A file holding a JSON list of operations, as 'canvas apply' takes, made as the
-        /// user's in one step: the whole canvas or none
+        /// A file holding a JSON list of operations, as 'canvas apply' takes, made in one
+        /// step as the agent's (else the user's): the whole canvas or none
         #[arg(long, value_name = "FILE")]
         ops: Option<PathBuf>,
+        #[arg(long, value_name = "NAME", help = AGENT_OR_USER_HELP)]
+        agent: Option<String>,
     },
     /// List the canvases, one id per line
     List,
@@ -133,9 +135,10 @@ pub fn execute(
     env: &Env,
 ) -> anyhow::Result<Output> {
     match command {
-        Canvas::Create { canvas, ops } => {
+        Canvas::Create { canvas, ops, agent } => {
+            let by = by(env, agent.as_deref());
             match ops {
-                Some(file) => daemon.canvas_create_with(canvas, file)?,
+                Some(file) => daemon.canvas_create_with(canvas, file, Some(&by))?,
                 None => daemon.canvas_create(canvas)?,
             }
             Ok(Output::new(json!({ "canvas": canvas }), String::new()))
