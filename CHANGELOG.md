@@ -409,6 +409,10 @@ bullet with the area in bold.
   you stop it, and after slingerd restarts. The sidebar took it for one
   never started and showed its last status, because `slinger session show`
   gave no `session_id` for it; now it names that profile's conversation.
+- **Agents:** starting an agent while a listening session works on a sling
+  ends its "working" at once, as stopping it does. The start hands the agent
+  back to its process, but the sidebar and `slinger session show` kept it
+  working on the listener's sling.
 - **App:** a sling that waits for a listener keeps saying "nobody listens"
   when you start the agent's process meanwhile. The process does not take
   it, but its pill said the agent was done. Once a listener takes it, it

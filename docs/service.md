@@ -833,6 +833,8 @@ worked on). So `deliver` names what takes the next sling: while the
 process runs and nobody listens it is `process`, with the process's
 `pending`, though slings still wait for a listener. `session_start` and `session_stop`
 forget who listened; the slings that wait stay for the next to listen. The
+sling the listener worked on is dealt with, and the agent's `working` from
+it goes: its status is the one from before. The
 record keeps each sling from the time it waits until its listener deals with
 it, so a daemon that stops loses none: after a restart every sling not dealt
 with waits, oldest first, the one a listener worked on too (the stop ended

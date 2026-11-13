@@ -153,9 +153,11 @@ fn a_listener_outranks_a_running_process_and_a_profile_names_only_a_process() {
     // A start hands the agent back to its process; the sling that waits
     // stays, and the session shows the process, which takes the next one
     // and whose pending is that one's (slinger-2eee43).
-    client.session_start("notes").unwrap();
+    // The listener's claim goes, and the agent's working with it (slinger-57aae0).
+    let started = client.session_start("notes").unwrap();
+    assert_eq!(started.status, None, "nobody works on the listener's sling");
     let process = client.session_show("scout").unwrap();
-    assert_eq!(heard(&process), ("process", None, Some(0)));
+    assert_eq!((heard(&process), process.status.as_deref()), (("process", None, Some(0)), None));
     assert_eq!(sling(&client, "to the process again").deliver.as_deref(), Some("process"));
     assert_eq!(wait_lines(&home.join("in.txt"), 3).len(), 3);
     let working = client.session_show("scout").unwrap();

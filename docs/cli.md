@@ -329,7 +329,8 @@ agent's status is the one it had before it took the sling; a pid that
 is not running exits 5. `--wait 0` takes a waiting sling or prints nothing at once.
 The slings that wait are lost when `slingerd` stops; each is in the record.
 `session start` and `session stop` end a listener's claim on the agent: the
-next slings go to the process.
+next slings go to the process, and the agent no longer shows working on the
+sling the listener took.
 
 ## Output
 
