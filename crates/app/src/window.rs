@@ -28,8 +28,9 @@ use crate::scene::{self, Label, Scene, cursor, status, title};
 use crate::shared::Shared;
 
 /// Runs `command` (not `quit` or `reload-config`) on the focused pane of
-/// `shared`: a picker opens its pop-up there; a pane command goes to the
-/// daemon on `socket`. False for a selection command with nothing selected:
+/// `shared`: a picker opens its pop-up there; a pane command, and an
+/// agent command for the workspace `sidebar` shows, go to the daemon on
+/// `socket`. False for a selection command with nothing selected:
 /// the key goes on (a delete in a UI's form).
 pub fn run(
     command: Command,
@@ -48,6 +49,9 @@ pub fn run(
         c if !selection(canvases, shared, tools, area, c) => return false,
         Command::ToggleSidebar => sidebar.set_open(!sidebar.is_open()),
         Command::DismissNotice => sidebar.dismiss(),
+        Command::StartAgent | Command::StopAgent | Command::RestartAgent => {
+            agent(command, socket, sidebar, tools);
+        }
         c if canvases.command(&shared.panes, focus(&shared.panes, area), c) || tools.command(c) => {
         }
         c => shared.command(c, area, socket),
@@ -130,6 +134,24 @@ pub fn close_workspace(socket: &Path, sidebar: &mut Sidebar, tools: &mut Tools) 
         tools.flash().say(problem.message.clone(), Instant::now());
     }
     closed.is_ok()
+}
+
+/// Runs `start-agent`, `stop-agent` or `restart-agent` on the agent of
+/// the workspace `sidebar` shows,
+/// through the daemon on `socket`: the flash in `tools` names the agent,
+/// or says why it cannot.
+pub fn agent(command: Command, socket: &Path, sidebar: &Sidebar, tools: &mut Tools) {
+    let Some(dir) = sidebar.shown_dir() else { return };
+    let daemon = slinger_control::Client::new(socket);
+    let done = match command {
+        Command::StopAgent => backend::stop_agent(&daemon, &dir),
+        c => backend::start_agent(&daemon, &dir, c == Command::RestartAgent),
+    };
+    let said = match done {
+        Ok(agent) => format!("{} · {agent}", command.title()),
+        Err(problem) => problem.message,
+    };
+    tools.flash().say(said, Instant::now());
 }
 
 /// Opens the PDF `file` as a canvas beside the focused pane of `shared`,
