@@ -154,6 +154,7 @@ fn every_command_has_a_title_and_a_group_in_the_list() {
         (Command::CloseWorkspace, Group::File),
         (Command::StartAgent, Group::Sling),
         (Command::StopAgent, Group::Sling),
+        (Command::RestartAgent, Group::Sling),
     ];
     for (command, group) in groups {
         assert_eq!(command.group(), group, "{command:?}");

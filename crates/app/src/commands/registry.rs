@@ -109,6 +109,7 @@ impl Command {
             Command::CloseWorkspace => "Close workspace",
             Command::StartAgent => "Start agent",
             Command::StopAgent => "Stop agent",
+            Command::RestartAgent => "Restart agent in a new conversation",
         }
     }
 
@@ -133,7 +134,8 @@ impl Command {
             | Command::Dictate
             | Command::PlaceButton
             | Command::StartAgent
-            | Command::StopAgent => Group::Sling,
+            | Command::StopAgent
+            | Command::RestartAgent => Group::Sling,
             Command::PanLeft
             | Command::PanRight
             | Command::PanUp

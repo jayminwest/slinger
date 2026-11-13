@@ -129,6 +129,7 @@ const BAR: [(&str, &[Action]); 8] = [
             R(Command::PlaceButton),
             R(Command::StartAgent),
             R(Command::StopAgent),
+            R(Command::RestartAgent),
         ],
     ),
     (

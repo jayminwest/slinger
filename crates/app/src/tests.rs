@@ -297,7 +297,7 @@ fn flashed(tools: &Tools, settings: &Settings) -> Option<String> {
 }
 
 #[test]
-fn start_and_stop_agent_go_to_the_shown_workspace_s_agent_and_flash_its_name_or_why_not() {
+fn start_stop_and_restart_agent_go_to_the_shown_workspace_s_agent_and_flash_or_say_why_not() {
     with_agents(|socket| {
         let settings = Settings::load(ConfigFiles::at("/nonexistent/config.toml".into()));
         let mut tools = Tools::new(settings.config.palette.clone());
@@ -328,6 +328,12 @@ fn start_and_stop_agent_go_to_the_shown_workspace_s_agent_and_flash_its_name_or_
         window::agent(Command::StartAgent, socket, &sidebar, &mut tools);
         wait_until(|| runs().contains("--resume"));
         assert_eq!(runs().lines().count(), 2, "in its last conversation");
+        window::agent(Command::RestartAgent, socket, &sidebar, &mut tools);
+        let restarted = flashed(&tools, &settings).unwrap_or_default();
+        assert_eq!(restarted, "Restart agent in a new conversation · scout");
+        wait_until(|| runs().lines().count() == 3);
+        let last = runs().lines().last().unwrap_or_default().to_string();
+        assert!(last.contains("--session-id"), "a new conversation: {last}");
         window::agent(Command::StopAgent, socket, &sidebar, &mut tools);
 
         daemon.workspace_close("notes").unwrap();

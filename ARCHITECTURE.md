@@ -359,10 +359,11 @@ window.rs    runs a command on the focused pane, does a tap on a button that
              chose as a workspace (workspace_open: backend/agents.rs) and
              shows it, or flashes why not, closes the shown one for
              `close-workspace` (workspace_close by its folder) and shows the
-             first, or flashes why not, starts or stops the shown one's
-             agent for `start-agent` and `stop-agent` (`agent`:
-             session_start or session_stop by its folder,
-             backend/agents.rs) and flashes its name or why not, builds the window's scene (`view`: the footers,
+             first, or flashes why not, starts, stops or restarts the
+             shown one's agent for `start-agent`, `stop-agent` and
+             `restart-agent` (`agent`: session_start, session_stop or
+             session_start `fresh` by its folder, backend/agents.rs) and
+             flashes its name or why not, builds the window's scene (`view`: the footers,
              the sidebar's foot, the lit button, the tap targets), and
              finds the canvas pane under a point and the focused pane's
              frame. A cut, copy or paste no text field took (`edit`), and

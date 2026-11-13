@@ -126,6 +126,10 @@ pub enum Command {
     /// Stop the agent of the workspace the window shows: its process ends,
     /// and its conversation stays for the next start.
     StopAgent,
+    /// Start the agent of the workspace the window shows in a new
+    /// conversation: a running process ends first, and its last
+    /// conversation is dropped.
+    RestartAgent,
 }
 
 /// How many commands there are.
@@ -133,7 +137,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 59] = [
+    pub const ALL: [(Command, &str); 60] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -193,6 +197,7 @@ impl Command {
         (Command::CloseWorkspace, "close-workspace"),
         (Command::StartAgent, "start-agent"),
         (Command::StopAgent, "stop-agent"),
+        (Command::RestartAgent, "restart-agent"),
     ];
 
     /// The command called `name` in the config file.
@@ -371,6 +376,7 @@ impl Default for Keymap {
             on(CMD | ALT, 'w'),
             on(CMD | ALT, 'a'),
             on(CMD | ALT, '.'),
+            on(CMD | ALT | SHIFT, 'a'),
         ])
     }
 }

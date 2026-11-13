@@ -250,7 +250,8 @@ impl Panes {
             | Command::OpenWorkspace
             | Command::CloseWorkspace
             | Command::StartAgent
-            | Command::StopAgent => {}
+            | Command::StopAgent
+            | Command::RestartAgent => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),

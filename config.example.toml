@@ -240,3 +240,6 @@
 # Stop the agent of the workspace the window shows: its process ends, and its conversation
 # stays for the next start-agent.
 #stop-agent = "cmd+alt+."
+# Start the agent of the workspace the window shows in a new conversation: a running
+# process ends first, and its last conversation is dropped.
+#restart-agent = "cmd+alt+shift+a"
