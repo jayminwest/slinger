@@ -24,7 +24,7 @@ use objc2::runtime::{AnyObject, NSObject, NSObjectProtocol, ProtocolObject};
 use objc2::{AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send};
 use objc2_app_kit::{NSView, NSWindowOrderingMode};
 use objc2_foundation::{
-    NSData, NSDictionary, NSError, NSHTTPURLResponse, NSString, NSURL, NSURLRequest,
+    NSData, NSDictionary, NSError, NSHTTPURLResponse, NSNumber, NSString, NSURL, NSURLRequest,
 };
 use objc2_web_kit::{
     WKContentRuleList, WKContentRuleListStore, WKContentWorld, WKNavigationAction,
@@ -35,6 +35,7 @@ use objc2_web_kit::{
 };
 
 use super::flipped;
+use crate::config::Theme;
 use crate::layout::{PaneId, Rect};
 use crate::scene::Web;
 use crate::scene::canvas::ItemId;
@@ -211,6 +212,7 @@ thread_local! {
 pub fn place(
     into: &NSView,
     webs: &[Web],
+    theme: &Theme,
     height: f64,
     canvas: impl Fn(PaneId) -> Option<Retained<NSView>>,
     mtm: MainThreadMarker,
@@ -221,7 +223,7 @@ pub fn place(
         let key = key(web);
         let kept = old.iter().position(|s| s.key == key).map(|at| old.remove(at));
         let mut shown = kept.unwrap_or_else(|| {
-            let mut shown = open(&web.page, key, mtm);
+            let mut shown = open(&web.page, theme, key, mtm);
             let Some(live) = web.live else {
                 into.addSubview_positioned_relativeTo(
                     &shown.view,
@@ -267,8 +269,10 @@ pub fn place(
     SHOWN.set(now);
 }
 
-/// A new view for `page`, sandboxed; it loads once the rule list is on it.
-fn open(page: &Arc<Page>, key: Key, mtm: MainThreadMarker) -> Shown {
+/// A new view for `page`, sandboxed, with `theme`'s look ([`ui::script`])
+/// and no background of its own, so no white box shows before the page
+/// paints; it loads once the rule list is on it.
+fn open(page: &Arc<Page>, theme: &Theme, key: Key, mtm: MainThreadMarker) -> Shown {
     let host = Host::new(Arc::clone(page), mtm);
     let me = ProtocolObject::from_ref(&*host);
     // SAFETY: setting up a fresh configuration on the main thread, with the
@@ -281,7 +285,7 @@ fn open(page: &Arc<Page>, key: Key, mtm: MainThreadMarker) -> Shown {
         let content = config.userContentController();
         let shim = WKUserScript::initWithSource_injectionTime_forMainFrameOnly(
             WKUserScript::alloc(mtm),
-            &NSString::from_str(ui::SHIM),
+            &NSString::from_str(&ui::script(theme)),
             WKUserScriptInjectionTime::AtDocumentStart,
             true,
         );
@@ -298,6 +302,9 @@ fn open(page: &Arc<Page>, key: Key, mtm: MainThreadMarker) -> Shown {
         );
         view.setNavigationDelegate(Some(ProtocolObject::from_ref(&*host)));
         view.setUIDelegate(Some(ProtocolObject::from_ref(&*host)));
+        let clear = NSNumber::new_bool(false);
+        let draws = NSString::from_str("drawsBackground");
+        let _: () = msg_send![&view, setValue: &*clear, forKey: &*draws];
         view
     };
     // SAFETY: the view's own controller, which it shares with its configuration.

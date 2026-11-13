@@ -120,7 +120,9 @@ pub struct Scene {
     /// The menu bar; none leaves the bar as it is.
     pub menus: Vec<Menu>,
     pub size: Size,
-    pub background: Rgb,
+    /// The window's background, and the look an agent UI's page starts
+    /// from ([`crate::ui::script`]).
+    pub theme: Theme,
     /// Under the labels and the border.
     pub canvases: Vec<CanvasPane>,
     /// The agent UIs, under the labels and the border.
@@ -222,7 +224,7 @@ pub fn build(
         title: title::Title::plain("slinger"),
         menus: Vec::new(),
         size,
-        background: theme.background,
+        theme: *theme,
         canvases,
         webs,
         labels,
@@ -252,7 +254,7 @@ pub fn preview(page: Arc<Page>, theme: &Theme, item: bool, size: Size) -> Scene 
         title,
         menus: Vec::new(),
         size,
-        background: theme.background,
+        theme: *theme,
         canvases: Vec::new(),
         webs: vec![web],
         labels: Vec::new(),
@@ -315,7 +317,7 @@ mod tests {
         let scene = build(&main(), &T, &[], &Sidebar::new(false), Vec::new());
         assert_eq!(scene.title, title::Title::plain("slinger"));
         assert_eq!(scene.sidebar, []);
-        assert_eq!(scene.background, T.background);
+        assert_eq!(scene.theme, T);
         assert_eq!(shown(&scene), [("canvas main", T.text)]);
         assert_eq!(scene.flash, None);
         assert_eq!(

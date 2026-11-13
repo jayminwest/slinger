@@ -94,7 +94,7 @@ pub struct Sidebar {
     problem: Option<String>,
     /// The agents in the notice, oldest first, with the status each became.
     notice: Vec<notice::Noticed>,
-    /// The workspace whose panes the window shows; `None`: the first.
+    /// The workspace whose panes the window shows; `None`: the first usable.
     shown: Option<String>,
 }
 
@@ -104,7 +104,8 @@ impl Sidebar {
         Self { open, workspaces: None, problem: None, notice: Vec::new(), shown: None }
     }
 
-    /// Marks `workspace` as the one the window shows; `None`: the first.
+    /// Marks `workspace` as the one the window shows; `None`: the first
+    /// that is not broken, as the panes do (`backend::panes::layout`).
     pub fn show(&mut self, workspace: Option<String>) {
         self.shown = workspace;
     }
@@ -213,12 +214,12 @@ impl Sidebar {
     }
 
     /// Takes the workspace the window shows out of the list, and shows the
-    /// first: the directory of the one taken, to close it by. `None` when
-    /// no workspace shows.
+    /// first usable: the directory of the one taken, to close it by. `None`
+    /// when no workspace shows.
     pub fn close(&mut self) -> Option<PathBuf> {
-        let at = self.at()?;
+        let at = self.at();
         self.shown = None;
-        Some(self.workspaces.as_mut()?.remove(at).dir)
+        Some(self.workspaces.as_mut()?.remove(at?).dir)
     }
 
     /// The directory of the workspace the window shows: what its agent's
@@ -227,10 +228,14 @@ impl Sidebar {
         Some(self.workspaces.as_ref()?.get(self.at()?)?.dir.clone())
     }
 
-    /// The index of the workspace the window shows.
+    /// The index of the workspace the window shows: the one named, else
+    /// the first that is not broken, as the panes show.
     fn at(&self) -> Option<usize> {
-        let shown = self.shown.as_ref();
-        self.workspaces.as_ref()?.iter().position(|w| shown.is_none_or(|s| *s == w.name))
+        let mut list = self.workspaces.as_ref()?.iter();
+        match &self.shown {
+            Some(name) => list.position(|w| w.name == *name),
+            None => list.position(|w| w.broken.is_none()),
+        }
     }
 
     /// The rows and the workspaces' targets.
@@ -249,8 +254,9 @@ impl Sidebar {
                 lines.push(Line::new("no open workspaces".into(), theme.muted, Font::PLAIN));
             }
             (Some(list), None) => {
+                let at = self.at();
                 for (i, workspace) in list.iter().enumerate() {
-                    let shown = self.shown.as_ref().map_or(i == 0, |s| *s == workspace.name);
+                    let shown = at == Some(i);
                     lines.extend(
                         block(workspace, shown, theme)
                             .into_iter()

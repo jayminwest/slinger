@@ -1,0 +1,4 @@
+:where(:root){background:var(--slinger-paper);color:var(--slinger-ink);font:13px/1.45 system-ui;accent-color:var(--slinger-accent)}
+:where(body){margin:12px}
+:where(button,input,select,textarea){font:inherit}
+:where(a){color:var(--slinger-accent)}
