@@ -54,7 +54,7 @@ a "did you mean" suggestion.
 | `profile list <WORKSPACE>` | One line per profile, in its file's order: name, directory (`-` for the agent's home) and rules joined by `, ` (`-` for none), separated by tabs. `--json`: `workspace`, `profiles` |
 | `profile set <WORKSPACE> <NAME> [--dir DIR] [--tool RULE]...`, `profile remove <WORKSPACE> <NAME>` | Nothing. `--json`: `workspace`, `profiles` |
 | `session send <WORKSPACE> <TEXT\|->` | Nothing. `--json`: `session` |
-| `session listen <WORKSPACE> [--wait SECONDS]` | The next sling to the workspace's agent, as text: line 1 `slinger-sling 1 … agent=<NAME>`, the packet (its `at=` names the directory of its images), the note and the prompt. Nothing when `--wait` passes with none. `--json`: `agent`, and `sling` (`event`, `canvas`, `dir`, `text`) when one came |
+| `session listen <WORKSPACE> [--wait SECONDS] [--pid PID]` | The next sling to the workspace's agent, as text: line 1 `slinger-sling 1 … agent=<NAME>`, the packet (its `at=` names the directory of its images), the note and the prompt. Nothing when `--wait` passes with none. `--json`: `agent`, and `sling` (`event`, `canvas`, `dir`, `text`) when one came |
 | `sling send <ID> [--page PAGE] [--select IDS] [--prompt TEXT\|-] [--profile NAME]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id` (empty when a listener takes it), `deliver` (`process` or `listen`), `tokens` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
 | `file touched (<PATH> \| --hook) [--agent NAME]` | Nothing. `--json`: `agent`, `path`, `hash`, `event` |
@@ -314,8 +314,11 @@ names its agent on line 1 (`agent=<NAME>`): the listener passes it as
 `--agent` to `canvas put` and `status set`, then listens again. `session
 show` has `deliver` as `listen` while slings wait or a listener is there,
 with `listening` (whether one is there: it asks, asked within 10 seconds, or
-works on a sling it took) and `pending` (the slings that wait, and the one
-it works on). `--wait 0` takes a waiting sling or prints nothing at once.
+works on a sling it took, until it sets `done` or `blocked`) and `pending`
+(the slings that wait, and the one it works on). `--pid` names the process
+of the session that works on the sling (`$PPID` in Claude Code): if it ends
+first, nobody listens and the sling waits for the next listener; a pid that
+is not running exits 5. `--wait 0` takes a waiting sling or prints nothing at once.
 The slings that wait are lost when `slingerd` stops; each is in the record.
 `session start` and `session stop` end a listener's claim on the agent: the
 next slings go to the process.

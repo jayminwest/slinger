@@ -60,6 +60,9 @@ pub enum Session {
         /// Give up after this long and print nothing [default: wait until a sling comes]
         #[arg(long, value_name = "SECONDS")]
         wait: Option<u64>,
+        /// The process of the session that works on the sling (in Claude Code, $PPID): once it ends, the sling waits for the next listener
+        #[arg(long, value_name = "PID")]
+        pid: Option<u32>,
     },
 }
 
@@ -156,11 +159,12 @@ pub fn execute(
             };
             Ok(quiet(&daemon.session_send(workspace, text)?))
         }
-        Session::Listen { workspace, wait } => {
+        Session::Listen { workspace, wait, pid } => {
             let until = wait.map(|seconds| Instant::now() + Duration::from_secs(seconds));
             loop {
                 let left = until.map(|u| u.saturating_duration_since(Instant::now()));
-                let heard = daemon.session_listen(workspace, left.map_or(ASK, |l| l.min(ASK)))?;
+                let ask = left.map_or(ASK, |l| l.min(ASK));
+                let heard = daemon.session_listen_in(workspace, ask, *pid)?;
                 if heard.sling.is_some() || left.is_some_and(|l| l <= ASK) {
                     let text = heard.sling.as_ref().map(|s| s.text.clone()).unwrap_or_default();
                     return Ok(Output::new(serde_json::to_value(heard)?, text));

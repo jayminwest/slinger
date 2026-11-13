@@ -7,11 +7,14 @@ use objc2_foundation::{NSString, NSUserDefaults};
 
 /// Whose frame a run's window opens at and keeps: the app's window, or a
 /// preview's (`slinger-app --preview`, which the tests run), saved apart so
-/// a preview never moves or sizes the app's window.
+/// a preview never moves or sizes the app's window. A preview in the
+/// background (`--background`, which the tests pass) keeps the preview's
+/// frame and never shows its window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kept {
     Window,
     Preview,
+    Background,
 }
 
 impl Kept {
@@ -19,8 +22,15 @@ impl Kept {
     const fn name(self) -> &'static str {
         match self {
             Self::Window => "slinger window",
-            Self::Preview => "slinger preview",
+            Self::Preview | Self::Background => "slinger preview",
         }
+    }
+
+    /// Whether the run shows its window, in front, with the app in the Dock
+    /// and active. A run in the background does none of it: its window is
+    /// never on a screen, so it takes no focus from the user's work.
+    pub(super) const fn front(self) -> bool {
+        !matches!(self, Self::Background)
     }
 }
 
@@ -54,5 +64,12 @@ mod tests {
     fn a_preview_keeps_its_frame_apart_from_the_window() {
         assert_ne!(Kept::Preview.name(), Kept::Window.name());
         assert_eq!(Kept::Window.name(), "slinger window", "the app's saved frame keeps its name");
+    }
+
+    #[test]
+    fn only_a_run_in_the_background_stays_off_the_screen() {
+        assert!(Kept::Window.front() && Kept::Preview.front());
+        assert!(!Kept::Background.front());
+        assert_ne!(Kept::Background.name(), Kept::Window.name());
     }
 }

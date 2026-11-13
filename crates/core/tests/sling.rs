@@ -209,7 +209,7 @@ fn a_listeners_sling_names_its_agent_and_says_what_a_listener_does_itself() {
         }
         assert_eq!(commands(&text), named, "{text}");
         assert!(text.contains("`slinger status set done --agent scout`"));
-        assert!(text.contains("`slinger session listen notes`"));
+        assert!(text.contains("`slinger session listen notes --pid $PPID`"));
         assert!(!first || text.contains("`--agent scout` to each `canvas put`, `ui open` and"));
     }
     // With no verb to name, a later sling still tells a listener what to do.

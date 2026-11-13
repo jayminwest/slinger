@@ -16,10 +16,12 @@ process that slinger starts. You answer with your own tools and permissions.
    to you, and act when it exits:
 
    ```bash
-   slinger session listen <WORKSPACE>
+   slinger session listen <WORKSPACE> --pid $PPID
    ```
 
-   It prints one sling and exits. The first line names your agent
+   `$PPID` is this session's process: if it ends while you work on a sling,
+   slinger knows you are gone and keeps the sling for the next listener. It
+   prints one sling and exits. The first line names your agent
    (`agent=<NAME>`); the second names the directory of the packet's images
    (`at=<DIR>`).
 3. Read the images you need: each `img=` of the packet is a PNG in `at=`. The
@@ -28,7 +30,8 @@ process that slinger starts. You answer with your own tools and permissions.
    canvas put <CANVAS> --beside <ITEM> --text "..." --agent <NAME>`. Keep
    each text short. Run `slinger guide` for the other verbs.
 5. Say that you are done: `slinger status set done --agent <NAME>`, or
-   `slinger status set blocked --note "what you need" --agent <NAME>`.
+   `slinger status set blocked --note "what you need" --agent <NAME>`. Either
+   ends your work on the sling.
 6. Go to step 2. Listen until the user tells you to stop.
 
 Rules:

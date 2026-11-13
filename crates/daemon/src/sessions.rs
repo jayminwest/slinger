@@ -99,21 +99,31 @@ impl Sessions {
 
     /// The agent of the open workspace `which` names, and the next sling
     /// that waits for its listener, waiting up to `wait` for one. Taking a
-    /// sling sets the agent `working`: no hook of the listener's does.
+    /// sling sets the agent `working`: no hook of the listener's does. The
+    /// listener works on it in the process `by` when it names one, and is
+    /// gone once that process ends.
     ///
     /// # Errors
     ///
-    /// `not_found` for a workspace that is not open and `invalid` for one
-    /// with no agent.
+    /// `not_found` for a workspace that is not open, `invalid` for one with
+    /// no agent or a process `by` that is not running.
     pub fn listen(
         &self,
         store: &Store,
         which: &str,
         wait: Duration,
+        by: Option<u32>,
     ) -> Result<(String, Option<Heard>)> {
         let opened = store.workspaces().show(which)?;
         let agent = session::agent_of(&opened.workspace)?.to_string();
-        let sling = self.listeners.listen(&agent, wait);
+        if let Some(pid) = by.filter(|&pid| !crate::listeners::alive(pid)) {
+            return Err(slinger_core::Error::Invalid {
+                message: format!("no process {pid} is running to listen in"),
+                hint: Some("pass the pid of the session that listens, or none".into()),
+            }
+            .into());
+        }
+        let sling = self.listeners.listen(&agent, wait, by);
         if sling.is_some() {
             self.set(store, &agent, Status::Working.name(), None)?;
         }
@@ -318,6 +328,10 @@ impl Sessions {
             }
             None => None,
         };
+        if status != Status::Working {
+            // Its listener, if it has one, dealt with the sling it took.
+            self.listeners.done(agent);
+        }
         let report = Report { status, note };
         set.insert(agent.to_string(), report.clone());
         Ok((report, event))

@@ -23,6 +23,6 @@ Answer on the canvas, not in chat: the user reads the canvas.
 `slinger guide` shows every other command and flag.
 You took this sling by listening, as agent `scout`. Each `img=` names a PNG in the packet's `at=` directory: read the ones you need.
 - Add `--agent scout` to each `canvas put`, `ui open` and `status set`.
-- When you have answered, run `slinger status set done --agent scout` (or `blocked --note <what you need>`), then `slinger session listen notes` for the next sling.
+- When you have answered, run `slinger status set done --agent scout` (or `blocked --note <what you need>`), then `slinger session listen notes --pid $PPID` for the next sling.
 # prompt
 What is missing here?
