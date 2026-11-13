@@ -63,11 +63,12 @@ use crate::commands::{Chord, Command};
 use crate::layout::{PaneId, Point, Size};
 use crate::scene::flash::Pill;
 use crate::scene::ink::Pen;
+use crate::scene::overlay::{Line, Overlay};
 use crate::scene::paste::{Clip, Edit};
 use crate::scene::sidebar::Row;
 use crate::scene::status::Footer;
 use crate::scene::style::Rule;
-use crate::scene::{Border, Label, Scene, overlay::Overlay};
+use crate::scene::{Border, Label, Scene};
 
 /// How often the main thread looks for a new scene, in seconds.
 const POLL_SECONDS: f64 = 0.5;
@@ -173,9 +174,18 @@ struct Shown {
 }
 
 /// What the chrome is made from: the rules, the sidebar, the footers, the
-/// labels, the border, the overlay and the flash.
-type Chrome =
-    (Vec<Rule>, Vec<Row>, Vec<Footer>, Vec<Label>, Border, Option<Box<Overlay>>, Option<Box<Pill>>);
+/// labels, the border, the overlay, the flash and the pills. A part left
+/// out would show as it was until another part changed (slinger-7d5db9).
+type Chrome = (
+    Vec<Rule>,
+    Vec<Row>,
+    Vec<Footer>,
+    Vec<Label>,
+    Border,
+    Option<Box<Overlay>>,
+    Option<Box<Pill>>,
+    Vec<Line>,
+);
 
 thread_local! {
     /// Set once by [`run`], on the main thread, and kept for the app's life.
@@ -443,6 +453,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
         scene.focus,
         scene.overlay.clone(),
         scene.flash.clone(),
+        scene.pills.clone(),
     ));
     if shown.made_from == made_from {
         return;

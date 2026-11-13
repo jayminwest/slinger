@@ -301,6 +301,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** the sling's pill ("scout working · 4s") counts each second
+  again, also while another app has the focus. Before, it changed only
+  when something else in the window did, such as the pointer moving over
+  it.
 - **PDF:** a PDF page that stayed a grey frame because its file could not
   be fetched is tried again the next time it is on screen, after a wait
   that grows from a second to about a minute. Before, it stayed grey until
