@@ -344,8 +344,11 @@ fn read(o: &Map<String, Value>) -> Option<Item> {
             let stored = frame()?;
             // A frame as wide as its longest line is a text that does not
             // wrap: one typed here, which an edit keeps unwrapped.
+            // One typed before the cell was narrowed (slinger-ce52ee) is
+            // a full size a character wide.
             let typed = write::text_frame_at(Point { x: 0.0, y: 0.0 }, &text, size).width;
-            let unwrapped = tenths(stored.width) == tenths(typed);
+            let unwrapped =
+                [typed, typed / glyphs::CELL].iter().any(|w| tenths(stored.width) == tenths(*w));
             let column = Some(if unwrapped { glyphs::UNWRAPPED } else { stored.width });
             Shape::Text { frame: drawn_frame(stored, &text, size), text, size, column }
         }

@@ -367,6 +367,13 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Canvas:** an agent's text fills its box. Its lines broke as if every
+  character were as wide as it is tall, so in the app each line stopped
+  less than half way across the box `canvas put` reported, in a narrow
+  column. A character's cell is now half its height wide, about the app's
+  font, and a put text runs 80 characters a line in the same 40 sizes of
+  width. Texts already on a canvas reflow to fill the width they had.
+  `canvas crop` draws text in the narrower cell.
 - **App:** an agent UI that is showing takes a new theme from the config
   at once, keeping its state, instead of when it next opens.
 - **App:** of two broken workspaces whose files name none, a tap on one

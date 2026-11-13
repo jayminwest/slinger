@@ -64,10 +64,10 @@ fn a_text_size_in_tenths_puts_and_edits_and_one_out_of_range_is_invalid() {
         text_size: Some(480),
     };
     let placed = client.canvas_put_as(put.clone()).unwrap();
-    assert_eq!([placed.w, placed.h], [2 * 480, 480], "the frame fits the words at the size");
+    assert_eq!([placed.w, placed.h], [480, 480], "the frame fits the words at the size");
     let small = CanvasEdit { text_size: Some(120), ..edit("scout", &placed.item) };
     let edited = client.canvas_edit(small).unwrap();
-    assert_eq!([edited.w, edited.h], [2 * 120, 120]);
+    assert_eq!([edited.w, edited.h], [120, 120]);
     let shown = client.canvas_show("idea", None).unwrap();
     assert_eq!(shown.items[2]["size"], json!(120));
     let next = shown.next;

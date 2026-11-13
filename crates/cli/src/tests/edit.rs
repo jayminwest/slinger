@@ -23,7 +23,7 @@ fn edit_prints_the_item_and_its_new_box_and_remove_prints_nothing_twice() {
     for r in &runs {
         assert_eq!((r.code, r.err.as_str()), (exit::OK, ""), "{}", r.out);
     }
-    assert_eq!(runs[3].out, "i2\t0,900,480,240\n");
+    assert_eq!(runs[3].out, "i2\t0,900,240,240\n");
     let edited = json(&runs[4]);
     assert_eq!(
         (&edited["command"], &edited["w"], &edited["seq"]),

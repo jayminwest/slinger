@@ -27,7 +27,7 @@ fn a_put_text_shows_on_the_canvas_with_its_author_beside_the_item() {
     idea(&client);
     let placed = client.canvas_put("idea", "scout", "i1", Put::Text("looks right".into())).unwrap();
     assert_eq!((placed.item.as_str(), placed.page.as_str()), ("i2", "p1"));
-    assert_eq!([placed.x, placed.y, placed.w, placed.h], [1240, 0, 2640, 240]);
+    assert_eq!([placed.x, placed.y, placed.w, placed.h], [1240, 0, 1320, 240]);
     assert_eq!((placed.seq, placed.event), (2, None));
     let shown = client.canvas_show("idea", None).unwrap();
     let item = &shown.items[1];

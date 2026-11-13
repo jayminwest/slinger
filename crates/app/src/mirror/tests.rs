@@ -325,7 +325,7 @@ fn a_text_a_box_and_an_arrow_are_written_as_they_read_back() {
         written,
         [
             json!({"op": "add", "item": {"page": "p1", "kind": "text", "color": "#0080ff",
-                   "x": 10, "y": -25, "w": 480, "h": 312, "text": "hi"}}),
+                   "x": 10, "y": -25, "w": 240, "h": 312, "text": "hi"}}),
             json!({"op": "add", "item": {"page": "p1", "kind": "box", "color": "#0080ff",
                    "x": 0, "y": 0, "w": 300, "h": 400}}),
             json!({"op": "add", "item": {"page": "p1", "kind": "arrow", "color": "#0080ff",
@@ -356,7 +356,7 @@ fn an_edit_is_a_set_and_a_move_sets_each_arrow_that_follows() {
     assert_eq!(
         ops(&edit),
         json!({"op": "set", "id": "i3",
-               "fields": {"x": 0, "y": 0, "w": 240, "h": 312, "text": "a", "size": null}})
+               "fields": {"x": 0, "y": 0, "w": 120, "h": 312, "text": "a", "size": null}})
     );
     let shape = Shape::Arrow {
         from: pt(1.0, 1.0),
@@ -484,7 +484,7 @@ fn a_text_size_is_read_and_written_and_the_usual_one_left_out() {
     assert_eq!(
         ops(&edit),
         json!({"op": "set", "id": "i1",
-               "fields": {"x": 0, "y": 0, "w": 1080, "h": 468, "text": "big", "size": 360}})
+               "fields": {"x": 0, "y": 0, "w": 540, "h": 468, "text": "big", "size": 360}})
     );
 }
 

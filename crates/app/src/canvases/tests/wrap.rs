@@ -27,10 +27,10 @@ fn drawn(canvases: &mut Canvases, panes: &Panes) -> Option<Rect> {
 fn a_wrapped_text_resized_then_edited_reads_back_from_the_daemon_in_its_rows() {
     with_store(None, |daemon| {
         let _home = open_notes(daemon);
-        // Ten cells of 24: three rows.
+        // Ten cells of 12: four rows.
         let text = "one two three four five six seven";
         let ops = serde_json::json!({"op": "add", "item": {"page": "p1", "kind": "text",
-            "color": "#000000", "x": 1000, "y": 1000, "w": 2400, "text": text}});
+            "color": "#000000", "x": 1000, "y": 1000, "w": 1200, "text": text}});
         let (canvas, by) = ("notes".to_string(), "agent:scout".to_string());
         daemon.canvas_apply(slinger_control::CanvasOps { canvas, by, ops, once: None }).unwrap();
         let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());

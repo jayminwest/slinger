@@ -16,7 +16,7 @@ fn a_text_s_frame_is_its_glyphs_not_the_stored_cells() {
     let frame = frame(AT, "hello world", TEXT_SIZE);
     let stored = text_frame_at(AT, "hello world", TEXT_SIZE);
     assert_eq!((frame.x, frame.y), (AT.x, AT.y));
-    assert!(frame.width < stored.width * 0.6, "{frame:?} is about half the stored {stored:?}");
+    assert!((stored.width - 11.0 * TEXT_SIZE * CELL).abs() < 1e-9, "a cell a character");
     assert!((frame.width - 11.0 * TEXT_SIZE * CHAR_WIDTH).abs() <= 2.0, "rounded up, a point more");
 }
 
@@ -47,10 +47,10 @@ fn a_measure_is_kept_once_taken() {
 }
 
 /// The core's rows (`slinger_core::render`'s wrap), for a column of whole
-/// cells of 10: the same cases its own tests hold it to.
+/// cells at size 10: the same cases its own tests hold it to.
 #[test]
 fn a_canvas_text_breaks_into_the_core_s_rows() {
-    let rows = |text: &str, cells: f64| rows(text, 10.0, cells * 10.0);
+    let rows = |text: &str, cells: f64| rows(text, 10.0, cells * 10.0 * CELL);
     assert_eq!(rows("one two three", 7.0), "one two\nthree");
     assert_eq!(rows("ab cd ef gh", 5.0), "ab cd\nef gh", "a space takes a cell");
     assert_eq!(rows("abcdefghij", 4.0), "abcd\nefgh\nij", "a word longer than a line is cut");
@@ -69,10 +69,10 @@ fn a_canvas_text_breaks_into_the_core_s_rows() {
 #[test]
 fn a_canvas_text_is_a_size_tall_a_row_as_the_core_boxes_it() {
     set_measure(fixed);
-    // Size 70 in a column of 40 cells: 120 characters are three rows.
+    // Size 70 in a column of 80 cells: twelve words are two rows.
     let words = ["abcdefghi"; 12].join(" ");
     let frame = rows_frame(AT, &words, 70.0, 2800.0);
-    assert_eq!(frame.height, 3.0 * 70.0, "the core's 3 rows, not the system font's 2");
-    assert_eq!(frame.width, 39.0 * 10.0 + 1.0, "its widest row's glyphs, a point more");
+    assert_eq!(frame.height, 2.0 * 70.0, "the core's rows, a size apart");
+    assert_eq!(frame.width, 79.0 * 10.0 + 1.0, "its widest row's glyphs, a point more");
     assert_eq!(rows_frame(AT, "", 70.0, UNWRAPPED).height, 70.0, "empty is one row");
 }

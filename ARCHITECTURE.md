@@ -123,7 +123,8 @@ render/      images of items (docs/design/packet.md, Images): a set of items or 
              tiles past the size limit (SCALE, MAX_EDGE, OVERLAP, MARGIN). Owns
              the rasterizer (raster.rs) and the PNG container (png.rs). Pure and
              deterministic: the same input gives the same bytes. Text draws
-             at its item's size (one character cell of it a character).
+             at its item's size: a cell a character, half the size wide (render::CELL,
+             about the app's font, so a full row fills its frame there too) and a size tall.
              text_size: the frame text needs as drawn; text_frame: the one rule for a text
              item's frame (Shape::fitted), which Canvas::apply and the file's
              snap both keep, so no text item covers less than it draws.
@@ -455,7 +456,7 @@ mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              (tenths, delta points, `#rrggbb`, an arrow's bound ends) into
              scene items, and writes the pen's changes as `canvas_apply`
              operations, and the frame a typed text is stored with (the
-             core's render cells at the text's size, `size` left out at the
+             core's render cells at the text's size (half a size wide, glyphs::CELL), `size` left out at the
              usual 24 and `null` in a `set`). A text item reads in with its
              stored column and the frame its glyphs fill in the core's rows
              (scene/glyphs.rs), never the stored width, so every

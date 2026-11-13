@@ -129,25 +129,26 @@ impl Raster {
         }
     }
 
-    /// Lays `text` out from the top left of `frame`, one character cell of
-    /// `size` per character, wrapped at spaces to the frame's width when at
+    /// Lays `text` out from the top left of `frame`, one character cell
+    /// ([`super::CELL`] of `size` wide, `size` tall) per character, wrapped at spaces to the frame's width when at
     /// least one cell fits, and at each `\n`.
     fn text(&mut self, text: &str, frame: Rect, colour: Colour, size: f64) {
         let rows = wrap(text, columns(frame.w, size));
         let longest = rows.iter().map(Vec::len).max().unwrap_or(0);
-        let cell = size * SCALE;
+        // A cell is narrower than it is tall: the 8 by 8 glyph is squeezed.
+        let (wide, tall) = (size * SCALE * super::CELL, size * SCALE);
         let origin = self.at(Point::new(frame.x, frame.y));
-        let size = Point::new(float(longest) * cell, float(rows.len()) * cell);
+        let size = Point::new(float(longest) * wide, float(rows.len()) * tall);
         let bounds = Rect::new(origin.x, origin.y, size.x, size.y);
         let Some(mut mask) = self.mask(bounds, 1.0) else { return };
-        let bit = cell / 8.0;
+        let (bx, by) = (wide / 8.0, tall / 8.0);
         for (r, row) in rows.iter().enumerate() {
             for (c, &ch) in row.iter().enumerate() {
-                let (gx, gy) = (origin.x + float(c) * cell, origin.y + float(r) * cell);
+                let (gx, gy) = (origin.x + float(c) * wide, origin.y + float(r) * tall);
                 for (y, bits) in (0u8..).zip(glyph(ch)) {
                     for x in (0u8..8).filter(|x| bits & (1 << x) != 0) {
-                        let (x, y) = (gx + f64::from(x) * bit, gy + f64::from(y) * bit);
-                        mask.cell(x, y, x + bit, y + bit);
+                        let (x, y) = (gx + f64::from(x) * bx, gy + f64::from(y) * by);
+                        mask.cell(x, y, x + bx, y + by);
                     }
                 }
             }
@@ -332,7 +333,8 @@ fn arrow(from: Point, to: Point) -> Vec<Vec<Point>> {
 /// unwrapped).
 #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "floored, >= 1")]
 pub(super) fn columns(w: f64, size: f64) -> usize {
-    if w >= size { (w / size) as usize } else { usize::MAX }
+    let cell = size * super::CELL;
+    if w >= cell { (w / cell) as usize } else { usize::MAX }
 }
 
 /// Lines of characters: `text` cut at each `\n`, and wrapped at spaces to at
