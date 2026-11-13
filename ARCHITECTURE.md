@@ -396,7 +396,9 @@ window.rs    runs a command on the focused pane, does a tap on a button that
              whether one would do anything (`can_edit`, which greys its
              Edit menu item): under the key overlay or the page menu
              nothing; the open palette's search takes pasted text; else the
-             canvases (canvases/clip.rs).
+             canvases (canvases/clip.rs). A paste nothing takes, or paste's
+             key past its greyed item with the window holding the keyboard
+             (route.rs), flashes why (`unpasted`).
 shared.rs    the window's panes as the server keeps them for its workspace,
              the window's size, the agent UIs the panes show and their notes,
              the footers' and the sidebar's tap targets (scene/taps.rs), and
@@ -687,7 +689,8 @@ scene/paste.rs  the clipboard as the app sees it (`Clip`: plain text, a
              cut, copy, paste); pasted text made fit to type: line ends as
              `\n` (or a space, on one line), tabs as spaces, no other
              control or function-key character, so a paste is text, never
-             keys. Pure.
+             keys; who has the keyboard (`Keyboard`); why a paste went
+             nowhere (`unpasted`). Pure.
 scene/cursor.rs  the pointer over a canvas pane, per tool: the pen a ring in
              its colour, the eraser a ring its width, the lasso and the
              shapes cross hairs, text an I-beam, the select tool and an open

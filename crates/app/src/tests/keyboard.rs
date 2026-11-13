@@ -94,3 +94,37 @@ fn press(w: &mut World, x: f64, when: f64) -> Option<Keyboard> {
 fn drawn(w: &mut World) -> Keyboard {
     view(&w.settings, &mut w.shared, &w.tools, &w.sidebar, &mut w.canvases).keyboard
 }
+
+/// A paste that goes nowhere flashes why, where macOS would only beep
+/// (slinger-acc9ee): an empty clipboard pasted on a canvas, and paste's key
+/// with the window holding the keyboard over an agent UI (its Edit menu
+/// item greyed, so only the key comes). Paste's key the page or an open
+/// entry has says nothing: theirs.
+#[test]
+fn a_paste_that_goes_nowhere_flashes_why() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let (mut w, _, on_page) = beside(daemon, config.path());
+        let flashed = |w: &mut World| {
+            let scene = view(&w.settings, &mut w.shared, &w.tools, &w.sidebar, &mut w.canvases);
+            scene.flash.map(|pill| pill.label.text)
+        };
+        let paste = || Event::Key(Chord::new(CMD, 'v'));
+        assert!(w.send(Event::Edit(Edit::Paste(Clip::default()))));
+        assert_eq!(flashed(&mut w).as_deref(), Some("Nothing on the clipboard to paste"));
+
+        w.tools.flash().fade(std::time::Instant::now() + std::time::Duration::from_secs(60));
+        assert_eq!(press(&mut w, on_page, 1.0), Some(Keyboard::Pressed));
+        assert!(!w.send(paste()), "the page's own");
+        assert_eq!(flashed(&mut w), None);
+        w.shared.keyboard = Keyboard::Window;
+        assert!(w.send(paste()), "nothing of the app's takes it");
+        assert_eq!(flashed(&mut w).as_deref(), Some("Nowhere to paste here"));
+
+        w.tools.flash().fade(std::time::Instant::now() + std::time::Duration::from_secs(60));
+        assert!(w.send(Event::Command(Command::LeaveFeedback)));
+        assert!(!w.send(paste()), "the entry's own");
+        assert_eq!(flashed(&mut w), None);
+    });
+}

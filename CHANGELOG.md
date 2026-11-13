@@ -405,6 +405,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a paste that has nowhere to go says why in a flash instead of
+  only beeping: nothing on the clipboard the app can paste, no text for the
+  text you are typing, or nothing focused that takes a paste.
 - **App:** with the sling, feedback or rename entry open, clicking an agent
   UI no longer takes your typing away from the entry: the click still
   reaches the page, and what you type next goes on at the end of the

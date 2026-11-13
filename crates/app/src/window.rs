@@ -19,7 +19,7 @@ use crate::layout::{PaneId, Point, Rect};
 use crate::panes::{self, Panes};
 use crate::scene::ink::Pen;
 use crate::scene::pages::menu::List;
-use crate::scene::paste::{Clip, Edit, Keyboard};
+use crate::scene::paste::{self, Clip, Edit, Keyboard};
 use crate::scene::sidebar::Row;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::sling::{CANCEL, Profile, SEND};
@@ -263,13 +263,14 @@ pub fn can_edit(edit: &Edit, shared: &Shared, canvases: &Canvases) -> bool {
 pub enum Edited {
     /// Nothing: nothing took it.
     No,
-    /// Something took it: draw again, and put the clip on the clipboard
-    /// (a copy's or a cut's).
+    /// Something took it, or a paste flashed why not: draw again, and put
+    /// the clip on the clipboard (a copy's or a cut's).
     Drawn(Option<Clip>),
 }
 
 /// Does `edit` where [`can_edit`] says, on the focused pane of `shared`
-/// laid in `area`; pasted text that makes a new text item has `tools`' colour.
+/// laid in `area`; pasted text that makes a new text item has `tools`'
+/// colour. A paste nothing took flashes why ([`unpasted`]).
 pub fn edit(
     edit: &Edit,
     shared: &mut Shared,
@@ -277,20 +278,44 @@ pub fn edit(
     tools: &Tools,
     area: Rect,
 ) -> Edited {
-    if !can_edit(edit, shared, canvases) {
-        return Edited::No;
+    let took = can_edit(edit, shared, canvases)
+        && match edit {
+            Edit::Cut | Edit::Copy => {
+                let clip = canvases.copy(&shared.panes, *edit == Edit::Cut);
+                return clip.map_or(Edited::No, |clip| Edited::Drawn(Some(clip)));
+            }
+            Edit::Paste(Clip { text: Some(text), .. }) if shared.palette.is_open() => {
+                shared.palette.pasted(text)
+            }
+            Edit::Paste(clip) => canvases.paste(clip, &shared.panes, area, tools.colour()),
+        };
+    match edit {
+        _ if took => Edited::Drawn(None),
+        Edit::Paste(clip) => {
+            unpasted(Some(clip), shared, canvases, tools);
+            Edited::Drawn(None)
+        }
+        Edit::Cut | Edit::Copy => Edited::No,
     }
-    let took = match edit {
-        Edit::Cut | Edit::Copy => {
-            let clip = canvases.copy(&shared.panes, *edit == Edit::Cut);
-            return clip.map_or(Edited::No, |clip| Edited::Drawn(Some(clip)));
-        }
-        Edit::Paste(Clip { text: Some(text), .. }) if shared.palette.is_open() => {
-            shared.palette.pasted(text)
-        }
-        Edit::Paste(clip) => canvases.paste(clip, &shared.panes, area, tools.colour()),
-    };
-    if took { Edited::Drawn(None) } else { Edited::No }
+}
+
+/// Flashes in `tools` why a paste of `clip` went nowhere ([`paste::unpasted`]):
+/// `None` when only its key came, its Edit menu item greyed.
+pub fn unpasted(clip: Option<&Clip>, shared: &Shared, canvases: &Canvases, tools: &Tools) {
+    let typing = shared.palette.is_open() || canvases.editing();
+    let page = !shared.modal() && canvases.can_paste(&Clip::default(), &shared.panes);
+    tools.flash().say(paste::unpasted(clip, typing, page).into(), Instant::now());
+}
+
+/// Which view has the keyboard ([`Keyboard`]): an open entry's field; the
+/// window while one of the app's own texts takes typing; else the view
+/// the last press of `shared` left it with.
+pub fn keyboard(shared: &Shared, canvases: &Canvases) -> Keyboard {
+    match (canvases.typing(), shared.palette.is_open() || canvases.editing()) {
+        (true, _) => Keyboard::Entry,
+        (false, true) => Keyboard::Window,
+        (false, false) => shared.keyboard,
+    }
 }
 
 /// The canvas pane of `panes` laid in `area` under `at`, a point in the
@@ -389,13 +414,7 @@ pub fn view(
     let mut scene = scene::build(size, &shared.panes, theme, &problems, sidebar, drawn, uis, notes);
     canvases.show_live(&mut scene, notes, theme);
     canvases.show_sling(&mut scene, theme, &settings.config.keys, sidebar);
-    // An open entry, or one of the app's own texts, takes typing and the paste.
-    let typing = shared.palette.is_open() || canvases.editing();
-    scene.keyboard = match (scene.entry.is_some(), typing) {
-        (true, _) => Keyboard::Entry,
-        (false, true) => Keyboard::Window,
-        (false, false) => shared.keyboard,
-    };
+    scene.keyboard = keyboard(shared, canvases);
     scene.labels.splice(0..0, canvases.labels(&shared.panes, area, theme));
     let sling = canvases.sling_marks(&shared.panes, area, theme);
     scene.labels.extend(sling.labels);

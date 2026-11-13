@@ -233,13 +233,10 @@ define_class!(
         }
 
         /// Edit > Paste (or cmd+V) when no text field has the focus: what
-        /// the clipboard holds to the app, which may take it or not.
+        /// the clipboard holds to the app, which takes it or says why not.
         #[unsafe(method(paste:))]
         fn paste(&self, _sender: Option<&AnyObject>) {
-            let clip = keys::clip(self.mtm());
-            if !clip.is_empty() {
-                dispatch(Event::Edit(Edit::Paste(clip)), self.mtm());
-            }
+            dispatch(Event::Edit(Edit::Paste(keys::clip(self.mtm()))), self.mtm());
         }
 
         /// Edit > Copy (or cmd+C) when no text field has the focus.

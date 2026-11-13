@@ -6,7 +6,8 @@ use std::path::Path;
 use std::time::Instant;
 
 use crate::canvases::Canvases;
-use crate::commands::Command;
+use crate::commands::menu::Native;
+use crate::commands::{Chord, Command};
 use crate::scene::paste::Keyboard;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::tools::Tools;
@@ -98,6 +99,11 @@ pub fn route(
                 None => Step::Draw(scene),
             }
         }
+        // Paste's key with the window holding the keyboard comes only when
+        // its greyed Edit menu item let it by: say why, not just beep.
+        (Ask::Pass, Event::Key(chord)) if unpasted(chord, shared, canvases, tools) => {
+            Step::Draw(view(settings, shared, tools, sidebar, canvases))
+        }
         (Ask::Pass | Ask::Not, _) if refocused => {
             shared.keyboard = on;
             Step::Through(view(settings, shared, tools, sidebar, canvases))
@@ -108,4 +114,15 @@ pub fn route(
         shared.keyboard = on;
     }
     Routed::Answer(step)
+}
+
+/// Flashes why a paste went nowhere when `chord` is paste's key and the
+/// window of `shared` has the keyboard (slinger-acc9ee). False otherwise.
+fn unpasted(chord: Chord, shared: &Shared, canvases: &Canvases, tools: &Tools) -> bool {
+    let window = window::keyboard(shared, canvases) == Keyboard::Window;
+    let paste = window && Some(chord) == Native::Paste.key();
+    if paste {
+        window::unpasted(None, shared, canvases, tools);
+    }
+    paste
 }
