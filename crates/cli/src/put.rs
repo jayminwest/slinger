@@ -5,8 +5,9 @@ use clap::{ArgGroup, Args};
 
 use slinger_control as control;
 
+use crate::env::Env;
 use crate::output::Output;
-use crate::session::{AGENT_HELP, calling_agent};
+use crate::session::AGENT_HELP;
 
 /// Put text, a box, ink or an arrow beside an item, where it covers nothing; prints its id and box
 #[derive(Args)]
@@ -41,8 +42,8 @@ pub struct Put {
     agent: Option<String>,
 }
 
-pub fn put(args: &Put, daemon: &control::Client) -> anyhow::Result<Output> {
-    let agent = calling_agent(args.agent.as_deref())?;
+pub fn put(args: &Put, daemon: &control::Client, env: &Env) -> anyhow::Result<Output> {
+    let agent = env.calling_agent(args.agent.as_deref())?;
     // clap makes sure exactly one of `--text`, `--box`, `--ink` and `--arrow` is here.
     let what = match (&args.text, args.size, &args.ink, args.arrow.as_deref()) {
         (Some(text), ..) => control::Put::Text(text.clone()),

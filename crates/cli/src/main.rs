@@ -4,6 +4,7 @@
 mod canvas;
 mod cli;
 mod edit;
+mod env;
 mod feedback;
 mod guide;
 mod look;
@@ -30,6 +31,13 @@ fn main() -> ExitCode {
     );
     let (mut input, mut out, mut err) =
         (io::stdin().lock(), io::stdout().lock(), io::stderr().lock());
-    let code = cli::run(std::env::args_os(), &mut input, &mut out, &mut err, color);
+    let code = cli::run(
+        std::env::args_os(),
+        &env::Env::of_process(),
+        &mut input,
+        &mut out,
+        &mut err,
+        color,
+    );
     ExitCode::from(code)
 }

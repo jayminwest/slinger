@@ -117,7 +117,7 @@ everything in it:
 
 ```bash
 slinger ui put pick-slot ./pick-slot.html
-slinger ui open pick-slot --workspace <WORKSPACE> --data '{"slots":[9,10]}' --agent claude
+slinger ui open pick-slot --data '{"slots":[9,10]}' --agent claude   # in your session's workspace, else pass --workspace <WORKSPACE>
 slinger ui open pick-slot --as item --canvas <CANVAS> --beside i7 --agent claude
 ```
 

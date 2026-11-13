@@ -1,7 +1,7 @@
 //! `slinger session ...`, `slinger status set` and `slinger file touched`
-//! against a real daemon. The name from `SLINGER_AGENT` is tested against the
-//! real binary, in `tests/agent_env.rs`: these tests run in one process and
-//! share its environment.
+//! against a real daemon. Each run gets its own environment, not this
+//! process's; the name from `SLINGER_AGENT` is tested against the real
+//! binary too, in `tests/agent_env.rs`.
 
 use serde_json::Value;
 

@@ -14,6 +14,6 @@ b9 box 980,1200 620x300 by=claude
 c17 ink 1000,1240 560x220 colour=blue strokes=64 in=b9
 t8 text 40,1700 700x60 by=claude "Spike B: 44% of the screenshot cost."
 # reply
-Answer with `slinger canvas put idea --beside <id>`, not in chat; `slinger canvas crop idea --item <id>` for an image.
+Answer with `slinger canvas put idea --beside <id>`, not in chat; `slinger canvas crop idea --item <id>` for an image; `slinger ui put` and `slinger ui open` for a page in a pane.
 # prompt
 What is missing here?

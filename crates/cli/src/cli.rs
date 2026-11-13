@@ -16,6 +16,7 @@ use serde_json::{Value, json};
 use slinger_control as control;
 
 use crate::canvas::Canvas;
+use crate::env::Env;
 use crate::feedback::Feedback;
 use crate::guide::Skill;
 use crate::output::{Ctx, Failure, Output, exit};
@@ -32,10 +33,6 @@ pub const NAME: &str = "slinger";
 /// Help for `--socket`: a string, because a doc comment may not hold `$XDG_RUNTIME_DIR` bare.
 const SOCKET_HELP: &str = "Daemon control socket [default: $SLINGER_SOCKET, else in \
      $XDG_RUNTIME_DIR, else in the temporary directory]";
-
-/// Where the CLI finds the socket when `--socket` is not given: slingerd sets
-/// it for the agents' processes it starts (docs/cli.md).
-const SOCKET_ENV: &str = "SLINGER_SOCKET";
 
 /// Help for an event's kind: a string, because a doc comment wants the kind names in backticks.
 const KIND_HELP: &str = "The event's kind: sling_sent, reply_landed, file_touched, pane_moved, \
@@ -211,6 +208,7 @@ impl Command {
 fn execute(
     command: &Command,
     daemon: &control::Client,
+    env: &Env,
     input: &mut dyn Read,
     ctx: &mut Ctx,
 ) -> anyhow::Result<Output> {
@@ -273,15 +271,15 @@ fn execute(
             io::copy(&mut File::open(&scratch.0)?, ctx.out)?;
             Ok(Output::new(json!({}), String::new()))
         }
-        Command::Ui(ui) => ui.execute(daemon, input),
-        Command::Canvas(canvas) => crate::canvas::execute(canvas, daemon, input),
+        Command::Ui(ui) => ui.execute(daemon, input, env),
+        Command::Canvas(canvas) => crate::canvas::execute(canvas, daemon, input, env),
         Command::Workspace(workspace) => crate::workspace::execute(workspace, daemon),
         Command::Pane(pane) => crate::pane::execute(pane, daemon),
         Command::Session(session) => crate::session::execute(session, daemon, input),
         Command::Profile(profile) => crate::profile::execute(profile, daemon),
-        Command::Status(status) => crate::session::set(status, daemon),
+        Command::Status(status) => crate::session::set(status, daemon, env),
         Command::Sling(sling) => crate::sling::execute(sling, daemon, input),
-        Command::File(file) => crate::session::touched(file, daemon, input),
+        Command::File(file) => crate::session::touched(file, daemon, input, env),
         Command::Feedback(feedback) => feedback.execute(daemon),
         Command::Guide => Ok(crate::guide::guide(&command_tree())),
         Command::Skill(skill) => skill.execute(),
@@ -332,6 +330,7 @@ fn event_line(event: &Value) -> String {
 
 pub fn run<I, T>(
     args: I,
+    env: &Env,
     input: &mut dyn Read,
     out: &mut dyn Write,
     err: &mut dyn Write,
@@ -344,7 +343,7 @@ where
     let args: Vec<OsString> = args.into_iter().map(Into::into).collect();
     let json = args.iter().any(|a| a == "--json");
     let result = match Cli::try_parse_from(&args) {
-        Ok(cli) => dispatch(&cli, input, out, err, color),
+        Ok(cli) => dispatch(&cli, env, input, out, err, color),
         Err(e) => parse_error(&e, Ctx::new(out, err, json, color)),
     };
     // A closed stdout (`| head`) is success, not a crash.
@@ -357,6 +356,7 @@ fn is_broken_pipe(e: &io::Error) -> bool {
 
 fn dispatch(
     cli: &Cli,
+    env: &Env,
     input: &mut dyn Read,
     out: &mut dyn Write,
     err: &mut dyn Write,
@@ -375,12 +375,11 @@ fn dispatch(
         return Ok(exit::OK);
     };
     ctx.command = command.name();
-    let socket = cli.socket.clone();
-    let socket = socket.or_else(|| std::env::var_os(SOCKET_ENV).map(PathBuf::from));
+    let socket = cli.socket.clone().or_else(|| env.socket.clone());
     let socket = socket.unwrap_or_else(control::default_socket);
     ctx.debug(&format!("{} on {}", ctx.command, socket.display()))?;
     let daemon = control::Client::new(socket);
-    match execute(command, &daemon, input, &mut ctx) {
+    match execute(command, &daemon, env, input, &mut ctx) {
         Ok(output) => ctx.emit(&output),
         // A closed stdout is the reader's choice; `run` turns it into success.
         Err(e) if e.downcast_ref::<io::Error>().is_some_and(is_broken_pipe) => {

@@ -29,7 +29,8 @@ fn alone(args: &[&str]) -> Run {
     let mut line = vec!["slinger", "--socket", "/nonexistent/slinger.sock"];
     line.extend(args);
     let (mut out, mut err) = (Vec::new(), Vec::new());
-    let code = run(line, &mut std::io::empty(), &mut out, &mut err, false);
+    let code =
+        run(line, &crate::env::Env::default(), &mut std::io::empty(), &mut out, &mut err, false);
     let text = |bytes: Vec<u8>| String::from_utf8(bytes).unwrap();
     Run { code, out: text(out), err: text(err) }
 }

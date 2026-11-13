@@ -828,7 +828,8 @@ selection as `canvas_read` takes it. The message
 (`slinger_core::sling::message`) is line 1 `slinger-sling 1` with the
 selection as packet ids (a stroke is named by its cluster), the packet with
 each image under the line that names it, a `# reply` note naming only the
-agent verbs this daemon serves (`canvas put`, `canvas crop`), and the
+agent verbs this daemon serves (`canvas put`, `canvas crop`, `ui put` with
+`ui open`), and the
 prompt last. The first sling into a conversation (no `sling_sent` of the
 agent names its session id) gets the whole note, which ends by pointing at
 `slinger guide`, later ones one line. It

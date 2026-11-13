@@ -158,6 +158,8 @@ fn every_verb_the_note_names_is_served() {
                 "beside": "i1", "text": "t" }),
             Verb::Crop => json!({ "v": 1, "op": "canvas_crop", "canvas": "none", "of": "i1",
                 "path": "/tmp/none.png" }),
+            Verb::Ui => json!({ "v": 1, "op": "ui_open", "ui": "none", "workspace": "none",
+                "agent": "a" }),
         };
         let reply: Value =
             serde_json::from_str(&daemon.raw(format!("{request}\n").as_bytes())).unwrap();
