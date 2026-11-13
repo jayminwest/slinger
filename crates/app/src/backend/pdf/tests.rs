@@ -41,6 +41,27 @@ fn a_blob_is_fetched_once_into_a_file_named_by_its_hash() {
     });
 }
 
+#[test]
+fn fetches_of_one_blob_at_once_each_get_the_whole_file() {
+    with_daemon(|d| {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("paper.pdf");
+        let bytes: Vec<u8> = (0..1_000_000u32).map(|i| (i % 251) as u8).collect();
+        fs::write(&source, &bytes).unwrap();
+        let hash = d.blob_put(&source).unwrap();
+        let cache = dir.path().join("cache");
+        let files: Vec<_> = std::thread::scope(|s| {
+            let fetches: Vec<_> = (0..8).map(|_| s.spawn(|| fetch(d, &hash, &cache))).collect();
+            fetches.into_iter().map(|f| f.join().unwrap()).collect()
+        });
+        for file in files {
+            let file = file.expect("every fetch gets the file");
+            assert_eq!(fs::read(&file).unwrap(), bytes, "whole, not torn");
+        }
+        assert_eq!(fs::read_dir(&cache).unwrap().count(), 1, "no part file left");
+    });
+}
+
 /// `item` is whole page `n` of the 150 Letter pages of `hash`, on `page`.
 fn is_page(item: &serde_json::Value, n: usize, hash: &str, page: &str) {
     let frame = stack(&[LETTER; 150])[n - 1];

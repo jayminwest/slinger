@@ -8,6 +8,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde_json::Value;
 use slinger_control::{CanvasOps, Client, PaneKind};
@@ -23,6 +24,9 @@ pub type Pages = fn(&Path) -> Result<Vec<(f64, f64)>, String>;
 /// The most canvas ids [`open`] tries for one PDF (`-2`, `-3`, ...).
 const TRIES: u32 = 999;
 
+/// The part files [`fetch`] has written in this process.
+static PARTS: AtomicU64 = AtomicU64::new(0);
+
 /// The directory the PDFs are fetched to: the app's own, in the temporary
 /// directory.
 pub fn cache() -> PathBuf {
@@ -30,7 +34,8 @@ pub fn cache() -> PathBuf {
 }
 
 /// The file in `dir` that holds the PDF that is blob `hash`, fetched from
-/// the daemon unless it is there: `<hex>.pdf`, written whole or not at all.
+/// the daemon unless it is there: `<hex>.pdf`, written whole or not at all,
+/// however many fetch it at once.
 ///
 /// # Errors
 ///
@@ -47,11 +52,18 @@ pub fn fetch(daemon: &Client, hash: &str, dir: &Path) -> Result<PathBuf, Problem
     if file.is_file() {
         return Ok(file);
     }
-    let part = dir.join(format!("{hex}.{}.part", std::process::id()));
+    // Each fetch writes a part file of its own, so two at once (the Pdfs
+    // thread and a sling's backdrops) never write or rename each other's:
+    // the same bytes land whole under the one name, whichever is last.
+    let n = PARTS.fetch_add(1, Ordering::Relaxed);
+    let part = dir.join(format!("{hex}.{}-{n}.part", std::process::id()));
     fs::create_dir_all(dir).map_err(|e| unwritable(dir, &e))?;
-    daemon.blob_get(hash, &part)?;
-    fs::rename(&part, &file).map_err(|e| unwritable(&file, &e))?;
-    Ok(file)
+    let fetched = daemon.blob_get(hash, &part).map_err(Problem::from);
+    let fetched = fetched.and_then(|_| fs::rename(&part, &file).map_err(|e| unwritable(&file, &e)));
+    if fetched.is_err() {
+        let _ = fs::remove_file(&part);
+    }
+    fetched.map(|()| file)
 }
 
 /// What [`open`] is asked: the PDF's file, and the workspace whose window
