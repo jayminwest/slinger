@@ -272,3 +272,64 @@ fn the_foot_line_sits_at_the_bottom_inside_the_margins_or_at_the_top_of_a_short_
     let short = Rect { x: 0.0, y: 5.0, width: 10.0, height: 10.0 };
     assert_eq!(foot(short), Rect { x: 24.0, y: 5.0, width: 0.0, height: 22.0 });
 }
+
+/// Five pages of a PDF's column, as `open-pdf` stacks them.
+const COLUMN: Rect = Rect { x: 0.0, y: 0.0, width: 1600.0, height: 10000.0 };
+const READER: Size = Size { width: 832.0, height: 600.0 };
+
+#[test]
+fn reader_mode_fits_the_column_to_the_width_and_starts_at_its_top() {
+    let view = Viewport::start().reading(COLUMN, READER);
+    assert_eq!(view.zoom(), 0.5);
+    let on = view.rect_to_screen(COLUMN);
+    assert!(near(pt(on.x, on.y), pt(CANVAS_MARGIN, CANVAS_MARGIN)), "{on:?}");
+    assert!((on.x + on.width - (READER.width - CANVAS_MARGIN)).abs() < 1e-9);
+    assert_eq!(view.reading(COLUMN, READER), view, "fitting again changes nothing");
+}
+
+#[test]
+fn reader_mode_scrolls_no_further_than_the_columns_top_and_bottom() {
+    let view = Viewport::start().reading(COLUMN, READER);
+    let up = view.pan(0.0, 500.0).reading(COLUMN, READER);
+    assert_eq!(up, view, "the top stops it");
+    let middle = view.pan(0.0, -1000.0).reading(COLUMN, READER);
+    assert!(near(middle.to_canvas(pt(0.0, CANVAS_MARGIN)), pt(-32.0, 2000.0)));
+    let down = view.pan(0.0, -1.0e6).reading(COLUMN, READER);
+    let bottom = down.to_screen(pt(0.0, COLUMN.height)).y;
+    assert!((bottom - (READER.height - CANVAS_MARGIN)).abs() < 1e-9, "{bottom}");
+}
+
+#[test]
+fn a_resize_in_reader_mode_keeps_the_place_and_fits_the_new_width() {
+    let view = Viewport::start().reading(COLUMN, READER).pan(0.0, -1000.0);
+    let place = view.to_canvas(pt(0.0, CANVAS_MARGIN)).y;
+    let wide = Size { width: 1632.0, height: 900.0 };
+    let wider = view.reading(COLUMN, wide);
+    assert_eq!(wider.zoom(), 1.0);
+    assert!((wider.to_canvas(pt(0.0, CANVAS_MARGIN)).y - place).abs() < 1e-9);
+}
+
+#[test]
+fn a_column_shorter_than_the_screen_stays_at_its_top() {
+    let short = rect(100.0, 50.0, 800.0, 200.0);
+    let view = Viewport::start().pan(0.0, -5000.0).reading(short, READER);
+    assert!(near(view.to_screen(pt(100.0, 50.0)), pt(CANVAS_MARGIN, CANVAS_MARGIN)));
+}
+
+#[test]
+fn reader_mode_holds_its_zoom_in_the_limits_and_centres_the_column() {
+    let narrow = rect(10.0, 0.0, 20.0, 100.0);
+    let view = Viewport::start().reading(narrow, READER);
+    assert_eq!(view.zoom(), MAX_ZOOM);
+    assert!((view.to_screen(pt(20.0, 0.0)).x - READER.width / 2.0).abs() < 1e-9);
+    let tiny = Size { width: 20.0, height: 600.0 };
+    assert_eq!(Viewport::start().reading(COLUMN, tiny).zoom(), MIN_ZOOM);
+}
+
+#[test]
+fn a_column_of_no_width_or_not_finite_changes_nothing() {
+    let view = moved();
+    assert_eq!(view.reading(rect(0.0, 0.0, 0.0, 100.0), READER), view);
+    assert_eq!(view.reading(rect(f64::NAN, 0.0, 10.0, 100.0), READER), view);
+    assert_eq!(view.reading(COLUMN, Size { width: f64::INFINITY, height: 1.0 }), view);
+}

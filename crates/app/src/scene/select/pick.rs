@@ -16,7 +16,7 @@
 
 use std::borrow::Cow;
 
-use super::{Gesture, Select, Selection, hit};
+use super::{Gesture, Select, Selection, hit, takes};
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Item, ItemId};
 use crate::scene::ink::on_server;
@@ -39,7 +39,7 @@ impl Select {
         if self.grip((canvas, page), at, zoom, items) {
             return;
         }
-        let hit = topmost(items, at, REACH / zoom);
+        let hit = topmost(canvas, items, at, REACH / zoom);
         self.arriving = None;
         let gesture = match hit {
             Some(id) if shift => {
@@ -91,7 +91,8 @@ impl Select {
         adding: bool,
         items: &[Cow<'_, Item>],
     ) {
-        let touched = items.iter().filter(|i| on_server(i.id) && hit::touches(&i.shape, &area));
+        let touched = items.iter().filter(|i| on_server(i.id) && takes(&canvas, i));
+        let touched = touched.filter(|i| hit::touches(&i.shape, &area));
         let mut ids: Vec<ItemId> = touched.map(|i| i.id).collect();
         if ids.is_empty() {
             ids.extend(innermost(items, &area));
@@ -105,10 +106,10 @@ impl Select {
     }
 }
 
-/// The topmost of the server's items of `items` a press at `at` with a
-/// reach of `radius` picks.
-fn topmost(items: &[Cow<'_, Item>], at: Point, radius: f64) -> Option<ItemId> {
-    let mut ours = items.iter().rev().filter(|i| on_server(i.id));
+/// The topmost of the server's items of `items` on `canvas` a press at
+/// `at` with a reach of `radius` picks, of those it may take ([`takes`]).
+fn topmost(canvas: &str, items: &[Cow<'_, Item>], at: Point, radius: f64) -> Option<ItemId> {
+    let mut ours = items.iter().rev().filter(|i| on_server(i.id) && takes(canvas, i));
     ours.find(|i| hit::picks(&i.shape, at, radius)).map(|i| i.id)
 }
 

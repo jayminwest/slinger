@@ -101,6 +101,7 @@ impl Command {
             Command::Save => "Save",
             Command::ShowCanvasFile => "Show canvas file in Finder",
             Command::OpenPdf => "Open PDF…",
+            Command::CropPdf => "Crop PDF",
         }
     }
 
@@ -114,6 +115,7 @@ impl Command {
             | Command::ToolBox
             | Command::ToolArrow
             | Command::ToolSelect
+            | Command::CropPdf
             | Command::WidthUp
             | Command::WidthDown => Group::Tools,
             Command::PickColour | Command::PickShape | Command::PickTool | Command::PickWidth => {

@@ -61,7 +61,7 @@ pub fn over_canvas(tools: &Tools, theme: &Theme, zoom: f64) -> Cursor {
             }
         }
         Tool::Eraser => Cursor::Ring { colour: theme.muted, diameter: ERASER * 2.0 },
-        Tool::Lasso | Tool::Box | Tool::Arrow => Cursor::Crosshair,
+        Tool::Lasso | Tool::Box | Tool::Arrow | Tool::CropPdf => Cursor::Crosshair,
         Tool::Text => Cursor::IBeam,
         Tool::Select => Cursor::Arrow,
     }

@@ -448,6 +448,11 @@ canvases/pdf.rs  the `open-pdf` command (cmd+o: the open panel, then
              is a problem until the next open) and each pdf item's file:
              asked for once per hash on a thread as a pane first shows it,
              grey until it comes, then drawn (a file's coming repaints).
+canvases/reader.rs  reader mode on a pane showing a PDF's canvas (its id
+             ends in `.pdf`, scene/pdf.rs's `reader`): each draw fits the
+             page's column of pdf items to the pane's width (layout.rs's
+             `Viewport::reading`, so a resize refits); a scroll moves up and
+             down only, stopping at the column's ends; zoom does nothing.
 canvases/button.rs  the "send to agent" button (SPEC section 8): a tap slings
              what is new on its page (`sling_now`, nothing selected, the
              config's prompt), or sends the open entry; `place-button` puts
@@ -676,7 +681,17 @@ scene/pdf.rs  an opened PDF's canvas: its id (the stem kept to a-z 0-9 - _,
              stacked on one column 1600 units wide by one scale, 40 apart;
              a pdf item's part of its page shown (its crop or the whole
              page). Pdf items are the paper: drawn first (scene/ink.rs's
-             `shown`), under every other item. Pure.
+             `shown`), under every other item. Reader mode: whether a
+             canvas is a PDF's (`reader`, by its id alone) and the column
+             a pane fits (`column`). On a PDF's canvas the select tool and
+             the lasso never take a pdf item (scene/select.rs). Pure.
+scene/crop.rs  the `crop-pdf` tool (cmd+8): a dragged box crops the topmost
+             pdf item under the press (else the topmost the box meets) to a
+             new pdf item, `crop` the box mapped from the item's shown region
+             to page points (`cropped`, on whole tenths, inside the page),
+             its frame the box's size. The lift puts it on the clipboard
+             (mirror/clip.rs's `snippet`, route.rs answers `Step::Copy`);
+             the canvas does not change. Paste is the usual paste. Pure.
 scene/title.rs  the title bar: the focused pane's canvas, its file under
              it (`~` for home) and that file as the proxy icon; what `save`
              flashes. Nothing to save by hand: the daemon writes each change
@@ -848,7 +863,8 @@ scene/tools.rs  the pen's tool, colour and width, and the pop-up at the pen (col
 layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
              about a point or to a level, limits, the level as people read it,
              how far a scroll zooms; the canvas has no edge; a pane's view
-             starts with the origin in by a margin) and where a pop-up
+             starts with the origin in by a margin; reader mode's fit to
+             a column's width, scrolled no further than its ends) and where a pop-up
              opens (at the pen, kept inside the window; each cell at least
              28 pt high, what a pen taps). Pure. 100% coverage floor.
 layout/tree.rs  the pane tree: binary splits with ratios to rectangles (no

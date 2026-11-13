@@ -5,7 +5,8 @@
 //! its place, `$n`), and the plain text of its texts, one a line, for other
 //! apps. Edit > Paste reads the objects back as items to add to a page, an
 //! arrow still bound to the items pasted with it; plain text alone, from
-//! another app, comes as one new text item ([`text_items`]). Pure.
+//! another app, comes as one new text item ([`text_items`]). The crop
+//! tool's snippet of a PDF goes there as one such object ([`snippet`]). Pure.
 
 use serde_json::{Map, Value};
 
@@ -13,7 +14,7 @@ use super::write::tenths;
 use super::{Mirror, read, shift};
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
-use crate::scene::canvas::{ItemId, Shape};
+use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::ink::{Carried, Ink};
 use crate::scene::paste::{self, Clip};
 
@@ -97,6 +98,16 @@ pub fn pasted(items: &str, page: &str, centre: Point) -> Vec<Carried> {
         out.push(Carried { item, object: Value::Object(object) });
     }
     out
+}
+
+/// A snippet of a PDF ([`crate::scene::crop`]) as a copy puts it on the
+/// clipboard: its file object, without an id, alone in the array, and no
+/// text. `None` for a shape the file does not keep.
+pub fn snippet(shape: &Shape) -> Option<Clip> {
+    let item = Item { id: ItemId(0), colour: Rgb { r: 0, g: 0, b: 0 }, shape: shape.clone() };
+    let mut object = super::object(&item)?;
+    object.as_object_mut()?.remove("id");
+    Some(Clip::new(None, Some(Value::Array(vec![object]).to_string())))
 }
 
 /// Plain `text` (from another app) as the items a clip holds: one text

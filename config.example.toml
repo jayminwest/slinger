@@ -160,6 +160,10 @@
 #tool-box = "cmd+5"
 #tool-arrow = "cmd+6"
 #tool-select = "cmd+7"
+# Crop a PDF: drag a box on a page; that part of the page goes on the clipboard as a
+# snippet, and the canvas does not change. Paste it on any canvas, then move and resize it
+# like any item.
+#crop-pdf = "cmd+8"
 # The next width of [pen] widths for the pen, or the one before; at either end it stays.
 #width-up = "alt+]"
 #width-down = "alt+["

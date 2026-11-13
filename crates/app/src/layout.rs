@@ -175,6 +175,29 @@ impl Viewport {
         Self { origin, zoom }
     }
 
+    /// This view in reader mode (docs/design/pdf.md) over `column`, a
+    /// canvas box, on a screen of `size`: zoomed so the column fills the
+    /// screen's width with [`CANVAS_MARGIN`] points each side (held in
+    /// `MIN_ZOOM..=MAX_ZOOM`, centred when held), and scrolled no further
+    /// than the column's top and bottom with the same margin. The canvas
+    /// point [`CANVAS_MARGIN`] points below the screen's top stays there,
+    /// so a new view starts at the column's top and a resize keeps the
+    /// place. A column of no width, or one that is not finite, changes
+    /// nothing.
+    pub fn reading(self, column: Rect, size: Size) -> Self {
+        let finite = [column.x, column.y, column.width, column.height, size.width, size.height];
+        if column.width <= 0.0 || !finite.iter().all(|v| v.is_finite()) {
+            return self;
+        }
+        let top = self.to_canvas(Point { x: 0.0, y: CANVAS_MARGIN }).y;
+        let zoom = ((size.width - 2.0 * CANVAS_MARGIN) / column.width).clamp(MIN_ZOOM, MAX_ZOOM);
+        let margin = CANVAS_MARGIN / zoom;
+        let x = column.x + column.width / 2.0 - size.width / zoom / 2.0;
+        let lowest = column.y + column.height + margin - size.height / zoom;
+        let y = (top - margin).min(lowest).max(column.y - margin);
+        Self { origin: Point { x, y }, zoom }
+    }
+
     /// The zoom as people read it: "Zoom 150%".
     pub fn zoom_label(self) -> String {
         format!("Zoom {}%", self.percent())

@@ -5,7 +5,8 @@
 //! what changed. The pen draws on a canvas pane: its [`Ink`] shows over the
 //! page at once and goes to the daemon through an [`Outbox`]. The eraser and
 //! the lasso work on the page as shown ([`Select`]), and so do the text, box
-//! and arrow tools ([`Shapes`]); what they change goes the same way, in turn
+//! and arrow tools ([`Shapes`]) and the crop tool ([`Crop`], whose snippet goes
+//! to the clipboard, not the canvas); what they change goes the same way, in turn
 //! with the strokes. The sling sends the selection ([`sling`]) once the ink
 //! before it is in, and what became of it shows on the canvas ([`slung`]);
 //! its prompt can be spoken ([`dictation`]). Runs on the
@@ -15,7 +16,7 @@
 //! Each pane keeps its own page, followed once however many panes show it:
 //! page commands, undo and redo are in [`paging`], live items' pages in [`live`];
 //! cut, copy and paste in [`clip`]; the PDFs `pdf` items show, and opening
-//! one, in [`pdf`].
+//! one, in [`pdf`]; a PDF's canvas in reader mode, in [`reader`].
 
 mod button;
 mod clip;
@@ -25,6 +26,7 @@ mod kept;
 mod live;
 mod paging;
 mod pdf;
+mod reader;
 
 use std::rc::Rc;
 
@@ -35,6 +37,7 @@ use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Rect, Size, Viewport};
 use crate::mirror::{Applied, Mirror};
 use crate::panes::{Kind, Panes};
+use crate::scene::crop::Crop;
 use crate::scene::cursor::Cursor;
 use crate::scene::grid::Paper;
 use crate::scene::ink::{Answer, Ink, Pen};
@@ -63,6 +66,7 @@ pub struct Canvases {
     ink: Ink,
     select: Select,
     shapes: Shapes,
+    crop: Crop,
     outbox: Outbox,
     sling: Sling,
     slinger: Slinger,
@@ -118,12 +122,14 @@ struct View {
     viewport: Viewport,
     page: Option<(String, String)>,
     last: Option<Rc<canvas::Scene>>,
+    /// In reader mode, the column fitted and the screen it was fitted to.
+    reader: Option<(Rect, Size)>,
 }
 
 impl Default for View {
     /// A new pane's view: at the start, on the first page, nothing drawn.
     fn default() -> Self {
-        Self { viewport: Viewport::start(), page: None, last: None }
+        Self { viewport: Viewport::start(), page: None, last: None, reader: None }
     }
 }
 
@@ -147,6 +153,7 @@ impl Canvases {
             ink,
             select,
             shapes,
+            crop: Crop::default(),
             outbox,
             sling,
             slinger,
@@ -269,7 +276,7 @@ impl Canvases {
     /// starts a stroke on the page the pane shows, the eraser an erase,
     /// the lasso a loop or a drag of the selection, the select tool a pick,
     /// a box or a drag of the selection ([`Select::pick`]), the text tool a
-    /// text, the box and arrow tools a drag. Returns false, and nothing starts, for touch (a palm), a pane whose canvas page has
+    /// text, the box, arrow and crop tools a drag. Returns false, and nothing starts, for touch (a palm), a pane whose canvas page has
     /// not arrived, or a press on a live item's page outside the selection.
     /// A press on a button outside the selection slings ([`button`]).
     pub fn pen_down(
@@ -304,6 +311,8 @@ impl Canvases {
         } else if self.shapes.down((tool, colour), here, press, &items, &mut self.ink) {
             drop(items);
             self.send();
+        } else if self.crop.down(tool, here, press, &items) {
+            // Its box shows over the page; the lift makes the snippet.
         } else if tool == Tool::Pen {
             self.ink.down(canvas, &shown, colour, at);
         } else if tool == Tool::Select {
@@ -392,8 +401,7 @@ impl Canvases {
 
     /// Drags `pane`'s canvas by `dx`, `dy` screen points.
     pub fn pan(&mut self, pane: PaneId, dx: f64, dy: f64) {
-        let view = self.view(pane);
-        view.viewport = view.viewport.pan(dx, dy);
+        self.view(pane).pan(dx, dy);
     }
 
     fn view(&mut self, pane: PaneId) -> &mut View {
@@ -449,6 +457,7 @@ impl Canvases {
                 self.views.len() - 1
             });
             let view = &mut self.views[at].1;
+            view.read(&pane.name, mirror.map(Mirror::items), screen);
             let Some(mirror) = mirror else {
                 if let Some(last) = &view.last {
                     scenes.push(CanvasPane {
@@ -467,6 +476,7 @@ impl Canvases {
             let zoom = view.viewport.zoom();
             let items = self.select.shown(here, items, zoom, theme);
             let items = self.shapes.shown(here, items, zoom, theme);
+            let items = self.crop.shown(here, items, zoom, theme);
             let status = slung::agent_in(self.agents.as_deref(), here.0).and_then(|a| a.status);
             let items = button::shown(items, status);
             let items = items.iter().map(AsRef::as_ref);
