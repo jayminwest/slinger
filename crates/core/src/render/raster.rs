@@ -2,7 +2,7 @@
 //! (lines) or by area (glyph cells), so edges are smooth, and each item is
 //! laid down once over what is under it, in its own colour.
 
-use super::{SCALE, png};
+use super::{Backdrop, SCALE, png};
 use crate::canvas::{Colour, Item, Point, Rect, Shape};
 
 mod glyph;
@@ -106,6 +106,27 @@ impl Raster {
             mask.line(line, radius);
         }
         self.fill(&mask, colour);
+    }
+
+    /// Paints `backdrop` over the pixels whose centre lies in `clip`, a
+    /// canvas rectangle inside its area: each takes the backdrop's pixel
+    /// nearest that centre.
+    pub fn backdrop(&mut self, backdrop: &Backdrop, clip: Rect) {
+        let unit =
+            |pixel: usize, start: f64, origin: f64| start + (origin + float(pixel) + 0.5) / SCALE;
+        for row in 0..self.height {
+            let y = unit(row, self.frame.y, self.top);
+            if y < clip.y || y >= clip.y + clip.h {
+                continue;
+            }
+            for col in 0..self.width {
+                let x = unit(col, self.frame.x, self.left);
+                if x >= clip.x && x < clip.x + clip.w {
+                    let at = (row * self.width + col) * 3;
+                    self.rgb[at..at + 3].copy_from_slice(&backdrop.pixel(Point::new(x, y)));
+                }
+            }
+        }
     }
 
     /// Lays `text` out from the top left of `frame`, one character cell of

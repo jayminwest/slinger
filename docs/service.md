@@ -169,7 +169,8 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_stop` | `workspace`: string | `session` |
 | `session_send` | `workspace`: string, `text`: string | `session` |
 | `session_listen` | `workspace`: string, `wait`: milliseconds to hold the request open (default 0, at most 60000) | `agent`, `sling`: `{event, canvas, dir, text}`, the oldest sling that waits (absent when none came) |
-| `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty), `profile`: a profile's name (optional) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` (empty when a listener takes it), `deliver`: `process` or `listen`, `tokens`: about how many tokens the agent reads for it (optional) |
+| `sling_backdrops` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `backdrops`: list of `{item, hash, pdfpage, pagesize, crop, frame, area, width, height}`, the areas of PDF pages under the new ink (empty when none) |
+| `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty), `profile`: a profile's name (optional), `backdrops`: list of `{item, area, image, words}` (optional) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` (empty when a listener takes it), `deliver`: `process` or `listen`, `tokens`: about how many tokens the agent reads for it (optional) |
 | `profile_list` | `workspace`: as `workspace_show` | `workspace`: its name, `profiles`: list of `{name, dir, tools}`, in its file's order |
 | `profile_set` | `workspace`, `name`: string, `dir`: absolute path of a directory (optional), `tools`: list of permission rules (optional) | `workspace`, `profiles` |
 | `profile_remove` | `workspace`, `name`: string | `workspace`, `profiles` |
@@ -840,6 +841,39 @@ still lands `reply_landed` against it. The other choice was to close a sling
 at `agent_done`; then a late put would answer nothing, and the record would
 lose which question it belonged to.
 
+**The page under the ink** (docs/design/pdf.md, "Sling"). Only the app can
+render a PDF, so a sling from it over a `pdf` item takes two requests.
+**`sling_backdrops`** names, for the sling that would go now, one area per
+pair of a cluster in the packet's `new` section and a `pdf` item whose frame
+meets that cluster's image frame (its ink's box plus the 16-unit margin), by
+item in draw order, then by cluster in reading order: `item` as `canvas
+show` names it (`i3`); `hash`, `pdfpage`, `pagesize` and `crop` (`null` for
+none) as stored, in tenths of a point; `frame` and `area` (the image frame ∩
+the item's frame) as `[x, y, w, h]` in tenths; `width` and `height`, the
+pixels to render (the area at the packet's scale, rounded up). Nothing new,
+or no new ink over a PDF, is an empty list; the canvas and page fail as in
+`canvas_read`. The app renders each area and passes it to `sling_send` in
+`backdrops`: `item` and `area` as given, `image` the absolute path of the
+raw pixels (8-bit R, G, B, rows from the top, exactly `width * height * 3`
+bytes) and `words` the absolute path of a JSON array of `{text, x, y, w,
+h}` (boxes in canvas tenths; absent when the page has none). The app writes
+them in a directory of its own and removes it after the reply. The images
+of new ink are drawn over them and the words under each cluster end its
+line (docs/design/packet.md). A backdrop whose item is gone, is not a `pdf`
+item or is on another page is skipped, and ink drawn between the two
+requests shows on white: the sling is never refused for the gap. A file
+that cannot be read is `not_found`; pixels of another length, or words that
+do not parse, are `invalid`. Each way nothing is stored. The backdrops are
+not stored: the packet's images and text are, as before. `slinger sling`
+sends none; its packet is still valid, ink on white with `over=` naming the
+pages.
+
+```json
+{ "v": 1, "op": "sling_backdrops", "canvas": "paper.pdf" }
+{ "ok": true, "backdrops": [{ "item": "i1", "hash": "sha256:9f86…", "pdfpage": 1, "pagesize": [6120, 7920], "crop": null, "frame": [0, 0, 16000, 20706], "area": [825, 825, 750, 350], "width": 27, "height": 13 }] }
+{ "v": 1, "op": "sling_send", "canvas": "paper.pdf", "backdrops": [{ "item": "i1", "area": [825, 825, 750, 350], "image": "/tmp/slinger-app-sling-1/0.rgb", "words": "/tmp/slinger-app-sling-1/0.json" }] }
+```
+
 ```json
 { "v": 1, "op": "sling_send", "canvas": "notes", "select": ["c42"], "prompt": "what is missing here?" }
 { "ok": true, "event": 14, "packet": "sha256:5e1f…", "from": 42, "to": 58, "strokes": 23, "agent": "scout", "session_id": "6f1c0d52-8a3e-4b7d-9c1e-2f4a5b6c7d8e", "deliver": "process", "tokens": 2310 }
@@ -1007,11 +1041,12 @@ not open, and an agent with no session.
    `crates/control/src/packet.rs`. A group of such verbs shares one
    variant: `#[serde(untagged, skip_serializing)]` over an enum of their
    own, tagged by `op`, as `crates/control/src/session.rs` and
-   `crates/control/src/agent.rs` do (`sling_send` is a session verb). The app sends
+   `crates/control/src/agent.rs` do (`sling_send` and `sling_backdrops`
+   are session verbs). The app sends
    `workspace_list` and the pane verbs, each written with such a type of its
    own (`crates/control/src/pane.rs`), as are the showing verbs it sends
    (`crates/control/src/ui.rs`) and the session verbs (`session_list`,
-   `sling_send`, as `SessionAsk`), so the app builds no `Request` at all;
+   `sling_backdrops`, `sling_send`, as `SessionAsk`), so the app builds no `Request` at all;
    keep it that way.
 3. Add one arm to `answer` in `crates/daemon/src/server.rs`. It calls the
    core and nothing else.

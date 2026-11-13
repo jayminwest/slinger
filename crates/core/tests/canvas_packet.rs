@@ -38,7 +38,7 @@ fn ids(packet: &Packet) -> [Vec<String>; 3] {
 #[test]
 fn everything_after_line_zero_is_new() {
     let (log, _) = canvas();
-    let p = log.packet("idea", None, 0, &[]).unwrap();
+    let p = log.packet("idea", None, 0, &[], &[]).unwrap();
     assert_eq!((p.header.from, p.header.to), (1, 2));
     assert_eq!(ids(&p), [vec!["c1".to_string()], vec!["t2".into()], vec![]]);
     assert_eq!(p.images.len(), 1);
@@ -51,7 +51,7 @@ fn only_the_lines_after_the_marker_are_new() {
     let user = parse_author("user").unwrap();
     let written = log.apply(&user, AT, &stroke(20_000, "red")).unwrap();
     assert_eq!(written.seq, [3]);
-    let p = log.packet("idea", Some("Page 1"), 2, &[]).unwrap();
+    let p = log.packet("idea", Some("Page 1"), 2, &[], &[]).unwrap();
     assert_eq!((p.header.from, p.header.to), (3, 3));
     assert_eq!(ids(&p), [vec!["c3".to_string()], vec![], vec!["c1".into(), "t2".into()]]);
 }
@@ -60,7 +60,7 @@ fn only_the_lines_after_the_marker_are_new() {
 fn a_marker_at_or_past_the_end_is_nothing_new() {
     let (log, _) = canvas();
     for after in [2, 99] {
-        let p = log.packet("idea", Some("p1"), after, &[]).unwrap();
+        let p = log.packet("idea", Some("p1"), after, &[], &[]).unwrap();
         assert!(p.header.from > p.header.to, "after {after}");
         assert_eq!((p.header.from, p.header.to), (3, 2));
         assert!(p.new.is_empty() && p.made.is_empty() && p.images.is_empty());
@@ -73,8 +73,10 @@ fn a_reopened_file_gives_the_same_packet() {
     let (log, file) = canvas();
     let (reopened, _) = Log::open(file.as_bytes()).unwrap();
     for after in [0, 1, 2] {
-        let (a, b) =
-            (log.packet("idea", None, after, &[]), reopened.packet("idea", None, after, &[]));
+        let (a, b) = (
+            log.packet("idea", None, after, &[], &[]),
+            reopened.packet("idea", None, after, &[], &[]),
+        );
         assert_eq!(a.unwrap(), b.unwrap(), "after {after}");
     }
 }
@@ -88,29 +90,29 @@ fn an_undo_and_a_redo_are_lines_too() {
         file.push_str(&step.bytes);
     }
     assert_eq!(log.next(), 5);
-    let p = log.packet("idea", None, 3, &[]).unwrap();
+    let p = log.packet("idea", None, 3, &[], &[]).unwrap();
     assert_eq!(ids(&p)[0], ["c1"]);
     let (reopened, _) = Log::open(file.as_bytes()).unwrap();
-    assert_eq!(reopened.packet("idea", None, 3, &[]).unwrap(), p);
+    assert_eq!(reopened.packet("idea", None, 3, &[], &[]).unwrap(), p);
 }
 
 #[test]
 fn a_selection_takes_file_or_packet_ids() {
     let (log, _) = canvas();
     for id in ["i1", "c1"] {
-        let p = log.packet("idea", None, 2, &[id.to_string()]).unwrap();
+        let p = log.packet("idea", None, 2, &[id.to_string()], &[]).unwrap();
         assert_eq!(ids(&p)[2], ["c1"], "{id}");
     }
-    let p = log.packet("idea", None, 2, &["t2".to_string()]).unwrap();
+    let p = log.packet("idea", None, 2, &["t2".to_string()], &[]).unwrap();
     assert_eq!(ids(&p)[2], ["t2"]);
 }
 
 #[test]
 fn a_bad_page_or_id_is_refused() {
     let (log, _) = canvas();
-    assert_eq!(log.packet("idea", Some("p9"), 0, &[]).unwrap_err().code(), "not_found");
+    assert_eq!(log.packet("idea", Some("p9"), 0, &[], &[]).unwrap_err().code(), "not_found");
     for bad in ["", "c", "x1", "c1x", "i-1"] {
-        let err = log.packet("idea", None, 0, &[bad.to_string()]).unwrap_err();
+        let err = log.packet("idea", None, 0, &[bad.to_string()], &[]).unwrap_err();
         assert_eq!(err.code(), "invalid", "{bad:?}");
         assert!(err.hint().is_some());
     }

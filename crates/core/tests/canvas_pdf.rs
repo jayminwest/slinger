@@ -4,8 +4,9 @@
 #![cfg(test)]
 
 use serde_json::{Value, json};
-use slinger_core::canvas::file::{Edit, Log, read};
+use slinger_core::canvas::file::{Edit, Log, backdrop, read, rect_tenths};
 use slinger_core::canvas::{Action, Author, Canvas, ItemId, Op, Point, Rect, Shape, Time};
+use slinger_core::packet::Packet;
 
 const AT: Time = Time(1_762_790_400_000);
 
@@ -147,14 +148,14 @@ fn the_packet_names_the_page_under_new_ink_and_leaves_the_rest_out() {
         "name": "paper.pdf" } });
     log.apply(&Author::User, AT, &below).unwrap();
     log.apply(&Author::User, AT, &stroke(1000, 1000)).unwrap();
-    let packet = log.packet("paper.pdf", None, 0, &[]).unwrap();
+    let packet = log.packet("paper.pdf", None, 0, &[], &[]).unwrap();
     let text = packet.text();
     assert!(text.contains("c3 ink 99,99 43x3 colour=red strokes=1 over=d1 img=c3.png\n"), "{text}");
     let page = format!("d1 pdf 0,0 1600x2071 pdfpage=1 name=paper.pdf blob={}\n", hash());
     assert!(text.contains(&format!("# page\n{page}")), "{text}");
     assert!(!text.contains("d2 pdf"), "no ink on page 2, so no line: {text}");
     assert_eq!(packet.images.len(), 1, "a PDF page is never an image");
-    let picked = log.packet("paper.pdf", None, 0, &["d2".into()]).unwrap();
+    let picked = log.packet("paper.pdf", None, 0, &["d2".into()], &[]).unwrap();
     let text = picked.text();
     assert!(text.contains("d1 pdf") && text.contains("d2 pdf"), "{text}");
     assert_eq!(picked.selected, ["d2"]);
@@ -171,7 +172,7 @@ fn a_snippet_says_its_crop_and_an_agent_s_goes_in_made() {
         "crop": [720, 1800, 3000, 1200], "name": "paper.pdf" } });
     let scout = Author::Agent("scout".into());
     log.apply(&scout, AT, &snippet).unwrap();
-    let text = log.packet("paper.pdf", None, 0, &[]).unwrap().text();
+    let text = log.packet("paper.pdf", None, 0, &[], &[]).unwrap().text();
     let line = format!(
         "# made\nd2 pdf 2400,300 600x240 by=scout pdfpage=3 crop=72,180,300,120 name=paper.pdf blob={}\n",
         hash()
@@ -187,4 +188,61 @@ fn a_crop_draws_the_page_as_a_grey_frame() {
     let images = log.crop("p1:0,0,1000,1000", "crop").unwrap();
     assert_eq!(images.len(), 1);
     assert_eq!(log.crop("d1", "d1").unwrap().len(), 1, "an item crop draws its frame and label");
+}
+
+/// Words in canvas tenths, as the app writes them: `(text, x, y)`, each 40
+/// units wide and 10 high.
+fn words(list: &[(&str, i64, i64)]) -> Vec<u8> {
+    let list =
+        list.iter().map(|(t, x, y)| json!({ "text": t, "x": x, "y": y, "w": 400, "h": 100 }));
+    serde_json::to_vec(&list.collect::<Vec<_>>()).unwrap()
+}
+
+#[test]
+fn a_sling_asks_for_the_area_of_the_page_under_each_new_cluster() {
+    let (mut log, _) = log();
+    assert_eq!(log.backdrops(None, 0).unwrap(), [], "no ink, nothing to render");
+    log.apply(&Author::User, AT, &stroke(1000, 1000)).unwrap();
+    let [area] = log.backdrops(None, 0).unwrap().try_into().unwrap();
+    assert_eq!((area.item, area.pdf_page, area.crop), (ItemId::new(1), 1, None));
+    assert_eq!(rect_tenths(area.area), [825, 825, 750, 350], "the image frame ∩ the page");
+    assert_eq!(rect_tenths(area.frame), [0, 0, 16000, 20706]);
+    assert_eq!((area.width, area.height), (27, 13));
+    assert_eq!(log.backdrops(None, 2).unwrap(), [], "nothing new");
+    assert_eq!(log.backdrops(Some("p9"), 0).unwrap_err().code(), "not_found");
+}
+
+#[test]
+fn the_words_under_new_ink_end_its_line() {
+    let (mut log, _) = log();
+    log.apply(&Author::User, AT, &stroke(1000, 1000)).unwrap();
+    let [area] = log.backdrops(None, 0).unwrap().try_into().unwrap();
+    let rgb = vec![200; (area.width * area.height * 3) as usize];
+    let said = words(&[("under", 1000, 950), ("the line below", 1000, 1200), ("x\"y", 1100, 950)]);
+    let area = rect_tenths(area.area);
+    let under = backdrop("i1", area, rgb.clone(), Some(&said)).unwrap();
+    let text = log.packet("paper.pdf", None, 0, &[], std::slice::from_ref(&under)).unwrap().text();
+    let line = "c2 ink 99,99 43x3 colour=red strokes=1 over=d1 img=c2.png \"under x\\\"y\"\n";
+    assert!(text.contains(line), "{text}");
+    let read = Packet::read(&text).unwrap();
+    assert_eq!(read.new[0].text.as_deref(), Some("under x\"y"));
+    let again = log.packet("paper.pdf", None, 2, &[], &[under]).unwrap().text();
+    assert!(!again.contains("under"), "a page line never carries words: {again}");
+
+    let short = backdrop("d1", area, rgb[1..].to_vec(), None).unwrap_err();
+    assert_eq!(short.code(), "invalid");
+    assert_eq!(backdrop("i1", area, rgb.clone(), Some(b"nope")).unwrap_err().code(), "invalid");
+    assert_eq!(backdrop("x", area, rgb, None).unwrap_err().code(), "invalid");
+}
+
+#[test]
+fn ink_drawn_after_the_areas_were_asked_shows_on_white() {
+    let (mut log, _) = log();
+    log.apply(&Author::User, AT, &stroke(1000, 1000)).unwrap();
+    let [area] = log.backdrops(None, 0).unwrap().try_into().unwrap();
+    let rgb = vec![0; (area.width * area.height * 3) as usize];
+    let under = backdrop("i1", rect_tenths(area.area), rgb, None).unwrap();
+    log.apply(&Author::User, AT, &stroke(9000, 9000)).unwrap();
+    let packet = log.packet("paper.pdf", None, 0, &[], &[under]).unwrap();
+    assert_eq!(packet.images.len(), 2, "both clusters have an image, the late one on white");
 }

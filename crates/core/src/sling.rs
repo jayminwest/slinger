@@ -55,6 +55,7 @@ const INTRO: &str = "\
 This is a sling from Slinger: the user's canvas page as a packet, then the user's prompt.
 Each packet line is one item: id, kind, x,y, wxh, then fields. `# new` is ink written since the last sling, each image under its line; `# made` is what agents made; `# page` is the rest.
 `selected=` on line 1 names the items the user selected. An empty prompt asks about the selection.
+A `pdf` line is a page of a PDF (`blob get` fetches the file its `blob=` names); a quoted text at the end of an ink line is the PDF's words under that ink.
 ";
 
 /// A command the note can tell the agent to use.

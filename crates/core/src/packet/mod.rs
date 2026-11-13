@@ -18,20 +18,24 @@
 //! selection in, a [`Packet`] out, with its header, version and images.
 //! [`Packet::text`] writes the format and [`Packet::read`] reads it back.
 
+mod areas;
 mod build;
 mod cluster;
 mod format;
 mod line;
+mod words;
 
 use std::collections::BTreeMap;
 
 use crate::canvas::{Author, Canvas, Item, ItemId, PageId, Rect, Shape};
 use line::{Line, colour_name, reading_order};
 
+pub use areas::{Area, backdrops};
 pub use build::{Ask, build};
 pub use cluster::cluster;
 pub use format::{Header, Packet, VERSION};
 pub use line::Entry;
+pub use words::MAX_WORDS_CHARS;
 
 /// A new cluster of the user's ink that needs an image.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -131,6 +135,14 @@ impl Index {
             }
         }
         out
+    }
+
+    /// Ends the `new` line of cluster `id` with `text`: the PDF's words
+    /// under its ink. `page` lines never carry words.
+    fn say(&mut self, id: &str, text: String) {
+        if let Some(line) = self.new.iter_mut().find(|l| l.id == id) {
+            line.text = Some(text);
+        }
     }
 
     /// Keeps in the `page` section only the lines whose item number (a

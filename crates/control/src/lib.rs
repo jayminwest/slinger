@@ -44,7 +44,7 @@ pub use profile::{Profile, ProfileAsk, Profiles};
 pub use session::{
     FileTouched, Listened, Session, SessionAsk, SessionInfo, Sessions, StatusSet, Taken, Touched,
 };
-pub use sling::{SlingAsk, Slung};
+pub use sling::{Backdrop, BackdropArea, Backdrops, SlingAsk, Slung};
 pub use ui::{LIVE_SIZE, LiveItem, UiAsk, UiOpen, UiOpened, UiReplied, UiShown};
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
 pub use workspace::{
@@ -142,7 +142,7 @@ pub enum Request {
     #[serde(skip_serializing)]
     CanvasStrokes { canvas: String, item: String },
     /// The session verbs (`session_list`, `session_show`, `status_set`,
-    /// `session_start`, `session_stop`, `session_send`, `sling_send`,
+    /// `session_start`, `session_stop`, `session_send`, `sling_send`, `sling_backdrops`,
     /// `session_listen`, `file_touched`), read by their own `op`s. One variant for them all,
     /// written only by clients that send them: each variant here adds code to
     /// the app, which sends none of them (its size budget is nearly full).
@@ -206,6 +206,7 @@ pub enum Reply {
     SessionSend(SessionInfo),
     StatusSet(StatusSet),
     SlingSend(Slung),
+    SlingBackdrops(Backdrops),
     SessionListen(Listened),
     FileTouched(FileTouched),
     CanvasPut(CanvasPlaced),

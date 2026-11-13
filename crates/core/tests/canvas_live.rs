@@ -119,7 +119,7 @@ fn an_agent_resizes_its_live_item_and_the_packet_says_it_as_text() {
     let size = slinger_core::canvas::file::Edit { size: Some([4000, 3000]), ..Default::default() };
     let placed = log.edit(&scout(), AT, "l2", &size).unwrap();
     assert_eq!(placed.frame, [1240, 0, 4000, 3000]);
-    let packet = log.packet("idea", None, 0, &["l2".into()]).unwrap();
+    let packet = log.packet("idea", None, 0, &["l2".into()], &[]).unwrap();
     let text = packet.text();
     assert!(
         text.contains("l2 live 124,0 400x300 by=scout ui=pick-slot open=pick-slot#12\n"),

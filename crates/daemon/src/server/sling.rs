@@ -15,14 +15,23 @@
 //! goes only to a process under that profile (`unavailable` with none
 //! running, `conflict` under another): it never reaches an agent with other
 //! limits, and a listener has none of Slinger's.
+//!
+//! `sling_backdrops` comes first from a client that can render PDFs: the
+//! areas of `pdf` items under the new ink. `sling_send` then reads the
+//! files it rendered ([`under`]); the images are drawn over them and their
+//! words end the ink's lines. Ink drawn between the two shows on white.
 
-use slinger_control::{RemoteError, Reply, SlingAsk, Slung};
+use std::fs;
+
+use slinger_control::{Backdrop, BackdropArea, Backdrops, RemoteError, Reply, SlingAsk, Slung};
+use slinger_core::canvas::file::{backdrop, rect_tenths, size_tenths};
 use slinger_core::record::{BlobId, Body, Event, NamedBlob, SlingSent, Tags};
+use slinger_core::render;
 use slinger_core::session::listen::Heard;
 use slinger_core::session::{Delivery, stream};
 use slinger_core::sling::{self, Listener, Sling, Verb};
 
-use super::{drawn, read, stored};
+use super::{absolute, drawn, read, remote as core, stored, unreadable};
 use crate::sessions::SessionError;
 use crate::store::{Query, Store};
 
@@ -35,9 +44,10 @@ pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Reply, RemoteError> {
     let _one = sessions.slinging();
     let (workspace, agent) = sessions.on_canvas(store, &ask.canvas).map_err(|e| remote(&e))?;
     let after = read::last_sling(store, &ask.canvas)?;
+    let under = under(&ask.backdrops)?;
     let mut packet = store
         .canvases()
-        .packet(&ask.canvas, ask.page.as_deref(), after, &ask.select)
+        .packet(&ask.canvas, ask.page.as_deref(), after, &ask.select, &under)
         .map_err(|e| drawn(&e))?;
     // The packet is stored as it is here: without `at`.
     let text = packet.text();
@@ -95,6 +105,47 @@ pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Reply, RemoteError> {
         deliver: Some(deliver.name().into()),
         tokens: Some(tokens),
     }))
+}
+
+/// The areas of PDF pages under the new ink a sling of `canvas` would draw
+/// now, after the canvas's last sling.
+pub(super) fn backdrops(
+    store: &Store,
+    canvas: &str,
+    page: Option<&str>,
+) -> Result<Reply, RemoteError> {
+    let after = read::last_sling(store, canvas)?;
+    let areas = store.canvases().backdrops(canvas, page, after).map_err(|e| drawn(&e))?;
+    let backdrops = areas
+        .into_iter()
+        .map(|a| BackdropArea {
+            item: format!("i{}", a.item.get()),
+            hash: a.hash,
+            pdfpage: a.pdf_page,
+            pagesize: size_tenths(a.page_size),
+            crop: a.crop.map(rect_tenths),
+            frame: rect_tenths(a.frame),
+            area: rect_tenths(a.area),
+            width: a.width,
+            height: a.height,
+        })
+        .collect();
+    Ok(Reply::SlingBackdrops(Backdrops { backdrops }))
+}
+
+/// The backdrops a sling names, read from their files. Nothing is stored
+/// when one fails: `not_found` for a file that is not there, `invalid` for
+/// pixels of the wrong length or words that do not parse.
+fn under(given: &[Backdrop]) -> Result<Vec<render::Backdrop>, RemoteError> {
+    let read = |path: &std::path::Path| fs::read(absolute(path)?).map_err(|e| unreadable(path, &e));
+    given
+        .iter()
+        .map(|b| {
+            let rgb = read(&b.image)?;
+            let words = b.words.as_deref().map(read).transpose()?;
+            backdrop(&b.item, b.area, rgb, words.as_deref()).map_err(|e| core(&e))
+        })
+        .collect()
 }
 
 /// The agent's slings, from every canvas: a conversation is the agent's.

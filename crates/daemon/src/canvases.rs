@@ -23,8 +23,8 @@ use slinger_core::canvas::file::{
     Edit, How, Log, Placed, Put, Shown, Written, check_id, parse_author,
 };
 use slinger_core::canvas::{Author, Canvas, Time};
-use slinger_core::packet::Packet;
-use slinger_core::render::Image;
+use slinger_core::packet::{Area, Packet};
+use slinger_core::render::{Backdrop, Image};
 
 /// A canvas file's name ends in this.
 const EXTENSION: &str = "canvas";
@@ -187,7 +187,7 @@ impl Canvases {
     }
 
     /// The packet of one page (see [`Log::packet`]): the lines after
-    /// `after` are new.
+    /// `after` are new, and the images of new ink are drawn over `under`.
     ///
     /// # Errors
     ///
@@ -199,8 +199,20 @@ impl Canvases {
         page: Option<&str>,
         after: u64,
         select: &[String],
+        under: &[Backdrop],
     ) -> Result<Packet> {
-        self.with(id, |log| Ok(log.packet(id, page, after, select)?))
+        self.with(id, |log| Ok(log.packet(id, page, after, select, under)?))
+    }
+
+    /// The areas of PDF pages under the new ink of one page (see
+    /// [`Log::backdrops`]).
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a canvas or page that is not there, and the errors
+    /// of reading the file.
+    pub fn backdrops(&self, id: &str, page: Option<&str>, after: u64) -> Result<Vec<Area>> {
+        self.with(id, |log| Ok(log.backdrops(page, after)?))
     }
 
     /// Images of what `of` names on a canvas, named after `name` (see
