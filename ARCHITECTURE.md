@@ -372,7 +372,10 @@ window.rs    runs a command on the focused pane, does a tap on a button that
              flashes its name or why not, finds what `show-canvas-file` and
              `show-workspace-folder` show in the Finder (`finder`: the
              canvas file, or the shown workspace's folder from the
-             sidebar; main reveals it), builds the window's scene (`view`: the footers,
+             sidebar; main reveals it), saves the focused pane's agent UI
+             in a folder for `export-ui` (`export_ui`: the bytes the pane
+             has, named as ui_export names them; main picks the folder and
+             reveals the file), builds the window's scene (`view`: the footers,
              the sidebar's foot, the lit button, the tap targets), and
              finds the canvas pane under a point and the focused pane's
              frame. A cut, copy or paste no text field took (`edit`), and
@@ -974,9 +977,9 @@ platform/remember.rs  what the window keeps in the user defaults from one
              never put on a screen.
 platform/files.rs  sets the title bar a scene's Title says (title, subtitle,
              represented file), shows a file in the Finder
-             (`show-canvas-file` and `show-workspace-folder`, from main),
-             and asks for a folder for
-             `open-workspace` (the open panel, which can make one).
+             (`show-canvas-file`, `show-workspace-folder` and `export-ui`,
+             from main), and asks for a folder for `open-workspace` and
+             `export-ui` (the open panel, which can make one).
 platform/menu.rs  makes the menu bar a scene's menus say, again when they
              change. A command item chosen by its key goes to main as that
              key press, so the keymap runs it once; chosen with the pointer,

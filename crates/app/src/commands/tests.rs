@@ -107,7 +107,10 @@ fn each_default_chord_runs_its_own_command_and_a_few_commands_have_none() {
     for (command, _) in Command::ALL {
         match keys.0[command as usize] {
             Some(chord) => assert_eq!(keys.command(chord), Some(command)),
-            None => assert_eq!(command, Command::ShowWorkspaceFolder, "{command:?} has no chord"),
+            None => assert!(
+                matches!(command, Command::ShowWorkspaceFolder | Command::ExportUi),
+                "{command:?} has no chord"
+            ),
         }
     }
     assert_eq!(keys.command(chord("cmd+alt+left")), Some(Command::FocusLeft));
@@ -155,6 +158,7 @@ fn every_command_has_a_title_and_a_group_in_the_list() {
         (Command::OpenWorkspace, Group::File),
         (Command::CloseWorkspace, Group::File),
         (Command::ShowWorkspaceFolder, Group::File),
+        (Command::ExportUi, Group::File),
         (Command::StartAgent, Group::Sling),
         (Command::StopAgent, Group::Sling),
         (Command::RestartAgent, Group::Sling),

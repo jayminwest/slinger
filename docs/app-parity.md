@@ -64,6 +64,7 @@ same thing by drawing, or never needs to.
 | `canvas create --ops` of a PDF | `open-pdf` (cmd+O) and a PDF dropped on the window |
 | `canvas import` | `open-pdf` (cmd+O) with a `.tldraw`/`.tldr` file, or one dropped on the window: imported, then shown beside the focused pane (`pane_open`), slinger-99061d |
 | `canvas put --color` | `pick-colour` and recolouring a selection |
+| `ui export` (the version a pane shows) | `export-ui` (File menu, palette; no default key): a folder picked, the file `<name>.v<version>.html` revealed. It writes the bytes the pane already has, so it calls no verb: about 790 bytes of `__TEXT`, slinger-401aa5 |
 
 ## Gaps
 
@@ -79,8 +80,9 @@ a rough size. Known ones name their seed.
 | Make a new empty canvas, or show another canvas in a pane | `canvas_create`, `canvas_list`, `pane_open` (`canvas`) | design | slinger-16a66e |
 | Pick the size of a new text, or resize a text's characters | `canvas_put`/`canvas_edit` `size` (agent side); the app's own text tool | design | slinger-34a2ae |
 | Read the thinking record (what was slung, answered, touched) | `record_list` | design | slinger-895bde |
-| Browse a UI's versions, or save one to a file | `ui_list`, `ui_show`, `ui_export` | ui | new |
-| See resolved feedback notes, or find the feedback file | `feedback_list` (`all`), `feedback_path` | arm | new |
+| Browse a UI's versions (`ui list NAME`, `ui show`), or export one that no pane shows | `ui_list`, `ui_show`, `ui_export` | ui | slinger-401aa5 |
+| See resolved feedback notes | `feedback_list` (`all`) | ui | slinger-401aa5 |
+| Find the feedback file | `feedback_path` | arm | slinger-401aa5 |
 
 Notes on the new rows:
 
@@ -93,3 +95,16 @@ Notes on the new rows:
   question is whether it is a mode of the sling entry or its own command.
 - **A UI in a pane** needs a picker over `ui_list`; the pane verbs are
   already in the app.
+- **The smaller gaps** (slinger-401aa5, measured 2026-11-13 with 2544
+  bytes of `__TEXT` room before `export-ui` and 1752 after; a gap closes
+  only if 1.5 KB stays free):
+  - *Find the feedback file*: a `show-feedback-file` command revealing
+    `feedback_path`'s file, built and measured, cost 2320 bytes: its
+    reply (`FeedbackFile`) is new to the app. It waits for room, or for
+    `feedback_path` to answer in a type the app already decodes.
+  - *Resolved feedback notes*: `feedback_list` `all` is already decoded,
+    but the entry must show a resolved note apart (no "✓", its
+    resolution) and a way to ask for them: estimated 1 to 1.5 KB, more
+    than the room allows.
+  - *A UI's versions*: needs a picker over `ui_list`/`ui_show` (the
+    `Vec<Ui>` reply is new to the app): ui work and several KB.

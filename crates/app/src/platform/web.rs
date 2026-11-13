@@ -13,7 +13,7 @@
 //! The rule list compiles once, asynchronously: a view loads its page only
 //! once the list is on it, so no load ever runs without it.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::io::Write;
 use std::ptr;
 use std::sync::Arc;
@@ -203,12 +203,15 @@ enum Rules {
 thread_local! {
     static SHOWN: RefCell<Vec<Shown>> = const { RefCell::new(Vec::new()) };
     static RULES: RefCell<Rules> = const { RefCell::new(Rules::Unasked) };
+    /// The theme the views were last given.
+    static THEME: Cell<Option<Theme>> = const { Cell::new(None) };
 }
 
 /// Shows `webs` in `into`, a view `height` tall: each one already showing
 /// that page (for a live item, that item in that pane) keeps its view (and
-/// its state), each new one gets a new view below the chrome, a live item's
-/// just over the view `canvas` gives for its pane, and the rest close.
+/// its state; a new `theme` changes its page's look in place), each new
+/// one gets a new view below the chrome, a live item's just over the view
+/// `canvas` gives for its pane, and the rest close.
 pub fn place(
     into: &NSView,
     webs: &[Web],
@@ -218,6 +221,8 @@ pub fn place(
     mtm: MainThreadMarker,
 ) {
     let mut old = SHOWN.take();
+    // A new theme reaches the open pages too: their look changes in place.
+    let look = (THEME.replace(Some(*theme)) != Some(*theme)).then(|| ui::script(theme, ""));
     let mut now = Vec::new();
     for web in webs {
         let key = key(web);
@@ -258,6 +263,12 @@ pub fn place(
             }
             _ => shown.view.setFrame(flipped(height, web.frame)),
         }
+        if let Some(look) = &look {
+            // SAFETY: a script run in a view of ours, on the main thread.
+            unsafe {
+                shown.view.evaluateJavaScript_completionHandler(&NSString::from_str(look), None);
+            }
+        }
         now.push(shown);
     }
     for gone in old {
@@ -285,7 +296,7 @@ fn open(page: &Arc<Page>, theme: &Theme, key: Key, mtm: MainThreadMarker) -> Sho
         let content = config.userContentController();
         let shim = WKUserScript::initWithSource_injectionTime_forMainFrameOnly(
             WKUserScript::alloc(mtm),
-            &NSString::from_str(&ui::script(theme)),
+            &NSString::from_str(&ui::script(theme, ui::SHIM)),
             WKUserScriptInjectionTime::AtDocumentStart,
             true,
         );

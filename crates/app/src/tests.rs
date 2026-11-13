@@ -388,3 +388,22 @@ fn a_pdf_dropped_on_a_pane_opens_as_a_canvas_beside_it() {
         });
     });
 }
+
+#[test]
+fn export_ui_saves_the_focused_pane_s_ui_as_its_version_s_file_or_says_why_not() {
+    let mut shared = Shared::default();
+    let dir = tempfile::tempdir().unwrap();
+    let none = window::export_ui(&shared, dir.path());
+    assert_eq!(none.unwrap_err(), "The focused pane shows no agent UI", "a canvas pane");
+    shared.panes = Panes::new(Pane { kind: PaneKind::Ui, name: "board".into() });
+    let hash = format!("sha256:{}", "a".repeat(64));
+    let code = ui::Code { name: "board".into(), version: 3, hash, html: b"<p>hi</p>".to_vec() };
+    let shown = ui::Shown { code, open: None, data: serde_json::Value::Null };
+    let page = Arc::new(ui::Page::new(shown, "pane").unwrap());
+    shared.uis.insert("board".into(), Ok(page));
+    let file = window::export_ui(&shared, dir.path()).unwrap();
+    assert_eq!(Path::new(&file), dir.path().join("board.v3.html"), "named as ui_export names it");
+    assert_eq!(std::fs::read(&file).unwrap(), b"<p>hi</p>");
+    let gone = window::export_ui(&shared, &dir.path().join("gone"));
+    assert!(gone.is_err_and(|why| !why.is_empty()), "the flash says why");
+}

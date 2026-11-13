@@ -243,3 +243,6 @@
 # Start the agent of the workspace the window shows in a new conversation: a running
 # process ends first, and its last conversation is dropped.
 #restart-agent = "cmd+alt+shift+a"
+# Save the agent UI the focused pane shows (the version it shows) as a file in a folder you
+# pick, and show it in the Finder. No key by default: the palette and the File menu run it.
+#export-ui = ""

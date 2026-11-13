@@ -110,6 +110,7 @@ impl Command {
             Command::StartAgent => "Start agent",
             Command::StopAgent => "Stop agent",
             Command::RestartAgent => "Restart agent in a new conversation",
+            Command::ExportUi => "Export agent UI…",
         }
     }
 
@@ -152,7 +153,8 @@ impl Command {
             Command::OpenPdf
             | Command::OpenWorkspace
             | Command::CloseWorkspace
-            | Command::ShowWorkspaceFolder => Group::File,
+            | Command::ShowWorkspaceFolder
+            | Command::ExportUi => Group::File,
             Command::NextPage
             | Command::PreviousPage
             | Command::NewPage

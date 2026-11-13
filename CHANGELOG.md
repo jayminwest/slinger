@@ -11,6 +11,10 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** save an agent UI to a file. Export agent UI… (`export-ui`, File
+  menu and the command palette; no default key) writes the version the
+  focused pane shows to a folder you pick, as `<name>.v<version>.html`
+  like `slinger ui export`, and shows it in the Finder.
 - **App:** an agent UI looks like part of the canvas: its page starts on
   the canvas's paper, in its ink and the system font, light or dark as the
   app's theme is, with no white box before it paints. A page's own styles
@@ -363,6 +367,11 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** an agent UI that is showing takes a new theme from the config
+  at once, keeping its state, instead of when it next opens.
+- **App:** of two broken workspaces whose files name none, a tap on one
+  highlights that one only, and the panes no longer ask for a workspace
+  with an empty name (they keep what they show).
 - **Canvas:** undo and redo survive a restart of the daemon: a page you
   deleted (or anything else you did) before slinger restarted can still be
   undone, and each agent still undoes only its own changes. Canvas files

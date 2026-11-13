@@ -174,6 +174,20 @@ pub fn finder(
     }
 }
 
+/// Saves the agent UI the focused pane of `shared` shows, the version it
+/// shows, in the folder `dir`, named as `ui_export` names it
+/// (`<name>.v<version>.html`), from the bytes the pane already has: the file
+/// written, for the Finder to show; else what the flash says.
+pub fn export_ui(shared: &Shared, dir: &Path) -> Result<String, String> {
+    let pane = shared.panes.focused();
+    let Some(Ok(ui)) = shared.uis.get(&pane.name).filter(|_| pane.kind == panes::Kind::Ui) else {
+        return Err("The focused pane shows no agent UI".into());
+    };
+    let file = dir.join(format!("{}.v{}.html", ui.code.name, ui.code.version));
+    std::fs::write(&file, &ui.code.html).map_err(|e| e.to_string())?;
+    Ok(file.to_string_lossy().into_owned())
+}
+
 /// Opens the PDF or tldraw `file` as a canvas beside the focused pane of
 /// `shared`, a PDF's pages read by `sizes` ([`Canvases::open_pdf`]):
 /// `open-pdf`'s file, or the first PDF or tldraw file of files dropped on

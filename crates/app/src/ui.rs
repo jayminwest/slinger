@@ -43,15 +43,17 @@ pub const SHIM: &str = include_str!("ui/shim.js");
 /// JavaScript template literal: no backtick, backslash or `${`.
 pub const LOOK: &str = include_str!("ui/look.css");
 
-/// The user script each page gets at document start: [`SHIM`], then a
-/// style element, first in the document, that sets the theme's colours as
-/// `--slinger-paper`, `-ink`, `-muted`, `-accent` and `-error`, the colour
-/// scheme its paper calls for, and [`LOOK`]. A page with no styles of its
-/// own sits on the canvas as its ink does.
-pub fn script(theme: &Theme) -> String {
+/// The script that gives a page `theme`'s look, after `first`: [`SHIM`]
+/// for the user script each page gets at document start, nothing in a page
+/// that is open. Its style element (made first in the document, or the one
+/// it has) sets the theme's colours as `--slinger-paper`, `-ink`, `-muted`,
+/// `-accent` and `-error`, the colour scheme its paper calls for, and
+/// [`LOOK`]: a page with no styles of its own sits on the canvas as its ink
+/// does. Run again in an open page, it changes the look to a new theme's.
+pub fn script(theme: &Theme, first: &str) -> String {
     // By hand, not `format!`: hex formatting costs the app its size budget.
-    let mut js = String::from(SHIM);
-    js.push_str("(()=>{const s=document.createElement(\"style\");s.textContent=`:root{");
+    let mut js = String::from(first);
+    js.push_str("(()=>{const d=document,i=\"slinger-look\",s=d.getElementById(i)||d.createElement(\"style\");s.id=i;s.textContent=`:root{");
     let colours = [
         ("paper", theme.background),
         ("ink", theme.text),
@@ -72,7 +74,7 @@ pub fn script(theme: &Theme) -> String {
     let light = u32::from(r) * 299 + u32::from(g) * 587 + u32::from(b) * 114 > 127_500;
     js.push_str(if light { "color-scheme:light}" } else { "color-scheme:dark}" });
     js.push_str(LOOK);
-    js.push_str("`;document.documentElement.prepend(s)})();");
+    js.push_str("`;s.isConnected||d.documentElement.prepend(s)})();");
     js
 }
 
