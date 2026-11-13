@@ -32,7 +32,7 @@ impl Broken {
     pub(super) fn lines(&self, shown: bool, theme: &Theme) -> Vec<Line> {
         let room = WIDTH - 2.0 * PAD - MARK;
         let at = Point { x: 0.0, y: 0.0 };
-        let fits = |line: &str| glyphs::frame(at, line, TEXT, glyphs::UNWRAPPED).width <= room;
+        let fits = |line: &str| glyphs::frame(at, line, TEXT).width <= room;
         let field = self.field.as_ref().map(|f| format!("field: {f}"));
         let (error, muted) = (theme.error, theme.muted);
         let said =

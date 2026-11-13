@@ -22,10 +22,10 @@ fn frame(x: f64, y: f64, w: f64, h: f64) -> Rect {
     Rect { x, y, width: w, height: h }
 }
 
-/// The frame of `text`'s glyphs from `(x, y)`: a text being typed shows,
+/// The frame of `text`'s glyphs in its rows from `(x, y)`: a text being typed shows,
 /// and is sent, in it (the file keeps its own).
 fn glyph(x: f64, y: f64, text: &str) -> Rect {
-    glyphs::frame(pt(x, y), text, TEXT_SIZE, glyphs::UNWRAPPED)
+    glyphs::rows_frame(pt(x, y), text, TEXT_SIZE, glyphs::UNWRAPPED)
 }
 
 fn item(id: u64, shape: Shape) -> Item {
@@ -41,7 +41,12 @@ fn page() -> Vec<Item> {
         item(1, Shape::Box { frame: frame(0.0, 0.0, 100.0, 100.0), width: 2.0 }),
         item(
             2,
-            Shape::Text { frame: frame(300.0, 0.0, 96.0, 31.2), text: "plan".into(), size: 24.0 },
+            Shape::Text {
+                frame: frame(300.0, 0.0, 96.0, 31.2),
+                text: "plan".into(),
+                size: 24.0,
+                column: None,
+            },
         ),
         item(
             3,
@@ -111,7 +116,7 @@ fn put(shape: Shape) -> Change {
 fn a_text_being_typed_says_its_canvas_and_page() {
     let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
     assert_eq!(shapes.typing_on(), None);
-    assert!(down(&mut shapes, &mut ink, Tool::Text, (10.0, 214.4), 0.0, &[]));
+    assert!(down(&mut shapes, &mut ink, Tool::Text, (10.0, 212.0), 0.0, &[]));
     assert_eq!(shapes.typing_on(), Some(HERE));
     assert!(shapes.typed("\u{1b}", &mut ink));
     assert_eq!(shapes.typing_on(), None);
@@ -121,7 +126,7 @@ fn a_text_being_typed_says_its_canvas_and_page() {
 fn a_tap_places_a_text_the_keyboard_types_and_escape_ends_as_one_add() {
     let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
     assert!(!shapes.typed("x", &mut ink), "nothing to type into");
-    assert!(down(&mut shapes, &mut ink, Tool::Text, (10.0, 214.4), 0.0, &[]));
+    assert!(down(&mut shapes, &mut ink, Tool::Text, (10.0, 212.0), 0.0, &[]));
     assert!(shapes.editing());
     assert!(shapes.typed("Hi", &mut ink));
     assert!(shapes.typed("\u{f700}\t", &mut ink), "an arrow key and a tab type nothing");
@@ -142,14 +147,17 @@ fn a_tap_places_a_text_the_keyboard_types_and_escape_ends_as_one_add() {
     assert!(!shapes.editing());
     let text = "Hi\nyou".to_string();
     let frame = glyph(10.0, 200.0, "Hi\nyou");
-    assert_eq!(changes(&mut ink), vec![put(Shape::Text { frame, text, size: TEXT_SIZE })]);
+    assert_eq!(
+        changes(&mut ink),
+        vec![put(Shape::Text { frame, text, size: TEXT_SIZE, column: Some(glyphs::UNWRAPPED) })]
+    );
 }
 
 #[test]
 fn a_paste_goes_in_at_the_end_its_lines_as_lines_and_ends_with_the_text() {
     let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
     assert!(!shapes.pasted("x"), "nothing to paste into");
-    assert!(down(&mut shapes, &mut ink, Tool::Text, (10.0, 214.4), 0.0, &[]));
+    assert!(down(&mut shapes, &mut ink, Tool::Text, (10.0, 212.0), 0.0, &[]));
     assert!(shapes.typed("To do: ", &mut ink));
     assert!(shapes.pasted("buy milk\r\ncall\u{1b} Sam"), "a pasted escape is not a key");
     assert!(shapes.editing(), "the paste did not end the text");
@@ -189,7 +197,12 @@ fn a_tap_outside_ends_the_text_and_is_used_up_a_tap_inside_is_not() {
 /// but the text tool, ends the text and is that tool's press too.
 #[test]
 fn a_press_outside_with_another_tool_ends_the_text_and_starts_its_gesture() {
-    let word = || Shape::Text { frame: glyph(0.0, -14.4, "hi"), text: "hi".into(), size: 24.0 };
+    let word = || Shape::Text {
+        frame: glyph(0.0, -12.0, "hi"),
+        text: "hi".into(),
+        size: 24.0,
+        column: Some(glyphs::UNWRAPPED),
+    };
     for tool in [Tool::Box, Tool::Arrow] {
         let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
         assert!(down(&mut shapes, &mut ink, Tool::Text, (0.0, 0.0), 0.0, &[]));
@@ -225,7 +238,12 @@ fn after_escape_the_first_box_drag_is_a_box() {
     assert_eq!(
         changes(&mut ink),
         vec![
-            put(Shape::Text { frame: glyph(0.0, -14.4, "hi"), text: "hi".into(), size: 24.0 }),
+            put(Shape::Text {
+                frame: glyph(0.0, -12.0, "hi"),
+                text: "hi".into(),
+                size: 24.0,
+                column: Some(glyphs::UNWRAPPED)
+            }),
             put(boxed)
         ]
     );
@@ -249,7 +267,7 @@ fn the_text_tool_on_a_text_edits_it_as_one_set_or_a_remove_when_emptied() {
         canvas: "main".into(),
         page: "p1".into(),
         id: ItemId(2),
-        shape: Shape::Text { frame, text, size: TEXT_SIZE },
+        shape: Shape::Text { frame, text, size: TEXT_SIZE, column: Some(glyphs::UNWRAPPED) },
     };
     assert_eq!(changes(&mut ink), vec![set]);
 
@@ -417,7 +435,7 @@ fn an_arrow_bound_to_a_moved_item_follows_it() {
 #[test]
 fn a_text_being_typed_shows_its_caret_frame_and_hint_sized_for_the_screen() {
     let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
-    assert!(down(&mut shapes, &mut ink, Tool::Text, (10.0, 214.4), 0.0, &[]));
+    assert!(down(&mut shapes, &mut ink, Tool::Text, (10.0, 212.0), 0.0, &[]));
     shapes.typed("Hi", &mut ink);
     let showing = shapes.shown(HERE, Vec::new(), 2.0, &THEME);
     let ids: Vec<ItemId> = showing.iter().map(|i| i.id).collect();
@@ -428,7 +446,7 @@ fn a_text_being_typed_shows_its_caret_frame_and_hint_sized_for_the_screen() {
     let around = text.outset(2.0);
     let dashed = Shape::Panel { frame: around, fill: None, width: 0.5, dashed: true };
     assert_eq!((showing[2].colour, &showing[2].shape), (THEME.muted, &dashed));
-    let Shape::Text { frame: under, text, size } = &showing[3].shape else { panic!() };
+    let Shape::Text { frame: under, text, size, .. } = &showing[3].shape else { panic!() };
     assert_eq!((text.as_str(), *size), ("esc or a tap outside ends the text", 5.5));
     assert_eq!(showing[3].colour, THEME.muted);
     assert_eq!((under.x, under.y), (around.x, around.y + around.height + 2.0), "under the frame");

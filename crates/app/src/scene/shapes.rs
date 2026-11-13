@@ -47,6 +47,9 @@ pub const MIN_DRAG: f64 = 4.0;
 /// The width of the caret after the text being edited, of the dashed frame
 /// around it, and how far out the frame lies, in screen points.
 const CARET: f64 = 2.0;
+/// A text typed here is a canvas text that does not wrap: its lines are
+/// its rows.
+const TYPED: Option<f64> = Some(glyphs::UNWRAPPED);
 const FRAME_LINE: f64 = 1.0;
 const FRAME_PAD: f64 = 4.0;
 /// Under the text being edited, this far below its frame, in screen points.
@@ -101,10 +104,11 @@ struct Editing {
 }
 
 impl Editing {
-    /// The box its glyphs fill, unwrapped: the caret, the dashed frame and
-    /// a press inside follow the glyphs. The file stores its own frame.
+    /// The box its glyphs fill, unwrapped, in the core's rows: the caret,
+    /// the dashed frame and a press inside follow the glyphs. The file
+    /// stores its own frame.
     fn frame(&self) -> Rect {
-        glyphs::frame(self.at, &self.text, self.size, glyphs::UNWRAPPED)
+        glyphs::rows_frame(self.at, &self.text, self.size, glyphs::UNWRAPPED)
     }
 }
 
@@ -158,7 +162,7 @@ impl Shapes {
         }
         let edits = tool == Tool::Text || (double && tool != Tool::Pen);
         if let Some(item) = text_at(items, press.at, reach).filter(|_| edits) {
-            let Shape::Text { frame, text, size } = &item.shape else { return true };
+            let Shape::Text { frame, text, size, .. } = &item.shape else { return true };
             let editing = Editing {
                 canvas: canvas.to_string(),
                 page: page.to_string(),
@@ -178,7 +182,8 @@ impl Shapes {
         let arrow = match tool {
             Tool::Text => {
                 // The tap is at the middle of the first line's left end.
-                let half = glyphs::frame(press.at, "", TEXT_SIZE, glyphs::UNWRAPPED).height / 2.0;
+                let half =
+                    glyphs::rows_frame(press.at, "", TEXT_SIZE, glyphs::UNWRAPPED).height / 2.0;
                 self.editing = Some(Editing {
                     canvas: canvas.to_string(),
                     page: page.to_string(),
@@ -294,7 +299,7 @@ impl Shapes {
         let Some(editing) = self.editing.take() else { return false };
         let blank = editing.text.trim().is_empty();
         let (frame, size) = (editing.frame(), editing.size);
-        let shape = Shape::Text { frame, text: editing.text, size };
+        let shape = Shape::Text { frame, text: editing.text, size, column: TYPED };
         let (canvas, page) = (editing.canvas, editing.page);
         match editing.item {
             None if blank => {}
@@ -331,7 +336,7 @@ impl Shapes {
                 items.retain(|i| i.id != *id);
             }
             let (frame, text, size) = (editing.frame(), editing.text.clone(), editing.size);
-            let shape = Shape::Text { frame, text: text.clone(), size };
+            let shape = Shape::Text { frame, text: text.clone(), size, column: TYPED };
             items.push(Cow::Owned(Item { id: EDITING, colour: editing.colour, shape }));
             let width = CARET / zoom;
             let shape = Shape::Caret { frame, text, size, width };
@@ -355,7 +360,7 @@ pub fn label(id: ItemId, text: String, colour: Rgb, at: Point, zoom: f64) -> Ite
     let count = u32::try_from(text.chars().count()).map_or(f64::from(u32::MAX), f64::from);
     // A cell of the full size a character: the line never wraps.
     let frame = Rect { x: at.x, y: at.y, width: count.max(1.0) * size, height: label_height(zoom) };
-    Item { id, colour, shape: Shape::Text { frame, text, size } }
+    Item { id, colour, shape: Shape::Text { frame, text, size, column: None } }
 }
 
 /// How tall a [`label`] is at `zoom`, in canvas units.

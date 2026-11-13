@@ -121,17 +121,90 @@ fn text_draws_at_its_own_size() {
 }
 
 #[test]
-fn a_character_the_font_lacks_draws_as_a_question_mark() {
-    assert_eq!(glyph('\u{4e00}'), glyph('?'));
-    assert_ne!(glyph('é'), glyph('?'));
-    assert_ne!(glyph('λ'), glyph('?'));
+fn a_character_the_font_lacks_draws_as_an_empty_box_not_a_question_mark() {
+    for c in ['\u{4e00}', '漢', '한', '😀', '🚀', '\u{10FFFF}'] {
+        assert_eq!(glyph(c), glyph::TOFU, "{c:?}");
+    }
+    assert_ne!(glyph::TOFU, glyph('?'));
+    assert_ne!(glyph('é'), glyph::TOFU);
+    assert_ne!(glyph('λ'), glyph::TOFU);
+}
+
+#[test]
+fn an_unknown_character_takes_one_cell_like_any_other() {
+    let size = |t| crate::render::text_size(t, usize::MAX, 24.0);
+    assert_eq!(size("a漢😀b"), size("abcd"));
+}
+
+#[test]
+fn japanese_beyond_hiragana_draws_as_its_sound_or_its_ascii() {
+    assert_eq!(glyph('カ'), glyph('か'), "katakana as the hiragana of its sound");
+    assert_eq!(glyph('ヴ'), glyph('ゔ'));
+    assert_eq!(glyph('Ａ'), glyph('A'), "full-width as ASCII");
+    assert_eq!(glyph('～'), glyph('~'));
+    assert_eq!(glyph('。'), glyph('.'));
+    assert_eq!(glyph('「'), glyph('['));
+    assert_eq!(glyph('\u{3000}'), glyph(' '));
+    assert_eq!(glyph('ー'), glyph('—'));
+}
+
+#[test]
+fn an_accented_letter_no_set_has_draws_as_its_letter() {
+    let word = |w: &str| w.chars().map(glyph).collect::<Vec<_>>();
+    assert_eq!(word("Łódź"), word("Lódz"));
+    assert_eq!(word("Čeština Ő ſ"), word("Cestina O s"));
+    assert_eq!(word("Tiếng Việt Ỹ"), word("Tieng Viet Y"));
+    assert_ne!(glyph('Ỳ'), glyph('Y'), "font8x8 has its own Ỳ");
+}
+
+/// The Russian alphabet, capitals then small letters.
+const RUSSIAN: &str = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя";
+
+#[test]
+fn russian_draws_every_letter_and_no_two_alike() {
+    // slinger-caf6ba: Cyrillic drew as empty boxes.
+    let mut seen = std::collections::BTreeSet::new();
+    for c in RUSSIAN.chars() {
+        assert_ne!(glyph(c), glyph::TOFU, "{c:?} has no glyph");
+        assert!(seen.insert(glyph(c)), "{c:?} draws like another letter");
+    }
+    assert_eq!(seen.len(), 66);
+}
+
+#[test]
+fn a_cyrillic_letter_shaped_like_a_latin_one_draws_as_it() {
+    let word = |w: &str| w.chars().map(glyph).collect::<Vec<_>>();
+    assert_eq!(word("АВЕКМНОРСТХ"), word("ABEKMHOPCTX"));
+    assert_eq!(word("аеорсух Ёё"), word("aeopcyx Ëë"));
+    assert_eq!(word("ГПФЗ"), word("ΓΠΦ3"));
+    assert_ne!(glyph('И'), glyph('N'));
+    assert_ne!(glyph('У'), glyph('Y'));
+}
+
+#[test]
+fn russian_takes_one_cell_a_letter() {
+    let size = |t| crate::render::text_size(t, usize::MAX, 24.0);
+    assert_eq!(size("Привет, мир"), size("Privet, mir"));
+}
+
+#[test]
+fn emoji_people_type_as_marks_draw_as_the_mark() {
+    assert_eq!(glyph('✅'), glyph('☑'));
+    assert_eq!(glyph('❌'), glyph('✗'));
+    assert_eq!(glyph('❗'), glyph('!'));
+    assert_eq!(glyph('➡'), glyph('→'));
+    assert_eq!(glyph('⇒'), glyph('→'));
+    assert_eq!(glyph('🔴'), glyph('●'));
+    assert_eq!(glyph('⭐'), glyph('★'));
 }
 
 #[test]
 fn typography_people_and_agents_type_has_a_glyph() {
-    let typed = "—–‐‑−‘’‚“”„′″‹›…•←→↑↓↔✓✔ é ü ñ ç ß ¿ ¡ « » ° ± × ÷ © λ π Ω ┌─┐ █ ░ あ ≤ ≥";
+    let typed = "—–‐‑−‘’‚“”„′″‹›…•←→↑↓↔✓✔ é ü ñ ç ß ¿ ¡ « » ° ± × ÷ © λ π Ω ┌─┐ █ ░ あ ≤ ≥ \
+                 ★☆●○■□☐☑☒✗▲▶▼◀◆♥⚠≠≈∞";
     for c in typed.chars() {
         assert_ne!(glyph(c), glyph('?'), "{c:?} (U+{:04X}) draws as `?`", u32::from(c));
+        assert_ne!(glyph(c), glyph::TOFU, "{c:?} (U+{:04X}) has no glyph", u32::from(c));
     }
 }
 

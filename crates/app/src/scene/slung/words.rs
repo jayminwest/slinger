@@ -34,7 +34,7 @@ pub(super) fn cost(tokens: Option<u64>) -> String {
 pub(super) fn page(answer: &str, width: f64, agent: &str) -> Vec<String> {
     let room = width - 2.0 * PAD;
     let at = Point { x: 0.0, y: 0.0 };
-    let fits = |line: &str| glyphs::frame(at, line, TEXT, glyphs::UNWRAPPED).width <= room;
+    let fits = |line: &str| glyphs::frame(at, line, TEXT).width <= room;
     let mut lines = wrap(answer, &fits);
     if lines.len() > MOST {
         lines.truncate(MOST - 1);

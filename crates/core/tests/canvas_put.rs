@@ -367,3 +367,17 @@ fn what_the_agent_gives_wins_and_beside_no_writing_the_page_decides() {
     let placed = log.put(&scout(), AT, "i2", &Put::Text("plain".into())).unwrap();
     assert_eq!(look_of(&log, &placed.item), ("#000000".into(), 240));
 }
+
+#[test]
+fn a_lone_drawing_apart_from_the_writing_does_not_size_the_page() {
+    // slinger-a6c4ec: a frame drawn alone counted as a line of its own
+    // height, and the page's size came out between it and the writing.
+    let mut ops = note();
+    ops.extend([letter(20000, 0, 3000), bx(9000, 0, 100, 100)]);
+    let mut log = log_of(&json!(ops));
+    let placed = log.put(&scout(), AT, "b9", &Put::Text("page".into())).unwrap();
+    assert_eq!(look_of(&log, &placed.item), ("#cc0000".into(), 620), "the note's lines alone");
+    // Beside the frame itself it is the only mark, and gives its height.
+    let placed = log.put(&scout(), AT, "i8", &Put::Text("frame".into())).unwrap();
+    assert_eq!(look_of(&log, &placed.item).1, 3020);
+}

@@ -11,8 +11,8 @@ use std::collections::HashMap;
 use std::f64::consts::FRAC_PI_6;
 use std::path::PathBuf;
 
-use super::button;
 use super::sidebar::Status;
+use super::{button, glyphs};
 use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect, Size, Viewport};
 
@@ -34,8 +34,10 @@ pub struct Item {
 pub enum Shape {
     /// A pen line through `points` at a constant width.
     Stroke { points: Vec<Point>, width: f64 },
-    /// Text set inside `frame`, `size` points high.
-    Text { frame: Rect, text: String, size: f64 },
+    /// Text set inside `frame`, `size` points high. A canvas text has the
+    /// `column` it is stored in, and is laid out in the core's rows
+    /// ([`glyphs::rows`]); chrome's text (`None`) in the system font's own.
+    Text { frame: Rect, text: String, size: f64, column: Option<f64> },
     /// The outline of `frame`.
     Box { frame: Rect, width: f64 },
     /// A line from `from` to `to`, with its head at `to`. `bound` holds the
@@ -89,13 +91,15 @@ pub enum Mark {
         width: f64,
     },
     /// `text` laid out `size` canvas points high in a column `width` canvas
-    /// points wide, drawn from `at` at `zoom` times that size. The layout is
-    /// in canvas points so a pan or a zoom never lays the text out again.
+    /// points wide, its lines `line` apart (0: the font's own), drawn from `at` at
+    /// `zoom` times that size. The layout is in canvas points so a pan or a
+    /// zoom never lays the text out again.
     Text {
         at: Point,
         width: f64,
         text: String,
         size: f64,
+        line: f64,
         zoom: f64,
     },
     Box {
@@ -160,6 +164,7 @@ pub enum Mark {
         column: f64,
         text: String,
         size: f64,
+        line: f64,
         zoom: f64,
         width: f64,
     },
@@ -363,8 +368,8 @@ impl Shape {
             Self::Stroke { points, width } => {
                 Self::Stroke { points: points.iter().map(at).collect(), width: *width }
             }
-            Self::Text { frame, text, size } => {
-                Self::Text { frame: shift(frame), text: text.clone(), size: *size }
+            Self::Text { frame, text, size, column } => {
+                Self::Text { frame: shift(frame), text: text.clone(), size: *size, column: *column }
             }
             Self::Box { frame, width } => Self::Box { frame: shift(frame), width: *width },
             Self::Button { frame, status } => Self::Button { frame: shift(frame), status: *status },
@@ -397,13 +402,19 @@ impl Shape {
                 let start = points.first().map_or(Point { x: 0.0, y: 0.0 }, |p| view.to_screen(*p));
                 Mark::Stroke { start, curves, width: width * zoom }
             }
-            Self::Text { frame, text, size } => Mark::Text {
-                at: view.to_screen(Point { x: frame.x, y: frame.y }),
-                width: frame.width,
-                text: text.clone(),
-                size: *size,
-                zoom,
-            },
+            Self::Text { frame, text, size, column } => {
+                let (width, text, size, line) = match column {
+                    Some(c) => (
+                        glyphs::UNWRAPPED,
+                        glyphs::rows(text, *size, *c),
+                        size * glyphs::FONT,
+                        *size,
+                    ),
+                    None => (frame.width, text.clone(), *size, 0.0),
+                };
+                let at = view.to_screen(Point { x: frame.x, y: frame.y });
+                Mark::Text { at, width, text, size, line, zoom }
+            }
             Self::Box { frame, width } => {
                 Mark::Box { frame: view.rect_to_screen(*frame), width: width * zoom }
             }
@@ -438,11 +449,13 @@ impl Shape {
                 width: width * zoom,
                 dashed: *dashed,
             },
+            // The caret is in a canvas text being typed, in its rows.
             Self::Caret { frame, text, size, width } => Mark::Caret {
                 at: view.to_screen(Point { x: frame.x, y: frame.y }),
-                column: frame.width,
+                column: glyphs::UNWRAPPED,
                 text: text.clone(),
-                size: *size,
+                size: size * glyphs::FONT,
+                line: *size,
                 zoom,
                 width: width * zoom,
             },

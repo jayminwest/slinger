@@ -38,7 +38,7 @@ fn text(id: u64, r: Rect) -> Item {
 }
 
 fn sized(id: u64, r: Rect, size: f64) -> Item {
-    item(id, Shape::Text { frame: r, text: "hi".into(), size })
+    item(id, Shape::Text { frame: r, text: "hi".into(), size, column: None })
 }
 
 fn arrow(id: u64, from: Point, to: Point, bound: [Option<ItemId>; 2]) -> Item {

@@ -72,7 +72,7 @@ fn the_pill_names_the_profile_the_agent_s_process_says_it_runs_under() {
     assert!(slung.heard(&look, now), "restarted under another since the sidebar heard");
     let line = &slung.marks(&T, &[view(true)], now).all()[0];
     assert_eq!(line.text, "● scout (look) working · 0s");
-    let measured = glyphs::frame(Point { x: 0.0, y: 0.0 }, &line.text, TEXT, glyphs::UNWRAPPED);
+    let measured = glyphs::frame(Point { x: 0.0, y: 0.0 }, &line.text, TEXT);
     assert_eq!(line.frame.width, (measured.width + 2.0 * PAD).max(HIGH), "as wide as it says");
     assert!(line.frame.width > plain, "{} after {plain}", line.frame.width);
     assert!(slung.heard(&working(1), now), "under none now");
@@ -216,7 +216,7 @@ fn a_long_answer_shows_its_start_and_where_the_rest_is() {
     assert_eq!(lines[MOST], "tap to close");
     let at = Point { x: 0.0, y: 0.0 };
     for line in &lines[..MOST - 1] {
-        let wide = glyphs::frame(at, line, TEXT, glyphs::UNWRAPPED).width;
+        let wide = glyphs::frame(at, line, TEXT).width;
         assert!(wide <= PANEL - 2.0 * PAD, "each line fits as measured: {line:?}");
         assert!(wide > PANEL - 2.0 * PAD - 40.0, "and fills the panel: {line:?}");
     }
@@ -312,7 +312,7 @@ fn the_pill_stands_at_the_pane_s_top_right_its_text_on_its_fill() {
     // words in it both ways, and rounds its corners as a field's.
     assert_eq!((pill.fill, pill.frame.height), (Some(style::panel(&T)), HIGH));
     assert_eq!((line.align, line.radius, line.size), (Align::Centre, style::FIELD_RADIUS, TEXT));
-    let words = glyphs::frame(Point { x: 0.0, y: 0.0 }, &pill.text, TEXT, glyphs::UNWRAPPED);
+    let words = glyphs::frame(Point { x: 0.0, y: 0.0 }, &pill.text, TEXT);
     assert_eq!(pill.frame.width, words.width + 2.0 * PAD, "as wide as its words measure");
     assert!(pill.frame.width >= HIGH && pill.text.starts_with("● scout working"));
 

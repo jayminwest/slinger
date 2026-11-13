@@ -438,7 +438,7 @@ impl Slung {
             Stage::Answered(Some(answer)) if out.reading && out.items.is_empty() => Some(answer),
             _ => None,
         };
-        let measured = glyphs::frame(Point { x: 0.0, y: 0.0 }, &text, TEXT, glyphs::UNWRAPPED);
+        let measured = glyphs::frame(Point { x: 0.0, y: 0.0 }, &text, TEXT);
         let wide = (measured.width + 2.0 * PAD).max(HIGH);
         let block = if answer.is_some() { wide.max(PANEL) } else { wide };
         let block = block.min(view.frame.width - 2.0 * GAP).max(0.0);

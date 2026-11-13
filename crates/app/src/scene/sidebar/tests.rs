@@ -425,7 +425,7 @@ fn a_broken_workspace_shows_why_the_field_and_the_hint_wrapped_to_the_sidebar() 
     let room = WIDTH - PAD;
     let row = |text: &str| rows.iter().find(|r| r.label.text == text).unwrap().label.frame;
     for text in &said {
-        let fits = glyphs::frame(Point { x: 0.0, y: 0.0 }, text, 13.0, glyphs::UNWRAPPED);
+        let fits = glyphs::frame(Point { x: 0.0, y: 0.0 }, text, 13.0);
         assert!(row(text).x + fits.width <= room, "{text:?} fits the sidebar");
     }
 }
