@@ -264,8 +264,9 @@ bullet with the area in bold.
   agent puts without a colour or size takes the colour of your ink there and
   the height of your lines of writing, so it shows on a dark page and next
   to large handwriting; boxes, ink and arrows take the colour too. Beside
-  something that is not your writing, it matches your writing on that page;
-  on a page with none, it is black and 240 as before. A colour or size the
+  something that is not your writing, it matches your writing on that page
+  (a large drawing apart from it, such as a frame, does not count toward
+  the size); on a page with none, it is black and 240 as before. A colour or size the
   agent gives still wins.
 - **Agents:** the first sling to an agent now ends its note with
   `slinger guide`, so the agent knows where to find every other command
@@ -340,6 +341,12 @@ bullet with the area in bold.
 - **App:** the eraser no longer slings when it touches a "send to agent"
   button. It passes over the button, as before; select the button to
   delete it.
+- **App:** a text on the canvas now breaks into the same lines, a line
+  every size, as the box `slinger canvas put` reports and the picture
+  `canvas crop` draws. Before, the app set an agent's long text in fewer,
+  shorter lines, so notes you wrote below it landed inside its box and on
+  top of it in the agent's picture. Canvas text is a little smaller and
+  its lines a little closer than before.
 - **App:** the sling's pill keeps counting, and a short message still goes
   away on time, while you resize the window or have a menu open. Before,
   both froze until you let go.
@@ -514,8 +521,8 @@ bullet with the area in bold.
   dashes, curly quotes, an ellipsis, bullets, arrows, check marks, box
   drawing and blocks as themselves, instead of as `?`. It also draws
   katakana (as the hiragana of the same sound), full-width letters and
-  Japanese punctuation, Central European and Vietnamese letters (without
-  their accents), stars, circles, squares, ballot boxes, triangles and the
+  Japanese punctuation, Russian, Central European and Vietnamese letters
+  (the last two without their accents), stars, circles, squares, ballot boxes, triangles and the
   emoji people type as marks (✅ ❌ ❗ ➡ 🔴 ⭐). A character it still has no
   glyph for (Chinese, Korean, most emoji) is drawn as an empty box, not as
   `?`, so it no longer reads as a question mark that was typed.

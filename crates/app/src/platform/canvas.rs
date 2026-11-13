@@ -27,11 +27,14 @@ use std::rc::Rc;
 
 use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
-use objc2::{AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send};
+use objc2::{
+    AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, class, define_class, msg_send,
+};
 use objc2_app_kit::{
     NSAffineTransformNSAppKitAdditions, NSBezierPath, NSCursor, NSFont, NSFontAttributeName,
     NSForegroundColorAttributeName, NSGraphicsContext, NSImage, NSLayoutManager, NSLineCapStyle,
-    NSLineJoinStyle, NSRectClip, NSRectFill, NSResponder, NSTextContainer, NSTextStorage, NSView,
+    NSLineJoinStyle, NSMutableParagraphStyle, NSParagraphStyleAttributeName, NSRectClip,
+    NSRectFill, NSResponder, NSTextContainer, NSTextStorage, NSView,
 };
 use objc2_foundation::{
     NSAffineTransform, NSAttributedString, NSAttributedStringKey, NSDictionary,
@@ -43,6 +46,7 @@ use crate::config::Rgb;
 use crate::layout::{Point, Rect, Size};
 use crate::scene::canvas::{Draw, ItemId, Mark, Scene};
 use crate::scene::cursor::Cursor;
+use crate::scene::glyphs;
 use crate::scene::grid::{self, Grid};
 
 /// How tall a text column may grow, in canvas points: text is never cut.
@@ -60,8 +64,9 @@ pub struct Ivars {
     cursor: RefCell<Option<(Cursor, Retained<NSCursor>)>>,
 }
 
-/// What a text is laid out from: its words, column width, size and colour.
-type TextOf = (String, f64, f64, Rgb);
+/// What a text is laid out from: its words, column width, size, the
+/// height of its lines (0: the font's own) and colour.
+type TextOf = (String, f64, f64, f64, Rgb);
 
 /// One text laid out, and what it was laid out from.
 struct Laid {
@@ -222,20 +227,20 @@ fn paint(scene: &Scene, dirty: NSRect, texts: &mut HashMap<ItemId, Laid>) {
                 }
                 path.stroke();
             }
-            Mark::Text { at, width, text, size, zoom } => {
-                let from = (text.clone(), *width, *size, draw.colour);
+            Mark::Text { at, width, text, size, line, zoom } => {
+                let from = (text.clone(), *width, *size, *line, draw.colour);
                 draw_text(laid(texts, draw.id, from), *at, *zoom);
             }
             Mark::Live { frame, name, at, size, zoom, .. } => {
                 NSBezierPath::bezierPathWithRect(ns_rect(*frame)).stroke();
-                let from = (name.clone(), frame.width / zoom, *size, draw.colour);
+                let from = (name.clone(), frame.width / zoom, *size, 0.0, draw.colour);
                 draw_text(laid(texts, draw.id, from), *at, *zoom);
             }
             Mark::Pdf { frame, page, shown, file, at, size, zoom, .. } => {
                 let drawn = file.as_deref().is_some_and(|f| pdf::draw(f, *page, *shown, *frame));
                 if !drawn {
                     NSBezierPath::bezierPathWithRect(ns_rect(*frame)).stroke();
-                    let from = ("PDF".to_string(), frame.width / zoom, *size, draw.colour);
+                    let from = ("PDF".to_string(), frame.width / zoom, *size, 0.0, draw.colour);
                     draw_text(laid(texts, draw.id, from), *at, *zoom);
                 }
             }
@@ -246,7 +251,7 @@ fn paint(scene: &Scene, dirty: NSRect, texts: &mut HashMap<ItemId, Laid>) {
                     NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(r, corner, corner);
                 path.setLineWidth(*width);
                 path.stroke();
-                let from = (label.clone(), frame.width / zoom, *size, draw.colour);
+                let from = (label.clone(), frame.width / zoom, *size, 0.0, draw.colour);
                 draw_text(laid(texts, draw.id, from), *at, *zoom);
             }
             Mark::Panel { frame, fill, width, dashed } => {
@@ -266,8 +271,8 @@ fn paint(scene: &Scene, dirty: NSRect, texts: &mut HashMap<ItemId, Laid>) {
                     path.stroke();
                 }
             }
-            Mark::Caret { at, column, text, size, zoom, width } => {
-                let from = (text.clone(), *column, *size, draw.colour);
+            Mark::Caret { at, column, text, size, line, zoom, width } => {
+                let from = (text.clone(), *column, *size, *line, draw.colour);
                 let end = end_of(laid(texts, draw.id, from));
                 let bar = Rect {
                     x: at.x + end.origin.x * zoom,
@@ -407,18 +412,27 @@ fn line(width: f64) -> Retained<NSBezierPath> {
     path
 }
 
-/// Lays a text out in the system font, wrapped to its column, in canvas points.
+/// Lays a text out in the system font, wrapped to its column, its lines
+/// as tall as it says, in canvas points.
 fn lay_out(from: TextOf) -> Laid {
-    let (text, width, size, colour) = &from;
+    let (text, width, size, line, colour) = &from;
     let font = NSFont::systemFontOfSize(*size);
     let ink = color(*colour);
-    // SAFETY: the two keys are AppKit's own statics.
-    let keys: [&NSAttributedStringKey; 2] =
-        unsafe { [NSFontAttributeName, NSForegroundColorAttributeName] };
-    let values: [&AnyObject; 2] = [&font, &ink];
+    // A line height of 0 is the font's own.
+    // SAFETY: `new` on the class makes an `NSMutableParagraphStyle`, ours.
+    let style: Retained<NSMutableParagraphStyle> =
+        unsafe { msg_send![class!(NSMutableParagraphStyle), new] };
+    style.setMinimumLineHeight(*line);
+    style.setMaximumLineHeight(*line);
+    // SAFETY: the three keys are AppKit's own statics.
+    let keys: [&NSAttributedStringKey; 3] = unsafe {
+        [NSFontAttributeName, NSForegroundColorAttributeName, NSParagraphStyleAttributeName]
+    };
+    let values: [&AnyObject; 3] = [&font, &ink, &style];
     let attributes = NSDictionary::from_slices(&keys, &values);
     let string = NSString::from_str(text);
-    // SAFETY: each value is the type its key takes: an `NSFont` and an `NSColor`.
+    // SAFETY: each value is the type its key takes: an `NSFont`, an
+    // `NSColor` and an `NSParagraphStyle`.
     let styled = unsafe {
         NSAttributedString::initWithString_attributes(
             NSAttributedString::alloc(),
@@ -438,12 +452,12 @@ fn lay_out(from: TextOf) -> Laid {
     Laid { from, manager, container, _storage: storage }
 }
 
-/// The box the glyphs of `text` fill, laid out `size` high in a column
-/// `column` wide, as a canvas view lays it out to draw it: the
+/// The box the glyphs of `text` fill, laid out `size` high and broken only
+/// at its line ends, as a canvas view lays it out to draw it: the
 /// [`glyphs::Measure`](crate::scene::glyphs::Measure) the scene's text
 /// frames come from.
-pub(super) fn measure(text: &str, size: f64, column: f64) -> Size {
-    let laid = lay_out((text.to_string(), column, size, Rgb { r: 0, g: 0, b: 0 }));
+pub(super) fn measure(text: &str, size: f64) -> Size {
+    let laid = lay_out((text.to_string(), glyphs::UNWRAPPED, size, 0.0, Rgb { r: 0, g: 0, b: 0 }));
     laid.manager.ensureLayoutForTextContainer(&laid.container);
     let used = laid.manager.usedRectForTextContainer(&laid.container);
     Size { width: used.size.width, height: used.size.height }

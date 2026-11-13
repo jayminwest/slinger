@@ -437,8 +437,9 @@ mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              scene items, and writes the pen's changes as `canvas_apply`
              operations, and the frame a typed text is stored with (the
              core's render cells at the text's size, `size` left out at the
-             usual 24 and `null` in a `set`). A text item reads in with the frame its
-             glyphs fill (scene/glyphs.rs), never the stored width, so every
+             usual 24 and `null` in a `set`). A text item reads in with its
+             stored column and the frame its glyphs fill in the core's rows
+             (scene/glyphs.rs), never the stored width, so every
              hit test, the lasso, the selection and the caret follow the
              glyphs, texts saved earlier included. Keeps the canvas's pages,
              with their names. Items carried to another page are `add`s
@@ -635,10 +636,12 @@ scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
              the top centre of the focused pane for 0.8 s. The pill says when
              it goes; platform sets one timer for then (no repeating
              redraw). Pure.
-scene/glyphs.rs  the box a text's glyphs fill, laid out in its column as a
-             canvas view draws it: measured by a function platform hands in
-             on the main thread (kept per text, size and column), else an
-             estimate of the system font (tests). Pure.
+scene/glyphs.rs  the box a text's glyphs fill, as a canvas view draws it:
+             measured by a function platform hands in on the main thread
+             (kept per text and size), else an estimate of the system font
+             (tests). A canvas text is drawn in the core's rows for its
+             stored column, a size apart (the box `canvas put` reports and
+             a crop draws), in the system font at 0.83 of its size. Pure.
 scene/paste.rs  the clipboard as the app sees it (`Clip`: plain text, a
              canvas's items) and the edits no text field takes (`Edit`:
              cut, copy, paste); pasted text made fit to type: line ends as
