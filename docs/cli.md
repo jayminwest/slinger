@@ -314,7 +314,8 @@ Claude Code session of your own answers the agent's slings with its own
 tools and permissions (the skill `slinger-listen` runs the loop). The sling
 names its agent on line 1 (`agent=<NAME>`): the listener passes it as
 `--agent` to `canvas put` and `status set`, then listens again. `session
-show` has `deliver` as `listen` while slings wait or a listener is there,
+show` has `deliver` as `listen` while a listener is there, or slings wait
+and no process runs,
 with `listening` (whether one is there: it asks, asked within 10 seconds, or
 works on a sling it took, until it sets `done` or `blocked`) and `pending`
 (the slings that wait, and the one it works on). `--pid` names the process
