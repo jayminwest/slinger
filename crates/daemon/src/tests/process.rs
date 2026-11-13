@@ -182,7 +182,7 @@ fn a_session_starts_within_its_workspaces_limits() {
     let fixed = format!(
         "--settings {hooks} --print --input-format stream-json --output-format stream-json"
     );
-    let denied = "--permission-mode dontAsk --tools";
+    let denied = "--permission-mode dontAsk";
 
     let plain = open_with_agent(&client, &projects, "plain", "scout");
     client.session_start("plain").unwrap();
@@ -190,8 +190,8 @@ fn a_session_starts_within_its_workspaces_limits() {
     assert_eq!(
         wait_lines(&plain.join("args.txt"), 1),
         [format!(
-            "{fixed} --setting-sources project,local --strict-mcp-config {denied} \
-         Read,Glob,Grep,Bash,Edit,Write --allowedTools Bash(slinger *) Edit Write --verbose --session-id {id}"
+            "{fixed} --setting-sources project,local {denied} \
+         --allowedTools Bash(slinger *) Edit Write --verbose --session-id {id}"
         )]
     );
 
@@ -213,8 +213,8 @@ fn a_session_starts_within_its_workspaces_limits() {
     assert_eq!(
         wait_lines(&wide.join("args.txt"), 1),
         [format!(
-            "{fixed} --setting-sources user,project,local --strict-mcp-config {denied} \
-         Read,Glob,Grep,Bash,Edit,Write --allowedTools Bash(slinger *) Edit Write Bash(git *) \
+            "{fixed} --setting-sources user,project,local {denied} \
+         --allowedTools Bash(slinger *) Edit Write Bash(git *) \
          --add-dir /srv/data /srv/docs --verbose --session-id {id}"
         )]
     );

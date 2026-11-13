@@ -250,6 +250,13 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Agents:** a workspace's agent now has every Claude Code tool (subagents,
+  to-do lists, skills, web search and the rest) and the MCP servers its
+  settings name, as a session you start by hand does. What it may do without
+  asking is unchanged: the `slinger` CLI, read-only commands and writing
+  files, plus the rules in `agent.tools` (add `"WebFetch"` or
+  `"mcp__github"` there to let it use those). A profile still limits a
+  session to the tools its rules name.
 - **Canvas:** an agent's reply matches the writing it goes beside. Text an
   agent puts without a colour or size takes the colour of your ink there and
   the height of your lines of writing, so it shows on a dark page and next
