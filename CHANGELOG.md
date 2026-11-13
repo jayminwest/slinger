@@ -47,6 +47,19 @@ bullet with the area in bold.
   drop on the window: the board becomes a canvas named after the file, its
   pages and items as `slinger canvas import` makes them, in a pane beside
   the focused one. A name already taken says so.
+- **App:** start a workspace's agent without the CLI. Start agent
+  (`start-agent`, ⌥⌘A) is in the Tools menu and the command palette: it
+  starts the agent of the workspace the window shows, with its own limits,
+  in its last conversation. While that agent is not running, the sidebar
+  says so and shows a Start agent line under it; tap it to start it.
+- **App:** stop a workspace's agent without the CLI. Stop agent
+  (`stop-agent`, ⌥⌘.) is in the Tools menu and the command palette: it ends
+  the process of the agent of the workspace the window shows. Its
+  conversation stays, and Start agent picks it up again.
+- **App:** start a workspace's agent afresh without the CLI. Restart agent
+  in a new conversation (`restart-agent`, ⌥⇧⌘A) is in the Tools menu and the
+  command palette: it stops the agent of the workspace the window shows, if
+  it runs, and starts it in a new conversation.
 - **App:** a workspace whose `slinger-workspace.toml` is broken says why in
   the sidebar: under its name, a red ✗ and the error, the field at fault,
   and the hint, wrapped to fit. A file that names no workspace shows its

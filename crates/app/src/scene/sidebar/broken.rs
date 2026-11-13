@@ -6,6 +6,7 @@
 //! agent.
 
 use super::{Line, MARK, PAD, WIDTH};
+use crate::commands::Command;
 use crate::config::Theme;
 use crate::layout::Point;
 use crate::scene::{glyphs, slung};
@@ -40,7 +41,8 @@ impl Broken {
         let mut lines = Vec::new();
         for (i, (text, colour)) in said.into_iter().enumerate() {
             if i == 2 && shown {
-                lines.push(Line { close: true, ..Line::under(CLOSE.into(), theme.focus) });
+                let close = Line::under(CLOSE.into(), theme.focus);
+                lines.push(Line { run: Some(Command::CloseWorkspace), ..close });
             }
             for line in text.map(|t| slung::wrap(t, &fits)).unwrap_or_default() {
                 lines.push(Line::under(line, colour));

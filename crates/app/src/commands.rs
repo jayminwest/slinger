@@ -120,6 +120,16 @@ pub enum Command {
     CloseWorkspace,
     /// Show the folder of the workspace the window shows in the Finder.
     ShowWorkspaceFolder,
+    /// Start the agent of the workspace the window shows, with its own
+    /// limits, in its last conversation; one that runs stays as it is.
+    StartAgent,
+    /// Stop the agent of the workspace the window shows: its process ends,
+    /// and its conversation stays for the next start.
+    StopAgent,
+    /// Start the agent of the workspace the window shows in a new
+    /// conversation: a running process ends first, and its last
+    /// conversation is dropped.
+    RestartAgent,
 }
 
 /// How many commands there are.
@@ -127,7 +137,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 57] = [
+    pub const ALL: [(Command, &str); 60] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -185,6 +195,9 @@ impl Command {
         (Command::OpenWorkspace, "open-workspace"),
         (Command::CloseWorkspace, "close-workspace"),
         (Command::ShowWorkspaceFolder, "show-workspace-folder"),
+        (Command::StartAgent, "start-agent"),
+        (Command::StopAgent, "stop-agent"),
+        (Command::RestartAgent, "restart-agent"),
     ];
 
     /// The command called `name` in the config file.
@@ -361,6 +374,9 @@ impl Default for Keymap {
             on(CMD | SHIFT, 'o'),
             on(CMD | ALT, 'w'),
             on(CMD | ALT | SHIFT, 'r'),
+            on(CMD | ALT, 'a'),
+            on(CMD | ALT, '.'),
+            on(CMD | ALT | SHIFT, 'a'),
         ])
     }
 }

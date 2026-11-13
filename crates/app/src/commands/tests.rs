@@ -146,12 +146,20 @@ fn every_command_has_a_title_and_a_group_in_the_list() {
         assert!(Command::ALL.iter().any(|(c, _)| c.group() == group), "{group:?} is empty");
     }
     assert_eq!(Command::SplitRight.title(), "Split right");
-    assert_eq!(Command::PickTool.group(), Group::PopUps);
     assert_eq!(Group::PopUps.title(), "Pop-ups");
-    assert_eq!(Command::OpenPdf.group(), Group::File);
-    assert_eq!(Command::OpenWorkspace.group(), Group::File);
-    assert_eq!(Command::CloseWorkspace.group(), Group::File);
-    assert_eq!(Command::ShowWorkspaceFolder.group(), Group::File);
+    let groups = [
+        (Command::PickTool, Group::PopUps),
+        (Command::OpenPdf, Group::File),
+        (Command::OpenWorkspace, Group::File),
+        (Command::CloseWorkspace, Group::File),
+        (Command::ShowWorkspaceFolder, Group::File),
+        (Command::StartAgent, Group::Sling),
+        (Command::StopAgent, Group::Sling),
+        (Command::RestartAgent, Group::Sling),
+    ];
+    for (command, group) in groups {
+        assert_eq!(command.group(), group, "{command:?}");
+    }
 }
 
 #[test]

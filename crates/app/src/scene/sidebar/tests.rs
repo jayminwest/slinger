@@ -464,12 +464,17 @@ fn close_takes_the_workspace_the_window_shows_and_the_first_shows_next() {
 }
 
 #[test]
-fn dir_is_the_shown_workspace_s_folder_the_first_s_until_one_is_picked() {
-    let mut sidebar = heard(vec![broken("a", "a"), broken("b", "b")]);
-    assert_eq!(sidebar.dir(), Some(Path::new("/w/a")));
-    sidebar.pick(1);
-    assert_eq!(sidebar.dir(), Some(Path::new("/w/b")));
-    sidebar.show(Some("gone".into()));
-    assert_eq!(sidebar.dir(), None, "the shown one is not in the list");
-    assert_eq!(Sidebar::new(true).dir(), None, "nothing heard yet");
+fn a_shown_workspace_s_stopped_agent_has_a_start_line_whose_tap_starts_it() {
+    let mut a = ws("ada", Some(Status::Stopped));
+    a.dir = "/w/ada".into();
+    let mut sidebar = heard(vec![a, ws("bo", Some(Status::Stopped)), ws("cy", None)]);
+    let start = Tap::Run(Command::StartAgent);
+    let taps = |s: &Sidebar| s.targets(&T, WINDOW).into_iter().map(|t| t.1).collect::<Vec<_>>();
+    let three = [Tap::Workspace(0), start, Tap::Workspace(1), Tap::Workspace(2)];
+    assert_eq!(taps(&sidebar), three, "the shown one's only");
+    assert!(shown(&sidebar.rows(&T, WINDOW)).contains(&(START, T.focus)));
+    assert_eq!(sidebar.shown_dir(), Some(PathBuf::from("/w/ada")), "what it starts");
+    sidebar.pick(2);
+    assert!(!taps(&sidebar).contains(&start), "an agent that runs: no line");
+    assert_eq!(Sidebar::new(true).shown_dir(), None, "nothing heard yet");
 }

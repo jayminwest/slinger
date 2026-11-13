@@ -248,7 +248,10 @@ impl Panes {
             | Command::OpenPdf
             | Command::OpenWorkspace
             | Command::CloseWorkspace
-            | Command::ShowWorkspaceFolder => {}
+            | Command::ShowWorkspaceFolder
+            | Command::StartAgent
+            | Command::StopAgent
+            | Command::RestartAgent => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),

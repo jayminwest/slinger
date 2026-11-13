@@ -362,7 +362,11 @@ window.rs    runs a command on the focused pane, does a tap on a button that
              chose as a workspace (workspace_open: backend/agents.rs) and
              shows it, or flashes why not, closes the shown one for
              `close-workspace` (workspace_close by its folder) and shows the
-             first, or flashes why not, finds what `show-canvas-file` and
+             first, or flashes why not, starts, stops or restarts the
+             shown one's agent for `start-agent`, `stop-agent` and
+             `restart-agent` (`agent`: session_start, session_stop or
+             session_start `fresh` by its folder, backend/agents.rs) and
+             flashes its name or why not, finds what `show-canvas-file` and
              `show-workspace-folder` show in the Finder (`finder`: the
              canvas file, or the shown workspace's folder from the
              sidebar; main reveals it), builds the window's scene (`view`: the footers,
@@ -685,8 +689,10 @@ scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
              session id) shows what its hooks said, and one with a message
              pending is working though no hook said so (`Status::of`). `agents`: each
              workspace's agent. `close`: takes the shown workspace out of
-             the list for `close-workspace`; `dir`: its folder, for
-             `show-workspace-folder`. Pure.
+             the list for `close-workspace`; `shown_dir`: its folder, which
+             the agent commands and `show-workspace-folder` go to. Under the
+             shown workspace's agent that does not run, "Start agent" (a tap
+             runs `start-agent`). Pure.
 scene/sidebar/agent.rs  an agent as the sidebar shows it: its `Status`,
              read against its `Process` (`Status::of`), and its profiles.
              Pure.

@@ -283,7 +283,7 @@ fn asked(
         _ => return asked,
     };
     match found {
-        Ok(file) if platform::reveal(file) => {}
+        Ok(file) if platform::reveal(&file) => {}
         Ok(file) => tools.flash().say(format!("The Finder cannot show {file}"), Instant::now()),
         Err(said) => tools.flash().say(said, Instant::now()),
     }
