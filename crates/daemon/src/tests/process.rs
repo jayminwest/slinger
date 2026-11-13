@@ -2,7 +2,6 @@
 //! Code that speaks its stream format: start, sends, the session id across a
 //! restart, a process that dies, and a daemon stop that ends it.
 
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
@@ -17,43 +16,13 @@ use super::session::open_with_agent;
 use crate::processes::Processes;
 use crate::store::SLINGER;
 
-/// Claude Code's stream mode, as far as the daemon uses it. It runs in the
-/// agent's home and leaves its evidence there: its arguments (`args.txt`, one
-/// run per line), its environment (`env.txt`, and its `PATH` in `path.txt`)
-/// and each line it was sent
-/// (`in.txt`). Its store of conversations is `known.txt`, one id per line: a
-/// resume of an id not there fails, as Claude Code's does. For each line it
-/// names its session and answers.
-const FAKE_CLAUDE: &str = r#"#!/bin/sh
-printf '%s\n' "$*" >> args.txt
-printf '%s %s\n' "$SLINGER_AGENT" "$SLINGER_SOCKET" > env.txt
-printf '%s\n' "$PATH" > path.txt
-id=
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --session-id) id="$2"; printf '%s\n' "$id" >> known.txt; shift ;;
-    --resume)
-      id="$2"; shift
-      grep -qx "$id" known.txt 2>/dev/null || {
-        printf 'No conversation found with session ID: %s\n' "$id" >&2; exit 1; } ;;
-  esac
-  shift
-done
-n=0
-while IFS= read -r line; do
-  n=$((n + 1))
-  printf '%s\n' "$line" >> in.txt
-  printf '{"type":"system","subtype":"init","session_id":"%s"}\n' "$id"
-  printf '{"type":"result","subtype":"success","session_id":"%s","result":"answer %s"}\n' "$id" "$n"
-done
-"#;
-
-/// Writes the stand-in into `dir` and returns its path.
-pub(super) fn fake_claude(dir: &Path) -> PathBuf {
-    let path = dir.join("claude");
-    std::fs::write(&path, FAKE_CLAUDE).unwrap();
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-    path
+/// The stand-in for Claude Code (`tests/claude`, which says what it does).
+/// One file kept in the tree, not one written per test: macOS checks a new
+/// executable on its first exec, one at a time across the machine, and under
+/// load that queue held a stand-in's start past the tests' waits
+/// (slinger-d71082).
+pub(super) fn fake_claude() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("src/tests/claude")
 }
 
 /// Asks for `agent`'s session until `done` holds for it, or fails after 10 s.
@@ -98,9 +67,8 @@ fn alive(pid: u32) -> bool {
 
 #[test]
 fn three_sends_go_to_one_session_and_a_restart_resumes_it() {
-    let (data, projects, bin) =
-        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
-    let claude = fake_claude(bin.path());
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let claude = fake_claude();
     let daemon = Daemon::start_with_claude(data.path(), &claude);
     let client = daemon.client();
     let home = open_with_agent(&client, &projects, "notes", "scout");
@@ -142,9 +110,8 @@ fn three_sends_go_to_one_session_and_a_restart_resumes_it() {
 
 #[test]
 fn a_process_that_dies_shows_as_exited_and_a_send_is_unavailable() {
-    let (data, projects, bin) =
-        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
-    let daemon = Daemon::start_with_claude(data.path(), &fake_claude(bin.path()));
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
     let client = daemon.client();
     open_with_agent(&client, &projects, "notes", "scout");
     let err = client.session_send("notes", "hi").unwrap_err();
@@ -185,9 +152,8 @@ fn a_start_needs_an_open_workspace_with_an_agent_and_a_program_to_run() {
 
 #[test]
 fn a_session_starts_within_its_workspaces_limits() {
-    let (data, projects, bin) =
-        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
-    let daemon = Daemon::start_with_claude(data.path(), &fake_claude(bin.path()));
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
     let client = daemon.client();
     // Its hooks first, running `slinger` on `PATH` (the daemon's default
     // here), then the stream format and the limits.
@@ -238,10 +204,9 @@ fn a_session_starts_within_its_workspaces_limits() {
 
 #[test]
 fn the_cli_the_hooks_run_comes_first_on_the_agents_path() {
-    let (data, home, bin) =
-        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
+    let (data, home) = (TempDir::new().unwrap(), TempDir::new().unwrap());
     let ids = data.path().join("sessions.json");
-    let mut processes = Processes::new(fake_claude(bin.path()), ids);
+    let mut processes = Processes::new(fake_claude(), ids);
     let daemons = std::env::var("PATH").unwrap();
 
     // A bare name is looked up on the daemon's PATH, as it is.
@@ -259,9 +224,8 @@ fn the_cli_the_hooks_run_comes_first_on_the_agents_path() {
 
 #[test]
 fn a_session_that_cannot_be_resumed_is_dropped_and_the_next_start_is_new() {
-    let (data, projects, bin) =
-        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
-    let claude = fake_claude(bin.path());
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let claude = fake_claude();
     let daemon = Daemon::start_with_claude(data.path(), &claude);
     let client = daemon.client();
     let home = open_with_agent(&client, &projects, "notes", "scout");
@@ -300,9 +264,8 @@ fn a_session_that_cannot_be_resumed_is_dropped_and_the_next_start_is_new() {
 
 #[test]
 fn a_fresh_start_ends_the_running_process_and_begins_a_new_session() {
-    let (data, projects, bin) =
-        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
-    let daemon = Daemon::start_with_claude(data.path(), &fake_claude(bin.path()));
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
     let client = daemon.client();
     let home = open_with_agent(&client, &projects, "notes", "scout");
     let old = client.session_start("notes").unwrap();
@@ -311,7 +274,10 @@ fn a_fresh_start_ends_the_running_process_and_begins_a_new_session() {
     assert_ne!(fresh.pid, old.pid);
     let id = fresh.session_id.unwrap();
     assert_ne!(Some(&id), old.session_id.as_ref());
-    assert!(wait_lines(&home.join("args.txt"), 2)[1].ends_with(&format!("--session-id {id}")));
+    // The old one can be ended before its shell writes its line, so the new
+    // one's line is looked for, not counted to.
+    let new = format!("--session-id {id}");
+    until(|| lines(&home.join("args.txt")).iter().any(|l| l.ends_with(&new)));
     client.session_send("notes", "hi").unwrap();
     let answered = wait_for(&client, "scout", |s| s.pending == Some(0));
     assert_eq!(answered.session_id.as_deref(), Some(id.as_str()));

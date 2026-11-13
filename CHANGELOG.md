@@ -234,6 +234,8 @@ bullet with the area in bold.
 - **Agents:** the first sling to an agent now ends its note with
   `slinger guide`, so the agent knows where to find every other command
   and flag.
+- **Agents:** `slinger guide` tells an agent to make a UI page fill its
+  viewport, since you can now resize a UI on a canvas.
 - **Agents:** an agent can now edit and create files without any setup, so
   a sling can ask for a code change. Nobody reviews a file before it is
   written. Commands other than `slinger` and read-only ones still need a
@@ -292,6 +294,9 @@ bullet with the area in bold.
   be fetched is tried again the next time it is on screen, after a wait
   that grows from a second to about a minute. Before, it stayed grey until
   the app reconnected to slingerd.
+- **Agents:** an agent that answers a send at once no longer shows a
+  message still pending. `slinger session show` could report one message
+  pending for good after a quick answer, so waiting on it never ended.
 - **App:** an agent's live page on a canvas now resizes from the
   selection's corner handles, as a box does, and its page lays out again
   at the new size as you drag. Before, it kept its size.

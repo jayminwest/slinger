@@ -10,12 +10,11 @@
 mod canvases;
 mod feedback;
 mod listeners;
+mod lock;
 mod processes;
 mod server;
 mod sessions;
 mod store;
-#[cfg(test)]
-mod testing;
 #[cfg(test)]
 mod tests;
 mod workspaces;

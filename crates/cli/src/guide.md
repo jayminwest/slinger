@@ -113,6 +113,10 @@ slinger ui open pick-slot --workspace <WORKSPACE> --data '{"slots":[9,10]}' --ag
 slinger ui open pick-slot --as item --canvas <CANVAS> --beside i7 --agent claude
 ```
 
+The user can resize a UI shown as an item, and the page lays out again at
+the new width. Make the page fill its viewport (width 100%, no fixed pixel
+sizes for the layout) rather than assume the size it was opened at.
+
 Tell the user your state when the work is long:
 
 ```bash
