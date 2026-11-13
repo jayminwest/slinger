@@ -654,18 +654,18 @@ answer. `session_id` names its conversation.
 
 - reads its home and the workspace's other roots on this machine, and
   nothing else (`--add-dir` for each root that is not the home);
-- has the built-in tools that read, run commands and write files (`--tools
-  Read,Glob,Grep,Bash,Edit,Write`). It runs only the `slinger` CLI and
+- has every built-in tool of Claude Code (no `--tools`) and the MCP servers
+  its settings name (no `--strict-mcp-config`), as a session started by hand
+  does (slinger-29bb9f). Without asking it runs only the `slinger` CLI and
   read-only commands inside those directories, and it writes files
   (`--allowedTools 'Bash(slinger *)' Edit Write`). Whatever else would need
-  a permission is denied, since nobody is there to ask (`--permission-mode
-  dontAsk`);
+  a permission (another command, a web fetch, an MCP tool) is denied, since
+  nobody is there to ask (`--permission-mode dontAsk`);
 - loads the settings and the instructions (`CLAUDE.md`) of its home, but not
-  the owner's own (`--setting-sources project,local`), and no MCP server
-  (`--strict-mcp-config`).
+  the owner's own (`--setting-sources project,local`).
 
-The agent's `dirs` adds directories, its `tools` adds permission rules (and
-the built-in tool each rule names), and `user_config = true` loads the
+The agent's `dirs` adds directories, its `tools` adds permission rules
+(`WebFetch`, `Bash(git *)`, `mcp__github`), and `user_config = true` loads the
 owner's settings and instructions too (`--setting-sources
 user,project,local`). The home's own `.claude/settings.json` belongs to the
 workspace and still applies, so the owner can widen a session there too.
@@ -676,7 +676,9 @@ start names one. A profile runs the process in its `dir` (the home when
 it has none), which then reads the home and the other directories too,
 and its `tools` take the place of the agent's and of the default `Edit`
 and `Write`: the `slinger` CLI stays, the agent's `dirs` and `user_config`
-stay, and nothing else is added. So a profile with no `tools` cannot
+stay, and nothing else is added. Its built-in tools are only those that
+read and run commands and those its rules name (`--tools
+Read,Glob,Grep,Bash,Edit` for `Edit`). So a profile with no `tools` cannot
 write, and is narrower than the agent, never wider. A
 start under no profile runs within the agent's own limits. Claude Code
 loads the settings of the directory it runs in (`.claude/settings.json`
@@ -690,7 +692,7 @@ rule is a Claude Code tool, alone or with a pattern in parentheses (`Edit`,
 `Bash(git *)`), and the tool is one of `Bash`, `Edit`, `Glob`, `Grep`,
 `MultiEdit`, `NotebookEdit`, `Read`, `WebFetch`, `WebSearch` and `Write`;
 or an MCP tool (`mcp__server`, `mcp__server__tool`, `mcp__server__*`),
-which is allowed but adds no built-in tool. The agent's own `tools` keep
+which is allowed but adds no built-in tool to a profile's. The agent's own `tools` keep
 the same rule.
 A name, rule or `dir` the daemon cannot read is `invalid`, and nothing is
 written: a blank rule, another tool or an empty pattern is never passed on.

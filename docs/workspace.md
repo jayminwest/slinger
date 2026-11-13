@@ -88,18 +88,21 @@ with version 1. Other fields in a version 1 `[layout]` are kept.
 ## The agent's limits
 
 A session runs within limits (slinger-a33c; docs/service.md, "Limits"). With
-no limit fields it reads only the workspace's roots on slingerd's machine,
-runs only the `slinger` CLI and read-only commands, writes files (the
-`Edit` and `Write` rules, slinger-05ad22), and does not load the owner's own
-agent instructions. Nobody answers a permission prompt, so a file it writes
-is not reviewed first. The three `agent` fields above widen it:
+no limit fields it has every Claude Code tool and the MCP servers its
+settings name (slinger-29bb9f), but reads only the workspace's roots on
+slingerd's machine, runs without asking only the `slinger` CLI and
+read-only commands, writes files (the `Edit` and `Write` rules,
+slinger-05ad22), and does not load the owner's own agent instructions.
+Nobody answers a permission prompt, so a file it writes is not reviewed
+first, and a tool no rule allows (a web fetch, an MCP tool) is denied. The
+three `agent` fields above widen it:
 
 ```toml
 [agent]
 name = "scout"
 user_config = true
 dirs = ["/Users/me/reference"]
-tools = ["Bash(git *)", "Bash(cargo *)"]
+tools = ["Bash(git *)", "Bash(cargo *)", "WebFetch", "mcp__github"]
 ```
 
 ## Profiles
@@ -107,7 +110,9 @@ tools = ["Bash(git *)", "Bash(cargo *)"]
 A profile (slinger-c8359a) is named limits the agent runs under when a
 session start names it (docs/service.md, "Profiles"): it runs in the
 profile's `dir`, and its `tools` take the place of `agent.tools` and of the
-default `Edit` and `Write`. The `slinger` CLI, `agent.dirs` and
+default `Edit` and `Write`, and it has only the built-in tools that read,
+run commands and its `tools` name: a profile is how you opt into a
+narrower session. The `slinger` CLI, `agent.dirs` and
 `agent.user_config` stay. A start with no profile runs within the agent's
 own limits, so a profile never changes a session unless it is asked for by
 name. A profile with no `tools` (`look` below) cannot write: use one for a
