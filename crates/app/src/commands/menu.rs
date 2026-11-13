@@ -127,6 +127,7 @@ const BAR: [(&str, &[Action]); 8] = [
             R(Command::SlingNow),
             R(Command::Dictate),
             R(Command::PlaceButton),
+            R(Command::StartAgent),
         ],
     ),
     (

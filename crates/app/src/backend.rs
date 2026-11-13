@@ -36,7 +36,7 @@ pub(crate) mod testing;
 pub mod ui;
 mod unsent;
 
-pub use agents::{close_workspace, open_workspace, workspaces};
+pub use agents::{close_workspace, open_workspace, start_agent, workspaces};
 pub use feedback::Noter;
 pub use flick::Flick;
 pub use follow::{Follower, News};
@@ -290,6 +290,13 @@ pub(crate) mod tests {
     /// Runs `f` with the socket of a daemon that lives for this one call.
     pub(crate) fn with_socket<T>(f: impl FnOnce(&Path) -> T) -> T {
         serve(Path::new("/nonexistent/claude"), f)
+    }
+
+    /// Runs `f` with the socket of a daemon that lives for this one call and
+    /// starts agents with the daemon's kept stand-in for Claude Code
+    /// (`crates/daemon/src/tests/claude`, which says what it does).
+    pub(crate) fn with_agents<T>(f: impl FnOnce(&Path) -> T) -> T {
+        serve(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../daemon/src/tests/claude"), f)
     }
 
     /// The socket is in a new directory of its own, removed on drop. Short:

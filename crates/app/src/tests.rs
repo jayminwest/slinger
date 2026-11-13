@@ -5,7 +5,7 @@
 use super::*;
 use crate::backend::ConfigFiles;
 use crate::backend::testing::wait_until;
-use crate::backend::tests::{open_notes, with_socket, with_store};
+use crate::backend::tests::{open_notes, with_agents, with_socket, with_store};
 use crate::commands::{CMD, Chord};
 use crate::panes::{Kind as PaneKind, Pane};
 use crate::scene::ink::Pen;
@@ -287,6 +287,45 @@ fn a_broken_workspace_shows_why_and_close_workspace_closes_it_and_flashes_why_it
         assert!(!window::close_workspace(socket, &mut sidebar, &mut tools), "not open any more");
         let pill = tools.flash().pill(window, theme, Instant::now());
         assert!(pill.is_some_and(|p| !p.label.text.is_empty()), "the flash says why");
+    });
+}
+
+/// The flash's text in `tools`, if one shows.
+fn flashed(tools: &Tools, settings: &Settings) -> Option<String> {
+    let pill = tools.flash().pill(layout::WINDOW.rect(), &settings.config.theme, Instant::now());
+    pill.map(|p| p.label.text)
+}
+
+#[test]
+fn start_agent_starts_the_shown_workspace_s_agent_and_flashes_its_name_or_why_not() {
+    with_agents(|socket| {
+        let settings = Settings::load(ConfigFiles::at("/nonexistent/config.toml".into()));
+        let mut tools = Tools::new(settings.config.palette.clone());
+        let mut sidebar = Sidebar::new(true);
+        let daemon = control::Client::new(socket);
+        let home = open_notes(&daemon);
+        let lines = |sidebar: &mut Sidebar| {
+            sidebar.update(backend::workspaces(&daemon));
+            let rows = sidebar.rows(&settings.config.theme, layout::WINDOW.rect());
+            rows.into_iter().map(|r| r.label.text).collect::<Vec<_>>()
+        };
+        let start = scene::sidebar::START.to_string();
+        assert!(lines(&mut sidebar).contains(&start), "never started: it shows");
+        window::agent(Command::StartAgent, socket, &sidebar, &mut tools);
+        assert_eq!(flashed(&tools, &settings).as_deref(), Some("Start agent · scout"));
+        assert!(!lines(&mut sidebar).contains(&start), "it runs");
+        let runs = || std::fs::read_to_string(home.path().join("args.txt")).unwrap_or_default();
+        // A new conversation the first time.
+        wait_until(|| runs().contains("--session-id"));
+        window::agent(Command::StartAgent, socket, &sidebar, &mut tools);
+        assert_eq!(runs().lines().count(), 1, "one that runs stays as it is");
+        daemon.session_stop("notes").unwrap();
+        assert!(lines(&mut sidebar).contains(&start), "it stopped: it shows again");
+
+        daemon.workspace_close("notes").unwrap();
+        window::agent(Command::StartAgent, socket, &sidebar, &mut tools);
+        let why = flashed(&tools, &settings).unwrap_or_default();
+        assert!(!why.is_empty() && !why.contains("scout"), "the flash says why: {why}");
     });
 }
 

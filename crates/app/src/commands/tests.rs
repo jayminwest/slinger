@@ -151,6 +151,7 @@ fn every_command_has_a_title_and_a_group_in_the_list() {
     assert_eq!(Command::OpenPdf.group(), Group::File);
     assert_eq!(Command::OpenWorkspace.group(), Group::File);
     assert_eq!(Command::CloseWorkspace.group(), Group::File);
+    assert_eq!(Command::StartAgent.group(), Group::Sling);
 }
 
 #[test]

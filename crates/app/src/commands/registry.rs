@@ -107,6 +107,7 @@ impl Command {
             Command::CropPdf => "Crop PDF",
             Command::OpenWorkspace => "Open workspace…",
             Command::CloseWorkspace => "Close workspace",
+            Command::StartAgent => "Start agent",
         }
     }
 
@@ -126,9 +127,11 @@ impl Command {
             Command::PickColour | Command::PickShape | Command::PickTool | Command::PickWidth => {
                 Group::PopUps
             }
-            Command::Sling | Command::SlingNow | Command::Dictate | Command::PlaceButton => {
-                Group::Sling
-            }
+            Command::Sling
+            | Command::SlingNow
+            | Command::Dictate
+            | Command::PlaceButton
+            | Command::StartAgent => Group::Sling,
             Command::PanLeft
             | Command::PanRight
             | Command::PanUp

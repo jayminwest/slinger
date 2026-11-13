@@ -37,6 +37,11 @@ bullet with the area in bold.
   (`close-workspace`, ⌥⌘W) is in the File menu and the command palette: it
   closes the workspace the window shows and turns to the first. Its file,
   canvas and agent stay; open its folder again to bring it back.
+- **App:** start a workspace's agent without the CLI. Start agent
+  (`start-agent`, ⌥⌘A) is in the Tools menu and the command palette: it
+  starts the agent of the workspace the window shows, with its own limits,
+  in its last conversation. While that agent is not running, the sidebar
+  says so and shows a Start agent line under it; tap it to start it.
 - **App:** a workspace whose `slinger-workspace.toml` is broken says why in
   the sidebar: under its name, a red ✗ and the error, the field at fault,
   and the hint, wrapped to fit. A file that names no workspace shows its

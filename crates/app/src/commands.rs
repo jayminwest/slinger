@@ -120,6 +120,9 @@ pub enum Command {
     /// Close the workspace the window shows (its file, canvas and agent
     /// stay), and show the first left.
     CloseWorkspace,
+    /// Start the agent of the workspace the window shows, with its own
+    /// limits, in its last conversation; one that runs stays as it is.
+    StartAgent,
 }
 
 /// How many commands there are.
@@ -127,7 +130,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 57] = [
+    pub const ALL: [(Command, &str); 58] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -185,6 +188,7 @@ impl Command {
         (Command::CropPdf, "crop-pdf"),
         (Command::OpenWorkspace, "open-workspace"),
         (Command::CloseWorkspace, "close-workspace"),
+        (Command::StartAgent, "start-agent"),
     ];
 
     /// The command called `name` in the config file.
@@ -361,6 +365,7 @@ impl Default for Keymap {
             on(CMD, '8'),
             on(CMD | SHIFT, 'o'),
             on(CMD | ALT, 'w'),
+            on(CMD | ALT, 'a'),
         ])
     }
 }
