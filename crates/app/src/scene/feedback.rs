@@ -16,7 +16,9 @@
 //! the keys, the daemon's answer and the recent notes, and reads back the
 //! entry and its lines.
 //! The entry looks like the sling's ([`Entry::framed`]); the platform shows
-//! whichever is open.
+//! whichever is open. It stands out from the canvas on a card in the
+//! panel's colour, with its label, its keys and its lines
+//! ([`Feedback::card`]).
 
 use crate::backend::Problem;
 use crate::commands::Chord;
@@ -24,7 +26,7 @@ use crate::config::Rgb;
 use crate::config::Theme;
 use crate::layout::{Point, Rect};
 use crate::scene::sling::pen::beside;
-use crate::scene::sling::{Entry, Key, SEND, line, under};
+use crate::scene::sling::{Entry, HEIGHT, Key, SEND, SMALL, line, under};
 use crate::scene::taps::{Tap, Target};
 use crate::scene::{Label, style};
 
@@ -65,6 +67,8 @@ pub const RECENT: usize = 5;
 pub const LISTED: usize = 20;
 /// The lines kept free under the recent notes, for what dictation says.
 const SPARE: f64 = 2.0;
+/// The space the card keeps around the entry and its lines.
+pub const CARD: f64 = 8.0;
 
 /// Where an open note is.
 #[derive(Debug, Clone, PartialEq)]
@@ -224,14 +228,32 @@ impl Feedback {
         entry.text.clone_from(&note.text);
         entry.placeholder = "what worked, what got in the way".into();
         entry.done = Some("Save");
+        let fill = Some(style::panel(theme));
+        (entry.title.label.fill, entry.keys.label.fill) = (fill, fill);
         Some(entry)
+    }
+
+    /// The card under the open entry, in `theme`'s panel colour: from its
+    /// label above the box to its last line, [`CARD`] around them.
+    pub fn card(&self, theme: &Theme) -> Option<Label> {
+        let Some((_, frame, Stage::Typing(_))) = &self.open else { return None };
+        let last = self.labels(theme).last().map(|l| l.frame.y + l.frame.height);
+        let (top, bottom) = (frame.y - SMALL - CARD, last.unwrap_or(frame.y + HEIGHT + SMALL));
+        let card = Rect {
+            x: frame.x - CARD,
+            y: top,
+            width: frame.width + 2.0 * CARD,
+            height: bottom + CARD - top,
+        };
+        let fill = style::panel(theme);
+        Some(Label { text: String::new(), colour: fill, fill: Some(fill), frame: card })
     }
 
     /// `lines` (text and colour) under the open entry, after its own (a
     /// problem, the recent notes): what dictation says.
     pub fn under(&self, theme: &Theme, lines: Vec<(String, Rgb)>) -> Vec<Label> {
         let Some((_, frame, Stage::Typing(_))) = &self.open else { return Vec::new() };
-        under(*frame, self.labels(theme).len(), theme, lines)
+        on_card(under(*frame, self.labels(theme).len(), theme, lines), theme)
     }
 
     /// Whether `at`, a point in the window, is on the open entry's box.
@@ -247,7 +269,8 @@ impl Feedback {
         let problem = match stage {
             Stage::Typing(problem) => problem,
             Stage::Saving => {
-                return vec![line(*frame, 0.0, "saving feedback…".into(), theme.muted, theme)];
+                let saving = line(*frame, 0.0, "saving feedback…".into(), theme.muted, theme);
+                return on_card(vec![saving], theme);
             }
         };
         let (mut lines, mut n) = (Vec::new(), 0.0);
@@ -272,8 +295,17 @@ impl Feedback {
             row.frame.width = (row.frame.width - style::TAP).max(0.0);
             lines.push(row);
         }
-        lines
+        on_card(lines, theme)
     }
+}
+
+/// `lines` filled in `theme`'s panel colour, as the card they stand on.
+fn on_card(mut lines: Vec<Label>, theme: &Theme) -> Vec<Label> {
+    let fill = Some(style::panel(theme));
+    for line in &mut lines {
+        line.fill = fill;
+    }
+    lines
 }
 
 #[cfg(test)]

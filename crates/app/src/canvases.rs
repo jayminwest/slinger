@@ -281,7 +281,8 @@ impl Canvases {
     /// a box or a drag of the selection ([`Select::pick`]), the text tool a
     /// text, the box, arrow and crop tools a drag. Returns false, and nothing starts, for touch (a palm), a pane whose canvas page has
     /// not arrived, or a press on a live item's page outside the selection.
-    /// A press on a button outside the selection slings ([`button`]).
+    /// A press on a button outside the selection slings ([`button`]),
+    /// except the eraser's, which erases around it.
     pub fn pen_down(
         &mut self,
         panes: &Panes,
@@ -302,7 +303,7 @@ impl Canvases {
         let press = Press { at, when: pen.when, zoom: viewport.zoom() };
         let here = (canvas, shown.as_str());
         let grabs = self.select.grabs(here, at, viewport.zoom(), &items);
-        if let Some(button) = button::under(&items, at).filter(|_| !grabs) {
+        if let Some(button) = button::under(&items, at).filter(|_| !grabs && tool != Tool::Eraser) {
             drop(items);
             return self.tap(here, button, viewport, frame);
         }

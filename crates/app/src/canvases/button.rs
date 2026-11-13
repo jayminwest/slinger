@@ -8,15 +8,12 @@
 //! sling's entry is open, a tap sends it, as return does; the feedback
 //! entry or a page's new name closes, as on any press. The `sling`
 //! command with nothing selected opens the entry beside the focused page's
-//! button, so a short prompt can be typed beside it first. The
-//! `place-button` command puts one in the middle of the focused pane, in
-//! the ink's queue like any item the pen makes.
+//! button, so a short prompt can be typed beside it first. The eraser
+//! never taps a button (nor erases it: it is not ink).
 
-use super::{Canvases, canvas_of, find, pane_shown, to_canvas, wanted};
-use crate::config::Rgb;
-use crate::layout::{PaneId, Point, Rect, Viewport};
+use super::{Canvases, canvas_of, find, pane_shown, wanted};
+use crate::layout::{Rect, Viewport};
 use crate::panes::Panes;
-use crate::scene::ink::Change;
 use crate::scene::select::Selection;
 use crate::scene::sling::Profile;
 
@@ -63,19 +60,6 @@ impl Canvases {
         let viewport = view.map_or_else(Viewport::start, |(_, v)| v.viewport);
         let selection = Selection { canvas: canvas.into(), page: shown, ids: Vec::new() };
         Some((selection, in_window(viewport, frame, button), frame))
-    }
-
-    /// The `place-button` command: a new button in the middle of `pane` of
-    /// `panes`, laid at `frame`, on the page it shows. Nothing while that
-    /// page has not arrived.
-    pub(super) fn place_button(&mut self, panes: &Panes, pane: PaneId, frame: Rect) {
-        let Some((canvas, _, shown)) = self.pages_of(panes, pane) else { return };
-        let middle = Point { x: frame.x + frame.width / 2.0, y: frame.y + frame.height / 2.0 };
-        let centre = to_canvas(self.view(pane).viewport, frame, middle);
-        let shape = crate::scene::button::placed(centre);
-        let colour = Rgb { r: 0, g: 0, b: 0 };
-        self.ink.push(Change::Put { canvas, page: shown, colour, shape });
-        self.send();
     }
 }
 

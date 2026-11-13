@@ -124,3 +124,55 @@ fn each_pane_keeps_its_own_page_and_a_page_shown_twice_is_followed_once() {
         assert_eq!(daemon.canvas_show("notes", None).unwrap().pages.len(), 1);
     });
 }
+
+/// slinger-5e2587: removing a page with items says that undo brings it
+/// back, and it does: the page and its items return, also after the app
+/// starts again (the daemon keeps the history).
+#[test]
+fn a_removed_page_says_undo_brings_it_back_and_undo_does_after_a_restart() {
+    use crate::commands::Command;
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let panes = Panes::new(Pane { kind: Kind::Canvas, name: "notes".into() });
+        let [(pane, frame)] = frames(&panes)[..] else { panic!() };
+        let mut canvases = Canvases::new(daemon.clone());
+        wait_until(|| {
+            counts(&mut canvases, &panes);
+            page(&canvases, &panes, pane).is_some()
+        });
+        assert!(canvases.command(&panes, (pane, frame), Command::NewPage));
+        let mut p2 = String::new();
+        wait_until(|| {
+            counts(&mut canvases, &panes);
+            p2 = page(&canvases, &panes, pane)
+                .map(|(p, _)| p)
+                .filter(|p| p != "p1")
+                .unwrap_or_default();
+            !p2.is_empty()
+        });
+        canvases.said();
+        draw(&mut canvases, &panes, (pane, frame));
+        wait_until(|| counts(&mut canvases, &panes) == [1] && kinds(daemon, &p2) == ["stroke"]);
+
+        // It has an item: the first press asks, the second removes it.
+        assert!(canvases.command(&panes, (pane, frame), Command::RemovePage));
+        assert_eq!(canvases.said().as_deref(), Some("Remove “Page 2”? Undo brings it back"));
+        assert!(canvases.command(&panes, (pane, frame), Command::RemovePage));
+        assert_eq!(canvases.said().as_deref(), Some("Removed: Page 2 · Undo brings it back"));
+        wait_until(|| daemon.canvas_show("notes", None).unwrap().pages.len() == 1);
+
+        // The app starts again, and undo brings the page and its stroke back.
+        drop(canvases);
+        let mut canvases = Canvases::new(daemon.clone());
+        wait_until(|| {
+            counts(&mut canvases, &panes);
+            page(&canvases, &panes, pane).is_some()
+        });
+        assert!(canvases.command(&panes, (pane, frame), Command::Undo));
+        wait_until(|| {
+            counts(&mut canvases, &panes);
+            let back = page(&canvases, &panes, pane).is_some_and(|(_, n)| n == 2);
+            back && kinds(daemon, &p2) == ["stroke"]
+        });
+    });
+}
