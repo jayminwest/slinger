@@ -384,6 +384,17 @@ bullet with the area in bold.
   show` now has `deliver` as `process` while the process runs and nobody
   listens, with the process's `pending`, though slings still wait for a
   listener.
+- **App:** the open panel (Open PDF…, Open Workspace…, Export agent UI…)
+  says what it asks for and names its button, comes to the front, and its
+  own keys work: ⇧⌘D, ⇧⌘O and ⌘1 to ⌘4 go to the panel, not to the app's
+  commands, and ⌘Z, ⌘X, ⌘C, ⌘V and ⌘A edit its fields. The app bundle says
+  why it asks for your Desktop, Documents and Downloads folders, which macOS
+  shows when it asks. Run the bundle (`scripts/bundle.sh && open
+  target/slinger.app`): a bare `slinger-app` started from a shell has no
+  bundle, so macOS may keep the panel out of those folders. An agent UI
+  that replies while the panel is up is told the app is busy, where it
+  could stop the app.
+
 - **Canvas:** an agent's text fills its box. Its lines broke as if every
   character were as wide as it is tall, so in the app each line stopped
   less than half way across the box `canvas put` reported, in a narrow
