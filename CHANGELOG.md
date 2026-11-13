@@ -92,7 +92,8 @@ bullet with the area in bold.
   width, a scroll moves up and down only and stops at the first and last
   page, and pinch and the zoom keys do nothing. A pane resized refits the
   pages. The select tool and the lasso never pick up a page there, so you
-  cannot move the paper by mistake.
+  cannot move the paper by mistake. A snippet pasted onto a PDF they pick
+  up as on any canvas.
 - **PDF:** snippets. Crop PDF (`crop-pdf`, ⌘8, in the Tools menu): drag a
   box over a page and that part of it goes on the clipboard. Paste (⌘V)
   puts it on any canvas, centred in the focused pane. A snippet is still
