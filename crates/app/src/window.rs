@@ -180,11 +180,11 @@ pub fn finder(
 /// written, for the Finder to show; else what the flash says.
 pub fn export_ui(shared: &Shared, dir: &Path) -> Result<String, String> {
     let pane = shared.panes.focused();
-    let Some(Ok(page)) = shared.uis.get(&pane.name).filter(|_| pane.kind == panes::Kind::Ui) else {
+    let Some(Ok(ui)) = shared.uis.get(&pane.name).filter(|_| pane.kind == panes::Kind::Ui) else {
         return Err("The focused pane shows no agent UI".into());
     };
-    let file = dir.join(format!("{}.v{}.html", page.code.name, page.code.version));
-    std::fs::write(&file, &page.code.html).map_err(|e| e.to_string())?;
+    let file = dir.join(format!("{}.v{}.html", ui.code.name, ui.code.version));
+    std::fs::write(&file, &ui.code.html).map_err(|e| e.to_string())?;
     Ok(file.to_string_lossy().into_owned())
 }
 
