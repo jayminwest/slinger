@@ -154,3 +154,20 @@ fn an_open_that_fails_partway_makes_no_canvas() {
         assert_eq!(fs::read_dir(&scratch).unwrap().count(), 0, "no operations file left");
     });
 }
+
+/// slinger-8d8e97: a tldraw file imported again is a canvas of its own,
+/// named as a second open of a PDF is.
+#[test]
+fn a_tldraw_file_imported_twice_gets_the_next_id() {
+    with_daemon(|d| {
+        let board =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../core/tests/fixtures/idea.tldraw");
+        let ask = Opening { file: board, workspace: None, beside: None };
+        let scratch = tempfile::tempdir().unwrap();
+        assert_eq!(open(d, locked, &ask, scratch.path()).unwrap(), "idea", "not read as a PDF");
+        assert_eq!(open(d, locked, &ask, scratch.path()).unwrap(), "idea-2", "id taken");
+        let shown = |id| d.canvas_show(id, None).unwrap().items.len();
+        assert!(shown("idea") > 0);
+        assert_eq!(shown("idea-2"), shown("idea"), "the same board again");
+    });
+}

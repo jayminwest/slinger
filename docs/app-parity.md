@@ -18,8 +18,12 @@ Sizes, as the app is built today:
 - **ui**: needs something new on screen: a text entry, a picker, a form.
 - **design**: needs a decision on what the user sees or does first.
 
-Every new verb the app calls costs its binary about 3 KB until
-slinger-548ea9 lands; the app has under 1 KB of room (slinger-7af57c).
+A new verb's call costs the app's binary about 700 bytes, unless its reply
+type is new to the app: decoding a new reply type can cost many KB (a reply
+full of maps cost about 10 KB), so read the reply into a type the app
+already decodes where you can. The binary grows in 16 KB steps against its
+ceiling (slinger-7af57c), so measure the room left in `__TEXT` before and
+after a change, not the file size.
 
 ## Not for the app
 
@@ -46,7 +50,7 @@ same thing by drawing, or never needs to.
 | `workspace open DIR` | `open-workspace` (shift+cmd+O, File menu, palette, sidebar "+"), 36e8844 |
 | `workspace list` | The sidebar; a tap on a workspace shows its panes |
 | `workspace close` | `close-workspace` (opt+cmd+W, File menu, palette; a broken workspace's "Close workspace" line), slinger-c75719 |
-| `workspace show` (`dir`) | `show-workspace-folder` (opt+shift+cmd+R, File menu, palette): the Finder shows the folder; the sidebar already has it from `workspace_list`, so no new verb, slinger-190b1b |
+| `workspace show` (`dir`) | `show-workspace-folder` (File menu, palette; no default key): the Finder shows the folder; the sidebar already has it from `workspace_list`, so no new verb, slinger-190b1b |
 | `session list`, `session show` | The sidebar's mark and note per agent; the sling pill and its answer ("tap to read") |
 | `profile list` | The sling's profile menu lists the agent's profiles |
 | `sling send` (`--page`, `--select`, `--prompt`, `--profile`) | `sling`, `sling-now`, `dictate`, the send-to-agent button, the profile menu |

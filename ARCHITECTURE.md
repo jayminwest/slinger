@@ -442,7 +442,8 @@ backend/pdf.rs  PDFs (docs/design/pdf.md): `fetch` gets a pdf item's blob
              is made whole or not at all; then `pane_open` beside the
              focused pane. A file that cannot be read makes nothing. A
              tldraw file (`is_tldraw`, by its extension) is made a canvas
-             by `canvas_import_id` instead, then the same `pane_open`.
+             by `canvas_import_id` instead, under the same id without
+             `.pdf` (`-2`... on a taken id), then the same `pane_open`.
 mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              feed reply applied in order; reads the canvas file's items
              (tenths, delta points, `#rrggbb`, an arrow's bound ends) into

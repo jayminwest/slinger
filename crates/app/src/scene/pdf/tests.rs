@@ -29,7 +29,7 @@ fn item(id: u64, shape: Shape) -> Item {
 
 #[test]
 fn a_canvas_id_is_the_stem_kept_to_its_letters_then_a_try_then_dot_pdf() {
-    let id = |name: &str, n| canvas_id(Path::new(name), n);
+    let id = |name: &str, n| canvas_id(Path::new(name), n, ".pdf");
     assert_eq!(id("/Users/me/Paper (v2).pdf", 1), "paper--v2-.pdf");
     assert_eq!(id("Paper (v2).pdf", 2), "paper--v2--2.pdf");
     assert_eq!(id("notes_2024-1.PDF", 1), "notes_2024-1.pdf");
@@ -39,6 +39,7 @@ fn a_canvas_id_is_the_stem_kept_to_its_letters_then_a_try_then_dot_pdf() {
     let long = format!("{}.pdf", "a".repeat(80));
     assert_eq!(id(&long, 1), format!("{}.pdf", "a".repeat(56)));
     assert!(id(&long, 999).len() <= 64, "a canvas id holds 64 bytes");
+    assert_eq!(canvas_id(Path::new("My Board.tldraw"), 2, ""), "my-board-2", "a tldraw file's");
 }
 
 #[test]
@@ -118,7 +119,7 @@ fn a_page_is_the_paper_under_every_other_item() {
 
 #[test]
 fn reader_mode_is_for_a_canvas_whose_id_ends_in_dot_pdf_as_an_open_makes_it() {
-    assert!(reader(&canvas_id(std::path::Path::new("/Users/me/Paper (v2).pdf"), 2)));
+    assert!(reader(&canvas_id(std::path::Path::new("/Users/me/Paper (v2).pdf"), 2, ".pdf")));
     assert!(reader("pdf.pdf"));
     assert!(!reader("main"));
     assert!(!reader("pdf"));

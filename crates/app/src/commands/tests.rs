@@ -102,11 +102,13 @@ fn a_chord_with_no_command_runs_nothing() {
 }
 
 #[test]
-fn every_command_has_its_own_default_chord() {
+fn each_default_chord_runs_its_own_command_and_a_few_commands_have_none() {
     let keys = Keymap::default();
     for (command, _) in Command::ALL {
-        let chord = keys.0[command as usize].unwrap_or_else(|| panic!("{command:?} has no chord"));
-        assert_eq!(keys.command(chord), Some(command));
+        match keys.0[command as usize] {
+            Some(chord) => assert_eq!(keys.command(chord), Some(command)),
+            None => assert_eq!(command, Command::ShowWorkspaceFolder, "{command:?} has no chord"),
+        }
     }
     assert_eq!(keys.command(chord("cmd+alt+left")), Some(Command::FocusLeft));
     assert_eq!(keys.command(chord("ctrl+tab")), Some(Command::FocusNext));
@@ -220,8 +222,7 @@ fn from_glyphs(text: &str) -> Option<Chord> {
 #[test]
 fn the_glyphs_of_every_default_read_back_as_its_chord() {
     let keys = Keymap::default();
-    for (command, _) in Command::ALL {
-        let chord = keys.chord(command).unwrap_or_else(|| panic!("{command:?} has no chord"));
+    for (command, chord) in Command::ALL.iter().filter_map(|&(c, _)| Some((c, keys.chord(c)?))) {
         assert_eq!(from_glyphs(&chord.glyphs()), Some(chord), "{command:?}: {}", chord.glyphs());
     }
     assert_eq!(keys.chord(Command::ShowKeys), Some(chord("cmd+/")));

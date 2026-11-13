@@ -230,8 +230,9 @@
 # its agent stay; open its folder again to bring it back. A workspace whose file is broken
 # shows "Close workspace" under why in the sidebar while the window shows it.
 #close-workspace = "cmd+alt+w"
-# Show the folder of the workspace the window shows in the Finder.
-#show-workspace-folder = "cmd+alt+shift+r"
+# Show the folder of the workspace the window shows in the Finder. No key by default: the
+# palette and the File menu run it.
+#show-workspace-folder = ""
 # Start the agent of the workspace the window shows, with its own limits, in its last
 # conversation (one that runs stays as it is); a flash names it, or says why not. While its
 # agent is not running, the sidebar shows "Start agent" under it: a tap does the same.

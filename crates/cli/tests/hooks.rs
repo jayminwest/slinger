@@ -16,6 +16,17 @@ fn fake_claude() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/claude")
 }
 
+/// Runs the freshly built `slinger` once, untimed. Its first exec waits for
+/// macOS to check the new executable, one at a time across the machine:
+/// under load that took 26 s, longer than [`until`] waits for the hook that
+/// runs it (slinger-4a216b).
+fn checked_slinger() -> &'static str {
+    let slinger = env!("CARGO_BIN_EXE_slinger");
+    let ran = std::process::Command::new(slinger).arg("--version").output();
+    assert!(ran.is_ok_and(|o| o.status.success()), "{slinger} --version failed");
+    slinger
+}
+
 /// Waits until `met` holds, or fails after 10 s.
 fn until(mut met: impl FnMut() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(10);
@@ -34,7 +45,7 @@ fn a_turn_moves_the_status_from_working_to_done_and_records_the_file_it_wrote() 
     let store = slingerd::Store::open(data.path(), "my-laptop")
         .unwrap()
         .with_claude(fake_claude())
-        .with_slinger(env!("CARGO_BIN_EXE_slinger"));
+        .with_slinger(checked_slinger());
     let server = slingerd::Server::bind(&socket).unwrap();
     let stopper = server.stopper();
     let serving = std::thread::spawn(move || server.serve(&store));
