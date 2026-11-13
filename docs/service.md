@@ -641,7 +641,10 @@ When `--slinger` is an absolute path, its folder comes first on the process's
 daemon's. A session adds what the daemon knows of it: `process` (`running`,
 or `exited` when it ended without a stop; absent when there is none), and
 while it runs its `pid` and `pending`, the messages sent that it has not
-answered (a `result` line ends an answer). `answer` is the text of its last
+answered (a `result` line ends an answer). Claude Code takes a message sent
+mid-turn into that turn, so one result can answer several: a message still
+unanswered when a result has come and the process has said nothing more for
+2 seconds counts as answered. `answer` is the text of its last
 answer. `session_id` names its conversation.
 
 **Limits.** A session has stated limits, set by its workspace's file

@@ -301,6 +301,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** a sling or message sent while the agent was still working no
+  longer leaves it showing as working forever. When the agent answers both
+  in one go, the session's `pending` goes back to 0 within about two
+  seconds.
 - **Listening:** a Claude Code session that was closed while it worked on a
   sling no longer keeps the agent's slings. `session listen --pid $PPID`
   names the session's process (the `slinger-listen` skill passes it): when

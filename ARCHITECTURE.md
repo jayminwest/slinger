@@ -293,6 +293,9 @@ processes.rs the agents' processes, one per agent: spawned in the agent's
              then kills it; `serve` ends them all when it stops. No restart on death (D20).
              Each starts with the core's hooks in `--settings`, running the
              CLI at `--slinger` (default: beside slingerd).
+             `processes/turns.rs` counts `pending`: a result answers the
+             messages its turn took in, so one still unanswered 2 s after a
+             result with no output since was taken into that turn.
 feedback.rs  the feedback file (`--feedback`, default `feedback.jsonl` in
              the checkout it was built from, else the data directory): one
              lock, each note and resolution appended as one line, the
