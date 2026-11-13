@@ -144,7 +144,7 @@ enum Stage {
     /// Answered, with the text of the answer.
     Answered(Option<String>),
     Failed(Problem),
-    /// Its process ended before it answered.
+    /// Its process ended before it answered: a new sling starts it again.
     Stopped,
 }
 
@@ -430,7 +430,7 @@ impl Slung {
                 problem.hint.iter().cloned().collect(),
             ),
             Stage::Stopped => {
-                let hint = "start it with 'slinger session start <WORKSPACE>'".to_string();
+                let hint = "sling again: a sling starts it".to_string();
                 (format!("✗ {} stopped before it answered", out.agent), theme.error, vec![hint])
             }
         };
