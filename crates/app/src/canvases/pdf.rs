@@ -2,8 +2,10 @@
 //! (docs/design/pdf.md). Each blob a `pdf` item a pane draws names is
 //! fetched once, on a thread of its own ([`Pdfs`]), into a file the
 //! canvas view draws from ([`canvas::build_with`]); until it has come the
-//! item draws as a grey frame, and a blob that does not come (the record
-//! does not hold it, O8) stays that way and is not asked for again. The
+//! item draws as a grey frame. A blob that does not come (the record does
+//! not hold it, O8, or the daemon could not be read) is asked for again
+//! the next time a pane draws it, after a wait that doubles with each miss
+//! from [`RETRY`] to [`RETRY_MOST`]: no timer, nothing asked while unseen. The
 //! `open-pdf` command's file becomes a canvas on a thread of its own
 //! ([`backend::pdf::open`]); what went wrong shows as a problem until the
 //! next. Runs on the main thread and never waits.
@@ -12,6 +14,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use slinger_control::Client;
 
@@ -22,6 +25,27 @@ use crate::panes::Panes;
 use crate::scene::CanvasPane;
 use crate::scene::canvas::Mark;
 
+/// The wait before a blob that did not come is asked for again.
+const RETRY: Duration = Duration::from_secs(1);
+
+/// The longest wait before it is asked for again: [`RETRY`] doubled six times.
+const RETRY_MOST: u32 = 6;
+
+/// The wait after `misses` misses in a row before the blob is asked for again.
+fn wait(misses: u32) -> Duration {
+    RETRY * (1 << misses.saturating_sub(1).min(RETRY_MOST))
+}
+
+/// Where a blob's fetch is.
+enum Fetch {
+    /// Asked for, after this many misses in a row.
+    Asked(u32),
+    /// Its file.
+    Came(PathBuf),
+    /// Missed this many times in a row, the last at this time.
+    Missed(u32, Instant),
+}
+
 /// The PDFs fetched, and the last PDF opened.
 pub(super) struct Pdfs {
     daemon: Client,
@@ -29,8 +53,8 @@ pub(super) struct Pdfs {
     dir: PathBuf,
     ask: Sender<String>,
     heard: Receiver<(String, Option<PathBuf>)>,
-    /// Each blob asked for, and its file once it has come.
-    files: HashMap<String, Option<PathBuf>>,
+    /// Each blob asked for, and where its fetch is.
+    files: HashMap<String, Fetch>,
     opened: Option<Receiver<Result<String, Problem>>>,
     problem: Option<Problem>,
 }
@@ -56,7 +80,10 @@ impl Pdfs {
 
     /// The file of the PDF that is blob `hash`, once it has come.
     pub(super) fn file(&self, hash: &str) -> Option<PathBuf> {
-        self.files.get(hash)?.clone()
+        match self.files.get(hash)? {
+            Fetch::Came(file) => Some(file.clone()),
+            Fetch::Asked(_) | Fetch::Missed(..) => None,
+        }
     }
 
     /// Takes the PDFs fetched and the end of an open. Returns whether
@@ -65,7 +92,12 @@ impl Pdfs {
         let mut came = false;
         for (hash, file) in self.heard.try_iter() {
             came |= file.is_some();
-            self.files.insert(hash, file);
+            let misses = match self.files.get(&hash) {
+                Some(Fetch::Asked(n)) => n + 1,
+                _ => 1,
+            };
+            let fetch = file.map_or_else(|| Fetch::Missed(misses, Instant::now()), Fetch::Came);
+            self.files.insert(hash, fetch);
         }
         match self.opened.as_ref().map(Receiver::try_recv) {
             Some(Ok(done)) => (self.problem, self.opened, came) = (done.err(), None, true),
@@ -75,17 +107,20 @@ impl Pdfs {
         came
     }
 
-    /// Asks for the PDF of each `pdf` item `scenes` draw, once.
+    /// Asks for the PDF of each `pdf` item `scenes` draw: once, and again
+    /// after a miss once its wait is over.
     pub(super) fn want(&mut self, scenes: &[CanvasPane]) {
         let draws = scenes.iter().flat_map(|s| &s.scene.draws);
         for draw in draws {
-            if let Mark::Pdf { hash, .. } = &draw.mark
-                && !self.files.contains_key(hash)
-            {
-                self.files.insert(hash.clone(), None);
-                // The thread is gone only if it could not start.
-                let _ = self.ask.send(hash.clone());
-            }
+            let Mark::Pdf { hash, .. } = &draw.mark else { continue };
+            let misses = match self.files.get(hash) {
+                None => 0,
+                Some(Fetch::Missed(n, at)) if at.elapsed() >= wait(*n) => *n,
+                Some(_) => continue,
+            };
+            self.files.insert(hash.clone(), Fetch::Asked(misses));
+            // The thread is gone only if it could not start.
+            let _ = self.ask.send(hash.clone());
         }
     }
 

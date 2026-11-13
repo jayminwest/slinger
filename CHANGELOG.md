@@ -288,6 +288,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **PDF:** a PDF page that stayed a grey frame because its file could not
+  be fetched is tried again the next time it is on screen, after a wait
+  that grows from a second to about a minute. Before, it stayed grey until
+  the app reconnected to slingerd.
 - **App:** an agent's live page on a canvas now resizes from the
   selection's corner handles, as a box does, and its page lays out again
   at the new size as you drag. Before, it kept its size.
