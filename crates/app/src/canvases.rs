@@ -272,8 +272,9 @@ impl Canvases {
 
     /// The pen went down in `pane` of `panes`, laid at `frame` in the
     /// window, with `tool` and `colour`: a press closes a page command's
-    /// question, and any open entry (the sling's, the feedback's) unless it
-    /// taps a button, which sends the sling's; a press outside a text being typed
+    /// question, and any open entry (the sling's, the feedback's) and an
+    /// ended sling's pill unless it taps a button, which sends the
+    /// sling's; a press outside a text being typed
     /// ends it, and only the text tool's tap does nothing more; the pen
     /// starts a stroke on the page the pane shows, the eraser an erase,
     /// the lasso a loop or a drag of the selection, the select tool a pick,
@@ -307,6 +308,7 @@ impl Canvases {
         }
         drop(items);
         self.close_entries();
+        self.slung.pressed();
         let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
         if self.lives.under(&items, at, viewport.zoom()) && !grabs {
             return false;

@@ -34,8 +34,10 @@
 //! (or "scout answered in text"). The agent's items can land after the
 //! daemon says it answered: an answer with none yet waits [`SETTLE`] for
 //! them before it says "in text", and its pill says only `✓ scout
-//! answered` meanwhile. A tap clears an answer or a failure, and
-//! so does [`CLEAR`] passing: nothing stays on the canvas for good.
+//! answered` meanwhile. An answer whose items are on the canvas, or that
+//! is done with none, goes [`DONE`] after it is told; one in text and a
+//! failure go after [`CLEAR`]. A tap clears an answer or a failure, and so
+//! does the pen going down on the canvas: nothing stays on it for good.
 
 use std::time::{Duration, Instant};
 
@@ -48,8 +50,11 @@ use crate::scene::taps::{Tap, Target};
 use crate::scene::{Label, glyphs, style};
 use words::{cost, count, elapsed, page};
 
-/// How long an answer or a failure stays untapped.
+/// How long an answer in text or a failure stays untapped.
 pub const CLEAR: Duration = Duration::from_secs(30);
+/// How long an answer stays once its items are on the canvas, or it is
+/// done with none: as long as the sidebar's done notice.
+pub const DONE: Duration = Duration::from_secs(5);
 /// How long an answer with nothing on the canvas yet waits for the agent's
 /// items to land before it says it answered in text.
 pub const SETTLE: Duration = Duration::from_secs(1);
@@ -157,6 +162,7 @@ struct Out {
     tokens: Option<u64>,
     went: Instant,
     stage: Stage,
+    /// When it moved to its stage, or its answer was told.
     since: Instant,
     items: Vec<(ItemId, Rect)>,
     reading: bool,
@@ -278,7 +284,7 @@ impl Slung {
             (None, true) => "is done",
         };
         self.flash = Some(format!("{} {flash}", out.agent));
-        out.told = true;
+        (out.told, out.since) = (true, now);
         true
     }
 
@@ -320,8 +326,9 @@ impl Slung {
     }
 
     /// The time is `now`: whether what the pill says changed (its time, an
-    /// answer settled ([`SETTLE`]), or an answer or a failure that has shown for [`CLEAR`] goes, unless its
-    /// answer is open).
+    /// answer settled ([`SETTLE`]), or an answer or a failure that has
+    /// shown long enough ([`DONE`], [`CLEAR`]) goes, unless its answer is
+    /// open).
     pub fn tick(&mut self, now: Instant) -> bool {
         let told = self.tell(now);
         let Some(out) = self.out.as_mut() else { return false };
@@ -333,13 +340,26 @@ impl Slung {
                 changed
             }
             Stage::Answered(_) | Stage::Failed(_) | Stage::Stopped
-                if !out.reading && out.since + CLEAR <= now =>
+                if !out.reading && out.since + out.lasts() <= now =>
             {
                 self.out = None;
                 true
             }
             _ => told,
         }
+    }
+
+    /// The pen went down on the canvas: an answer that was told (open or
+    /// not), or a failure, goes. Returns whether it did.
+    pub fn pressed(&mut self) -> bool {
+        let ending = self
+            .out
+            .as_ref()
+            .is_some_and(|o| o.told || matches!(o.stage, Stage::Failed(_) | Stage::Stopped));
+        if ending {
+            self.out = None;
+        }
+        ending
     }
 
     /// What to flash, once.

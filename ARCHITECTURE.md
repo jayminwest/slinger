@@ -673,8 +673,11 @@ scene/slung.rs  the sling's pill (SPEC P6): at the top right of the pane
              with nothing on the canvas", a failure's "✗ <message>" and hint,
              "✗ scout stopped before it answered". An answer with no items
              yet waits 1 s for them to land (the pill says "✓ scout
-             answered") before it says "in text" (`SETTLE`). An ending pill
-             goes 30 s later. The pill is a Line with a field's round
+             answered") before it says "in text" (`SETTLE`). An answer
+             with its items on the canvas, or done with none, goes 5 s
+             after it is told (`DONE`); one in text and a failure 30 s
+             after (`CLEAR`); any of them at the pen's next press on the
+             canvas. The pill is a Line with a field's round
              corners, as wide as its words measure (scene/glyphs.rs). `out`:
              a sling is on its way or worked on. `slung/words.rs`: the
              elapsed time, the tokens, the arrow to the items, the answer's

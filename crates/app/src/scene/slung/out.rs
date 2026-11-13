@@ -2,13 +2,21 @@
 //! shows in, where its new items are, what the pill says once the agent
 //! answered; and where the pill stands.
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use super::words::arrow;
-use super::{GAP, HIGH, Out, Stage, View};
+use super::{CLEAR, DONE, GAP, HIGH, Out, Stage, View};
 use crate::layout::{Rect, Size};
 
 impl Out {
+    /// How long the pill shows once the sling ended: [`DONE`] for an
+    /// answer told whose items are on the canvas, or that brought nothing;
+    /// else [`CLEAR`].
+    pub(super) fn lasts(&self) -> Duration {
+        let Stage::Answered(text) = &self.stage else { return CLEAR };
+        if self.told && (!self.items.is_empty() || text.is_none()) { DONE } else { CLEAR }
+    }
+
     /// Moves to `stage` at `now`; an answer opened closes.
     pub(super) fn to(&mut self, stage: Stage, now: Instant) {
         (self.stage, self.since, self.reading) = (stage, now, false);

@@ -123,6 +123,13 @@ fn one_tap_with_nothing_selected_slings_what_is_new_on_the_page() {
         let marks = canvases.sling_marks(&panes, WINDOW.rect(), &Config::default().theme);
         let lines = marks.panel.expect("the answer").lines;
         assert!(lines.iter().any(|l| l.label.text == "ok"), "{lines:?}");
+        // slinger-9fe67e: the next stroke takes the answer away.
+        let at = Point { x: 300.0, y: 300.0 };
+        let pen = Pen { at, when: 0.0, touch: false, eraser: false, shift: false };
+        let ink = (Tool::Pen, Rgb { r: 0, g: 0, b: 0 });
+        assert!(canvases.pen_down(&panes, (panes.focus(), WINDOW.rect()), pen, ink));
+        let marks = canvases.sling_marks(&panes, WINDOW.rect(), &Config::default().theme);
+        assert_eq!((marks.pill, marks.panel), (None, None));
         daemon.session_stop("notes").unwrap();
     });
 }

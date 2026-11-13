@@ -226,8 +226,9 @@ bullet with the area in bold.
   "✓ scout answered · 2 new items" (tap to bring them into view), "✓ scout
   answered in text · tap to read" (tap to read the answer in a panel),
   "✓ scout is done, with nothing on the canvas", or "✗ scout stopped before
-  it answered" with how to start it. The pill goes 30 s after the agent
-  ends. The footer names the workspace's agent and its status.
+  it answered" with how to start it. The pill goes 5 s after the
+  agent's answer is on the canvas, or 30 s after an answer in text or a
+  failure; your next stroke on the canvas takes it away at once. The footer names the workspace's agent and its status.
 - **App:** `[sling] prompt` in the config: the words a sling with nothing
   typed sends.
 - **App:** a button to hide the sidebar at its foot, and one to show it in
@@ -305,6 +306,8 @@ bullet with the area in bold.
   again, also while another app has the focus. Before, it changed only
   when something else in the window did, such as the pointer moving over
   it.
+- **App:** a sling's "answered" pill no longer stays on screen after it
+  should have gone.
 - **PDF:** a PDF page that stayed a grey frame because its file could not
   be fetched is tried again the next time it is on screen, after a wait
   that grows from a second to about a minute. Before, it stayed grey until

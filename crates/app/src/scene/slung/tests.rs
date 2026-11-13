@@ -153,6 +153,32 @@ fn items_that_land_after_the_answer_count_and_it_never_says_in_text() {
     assert!(!slung.tick(now + SETTLE), "once");
     assert_eq!(slung.flash(), None);
     assert_eq!(said(&slung, &[view(true)], now), ["✓ scout answered · 1 new item"]);
+    // slinger-9fe67e: the answer is on the canvas, so the pill goes by itself.
+    assert!(!slung.tick(now + SETTLE / 2 + DONE / 2));
+    assert!(slung.tick(now + SETTLE / 2 + DONE), "gone once its items show");
+    assert_eq!(slung.marks(&T, &[view(true)], now), Marks::default());
+}
+
+/// slinger-9fe67e: the pen going down on the canvas takes an ended pill
+/// away, its answer open or not; never one still out, or an answer not
+/// yet told.
+#[test]
+fn the_pen_going_down_takes_an_ended_pill_away() {
+    let now = Instant::now();
+    let mut slung = out(now);
+    assert!(!slung.pressed(), "it works");
+    assert!(slung.heard(&answered(Some("two")), now));
+    assert!(!slung.pressed(), "its items may be on their way");
+    assert!(slung.tick(now + SETTLE));
+    assert!(!slung.tick(now + SETTLE + DONE), "an answer in text stays to be read");
+    assert_eq!(slung.tapped(&[view(true)]), Tapped::Changed, "open");
+    assert!(slung.pressed());
+    assert_eq!(slung.marks(&T, &[view(true)], now), Marks::default());
+    assert!(!slung.pressed(), "nothing left");
+
+    let mut failed = out(now);
+    assert!(failed.failed(Problem { message: "no daemon".into(), hint: None }, now));
+    assert!(failed.pressed());
 }
 
 #[test]
@@ -221,8 +247,8 @@ fn an_agent_done_with_no_answer_says_so_and_it_all_clears_in_time() {
     slung.tick(now + SETTLE);
     assert_eq!(slung.flash().as_deref(), Some("scout is done"));
     assert_eq!(said(&slung, &[view(true)], now), ["✓ scout is done, with nothing on the canvas"]);
-    assert!(!slung.tick(now + CLEAR / 2));
-    assert!(slung.tick(now + CLEAR), "nothing stays for good");
+    assert!(!slung.tick(now + SETTLE + DONE / 2));
+    assert!(slung.tick(now + SETTLE + DONE), "nothing stays for good");
     assert_eq!(slung.marks(&T, &[view(true)], now), Marks::default());
 }
 
