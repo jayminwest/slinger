@@ -671,6 +671,13 @@ scene/pdf.rs  an opened PDF's canvas: its id (the stem kept to a-z 0-9 - _,
              canvas is a PDF's (`reader`, by its id alone) and the column
              a pane fits (`column`). On a PDF's canvas the select tool and
              the lasso never take a pdf item (scene/select.rs). Pure.
+scene/crop.rs  the `crop-pdf` tool (cmd+8): a dragged box crops the topmost
+             pdf item under the press (else the topmost the box meets) to a
+             new pdf item, `crop` the box mapped from the item's shown region
+             to page points (`cropped`, on whole tenths, inside the page),
+             its frame the box's size. The lift puts it on the clipboard
+             (mirror/clip.rs's `snippet`, route.rs answers `Step::Copy`);
+             the canvas does not change. Paste is the usual paste. Pure.
 scene/title.rs  the title bar: the focused pane's canvas, its file under
              it (`~` for home) and that file as the proxy icon; what `save`
              flashes. Nothing to save by hand: the daemon writes each change

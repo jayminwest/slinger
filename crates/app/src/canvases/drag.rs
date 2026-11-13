@@ -31,7 +31,7 @@ impl Canvases {
         let Some((pane, frame)) = self.pen else { return false };
         let at = to_canvas(self.view(pane).viewport, frame, pen.at);
         self.unshown = Some(self.unshown.map_or(pen.when, |t| t.min(pen.when)));
-        if self.ink.drag(at) || self.shapes.drag(at) {
+        if self.ink.drag(at) || self.shapes.drag(at) || self.crop.drag(at) {
             return true;
         }
         let landing = self.landing(panes, under, pen.at);
@@ -43,7 +43,8 @@ impl Canvases {
 
     /// The pen lifted over `under`, the canvas pane of `panes` there and its
     /// frame, if any: the stroke, box, arrow, erase or move is finished and
-    /// goes to the daemon in its turn, or the loop selects. A drag of the
+    /// goes to the daemon in its turn, the loop selects, or the crop makes
+    /// its snippet ([`Canvases::cropped`]). A drag of the
     /// selection lands as the module says: one that lifts outside every
     /// canvas pane moves nothing. A double tap on a text with the select
     /// tool or the lasso edits it once the pen lifts where it went down.
@@ -55,7 +56,7 @@ impl Canvases {
         self.select.keep_ratio(pen.shift);
         let ended = self.ink.up(Some(at)) || {
             let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
-            self.shapes.up(Some(at), &items, &mut self.ink) || {
+            self.shapes.up(Some(at), &items, &mut self.ink) || self.crop.up(Some(at), &items) || {
                 let landing =
                     landing.as_ref().map(|(canvas, page, at)| Landing { canvas, page, at: *at });
                 let source = canvas_of(panes, pane)

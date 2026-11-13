@@ -111,6 +111,9 @@ pub enum Command {
     /// Open a PDF as a new canvas, one page under the next, in a pane
     /// beside the focused one (docs/design/pdf.md).
     OpenPdf,
+    /// Make the pen crop a PDF: a box dragged on a `pdf` item puts that
+    /// part of its page on the clipboard (docs/design/pdf.md).
+    CropPdf,
 }
 
 /// How many commands there are.
@@ -118,7 +121,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 54] = [
+    pub const ALL: [(Command, &str); 55] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -173,6 +176,7 @@ impl Command {
         (Command::Save, "save"),
         (Command::ShowCanvasFile, "show-canvas-file"),
         (Command::OpenPdf, "open-pdf"),
+        (Command::CropPdf, "crop-pdf"),
     ];
 
     /// The command called `name` in the config file.
@@ -346,6 +350,7 @@ impl Default for Keymap {
             on(CMD, 's'),
             on(CMD | ALT, 'r'),
             on(CMD, 'o'),
+            on(CMD, '8'),
         ])
     }
 }

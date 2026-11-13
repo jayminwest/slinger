@@ -151,3 +151,32 @@ fn ink_not_yet_written_is_copied_and_carried_as_it_shows() {
     );
     assert_eq!(page().carried(("other", &ink), &[ItemId(7)], "p2", by), []);
 }
+
+#[test]
+fn a_snippet_goes_as_one_pdf_object_and_pastes_back_as_that_crop() {
+    let crop = Rect { x: 72.0, y: 180.0, width: 300.0, height: 120.0 };
+    let shape = Shape::Pdf {
+        frame: Rect { x: 2400.0, y: 300.0, width: 600.0, height: 240.0 },
+        hash: "sha256:9f86".into(),
+        pdf_page: 3,
+        page_size: (612.0, 792.0),
+        crop: Some(crop),
+        name: Some("paper.pdf".into()),
+    };
+    let clip = snippet(&shape).unwrap();
+    assert_eq!(clip.text, None, "a snippet has no text");
+    let items: Value = serde_json::from_str(clip.items.as_deref().unwrap()).unwrap();
+    assert_eq!(
+        items,
+        json!([{"kind": "pdf", "x": 24000, "y": 3000, "w": 6000, "h": 2400, "hash": "sha256:9f86",
+                "pdfpage": 3, "pagesize": [6120, 7920], "crop": [720, 1800, 3000, 1200],
+                "name": "paper.pdf"}]),
+        "as the design's example line, with no id and no colour"
+    );
+    let pasted = pasted(clip.items.as_deref().unwrap(), "p1", Point { x: 0.0, y: 0.0 });
+    let [one] = &pasted[..] else { panic!("{pasted:?}") };
+    let frame = Rect { x: -300.0, y: -120.0, width: 600.0, height: 240.0 };
+    assert_eq!(one.item.shape, shape.reframed(frame), "centred on the point, the crop kept");
+    assert_eq!(one.object["page"], "p1");
+    assert_eq!(snippet(&Shape::Panel { frame, fill: None, width: 1.0, dashed: false }), None);
+}

@@ -142,7 +142,9 @@ impl Select {
                 self.selection = None;
                 Gesture::Lasso { points: vec![at] }
             }
-            Tool::Pen | Tool::Text | Tool::Box | Tool::Arrow | Tool::Select => return false,
+            Tool::Pen | Tool::Text | Tool::Box | Tool::Arrow | Tool::Select | Tool::CropPdf => {
+                return false;
+            }
         };
         self.gesture = Some((canvas.to_string(), page.to_string(), gesture));
         self.drag(at, items)

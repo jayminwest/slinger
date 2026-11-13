@@ -9,6 +9,7 @@ use crate::backend::tests::{open_notes, with_store};
 use crate::commands::{CMD, Chord};
 use crate::panes::{Kind as PaneKind, Pane};
 use crate::scene::ink::Pen;
+use crate::scene::paste::Edit;
 use crate::scene::tools::Tool;
 
 /// The window's state, as `window` keeps it, with no watch.
@@ -160,5 +161,47 @@ fn undo_by_the_pointer_with_an_entry_open_is_the_field_s() {
         assert!(!w.canvases.typing());
         assert!(w.send(Event::Command(Command::Undo)), "the canvas's");
         w.until(|_| count(daemon, "box") == 0);
+    });
+}
+
+/// docs/design/pdf.md, "Snippets": the crop tool's lift answers the window
+/// with the snippet to put on the clipboard and leaves the canvas as it
+/// was; pasted, the snippet is one more `pdf` item, cropped.
+#[test]
+fn a_crop_s_lift_copies_a_snippet_that_pastes_as_a_cropped_pdf_item() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let hash = format!("sha256:{}", "9f".repeat(32));
+        let item = serde_json::json!({"page": "p1", "kind": "pdf", "x": 0, "y": 0,
+            "w": 12240, "h": 15840, "hash": hash, "pdfpage": 1, "pagesize": [6120, 7920]});
+        let ops = serde_json::json!({"op": "add", "item": item});
+        let (canvas, by) = ("notes".to_string(), "user".to_string());
+        daemon.canvas_apply(control::CanvasOps { canvas, by, ops, once: None }).unwrap();
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        assert_eq!(count(daemon, "pdf"), 1);
+        w.key(Chord::new(CMD, '8'), "8");
+        assert_eq!(w.tools.tool(), Tool::CropPdf);
+        let mut route = |event| {
+            let w = &mut w;
+            let (shared, canvases, tools) = (&mut w.shared, &mut w.canvases, &mut w.tools);
+            route(event, shared, canvases, tools, &w.settings, &w.socket, &mut w.sidebar)
+        };
+        assert!(matches!(
+            route(Event::Press(at(300.0, 300.0, 1.0))),
+            Routed::Answer(Step::Draw(_))
+        ));
+        route(Event::Drag(at(400.0, 350.0, 1.1)));
+        let Routed::Answer(Step::Copy(clip, _)) = route(Event::Lift(at(500.0, 400.0, 1.2))) else {
+            panic!("the lift copies")
+        };
+        let items: serde_json::Value =
+            serde_json::from_str(clip.items.as_deref().unwrap()).unwrap();
+        assert_eq!(items[0]["kind"], "pdf");
+        assert_eq!((items[0]["w"].clone(), items[0]["h"].clone()), (2000.into(), 1000.into()));
+        assert_eq!(items[0]["crop"][2], 1000, "two units a point: 200 units are 100 points");
+        assert_eq!(count(daemon, "pdf"), 1, "the canvas does not change");
+        assert!(w.send(Event::Edit(Edit::Paste(clip))));
+        w.until(|_| count(daemon, "pdf") == 2);
     });
 }
