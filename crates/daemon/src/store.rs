@@ -33,6 +33,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rusqlite::{
     Connection, OptionalExtension, Transaction, TransactionBehavior, params, params_from_iter,
 };
+use slinger_control as control;
 use slinger_core::record::{self, BlobId, Event};
 
 use crate::canvases::Canvases;
@@ -417,31 +418,14 @@ fn lock(dir: &Path) -> Result<Lock> {
     Lock::take(&dir.join(LOCK)).map_err(locking)?.ok_or_else(|| StoreError::Taken(dir.to_owned()))
 }
 
-/// Where the record lives when `--data-dir` is not given:
-/// `$XDG_DATA_HOME/slinger`, else `~/Library/Application Support/slinger` on
-/// macOS and `~/.local/share/slinger` elsewhere.
+/// Where the record lives when `--data-dir` is not given (see
+/// [`control::default_data_dir`]).
 ///
 /// # Errors
 ///
 /// [`StoreError::NoDataDir`] when neither `XDG_DATA_HOME` nor `HOME` is set.
 pub fn default_data_dir() -> Result<PathBuf> {
-    data_dir_in(
-        std::env::var_os("XDG_DATA_HOME").map(PathBuf::from),
-        std::env::home_dir(),
-        cfg!(target_os = "macos"),
-    )
-    .ok_or(StoreError::NoDataDir)
-}
-
-fn data_dir_in(xdg: Option<PathBuf>, home: Option<PathBuf>, macos: bool) -> Option<PathBuf> {
-    let nonempty = |dir: &PathBuf| !dir.as_os_str().is_empty();
-    if let Some(xdg) = xdg.filter(nonempty) {
-        return Some(xdg.join("slinger"));
-    }
-    let home = home.filter(nonempty)?;
-    let base =
-        if macos { home.join("Library/Application Support") } else { home.join(".local/share") };
-    Some(base.join("slinger"))
+    control::default_data_dir().ok_or(StoreError::NoDataDir)
 }
 
 /// The name a new record keeps for the `machine` tag: the host name up to

@@ -259,16 +259,13 @@ fn an_agent_done_with_no_answer_says_so_and_it_all_clears_in_time() {
 }
 
 #[test]
-fn an_agent_that_stops_says_how_to_start_it() {
+fn an_agent_that_stops_says_a_new_sling_starts_it() {
     let now = Instant::now();
     let mut slung = out(now);
     assert!(slung.heard(&Progress { running: false, ..working(1) }, now));
     let marks = slung.marks(&T, &[view(true)], now);
     let texts: Vec<String> = marks.all().into_iter().map(|l| l.text).collect();
-    assert_eq!(
-        texts,
-        ["✗ scout stopped before it answered", "start it with 'slinger session start <WORKSPACE>'"]
-    );
+    assert_eq!(texts, ["✗ scout stopped before it answered", "sling again: a sling starts it"]);
     assert_eq!(marks.all()[0].colour, T.error);
     assert!(slung.tick(now + CLEAR));
 }

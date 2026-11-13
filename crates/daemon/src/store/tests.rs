@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use rusqlite::Connection;
 use slinger_core::record::{self, BlobId, Body, Event, Tags};
 
-use super::{FILE, Query, Store, StoreError, data_dir_in, machine_from};
+use super::{FILE, Query, Store, StoreError, machine_from};
 
 const MACHINE: &str = "test-machine";
 
@@ -264,19 +264,7 @@ fn an_unreadable_stored_event_is_reported_by_number() {
 }
 
 #[test]
-fn the_default_data_dir_follows_xdg_then_the_platform() {
-    let (xdg, home) = (PathBuf::from("/x"), PathBuf::from("/h"));
-    assert_eq!(data_dir_in(Some(xdg.clone()), Some(home.clone()), true), Some(xdg.join("slinger")));
-    assert_eq!(
-        data_dir_in(Some("".into()), Some(home.clone()), true),
-        Some(home.join("Library/Application Support/slinger"))
-    );
-    assert_eq!(
-        data_dir_in(None, Some(home.clone()), false),
-        Some(home.join(".local/share/slinger"))
-    );
-    assert_eq!(data_dir_in(None, Some("".into()), false), None);
-    assert_eq!(data_dir_in(None, None, true), None);
+fn no_data_dir_is_invalid_with_a_hint() {
     let none = StoreError::NoDataDir;
     assert_eq!(
         (none.code(), none.hint().unwrap().as_str()),

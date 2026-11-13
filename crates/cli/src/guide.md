@@ -40,9 +40,8 @@ guide comes from the `slinger` binary you run, so it fits that binary.
 - `--json` prints one JSON document: `success`, `command`, then the data. A
   failure has `error`, `code` and `hint`.
 - Exit codes: 0 ok, 1 error, 2 usage, 3 not found, 4 conflict, 5 invalid,
-  6 the daemon does not answer. On 6, look first for a daemon on another
-  socket: `pgrep -fl slingerd`, then pass its `--socket <PATH>` to each
-  command. With none, pass the hint on to the user (start `slingerd`, or
+  6 the daemon does not answer. `slinger` finds a running daemon on any
+  socket, so on 6 pass the hint on to the user (start `slingerd`, or
   retry or restart one that did not reply in time); do not start or restart
   it yourself unless the user asks.
 - `slinger <command> --help` gives the full help of one command.

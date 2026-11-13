@@ -157,7 +157,8 @@ fn beside_me() -> PathBuf {
 /// Serves the record in `data_dir` on `socket`, with the agents' `claude`
 /// and `slinger` programs, writing feedback to `feedback` (by default
 /// [`feedback::default_file`]). Names each open workspace whose file it
-/// cannot use on `err`, once, before it serves.
+/// cannot use on `err`, once, before it serves. Names its socket in the data
+/// directory while it serves, so clients find it on any path.
 fn serve(
     socket: &Path,
     data_dir: Option<PathBuf>,
@@ -182,6 +183,8 @@ fn serve(
         .with_slinger(slinger)
         .with_feedback(feedback.unwrap_or_else(|| feedback::default_file(&dir)));
     warn_broken(store.workspaces(), err).map_err(internal)?;
+    // The record's lock is ours: so is the name of its socket (docs/service.md).
+    control::name_socket(&dir, socket).map_err(internal)?;
     let stopper = server.stopper();
     let mut signals = Signals::new([SIGTERM, SIGINT]).map_err(internal)?;
     std::thread::spawn(move || {
@@ -189,5 +192,7 @@ fn serve(
             stopper.stop();
         }
     });
-    server.serve(&store).map_err(internal)
+    let result = server.serve(&store).map_err(internal);
+    control::unname_socket(&dir).map_err(internal)?;
+    result
 }

@@ -298,6 +298,11 @@ bullet with the area in bold.
 
 ### Changed
 
+- **CLI:** `slinger` finds the running `slingerd` on any socket, not only on
+  the default one: the daemon names its socket in its data directory while
+  it runs. A session no longer needs `--socket` when you start `slingerd`
+  with `--socket`, or when its temporary directory differs from the
+  daemon's. `--socket` and `$SLINGER_SOCKET` still win.
 - **Agents:** a sling to a workspace whose agent is not running starts it,
   resuming its conversation, and goes in; you no longer need Start agent
   (or `slinger session start`) first, and a sling after Stop agent starts
@@ -394,6 +399,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** when an agent stops before it answers a sling, the sling's
+  note says to sling again (a sling starts it) instead of telling you
+  to run `slinger session start`.
 - **App:** opening the sling entry while typing a text on the canvas
   ends that text, as the feedback entry does. Its caret no longer stays
   on the canvas beside the entry's own, and the text is on the page

@@ -14,6 +14,7 @@ mod imported;
 mod look;
 mod packet;
 mod pane;
+mod place;
 mod profile;
 mod session;
 mod sling;
@@ -40,6 +41,9 @@ pub use imported::CanvasImported;
 pub use look::{CanvasImage, CanvasImages, CanvasStrokes};
 pub use packet::{CanvasPacket, PacketAsk, PacketImage};
 pub use pane::{Pane, PaneAsk, PaneKind, PaneLayout, PaneSplit, PaneTree};
+pub use place::{
+    default_data_dir, default_socket, name_socket, named_socket, running_socket, unname_socket,
+};
 pub use profile::{Profile, ProfileAsk, Profiles};
 pub use session::{
     FileTouched, Listened, Session, SessionAsk, SessionInfo, Sessions, StatusSet, Taken, Touched,
@@ -443,31 +447,9 @@ impl fmt::Display for RemoteError {
 
 impl std::error::Error for RemoteError {}
 
-const SOCKET_FILE: &str = "slinger.sock";
-
-/// Where the daemon listens when no path is given: `$XDG_RUNTIME_DIR`, else
-/// the temporary directory (per user on macOS).
-#[must_use]
-pub fn default_socket() -> PathBuf {
-    socket_in(std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from), std::env::temp_dir())
-}
-
-fn socket_in(runtime: Option<PathBuf>, temp: PathBuf) -> PathBuf {
-    runtime.filter(|dir| !dir.as_os_str().is_empty()).unwrap_or(temp).join(SOCKET_FILE)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn default_socket_prefers_the_runtime_dir() {
-        let (run, temp) = (PathBuf::from("/run/user/1"), PathBuf::from("/tmp"));
-        assert_eq!(socket_in(Some(run.clone()), temp.clone()), run.join(SOCKET_FILE));
-        assert_eq!(socket_in(Some("".into()), temp.clone()), temp.join(SOCKET_FILE));
-        assert_eq!(socket_in(None, temp.clone()), temp.join(SOCKET_FILE));
-        assert!(default_socket().ends_with(SOCKET_FILE));
-    }
 
     #[test]
     fn a_remote_error_shows_its_message_and_keeps_its_code() {
