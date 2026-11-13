@@ -310,9 +310,10 @@ fn a_text_a_box_and_an_arrow_are_written_as_they_read_back() {
         shape,
     };
     // A text shows in its glyphs' frame; the file keeps the core's cells.
-    let glyphs = glyphs::rows_frame(pt(1.0, -2.5), "hi", TEXT_SIZE, 48.0);
-    let text =
-        Shape::Text { frame: glyphs, text: "hi".into(), size: TEXT_SIZE, column: Some(48.0) };
+    // One typed here does not wrap.
+    let glyphs = glyphs::rows_frame(pt(1.0, -2.5), "hi", TEXT_SIZE, glyphs::UNWRAPPED);
+    let column = Some(glyphs::UNWRAPPED);
+    let text = Shape::Text { frame: glyphs, text: "hi".into(), size: TEXT_SIZE, column };
     let boxed = Shape::Box {
         frame: Rect { x: 0.0, y: 0.0, width: 30.0, height: 40.04 },
         width: LINE_WIDTH,
@@ -488,3 +489,4 @@ fn a_text_size_is_read_and_written_and_the_usual_one_left_out() {
 }
 
 mod pdf;
+mod text;

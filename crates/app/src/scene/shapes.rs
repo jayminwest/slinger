@@ -47,9 +47,6 @@ pub const MIN_DRAG: f64 = 4.0;
 /// The width of the caret after the text being edited, of the dashed frame
 /// around it, and how far out the frame lies, in screen points.
 const CARET: f64 = 2.0;
-/// A text typed here is a canvas text that does not wrap: its lines are
-/// its rows.
-const TYPED: Option<f64> = Some(glyphs::UNWRAPPED);
 const FRAME_LINE: f64 = 1.0;
 const FRAME_PAD: f64 = 4.0;
 /// Under the text being edited, this far below its frame, in screen points.
@@ -99,16 +96,19 @@ struct Editing {
     colour: Rgb,
     /// The text's size: an edited text's own, a new one's [`TEXT_SIZE`].
     size: f64,
+    /// The column it wraps in: an edited text's own, so an agent's
+    /// paragraph keeps its rows; [`glyphs::UNWRAPPED`] for a new one.
+    column: f64,
     /// The text item edited and its text before; `None` for a new text.
     item: Option<(ItemId, String)>,
 }
 
 impl Editing {
-    /// The box its glyphs fill, unwrapped, in the core's rows: the caret,
+    /// The box its glyphs fill in its column, in the core's rows: the caret,
     /// the dashed frame and a press inside follow the glyphs. The file
     /// stores its own frame.
     fn frame(&self) -> Rect {
-        glyphs::rows_frame(self.at, &self.text, self.size, glyphs::UNWRAPPED)
+        glyphs::rows_frame(self.at, &self.text, self.size, self.column)
     }
 }
 
@@ -162,7 +162,7 @@ impl Shapes {
         }
         let edits = tool == Tool::Text || (double && tool != Tool::Pen);
         if let Some(item) = text_at(items, press.at, reach).filter(|_| edits) {
-            let Shape::Text { frame, text, size, .. } = &item.shape else { return true };
+            let Shape::Text { frame, text, size, column } = &item.shape else { return true };
             let editing = Editing {
                 canvas: canvas.to_string(),
                 page: page.to_string(),
@@ -170,6 +170,7 @@ impl Shapes {
                 text: text.clone(),
                 colour: item.colour,
                 size: *size,
+                column: column.unwrap_or(glyphs::UNWRAPPED),
                 item: Some((item.id, text.clone())),
             };
             if matches!(tool, Tool::Select | Tool::Lasso) {
@@ -191,6 +192,7 @@ impl Shapes {
                     text: String::new(),
                     colour,
                     size: TEXT_SIZE,
+                    column: glyphs::UNWRAPPED,
                     item: None,
                 });
                 return true;
@@ -298,8 +300,8 @@ impl Shapes {
     pub fn end(&mut self, ink: &mut Ink) -> bool {
         let Some(editing) = self.editing.take() else { return false };
         let blank = editing.text.trim().is_empty();
-        let (frame, size) = (editing.frame(), editing.size);
-        let shape = Shape::Text { frame, text: editing.text, size, column: TYPED };
+        let (frame, size, column) = (editing.frame(), editing.size, Some(editing.column));
+        let shape = Shape::Text { frame, text: editing.text, size, column };
         let (canvas, page) = (editing.canvas, editing.page);
         match editing.item {
             None if blank => {}
@@ -336,7 +338,8 @@ impl Shapes {
                 items.retain(|i| i.id != *id);
             }
             let (frame, text, size) = (editing.frame(), editing.text.clone(), editing.size);
-            let shape = Shape::Text { frame, text: text.clone(), size, column: TYPED };
+            let column = Some(editing.column);
+            let shape = Shape::Text { frame, text: text.clone(), size, column };
             items.push(Cow::Owned(Item { id: EDITING, colour: editing.colour, shape }));
             let width = CARET / zoom;
             let shape = Shape::Caret { frame, text, size, width };
