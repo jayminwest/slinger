@@ -1,7 +1,8 @@
 //! The app's IO: the one module that talks to the daemon (docs/service.md)
 //! and reads the config files. It turns their errors into what the window can
-//! show. [`Settings::refresh`] is cheap when nothing changed (two `stat`
-//! calls), so the window's timer calls it. A daemon round trip waits up to
+//! show. [`Settings::refresh`] is cheap when nothing changed (three `stat`
+//! calls: the config files and the daemon's name for its socket, [`place`]),
+//! so the window's timer calls it. A daemon round trip waits up to
 //! the client's timeout, so a [`Watch`] asks for the agents' statuses and
 //! the workspace's panes, and the code of each agent UI they show
 //! ([`ui`]), on its own thread; the window sends only its own pane changes
@@ -30,6 +31,7 @@ mod follow;
 mod outbox;
 pub mod panes;
 pub mod pdf;
+mod place;
 mod sling;
 #[cfg(test)]
 pub(crate) mod testing;
@@ -167,11 +169,14 @@ fn tell<T: Clone + PartialEq>(to: &Sender<T>, last: &mut Option<T>, now: T) -> b
 }
 
 /// Where the config lives: the file shared by every machine, and the
-/// machine's overlay next to it (`config.toml` and `config.local.toml`).
+/// machine's overlay next to it (`config.toml` and `config.local.toml`); and
+/// the data directory whose daemon the app finds when the config names no
+/// socket ([`place`]).
 #[derive(Debug, Clone)]
 pub struct ConfigFiles {
     base: PathBuf,
     overlay: PathBuf,
+    data_dir: Option<PathBuf>,
 }
 
 impl ConfigFiles {
@@ -183,18 +188,20 @@ impl ConfigFiles {
                 env_path("XDG_CONFIG_HOME").or_else(|| Some(env_path("HOME")?.join(".config")));
             dir.unwrap_or_default().join("slinger").join("config.toml")
         });
-        Self::at(base)
+        Self { data_dir: control::default_data_dir(), ..Self::at(base) }
     }
 
-    /// The files for the shared file `base`: its overlay is `<name>.local.toml`.
+    /// The files for the shared file `base`: its overlay is
+    /// `<name>.local.toml`. No data directory: no daemon names its socket.
     pub fn at(base: PathBuf) -> Self {
         let overlay = base.with_extension("local.toml");
-        Self { base, overlay }
+        Self { base, overlay, data_dir: None }
     }
 
     fn stamp(&self) -> Stamp {
         let stamp = |path: &Path| fs::metadata(path).and_then(|m| m.modified()).ok();
-        [stamp(&self.base), stamp(&self.overlay)]
+        let named = self.data_dir.as_deref().map(control::socket_name_file);
+        [stamp(&self.base), stamp(&self.overlay), named.as_deref().and_then(stamp)]
     }
 
     /// The overlay merged over the shared file. A missing file sets nothing.
@@ -204,7 +211,7 @@ impl ConfigFiles {
 }
 
 /// When each file last changed; `None` while it is missing.
-type Stamp = [Option<SystemTime>; 2];
+type Stamp = [Option<SystemTime>; 3];
 
 fn layer(path: &Path) -> Result<Layer, Problem> {
     let problem = |e: &dyn std::fmt::Display, hint| {
@@ -235,12 +242,12 @@ impl Settings {
     /// Reads `files`. With a problem, the config is the defaults.
     pub fn load(files: ConfigFiles) -> Self {
         let mut settings =
-            Self { files, seen: [None, None], config: Config::default(), problem: None };
+            Self { files, seen: [None; 3], config: Config::default(), problem: None };
         settings.reload();
         settings
     }
 
-    /// Reads the files again if either changed since the last read, or if
+    /// Reads the files again if any changed since the last read, or if
     /// `force` (the `reload-config` command); returns whether it did. Call it
     /// every so often to follow edits.
     pub fn refresh(&mut self, force: bool) -> bool {
@@ -260,12 +267,12 @@ impl Settings {
         }
     }
 
-    /// The daemon's socket: the config's, else the daemon's default.
+    /// The daemon's socket: the config's, else the one the running daemon
+    /// named, else the daemon's default ([`place::socket`]).
     pub fn socket(&self) -> PathBuf {
-        match self.config.socket.as_deref() {
-            Some(socket) => config::expand_home(socket, env_path("HOME").as_deref()),
-            None => control::default_socket(),
-        }
+        let home = env_path("HOME");
+        let set = self.config.socket.as_deref().map(|s| config::expand_home(s, home.as_deref()));
+        place::socket(set, self.files.data_dir.as_deref())
     }
 }
 
