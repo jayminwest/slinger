@@ -165,6 +165,24 @@ fn a_session_under_a_profile_runs_in_its_dir_with_its_rules_and_its_own_conversa
 }
 
 #[test]
+fn a_start_under_another_profile_mid_turn_ends_the_working_of_the_process_it_replaces() {
+    // The process under no profile is killed mid-turn (slinger-d7187e).
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
+    let client = daemon.client();
+    let (home, _) = open_with_profile(&client, &projects);
+    let plain = client.session_start("notes").unwrap();
+    client.session_send("notes", "mid-turn").unwrap();
+    wait_lines(&home.join("in.txt"), 1);
+    client.status_set("scout", "working", None).unwrap();
+
+    let dev = client.session_start_with("notes", Some("dev"), false).unwrap();
+    assert_ne!(dev.pid, plain.pid, "the process under no profile ended");
+    assert_eq!(dev.status, None, "nothing works on its turn");
+    daemon.stop();
+}
+
+#[test]
 fn a_start_under_a_profile_that_is_not_there_is_not_found_and_ends_nothing() {
     let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
     let daemon = Daemon::start_with_claude(data.path(), &fake_claude());

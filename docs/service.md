@@ -748,7 +748,10 @@ is stopped first. With `profile` the process runs under that profile, and a
 process running under another one (or under none) is stopped first. Each
 profile keeps a conversation of its own, since Claude Code keeps one per
 working directory: `sessions.json` keeps it under `<agent>#<profile>`, and
-the next start under that profile resumes it. A session shows the
+the next start under that profile resumes it. A start that stops a running
+process (`fresh`, or another profile) ends the agent's `working`, which
+the stopped process never ends; a start that leaves it running leaves its
+`working`. A session shows the
 `profile` its process runs under. A profile the agent does not have, or
 whose `dir` is no longer there, is `not_found`, and the running process
 stays. **`session_stop`** closes the process's
