@@ -14,7 +14,8 @@
 //!
 //! Each pane keeps its own page, followed once however many panes show it:
 //! page commands, undo and redo are in [`paging`], live items' pages in [`live`];
-//! cut, copy and paste in [`clip`].
+//! cut, copy and paste in [`clip`]; the PDFs `pdf` items show, and opening
+//! one, in [`pdf`].
 
 mod button;
 mod clip;
@@ -23,6 +24,7 @@ mod find;
 mod kept;
 mod live;
 mod paging;
+mod pdf;
 
 use std::rc::Rc;
 
@@ -81,6 +83,7 @@ pub struct Canvases {
     /// The panes waiting for a new page, by the key of its `page.add`.
     turning: Vec<(u64, PaneId, String)>,
     lives: live::Lives,
+    pdfs: pdf::Pdfs,
     /// Each open workspace's canvas and its agent, as the sidebar last
     /// heard: for the buttons, the footers and `sling-now`.
     agents: Option<Vec<(String, Option<Agent>)>>,
@@ -133,6 +136,7 @@ impl Canvases {
         let (open, views) = (Vec::new(), Vec::new());
         let (shapes, asks, turning) = (Shapes::default(), Pages::default(), Vec::new());
         let (pen, unshown, lives) = (None, None, live::Lives::start(daemon.clone()));
+        let pdfs = pdf::Pdfs::start(daemon.clone(), crate::backend::pdf::cache());
         let voice = dictation::Voice::new(Flick::socket());
         let notes = feedback::Notes::new(daemon.clone());
         Self {
@@ -154,6 +158,7 @@ impl Canvases {
             asks,
             turning,
             lives,
+            pdfs,
             agents: None,
             zoomed: None,
             paper: Paper::default(),
@@ -169,6 +174,7 @@ impl Canvases {
         self.slinger.reconnect(daemon.clone());
         self.notes.reconnect(daemon.clone());
         self.lives = live::Lives::start(daemon.clone());
+        self.pdfs = pdf::Pdfs::start(daemon.clone(), crate::backend::pdf::cache());
         self.daemon = daemon;
         self.open.clear();
     }
@@ -204,7 +210,7 @@ impl Canvases {
             self.gone(&canvas, &page, next.as_deref());
         }
         let (sent, dictated, came) = (self.send(), self.poll_dictation(), self.lives.poll());
-        self.poll_sling() || sent || changed || dictated || came
+        self.poll_sling() || sent || changed || dictated || came | self.pdfs.poll()
     }
 
     /// Takes the daemon's answers to the ink (a pane that asked for a new
@@ -249,8 +255,9 @@ impl Canvases {
 
     /// What is wrong with any canvas followed, or with sending the ink.
     pub fn problems(&self) -> impl Iterator<Item = &Problem> {
-        let kept = self.kept.as_ref().and_then(kept::Kept::problem);
-        self.open.iter().filter_map(|o| o.problem.as_ref()).chain(self.ink.problem()).chain(kept)
+        let kept = self.kept.as_ref().and_then(kept::Kept::problem).into_iter();
+        let open = self.open.iter().filter_map(|o| o.problem.as_ref());
+        open.chain(self.ink.problem()).chain(kept.chain(self.pdfs.problem()))
     }
 
     /// The pen went down in `pane` of `panes`, laid at `frame` in the
@@ -462,7 +469,9 @@ impl Canvases {
             let status = slung::agent_in(self.agents.as_deref(), here.0).and_then(|a| a.status);
             let items = button::shown(items, status);
             let items = items.iter().map(AsRef::as_ref);
-            let mut scene = canvas::build(items, view.viewport, screen, theme, last).on(grid, last);
+            let files = |hash: &str| self.pdfs.file(hash);
+            let scene = canvas::build_with(items, (view.viewport, screen), theme, last, &files);
+            let mut scene = scene.on(grid, last);
             if self.pen.is_some_and(|(p, _)| p == id) {
                 scene.pen_event = self.unshown.take();
             }
@@ -470,22 +479,8 @@ impl Canvases {
             view.last = Some(Rc::clone(&scene));
             scenes.push(CanvasPane { pane: id, frame, scene, cursor: Cursor::Arrow });
         }
+        self.pdfs.want(&scenes);
         scenes
-    }
-
-    /// Clears the selection when no pane in `shown` (each a canvas and the
-    /// page it asked for) shows its page. A pane whose first page has not
-    /// arrived may show it.
-    fn clear_hidden_selection(&mut self, shown: &[(&str, Option<String>)]) {
-        let Some(s) = self.select.selection() else { return };
-        let maybe = shown.iter().any(|(canvas, asked)| {
-            let open = find(&self.open, canvas, asked.as_deref()).and_then(|o| o.mirror.as_ref());
-            let page = asked.as_deref().or(open.map(Mirror::page));
-            *canvas == s.canvas && page.is_none_or(|p| p == s.page)
-        });
-        if !maybe {
-            self.select.clear();
-        }
     }
 }
 

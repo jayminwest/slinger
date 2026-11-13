@@ -85,9 +85,12 @@ pub fn object(item: &Item) -> Option<Value> {
         Shape::Panel { .. } | Shape::Caret { .. } => return None,
         shape => fields(shape),
     };
-    let Rgb { r, g, b } = item.colour;
     o.insert("id".into(), item_ref(item.id).into());
-    o.insert("color".into(), format!("#{r:02x}{g:02x}{b:02x}").into());
+    // A `pdf` item has no colour (docs/design/pdf.md).
+    if !matches!(item.shape, Shape::Pdf { .. }) {
+        let Rgb { r, g, b } = item.colour;
+        o.insert("color".into(), format!("#{r:02x}{g:02x}{b:02x}").into());
+    }
     Some(Value::Object(o))
 }
 
@@ -145,6 +148,7 @@ fn set(id: ItemId, shape: &Shape) -> Value {
     let optional: &[&str] = match shape {
         Shape::Arrow { .. } => &["from", "to"],
         Shape::Text { .. } => &["size"],
+        Shape::Pdf { .. } => &["crop", "name"],
         _ => &[],
     };
     for &key in optional {
@@ -166,7 +170,8 @@ fn reshape(item: &Item) -> Value {
     serde_json::json!({"op": "set", "id": item_ref(item.id), "fields": fields})
 }
 
-/// The item fields of a text, a box, a button or an arrow, with its kind, in tenths:
+/// The item fields of a text, a box, a button, a `pdf` item or an arrow,
+/// with its kind, in tenths:
 /// a frame as `x`, `y`, `w`, `h`; an arrow's ends as a delta array, and the
 /// items they point at as `from` and `to`. A stroke is written whole by
 /// [`stroke_object`], so it has none here.
@@ -196,6 +201,20 @@ fn fields(shape: &Shape) -> Map<String, Value> {
             o.insert("kind".into(), "button".into());
             frame(&mut o, r);
         }
+        Shape::Pdf { frame: r, hash, pdf_page, page_size: (w, h), crop, name } => {
+            o.insert("kind".into(), "pdf".into());
+            frame(&mut o, r);
+            o.insert("hash".into(), hash.as_str().into());
+            o.insert("pdfpage".into(), (*pdf_page).into());
+            o.insert("pagesize".into(), serde_json::json!([tenths(*w), tenths(*h)]));
+            if let Some(c) = crop {
+                let crop = [c.x, c.y, c.width, c.height].map(tenths);
+                o.insert("crop".into(), serde_json::json!(crop));
+            }
+            if let Some(name) = name {
+                o.insert("name".into(), name.as_str().into());
+            }
+        }
         Shape::Arrow { from, to, bound, .. } => {
             let (a, b) = ((tenths(from.x), tenths(from.y)), (tenths(to.x), tenths(to.y)));
             o.insert("kind".into(), "arrow".into());
@@ -211,6 +230,14 @@ fn fields(shape: &Shape) -> Map<String, Value> {
         Shape::Stroke { .. } | Shape::Live { .. } | Shape::Panel { .. } | Shape::Caret { .. } => {}
     }
     o
+}
+
+/// The `add` of a `pdf` item `shape` to `page` (docs/design/pdf.md): its
+/// fields, without a colour.
+pub fn add_pdf(page: &str, shape: &Shape) -> Value {
+    let mut item = fields(shape);
+    item.insert("page".into(), page.into());
+    serde_json::json!({"op": "add", "item": item})
 }
 
 /// The frame of `text` of `size` set with its top left at `at`, as the

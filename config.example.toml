@@ -219,3 +219,6 @@
 #save = "cmd+s"
 # Show the focused pane's canvas file in the Finder.
 #show-canvas-file = "cmd+alt+r"
+# Open a PDF as a new canvas, its pages one under the next, in a pane beside the focused
+# one. Write on it with any tool.
+#open-pdf = "cmd+o"

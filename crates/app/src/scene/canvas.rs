@@ -9,6 +9,7 @@
 
 use std::collections::HashMap;
 use std::f64::consts::FRAC_PI_6;
+use std::path::PathBuf;
 
 use super::button;
 use super::sidebar::Status;
@@ -46,6 +47,19 @@ pub enum Shape {
     /// The "send to agent" button in `frame`, with the status of the agent
     /// of its canvas's workspace (`scene::button`).
     Button { frame: Rect, status: Option<Status> },
+    /// One page of a PDF, or part of one (docs/design/pdf.md), stretched
+    /// to fill `frame`: page `pdf_page` (from 1) of the PDF that is blob
+    /// `hash`, `page_size` in page points as displayed, and the part of it
+    /// shown, `crop`, in page points (`None`: the whole page). `name` is
+    /// the PDF's file name when it was opened.
+    Pdf {
+        frame: Rect,
+        hash: String,
+        pdf_page: u32,
+        page_size: (f64, f64),
+        crop: Option<Rect>,
+        name: Option<String>,
+    },
     /// App chrome over a page, never an item of the server's
     /// (`scene::select`, `scene::shapes`): `frame` filled with `fill`, if
     /// any, under its outline `width` wide, dashed when `dashed`.
@@ -116,6 +130,21 @@ pub enum Mark {
         width: f64,
         zoom: f64,
     },
+    /// A `pdf` item: the part `shown` of page `page` (from 1), in page
+    /// points as displayed, stretched to fill `frame`, on white, from the
+    /// PDF at `file` once it has come ([`build_with`]) for the blob `hash`. Until then, or when the PDF cannot be read, the frame's
+    /// outline with `PDF` laid out like a text from `at`, `zoom` times
+    /// `size`.
+    Pdf {
+        frame: Rect,
+        page: u32,
+        shown: Rect,
+        hash: String,
+        file: Option<PathBuf>,
+        at: Point,
+        size: f64,
+        zoom: f64,
+    },
     /// The panel's `frame`, filled, then outlined `width` wide.
     Panel {
         frame: Rect,
@@ -180,17 +209,33 @@ const NAME_INSET: f64 = 8.0;
 /// the background than this, such as black ink on a dark theme, draws in
 /// the theme's text colour, so nothing on a page is invisible.
 const MIN_CONTRAST: f64 = 1.5;
+/// The outline and the word of a `pdf` item whose PDF has not come.
+const PDF_GREY: Rgb = Rgb { r: 0xc8, g: 0xc8, b: 0xc8 };
 
 /// The scene for `items` seen through `viewport` on a pane of `screen` size,
 /// on `theme`'s background. Pass the scene before this one as `last` to
 /// learn what changed: with no last scene, or after the viewport, the size
-/// or the background changed, the whole pane did.
+/// or the background changed, the whole pane did. No `pdf` item has its
+/// file: the tests' scenes.
+#[cfg(test)]
 pub fn build<'a>(
     items: impl IntoIterator<Item = &'a Item>,
     viewport: Viewport,
     screen: Size,
     theme: &Theme,
     last: Option<&Scene>,
+) -> Scene {
+    build_with(items, (viewport, screen), theme, last, &|_| None)
+}
+
+/// [`build`], each `pdf` item drawn from the file `files` gives for its
+/// blob id, if any (docs/design/pdf.md): a file that comes repaints it.
+pub fn build_with<'a>(
+    items: impl IntoIterator<Item = &'a Item>,
+    (viewport, screen): (Viewport, Size),
+    theme: &Theme,
+    last: Option<&Scene>,
+    files: &dyn Fn(&str) -> Option<PathBuf>,
 ) -> Scene {
     let visible = viewport.visible(screen);
     let draws: Vec<Draw> = items
@@ -203,9 +248,16 @@ pub fn build<'a>(
                 bounds: viewport.rect_to_screen(bounds),
                 colour: match item.shape {
                     Shape::Button { status, .. } => button::colour(status, theme),
+                    Shape::Pdf { .. } => PDF_GREY,
                     _ => legible(item.colour, theme),
                 },
-                mark: item.shape.mark(viewport),
+                mark: match item.shape.mark(viewport) {
+                    Mark::Pdf { hash, frame, page, shown, at, size, zoom, .. } => {
+                        let file = files(&hash);
+                        Mark::Pdf { frame, page, shown, hash, file, at, size, zoom }
+                    }
+                    mark => mark,
+                },
             })
         })
         .collect();
@@ -287,9 +339,10 @@ impl Shape {
             Self::Stroke { points, width } => {
                 Rect::around(points.iter().copied()).map(|r| r.outset(width / 2.0))
             }
-            Self::Text { frame, .. } | Self::Live { frame, .. } | Self::Button { frame, .. } => {
-                Some(*frame)
-            }
+            Self::Text { frame, .. }
+            | Self::Live { frame, .. }
+            | Self::Button { frame, .. }
+            | Self::Pdf { frame, .. } => Some(*frame),
             Self::Box { frame, width } | Self::Panel { frame, width, .. } => {
                 Some(frame.outset(width / 2.0))
             }
@@ -321,6 +374,7 @@ impl Shape {
             Self::Arrow { from, to, width, bound } => {
                 Self::Arrow { from: at(from), to: at(to), width: *width, bound: *bound }
             }
+            Self::Pdf { frame, .. } => self.reframed(shift(frame)),
             Self::Panel { frame, fill, width, dashed } => {
                 Self::Panel { frame: shift(frame), fill: *fill, width: *width, dashed: *dashed }
             }
@@ -368,6 +422,16 @@ impl Shape {
                 zoom,
             },
             Self::Button { frame, status } => button::mark(*frame, *status, view),
+            Self::Pdf { frame, pdf_page, hash, .. } => Mark::Pdf {
+                frame: view.rect_to_screen(*frame),
+                page: *pdf_page,
+                shown: self.shown().unwrap_or(*frame),
+                hash: hash.clone(),
+                file: None,
+                at: view.to_screen(Point { x: frame.x + NAME_INSET, y: frame.y + NAME_INSET }),
+                size: NAME_SIZE,
+                zoom,
+            },
             Self::Panel { frame, fill, width, dashed } => Mark::Panel {
                 frame: view.rect_to_screen(*frame),
                 fill: *fill,

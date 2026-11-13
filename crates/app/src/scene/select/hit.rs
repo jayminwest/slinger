@@ -11,8 +11,8 @@
 //!   of the text's frame. A stroke of one point is a dot. In the app a
 //!   text's frame is the box its glyphs fill (`scene::glyphs`), not the
 //!   wider frame the file stores for the core's render cells. Erasing the ink
-//!   inside a box keeps the box. A live item and the button are never
-//!   erased: they are not ink.
+//!   inside a box keeps the box. A live item, the button and a `pdf` item
+//!   are never erased: they are not ink.
 //! - A lasso, a closed polygon, holds an item when it winds around every
 //!   point that defines the item (the nonzero rule): a stroke's points, an
 //!   arrow's ends, a frame's corners. A lasso of fewer than three points
@@ -27,7 +27,11 @@
 //! half its width, an arrow by its line, a text, a live item or the button
 //! by its frame, and a box by its outline, so a box drawn inside a box
 //! does not take it (the core's `items_in_box` takes a box by its whole
-//! frame, for rendering and placing). A drawn box that touches nothing,
+//! frame, for rendering and placing). A `pdf` item is the paper under the
+//! ink (docs/design/pdf.md): a press inside its frame picks it only when
+//! nothing over it does (it comes first in the items), and a drawn box takes
+//! it only when it holds its whole frame, so a box around ink on a page
+//! takes the ink. A drawn box that touches nothing,
 //! or a press that does not move, takes the innermost box it lies inside
 //! ([`inside`]).
 
@@ -48,9 +52,11 @@ pub fn erases(shape: &Shape, a: Point, b: Point, radius: f64) -> bool {
             near(&[tl, tr, br, bl, tl], *width)
         }
         Shape::Text { frame, .. } => segment_rect_distance(a, b, frame) <= radius,
-        Shape::Live { .. } | Shape::Button { .. } | Shape::Panel { .. } | Shape::Caret { .. } => {
-            false
-        }
+        Shape::Live { .. }
+        | Shape::Button { .. }
+        | Shape::Pdf { .. }
+        | Shape::Panel { .. }
+        | Shape::Caret { .. } => false,
     }
 }
 
@@ -66,6 +72,7 @@ pub fn holds(lasso: &[Point], shape: &Shape) -> bool {
         | Shape::Box { frame, .. }
         | Shape::Live { frame, .. }
         | Shape::Button { frame, .. }
+        | Shape::Pdf { frame, .. }
         | Shape::Panel { frame, .. }
         | Shape::Caret { frame, .. } => corners(frame).to_vec(),
     };
@@ -172,6 +179,7 @@ pub fn picks(shape: &Shape, at: Point, radius: f64) -> bool {
         Shape::Text { frame, .. } | Shape::Live { frame, .. } | Shape::Button { frame, .. } => {
             frame.outset(radius).contains(at)
         }
+        Shape::Pdf { frame, .. } => frame.contains(at),
         Shape::Panel { .. } | Shape::Caret { .. } => false,
     }
 }
@@ -189,6 +197,7 @@ pub fn touches(shape: &Shape, area: &Rect) -> bool {
         Shape::Text { frame, .. } | Shape::Live { frame, .. } | Shape::Button { frame, .. } => {
             frame.intersection(*area).is_some()
         }
+        Shape::Pdf { frame, .. } => corners(frame).into_iter().all(|p| area.contains(p)),
         Shape::Panel { .. } | Shape::Caret { .. } => false,
     }
 }

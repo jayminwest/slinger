@@ -100,6 +100,7 @@ impl Command {
             Command::ToggleGrid => "Dotted grid",
             Command::Save => "Save",
             Command::ShowCanvasFile => "Show canvas file in Finder",
+            Command::OpenPdf => "Open PDF…",
         }
     }
 
@@ -134,7 +135,8 @@ impl Command {
             | Command::Redo
             | Command::ToggleGrid
             | Command::Save
-            | Command::ShowCanvasFile => Group::Canvas,
+            | Command::ShowCanvasFile
+            | Command::OpenPdf => Group::Canvas,
             Command::NextPage
             | Command::PreviousPage
             | Command::NewPage

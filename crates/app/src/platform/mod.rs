@@ -17,7 +17,8 @@
 //! the focus border and the flash's pill. `text` sets styled text: the
 //! sidebar's rows and the panes' footers. The window
 //! resizes, down to [`layout::SMALLEST`], and says its new size; `files`
-//! sets its title bar and shows a canvas's file in the Finder; `window`
+//! sets its title bar and shows a canvas's file in the Finder; `pdf` reads
+//! and draws PDFs, and asks for one to open; `window`
 //! makes it; `remember` keeps its frame, and whether the sidebar was open,
 //! for the next launch.
 //!
@@ -35,6 +36,7 @@ mod input;
 mod keys;
 mod menu;
 mod overlay;
+pub mod pdf;
 mod remember;
 mod text;
 mod web;

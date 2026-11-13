@@ -300,3 +300,26 @@ fn ink_the_daemon_has_written_can_be_erased_before_the_feed_echoes_it() {
     assert_eq!(ink.next().map(|(_, change)| change), Some(removed));
     assert!(ink.shown("main", "p1", &[]).is_empty(), "gone at once");
 }
+
+#[test]
+fn a_pdf_page_is_never_erased_and_is_taken_only_whole_or_by_a_press_inside_it() {
+    let (hash, page_size) = ("sha256:9f".to_string(), (612.0, 792.0));
+    let paper = frame(0.0, 0.0, 100.0, 100.0);
+    let page = Shape::Pdf { frame: paper, hash, pdf_page: 1, page_size, crop: None, name: None };
+    assert!(!hit::erases(&page, pt(50.0, 50.0), pt(60.0, 60.0), 10.0));
+    assert!(hit::picks(&page, pt(50.0, 50.0), 6.0));
+    assert!(!hit::picks(&page, pt(103.0, 50.0), 6.0), "inside its frame only");
+    assert!(!hit::touches(&page, &frame(5.0, 5.0, 30.0, 30.0)), "a box around ink on it");
+    assert!(hit::touches(&page, &frame(-1.0, -1.0, 102.0, 102.0)), "a box around it whole");
+    let around = [pt(-1.0, -1.0), pt(101.0, -1.0), pt(101.0, 101.0), pt(-1.0, 101.0)];
+    assert!(hit::holds(&around, &page));
+    assert!(!hit::holds(&around[..3], &page));
+
+    // The paper comes first, under the ink: a press on the ink takes the ink.
+    let items = [item(1, page), stroke(2, &[(10.0, 10.0), (20.0, 20.0)])];
+    let mut select = Select::default();
+    select.pick(HERE, pt(15.0, 15.0), 1.0, false, &shown(&items));
+    assert_eq!(select.selection().unwrap().ids, [ItemId(2)]);
+    select.pick(HERE, pt(60.0, 30.0), 1.0, false, &shown(&items));
+    assert_eq!(select.selection().unwrap().ids, [ItemId(1)]);
+}

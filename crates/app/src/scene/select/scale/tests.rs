@@ -194,3 +194,29 @@ fn a_text_scales_evenly_by_the_mean_of_the_sides_and_within_the_sizes() {
     let Shape::Text { size, .. } = resize(pt(-100.0, -100.0)).shape else { panic!() };
     assert!((size - 4.0).abs() < 1e-9, "never below the smallest: {size}");
 }
+
+#[test]
+fn a_pdf_item_keeps_its_aspect_whichever_handle_is_dragged() {
+    let (hash, page_size) = ("sha256:9f".to_string(), (612.0, 792.0));
+    let paper = frame(0.0, 0.0, 61.2, 79.2);
+    let page = [item(
+        1,
+        Shape::Pdf { frame: paper, hash, pdf_page: 1, page_size, crop: None, name: None },
+    )];
+    let (mut select, mut ink) = (Select::default(), Ink::default());
+    let items = shown(&page);
+    select.pick(HERE, pt(30.0, 30.0), 1.0, false, &items);
+    select.up(None, &items, &mut ink);
+    assert_eq!(select.selection().unwrap().ids, [ItemId(1)]);
+    // The bottom right handle, dragged right only: the width doubles alone.
+    assert!(select.grabs(HERE, pt(67.2, 85.2), 1.0, &items));
+    select.pick(HERE, pt(67.2, 85.2), 1.0, false, &items);
+    select.drag(pt(128.4, 85.2), &items);
+    assert!(select.up(None, &items, &mut ink));
+    let Some((_, Change::Reshape { items: after, .. })) = ink.next() else { panic!() };
+    let Shape::Pdf { frame: f, .. } = after[0].shape else { panic!("{after:?}") };
+    // Evenly, by the mean of 2 and 1, about the top left corner.
+    let k = 2.0_f64.sqrt();
+    let tenth = |v: f64| (v * 10.0).round() / 10.0;
+    assert_eq!(f, frame(0.0, 0.0, tenth(61.2 * k), tenth(79.2 * k)));
+}

@@ -18,6 +18,8 @@ slinger-control.workspace = true
 block2.workspace = true
 objc2.workspace = true
 objc2-app-kit = { workspace = true, features = ["NSCell", "NSMenu", "NSMenuItem", "NSPasteboard", "NSWorkspace"] }
+objc2-core-foundation.workspace = true
+objc2-core-graphics.workspace = true
 objc2-foundation.workspace = true
 objc2-web-kit.workspace = true
 serde_json.workspace = true
