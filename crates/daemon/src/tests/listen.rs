@@ -48,7 +48,7 @@ fn a_sling_waits_for_a_listener_who_takes_it_as_text_with_its_images_as_files() 
     let none = client.session_listen("notes", NONE).unwrap();
     assert_eq!((none.agent.as_str(), none.sling), ("scout", None));
 
-    // Nobody listens and no process runs: the sling waits.
+    // Nobody listens, no process runs and Claude Code cannot start: the sling waits.
     client.session_stop("notes").unwrap();
     draw(&client, 0);
     let slung = sling(&client, "what is this?");
@@ -125,14 +125,19 @@ fn a_listener_outranks_a_running_process_and_a_profile_names_only_a_process() {
     client.profile_set("notes", dev).unwrap();
     let under =
         SlingAsk { canvas: "notes".into(), profile: Some("dev".into()), ..SlingAsk::default() };
-    let err = client.sling_send(under.clone()).unwrap_err();
-    assert_eq!(err.code(), "unavailable", "no process, and a listener has no profile: {err}");
-    assert!(err.hint().unwrap().contains("session start"));
+    // No process: the sling starts one under its profile; a listener has none.
+    assert_eq!(client.sling_send(under).unwrap().deliver.as_deref(), Some("process"));
+    let started = client.session_show("scout").unwrap();
+    assert_eq!(
+        (started.process.as_deref(), started.profile.as_deref()),
+        (Some("running"), Some("dev"))
+    );
+    assert_eq!(wait_lines(&home.join("in.txt"), 1).len(), 1);
 
     // No listener: the running process takes the sling.
     client.session_start("notes").unwrap();
     assert_eq!(sling(&client, "to the process").deliver.as_deref(), Some("process"));
-    assert_eq!(wait_lines(&home.join("in.txt"), 1).len(), 1);
+    assert_eq!(wait_lines(&home.join("in.txt"), 2).len(), 2);
 
     std::thread::scope(|scope| {
         let theirs = daemon.client();
@@ -152,7 +157,7 @@ fn a_listener_outranks_a_running_process_and_a_profile_names_only_a_process() {
     let process = client.session_show("scout").unwrap();
     assert_eq!(heard(&process), ("process", None, Some(0)));
     assert_eq!(sling(&client, "to the process again").deliver.as_deref(), Some("process"));
-    assert_eq!(wait_lines(&home.join("in.txt"), 2).len(), 2);
+    assert_eq!(wait_lines(&home.join("in.txt"), 3).len(), 3);
     let working = client.session_show("scout").unwrap();
     assert_eq!((working.deliver.as_str(), working.listening), ("process", None));
     let left = client.session_listen("notes", NONE).unwrap().sling.unwrap();
