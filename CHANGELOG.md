@@ -399,6 +399,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** the `slinger-listen` skill says what happens to a sling
+  sent after you stop listening: in the first 10 seconds it waits for the
+  next listener, after that it starts the agent itself. It no longer says
+  to run `slinger session start`.
 - **App:** when an agent stops before it answers a sling, the sling's
   note says to sling again (a sling starts it) instead of telling you
   to run `slinger session start`.
