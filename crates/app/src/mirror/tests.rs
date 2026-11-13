@@ -426,7 +426,7 @@ fn carried_items_are_add_objects_on_the_other_page_moved_and_without_this_canvas
 }
 
 #[test]
-fn a_resize_sets_each_item_a_stroke_by_its_points_and_an_agent_ui_by_its_place() {
+fn a_resize_sets_each_item_a_stroke_by_its_points_and_an_agent_ui_by_its_frame() {
     let mut m = Mirror::new(&shown(vec![stroke("i1", "p1")]));
     let red = Rgb { r: 255, g: 0, b: 0 };
     let scaled = Item {
@@ -454,10 +454,10 @@ fn a_resize_sets_each_item_a_stroke_by_its_points_and_an_agent_ui_by_its_place()
         written,
         json!([
             {"op": "set", "id": "i1", "fields": {"pts": [100, 200, 20, -40]}},
-            {"op": "set", "id": "i2", "fields": {"x": 15, "y": 20}},
+            {"op": "set", "id": "i2", "fields": {"x": 15, "y": 20, "w": 300, "h": 200}},
             {"op": "set", "id": "i3", "fields": {"x": 0, "y": 0, "w": 40, "h": 20}},
         ]),
-        "an agent UI keeps its size: only an agent sizes it"
+        "an agent UI by its place and its size, not its showing"
     );
     let ops = written.as_array().unwrap()[..1].to_vec();
     assert_eq!(m.apply(&feed(7, ops)), Applied::Changed);
