@@ -275,6 +275,10 @@ bullet with the area in bold.
   When the disk is under heavy load a reply can take several seconds; the
   CLI and the app now wait up to 30 seconds for it instead of 5, and no
   longer fail with `unavailable` and a hint to start slingerd.
+- **CLI and app:** a slingerd that takes a request and gives no reply in
+  time is no longer reported as not running. The error still exits 6
+  (`unavailable`), but says slingerd did not reply in time, and the hint
+  says to try again or restart it instead of to start it.
 - **App:** erasing, moving, placing a text, box or arrow, editing and
   changing pages while slingerd is down now survive quitting the app, as
   strokes already did: they are sent, in order, after the next start.
