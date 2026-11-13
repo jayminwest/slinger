@@ -273,7 +273,8 @@ No UI reference holds a `#`, so a pane's target is either.
 
 **`ui_open`** resolves `ui` to one version, checks the agent (not blank),
 the host (`pane` or `canvas`), the data (at most 16384 bytes as JSON) and
-the workspace's window (`beside` there, room for a pane), then appends a
+the workspace's window (`beside` there, room for a pane; an empty
+`workspace` is `invalid`, with a hint), then appends a
 `ui_opened` event tagged with the agent and the workspace and opens a pane
 whose target is the showing's id, as `pane_open` does. With `host`
 `canvas` it checks the put instead (`item` on the canvas, a size above 0),
