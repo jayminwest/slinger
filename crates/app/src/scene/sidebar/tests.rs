@@ -14,8 +14,7 @@ const T: Theme = Theme {
 
 const WINDOW: Rect = Rect { x: 0.0, y: 0.0, width: 960.0, height: 600.0 };
 
-/// A workspace named for its agent, `<agent>-ws`, in `/w/<agent>`, with
-/// that status.
+/// A workspace named for its agent, `<agent>-ws`, in `/w/<agent>`.
 fn ws(agent: &str, status: Option<Status>) -> Workspace {
     let agent = Agent { name: agent.into(), status, note: None, ..Agent::default() };
     let canvas = format!("{}-canvas", agent.name);
@@ -468,11 +467,8 @@ fn close_takes_the_workspace_the_window_shows_and_the_first_shows_next() {
 
 #[test]
 fn a_shown_workspace_s_stopped_agent_has_a_start_line_whose_tap_starts_it() {
-    let mut sidebar = heard(vec![
-        ws("ada", Some(Status::Stopped)),
-        ws("bo", Some(Status::Stopped)),
-        ws("cy", None),
-    ]);
+    let stopped = Some(Status::Stopped);
+    let mut sidebar = heard(vec![ws("ada", stopped), ws("bo", stopped), ws("cy", None)]);
     let start = Tap::Run(Command::StartAgent);
     let taps = |s: &Sidebar| s.targets(&T, WINDOW).into_iter().map(|t| t.1).collect::<Vec<_>>();
     let three = [Tap::Workspace(0), start, Tap::Workspace(1), Tap::Workspace(2)];
@@ -496,7 +492,7 @@ fn with_none_named_the_first_usable_workspace_stands_out_as_the_panes_show_it() 
     assert_eq!(sidebar.close(), Some(PathBuf::from("/w/ada")), "closes the one shown: ada's");
     assert_eq!(bold(&sidebar), ["bo-ws"]);
     sidebar.update(Ok(vec![broken("", "one"), broken("", "two")]));
-    assert_eq!(sidebar.pick(1), None, "no name for the panes to ask for");
-    assert_eq!(bold(&sidebar), ["two"], "of two that name none, by its folder");
-    assert_eq!(sidebar.shown_dir(), Some(PathBuf::from("/w/two")));
+    // Of two that name none: by its folder, and no name for the panes to ask for.
+    let two = (sidebar.pick(1), bold(&sidebar), sidebar.shown_dir());
+    assert_eq!(two, (None, vec!["two".into()], Some("/w/two".into())));
 }
