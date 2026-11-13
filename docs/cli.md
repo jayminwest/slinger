@@ -349,7 +349,7 @@ never on `error`.
 | 3 | not_found | A named thing does not exist |
 | 4 | conflict | The thing exists or is in the wrong state |
 | 5 | invalid | Input was understood but rejected |
-| 6 | unavailable | `slingerd` does not answer, or the agent's process is not running. The hint says how to start it |
+| 6 | unavailable | `slingerd` does not answer, or the agent's process is not running. The hint says how to start it, or, for a `slingerd` that took the request and did not reply in time, to try again or restart it |
 Add a code only when a caller needs to tell the failure apart from the
 others. Never renumber.
 

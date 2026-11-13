@@ -1,6 +1,6 @@
 //! The socket client: one connection per request, one typed method per verb.
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -215,8 +215,7 @@ impl Client {
         request: &R,
         timeout: Duration,
     ) -> Result<T, RemoteError> {
-        let answer =
-            self.exchange(request, timeout).map_err(|e| self.unavailable(&e.to_string()))?;
+        let answer = self.exchange(request, timeout).map_err(|e| self.unavailable(&e, timeout))?;
         let doc: Value = serde_json::from_str(&answer).map_err(internal)?;
         match doc.get("ok").and_then(Value::as_bool) {
             Some(true) => serde_json::from_value(doc).map_err(internal),
@@ -238,11 +237,22 @@ impl Client {
         Ok(answer)
     }
 
-    fn unavailable(&self, why: &str) -> RemoteError {
+    /// No daemon, or one that took the request and gave no reply in
+    /// `timeout`. Only a connected socket times out (`SO_RCVTIMEO`, which macOS
+    /// reports as `WouldBlock`): that daemon is running, so starting it is no
+    /// help (slinger-2f9883).
+    fn unavailable(&self, e: &std::io::Error, timeout: Duration) -> RemoteError {
         let socket = self.socket.display();
+        if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) {
+            return RemoteError::new(
+                "unavailable",
+                format!("{DAEMON} on {socket} did not reply within {timeout:?}"),
+                Some(format!("it is running but busy or stuck: try again, or restart {DAEMON}")),
+            );
+        }
         RemoteError::new(
             "unavailable",
-            format!("{DAEMON} does not answer on {socket}: {why}"),
+            format!("{DAEMON} does not answer on {socket}: {e}"),
             Some(format!("start it with '{DAEMON} --socket {socket}'")),
         )
     }
@@ -308,6 +318,29 @@ mod tests {
         assert_eq!(err.code(), "unavailable");
         assert!(err.hint().unwrap().ends_with(" --socket /nonexistent/x.sock'"));
         assert_eq!(list("").unwrap_err().code(), "unavailable");
+    }
+
+    /// slinger-2f9883: a daemon that took the request and gave no reply is
+    /// running, so the hint does not say to start it.
+    #[test]
+    fn no_reply_in_time_is_unavailable_without_a_start_hint() {
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("d.sock");
+        let listener = UnixListener::bind(&socket).unwrap();
+        let (done, wait) = std::sync::mpsc::channel::<()>();
+        std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            BufReader::new(&stream).read_line(&mut String::new()).unwrap();
+            let _ = wait.recv();
+        });
+        let client = Client::new(&socket);
+        let err = client
+            .call_within::<_, Canvases>(&Request::CanvasList, Duration::from_millis(200))
+            .unwrap_err();
+        drop(done);
+        assert_eq!(err.code(), "unavailable");
+        assert!(err.to_string().ends_with(" did not reply within 200ms"), "{err}");
+        assert!(!err.hint().unwrap().contains("start it"), "{:?}", err.hint());
     }
 
     /// slinger-9b1389: under load a daemon's reply can take longer than the
