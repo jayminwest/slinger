@@ -276,6 +276,10 @@ fn a_broken_workspace_shows_why_and_close_workspace_closes_it_and_flashes_why_it
         let texts: Vec<_> = rows.iter().map(|r| r.label.text.as_str()).collect();
         assert!(texts.contains(&"notes") && texts.contains(&"field: agent.tools"), "{texts:?}");
         assert!(texts.iter().any(|t| t.contains("\"Shell\"")), "why: {texts:?}");
+        assert!(!texts.contains(&"Close workspace"), "the panes do not show it: {texts:?}");
+        sidebar.pick(0);
+        let rows = sidebar.rows(theme, window);
+        let texts: Vec<_> = rows.iter().map(|r| r.label.text.as_str()).collect();
         assert!(texts.contains(&"Close workspace"), "it shows: it can close {texts:?}");
         assert!(window::close_workspace(socket, &mut sidebar, &mut tools));
         assert_eq!(daemon.workspace_list().unwrap(), [], "closed by its folder");

@@ -333,6 +333,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** with a broken workspace first in the list and none named in the
+  config, the sidebar highlights the workspace the panes show (the first
+  usable one), not the broken one.
 - **App:** the sling's pill ("● scout working · 4s · ~12k") follows the
   agent's session: once the agent replies, the count is how many tokens its
   conversation holds, and it updates as the agent works. Before, it stayed
