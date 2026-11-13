@@ -2,11 +2,14 @@
 //! canvas id made from its file name ([`canvas_id`]), and its pages stacked
 //! top to bottom on the canvas's first page ([`stack`]), each a `pdf` item
 //! ([`pages`]). And the part of its page a `pdf` item shows
-//! ([`Shape::shown`]). Pure: only `platform` reads a PDF.
+//! ([`Shape::shown`]). Reader mode: which canvases are a PDF's
+//! ([`reader`]) and the column of pages a pane fits to its width
+//! ([`column`], [`crate::layout::Viewport::reading`]). Pure: only
+//! `platform` reads a PDF.
 
 use std::path::Path;
 
-use super::canvas::Shape;
+use super::canvas::{Item, Shape};
 use crate::layout::Rect;
 
 /// The width of the widest page of an opened PDF, in canvas units.
@@ -82,6 +85,27 @@ pub fn pages(pages: &[(f64, f64)], hash: &str, file: &Path) -> Vec<Shape> {
             name: name.clone(),
         })
         .collect()
+}
+
+/// Whether `canvas` is a PDF's canvas, which a pane shows in reader
+/// mode: its id ends in `.pdf`, as [`canvas_id`] makes it. Nothing else
+/// decides it (docs/design/pdf.md).
+#[expect(
+    clippy::case_sensitive_file_extension_comparisons,
+    reason = "a canvas id, not a file: the design keys on `.pdf` exactly"
+)]
+pub fn reader(canvas: &str) -> bool {
+    canvas.ends_with(".pdf")
+}
+
+/// The column of `pdf` items in `items`, a page as shown: the box around
+/// their frames. `None` when the page has none.
+pub fn column<'a>(items: impl IntoIterator<Item = &'a Item>) -> Option<Rect> {
+    let frames = items.into_iter().filter_map(|i| match i.shape {
+        Shape::Pdf { frame, .. } => Some(frame),
+        _ => None,
+    });
+    frames.reduce(Rect::union)
 }
 
 impl Shape {

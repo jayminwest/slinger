@@ -15,7 +15,7 @@
 //! Each pane keeps its own page, followed once however many panes show it:
 //! page commands, undo and redo are in [`paging`], live items' pages in [`live`];
 //! cut, copy and paste in [`clip`]; the PDFs `pdf` items show, and opening
-//! one, in [`pdf`].
+//! one, in [`pdf`]; a PDF's canvas in reader mode, in [`reader`].
 
 mod button;
 mod clip;
@@ -25,6 +25,7 @@ mod kept;
 mod live;
 mod paging;
 mod pdf;
+mod reader;
 
 use std::rc::Rc;
 
@@ -118,12 +119,14 @@ struct View {
     viewport: Viewport,
     page: Option<(String, String)>,
     last: Option<Rc<canvas::Scene>>,
+    /// In reader mode, the column fitted and the screen it was fitted to.
+    reader: Option<(Rect, Size)>,
 }
 
 impl Default for View {
     /// A new pane's view: at the start, on the first page, nothing drawn.
     fn default() -> Self {
-        Self { viewport: Viewport::start(), page: None, last: None }
+        Self { viewport: Viewport::start(), page: None, last: None, reader: None }
     }
 }
 
@@ -391,8 +394,7 @@ impl Canvases {
 
     /// Drags `pane`'s canvas by `dx`, `dy` screen points.
     pub fn pan(&mut self, pane: PaneId, dx: f64, dy: f64) {
-        let view = self.view(pane);
-        view.viewport = view.viewport.pan(dx, dy);
+        self.view(pane).pan(dx, dy);
     }
 
     fn view(&mut self, pane: PaneId) -> &mut View {
@@ -448,6 +450,7 @@ impl Canvases {
                 self.views.len() - 1
             });
             let view = &mut self.views[at].1;
+            view.read(&pane.name, mirror.map(Mirror::items), screen);
             let Some(mirror) = mirror else {
                 if let Some(last) = &view.last {
                     scenes.push(CanvasPane {

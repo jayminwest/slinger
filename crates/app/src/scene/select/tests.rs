@@ -323,3 +323,25 @@ fn a_pdf_page_is_never_erased_and_is_taken_only_whole_or_by_a_press_inside_it() 
     select.pick(HERE, pt(60.0, 30.0), 1.0, false, &shown(&items));
     assert_eq!(select.selection().unwrap().ids, [ItemId(1)]);
 }
+
+#[test]
+fn on_a_pdfs_canvas_the_select_tool_and_the_lasso_never_take_a_page() {
+    const PDF: (&str, &str) = ("paper.pdf", "p1");
+    let (hash, page_size) = ("sha256:9f".to_string(), (612.0, 792.0));
+    let paper = frame(0.0, 0.0, 100.0, 100.0);
+    let page = Shape::Pdf { frame: paper, hash, pdf_page: 1, page_size, crop: None, name: None };
+    let page = [item(1, page), stroke(2, &[(10.0, 10.0), (20.0, 20.0)])];
+    let (items, mut select, mut ink) = (shown(&page), Select::default(), Ink::default());
+    select.pick(PDF, pt(60.0, 30.0), 1.0, false, &items);
+    assert!(select.up(None, &items, &mut ink));
+    assert_eq!(select.selection(), None, "a tap on the page takes nothing");
+    select.pick(PDF, pt(-5.0, -5.0), 1.0, false, &items);
+    assert!(select.up(Some(pt(105.0, 105.0)), &items, &mut ink));
+    assert_eq!(select.selection().unwrap().ids, [ItemId(2)], "a box around it takes the ink");
+    let around = [pt(-5.0, -5.0), pt(105.0, -5.0), pt(105.0, 105.0), pt(-5.0, 105.0)];
+    assert!(select.down(Tool::Lasso, PDF, around[0], 1.0, &items));
+    around[1..].iter().for_each(|&at| assert!(select.drag(at, &items)));
+    assert!(select.up(None, &items, &mut ink));
+    assert_eq!(select.selection().unwrap().ids, [ItemId(2)], "and so does a lasso");
+    assert_eq!(ink.next(), None, "nothing moved");
+}

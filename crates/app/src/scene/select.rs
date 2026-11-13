@@ -19,6 +19,8 @@
 //!   is app state, read by what acts on it ([`Select::selection`]); delete
 //!   removes it in one `remove`. It is of a page, not of a pane: every pane
 //!   on its page shows it, and its move, as the items themselves do.
+//! - On a PDF's canvas the select tool and the lasso do not take `pdf`
+//!   items ([`takes`]): the pages are fixed paper.
 //! - A drag of the selection follows the pane under the pen, and can carry
 //!   it to another page ([`carry`]).
 //!
@@ -45,8 +47,8 @@ use crate::config::Theme;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Fill, Item, ItemId, Shape};
 use crate::scene::ink::{Change, Ink, on_server};
-use crate::scene::shapes;
 use crate::scene::tools::Tool;
+use crate::scene::{pdf, shapes};
 
 /// How far the eraser reaches from the pen, in screen points.
 pub const ERASER: f64 = 6.0;
@@ -190,8 +192,8 @@ impl Select {
             }
             Gesture::Erase { .. } => {}
             Gesture::Lasso { points } => {
-                let held =
-                    items.iter().filter(|i| on_server(i.id) && hit::holds(&points, &i.shape));
+                let held = items.iter().filter(|i| on_server(i.id) && takes(&canvas, i));
+                let held = held.filter(|i| hit::holds(&points, &i.shape));
                 let ids: Vec<ItemId> = held.map(|i| i.id).collect();
                 self.selection = (!ids.is_empty()).then_some(Selection { canvas, page, ids });
             }
@@ -385,6 +387,13 @@ fn chrome(frame: Rect, count: usize, zoom: f64, theme: &Theme) -> Vec<Cow<'stati
     let top = frame.y - side / 2.0 - COUNT_GAP / zoom - shapes::label_height(zoom);
     marks.push(shapes::label(COUNT, text, focus, Point { x: frame.x, y: top }, zoom));
     marks.into_iter().map(Cow::Owned).collect()
+}
+
+/// Whether the select tool and the lasso may take `item` on `canvas`:
+/// not a `pdf` item on a PDF's canvas, where the pages are the paper and
+/// a tap or a drag on one never moves it (docs/design/pdf.md).
+fn takes(canvas: &str, item: &Item) -> bool {
+    !(pdf::reader(canvas) && matches!(item.shape, Shape::Pdf { .. }))
 }
 
 /// The box around the items of `items` whose ids are `ids`; `None` when
