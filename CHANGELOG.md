@@ -224,13 +224,14 @@ bullet with the area in bold.
   wrote and do what it asks." Tap + prompt beside the selection (or ⌘↩) to
   type words first. A workspace with no agent says "No agent in this
   workspace" and sends nothing.
-- **App:** a sling shows what the agent is doing, in a pill under where you
-  slung: "● scout working · 4s", "■ scout blocked: <its question>", then
+- **App:** a sling shows what the agent is doing, in a pill at the top
+  right of the pane that shows its page, wherever you slung from: "● scout working · 4s", "■ scout blocked: <its question>", then
   "✓ scout answered · 2 new items" (tap to bring them into view), "✓ scout
   answered in text · tap to read" (tap to read the answer in a panel),
   "✓ scout is done, with nothing on the canvas", or "✗ scout stopped before
-  it answered" with how to start it. The pill goes 30 s after the agent
-  ends. The footer names the workspace's agent and its status.
+  it answered" with how to start it. The pill goes 5 s after the
+  agent's answer is on the canvas, or 30 s after an answer in text or a
+  failure; your next stroke on the canvas takes it away at once. The footer names the workspace's agent and its status.
 - **App:** `[sling] prompt` in the config: the words a sling with nothing
   typed sends.
 - **App:** a button to hide the sidebar at its foot, and one to show it in
@@ -316,11 +317,23 @@ bullet with the area in bold.
   it failed with `workspace "" not found`. A sling's reply notes now say
   that an agent can show a page in a pane (`ui put`, `ui open`) when words
   on the canvas are not enough.
+- **Agents:** a sling or message sent while the agent was still working no
+  longer leaves it showing as working forever. When the agent answers both
+  in one go, the session's `pending` goes back to 0 within about two
+  seconds.
+- **App:** the sling's pill ("scout working · 4s") counts each second
+  again, also while another app has the focus. Before, it changed only
+  when something else in the window did, such as the pointer moving over
+  it.
+- **App:** a sling's "answered" pill no longer stays on screen after it
+  should have gone.
 - **Listening:** a Claude Code session that was closed while it worked on a
   sling no longer keeps the agent's slings. `session listen --pid $PPID`
   names the session's process (the `slinger-listen` skill passes it): when
   it ends, the app shows that nobody listens and the sling waits for the
-  next listener. Setting `done` or `blocked` also ends the work on a sling.
+  next listener, and the agent no longer shows as working: it shows the
+  status it had before it took the sling. Setting `done` or `blocked` also
+  ends the work on a sling.
 - **PDF:** a PDF page that stayed a grey frame because its file could not
   be fetched is tried again the next time it is on screen, after a wait
   that grows from a second to about a minute. Before, it stayed grey until

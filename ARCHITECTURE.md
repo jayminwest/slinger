@@ -280,7 +280,9 @@ sessions.rs  the statuses agents set since the daemon started (`working`
 listeners.rs the listeners, one per agent (`session::listen`), behind one
              lock and a condvar: `listen` holds an ask open until a sling
              comes, the wait passes or the daemon stops. Each lock finds a
-             listener whose worker process ended `gone` (`alive`: kill 0).
+             listener whose worker process ended `gone` (`alive`: kill 0);
+             `freed` names those agents, and `sessions.rs` drops the
+             `working` their sling set.
 processes.rs the agents' processes, one per agent: spawned in the agent's
              home (or its profile's dir) within its limits, with `SLINGER_AGENT` and `SLINGER_SOCKET`,
              written to under one lock, read by a thread each so a pipe never
@@ -293,6 +295,9 @@ processes.rs the agents' processes, one per agent: spawned in the agent's
              then kills it; `serve` ends them all when it stops. No restart on death (D20).
              Each starts with the core's hooks in `--settings`, running the
              CLI at `--slinger` (default: beside slingerd).
+             `processes/turns.rs` counts `pending`: a result answers the
+             messages its turn took in, so one still unanswered 2 s after a
+             result with no output since was taken into that turn.
 feedback.rs  the feedback file (`--feedback`, default `feedback.jsonl` in
              the checkout it was built from, else the data directory): one
              lock, each note and resolution appended as one line, the
@@ -666,8 +671,8 @@ scene/sidebar/notice.rs  the notice: a 28 pt bar above the footers (it
              workspace. Done leaves on its own 5 s after it shows or at the
              pen's next press; blocked stays until ✕, `dismiss-notice` or
              its status moves on. Pure.
-scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
-             made (a page's sling at its top left), inside its pane, what
+scene/slung.rs  the sling's pill (SPEC P6): at the top right of the pane
+             that shows the sling's page, however it was made, what
              the agent is doing: "● scout working · 4s · ~12k" ("scout
              (dev)" under a profile, as its session says), "■ scout
              blocked: <note> · ~12k" (the sling's tokens, when the daemon's
@@ -677,8 +682,11 @@ scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
              with nothing on the canvas", a failure's "✗ <message>" and hint,
              "✗ scout stopped before it answered". An answer with no items
              yet waits 1 s for them to land (the pill says "✓ scout
-             answered") before it says "in text" (`SETTLE`). An ending pill
-             goes 30 s later. The pill is a Line with a field's round
+             answered") before it says "in text" (`SETTLE`). An answer
+             with its items on the canvas, or done with none, goes 5 s
+             after it is told (`DONE`); one in text and a failure 30 s
+             after (`CLEAR`); any of them at the pen's next press on the
+             canvas. The pill is a Line with a field's round
              corners, as wide as its words measure (scene/glyphs.rs). `out`:
              a sling is on its way or worked on. `slung/words.rs`: the
              elapsed time, the tokens, the arrow to the items, the answer's

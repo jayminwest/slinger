@@ -124,6 +124,8 @@ impl Sessions {
             .into());
         }
         let sling = self.listeners.listen(&agent, wait, by);
+        // A listener found gone in this ask is forgotten before this one works.
+        drop(self.statuses());
         if sling.is_some() {
             self.set(store, &agent, Status::Working.name(), None)?;
         }
@@ -271,7 +273,7 @@ impl Sessions {
     /// The error of the list of workspaces or of the record.
     pub fn list(&self, store: &Store) -> Result<Vec<Session>> {
         let open = store.workspaces().usable()?;
-        let set = self.set.lock().unwrap_or_else(PoisonError::into_inner);
+        let set = self.statuses();
         let mut failed = None;
         let mut sessions = session::list(open.iter().map(|o| (&o.dir, &o.workspace)), |agent| {
             set.get(agent).cloned().or_else(|| {
@@ -320,7 +322,7 @@ impl Sessions {
     ) -> Result<(Report, Option<Event>)> {
         session::check_agent(agent)?;
         let status = Status::parse(status)?;
-        let mut set = self.set.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut set = self.statuses();
         let event = match status.body(note.as_deref()) {
             Some(body) => {
                 let tags = Tags { agent: Some(agent.into()), ..Tags::on("") };
@@ -335,6 +337,19 @@ impl Sessions {
         let report = Report { status, note };
         set.insert(agent.to_string(), report.clone());
         Ok((report, event))
+    }
+
+    /// The statuses set since the daemon started, less the `working` of each
+    /// agent whose listener was found gone: it no longer works on the sling
+    /// it took, which waits again. Its session shows the status from before.
+    fn statuses(&self) -> MutexGuard<'_, HashMap<String, Report>> {
+        let mut set = self.set.lock().unwrap_or_else(PoisonError::into_inner);
+        for agent in self.listeners.freed() {
+            if set.get(&agent).is_some_and(|r| r.status == Status::Working) {
+                set.remove(&agent);
+            }
+        }
+        set
     }
 
     /// Records that `agent` wrote the file at `path`, or at the path a
