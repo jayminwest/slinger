@@ -233,10 +233,11 @@ fn remembering(
     }
 }
 
-/// What `event` asks ([`ask`]); `show-canvas-file`, `open-pdf` and
-/// `open-workspace` (its folder) are
+/// What `event` asks ([`ask`]); `show-canvas-file`, `show-workspace-folder`,
+/// `open-pdf` and `open-workspace` (its folder) are
 /// done here, as only `platform` reaches the Finder and the open panel: the
-/// focused pane's canvas file shows there, or the flash says why it cannot;
+/// focused pane's canvas file, or the folder of the workspace `sidebar`
+/// shows, shows there ([`window::finder`]), or the flash says why it cannot;
 /// the PDF chosen, or dropped on the window, opens as a canvas, its pages
 /// read by `platform`. A cut, copy or paste no text
 /// field took is [`window::edit`]'s in `area` (a pass greys its menu item).
@@ -246,8 +247,9 @@ fn asked(
     canvases: &mut Canvases,
     tools: &mut Tools,
     settings: &Settings,
-    area: Rect,
+    sidebar: &Sidebar,
 ) -> Ask {
+    let area = sidebar.panes(shared.size.rect());
     let asked = match event {
         Event::Can(edit) if window::can_edit(edit, shared, canvases) => {
             return Ask::Step(Step::Stay);
@@ -266,8 +268,10 @@ fn asked(
         }
         _ => ask(event, shared, canvases, tools, settings),
     };
-    match asked {
-        Ask::Run(Command::ShowCanvasFile) => {}
+    let found = match asked {
+        Ask::Run(c @ (Command::ShowCanvasFile | Command::ShowWorkspaceFolder)) => {
+            window::finder(c, shared, canvases, sidebar)
+        }
         Ask::Run(Command::OpenWorkspace) => {
             return platform::choose_folder().map_or(Ask::Draw(None), Ask::Open);
         }
@@ -277,15 +281,11 @@ fn asked(
             return Ask::Draw(None);
         }
         _ => return asked,
-    }
-    let said = match canvases.file(&shared.panes, shared.panes.focus()) {
-        None => Some(scene::title::NO_CANVAS.to_string()),
-        Some((canvas, None)) => Some(format!("slingerd has not said where {canvas} is saved")),
-        Some((_, Some(file))) if platform::reveal(file) => None,
-        Some((_, Some(file))) => Some(format!("The Finder cannot show {file}")),
     };
-    if let Some(said) = said {
-        tools.flash().say(said, Instant::now());
+    match found {
+        Ok(file) if platform::reveal(file) => {}
+        Ok(file) => tools.flash().say(format!("The Finder cannot show {file}"), Instant::now()),
+        Err(said) => tools.flash().say(said, Instant::now()),
     }
     Ask::Draw(None)
 }

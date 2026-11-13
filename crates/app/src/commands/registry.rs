@@ -106,6 +106,7 @@ impl Command {
             Command::CropPdf => "Crop PDF",
             Command::OpenWorkspace => "Open workspace…",
             Command::CloseWorkspace => "Close workspace",
+            Command::ShowWorkspaceFolder => "Show workspace folder in Finder",
         }
     }
 
@@ -140,7 +141,10 @@ impl Command {
             | Command::ToggleGrid
             | Command::Save
             | Command::ShowCanvasFile => Group::Canvas,
-            Command::OpenPdf | Command::OpenWorkspace | Command::CloseWorkspace => Group::File,
+            Command::OpenPdf
+            | Command::OpenWorkspace
+            | Command::CloseWorkspace
+            | Command::ShowWorkspaceFolder => Group::File,
             Command::NextPage
             | Command::PreviousPage
             | Command::NewPage

@@ -117,6 +117,8 @@ pub enum Command {
     /// Close the workspace the window shows (its file, canvas and agent
     /// stay), and show the first left.
     CloseWorkspace,
+    /// Show the folder of the workspace the window shows in the Finder.
+    ShowWorkspaceFolder,
 }
 
 /// How many commands there are.
@@ -124,7 +126,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 56] = [
+    pub const ALL: [(Command, &str); 57] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -181,6 +183,7 @@ impl Command {
         (Command::CropPdf, "crop-pdf"),
         (Command::OpenWorkspace, "open-workspace"),
         (Command::CloseWorkspace, "close-workspace"),
+        (Command::ShowWorkspaceFolder, "show-workspace-folder"),
     ];
 
     /// The command called `name` in the config file.
@@ -356,6 +359,7 @@ impl Default for Keymap {
             on(CMD, '8'),
             on(CMD | SHIFT, 'o'),
             on(CMD | ALT, 'w'),
+            on(CMD | ALT | SHIFT, 'r'),
         ])
     }
 }

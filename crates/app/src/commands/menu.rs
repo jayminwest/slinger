@@ -83,6 +83,7 @@ const BAR: [(&str, &[Action]); 8] = [
         &[
             R(Command::OpenWorkspace),
             R(Command::CloseWorkspace),
+            R(Command::ShowWorkspaceFolder),
             R(Command::OpenPdf),
             R(Command::Save),
             R(Command::ShowCanvasFile),

@@ -132,6 +132,25 @@ pub fn close_workspace(socket: &Path, sidebar: &mut Sidebar, tools: &mut Tools) 
     closed.is_ok()
 }
 
+/// What `show-canvas-file` or `show-workspace-folder` (`command`) shows in
+/// the Finder: the focused pane's canvas file, or the folder of the
+/// workspace `sidebar` shows; else what the flash says.
+pub fn finder<'a>(
+    command: Command,
+    shared: &'a Shared,
+    canvases: &'a Canvases,
+    sidebar: &'a Sidebar,
+) -> Result<&'a str, String> {
+    if command == Command::ShowWorkspaceFolder {
+        return sidebar.dir().and_then(Path::to_str).ok_or_else(|| "No workspace is open".into());
+    }
+    match canvases.file(&shared.panes, shared.panes.focus()) {
+        None => Err(title::NO_CANVAS.to_string()),
+        Some((canvas, None)) => Err(format!("slingerd has not said where {canvas} is saved")),
+        Some((_, Some(file))) => Ok(file),
+    }
+}
+
 /// Opens the PDF `file` as a canvas beside the focused pane of `shared`,
 /// its pages read by `sizes` ([`Canvases::open_pdf`]): `open-pdf`'s file,
 /// or the first PDF of files dropped on the window, which focuses the pane

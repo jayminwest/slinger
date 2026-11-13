@@ -38,6 +38,10 @@ bullet with the area in bold.
   (`close-workspace`, ⌥⌘W) is in the File menu and the command palette: it
   closes the workspace the window shows and turns to the first. Its file,
   canvas and agent stay; open its folder again to bring it back.
+- **App:** Show workspace folder in Finder (`show-workspace-folder`, ⌥⇧⌘R)
+  is in the File menu and the command palette: the Finder shows the folder
+  of the workspace the window shows, as Show canvas file in Finder does for
+  the canvas's file.
 - **App:** a workspace whose `slinger-workspace.toml` is broken says why in
   the sidebar: under its name, a red ✗ and the error, the field at fault,
   and the hint, wrapped to fit. A file that names no workspace shows its

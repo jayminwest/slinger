@@ -462,3 +462,14 @@ fn close_takes_the_workspace_the_window_shows_and_the_first_shows_next() {
     assert_eq!(sidebar.close(), None, "the shown one is not in the list");
     assert_eq!(Sidebar::new(true).close(), None, "nothing heard yet");
 }
+
+#[test]
+fn dir_is_the_shown_workspace_s_folder_the_first_s_until_one_is_picked() {
+    let mut sidebar = heard(vec![broken("a", "a"), broken("b", "b")]);
+    assert_eq!(sidebar.dir(), Some(Path::new("/w/a")));
+    sidebar.pick(1);
+    assert_eq!(sidebar.dir(), Some(Path::new("/w/b")));
+    sidebar.show(Some("gone".into()));
+    assert_eq!(sidebar.dir(), None, "the shown one is not in the list");
+    assert_eq!(Sidebar::new(true).dir(), None, "nothing heard yet");
+}

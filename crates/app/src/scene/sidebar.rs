@@ -15,7 +15,7 @@
 //! it starts or after the daemon comes back, is where it starts counting:
 //! no notice for what was already so.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::backend::Problem;
 use crate::commands::Command;
@@ -212,10 +212,22 @@ impl Sidebar {
     /// first: the directory of the one taken, to close it by. `None` when
     /// no workspace shows.
     pub fn close(&mut self) -> Option<PathBuf> {
-        let list = self.workspaces.as_mut()?;
-        let shown = self.shown.take();
-        let at = list.iter().position(|w| shown.as_ref().is_none_or(|s| *s == w.name))?;
-        Some(list.remove(at).dir)
+        let at = self.at();
+        self.shown = None;
+        Some(self.workspaces.as_mut()?.remove(at?).dir)
+    }
+
+    /// The directory of the workspace the window shows, for
+    /// `show-workspace-folder`. `None` when no workspace shows.
+    pub fn dir(&self) -> Option<&Path> {
+        Some(&self.workspaces.as_ref()?.get(self.at()?)?.dir)
+    }
+
+    /// Where the workspace the window shows is in the list: the first when
+    /// none is picked.
+    fn at(&self) -> Option<usize> {
+        let shown = self.shown.as_ref();
+        self.workspaces.as_ref()?.iter().position(|w| shown.is_none_or(|s| *s == w.name))
     }
 
     /// The rows and the workspaces' targets.

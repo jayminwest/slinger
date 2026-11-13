@@ -360,7 +360,10 @@ window.rs    runs a command on the focused pane, does a tap on a button that
              chose as a workspace (workspace_open: backend/agents.rs) and
              shows it, or flashes why not, closes the shown one for
              `close-workspace` (workspace_close by its folder) and shows the
-             first, or flashes why not, builds the window's scene (`view`: the footers,
+             first, or flashes why not, finds what `show-canvas-file` and
+             `show-workspace-folder` show in the Finder (`finder`: the
+             canvas file, or the shown workspace's folder from the
+             sidebar; main reveals it), builds the window's scene (`view`: the footers,
              the sidebar's foot, the lit button, the tap targets), and
              finds the canvas pane under a point and the focused pane's
              frame. A cut, copy or paste no text field took (`edit`), and
@@ -677,7 +680,8 @@ scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
              session id) shows what its hooks said, and one with a message
              pending is working though no hook said so (`Status::of`). `agents`: each
              workspace's agent. `close`: takes the shown workspace out of
-             the list for `close-workspace`. Pure.
+             the list for `close-workspace`; `dir`: its folder, for
+             `show-workspace-folder`. Pure.
 scene/sidebar/agent.rs  an agent as the sidebar shows it: its `Status`,
              read against its `Process` (`Status::of`), and its profiles.
              Pure.
@@ -955,7 +959,8 @@ platform/remember.rs  what the window keeps in the user defaults from one
              never put on a screen.
 platform/files.rs  sets the title bar a scene's Title says (title, subtitle,
              represented file), shows a file in the Finder
-             (`show-canvas-file`, from main), and asks for a folder for
+             (`show-canvas-file` and `show-workspace-folder`, from main),
+             and asks for a folder for
              `open-workspace` (the open panel, which can make one).
 platform/menu.rs  makes the menu bar a scene's menus say, again when they
              change. A command item chosen by its key goes to main as that

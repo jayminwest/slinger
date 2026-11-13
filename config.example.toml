@@ -228,3 +228,5 @@
 # its agent stay; open its folder again to bring it back. A workspace whose file is broken
 # shows "Close workspace" under why in the sidebar while the window shows it.
 #close-workspace = "cmd+alt+w"
+# Show the folder of the workspace the window shows in the Finder.
+#show-workspace-folder = "cmd+alt+shift+r"

@@ -234,6 +234,7 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
             "cmd+8",
             "cmd+shift+o",
             "cmd+alt+w",
+            "cmd+alt+shift+r",
         ]
         .map(|c| Some(Chord::parse(c))),
     };

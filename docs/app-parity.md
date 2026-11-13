@@ -46,6 +46,7 @@ same thing by drawing, or never needs to.
 | `workspace open DIR` | `open-workspace` (shift+cmd+O, File menu, palette, sidebar "+"), 36e8844 |
 | `workspace list` | The sidebar; a tap on a workspace shows its panes |
 | `workspace close` | `close-workspace` (opt+cmd+W, File menu, palette; a broken workspace's "Close workspace" line), slinger-c75719 |
+| `workspace show` (`dir`) | `show-workspace-folder` (opt+shift+cmd+R, File menu, palette): the Finder shows the folder; the sidebar already has it from `workspace_list`, so no new verb, slinger-190b1b |
 | `session list`, `session show` | The sidebar's mark and note per agent; the sling pill and its answer ("tap to read") |
 | `profile list` | The sling's profile menu lists the agent's profiles |
 | `sling send` (`--page`, `--select`, `--prompt`, `--profile`) | `sling`, `sling-now`, `dictate`, the send-to-agent button, the profile menu |
@@ -73,7 +74,6 @@ a rough size. Known ones name their seed.
 | Make a new empty canvas, or show another canvas in a pane | `canvas_create`, `canvas_list`, `pane_open` (`canvas`) | design | slinger-16a66e |
 | Import a tldraw file as a canvas | `canvas_import`, `pane_open` | arm | new |
 | Pick the size of a new text, or resize a text's characters | `canvas_put`/`canvas_edit` `size` (agent side); the app's own text tool | design | slinger-34a2ae |
-| Show the workspace's folder (or file) in the Finder | `workspace_show` (`dir`) | arm | new |
 | Read the thinking record (what was slung, answered, touched) | `record_list` | design | slinger-895bde |
 | Browse a UI's versions, or save one to a file | `ui_list`, `ui_show`, `ui_export` | ui | new |
 | See resolved feedback notes, or find the feedback file | `feedback_list` (`all`), `feedback_path` | arm | new |
@@ -89,4 +89,3 @@ Notes on the new rows:
   already in the app.
 - **tldraw import** reuses `open-pdf`'s open panel with a `.tldraw`/`.tldr`
   filter, then opens the canvas beside the focused pane as a PDF does.
-- **The workspace's folder** reuses `show-canvas-file`'s Finder reveal.
