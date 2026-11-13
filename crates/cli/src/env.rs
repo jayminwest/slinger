@@ -1,6 +1,6 @@
 //! What the CLI takes from its process's environment: the calling agent and
 //! the daemon's socket, which slingerd names to the agents' processes it
-//! starts (docs/cli.md). `main` reads them once; the rest of the CLI asks
+//! starts, and in its data directory (docs/cli.md). `main` reads them once; the rest of the CLI asks
 //! [`Env`], so a run in-process (the tests) sees only the environment it is
 //! given, never the one its caller happens to have (slinger-09c5b5).
 
@@ -19,7 +19,8 @@ pub const SOCKET_ENV: &str = "SLINGER_SOCKET";
 pub struct Env {
     /// `$SLINGER_AGENT`, when set and not blank.
     pub agent: Option<String>,
-    /// `$SLINGER_SOCKET`, when set.
+    /// `$SLINGER_SOCKET`, else the socket the daemon named in the default
+    /// data directory, when either is there.
     pub socket: Option<PathBuf>,
 }
 
@@ -28,7 +29,9 @@ impl Env {
     pub fn of_process() -> Self {
         Self {
             agent: std::env::var(AGENT_ENV).ok(),
-            socket: std::env::var_os(SOCKET_ENV).map(PathBuf::from),
+            socket: std::env::var_os(SOCKET_ENV)
+                .map(PathBuf::from)
+                .or_else(control::running_socket),
         }
     }
 

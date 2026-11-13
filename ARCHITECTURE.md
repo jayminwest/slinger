@@ -210,7 +210,9 @@ adding fields, and the change bumps that kind's `version`.
 ### Inside the daemon
 
 ```
-lib.rs       argv, startup and signals: `run`.
+lib.rs       argv, startup and signals: `run`. While `serve` runs, the data
+             directory names the socket (`control::name_socket`), so a client
+             given none finds the daemon on any path.
 server.rs    the control socket and `answer`, one arm per verb. `serve` takes the
              store, so a verb that reads or writes the record reaches it here.
              Blob and UI verbs read and write the file the client names: a
@@ -1224,6 +1226,7 @@ Each boundary has something that fails when it is broken:
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
 | The canvas file format is readable by older readers | `crates/core/tests/canvas_file.rs`, with a stored v1 fixture |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
+| A daemon names its socket in its data directory while it serves and takes the name back as it stops; `slinger` given no socket finds it there, on any path (docs/service.md) | `crates/control/src/place.rs` tests, `crates/daemon/tests/signals.rs`, `crates/cli/tests/agent_env.rs` |
 | The client takes a reply slower than 5 s (the daemon under disk load) as an answer, not `unavailable`; it waits 30 s at most, and no reply in that time hints to retry or restart, not to start the daemon (docs/service.md) | `crates/control/src/client.rs` tests, with a fake daemon |
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
 | The packet's image rules: scale, margin, tiles, same bytes for the same input | `crates/core/tests/render.rs`, with golden images |

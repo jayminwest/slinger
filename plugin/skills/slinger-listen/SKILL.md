@@ -9,10 +9,8 @@ The user slings from a canvas: a selection, the new ink and a prompt. While
 you listen, each sling of a workspace comes to this session in place of a
 process that slinger starts. You answer with your own tools and permissions.
 
-1. Find the daemon. Run `slinger workspace list`. On exit code 6, look for
-   the daemon before you say it is not running: `pgrep -fl slingerd`. If one
-   runs with `--socket <PATH>`, pass `--socket <PATH>` to every `slinger`
-   command of this session.
+1. Find the daemon. Run `slinger workspace list`. It finds the running
+   daemon on any socket.
 2. Find the workspace. If the user did not name one, take the one in the
    list whose directory holds the current directory. Ask only when none or
    more than one fits.
@@ -52,6 +50,6 @@ Rules:
 - To stop, end the background command. A sling sent after that waits for the
   next listener, or goes to the agent's process after `slinger session start
   <WORKSPACE>`.
-- Exit code 6 with no `slingerd` process means the daemon is not running.
-  Tell the user; do not start it unless the user asks.
+- Exit code 6 means the daemon is not running. Tell the user; do not start
+  it unless the user asks.
 - Change only the items you made. Never change the user's ink.

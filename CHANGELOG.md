@@ -298,6 +298,11 @@ bullet with the area in bold.
 
 ### Changed
 
+- **CLI:** `slinger` finds the running `slingerd` on any socket, not only on
+  the default one: the daemon names its socket in its data directory while
+  it runs. A session no longer needs `--socket` when you start `slingerd`
+  with `--socket`, or when its temporary directory differs from the
+  daemon's. `--socket` and `$SLINGER_SOCKET` still win.
 - **Agents:** a sling to a workspace whose agent is not running starts it,
   resuming its conversation, and goes in; you no longer need Start agent
   (or `slinger session start`) first, and a sling after Stop agent starts

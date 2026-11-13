@@ -1,5 +1,6 @@
 //! The real binary: it serves, and SIGTERM ends it cleanly, even with a
-//! client waiting on a canvas feed.
+//! client waiting on a canvas feed. While it serves, its data directory
+//! names its socket.
 
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -32,6 +33,8 @@ fn sigterm_stops_the_daemon_cleanly() {
         }
     };
     assert_eq!(canvases, Vec::<String>::new());
+    // Its data directory names the socket it listens on, for clients given none.
+    assert_eq!(slinger_control::named_socket(data.path()), Some(socket.clone()));
     client.canvas_create("main").unwrap();
     let waiter = client.clone();
     let waiting =
@@ -47,5 +50,6 @@ fn sigterm_stops_the_daemon_cleanly() {
     // Silence is golden: a clean run says nothing.
     assert_eq!((output.stdout.as_slice(), output.stderr.as_slice()), (&b""[..], &b""[..]));
     assert!(!socket.exists());
+    assert_eq!(slinger_control::named_socket(data.path()), None, "the name goes with the socket");
     assert!(data.path().join("record.sqlite").exists());
 }
