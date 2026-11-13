@@ -75,6 +75,7 @@ fn three_sends_go_to_one_session_and_a_restart_resumes_it() {
     let started = client.session_start("notes").unwrap();
     assert_eq!((started.agent.as_str(), started.process.as_deref()), ("scout", Some("running")));
     let id = started.session_id.clone().unwrap();
+    assert_eq!(started.context, None, "no model reply yet: no context");
     assert_eq!(client.session_start("notes").unwrap().pid, started.pid, "a running one stays");
 
     for text in ["one", "two", "three"] {
@@ -83,6 +84,7 @@ fn three_sends_go_to_one_session_and_a_restart_resumes_it() {
     let sent = wait_lines(&home.join("in.txt"), 3);
     let answered = wait_for(&client, "scout", |s| s.pending == Some(0));
     assert_eq!(answered.answer.as_deref(), Some("answer 3"), "the output is read");
+    assert_eq!(answered.context, Some(3008), "the context of its last model reply");
     assert_eq!(answered.session_id.as_deref(), Some(id.as_str()));
     let sent: Vec<serde_json::Value> =
         sent.iter().map(|l| serde_json::from_str(l).unwrap()).collect();

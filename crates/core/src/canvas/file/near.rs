@@ -9,7 +9,9 @@
 //!
 //! The colour is the one most of those marks have (the earliest on a tie).
 //! The size is the median of their sizes: a text's own size, and for each
-//! cluster of ink the median height of its lines of writing. The page's
+//! cluster of ink the median height of its lines of writing. A cluster that
+//! holds only strokes too tall to be writing next to the others (a frame
+//! drawn apart from any words) is no writing and gives no size. The page's
 //! colour is not known to the core, so matching the user's ink is how a reply
 //! shows on any paper: the user's ink already does.
 
@@ -20,7 +22,8 @@ use crate::packet::cluster;
 
 /// Over how many times a cluster's median stroke height a stroke is too
 /// tall to be writing (a frame, a bracket, a long arrow) and is left out of
-/// its lines. Letters with ascenders and descenders are about twice the
+/// its lines; and over how many times the median of all the strokes counted
+/// every stroke of a cluster is for the cluster to give no size. Letters with ascenders and descenders are about twice the
 /// height of those without, so writing stays in.
 const TALL: f64 = 2.0;
 
@@ -57,7 +60,12 @@ pub(super) fn look(
             _ => None,
         })
         .collect();
-    sizes.extend(clusters.iter().filter_map(|c| line_height(canvas, c)));
+    // A cluster of only tall strokes is a drawing, not a line of writing.
+    let unit = median(clusters.iter().flatten().filter_map(|&id| height(canvas, id)).collect());
+    let writing = clusters.iter().filter(|c| {
+        unit.is_none_or(|u| c.iter().filter_map(|&id| height(canvas, id)).any(|h| h <= TALL * u))
+    });
+    sizes.extend(writing.filter_map(|c| line_height(canvas, c)));
     let size = median(sizes)
         .map(|s| ((s * 10.0).round() / 10.0).clamp(*TEXT_SIZES.start(), *TEXT_SIZES.end()));
     (most_common(seen.iter().filter_map(|i| colour(i))), size)
@@ -89,6 +97,11 @@ fn most_common(colours: impl Iterator<Item = Colour>) -> Option<Colour> {
     }
     // `max_by_key` keeps the last of equals; reversed, that is the first.
     counts.into_iter().rev().max_by_key(|&(_, n)| n).map(|(c, _)| c)
+}
+
+/// The height of item `id`'s box.
+fn height(canvas: &Canvas, id: ItemId) -> Option<f64> {
+    canvas.item(id).map(|i| i.bounds().h)
 }
 
 /// The median height of the lines of writing in a cluster of strokes.

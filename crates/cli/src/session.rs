@@ -240,6 +240,7 @@ fn fields(s: &control::Session) -> String {
         ("pid", s.pid.map(|p| p.to_string())),
         ("profile", s.profile.clone()),
         ("pending", s.pending.map(|p| p.to_string())),
+        ("context", s.context.map(|c| c.to_string())),
         ("session_id", s.session_id.clone()),
         // One line per field: an answer's own line breaks are escaped.
         ("answer", s.answer.as_ref().map(|a| a.replace('\n', "\\n"))),

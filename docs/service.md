@@ -149,7 +149,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `ui_open` | `ui`: a UI reference, `agent`: string, `host`: `pane` (default) or `canvas`, `data`: any JSON (optional). A pane: `workspace`: as `workspace_show`, `beside`: a pane number (optional), `below`: bool (default `false`). A canvas: `canvas`, `item`: the item it goes beside, `size`: `[w, h]` in tenths (default `[3200, 2400]`) | `open`: the showing's id, `ui`: the version, `workspace`, `pane`: the new pane's number, or `item`: the live item (`canvas`, `item`, `page`, `x`, `y`, `w`, `h`, `seq`), `event`: the `ui_opened` appended |
 | `ui_shown` | `ui`: a showing's id or a UI reference | `ui`: the version, then for a showing `open`, `data` (absent when `null`) and `agent` |
 | `ui_reply` | `open`: a showing's id, `value`: any JSON | `event`: the `ui_reply` appended, `agent`, `delivered`: whether its session took it |
-| `canvas_create` | `canvas`: canvas id, `path`: absolute path of a file of operations (optional) | `canvas`: the id |
+| `canvas_create` | `canvas`: canvas id, `path`: absolute path of a file of operations (optional), `by`: author of those operations (default `user`) | `canvas`: the id |
 | `canvas_list` | none | `canvases`: list of `{canvas}`, sorted by id |
 | `canvas_show` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `canvas`, `next`: the next operation's number, `page`: the page's id, `pages`: list of `{id, name}`, `items`: list of items, `path`: the absolute path of the canvas's file |
 | `canvas_apply` | `canvas`: canvas id, `by`: author (default `user`), `ops`: one operation or a list, `once`: string (optional) | `seq`: list of numbers, `made`: list of ids |
@@ -372,7 +372,9 @@ whole item objects: `id`, `page`, `by`, `t` (when it was made), `kind`,
 **`canvas_create`** makes an empty canvas; its one page is `p1`. With
 `path`, the canvas starts with the operations in that file (a JSON list, as
 `ops` of `canvas_apply`; its bytes travel as a file, so it may hold more than
-a request line), applied as `user` in one step. The file is written whole
+a request line), applied as `by` (`user`, the default, or `agent:<name>`) in
+one step, so only that author edits or removes them later; a `by` that is not
+an author is `invalid`. The file is written whole
 before the reply: an operation the canvas refuses makes no canvas and answers
 as `canvas_apply` would, so a client that makes a canvas from many items
 never leaves one half made. A file that is not there is `not_found`; one that
@@ -647,7 +649,11 @@ answered (a `result` line ends an answer). Claude Code takes a message sent
 mid-turn into that turn, so one result can answer several: a message still
 unanswered when a result has come and the process has said nothing more for
 2 seconds counts as answered. `answer` is the text of its last
-answer. `session_id` names its conversation.
+answer. `context` is about how many tokens its conversation holds, from
+the usage of its last model reply (an `assistant` line that is not a
+subagent's): its input, cached or not, and its output; absent until it
+replied, and under `listen`, whose session the daemon does not see.
+`session_id` names its conversation.
 
 **Limits.** A session has stated limits, set by its workspace's file
 (`[agent]` in docs/workspace.md). By default it:
@@ -982,7 +988,9 @@ user's writing near it: the colour and size of the user's ink or text it goes
 beside (a stroke counts with its whole cluster), else of the user's ink and
 text on that page, else black and 240. The colour is the one most of those
 items have; the size is the median of a text's own size and, for a cluster
-of ink, the median height of its lines of writing. The reply gives the new item's id and its box. When a
+of ink, the median height of its lines of writing. A cluster whose every
+stroke is over twice the median height of the strokes counted (a frame
+drawn apart from any writing) is not writing and gives no size. The reply gives the new item's id and its box. When a
 `sling_sent` tagged with the agent and the canvas is in the record, the put
 answers the latest such sling: the daemon appends `reply_landed` (`sling`,
 `items`: the new item) with the agent as source and tags it with the agent

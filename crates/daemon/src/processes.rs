@@ -99,6 +99,8 @@ pub struct Shown {
     pub answer: Option<String>,
     /// The profile it runs under, if any.
     pub profile: Option<String>,
+    /// The tokens its conversation's context holds, as of its last model reply.
+    pub context: Option<u64>,
 }
 
 /// The processes, by agent. Safe to share between threads.
@@ -275,8 +277,8 @@ impl Processes {
         let mut heard = process.heard();
         let pending = if running { heard.turns.pending(Instant::now()) } else { 0 };
         let answer = heard.answer.clone();
-        let profile = process.profile.clone();
-        Some(Shown { running, pid: process.child.id(), pending, answer, profile })
+        let (profile, context) = (process.profile.clone(), heard.context);
+        Some(Shown { running, pid: process.child.id(), pending, answer, profile, context })
     }
 
     /// The session id `agent`'s conversation has: the one its process uses,
@@ -358,6 +360,7 @@ struct Heard {
     session_id: Option<String>,
     turns: Turns,
     answer: Option<String>,
+    context: Option<u64>,
     /// Its output closed: it ended, or soon will.
     ended: bool,
 }
@@ -378,6 +381,7 @@ fn listen(out: ChildStdout, key: &str, heard: &Arc<Mutex<Heard>>, ids: &Arc<Ids>
             if said.answer.is_some() {
                 heard.answer = said.answer;
             }
+            heard.context = said.context.or(heard.context);
             if let Some(id) = said.session_id
                 && heard.session_id.as_ref() != Some(&id)
             {
