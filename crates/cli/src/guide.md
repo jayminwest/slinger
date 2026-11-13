@@ -142,10 +142,13 @@ Take a workspace's slings yourself, in this session, with your own tools and
 permissions. Each run waits for one sling and prints it:
 
 ```bash
-slinger session listen <WORKSPACE>            # run in the background; act when it exits
+slinger session listen <WORKSPACE> --pid $PPID   # in the background; act when it exits
 slinger canvas put <CANVAS> --beside c12 --text "The answer" --agent <NAME>
 slinger status set done --agent <NAME>        # then listen again
 ```
+
+`--pid` names your session's process (`$PPID` in Claude Code): if it ends
+before you set `done` or `blocked`, the sling waits for the next listener.
 
 When slinger itself gets in your way, leave a note for its maker:
 
