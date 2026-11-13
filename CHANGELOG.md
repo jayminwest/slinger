@@ -271,6 +271,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **CLI and app:** a busy slingerd is no longer taken for a stopped one.
+  When the disk is under heavy load a reply can take several seconds; the
+  CLI and the app now wait up to 30 seconds for it instead of 5, and no
+  longer fail with `unavailable` and a hint to start slingerd.
 - **App:** erasing, moving, placing a text, box or arrow, editing and
   changing pages while slingerd is down now survive quitting the app, as
   strokes already did: they are sent, in order, after the next start.

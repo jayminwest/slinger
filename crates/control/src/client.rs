@@ -18,8 +18,11 @@ use crate::{
 /// The daemon's program name, for messages.
 const DAEMON: &str = "slingerd";
 
-/// How long a client waits for the daemon to answer.
-pub(crate) const TIMEOUT: Duration = Duration::from_secs(5);
+/// How long a client waits for the daemon to answer. A daemon that took the
+/// connection is there: its reply can wait on durable writes behind a busy
+/// disk (11 s seen under load, slinger-9b1389), and is not to be taken for
+/// no daemon. Bounded, so a hung one is still noticed.
+pub(crate) const TIMEOUT: Duration = Duration::from_secs(30);
 
 /// A client of the daemon on one socket path. Making one does no IO.
 #[derive(Debug, Clone)]
@@ -305,5 +308,21 @@ mod tests {
         assert_eq!(err.code(), "unavailable");
         assert!(err.hint().unwrap().ends_with(" --socket /nonexistent/x.sock'"));
         assert_eq!(list("").unwrap_err().code(), "unavailable");
+    }
+
+    /// slinger-9b1389: under load a daemon's reply can take longer than the
+    /// 5 s a client used to wait, and that daemon is not unavailable.
+    #[test]
+    fn a_daemon_slow_to_reply_still_answers() {
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("d.sock");
+        let listener = UnixListener::bind(&socket).unwrap();
+        std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            BufReader::new(&stream).read_line(&mut String::new()).unwrap();
+            std::thread::sleep(Duration::from_secs(6));
+            stream.write_all(b"{\"ok\":true,\"canvases\":[]}\n").unwrap();
+        });
+        assert_eq!(Client::new(&socket).canvas_list(), Ok(vec![]));
     }
 }

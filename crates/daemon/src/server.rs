@@ -4,6 +4,7 @@
 mod agent;
 mod feedback;
 mod import;
+mod lock;
 mod pane;
 mod profile;
 mod read;
@@ -14,7 +15,7 @@ mod sling;
 #[cfg(test)]
 pub(crate) use sling::VERBS;
 
-use std::fs::{self, File, Permissions, TryLockError};
+use std::fs::{self, Permissions};
 use std::io::{self, BufReader};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -80,7 +81,7 @@ pub struct Server {
     listener: UnixListener,
     socket: PathBuf,
     /// Held for the server's life: the lock, not the socket file, says who owns the path.
-    _lock: File,
+    _lock: lock::Lock,
     stopping: Arc<AtomicBool>,
 }
 
@@ -112,14 +113,8 @@ impl Server {
         if let Some(dir) = socket.parent() {
             fs::create_dir_all(dir).map_err(io)?;
         }
-        let mut lock_path = socket.as_os_str().to_owned();
-        lock_path.push(".lock");
-        let lock = File::options().create(true).append(true).open(lock_path).map_err(io)?;
-        match lock.try_lock() {
-            Ok(()) => {}
-            Err(TryLockError::WouldBlock) => return Err(StartError::Taken(socket.to_owned())),
-            Err(TryLockError::Error(e)) => return Err(io(e)),
-        }
+        let lock = lock::Lock::take(socket).map_err(io)?;
+        let lock = lock.ok_or_else(|| StartError::Taken(socket.to_owned()))?;
         // The lock is ours, so a socket file here is left over from a daemon that died.
         match fs::remove_file(socket) {
             Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(io(e)),

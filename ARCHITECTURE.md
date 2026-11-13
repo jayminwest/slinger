@@ -230,6 +230,10 @@ canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,
 canvases/feed.rs  the change feed: the stored lines after a number, read back
              from the file, and a wait on the canvas's condition variable that
              a change or `Canvases::stop` (called when `serve` stops) ends.
+server/lock.rs  the lock beside the socket that says which daemon owns the path.
+             Dropping it unlocks it, so a spawned process's copy of the file,
+             open from its fork to its exec, cannot hold the path a moment
+             past the daemon's stop.
 server/import.rs  `canvas_import`: reads the client's file, calls the tldraw
              importer, stores the canvas, replies with the counts.
 workspaces.rs the open workspaces: the list of directories that hold their
@@ -1125,6 +1129,7 @@ Each boundary has something that fails when it is broken:
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
 | The canvas file format is readable by older readers | `crates/core/tests/canvas_file.rs`, with a stored v1 fixture |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
+| The client takes a reply slower than 5 s (the daemon under disk load) as an answer, not `unavailable`; it waits 30 s at most (docs/service.md) | `crates/control/src/client.rs` tests, with a fake daemon |
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
 | The packet's image rules: scale, margin, tiles, same bytes for the same input | `crates/core/tests/render.rs`, with golden images |
 | The packet format reads back, an old packet keeps decoding, the board costs under half its screenshots | `crates/core/tests/packet_build.rs`, with a stored v1 packet, on the real board |

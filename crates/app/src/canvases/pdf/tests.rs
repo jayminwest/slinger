@@ -38,6 +38,10 @@ fn an_opened_pdf_shows_grey_then_its_pages_once_its_file_has_come() {
         fs::write(&file, b"%PDF-1.7 two pages").unwrap();
         let notes = Panes::new(Pane { kind: Kind::Canvas, name: "notes".into() });
         let mut canvases = Canvases::new(daemon.clone());
+        // A cache of its own: the app's is shared by every test process and
+        // worktree, and a fetched file is named by its bytes (slinger-f19088).
+        let cache = tempfile::tempdir().unwrap();
+        canvases.pdfs = Pdfs::start(daemon.clone(), cache.path().to_owned());
         canvases.open_pdf(&notes, Some("notes"), file.clone(), two_pages);
         wait_until(|| canvases.poll() && canvases.pdfs.opened.is_none());
         assert_eq!(canvases.problems().next(), None);
@@ -52,9 +56,8 @@ fn an_opened_pdf_shows_grey_then_its_pages_once_its_file_has_come() {
         // Page 2 lies under the pane's bottom edge: only page 1 is drawn.
         assert_eq!(shown.iter().map(|(p, _)| *p).collect::<Vec<_>>(), [1]);
         let fetched = shown[0].1.clone().unwrap();
+        assert!(fetched.starts_with(cache.path()));
         assert_eq!(fs::read(&fetched).unwrap(), b"%PDF-1.7 two pages");
-        // The cache is the app's own and outlives the test: leave it as found.
-        let _ = fs::remove_file(fetched);
     });
 }
 
