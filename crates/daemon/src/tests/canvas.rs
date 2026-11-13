@@ -109,7 +109,7 @@ fn clients_that_apply_at_once_all_succeed_and_the_numbers_have_no_gap() {
 }
 
 #[test]
-fn undo_and_redo_are_written_like_any_change() {
+fn undo_and_redo_are_written_like_any_change_and_outlive_a_restart() {
     let data = TempDir::new().unwrap();
     let daemon = Daemon::start_in(data.path());
     let client = daemon.client();
@@ -121,10 +121,19 @@ fn undo_and_redo_are_written_like_any_change() {
     daemon.stop();
 
     let daemon = Daemon::start_in(data.path());
-    let shown = daemon.client().canvas_show("main", None).unwrap();
+    let client = daemon.client();
+    let shown = client.canvas_show("main", None).unwrap();
     assert_eq!((shown.items.len(), shown.next), (1, 4));
-    // Undo is not on disk: after a restart there is nothing to undo.
-    assert_eq!(daemon.client().canvas_undo(user("main")).unwrap().seq, [0_u64; 0]);
+    // The file says where each line stands, so a restart keeps the history.
+    assert_eq!(client.canvas_redo(user("main")).unwrap().seq, [0_u64; 0]);
+    assert_eq!(client.canvas_undo(user("main")).unwrap().seq, [4], "the redone add goes");
+    daemon.stop();
+
+    let daemon = Daemon::start_in(data.path());
+    let client = daemon.client();
+    assert_eq!(client.canvas_redo(user("main")).unwrap().seq, [5], "and comes back after another");
+    assert_eq!(client.canvas_undo(user("main")).unwrap().seq, [6]);
+    assert_eq!(client.canvas_undo(user("main")).unwrap().seq, [0_u64; 0]);
     daemon.stop();
 }
 
@@ -173,7 +182,7 @@ fn a_torn_last_line_is_cut_and_a_damaged_file_is_refused() {
     let client = daemon.client();
     assert_eq!(client.canvas_apply(ops("torn", "user", bx(0))).unwrap().seq, [1]);
     let file = std::fs::read_to_string(dir.join("torn.canvas")).unwrap();
-    assert!(file.starts_with(header) && file.ends_with("}}\n"), "{file}");
+    assert!(file.starts_with(header) && file.ends_with("},\"step\":1}\n"), "{file}");
     assert_eq!(file.lines().count(), 2);
     assert_eq!(client.canvas_show("bad", None).unwrap_err().code(), "canvas_corrupt");
     assert_eq!(client.canvas_show("new", None).unwrap_err().code(), "canvas_too_new");

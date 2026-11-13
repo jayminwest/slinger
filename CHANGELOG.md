@@ -363,6 +363,11 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Canvas:** undo and redo survive a restart of the daemon: a page you
+  deleted (or anything else you did) before slinger restarted can still be
+  undone, and each agent still undoes only its own changes. Canvas files
+  record which change each line belongs to; changes made before this
+  version have nothing to undo after a restart, as before.
 - **App:** with a broken workspace first in the list and none named in the
   config, the sidebar highlights the workspace the panes show (the first
   usable one), not the broken one.

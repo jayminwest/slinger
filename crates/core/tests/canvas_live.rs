@@ -68,7 +68,7 @@ fn a_live_item_is_one_add_line_with_its_box_name_hash_and_showing() {
     assert_eq!(
         line,
         format!(
-            r#"{{"n":2,"t":"2025-11-10T16:00:00.000Z","by":"agent:scout","op":"add","item":{{"id":"i2","page":"p1","kind":"live","x":1240,"y":0,"w":3200,"h":2400,"ui":"pick-slot","hash":"{}","open":"pick-slot#12"}}}}"#,
+            r#"{{"n":2,"t":"2025-11-10T16:00:00.000Z","by":"agent:scout","op":"add","item":{{"id":"i2","page":"p1","kind":"live","x":1240,"y":0,"w":3200,"h":2400,"ui":"pick-slot","hash":"{}","open":"pick-slot#12"}},"step":2}}"#,
             hash()
         )
     );

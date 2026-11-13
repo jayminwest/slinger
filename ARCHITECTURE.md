@@ -42,7 +42,10 @@ canvas/      pages of items, changed only by operations. Build (Canvas::new),
              History: undo and redo per author; a step is one op or a group
              (lasso move, erase gesture). Undo applies inverse ops (Restore,
              PageRestore put things back under their old ids) and returns
-             them, so the op log stays append-only. Not persisted.
+             them, so the op log stays append-only. Each step has a mark (the
+             log uses its first line's number); the file keeps each line's
+             place in it (Step: `step`, `undoes`, `redoes`), and Rebuild makes
+             the history again as the lines replay, so it outlives a restart.
              canvas/pdf.rs: the `pdf` kind's rules (docs/design/pdf.md):
              frame, blob id, page, page size, crop and name as numbers and
              text; Shape::shown, the crop or the whole page. The core never

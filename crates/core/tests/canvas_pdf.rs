@@ -88,7 +88,7 @@ fn a_pdf_item_is_one_add_line_and_reads_back() {
     assert_eq!(
         line,
         format!(
-            r#"{{"n":1,"t":"2025-11-10T16:00:00.000Z","by":"user","op":"add","item":{{"id":"i1","page":"p1","kind":"pdf","x":0,"y":0,"w":16000,"h":20706,"hash":"{}","pdfpage":1,"pagesize":[6120,7920],"name":"paper.pdf"}}}}"#,
+            r#"{{"n":1,"t":"2025-11-10T16:00:00.000Z","by":"user","op":"add","item":{{"id":"i1","page":"p1","kind":"pdf","x":0,"y":0,"w":16000,"h":20706,"hash":"{}","pdfpage":1,"pagesize":[6120,7920],"name":"paper.pdf"}},"step":1}}"#,
             hash()
         )
     );
@@ -96,7 +96,7 @@ fn a_pdf_item_is_one_add_line_and_reads_back() {
         "y": 3000, "w": 6000, "h": 2400, "hash": hash(), "pdfpage": 3, "pagesize": [6120, 7920],
         "crop": [720, 1800, 3000, 1200] } });
     bytes += &log.apply(&Author::User, AT, &snippet).unwrap().bytes;
-    let tail = r#""pdfpage":3,"pagesize":[6120,7920],"crop":[720,1800,3000,1200]}}"#;
+    let tail = r#""pdfpage":3,"pagesize":[6120,7920],"crop":[720,1800,3000,1200]},"step":2}"#;
     assert!(bytes.ends_with(&format!("{tail}\n")), "{bytes}");
     let file = read(bytes.as_bytes()).unwrap();
     assert_eq!(file.canvas().unwrap(), *log.canvas(), "the file replays to the same canvas");

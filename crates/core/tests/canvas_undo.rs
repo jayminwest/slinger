@@ -40,7 +40,7 @@ fn first(c: &Canvas) -> PageId {
 
 /// Applies one action through the history and returns the new item's id, if any.
 fn act(h: &mut History, c: &mut Canvas, by: &Author, action: Action) -> Option<ItemId> {
-    match h.apply(c, by, AT, vec![action]).unwrap()[..] {
+    match h.apply(c, by, AT, 0, vec![action]).unwrap()[..] {
         [Applied::Added(id)] => Some(id),
         _ => None,
     }
@@ -130,16 +130,16 @@ fn undo_then_redo_returns_the_same_canvas_for_every_operation_kind() {
         let mut h = History::new();
         let mut c = before.clone();
         let mut log = vec![Op { by: user.clone(), at: AT, action: action.clone() }];
-        h.apply(&mut c, &user, AT, vec![action]).unwrap();
+        h.apply(&mut c, &user, AT, 0, vec![action]).unwrap();
         let after = c.clone();
         assert_ne!(after, before, "{kind}: the op changes the canvas");
 
-        let undone = h.undo(&mut c, &user, LATER);
+        let undone = h.undo(&mut c, &user, LATER, 0).ops;
         assert!(!undone.is_empty(), "{kind}: undo writes ops");
         assert_eq!(shown(&c), shown(&before), "{kind}: undo returns the canvas before");
         log.extend(undone);
 
-        let redone = h.redo(&mut c, &user, LATER);
+        let redone = h.redo(&mut c, &user, LATER, 0).ops;
         assert!(!redone.is_empty(), "{kind}: redo writes ops");
         assert_eq!(c, after, "{kind}: redo returns the canvas after");
         log.extend(redone);
@@ -151,7 +151,7 @@ fn undo_then_redo_returns_the_same_canvas_for_every_operation_kind() {
         }
         assert_eq!(replay, after, "{kind}: the log replays to the same canvas");
 
-        assert!(!h.undo(&mut c, &user, LATER).is_empty(), "{kind}: undo again after redo");
+        assert!(!h.undo(&mut c, &user, LATER, 0).ops.is_empty(), "{kind}: undo again after redo");
         assert_eq!(shown(&c), shown(&before), "{kind}: and back to before");
     }
 }
@@ -166,26 +166,26 @@ fn undo_is_per_author() {
     let more = add(&mut h, &mut c, &user, stroke(9.0));
 
     // The agent's undo takes back the agent's note, and only that.
-    let undone = h.undo(&mut c, &scout, LATER);
+    let undone = h.undo(&mut c, &scout, LATER, 0).ops;
     assert_eq!(undone.len(), 1);
     assert_eq!(undone[0].by, scout);
     assert_eq!(ids(&c), [ink, more]);
     assert!(!h.can_undo(&scout));
-    assert!(h.undo(&mut c, &scout, LATER).is_empty(), "nothing left for the agent");
-    assert!(h.undo(&mut c, &other, LATER).is_empty(), "another agent has nothing to undo");
+    assert!(h.undo(&mut c, &scout, LATER, 0).ops.is_empty(), "nothing left for the agent");
+    assert!(h.undo(&mut c, &other, LATER, 0).ops.is_empty(), "another agent has nothing to undo");
     assert_eq!(ids(&c), [ink, more]);
 
     // The user's undo takes back the user's work, newest first.
-    h.redo(&mut c, &scout, LATER);
+    h.redo(&mut c, &scout, LATER, 0);
     assert_eq!(ids(&c), [ink, note, more]);
-    h.undo(&mut c, &user, LATER);
+    h.undo(&mut c, &user, LATER, 0);
     assert_eq!(ids(&c), [ink, note]);
-    h.undo(&mut c, &user, LATER);
+    h.undo(&mut c, &user, LATER, 0);
     assert_eq!(ids(&c), [note]);
-    assert_eq!(h.undo(&mut c, &user, LATER), []);
+    assert_eq!(h.undo(&mut c, &user, LATER, 0).ops, []);
     assert_eq!(ids(&c), [note], "the user's undo never takes the agent's note");
 
-    h.redo(&mut c, &user, LATER);
+    h.redo(&mut c, &user, LATER, 0);
     assert_eq!(ids(&c), [ink, note]);
 }
 
@@ -196,8 +196,8 @@ fn undo_and_redo_with_nothing_to_do_succeed_and_change_nothing() {
     let before = c.clone();
     for by in [Author::User, agent("scout")] {
         assert!(!h.can_undo(&by) && !h.can_redo(&by));
-        assert_eq!(h.undo(&mut c, &by, LATER), []);
-        assert_eq!(h.redo(&mut c, &by, LATER), []);
+        assert_eq!(h.undo(&mut c, &by, LATER, 0).ops, []);
+        assert_eq!(h.redo(&mut c, &by, LATER, 0).ops, []);
     }
     assert_eq!(c, before);
 
@@ -205,9 +205,9 @@ fn undo_and_redo_with_nothing_to_do_succeed_and_change_nothing() {
     let user = Author::User;
     add(&mut h, &mut c, &user, stroke(1.0));
     let after = c.clone();
-    h.undo(&mut c, &user, LATER);
-    h.redo(&mut c, &user, LATER);
-    assert_eq!(h.redo(&mut c, &user, LATER), []);
+    h.undo(&mut c, &user, LATER, 0);
+    h.redo(&mut c, &user, LATER, 0);
+    assert_eq!(h.redo(&mut c, &user, LATER, 0).ops, []);
     assert_eq!(c, after);
 }
 
@@ -221,15 +221,19 @@ fn a_lasso_move_and_an_erase_gesture_are_one_step_each() {
 
     let by = Point::new(5.0, 5.0);
     let lasso = picked.iter().map(|&item| Action::Move { item, by }).collect();
-    h.apply(&mut c, &user, AT, lasso).unwrap();
+    h.apply(&mut c, &user, AT, 0, lasso).unwrap();
     let moved = c.clone();
     let erase = vec![Action::Remove { item: picked[0] }, Action::Remove { item: picked[2] }];
-    h.apply(&mut c, &user, AT, erase).unwrap();
+    h.apply(&mut c, &user, AT, 0, erase).unwrap();
     assert_eq!(ids(&c), [picked[1]]);
 
-    assert_eq!(h.undo(&mut c, &user, LATER).len(), 2, "the erase comes back in one undo");
+    assert_eq!(h.undo(&mut c, &user, LATER, 0).ops.len(), 2, "the erase comes back in one undo");
     assert_eq!(c, moved);
-    assert_eq!(h.undo(&mut c, &user, LATER).len(), 3, "the lasso move goes back in one undo");
+    assert_eq!(
+        h.undo(&mut c, &user, LATER, 0).ops.len(),
+        3,
+        "the lasso move goes back in one undo"
+    );
     assert_eq!(c, made);
 }
 
@@ -239,18 +243,18 @@ fn a_group_that_fails_changes_nothing_and_records_no_step() {
     let mut h = History::new();
     let mut c = Canvas::new();
     let ink = add(&mut h, &mut c, &user, stroke(0.0));
-    h.undo(&mut c, &user, LATER);
+    h.undo(&mut c, &user, LATER, 0);
     let before = c.clone();
     let page = first(&c);
     let group = vec![
         Action::Add { page, shape: stroke(1.0) },
         Action::Move { item: ItemId::new(99), by: Point::new(1.0, 1.0) },
     ];
-    let err = h.apply(&mut c, &user, AT, group).unwrap_err();
+    let err = h.apply(&mut c, &user, AT, 0, group).unwrap_err();
     assert_eq!(err.code(), "not_found");
     assert_eq!(c, before, "no item and no used id");
     assert!(h.can_redo(&user), "a failed change keeps what the user could redo");
-    h.redo(&mut c, &user, LATER);
+    h.redo(&mut c, &user, LATER, 0);
     assert_eq!(ids(&c), [ink]);
 }
 
@@ -260,7 +264,7 @@ fn a_new_change_clears_redo() {
     let mut h = History::new();
     let mut c = Canvas::new();
     add(&mut h, &mut c, &user, stroke(0.0));
-    h.undo(&mut c, &user, LATER);
+    h.undo(&mut c, &user, LATER, 0);
     assert!(h.can_redo(&user));
     add(&mut h, &mut c, &user, stroke(1.0));
     assert!(!h.can_redo(&user));
@@ -278,13 +282,13 @@ fn a_step_whose_item_is_gone_is_skipped() {
 
     // The agent's move and add of the note no longer apply; its undo goes on
     // to the step before them, and never brings the note back.
-    let undone = h.undo(&mut c, &scout, LATER);
+    let undone = h.undo(&mut c, &scout, LATER, 0).ops;
     assert_eq!(undone.len(), 1);
     assert_eq!(undone[0].action, Action::Remove { item: keep });
     assert!(c.item(note).is_none() && c.item(keep).is_none());
 
     // The user's own undo still puts the note back where the agent left it.
-    h.undo(&mut c, &user, LATER);
+    h.undo(&mut c, &user, LATER, 0);
     assert_eq!(c.item(note).unwrap().bounds().x, 13.0);
 }
 

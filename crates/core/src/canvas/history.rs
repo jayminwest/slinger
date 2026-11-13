@@ -14,6 +14,11 @@
 //! an item the agent then tries to un-move), the parts of a step that no
 //! longer apply are skipped; a step with no part left is dropped and the one
 //! before it is undone instead.
+//!
+//! Each step has a mark, a number its caller names it by (the canvas file
+//! uses the number of the step's first line). The file keeps on each line
+//! where it stands ([`Step`]), so [`Rebuild`] builds the same history again
+//! from the lines, and a restart of the daemon keeps what can be undone.
 
 use std::collections::HashMap;
 
@@ -24,20 +29,50 @@ use crate::Result;
 const DEPTH: usize = 1000;
 
 /// The undo and redo steps of every author on one canvas. It lives beside
-/// the canvas in memory; it is not in the canvas file.
+/// the canvas in memory, and [`Rebuild`] makes it again from the lines.
 #[derive(Debug, Clone, Default)]
 pub struct History {
     authors: HashMap<Author, Stacks>,
 }
 
-#[derive(Debug, Clone, Default)]
-struct Stacks {
-    undo: Vec<Step>,
-    redo: Vec<Step>,
+/// Where an operation stands in the undo history. A canvas file keeps it on
+/// each line (`step`, `undoes`, `redoes`), so the history can be built again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Step {
+    /// Not part of an undo step: nothing takes it back. A new canvas's
+    /// button, an import, and every line from before the file kept steps.
+    #[default]
+    None,
+    /// Part of a new step, with the step's mark.
+    New(u64),
+    /// Part of the undo of the step with this mark.
+    Undo(u64),
+    /// Part of the redo of the step with this mark: the undo it takes back.
+    Redo(u64),
 }
 
-/// The actions that take a step back, in the order to apply them.
-type Step = Vec<Action>;
+/// What an undo or redo did.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Walked {
+    /// The operations that did it, in order: none when there was nothing to do.
+    pub ops: Vec<Op>,
+    /// [`Step::Undo`] or [`Step::Redo`] of the step taken back; [`Step::None`]
+    /// when there are no operations.
+    pub step: Step,
+}
+
+#[derive(Debug, Clone, Default)]
+struct Stacks {
+    undo: Vec<Back>,
+    redo: Vec<Back>,
+}
+
+/// A step's mark, and the actions that take it back, in the order to apply them.
+#[derive(Debug, Clone)]
+struct Back {
+    mark: u64,
+    actions: Vec<Action>,
+}
 
 #[derive(Clone, Copy)]
 enum Way {
@@ -51,8 +86,9 @@ impl History {
         Self::default()
     }
 
-    /// Applies `actions` in order as one undo step of `by`, and clears what
-    /// `by` could redo. Either every action applies or none does.
+    /// Applies `actions` in order as one undo step of `by`, marked `mark`,
+    /// and clears what `by` could redo. Either every action applies or none
+    /// does.
     ///
     /// # Errors
     ///
@@ -62,6 +98,7 @@ impl History {
         canvas: &mut Canvas,
         by: &Author,
         at: Time,
+        mark: u64,
         actions: Vec<Action>,
     ) -> Result<Vec<Applied>> {
         let before = (actions.len() > 1).then(|| canvas.clone());
@@ -84,22 +121,22 @@ impl History {
         if !back.is_empty() {
             back.reverse();
             let stacks = self.authors.entry(by.clone()).or_default();
-            push(&mut stacks.undo, back);
+            push(&mut stacks.undo, Back { mark, actions: back });
             stacks.redo.clear();
         }
         Ok(applied)
     }
 
-    /// Takes back the last step of `by` that still applies, and returns the
-    /// operations that did it (none when there was nothing to undo).
-    pub fn undo(&mut self, canvas: &mut Canvas, by: &Author, at: Time) -> Vec<Op> {
-        self.walk(canvas, by, at, Way::Undo)
+    /// Takes back the last step of `by` that still applies, as a step
+    /// `by` can redo, marked `mark`.
+    pub fn undo(&mut self, canvas: &mut Canvas, by: &Author, at: Time, mark: u64) -> Walked {
+        self.walk(canvas, by, at, mark, Way::Undo)
     }
 
-    /// Puts back the last step `by` undid, and returns the operations that
-    /// did it (none when there was nothing to redo).
-    pub fn redo(&mut self, canvas: &mut Canvas, by: &Author, at: Time) -> Vec<Op> {
-        self.walk(canvas, by, at, Way::Redo)
+    /// Puts back the last step `by` undid, as a step `by` can undo, marked
+    /// `mark`.
+    pub fn redo(&mut self, canvas: &mut Canvas, by: &Author, at: Time, mark: u64) -> Walked {
+        self.walk(canvas, by, at, mark, Way::Redo)
     }
 
     /// Whether `by` has a step to undo.
@@ -114,8 +151,8 @@ impl History {
         self.authors.get(by).is_some_and(|s| !s.redo.is_empty())
     }
 
-    fn walk(&mut self, canvas: &mut Canvas, by: &Author, at: Time, way: Way) -> Vec<Op> {
-        let Some(stacks) = self.authors.get_mut(by) else { return Vec::new() };
+    fn walk(&mut self, canvas: &mut Canvas, by: &Author, at: Time, mark: u64, way: Way) -> Walked {
+        let Some(stacks) = self.authors.get_mut(by) else { return Walked::default() };
         let (from, to) = match way {
             Way::Undo => (&mut stacks.undo, &mut stacks.redo),
             Way::Redo => (&mut stacks.redo, &mut stacks.undo),
@@ -123,7 +160,7 @@ impl History {
         while let Some(step) = from.pop() {
             let mut ops = Vec::new();
             let mut back = Vec::new();
-            for action in step {
+            for action in step.actions {
                 let op = Op { by: by.clone(), at, action };
                 if let Ok((_, Some(inverse))) = apply_one(canvas, op.clone()) {
                     ops.push(op);
@@ -132,15 +169,89 @@ impl History {
             }
             if !back.is_empty() {
                 back.reverse();
-                push(to, back);
-                return ops;
+                push(to, Back { mark, actions: back });
+                let step = match way {
+                    Way::Undo => Step::Undo(step.mark),
+                    Way::Redo => Step::Redo(step.mark),
+                };
+                return Walked { ops, step };
             }
         }
-        Vec::new()
+        Walked::default()
     }
 }
 
-fn push(stack: &mut Vec<Step>, step: Step) {
+/// Builds a [`History`] again from the operations of a canvas file, each
+/// with the [`Step`] its line states, as replay applies them in order. The
+/// lines of one step are next to each other, by one author, with one
+/// [`Step`]; a step's mark is its first line's number.
+///
+/// An undo that found nothing to take back wrote no line, so the steps it
+/// dropped are back after a rebuild; an undo of them skips what no longer
+/// applies, as it did.
+#[derive(Debug, Default)]
+pub(crate) struct Rebuild {
+    history: History,
+    /// The step the last lines were part of, until a line of another one.
+    open: Option<(Author, Step, Back)>,
+}
+
+impl Rebuild {
+    /// Applies `op`, from line `n`, which stands at `step`. Returns whether
+    /// the canvas took it; one it refuses changes nothing (SPEC B4).
+    pub(crate) fn apply(&mut self, canvas: &mut Canvas, n: u64, op: Op, step: Step) -> bool {
+        let same = self.open.as_ref().is_some_and(|(by, s, _)| *by == op.by && *s == step);
+        if !same {
+            self.close();
+            if step == Step::None {
+                return canvas.apply(op).is_ok();
+            }
+            let stacks = self.history.authors.entry(op.by.clone()).or_default();
+            let mark = match step {
+                Step::New(mark) => {
+                    stacks.redo.clear();
+                    mark
+                }
+                Step::None => n,
+                Step::Undo(undone) => drop_to(&mut stacks.undo, undone, n),
+                Step::Redo(redone) => drop_to(&mut stacks.redo, redone, n),
+            };
+            self.open = Some((op.by.clone(), step, Back { mark, actions: Vec::new() }));
+        }
+        let Ok((_, inverse)) = apply_one(canvas, op) else { return false };
+        if let Some((_, _, back)) = &mut self.open {
+            back.actions.extend(inverse);
+        }
+        true
+    }
+
+    /// The history the lines built.
+    pub(crate) fn finish(mut self) -> History {
+        self.close();
+        self.history
+    }
+
+    fn close(&mut self) {
+        let Some((by, step, mut back)) = self.open.take() else { return };
+        if back.actions.is_empty() {
+            return;
+        }
+        back.actions.reverse();
+        let stacks = self.history.authors.entry(by).or_default();
+        let to = if matches!(step, Step::Undo(_)) { &mut stacks.redo } else { &mut stacks.undo };
+        push(to, back);
+    }
+}
+
+/// Pops `stack` down past the step marked `mark` (the steps above it were
+/// dropped by the walk that took it), and returns `n`, the mark of the step
+/// the walk made.
+fn drop_to(stack: &mut Vec<Back>, mark: u64, n: u64) -> u64 {
+    while stack.pop().is_some_and(|back| back.mark != mark) {}
+    n
+}
+
+fn push(stack: &mut Vec<Back>, step: Back) {
     if stack.len() == DEPTH {
         stack.remove(0);
     }

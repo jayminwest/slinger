@@ -8,7 +8,7 @@
 
 use super::json;
 use super::{Change, Header, Line, snap_shape};
-use crate::canvas::{Author, Canvas, End, FIRST_PAGE, PageId, Shape, Time};
+use crate::canvas::{Author, Canvas, End, FIRST_PAGE, PageId, Shape, Step, Time};
 
 /// The bytes of a new canvas file `id` that replays into `canvas`. Page lines
 /// are made by `user` at `at`; each item's line keeps its own maker and time.
@@ -18,7 +18,7 @@ pub(super) fn encode(id: &str, canvas: &Canvas, at: Time) -> String {
     let mut out = Header::new(id).encode();
     let mut n = 1;
     let mut push = |by: &Author, at: Time, change: Change| {
-        out.push_str(&Line::Op { n, by: by.clone(), at, change }.encode());
+        out.push_str(&Line::Op { n, by: by.clone(), at, change, step: Step::None }.encode());
         n += 1;
     };
     let user = Author::User;
