@@ -9,7 +9,7 @@
 use serde_json::Value;
 
 use super::{Change, File, Line, json};
-use crate::canvas::{Action, Canvas, Op};
+use crate::canvas::{Action, Canvas, Op, Step};
 use crate::{Error, Result};
 
 impl File {
@@ -24,28 +24,32 @@ impl File {
     /// [`Error::CanvasCorrupt`] when a line names an id at or below one the
     /// canvas already handed out: the file was changed outside slinger.
     pub fn canvas(&self) -> Result<Canvas> {
-        self.replay(|_, _| {})
+        // A refused op changed nothing when it was written either.
+        self.replay(|canvas, _, op, _| {
+            let _ = canvas.apply(op);
+        })
     }
 
-    /// As [`File::canvas`], and gives `kept` each op the canvas applied, in
-    /// order, with the `n` of its line. Applying those ops to a new canvas
-    /// builds the same canvas when the file's ids have no gaps, as every file
-    /// slinger writes.
-    pub(super) fn replay(&self, mut kept: impl FnMut(u64, Op)) -> Result<Canvas> {
+    /// As [`File::canvas`], but `each` applies each op to the canvas, given
+    /// the `n` and the [`Step`] of its line, in order. An `each` that only
+    /// applies builds the canvas [`File::canvas`] does; the ops it applied,
+    /// applied to a new canvas, build the same canvas when the file's ids
+    /// have no gaps, as every file slinger writes.
+    pub(super) fn replay(
+        &self,
+        mut each: impl FnMut(&mut Canvas, u64, Op, Step),
+    ) -> Result<Canvas> {
         let mut canvas = Canvas::new();
         for (i, line) in self.lines.iter().enumerate() {
             let at_line = i + 2;
-            let Line::Op { n, by, at, change } = line else {
+            let Line::Op { n, by, at, change, step } = line else {
                 if let Line::Unknown { text, .. } = line {
                     reserve_unknown(&mut canvas, text);
                 }
                 continue;
             };
             let mut apply = |canvas: &mut Canvas, action| {
-                let op = Op { by: by.clone(), at: *at, action };
-                if canvas.apply(op.clone()).is_ok() {
-                    kept(*n, op);
-                }
+                each(canvas, *n, Op { by: by.clone(), at: *at, action }, *step);
             };
             match change {
                 Change::Add { item, page, shape } => {

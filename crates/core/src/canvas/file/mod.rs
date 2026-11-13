@@ -56,7 +56,7 @@ pub use packet::{backdrop, rect_tenths, size_tenths};
 pub use put::{How, INK_WIDTH, Placed, Put, TEXT_COLUMNS};
 use serde_json::{Map, Value};
 
-use super::{Action, Applied, Author, Item, ItemId, Op, Page, PageId, Point, Shape, Time};
+use super::{Action, Applied, Author, Item, ItemId, Op, Page, PageId, Point, Shape, Step, Time};
 use crate::{Error, Result};
 use json::{Bad, Fields, Obj};
 
@@ -95,9 +95,14 @@ impl Header {
 
 /// One operation line.
 #[derive(Debug, Clone, PartialEq)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "lines are read once into a list and replayed; boxing each known one costs more"
+)]
 pub enum Line {
-    /// An operation this reader knows.
-    Op { n: u64, by: Author, at: Time, change: Change },
+    /// An operation this reader knows, and where it stands in the undo
+    /// history (the optional `step`, `undoes` or `redoes`).
+    Op { n: u64, by: Author, at: Time, change: Change, step: Step },
     /// A line from a newer writer: an operation kind, item kind or author this
     /// reader does not know. Kept as its text, without the `\n`.
     Unknown { n: u64, text: String },
@@ -184,7 +189,16 @@ impl Line {
             },
             _ => return None,
         };
-        Some(Line::Op { n, by: op.by.clone(), at: op.at, change })
+        Some(Line::Op { n, by: op.by.clone(), at: op.at, change, step: Step::None })
+    }
+
+    /// The same line, standing at `step` in the undo history.
+    #[must_use]
+    pub fn in_step(self, step: Step) -> Self {
+        match self {
+            Line::Op { n, by, at, change, .. } => Line::Op { n, by, at, change, step },
+            unknown @ Line::Unknown { .. } => unknown,
+        }
     }
 
     /// The line's sequence number.
@@ -199,9 +213,9 @@ impl Line {
     /// unknown one is written back as it was read.
     #[must_use]
     pub fn encode(&self) -> String {
-        let (n, by, at, change) = match self {
+        let (n, by, at, change, step) = match self {
             Line::Unknown { text, .. } => return format!("{text}\n"),
-            Line::Op { n, by, at, change } => (n, by, at, change),
+            Line::Op { n, by, at, change, step } => (n, by, at, change, step),
         };
         let o = Obj::new()
             .raw("n", &n.to_string())
@@ -240,6 +254,12 @@ impl Line {
                     .raw("index", &index.to_string())
                     .raw("items", &format!("[{}]", items.join(",")))
             }
+        };
+        let o = match step {
+            Step::None => o,
+            Step::New(mark) => o.raw("step", &mark.to_string()),
+            Step::Undo(mark) => o.raw("undoes", &mark.to_string()),
+            Step::Redo(mark) => o.raw("redoes", &mark.to_string()),
         };
         o.end() + "\n"
     }
@@ -385,7 +405,18 @@ fn read_line(row: &[u8], expected: u64) -> std::result::Result<Line, Damage> {
         return Ok(unknown);
     };
     let at = time::parse(json::text(&m, "t").map_err(Damage::Bad)?).map_err(Damage::Bad)?;
-    Ok(Line::Op { n: expected, by, at, change })
+    Ok(Line::Op { n: expected, by, at, change, step: read_step(&m) })
+}
+
+/// Where a line stands in the undo history. A mark that is not a number
+/// above 0 is read as none: the line is then no undo step, and nothing else
+/// of the file reads differently.
+fn read_step(m: &Fields) -> Step {
+    let mark = |key| m.get(key).and_then(Value::as_u64).filter(|mark| *mark > 0);
+    (mark("step").map(Step::New))
+        .or_else(|| mark("undoes").map(Step::Undo))
+        .or_else(|| mark("redoes").map(Step::Redo))
+        .unwrap_or_default()
 }
 
 /// The change a line states, or `None` for one this reader does not know.

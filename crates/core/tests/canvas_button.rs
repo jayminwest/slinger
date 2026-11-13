@@ -40,7 +40,7 @@ fn a_button_is_one_add_line_with_its_box_and_reads_back() {
     let line = bytes.lines().nth(1).unwrap();
     assert_eq!(
         line,
-        r#"{"n":1,"t":"2025-11-10T16:00:00.000Z","by":"user","op":"add","item":{"id":"i1","page":"p1","kind":"button","x":0,"y":0,"w":1600,"h":400}}"#
+        r#"{"n":1,"t":"2025-11-10T16:00:00.000Z","by":"user","op":"add","item":{"id":"i1","page":"p1","kind":"button","x":0,"y":0,"w":1600,"h":400},"step":1}"#
     );
     let file = read(bytes.as_bytes()).unwrap();
     assert_eq!(file.canvas().unwrap(), *log.canvas(), "the file replays to the same canvas");
@@ -77,6 +77,8 @@ fn a_new_canvas_starts_with_the_users_button_on_its_first_page() {
     let file = read(bytes.as_bytes()).unwrap();
     assert_eq!(file.canvas().unwrap(), *log.canvas(), "the file replays to the same canvas");
     assert!(log.undo(&Author::User, AT).bytes.is_empty(), "the button is no undo step");
+    let (mut reopened, _) = Log::open(bytes.as_bytes()).unwrap();
+    assert!(reopened.undo(&Author::User, AT).bytes.is_empty(), "nor once the file is read again");
     let gone = log.apply(&Author::User, AT, &json!({"op": "remove", "ids": ["i1"]})).unwrap();
     assert!(!gone.bytes.is_empty(), "the user may take it away");
     assert_eq!(Log::start("idea", AT).unwrap().0.next(), 2);

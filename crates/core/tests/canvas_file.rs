@@ -155,15 +155,16 @@ fn generated_canvases_round_trip_through_the_file() {
             ]);
             let at = Time(rng.next() % 250_000_000_000_000);
             let done: Vec<(Op, Applied)> = match rng.below(10) {
-                0 | 1 => history.undo(&mut canvas, &by, at),
-                2 => history.redo(&mut canvas, &by, at),
+                0 | 1 => history.undo(&mut canvas, &by, at, 0).ops,
+                2 => history.redo(&mut canvas, &by, at, 0).ops,
                 _ => {
                     // One step of one or two actions, as a lasso move is.
                     let ops: Vec<Op> = (0..=rng.below(2))
                         .map(|_| snap(Op { by: by.clone(), at, action: action(&mut rng, &canvas) }))
                         .collect();
                     let actions = ops.iter().map(|op| op.action.clone()).collect();
-                    let applied = history.apply(&mut canvas, &by, at, actions).unwrap_or_default();
+                    let applied =
+                        history.apply(&mut canvas, &by, at, 0, actions).unwrap_or_default();
                     append(
                         &ops.into_iter().zip(applied).collect::<Vec<_>>(),
                         &mut file,

@@ -327,8 +327,9 @@ An agent may move, edit or remove only items it made, and gets `invalid` with a
 hint for anything else. That stays `invalid` rather than a code of its own:
 the caller does the same thing either way (make a new item instead), and a
 new code would need a new CLI exit code (docs/cli.md: add one only when a
-caller must tell the failure apart). Undo and redo are per author and live in
-the daemon's memory: a restart starts with nothing to undo.
+caller must tell the failure apart). Undo and redo are per author. Each line
+says which step it belongs to, so a restart keeps what each author can undo
+and redo (`docs/design/canvas-file.md`, "Undo steps").
 
 **Canvas operations.** `ops` of `canvas_apply` is one operation object or a
 list of them, applied in order as one undo step: all of them apply, or none
@@ -355,8 +356,7 @@ again with the same `once`, a key it makes unique (the app uses its process
 and start time and a count). A request whose `once` is the key of one of
 the last 1024 changes applied to that canvas under a key applies nothing
 and writes nothing, and answers that change's `seq` and `made`. The keys
-live in the daemon's memory, as the undo history does: a restart forgets
-them. A request that failed keeps no key.
+live in the daemon's memory: a restart forgets them. A request that failed keeps no key.
 
 `made` lists the ids the `add` and `page.add` operations made, in order. An
 operation of another kind, or one whose fields do not fit, is `invalid` with
