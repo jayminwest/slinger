@@ -1,9 +1,11 @@
 //! `sling_send` through the real socket, with the stand-in for Claude Code:
 //! slings go into one conversation, each is in the record with its packet,
-//! old ink is not sent again, and a sling that cannot go leaves no trace.
+//! old ink is not sent again, a sling starts an agent that does not run, and
+//! a sling that cannot go leaves no trace.
 //! `listen.rs` has the slings a listener takes.
 
 use std::path::Path;
+use std::time::Duration;
 
 use serde_json::{Value, json};
 use slinger_control::{CanvasOps, Client, EventFilter, Put, SlingAsk, Slung};
@@ -11,9 +13,11 @@ use slinger_core::sling::Verb;
 use tempfile::TempDir;
 
 use super::Daemon;
-use super::process::{fake_claude, wait_lines};
+use super::process::{fake_claude, wait_for, wait_lines};
 use super::session::open_with_agent;
 use crate::server::VERBS;
+
+const LONG: Duration = Duration::from_secs(30);
 
 /// Draws one stroke of the user's at `x` on the canvas `notes`; far enough
 /// apart, each is a cluster of its own, `c<seq>`.
@@ -120,6 +124,45 @@ fn three_slings_go_into_one_conversation_and_each_is_in_the_record() {
     let landed = client.record_list(filter).unwrap();
     assert_eq!(landed[0]["number"], json!(placed.event.unwrap()));
     assert_eq!(landed[0]["payload"]["sling"], json!(again.event));
+    daemon.stop();
+}
+
+#[test]
+fn a_sling_starts_an_agent_that_does_not_run_unless_a_listener_is_there() {
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
+    let client = daemon.client();
+    let home = open_with_agent(&client, &projects, "notes", "scout");
+    assert_eq!(client.session_show("scout").unwrap().process, None, "opening starts nothing");
+
+    // Never started: the sling starts it, and goes into its new conversation.
+    draw(&client, 0);
+    let first = sling(&client, &[], "first");
+    assert_eq!(first.deliver.as_deref(), Some("process"));
+    let running = client.session_show("scout").unwrap();
+    assert_eq!(running.process.as_deref(), Some("running"));
+    assert_eq!(running.session_id.as_deref(), Some(first.session_id.as_str()));
+    assert!(messages(&home, 1)[0].0.contains("This is a sling from Slinger"), "the whole note");
+
+    // Stopped: the next sling starts it again, resuming that conversation.
+    client.session_stop("notes").unwrap();
+    draw(&client, 5000);
+    let again = sling(&client, &[], "again");
+    assert_eq!((again.deliver.as_deref(), &again.session_id), (Some("process"), &first.session_id));
+    assert!(messages(&home, 2)[1].0.ends_with("# prompt\nagain"));
+    let args = std::fs::read_to_string(home.join("args.txt")).unwrap();
+    assert!(args.lines().nth(1).unwrap().contains("--resume"), "{args}");
+
+    // Stopped with a listener there: the listener takes it, and nothing starts.
+    client.session_stop("notes").unwrap();
+    std::thread::scope(|scope| {
+        let theirs = daemon.client();
+        let ask = scope.spawn(move || theirs.session_listen("notes", LONG).unwrap());
+        wait_for(&client, "scout", |s| s.listening == Some(true));
+        assert_eq!(sling(&client, &[], "to the listener").deliver.as_deref(), Some("listen"));
+        assert!(ask.join().unwrap().sling.is_some());
+    });
+    assert_eq!(client.session_show("scout").unwrap().process, None);
     daemon.stop();
 }
 

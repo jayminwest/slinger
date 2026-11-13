@@ -36,6 +36,33 @@ fn ask(ids: Vec<ItemId>, prompt: &str) -> Ask {
     Ask { canvas, page, ids, prompt, profile: Profile::Running }
 }
 
+/// Slings `prompt` so that it waits for a listener and nobody listens: a
+/// listener is there as it goes (else the sling starts the agent), takes it
+/// in a session that then ends, and the sling waits again. Returns the
+/// progress that says nobody listens.
+fn sling_unheard(
+    daemon: &Client,
+    slinger: &Slinger,
+    got: &mut Vec<Heard>,
+    prompt: &str,
+) -> Progress {
+    assert_eq!(daemon.session_listen("notes", Duration::ZERO).unwrap().sling, None);
+    slinger.send(ask(vec![ItemId(1)], prompt));
+    assert_eq!(went(wait(slinger, got)), "scout");
+    let mut session = std::process::Command::new("sleep").arg("60").spawn().unwrap();
+    let taken = daemon.session_listen_in("notes", Duration::ZERO, Some(session.id())).unwrap();
+    assert!(taken.sling.is_some(), "the listener takes it");
+    session.kill().unwrap();
+    session.wait().unwrap();
+    loop {
+        if let Heard::Progress(p) = wait(slinger, got)
+            && p.unheard
+        {
+            return p;
+        }
+    }
+}
+
 #[test]
 fn a_sling_reaches_the_running_agent_with_the_selection_and_the_prompt() {
     let bin = tempfile::tempdir().unwrap();
@@ -49,22 +76,10 @@ fn a_sling_reaches_the_running_agent_with_the_selection_and_the_prompt() {
         let lost = failed(wait(&slinger, got));
         assert!(lost.hint.unwrap().starts_with("start it with '"), "no daemon");
 
+        // No process runs: the sling starts the agent, whose process takes it.
         slinger.reconnect(daemon.clone());
         slinger.send(ask(vec![ItemId(1)], "what is missing?"));
         assert_eq!(went(wait(&slinger, got)), "scout");
-        let Heard::Progress(waits) = wait(&slinger, got) else { panic!("no progress") };
-        assert!(waits.running && waits.unheard, "no process: it waits for a listener");
-
-        daemon.session_start("notes").unwrap();
-        slinger.send(ask(vec![ItemId(1)], "what is missing?"));
-        let to = loop {
-            if let Heard::Went(agent, _) = wait(&slinger, got) {
-                break agent;
-            }
-        };
-        assert_eq!(to, "scout");
-        // The first sling still waits for a listener, but the process took
-        // this one: the pill does not say nobody listens (slinger-2eee43).
         let Heard::Progress(took) = wait(&slinger, got) else { panic!("no progress") };
         assert!(took.running && !took.unheard, "{took:?}");
         let message = delivered(home.path(), "what is missing?");
@@ -143,10 +158,7 @@ fn a_started_agent_s_pill_counts_its_context_while_older_slings_wait_for_a_liste
         user_stroke(daemon, "notes");
         let slinger = Slinger::start(daemon.clone(), None);
         let got = &mut Vec::new();
-        slinger.send(ask(vec![ItemId(1)], "nobody listens"));
-        assert_eq!(went(wait(&slinger, got)), "scout");
-        let Heard::Progress(waits) = wait(&slinger, got) else { panic!("no progress") };
-        assert!(waits.unheard, "no process: it waits for a listener");
+        sling_unheard(daemon, &slinger, got, "nobody listens");
 
         daemon.session_start("notes").unwrap();
         wait_until(|| daemon.session_show("scout").unwrap().context.is_some());
@@ -177,10 +189,8 @@ fn a_sling_waiting_for_a_listener_waits_through_a_process_started_since() {
         user_stroke(daemon, "notes");
         let slinger = Slinger::start(daemon.clone(), None);
         let got = &mut Vec::new();
-        slinger.send(ask(vec![ItemId(1)], "nobody listens"));
-        assert_eq!(went(wait(&slinger, got)), "scout");
-        let Heard::Progress(waits) = wait(&slinger, got) else { panic!("no progress") };
-        assert!(waits.running && waits.unheard, "{waits:?}");
+        let waits = sling_unheard(daemon, &slinger, got, "nobody listens");
+        assert!(waits.running, "{waits:?}");
 
         // The process takes the next sling, not this one: its pill still
         // says nobody listens, not that the agent is done (slinger-a615f8).

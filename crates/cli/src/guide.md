@@ -150,9 +150,10 @@ slinger sling send <CANVAS> --prompt "Sum up this page"
 slinger session show <AGENT>      # its status and its last answer
 ```
 
-A sling with no profile goes to a listener when one listens, and waits for
-one when the agent has no process. `session show` says which: `deliver`,
-`listening` and `pending`. That agent has every Claude Code tool, its
+A sling goes to a listener when one listens, else to the agent's process,
+which the sling starts when it does not run (`session start` is only needed
+to start it early). `session show` says which: `deliver`, `listening` and
+`pending`. That agent has every Claude Code tool, its
 MCP servers and the user's own Claude Code config, but nobody answers its
 permission prompts: without asking it runs `slinger`, read-only commands,
 file edits, web fetch and search and skills, plus the user's own allow

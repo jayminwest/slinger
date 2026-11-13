@@ -11,6 +11,18 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** run outside its `.app` (a bare `slinger-app` from a shell), the
+  app says once, when you cancel a file panel, to run slinger.app to reach
+  Downloads, Desktop and Documents: macOS lets the panel show those folders
+  only to the bundle.
+- **App:** see your resolved feedback. Show all feedback… (`show-all-feedback`,
+  Help menu and the command palette; no default key) opens the feedback
+  entry listing your resolved notes too, as `slinger feedback ls --all`
+  does: each says when it was resolved and with what note.
+- **App:** find your feedback. Show feedback file in Finder
+  (`show-feedback-file`, Help menu and the command palette; no default
+  key) shows the file your notes go to, as `slinger feedback path` names
+  it; before the first note it says where notes will go.
 - **App:** save an agent UI to a file. Export agent UI… (`export-ui`, File
   menu and the command palette; no default key) writes the version the
   focused pane shows to a folder you pick, as `<name>.v<version>.html`
@@ -291,6 +303,13 @@ bullet with the area in bold.
   it runs. A session no longer needs `--socket` when you start `slingerd`
   with `--socket`, or when its temporary directory differs from the
   daemon's. `--socket` and `$SLINGER_SOCKET` still win.
+- **Agents:** a sling to a workspace whose agent is not running starts it,
+  resuming its conversation, and goes in; you no longer need Start agent
+  (or `slinger session start`) first, and a sling after Stop agent starts
+  it again. Opening a workspace still starts nothing. A listener that is
+  there still takes the sling instead, and a sling with a profile starts
+  the agent under that profile. If Claude Code cannot be started, the sling
+  waits for a listener as before.
 - **App:** the app opens on the workspace it showed when you last quit it,
   while that workspace is still open, instead of the first one by name. A
   `workspace` set in the config still wins.
@@ -380,6 +399,13 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** opening the sling entry while typing a text on the canvas
+  ends that text, as the feedback entry does. Its caret no longer stays
+  on the canvas beside the entry's own, and the text is on the page
+  before the sling goes.
+- **App:** opening the feedback entry while typing a text on the canvas
+  ends that text, as renaming a page does. Its caret no longer stays
+  frozen on the canvas beside the entry's own, and the text is kept.
 - **Agents:** stopping an agent ends its "working" at once. A process
   stopped mid-turn, or a listening session, never said it was done, so
   the sidebar and `slinger session show` kept the agent working after the

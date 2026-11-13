@@ -748,8 +748,8 @@ running succeeds. A stop ends the agent's `working`, which a killed process
 or a listener's session never ends: its session shows the status from before. **`session_send`** writes `text` to the process as one user
 message and returns: the answer is the agent's to deliver, through the CLI.
 Blank text is `invalid`. A send to a process that was never started, or that
-exited, is `unavailable` with a hint to start it: the daemon does not restart
-an agent on its own (D20). A workspace that is not open is `not_found`, one
+exited, is `unavailable` with a hint to start it: a send does not start an
+agent (a sling does, D10), and the daemon does not restart one on its own (D20). A workspace that is not open is `not_found`, one
 with no agent is `invalid`, and a program that is not there is `not_found`.
 
 ```json
@@ -888,17 +888,20 @@ the marker, so a sling that fails sends the same ink next time. Selecting
 old items again sends a packet with nothing new (`strokes` 0). Slings go one
 at a time, so two packets never cover the same operation.
 
-Slinger never starts an agent for a sling (D10). A sling with no `profile`
-goes to the agent's listener when one is there ("Listening" above), else to
-its running process; with neither it waits for a listener, so it is never
-refused for want of one, and the session shows that nobody listens. A
-listener outranks a process: the user who listens in a session of their own
-means that session to answer. A sling for a listener is stored and its
+A sling with no `profile` goes to the agent's listener when one is there
+("Listening" above), else to its process. A sling to an agent with neither
+starts its process, as `session_start` with no `profile` does (resuming its
+conversation), and goes into it (D10); opening a workspace starts nothing,
+and a sling after a `session_stop` starts the agent again. When the program
+cannot be spawned (Claude Code is not there) the sling waits for a listener
+instead, so it is never refused for want of one, and the session shows that
+nobody listens. A listener outranks a process: the user who listens in a
+session of their own means that session to answer. A sling for a listener is stored and its
 `sling_sent` appended (with no `session`) when it joins those that wait; the
 reply's `deliver` is `listen` and its `session_id` is empty. A sling with
 `profile` goes only to a process that runs under that profile, never to a
-listener: with no running process it is `unavailable` with a hint to
-`session start` the workspace, one under another profile, or under none, is
+listener: with no running process it starts one under that profile (a
+failed start fails the sling), one under another profile, or under none, is
 `conflict` with a hint to start it under that profile, and a profile the
 agent does not have is `not_found`. Each way nothing is stored. So a sling the user
 meant for a narrow profile never reaches a wider one. A canvas no open workspace has is `not_found`, a
@@ -977,7 +980,11 @@ runs, and a person or an agent reads it with any tool.
 - The app's entry lists the newest open notes under it (five, or up to 20
   in a tall pane), from one `feedback_list` each time it opens. The "✓" at
   a note's end sends one `feedback_resolve` with its `ts` and no `note`,
-  then one `feedback_list`; it needs no other verb.
+  then one `feedback_list`; it needs no other verb. The app's
+  `show-all-feedback` lists with `all`: a resolved note shows how it was
+  resolved and has no "✓". The app's
+  `show-feedback-file` asks `feedback_path` and shows the file in the
+  Finder.
 
 ```json
 { "v": 1, "op": "feedback_add", "text": "the lasso is slow", "canvas": "notes", "page": "Page 1", "tool": "lasso", "selected": 3 }
@@ -1087,7 +1094,7 @@ The protocol adds:
 | `bad_request` | The line is not JSON, has no `v`, names no known `op`, or has wrong arguments |
 | `too_large` | The request line is over the limit |
 | `unsupported_version` | `v` is not a version this daemon speaks |
-| `unavailable` | The agent's process is not running (`session_send`, `sling_send` with a `profile`); made by the client when it cannot connect, or the daemon did not reply within 30 seconds |
+| `unavailable` | The agent's process is not running (`session_send`, or a `sling_send` whose process ends as the sling is written); made by the client when it cannot connect, or the daemon did not reply within 30 seconds |
 | `internal` | The daemon could not read or write its record, or the client could not read the reply |
 
 `not_found` also covers a blob the record does not hold, a file to put

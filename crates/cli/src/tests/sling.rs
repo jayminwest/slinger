@@ -2,11 +2,11 @@
 
 use serde_json::Value;
 
-use super::{cli_on, cli_raw, json, with_daemon_running};
+use super::{Run, cli_on, cli_raw, json, with_daemon_running};
 use crate::output::exit;
 
 #[test]
-fn a_sling_waits_for_a_listener_or_goes_to_the_running_agent_quietly() {
+fn a_sling_goes_to_a_listener_that_is_there_or_to_the_running_agent_quietly() {
     let projects = tempfile::tempdir().unwrap();
     let dir = projects.path().join("notes");
     std::fs::create_dir(&dir).unwrap();
@@ -20,11 +20,11 @@ fn a_sling_waits_for_a_listener_or_goes_to_the_running_agent_quietly() {
         let mut runs = vec![
             cli_on(socket, &["workspace", "open", path]),
             cli_on(socket, &["canvas", "apply", "notes", stroke]),
+            cli_on(socket, &["session", "listen", "notes", "--wait", "0", "--json"]),
             cli_on(socket, &["sling", "send", "notes", "--prompt", "what?", "--json"]),
             cli_on(socket, &["session", "show", "scout"]),
             cli_on(socket, &["session", "listen", "notes", "--wait", "0"]),
             cli_on(socket, &["session", "listen", "notes", "--wait", "0"]),
-            cli_on(socket, &["session", "listen", "notes", "--wait", "0", "--json"]),
             cli_on(socket, &["session", "listen", "nowhere"]),
             cli_on(socket, &["canvas", "apply", "notes", stroke]),
             cli_on(socket, &["session", "start", "notes"]),
@@ -37,18 +37,7 @@ fn a_sling_waits_for_a_listener_or_goes_to_the_running_agent_quietly() {
     });
     let codes: Vec<u8> = runs.iter().map(|r| r.code).collect();
     assert_eq!(codes, [0, 0, 0, 0, 0, 0, 0, exit::NOT_FOUND, 0, 0, 0, 0, exit::NOT_FOUND]);
-    // With no running agent the sling waits for a listener, who takes it as text.
-    assert_eq!(json(&runs[2])["deliver"], "listen");
-    assert!(runs[3].out.contains("deliver\tlisten\nstatus\t-\nlistening\tfalse\npending\t1\n"));
-    let heard = &runs[4].out;
-    assert!(heard.starts_with("slinger-sling 1 canvas=notes agent=scout\n"), "{heard}");
-    assert!(heard.ends_with("# prompt\nwhat?\n"), "{heard}");
-    // The daemon's data is gone by now: its own tests check the image files.
-    assert!(heard.lines().nth(1).unwrap().contains(" at=/"), "{heard}");
-    assert_eq!((runs[5].out.as_str(), runs[5].err.as_str()), ("", ""), "none waits");
-    let none = json(&runs[6]);
-    assert_eq!((&none["command"], &none["agent"]), (&"session listen".into(), &"scout".into()));
-    assert!(none.get("sling").is_none(), "{none}");
+    a_listener_that_is_there_takes_it(&runs[2..7]);
     // A started process takes the next ones.
     assert_eq!((runs[10].out.as_str(), runs[10].err.as_str()), ("", ""));
     let slung = json(&runs[11]);
@@ -60,4 +49,23 @@ fn a_sling_waits_for_a_listener_or_goes_to_the_running_agent_quietly() {
     let text = blocks.iter().filter_map(|b| b["text"].as_str()).collect::<String>();
     assert!(text.starts_with("slinger-sling 1 canvas=notes selected=c1\n"), "{text}");
     assert!(text.ends_with("# prompt\nwhat is this?"), "{text}");
+}
+
+/// `runs`: a listen that gets nothing, a sling, `session show`, a listen
+/// that takes the sling and one that gets nothing.
+fn a_listener_that_is_there_takes_it(runs: &[Run]) {
+    // Nothing waits for the first listener, who is there for a while after.
+    let none = json(&runs[0]);
+    assert_eq!((&none["command"], &none["agent"]), (&"session listen".into(), &"scout".into()));
+    assert!(none.get("sling").is_none(), "{none}");
+    // A listener that is there takes the sling as text, and no process starts.
+    assert_eq!(json(&runs[1])["deliver"], "listen");
+    assert!(runs[2].out.contains("deliver\tlisten\nstatus\t-\nlistening\ttrue\npending\t1\n"));
+    assert!(!runs[2].out.contains("process\t"), "{}", runs[2].out);
+    let heard = &runs[3].out;
+    assert!(heard.starts_with("slinger-sling 1 canvas=notes agent=scout\n"), "{heard}");
+    assert!(heard.ends_with("# prompt\nwhat?\n"), "{heard}");
+    // The daemon's data is gone by now: its own tests check the image files.
+    assert!(heard.lines().nth(1).unwrap().contains(" at=/"), "{heard}");
+    assert_eq!((runs[4].out.as_str(), runs[4].err.as_str()), ("", ""), "none waits");
 }

@@ -78,8 +78,9 @@ does not know exits 5 (`invalid`) with a hint listing the tools (an MCP
 tool, `mcp__server__tool`, is taken too); a `--dir`
 that is not there, or a profile `remove` does not find, exits 3
 (`not_found`). `session start --profile NAME` starts the agent under that
-profile, in its own conversation. `sling send --profile NAME` sends only if
-the agent runs under that profile, and exits 4 (`conflict`) otherwise.
+profile, in its own conversation. `sling send --profile NAME` sends only to
+the agent under that profile, starting it under it when it does not run, and
+exits 4 (`conflict`) when it runs under another.
 
 `guide` and `skill` are how an agent learns slinger. `guide` prints the
 text in `crates/cli/src/guide.md` and then one entry per command, made from
@@ -297,12 +298,14 @@ prompt (`-` reads it from stdin; none is valid: the selection is the
 question) to the agent of the canvas's open workspace, and returns once it
 is delivered. The answer arrives on the canvas, as the agent's `canvas put`s,
 and as its status. Each sling is in the record (`sling_sent`, with its packet
-as a blob). Slinger never starts an agent for a sling. A sling with no
-`--profile` goes to a listener when one listens, else to the agent's running
-process; with neither it waits for a listener, and `--json` has `deliver` as
-`listen`. A sling with `--profile` goes only to a process under that
-profile: with none running it exits 6 (`unavailable`) with a hint to
-`session start` it, and sends and records nothing. A canvas no open
+as a blob). A sling with no `--profile` goes to a listener when one
+listens, else to the agent's process: when none runs, the sling starts it
+(resuming its conversation, as `session start` does), after a `session stop`
+too; opening a workspace starts nothing. When Claude Code cannot be started
+the sling waits for a listener, and `--json` has `deliver` as `listen`. A
+sling with `--profile` goes only to a process under that profile: with none
+running it starts one under it; with one under another profile it exits 4
+(`conflict`) and sends and records nothing. A canvas no open
 workspace has exits 3, a workspace with no agent or an id that is not one
 exits 5. Only the app can render a PDF: ink slung from the CLI over a PDF's
 page goes on white, its line naming the page (`over=`) but not quoting the

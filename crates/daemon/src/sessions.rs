@@ -89,12 +89,49 @@ impl Sessions {
         &self.listeners
     }
 
-    /// Whether a sling to `agent` waits for a listener: one is there, or no
-    /// process of the agent's runs, so nothing else could take it.
+    /// Whether `agent`'s session shows its listener: one is there, or no
+    /// process of the agent's runs, so the slings that wait are all it has.
     #[must_use]
-    pub fn listens(&self, agent: &str) -> bool {
-        let running = self.processes.shown(agent).is_some_and(|p| p.running);
-        self.listeners.attached(agent) || !running
+    fn listens(&self, agent: &str) -> bool {
+        self.listeners.attached(agent) || !self.running(agent)
+    }
+
+    fn running(&self, agent: &str) -> bool {
+        self.processes.shown(agent).is_some_and(|p| p.running)
+    }
+
+    /// How a sling to `agent`, of the open workspace `which` names, goes,
+    /// under `profile` if it names one (SPEC D10). To its listener when one
+    /// is there and the sling names no profile; else to its process, which
+    /// is started first when none runs, resuming its conversation, under
+    /// `profile`. A process that cannot be spawned (no Claude Code) leaves
+    /// a sling with no profile waiting for a listener, so it is never
+    /// refused for want of one.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`Sessions::start`], but a failed spawn for a sling
+    /// with no profile.
+    pub fn route(
+        &self,
+        store: &Store,
+        which: &str,
+        agent: &str,
+        profile: Option<&str>,
+    ) -> Result<Delivery> {
+        if profile.is_none() && self.listeners.attached(agent) {
+            return Ok(Delivery::Listen);
+        }
+        if self.running(agent) {
+            return Ok(Delivery::Process);
+        }
+        match self.start(store, which, false, profile) {
+            Ok(_) => Ok(Delivery::Process),
+            Err(SessionError::Process(ProcessError::Spawn { .. })) if profile.is_none() => {
+                Ok(Delivery::Listen)
+            }
+            Err(e) => Err(e),
+        }
     }
 
     /// The agent of the open workspace `which` names, and the next sling

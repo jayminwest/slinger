@@ -108,7 +108,13 @@ fn each_default_chord_runs_its_own_command_and_a_few_commands_have_none() {
         match keys.0[command as usize] {
             Some(chord) => assert_eq!(keys.command(chord), Some(command)),
             None => assert!(
-                matches!(command, Command::ShowWorkspaceFolder | Command::ExportUi),
+                matches!(
+                    command,
+                    Command::ShowWorkspaceFolder
+                        | Command::ExportUi
+                        | Command::ShowFeedbackFile
+                        | Command::ShowAllFeedback
+                ),
                 "{command:?} has no chord"
             ),
         }
@@ -162,6 +168,8 @@ fn every_command_has_a_title_and_a_group_in_the_list() {
         (Command::StartAgent, Group::Sling),
         (Command::StopAgent, Group::Sling),
         (Command::RestartAgent, Group::Sling),
+        (Command::ShowFeedbackFile, Group::Window),
+        (Command::ShowAllFeedback, Group::Window),
     ];
     for (command, group) in groups {
         assert_eq!(command.group(), group, "{command:?}");

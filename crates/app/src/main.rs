@@ -241,9 +241,10 @@ fn remembering(
 }
 
 /// What `event` asks ([`ask`]); `show-canvas-file`, `show-workspace-folder`,
-/// `export-ui`, `open-pdf` and `open-workspace` are done here, as only
-/// `platform` reaches the Finder and the open panel: the focused pane's
-/// canvas file, the folder of the workspace `sidebar` shows ([`window::finder`])
+/// `show-feedback-file`, `export-ui`, `open-pdf` and `open-workspace` are
+/// done here, as only `platform` reaches the Finder and the open panel: the
+/// focused pane's canvas file, the folder of the workspace `sidebar` shows,
+/// the daemon's feedback file ([`window::finder`])
 /// or the agent UI saved in a folder picked ([`window::export_ui`]) shows
 /// there, or the flash says why not; the PDF chosen, or dropped on the
 /// window, opens as a canvas, its pages read by `platform`. A cut, copy or
@@ -276,18 +277,23 @@ fn asked(
         _ => ask(event, shared, canvases, tools, settings),
     };
     let found = match asked {
-        Ask::Run(c @ (Command::ShowCanvasFile | Command::ShowWorkspaceFolder)) => {
-            window::finder(c, shared, canvases, sidebar)
-        }
+        Ask::Run(
+            c
+            @ (Command::ShowCanvasFile | Command::ShowWorkspaceFolder | Command::ShowFeedbackFile),
+        ) => window::finder(c, shared, canvases, sidebar),
         Ask::Run(Command::OpenWorkspace) => {
-            return platform::choose(Pick::Workspace).map_or(Ask::Draw(None), Ask::Open);
+            return platform::choose(Pick::Workspace, tools.flash())
+                .map_or(Ask::Draw(None), Ask::Open);
         }
         Ask::Run(Command::ExportUi) => {
-            let Some(dir) = platform::choose(Pick::ExportTo) else { return Ask::Draw(None) };
+            let Some(dir) = platform::choose(Pick::ExportTo, tools.flash()) else {
+                return Ask::Draw(None);
+            };
             window::export_ui(shared, &dir)
         }
         Ask::Run(Command::OpenPdf) => {
-            let file: Vec<_> = platform::choose(Pick::Document).into_iter().collect();
+            let file: Vec<_> =
+                platform::choose(Pick::Document, tools.flash()).into_iter().collect();
             window::open_pdf(&file, None, shared, canvases, area, platform::pdf::pages);
             return Ask::Draw(None);
         }

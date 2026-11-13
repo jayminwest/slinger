@@ -5,16 +5,18 @@
 //! is built, the message made (`sling::message`) and delivered; only then is
 //! it stored (R7) and `sling_sent` appended, which moves the marker.
 //!
-//! A sling goes one of two ways (SPEC section 5). To the agent's listener,
-//! when one is there or no process of the agent's runs: the packet's images
-//! are written to its directory, and the message waits as text until a
-//! `session_listen` takes it, so a sling is never refused for want of a
-//! listener. Else to the agent's running process: one that cannot be
-//! delivered leaves no trace, so the next one sends the same ink. Slinger
-//! never starts an agent for a sling (D10). A sling that names a profile
-//! goes only to a process under that profile (`unavailable` with none
-//! running, `conflict` under another): it never reaches an agent with other
-//! limits, and a listener has none of Slinger's.
+//! A sling goes one of two ways (SPEC section 5, [`Sessions::route`]). To
+//! the agent's listener, when one is there: the packet's images are written
+//! to its directory, and the message waits as text until a `session_listen`
+//! takes it. Else to the agent's process, which the sling starts when none
+//! runs (D10); when it cannot be spawned the sling waits for a listener, so
+//! it is never refused for want of one. One that cannot be delivered leaves
+//! no trace, so the next one sends the same ink. A sling that names a
+//! profile goes only to a process under that profile (started under it when
+//! none runs, `conflict` under another): it never reaches an agent with
+//! other limits, and a listener has none of Slinger's.
+//!
+//! [`Sessions::route`]: crate::sessions::Sessions::route
 //!
 //! `sling_backdrops` comes first from a client that can render PDFs: the
 //! areas of `pdf` items under the new ink. `sling_send` then reads the
@@ -51,7 +53,8 @@ pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Reply, RemoteError> {
         .map_err(|e| drawn(&e))?;
     // The packet is stored as it is here: without `at`.
     let text = packet.text();
-    let listens = ask.profile.is_none() && sessions.listens(&agent);
+    let route = sessions.route(store, &workspace, &agent, ask.profile.as_deref());
+    let listens = route.map_err(|e| remote(&e))? == Delivery::Listen;
     let dir = store.packet_dir(BlobId::of(text.as_bytes()));
     let session_id = if listens {
         packet.header.at = Some(dir.to_string_lossy().into_owned());
