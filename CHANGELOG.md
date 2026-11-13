@@ -20,7 +20,8 @@ bullet with the area in bold.
   or not at all.
 - **CLI:** `slinger canvas create <ID> --ops FILE` makes a canvas that
   starts with the operations in the file (a JSON list, as `canvas apply`
-  takes), all of them or no canvas at all. Run by an agent (or with
+  takes; `--ops -` reads them from standard input), all of them or no
+  canvas at all. Run by an agent (or with
   `--agent NAME`), the items are that agent's, so it can edit and remove
   them later; `canvas_create` takes the author as `by`.
 
