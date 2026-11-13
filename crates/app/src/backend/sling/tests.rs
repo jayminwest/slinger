@@ -136,6 +136,68 @@ fn a_sling_is_followed_until_the_agent_answers_or_stops() {
 }
 
 #[test]
+fn a_started_agent_s_pill_counts_its_context_while_older_slings_wait_for_a_listener() {
+    let bin = tempfile::tempdir().unwrap();
+    with_store(Some(&waiting_claude(bin.path())), |daemon| {
+        let home = open_notes(daemon);
+        user_stroke(daemon, "notes");
+        let slinger = Slinger::start(daemon.clone(), None);
+        let got = &mut Vec::new();
+        slinger.send(ask(vec![ItemId(1)], "nobody listens"));
+        assert_eq!(went(wait(&slinger, got)), "scout");
+        let Heard::Progress(waits) = wait(&slinger, got) else { panic!("no progress") };
+        assert!(waits.unheard, "no process: it waits for a listener");
+
+        daemon.session_start("notes").unwrap();
+        wait_until(|| daemon.session_show("scout").unwrap().context.is_some());
+        slinger.send(ask(vec![ItemId(1)], "what is missing?"));
+        while !matches!(wait(&slinger, got), Heard::Went(..)) {}
+        // The process took it: the pill says it works, with the context its
+        // process holds, not that nobody listens (slinger-1bc6f7).
+        let working = Progress {
+            running: true,
+            pending: 1,
+            blocked: None,
+            answer: None,
+            profile: None,
+            unheard: false,
+            tokens: Some(2008),
+        };
+        assert_eq!(wait(&slinger, got), Heard::Progress(working));
+        std::fs::write(home.path().join("go"), "").unwrap();
+        daemon.session_stop("notes").unwrap();
+    });
+}
+
+#[test]
+fn a_sling_waiting_for_a_listener_waits_through_a_process_started_since() {
+    let bin = tempfile::tempdir().unwrap();
+    with_store(Some(&fake_claude(bin.path())), |daemon| {
+        let _home = open_notes(daemon);
+        user_stroke(daemon, "notes");
+        let slinger = Slinger::start(daemon.clone(), None);
+        let got = &mut Vec::new();
+        slinger.send(ask(vec![ItemId(1)], "nobody listens"));
+        assert_eq!(went(wait(&slinger, got)), "scout");
+        let Heard::Progress(waits) = wait(&slinger, got) else { panic!("no progress") };
+        assert!(waits.running && waits.unheard, "{waits:?}");
+
+        // The process takes the next sling, not this one: its pill still
+        // says nobody listens, not that the agent is done (slinger-a615f8).
+        daemon.session_start("notes").unwrap();
+        wait_until(|| daemon.session_show("scout").unwrap().deliver == "process");
+        std::thread::sleep(3 * EVERY);
+        assert_eq!(slinger.heard(), [], "it waits as it did");
+
+        let taken = daemon.session_listen("notes", Duration::from_secs(5)).unwrap();
+        assert!(taken.sling.is_some(), "the sling still waits");
+        let Heard::Progress(took) = wait(&slinger, got) else { panic!("no progress") };
+        assert!(took.running && took.pending > 0 && !took.unheard, "{took:?}");
+        daemon.session_stop("notes").unwrap();
+    });
+}
+
+#[test]
 fn a_sling_under_a_picked_profile_starts_the_agent_under_it_first() {
     let (bin, dev) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
     with_store(Some(&fake_claude(bin.path())), |daemon| {

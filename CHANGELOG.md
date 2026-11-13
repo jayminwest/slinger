@@ -376,10 +376,15 @@ bullet with the area in bold.
   stopped mid-turn, or a listening session, never said it was done, so
   the sidebar and `slinger session show` kept the agent working after the
   stop; now the agent shows the status it had before.
+- **App:** a sling that waits for a listener keeps saying "nobody listens"
+  when you start the agent's process meanwhile. The process does not take
+  it, but its pill said the agent was done. Once a listener takes it, it
+  says "working".
 - **App:** a sling to a started agent says "working" while the agent works
-  on it, and is answered when the agent's turn ends. Once a sling had
-  waited for a listener, the next one the agent's process took said
-  "nobody listens" and followed the waiting sling instead. `slinger session
+  on it, with about how many tokens its context holds (`· ~2.0k`), and is
+  answered when the agent's turn ends. Once a sling had waited for a
+  listener, the next one the agent's process took said "nobody listens",
+  without the figure, and followed the waiting sling instead. `slinger session
   show` now has `deliver` as `process` while the process runs and nobody
   listens, with the process's `pending`, though slings still wait for a
   listener.
