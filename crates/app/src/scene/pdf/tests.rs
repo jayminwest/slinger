@@ -115,3 +115,24 @@ fn a_page_is_the_paper_under_every_other_item() {
     let order: Vec<u64> = shown.iter().map(|i: &Cow<'_, Item>| i.id.0).collect();
     assert_eq!(order, [2, 1, 3], "pdf items first, the rest in their order");
 }
+
+#[test]
+fn reader_mode_is_for_a_canvas_whose_id_ends_in_dot_pdf_as_an_open_makes_it() {
+    assert!(reader(&canvas_id(std::path::Path::new("/Users/me/Paper (v2).pdf"), 2)));
+    assert!(reader("pdf.pdf"));
+    assert!(!reader("main"));
+    assert!(!reader("pdf"));
+    assert!(!reader("notes.pdf.old"));
+}
+
+#[test]
+fn the_column_is_the_box_around_the_pdf_items_alone() {
+    let ink = Shape::Stroke { points: vec![pt(-500.0, 0.0), pt(5000.0, 9000.0)], width: 2.0 };
+    let items = [
+        item(1, pdf(rect(100.0, 0.0, 1400.0, 1800.0), None)),
+        item(2, ink),
+        item(3, pdf(rect(0.0, 1840.0, 1600.0, 2000.0), None)),
+    ];
+    assert_eq!(column(&items), Some(rect(0.0, 0.0, 1600.0, 3840.0)));
+    assert_eq!(column(&items[1..2]), None, "no pages: no column");
+}

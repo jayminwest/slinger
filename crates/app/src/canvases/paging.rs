@@ -99,9 +99,13 @@ impl Canvases {
         self.zoomed_to(pane, |view| view.zoom_about(about, factor));
     }
 
-    /// Moves `pane`'s view where `to` takes it, and flashes its zoom.
+    /// Moves `pane`'s view where `to` takes it, and flashes its zoom; a
+    /// view in reader mode keeps its zoom ([`super::reader`]).
     fn zoomed_to(&mut self, pane: PaneId, to: impl FnOnce(Viewport) -> Viewport) {
         let view = self.view(pane);
+        if view.reader.is_some() {
+            return;
+        }
         view.viewport = to(view.viewport);
         self.zoomed = Some(view.viewport.zoom_label());
     }
