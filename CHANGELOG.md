@@ -295,6 +295,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **PDF:** a PDF page that stayed a grey frame because its file could not
+  be fetched is tried again the next time it is on screen, after a wait
+  that grows from a second to about a minute. Before, it stayed grey until
+  the app reconnected to slingerd.
 - **Agents:** an agent that answers a send at once no longer shows a
   message still pending. `slinger session show` could report one message
   pending for good after a quick answer, so waiting on it never ended.

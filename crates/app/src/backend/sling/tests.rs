@@ -193,7 +193,10 @@ fn a_sling_over_a_pdf_sends_the_page_it_rendered_and_its_words() {
             .canvas_apply(slinger_control::CanvasOps { canvas, by, ops: pdf, once: None })
             .unwrap();
         user_stroke(daemon, "notes");
-        let slinger = Slinger::start(daemon.clone(), Some(grey));
+        // A cache of its own: the app's is shared by every test process and
+        // worktree, and a fetched file is named by its bytes (slinger-f19088).
+        let cache = tempfile::tempdir().unwrap();
+        let slinger = Slinger::start(daemon.clone(), Some((grey, cache.path().to_owned())));
         let got = &mut Vec::new();
         slinger.send(ask(vec![], "what does it say?"));
         assert_eq!(went(wait(&slinger, got)), "scout");
@@ -211,6 +214,8 @@ fn a_sling_over_a_pdf_sends_the_page_it_rendered_and_its_words() {
             name.starts_with(&ours) && e.path().join("0.rgb").exists()
         });
         assert_eq!(left.count(), 0, "the files are gone after the reply");
+        let fetched = cache.path().join(format!("{}.pdf", &hash["sha256:".len()..]));
+        assert!(fetched.is_file(), "the PDF came into the cache it was given");
     });
 }
 

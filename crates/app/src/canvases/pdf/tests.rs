@@ -75,3 +75,44 @@ fn a_pdf_that_cannot_be_opened_is_a_problem_until_the_next() {
         assert_eq!(canvases.problems().next(), None, "a new open clears it");
     });
 }
+
+#[test]
+fn a_pdf_that_did_not_come_is_asked_for_again_the_next_time_it_is_drawn() {
+    with_daemon(|daemon| {
+        let _notes = open_notes(daemon);
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("paper.pdf");
+        fs::write(&file, b"%PDF-1.7 one page").unwrap();
+        let hash = daemon.blob_put(&file).unwrap();
+        let pdf = serde_json::json!({ "op": "add", "item": { "page": "p1", "kind": "pdf",
+            "x": 0, "y": 0, "w": 16000, "h": 20706, "hash": hash, "pdfpage": 1,
+            "pagesize": [6120, 7920] } });
+        let (canvas, by) = ("notes".to_string(), "user".to_string());
+        let ops = slinger_control::CanvasOps { canvas, by, ops: pdf, once: None };
+        daemon.canvas_apply(ops).unwrap();
+        // The cache cannot be made while a file stands where its parent goes.
+        let blocker = dir.path().join("blocked");
+        fs::write(&blocker, "").unwrap();
+        let mut canvases = Canvases::new(daemon.clone());
+        canvases.pdfs = Pdfs::start(daemon.clone(), blocker.join("cache"));
+        let notes = Panes::new(Pane { kind: Kind::Canvas, name: "notes".into() });
+        wait_until(|| {
+            pages(&mut canvases, &notes);
+            matches!(canvases.pdfs.files.get(&hash), Some(Fetch::Missed(1, _)))
+        });
+        assert_eq!(pages(&mut canvases, &notes), [(1, None)], "grey while it waits");
+        fs::remove_file(&blocker).unwrap();
+        let mut shown = Vec::new();
+        wait_until(|| {
+            shown = pages(&mut canvases, &notes);
+            shown.iter().all(|(_, f)| f.is_some())
+        });
+        assert_eq!(fs::read(shown[0].1.as_ref().unwrap()).unwrap(), b"%PDF-1.7 one page");
+    });
+}
+
+#[test]
+fn the_wait_before_asking_again_doubles_up_to_a_minute_or_so() {
+    let waits: Vec<u64> = [1, 2, 3, 7, 8, 100].map(|n| wait(n).as_secs()).into();
+    assert_eq!(waits, [1, 2, 4, 64, 64, 64]);
+}

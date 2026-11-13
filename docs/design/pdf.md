@@ -178,9 +178,10 @@ with a backdrop in an image draws the backdrop and no label there.
 - **The bytes.** A PDF is drawn from a file the app fetches once per blob id
   with `blob_get`, on a thread of the backend, into `pdf/<hex>.pdf` in the
   app's own directory (where `backend/ui.rs` writes UI code). Until the file is
-  there the item draws as a light grey frame with "PDF" in it; a blob the
-  record does not hold (`not_found`, O8) stays that way and is not asked for
-  again this run.
+  there the item draws as a light grey frame with "PDF" in it; a blob that
+  does not come (`not_found`, O8, or slingerd not read) stays that way and
+  is asked for again the next time a pane draws it, after a wait that
+  doubles with each miss from 1 s to 64 s (slinger-e0699c).
 - **Smooth pen (P7).** Draw only the `pdf` items that touch the visible
   rectangle. Drawing a page must never delay a stroke: if vector drawing of a
   visible page costs more than a frame, cache a bitmap of it per item at the
