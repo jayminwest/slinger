@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** an agent UI looks like part of the canvas: its page starts on
+  the canvas's paper, in its ink and the system font, light or dark as the
+  app's theme is, with no white box before it paints. A page's own styles
+  still win, and it can use the app's colours as `var(--slinger-ink)`,
+  `--slinger-muted`, `--slinger-accent`, `--slinger-error` and
+  `--slinger-paper`.
 - **Canvas:** a new workspace's canvas comes with a "send to agent" button
   in its top left, so a tap slings what is new without placing one first.
   It is an ordinary item: move it, or delete it and it stays gone. Canvases

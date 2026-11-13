@@ -126,6 +126,12 @@ The user can resize a UI shown as an item, and the page lays out again at
 the new width. Make the page fill its viewport (width 100%, no fixed pixel
 sizes for the layout) rather than assume the size it was opened at.
 
+Make a UI look like part of the canvas, not a web page. It starts on the
+canvas's paper, in its ink and the system font, light or dark as the app is,
+so leave out your own font, page background, frame and shadows. For any
+colour you need, use the app's: `var(--slinger-ink)`, `var(--slinger-muted)`,
+`var(--slinger-accent)`, `var(--slinger-error)` and `var(--slinger-paper)`.
+
 Tell the user your state when the work is long:
 
 ```bash
