@@ -33,7 +33,12 @@ fn stroke(id: u64, (x1, y1): (f64, f64), (x2, y2): (f64, f64)) -> Item {
 /// (i4), a stroke between them (i5), and a mark drawn over the page (from
 /// [`LOCAL`] up, as the lasso is).
 fn page() -> Vec<Item> {
-    let text = Shape::Text { frame: frame(200.0, 0.0, 40.0, 20.0), text: "hi".into(), size: 16.0 };
+    let text = Shape::Text {
+        frame: frame(200.0, 0.0, 40.0, 20.0),
+        text: "hi".into(),
+        size: 16.0,
+        column: None,
+    };
     let arrow =
         Shape::Arrow { from: pt(200.0, 100.0), to: pt(300.0, 100.0), width: 2.0, bound: [None; 2] };
     vec![

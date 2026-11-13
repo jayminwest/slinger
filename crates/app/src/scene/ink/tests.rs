@@ -266,7 +266,7 @@ fn a_put_an_edit_and_a_move_with_its_arrows_show_at_once() {
     let frame = Rect { x: 0.0, y: 0.0, width: 10.0, height: 10.0 };
     let (canvas, page) = here();
     ink.push(Change::Put { canvas, page, colour: RED, shape: Shape::Box { frame, width: 2.0 } });
-    let text = |t: &str| Shape::Text { frame, text: t.into(), size: 24.0 };
+    let text = |t: &str| Shape::Text { frame, text: t.into(), size: 24.0, column: None };
     let (canvas, page) = here();
     ink.push(Change::Set { canvas, page, id: ItemId(1), shape: text("after") });
     let arrow = |x| Shape::Arrow {

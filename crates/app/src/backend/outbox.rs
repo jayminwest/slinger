@@ -315,7 +315,12 @@ mod tests {
             let at = |x, y| Point { x, y };
             let shapes = [
                 Shape::Box { frame, width: 2.0 },
-                Shape::Text { frame: Rect { x: 50.0, ..frame }, text: "hi".into(), size: 24.0 },
+                Shape::Text {
+                    frame: Rect { x: 50.0, ..frame },
+                    text: "hi".into(),
+                    size: 24.0,
+                    column: None,
+                },
                 Shape::Arrow {
                     from: at(5.0, 5.0),
                     to: at(55.0, 5.0),
@@ -327,8 +332,12 @@ mod tests {
                 let (canvas, page) = here();
                 outbox.send(key, format!("t.{key}"), Change::Put { canvas, page, colour, shape });
             }
-            let edited =
-                Shape::Text { frame: Rect { x: 50.0, ..frame }, text: "ho".into(), size: 24.0 };
+            let edited = Shape::Text {
+                frame: Rect { x: 50.0, ..frame },
+                text: "ho".into(),
+                size: 24.0,
+                column: None,
+            };
             let (canvas, page) = here();
             outbox.send(
                 4,

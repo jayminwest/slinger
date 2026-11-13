@@ -190,7 +190,7 @@ fn fields(shape: &Shape) -> Map<String, Value> {
     };
     match shape {
         // The file keeps the core's cells, whatever the glyphs fill.
-        Shape::Text { frame: r, text, size } => {
+        Shape::Text { frame: r, text, size, .. } => {
             o.insert("kind".into(), "text".into());
             frame(&mut o, &text_frame_at(Point { x: r.x, y: r.y }, text, *size));
             o.insert("text".into(), text.as_str().into());
