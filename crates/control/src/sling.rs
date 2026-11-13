@@ -124,15 +124,15 @@ impl Client {
     }
 
     /// Sends the new ink of a canvas page and a prompt to the agent of the
-    /// canvas's workspace: to its listener when it has one or no process of
-    /// its runs (the sling then waits to be taken), else to its process.
-    /// A sling that names a profile goes only to a process under it. The
-    /// answer comes as the agent's canvas puts and its status.
+    /// canvas's workspace: to its listener when one is there (the sling
+    /// then waits to be taken), else to its process, started first when
+    /// none runs. A sling that names a profile goes only to a process under
+    /// it. The answer comes as the agent's canvas puts and its status.
     ///
     /// # Errors
     ///
-    /// `unavailable` when a profile is named and the agent's process is not
-    /// running, or the daemon does not answer, `conflict` when it runs under
+    /// `unavailable` when the agent's process ends as the sling is written,
+    /// or the daemon does not answer, `conflict` when it runs under
     /// another profile than the one asked for, `not_found` for a canvas,
     /// page or workspace that is not there, and `invalid` for a selected id
     /// that is not one or a workspace with no agent.

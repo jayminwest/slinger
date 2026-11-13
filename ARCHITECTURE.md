@@ -287,6 +287,9 @@ sessions.rs  the statuses agents set since the daemon started (`working`
              `listen` takes the agent's next sling for a listener and sets
              `working`; start and stop release a listener's claim. A stop
              drops the agent's `working`: nothing it stopped says `done`.
+             `route` picks a sling's way (D10): a listener that is there,
+             else the process, started first when none runs; a spawn that
+             fails leaves a sling with no profile waiting for a listener.
 listeners.rs the listeners, one per agent (`session::listen`), behind one
              lock and a condvar: `listen` holds an ask open until a sling
              comes, the wait passes or the daemon stops. Each lock finds a
@@ -328,9 +331,10 @@ server/session.rs  the session verbs on the wire, each session with its process
 server/sling.rs  `sling_send`: the workspace of the canvas, the marker, the
              packet, `sling::message` with the verbs this daemon serves
              (VERBS), delivery to the agent's process, then the blobs and
-             `sling_sent`. With no profile named, a listener that is there
-             takes it in place of the process, and with neither it waits for
-             one: its images go to the store's `packets/<hex>/` and its text
+             `sling_sent`. `Sessions::route` picks the way: with no profile
+             named, a listener that is there takes it in place of the
+             process; with no process running the sling starts one, and
+             when Claude Code cannot start it waits for a listener: its images go to the store's `packets/<hex>/` and its text
              to the agent's listener. The reply carries the message's token estimate. Nothing is stored when delivery fails. One sling at a
              time (`Sessions::slinging`), so packets never overlap.
              `sling_backdrops` names the PDF areas a sling of a page would

@@ -286,6 +286,13 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Agents:** a sling to a workspace whose agent is not running starts it,
+  resuming its conversation, and goes in; you no longer need Start agent
+  (or `slinger session start`) first, and a sling after Stop agent starts
+  it again. Opening a workspace still starts nothing. A listener that is
+  there still takes the sling instead, and a sling with a profile starts
+  the agent under that profile. If Claude Code cannot be started, the sling
+  waits for a listener as before.
 - **App:** the app opens on the workspace it showed when you last quit it,
   while that workspace is still open, instead of the first one by name. A
   `workspace` set in the config still wins.

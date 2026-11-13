@@ -34,7 +34,7 @@ Each decision has an id (D1, D2, ...). Each open item has an id (O1, O2, ...). R
 - D7. Canvas files use Slinger's own format. Slinger can import a tldraw file. It cannot export one.
 - D8. An agent gets a packet, not a screenshot (section 6).
 - D9. Handwriting recognition runs only when the user asks. It is never a layer between the canvas and the agent.
-- D10. First harness: Claude Code, as a session that keeps running. A sling goes into a session that already exists and remembers the earlier slings. Slinger never starts a fresh agent for one sling. Second harness: the Slinger harness on Daffy.
+- D10. First harness: Claude Code, as a session that keeps running. A sling goes into a session that remembers the earlier slings. A sling to a workspace whose agent is not running starts it, resuming its conversation; opening a workspace does not (decided 2026-11-13). Slinger never starts a fresh agent for one sling. Second harness: the Slinger harness on Daffy.
 - D11. Agents act through a small command set (section 7). The set is built to grow.
 - D12. Pane types in v1: canvas and agent UI. Browser and terminal come later.
 - D13. An agent UI can be a pane, and it can be an item on a canvas. The canvas can hold live items that run code (section 8).
