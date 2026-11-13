@@ -372,6 +372,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** stopping an agent ends its "working" at once. A process
+  stopped mid-turn, or a listening session, never said it was done, so
+  the sidebar and `slinger session show` kept the agent working after the
+  stop; now the agent shows the status it had before.
 - **App:** a sling to a started agent says "working" while the agent works
   on it, and is answered when the agent's turn ends. Once a sling had
   waited for a listener, the next one the agent's process took said

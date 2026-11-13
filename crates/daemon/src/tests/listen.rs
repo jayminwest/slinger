@@ -99,6 +99,23 @@ fn answers_and_is_in_the_record(client: &Client, slung: &Slung) {
 }
 
 #[test]
+fn a_stop_while_a_listener_works_ends_the_agents_working() {
+    // The listener's session never says it is done (slinger-939e4b).
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_in(data.path());
+    let client = daemon.client();
+    open_with_agent(&client, &projects, "notes", "scout");
+    draw(&client, 0);
+    sling(&client, "what is this?");
+    client.session_listen("notes", LONG).unwrap().sling.unwrap();
+    assert_eq!(client.session_show("scout").unwrap().status.as_deref(), Some("working"));
+
+    let stopped = client.session_stop("notes").unwrap();
+    assert_eq!((stopped.status, stopped.pending), (None, None), "nothing is out");
+    daemon.stop();
+}
+
+#[test]
 fn a_listener_outranks_a_running_process_and_a_profile_names_only_a_process() {
     let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
     let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
