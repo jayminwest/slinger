@@ -145,8 +145,9 @@ fn is_mcp(rule: &str) -> bool {
     }
 }
 
-/// Whether a rule names a tool of [`TOOLS`]: one Claude Code must be given
-/// (`--tools`) for the rule to mean anything. An MCP rule does not.
+/// Whether a rule names a tool of [`TOOLS`]: one a session under a profile
+/// must be given (`--tools`) for the rule to mean anything. An MCP rule
+/// does not.
 #[must_use]
 pub fn builtin(rule: &str) -> Option<&str> {
     let tool = rule.split_once('(').map_or(rule, |(tool, _)| tool);
