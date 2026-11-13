@@ -505,8 +505,13 @@ bullet with the area in bold.
   instead of sitting them at the top of their fill.
 - **Agents:** the picture an agent sees of your canvas draws em and en
   dashes, curly quotes, an ellipsis, bullets, arrows, check marks, box
-  drawing and blocks as themselves, instead of as `?`. A character the
-  picture still has no glyph for (most emoji, Chinese) is drawn as `?`.
+  drawing and blocks as themselves, instead of as `?`. It also draws
+  katakana (as the hiragana of the same sound), full-width letters and
+  Japanese punctuation, Central European and Vietnamese letters (without
+  their accents), stars, circles, squares, ballot boxes, triangles and the
+  emoji people type as marks (✅ ❌ ❗ ➡ 🔴 ⭐). A character it still has no
+  glyph for (Chinese, Korean, most emoji) is drawn as an empty box, not as
+  `?`, so it no longer reads as a question mark that was typed.
 - **Feedback:** each note names the commit `slingerd` was built from
   (with `-dirty` for uncommitted changes) instead of always `dev`.
 - **App:** choosing a menu bar item while the command palette is open now
