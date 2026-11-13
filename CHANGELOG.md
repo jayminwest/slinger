@@ -11,6 +11,42 @@ bullet with the area in bold.
 
 ### Added
 
+- **PDF:** open a PDF and write on it. Open PDF… (`open-pdf`, ⌘O) is
+  in the File menu, and under a new File group in the key overlay and the
+  command palette. It asks for a `.pdf` file and opens it as a new canvas
+  named after the file (`Paper (v2).pdf` becomes `paper--v2-.pdf`, then
+  `-2` and on when that is taken) in a pane beside the focused one, its
+  pages stacked top to bottom. A page shows as a grey "PDF" frame until
+  its file arrives. Write on the pages with the usual tools: they are the
+  paper, under everything else, and the eraser never takes them. A PDF
+  that cannot be read, such as one locked with a password, makes nothing
+  and says why.
+- **PDF:** a PDF's canvas reads like a document. Its pages fit the pane's
+  width, a scroll moves up and down only and stops at the first and last
+  page, and pinch and the zoom keys do nothing. A pane resized refits the
+  pages. The select tool and the lasso never pick up a page there, so you
+  cannot move the paper by mistake.
+- **PDF:** snippets. Crop PDF (`crop-pdf`, ⌘8, in the Tools menu): drag a
+  box over a page and that part of it goes on the clipboard. Paste (⌘V)
+  puts it on any canvas, centred in the focused pane. A snippet is still
+  the PDF, not a picture of it; select moves it, and its handles resize it
+  keeping its shape.
+- **Agents:** a sling over a PDF shows the agent the page under your ink.
+  The ink's image has the page beneath it, and the ink's line ends with
+  the PDF's words under it, quoted (up to 2000 characters), so a circled
+  sentence arrives as text. The page has a line of its own (`d3 pdf …
+  pdfpage=2 name=paper.pdf blob=sha256:…`) and the ink names it
+  (`over=d3`); `slinger blob get` fetches the whole PDF. Only the pages
+  under new ink, or selected, are in a sling, so a long PDF costs no more
+  than the pages you marked.
+- **CLI:** `canvas show` lists a PDF's pages as `pdf` items, and `canvas
+  crop` draws one as a grey frame (`pdf p<page>`). `sling send` from the
+  terminal sends ink over a PDF on white, naming the pages but not
+  quoting their words: only the app can read a PDF.
+- **PDF:** not in this release: dropping a PDF on the window, a PDF pane,
+  exporting a PDF, making PDF items from the CLI, the page under the ink
+  in `canvas crop`, and a PDF opened on one machine shown on another.
+
 - **Agents:** a Claude Code session of your own can take a workspace's
   slings. Say `/slinger-listen` in it (the plugin and `slinger skill
   install` ship the skill): it waits with `slinger session listen

@@ -11,8 +11,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::format::{Header, Packet};
-use super::{Index, cluster};
-use crate::canvas::{Canvas, Item, ItemId, Marker, Op, PageId, changes_since, replay};
+use super::{Index, cluster, words};
+use crate::canvas::{Canvas, Changes, Item, ItemId, Marker, Op, PageId, changes_since, replay};
+use crate::render::Backdrop;
 use crate::{Error, Result, render};
 
 /// What to read.
@@ -28,6 +29,37 @@ pub struct Ask<'a> {
     /// the clusters holding a selected stroke. `new` and `made` are whole.
     /// [`Packet::selected`] names the selection by packet id.
     pub selection: &'a [ItemId],
+    /// The page under the new ink, as the app rendered it
+    /// ([`super::backdrops`] says which areas). Each image of a new cluster
+    /// is drawn over the ones that meet it, and the words near a cluster's
+    /// ink end its line. Empty: ink on white, no words.
+    pub backdrops: &'a [Backdrop],
+}
+
+/// What a packet and its backdrops are read from: the canvas the log
+/// builds, what changed after the marker, its clusters, and the index.
+pub(super) struct Read {
+    pub canvas: Canvas,
+    pub page_name: String,
+    pub delta: Changes,
+    pub clusters: Vec<Vec<ItemId>>,
+    pub index: Index,
+}
+
+impl Read {
+    pub fn new(log: &[Op], ask: &Ask<'_>) -> Result<Self> {
+        let canvas = replay(Canvas::new(), log);
+        let page = canvas.page(ask.page).ok_or_else(|| Error::NotFound {
+            what: format!("page {}", ask.page),
+            hint: Some("list the canvas's pages for their ids".into()),
+        })?;
+        let page_name = page.name().to_string();
+        let delta = changes_since(log, ask.since);
+        let changed: BTreeSet<ItemId> = delta.new.iter().chain(&delta.changed).copied().collect();
+        let clusters = cluster(&canvas, canvas.items(ask.page).map(Item::id));
+        let index = Index::new(&canvas, ask.page, &clusters, |id| changed.contains(&id));
+        Ok(Self { canvas, page_name, delta, clusters, index })
+    }
 }
 
 /// The packet of `ask.page` on the canvas that `log` builds.
@@ -39,15 +71,7 @@ pub struct Ask<'a> {
 ///
 /// [`Error::NotFound`] when the page is not on the canvas.
 pub fn build(log: &[Op], ask: &Ask<'_>) -> Result<Packet> {
-    let canvas = replay(Canvas::new(), log);
-    let page = canvas.page(ask.page).ok_or_else(|| Error::NotFound {
-        what: format!("page {}", ask.page),
-        hint: Some("list the canvas's pages for their ids".into()),
-    })?;
-    let delta = changes_since(log, ask.since);
-    let changed: BTreeSet<ItemId> = delta.new.iter().chain(&delta.changed).copied().collect();
-    let clusters = cluster(&canvas, canvas.items(ask.page).map(Item::id));
-    let mut index = Index::new(&canvas, ask.page, &clusters, |id| changed.contains(&id));
+    let Read { canvas, page_name, delta, clusters, mut index } = Read::new(log, ask)?;
     // A selected stroke stands for its cluster, whose number is its first stroke's.
     let first: BTreeMap<ItemId, u64> =
         clusters.iter().flat_map(|c| c.iter().map(|s| (*s, c[0].get()))).collect();
@@ -64,14 +88,23 @@ pub fn build(log: &[Op], ask: &Ask<'_>) -> Result<Packet> {
     }
     let mut images = Vec::new();
     let mut names: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let under = render::usable(&canvas, ask.page, ask.backdrops);
+    let mut said = Vec::new();
     for r in index.render() {
-        let drawn = render::items(&canvas, &r.strokes, &r.id);
+        let drawn = render::over(&canvas, &r.strokes, &r.id, ask.backdrops);
         names.insert(r.id.clone(), drawn.iter().map(|i| i.name.clone()).collect());
         images.extend(drawn);
+        let ink = r.strokes.iter().filter_map(|s| canvas.item(*s)).map(Item::bounds);
+        if let Some(text) = ink.reduce(render::union).and_then(|b| words::near(b, &under)) {
+            said.push((r.id.clone(), text));
+        }
+    }
+    for (id, text) in said {
+        index.say(&id, text);
     }
     let header = Header {
         canvas: ask.canvas.to_string(),
-        page: page.name().to_string(),
+        page: page_name,
         from: delta.from.0 + 1,
         to: delta.to.0,
         scale: render::SCALE,

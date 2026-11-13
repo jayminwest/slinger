@@ -139,7 +139,8 @@ impl Canvases {
     /// None followed yet; [`Canvases::show`] starts following. Strokes not
     /// yet written are kept nowhere until [`Canvases::keeping`].
     pub fn new(daemon: Client) -> Self {
-        let (outbox, slinger) = (Outbox::start(daemon.clone()), Slinger::start(daemon.clone()));
+        let (outbox, slinger) =
+            (Outbox::start(daemon.clone()), Slinger::start(daemon.clone(), None));
         let (ink, select, sling) = (Ink::named(run()), Select::default(), Sling::default());
         let (open, views) = (Vec::new(), Vec::new());
         let (shapes, asks, turning) = (Shapes::default(), Pages::default(), Vec::new());

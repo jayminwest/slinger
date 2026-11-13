@@ -8,7 +8,7 @@
 use slinger_core::canvas::{
     Action, Applied, Author, Canvas, Colour, End, ItemId, Op, PageId, Point, Rect, Shape, Time,
 };
-use slinger_core::render::{self, Image, MARGIN, MAX_EDGE, OVERLAP, SCALE};
+use slinger_core::render::{self, Backdrop, Image, MARGIN, MAX_EDGE, OVERLAP, SCALE};
 
 const GOLDEN: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/render");
 const RED: Colour = Colour::rgb(220, 30, 30);
@@ -245,6 +245,56 @@ fn px(units: f64) -> u32 {
     )]
     let px = (units * SCALE).ceil() as u32;
     px
+}
+
+/// A `pdf` item at `frame`, and a backdrop of it in solid `rgb` over `area`.
+fn paper(b: &mut Board, frame: Rect, area: Rect, rgb: [u8; 3]) -> Backdrop {
+    let hash = format!("sha256:{}", "9f".repeat(32));
+    let shape =
+        Shape::Pdf { frame, hash, pdf_page: 1, page_size: (612.0, 792.0), crop: None, name: None };
+    let item = b.add(Author::User, shape);
+    let n = (px(area.w) * px(area.h)) as usize;
+    Backdrop::new(item, area, rgb.repeat(n), vec![]).unwrap()
+}
+
+#[test]
+fn a_backdrop_shows_under_the_ink_cut_to_its_page_and_white_past_it() {
+    let mut b = Board::new();
+    let green = [10, 200, 10];
+    // The page ends at x 100; the ink runs past it.
+    let under =
+        paper(&mut b, Rect::new(0.0, 0.0, 100.0, 400.0), Rect::new(0.0, 0.0, 300.0, 400.0), green);
+    let ink = b.stroke(Colour::BLACK, &[(40.0, 40.0), (160.0, 40.0)]);
+    let [plain] = render::items(&b.canvas, &[ink], "c2").try_into().unwrap();
+    let [over] = render::over(&b.canvas, &[ink], "c2", &[under]).try_into().unwrap();
+    assert_eq!((over.width, over.height), (plain.width, plain.height), "the ink decides the part");
+    let (w, _, rgb) = decode(&over.png);
+    let at = |x: u32, y: u32| &rgb[((y * w + x) * 3) as usize..][..3];
+    assert_eq!(at(0, 0), green, "the page under the margin");
+    assert_eq!(at(w - 1, 0), [255, 255, 255], "white past the page's frame");
+    // The stroke's middle row: its box (half its width above the line) plus the margin.
+    let row = px(MARGIN + 2.0) - 1;
+    assert!(at(px(30.0), row).iter().all(|&v| v < 100), "the ink over the page");
+}
+
+#[test]
+fn a_backdrop_of_another_item_or_with_no_ink_tile_draws_nothing() {
+    let mut b = Board::new();
+    let ink = b.stroke(Colour::BLACK, &[(40.0, 40.0)]);
+    let plain = render::items(&b.canvas, &[ink], "c1");
+    let area = Rect::new(0.0, 0.0, 10.0, 10.0);
+    let stray = Backdrop::new(ink, area, vec![0; 4 * 4 * 3], vec![]).unwrap();
+    assert_eq!(render::over(&b.canvas, &[ink], "c1", &[stray]), plain, "a stroke is no page");
+    // A tall cluster whose middle tile is page and no ink keeps two images.
+    let far = b.stroke(Colour::BLACK, &[(40.0, 40.0 + 3.0 * f64::from(MAX_EDGE) / SCALE)]);
+    let tall = Rect::new(0.0, 0.0, 100.0, 4.0 * f64::from(MAX_EDGE) / SCALE);
+    let page = paper(&mut b, tall, tall, [0, 0, 0]);
+    let ends = [b.stroke(Colour::BLACK, &[(40.0, 40.0)]), far];
+    let plain = render::items(&b.canvas, &ends, "c3");
+    let over = render::over(&b.canvas, &ends, "c3", &[page]);
+    let names = |images: &[Image]| images.iter().map(|i| i.name.clone()).collect::<Vec<_>>();
+    assert_eq!(names(&over), names(&plain), "the page never makes a tile worth an image");
+    assert_eq!(over.len(), 2);
 }
 
 /// The size and RGB bytes of a PNG this crate wrote (no filters).

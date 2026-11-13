@@ -8,9 +8,12 @@ guide comes from the `slinger` binary you run, so it fits that binary.
 ## Ideas
 
 - **Canvas.** Pages of items: `stroke` (pen ink), `text`, `box`, `arrow`,
-  `button` and `live` (an agent UI). A canvas has an id, such as `notes`.
+  `button`, `live` (an agent UI) and `pdf` (a page of a PDF the user opened
+  in the app, or a part of one). A canvas has an id, such as `notes`; a
+  PDF's canvas is named after its file, such as `paper.pdf`.
 - **Item ids.** `slinger canvas show` names items `i12`. A packet names them
-  by kind: `t12` is a text, `c12` is a cluster of ink (many strokes, one id).
+  by kind: `t12` is a text, `c12` is a cluster of ink (many strokes, one id),
+  `d12` is a PDF's page.
   The verbs that take an item take both forms.
 - **Units.** The verbs and `canvas show` use integers in tenths of a unit. A
   packet prints whole units: the packet's `120` is `1200` in a verb.
@@ -62,6 +65,21 @@ slinger canvas changes <CANVAS> --after 40 --wait 30000   # wait for the user's 
 
 Read the images of a packet before you answer about handwriting: the lines
 give only the place of the ink, the images give the words.
+
+Ink on a PDF: the packet's `pdf` line names the page and the PDF's blob,
+`d3 pdf 0,0 1600x2071 pdfpage=1 name=paper.pdf blob=sha256:…`, and the ink's
+line names the pages under it, `over=d3`. A sling from the app also shows
+the page under the ink in its image, and ends the ink's line with the PDF's
+words under it, quoted: that is what the user marked. To read more of the
+PDF, fetch it:
+
+```bash
+slinger blob get sha256:9f86… --out paper.pdf
+```
+
+The app makes a PDF's pages; leave them as they are. `canvas crop` draws a
+page as a grey frame, as only the app can draw a PDF. Answer beside the ink,
+as anywhere.
 
 Answer on the canvas. Put your answer beside the item it is about; slinger
 finds a free place:
