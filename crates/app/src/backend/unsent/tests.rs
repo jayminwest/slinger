@@ -74,7 +74,7 @@ fn one_app_at_a_time_keeps_the_file_and_the_next_start_takes_it() {
 
 #[test]
 fn the_file_is_beside_the_daemon_s_record() {
-    let located = Unsent::locate().map(|f| f.path);
+    let located = Unsent::locate().map(|f| f.path.clone());
     assert!(located.is_none_or(|p| p.ends_with("slinger/unsent-ink.json")));
 }
 
@@ -158,4 +158,20 @@ fn every_change_comes_back_as_kept_and_a_file_of_strokes_alone_reads() {
     let strokes = json!({"version": 1, "strokes": [change::write(&kept[0])]});
     fs::write(&path, strokes.to_string()).unwrap();
     assert_eq!(file.load().unwrap(), kept[..1]);
+}
+
+/// slinger-3229b9: a process spawned from another thread holds a copy of
+/// each of the app's files from the fork until its program starts, the
+/// lock's too. Letting go of the file lets go of the lock for that copy
+/// too, so the next start takes the file however the spawns fall.
+#[test]
+fn letting_go_frees_the_file_while_a_spawn_still_holds_a_copy_of_the_lock() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("unsent-ink.json");
+    let mut one = Unsent::at(path.clone());
+    one.claim().unwrap();
+    let spawning = one.lock.as_ref().unwrap().try_clone().unwrap();
+    drop(one);
+    assert_eq!(Unsent::at(path).claim(), Ok((vec![], vec![])));
+    drop(spawning);
 }
