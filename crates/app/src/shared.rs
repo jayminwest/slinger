@@ -15,6 +15,7 @@ use crate::panes::{self, Pane, Panes};
 use crate::scene::overlay::KeyOverlay;
 use crate::scene::pages::menu::PageMenu;
 use crate::scene::palette::Palette;
+use crate::scene::paste::Keyboard;
 use crate::scene::resize::Dividers;
 use crate::scene::taps::{Taps, Took};
 use crate::scene::{Notes, Uis};
@@ -46,6 +47,8 @@ pub struct Shared {
     pub menu: PageMenu,
     /// The footers' and the sidebar's buttons, as last drawn.
     pub taps: Taps,
+    /// Where the last press left the keyboard ([`crate::route`]).
+    pub keyboard: Keyboard,
 }
 
 impl Default for Shared {
@@ -56,8 +59,21 @@ impl Default for Shared {
             (layout::WINDOW, None, None, Dividers::default());
         let (overlay, palette) = (KeyOverlay::default(), Palette::default());
         let panes = Panes::new(main);
-        let (menu, taps) = (PageMenu::default(), Taps::default());
-        Self { size, panes, uis, workspace, trouble, notes, dividers, overlay, palette, menu, taps }
+        let (menu, taps, keyboard) = (PageMenu::default(), Taps::default(), Keyboard::Window);
+        Self {
+            size,
+            panes,
+            uis,
+            workspace,
+            trouble,
+            notes,
+            dividers,
+            overlay,
+            palette,
+            menu,
+            taps,
+            keyboard,
+        }
     }
 }
 

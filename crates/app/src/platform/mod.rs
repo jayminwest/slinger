@@ -437,8 +437,7 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
     };
     web::place(&view, &scene.webs, &scene.theme, height, canvas, mtm);
     let under = shown.overlay.first().cloned();
-    let entry = scene.entry.as_deref();
-    entry::place(window, &view, &mut shown.entry, entry, under.as_deref(), height, mtm);
+    entry::place(window, &view, &mut shown.entry, scene, under.as_deref(), mtm);
 
     let made_from = Some((
         scene.rules.clone(),

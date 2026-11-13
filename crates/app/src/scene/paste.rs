@@ -39,6 +39,22 @@ pub enum Edit {
     Paste(Clip),
 }
 
+/// Which view has the keyboard while no entry is open. `AppKit` sends
+/// cut, copy and paste (and Flick's dictation, a paste) to the view with
+/// the keyboard. A press that goes on to an agent UI's page gives that page
+/// the keyboard. A press the app takes moves nothing, so without this a
+/// page clicked once kept every paste meant for a canvas text or the
+/// palette (slinger-145162).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Keyboard {
+    /// The window, so the app does the edit ([`Edit`]): the last press was
+    /// the app's, or one of its own texts takes typing.
+    #[default]
+    Window,
+    /// The view the last press went on to (an agent UI's page) keeps it.
+    Pressed,
+}
+
 /// `text` with each line end (`\r\n`, `\r` or `\n`) as `\n`, each tab as a
 /// space and every other control or function-key character gone.
 pub fn plain(text: &str) -> String {
