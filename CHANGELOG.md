@@ -327,6 +327,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** the sling's pill keeps counting, and a short message still goes
+  away on time, while you resize the window or have a menu open. Before,
+  both froze until you let go.
 - **Agents:** slings that wait for a listening session survive a daemon
   restart. Before, stopping `slingerd` lost them. A sling a listener was
   working on when the daemon stopped waits again, first in line, for the

@@ -5,11 +5,14 @@
 use std::time::Instant;
 
 use objc2::rc::Retained;
+use objc2::runtime::AnyObject;
 use objc2::{MainThreadMarker, sel};
 use objc2_app_kit::{
     NSBox, NSBoxType, NSColor, NSFont, NSTextAlignment, NSTextField, NSTitlePosition, NSWindow,
 };
-use objc2_foundation::{NSPoint, NSRect, NSSize, NSString, NSTimer};
+use objc2_foundation::{
+    NSPoint, NSRect, NSRunLoop, NSRunLoopCommonModes, NSSize, NSString, NSTimer,
+};
 
 use crate::config::Rgb;
 use crate::layout::Rect;
@@ -47,18 +50,26 @@ pub fn pill(window: &NSWindow, pill: &Pill, height: f64, mtm: MainThreadMarker) 
     text.setFrame(NSRect::new(NSPoint::new(0.0, (room - tall) / 2.0), NSSize::new(width, tall)));
     back.addSubview(&text);
     let due = pill.until.saturating_duration_since(Instant::now()).as_secs_f64();
+    tick_after(window, due, false);
+    back
+}
+
+/// Ask `window` to `tick:` in `seconds`, and every `seconds` after if it
+/// `repeats`. The timer runs in the common modes, so it fires during a live
+/// resize and while a menu is open, not only in the default mode.
+pub fn tick_after(window: &AnyObject, seconds: f64, repeats: bool) {
     // SAFETY: the window implements `tick:`, which takes the timer. The run
-    // loop keeps the timer until it fires once, and the timer keeps its target.
-    let _timer = unsafe {
-        NSTimer::scheduledTimerWithTimeInterval_target_selector_userInfo_repeats(
-            due,
+    // loop keeps the timer while it is due, and the timer keeps its target.
+    unsafe {
+        let timer = NSTimer::timerWithTimeInterval_target_selector_userInfo_repeats(
+            seconds,
             window,
             sel!(tick:),
             None,
-            false,
-        )
-    };
-    back
+            repeats,
+        );
+        NSRunLoop::currentRunLoop().addTimer_forMode(&timer, NSRunLoopCommonModes);
+    }
 }
 
 /// A box with no title that draws as its colours say.

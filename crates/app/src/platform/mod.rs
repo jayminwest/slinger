@@ -365,17 +365,7 @@ pub fn run(
     NSEvent::setMouseCoalescingEnabled(false);
     let window = window::make(mtm, scene.size, kept);
     files::take_drops(&window);
-    // SAFETY: the target implements `tick:`, which takes the timer. The run
-    // loop keeps the repeating timer, and the timer keeps its target.
-    let _timer = unsafe {
-        NSTimer::scheduledTimerWithTimeInterval_target_selector_userInfo_repeats(
-            POLL_SECONDS,
-            &window,
-            sel!(tick:),
-            None,
-            true,
-        )
-    };
+    chrome::tick_after(&window, POLL_SECONDS, true);
     let window = Retained::into_super(window);
     let answer = RefCell::new(Box::new(answer) as Box<dyn FnMut(Event) -> Step>);
     let shown = RefCell::new(Shown::default());
