@@ -281,7 +281,8 @@ home that `slingerd` holds open, resuming the conversation it last had, even
 after a restart. If that conversation can no longer be resumed, the process
 exits and `session show` has it `exited`; the next `session start` begins a
 new conversation. `session start --fresh` begins a new one at once, ending
-a running process first. `session send` delivers one message to it (`-` reads it from
+a running process first, and with it the agent's `working`, as a start
+under another `--profile` does. `session send` delivers one message to it (`-` reads it from
 stdin) and returns once it is delivered; `session show` has the process's
 state and its last answer. A send to an agent that was never started, or
 whose process exited, exits 6 (`unavailable`) with a hint to start it.

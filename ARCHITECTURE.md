@@ -288,8 +288,9 @@ sessions.rs  the statuses agents set since the daemon started (`working`
              `file_touched` (path and hash, never the bytes).
              `listen` takes the agent's next sling for a listener and sets
              `working`; start and stop release a listener's claim. A stop,
-             or a start that released a claim, drops the agent's `working`:
-             nothing it ended says `done`.
+             or a start that released a claim or replaced a running
+             process, drops the agent's `working`: nothing it ended says
+             `done`.
              `route` picks a sling's way (D10): a listener that is there,
              else the process, started first when none runs; a spawn that
              fails leaves a sling with no profile waiting for a listener.

@@ -429,6 +429,10 @@ bullet with the area in bold.
   ends its "working" at once, as stopping it does. The start hands the agent
   back to its process, but the sidebar and `slinger session show` kept it
   working on the listener's sling.
+- **Agents:** starting an agent afresh (`--fresh`), or under another
+  profile, while its process works on a turn ends its "working" at once.
+  The start ends that process, which never said it was done, so the sidebar
+  and `slinger session show` kept the agent working.
 - **App:** a sling that waits for a listener keeps saying "nobody listens"
   when you start the agent's process meanwhile. The process does not take
   it, but its pill said the agent was done. Once a listener takes it, it

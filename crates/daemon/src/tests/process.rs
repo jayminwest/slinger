@@ -179,6 +179,28 @@ fn a_stop_mid_turn_ends_the_agents_working_at_once() {
 }
 
 #[test]
+fn a_start_mid_turn_ends_the_working_of_the_process_it_replaces_only() {
+    // A replaced process is killed, so its Stop hook never runs (slinger-d7187e).
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
+    let client = daemon.client();
+    let home = open_with_agent(&client, &projects, "notes", "scout");
+    client.session_start("notes").unwrap();
+    client.status_set("scout", "done", Some("wrote the plan")).unwrap();
+    client.session_send("notes", "mid-turn").unwrap();
+    wait_lines(&home.join("in.txt"), 1);
+    client.status_set("scout", "working", None).unwrap();
+
+    let same = client.session_start("notes").unwrap();
+    assert_eq!(same.status.as_deref(), Some("working"), "the running one still works");
+    let fresh = client.session_start_fresh("notes").unwrap();
+    assert_ne!(fresh.pid, same.pid);
+    let status = (fresh.status.as_deref(), fresh.note.as_deref());
+    assert_eq!(status, (Some("done"), Some("wrote the plan")), "the status from before");
+    daemon.stop();
+}
+
+#[test]
 fn a_start_needs_an_open_workspace_with_an_agent_and_a_program_to_run() {
     let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
     let daemon = Daemon::start_with_claude(data.path(), &projects.path().join("no-such-claude"));

@@ -186,7 +186,8 @@ impl Sessions {
     /// and returns its session. A running one under the same profile is
     /// left as it is, unless `fresh`: then the agent starts a new session,
     /// its last one dropped. Its listener's claim goes, and with the sling
-    /// that listener worked on, the agent's `working`.
+    /// that listener worked on, the agent's `working`; so does the `working`
+    /// of a running process it replaces.
     ///
     /// # Errors
     ///
@@ -208,14 +209,26 @@ impl Sessions {
             let hint = Some("the profile's dir must be a directory on slingerd's machine: change it with 'slinger profile set'".into());
             return Err(slinger_core::Error::NotFound { what, hint }.into());
         }
-        self.processes.start(&session.agent, profile, &session.home, &limits, fresh)?;
+        let before = self.running_pid(&session.agent);
+        let started = self.processes.start(&session.agent, profile, &session.home, &limits, fresh);
+        // A running process it replaced was killed, mid-turn or not, and never
+        // says it is done; so it is when the new one then fails to start.
+        let replaced = before.is_some() && self.running_pid(&session.agent) != before;
         // A listener that went away without a word no longer takes its slings,
-        // nor works on the one it took: the `working` that set goes.
-        if !self.listeners.release(&session.agent)? {
-            return Ok(session);
+        // nor works on the one it took.
+        let released = started.is_ok() && self.listeners.release(&session.agent)?;
+        if !replaced && !released {
+            return started.map(|()| session).map_err(Into::into);
         }
+        // Nothing works on the turn that set the agent's `working`: it goes.
         rest(&mut self.statuses(), &session.agent);
+        started?;
         self.show(store, &session.agent)
+    }
+
+    /// The pid of `agent`'s process, while it runs.
+    fn running_pid(&self, agent: &str) -> Option<u32> {
+        self.processes.shown(agent).filter(|p| p.running).map(|p| p.pid)
     }
 
     /// Ends the process of the agent of the workspace `which` names, if it
