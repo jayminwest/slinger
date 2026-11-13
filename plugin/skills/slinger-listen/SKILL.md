@@ -9,10 +9,20 @@ The user slings from a canvas: a selection, the new ink and a prompt. While
 you listen, each sling of a workspace comes to this session in place of a
 process that slinger starts. You answer with your own tools and permissions.
 
-1. Find the workspace. If the user did not name one, run `slinger workspace
-   list` and take the one whose directory holds the current directory. Ask
-   only when none or more than one fits.
-2. Wait for a sling. Run this in the background, so the user can still talk
+1. Find the daemon. Run `slinger workspace list`. On exit code 6, look for
+   the daemon before you say it is not running: `pgrep -fl slingerd`. If one
+   runs with `--socket <PATH>`, pass `--socket <PATH>` to every `slinger`
+   command of this session.
+2. Find the workspace. If the user did not name one, take the one in the
+   list whose directory holds the current directory. Ask only when none or
+   more than one fits.
+3. Take over from the hidden process. Run `slinger session show
+   <WORKSPACE>`. With `process running`, slinger started a process for this
+   agent that the user cannot see, and a sling can go to it while you do not
+   listen. Stop it with `slinger session stop <WORKSPACE>`; do not ask. Only
+   when its `status` is `working`, tell the user first: the stop ends its
+   turn.
+4. Wait for a sling. Run this in the background, so the user can still talk
    to you, and act when it exits:
 
    ```bash
@@ -24,15 +34,16 @@ process that slinger starts. You answer with your own tools and permissions.
    prints one sling and exits. The first line names your agent
    (`agent=<NAME>`); the second names the directory of the packet's images
    (`at=<DIR>`).
-3. Read the images you need: each `img=` of the packet is a PNG in `at=`. The
+5. Read the images you need: each `img=` of the packet is a PNG in `at=`. The
    lines give only the place of the ink, the images give the words.
-4. Do what the prompt asks. Answer on the canvas, not in chat: `slinger
+6. Do what the prompt asks. Answer on the canvas, not in chat: `slinger
    canvas put <CANVAS> --beside <ITEM> --text "..." --agent <NAME>`. Keep
    each text short. Run `slinger guide` for the other verbs.
-5. Say that you are done: `slinger status set done --agent <NAME>`, or
+7. Say that you are done: `slinger status set done --agent <NAME>`, or
    `slinger status set blocked --note "what you need" --agent <NAME>`. Either
    ends your work on the sling.
-6. Go to step 2. Listen until the user tells you to stop.
+8. Go to step 4 at once, before you write anything to the user. Listen
+   until the user tells you to stop.
 
 Rules:
 
@@ -41,6 +52,6 @@ Rules:
 - To stop, end the background command. A sling sent after that waits for the
   next listener, or goes to the agent's process after `slinger session start
   <WORKSPACE>`.
-- Exit code 6 means the daemon `slingerd` is not running. Tell the user; do
-  not start it unless the user asks.
+- Exit code 6 with no `slingerd` process means the daemon is not running.
+  Tell the user; do not start it unless the user asks.
 - Change only the items you made. Never change the user's ink.
