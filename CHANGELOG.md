@@ -372,6 +372,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** opening the feedback entry while typing a text on the canvas
+  ends that text, as renaming a page does. Its caret no longer stays
+  frozen on the canvas beside the entry's own, and the text is kept.
 - **App:** a sling to a started agent says "working" while the agent works
   on it, and is answered when the agent's turn ends. Once a sling had
   waited for a listener, the next one the agent's process took said
