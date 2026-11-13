@@ -1,7 +1,7 @@
 //! `slinger ui open` against a real daemon: the showing's id and pane, the
 //! data from the flag or stdin, and the exit codes of what it refuses.
 
-use super::{cli_on, cli_raw, json, with_daemon};
+use super::{cli_as, cli_on, cli_raw, json, with_daemon};
 use crate::output::exit;
 
 #[test]
@@ -82,4 +82,39 @@ fn open_as_an_item_prints_the_showing_and_the_item_beside_the_one_named() {
     assert_eq!(runs[5].code, exit::USAGE, "an item needs its canvas");
     assert_eq!(runs[6].code, exit::NOT_FOUND);
     assert_eq!(runs[7].code, exit::INVALID, "a pane is beside a pane's number");
+}
+
+/// A session slingerd started names only its agent: a pane opens in that
+/// agent's workspace, and an agent with none is told to pass --workspace
+/// (slinger-38553d).
+#[test]
+fn open_without_a_workspace_opens_in_the_calling_agents() {
+    let projects = tempfile::tempdir().unwrap();
+    let dir = projects.path().join("notes");
+    std::fs::create_dir(&dir).unwrap();
+    let file = "version = 1\nname = \"notes\"\n[agent]\nname = \"scout\"\n";
+    std::fs::write(dir.join("slinger-workspace.toml"), file).unwrap();
+    std::fs::write(dir.join("pick.html"), "<p>pick</p>").unwrap();
+    let runs = with_daemon(|socket| {
+        let path = dir.to_str().unwrap();
+        vec![
+            cli_on(socket, &["workspace", "open", path]),
+            cli_on(socket, &["ui", "put", "pick", dir.join("pick.html").to_str().unwrap()]),
+            cli_as("scout", socket, &["ui", "open", "pick"]),
+            cli_on(socket, &["pane", "list", "notes"]),
+            cli_as("nobody", socket, &["ui", "open", "pick"]),
+        ]
+    });
+    for r in &runs[..4] {
+        assert_eq!((r.code, r.err.as_str()), (exit::OK, ""), "{}", r.out);
+    }
+    let (id, pane) = runs[2].out.trim_end().split_once('\t').unwrap();
+    assert!(id.starts_with("pick#"), "{id}");
+    assert!(runs[3].out.lines().any(|l| l.starts_with(&format!("{pane}\t"))), "{}", runs[3].out);
+    assert_eq!(runs[4].code, exit::NOT_FOUND);
+    assert!(
+        runs[4].err.contains("nobody") && runs[4].err.contains("--workspace"),
+        "{}",
+        runs[4].err
+    );
 }

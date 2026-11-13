@@ -27,7 +27,7 @@ a "did you mean" suggestion.
 | `ui list` | One line per UI, its latest version: `<name>@<version>`, hash, bytes, source and time, separated by tabs. `--json`: `uis` |
 | `ui show <NAME>` | One line per version of that UI, oldest first, as `ui list`. `--json`: `uis` |
 | `ui export <UI> [--out DIR]` | The path of the file written, `<DIR>/<name>.v<version>.html`. `--json`: `ui`, `path` |
-| `ui open <UI> --workspace W [--as pane] [--data JSON\|-] [--beside N] [--below] [--agent NAME]`, `ui open <UI> --as item --canvas C --beside ITEM [--size W,H] [--data JSON\|-] [--agent NAME]` | `<open>\t<pane>`: the showing's id (`pick-slot#12`) and the new pane's number, or `<open>\t<item>` and the live item's id. `--json`: `open`, `ui`, `workspace`, `pane` or `item` (`canvas`, `item`, `page`, `x`, `y`, `w`, `h`, `seq`), `event` |
+| `ui open <UI> [--workspace W] [--as pane] [--data JSON\|-] [--beside N] [--below] [--agent NAME]`, `ui open <UI> --as item --canvas C --beside ITEM [--size W,H] [--data JSON\|-] [--agent NAME]` | `<open>\t<pane>`: the showing's id (`pick-slot#12`) and the new pane's number, or `<open>\t<item>` and the live item's id. `--json`: `open`, `ui`, `workspace`, `pane` or `item` (`canvas`, `item`, `page`, `x`, `y`, `w`, `h`, `seq`), `event` |
 | `blob get <ID> [--out FILE]` | The blob's bytes, exactly, on stdout. With `--out`: nothing, and the file holds the bytes. `--json` (needs `--out`): `id`, `size` |
 | `canvas create <ID> [--ops FILE]` | Nothing. With `--ops`, the canvas starts with the operations in the file (a JSON list, as `canvas apply` takes), made as the user's in one step: an operation the canvas refuses makes no canvas and fails as `canvas apply` would. `--json`: `canvas` |
 | `canvas list` | One canvas id per line. `--json`: `canvases` (list of ids) |
@@ -127,7 +127,8 @@ if missing. An unknown UI exits 3 (`not_found`). `ui list` with no UIs
 prints nothing and exits 0.
 
 `ui open` is an agent verb (see `status set`): the calling agent shows one
-version of a UI in a new pane of the workspace's window, with `--data` (JSON,
+version of a UI in a new pane of the workspace's window (`--workspace`, by
+default the calling agent's own), with `--data` (JSON,
 `-` reads stdin) as its context's data. Each reply the user makes in it is
 recorded and reaches that agent's running session as one JSON line,
 `{"v":1,"kind":"ui_reply","ui","version","hash","open","value"}`; a reply
@@ -137,7 +138,8 @@ it on canvas `C` instead, as a live item beside `--beside ITEM` (`i12`,
 the user moves, deletes and undoes it like any item. Data that is not JSON
 or over 16384 bytes, a size not above 0, or a window that holds 64 panes,
 exits 5 (`invalid`); a UI, workspace, `--beside` pane or item that is not
-there exits 3 (`not_found`). A refused open records nothing.
+there exits 3 (`not_found`), as does no `--workspace` for an agent with no
+workspace. A refused open records nothing.
 
 `canvas apply` takes one operation as a JSON object, or a list of them, as
 one undo step (the operations are in `docs/service.md`, "Canvas

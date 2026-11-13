@@ -46,8 +46,8 @@ pub enum Ui {
     Open {
         /// The UI: <name> (latest), <name>@<version> or a blob id
         ui: String,
-        /// The workspace whose window shows it as a pane: its name, or the directory of its file
-        #[arg(long, value_name = "WORKSPACE", required_if_eq("host", "pane"))]
+        /// The workspace whose window shows it as a pane: its name, or the directory of its file [default: the calling agent's]
+        #[arg(long, value_name = "WORKSPACE")]
         workspace: Option<String>,
         /// Where it shows: a pane of its own, or an item on a canvas
         #[arg(long = "as", value_name = "HOST", default_value = "pane", value_parser = ["pane", "item"])]
@@ -125,7 +125,10 @@ impl Ui {
                     (ask.canvas, ask.item, ask.size) = (canvas.clone(), beside.clone(), *size);
                 } else {
                     ask.host = "pane".into();
-                    ask.workspace = which(workspace.as_deref().unwrap_or_default())?;
+                    ask.workspace = match workspace {
+                        Some(workspace) => which(workspace)?,
+                        None => home(daemon, &ask.agent)?,
+                    };
                     ask.beside = beside.as_deref().map(pane_number).transpose()?;
                     ask.below = *below;
                 }
@@ -139,6 +142,21 @@ impl Ui {
             }
         }
     }
+}
+
+/// The workspace a pane opens in when `--workspace` is not given: the
+/// calling agent's, by the directory of its file, so a session slingerd
+/// started needs no flag (slinger-38553d).
+fn home(daemon: &control::Client, agent: &str) -> anyhow::Result<String> {
+    let session = daemon.session_show(agent).map_err(|e| {
+        if e.code() != "not_found" {
+            return e;
+        }
+        let hint = "pass --workspace <WORKSPACE>".to_string();
+        let message = format!("the agent {agent:?} has no workspace to open a pane in");
+        control::RemoteError::new("not_found", message, Some(hint))
+    })?;
+    Ok(session.home.to_string_lossy().into_owned())
 }
 
 /// A pane's number, as `--beside` names it for a pane.

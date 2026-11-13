@@ -301,6 +301,11 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** `slinger ui open` from a session Slinger started opens its
+  pane in that session's workspace when `--workspace` is not given. Before,
+  it failed with `workspace "" not found`. A sling's reply notes now say
+  that an agent can show a page in a pane (`ui put`, `ui open`) when words
+  on the canvas are not enough.
 - **PDF:** a PDF page that stayed a grey frame because its file could not
   be fetched is tried again the next time it is on screen, after a wait
   that grows from a second to about a minute. Before, it stayed grey until

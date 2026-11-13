@@ -19,9 +19,10 @@ A `pdf` line is a page of a PDF (`blob get` fetches the file its `blob=` names);
 Answer on the canvas, not in chat: the user reads the canvas.
 - `slinger canvas put idea --beside <id> --text <text>` puts text beside item <id>; `--box w,h`, `--ink x,y,dx,dy,...` or `--arrow <from-id> <to-id>` in place of `--text` puts a box, a pen stroke or an arrow. `--color #rrggbb` colours it; `--at x,y` puts its top-left corner there instead; `--size n` sizes text (default 240). Put lengths are tenths: the packet's 120 is 1200.
 - `slinger canvas crop idea --item <id>` gives an image of an item the packet shows only as a line.
+- When words on the canvas are not enough, show a page: `slinger ui put <name> <file>` stores an HTML file and `slinger ui open <name>` opens it in a pane, `--data <json>` its data.
 `slinger guide` shows every other command and flag.
 You took this sling by listening, as agent `scout`. Each `img=` names a PNG in the packet's `at=` directory: read the ones you need.
-- Add `--agent scout` to each `canvas put` and `status set`.
+- Add `--agent scout` to each `canvas put`, `ui open` and `status set`.
 - When you have answered, run `slinger status set done --agent scout` (or `blocked --note <what you need>`), then `slinger session listen notes` for the next sling.
 # prompt
 What is missing here?
