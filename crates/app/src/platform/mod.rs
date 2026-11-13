@@ -356,7 +356,12 @@ pub fn run(
     // Texts are hit where their glyphs are, as this thread lays them out.
     crate::scene::glyphs::set_measure(canvas::measure);
     let app = NSApplication::sharedApplication(mtm);
-    app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+    // A run in the background has no Dock icon and never comes forward.
+    app.setActivationPolicy(if kept.front() {
+        NSApplicationActivationPolicy::Regular
+    } else {
+        NSApplicationActivationPolicy::Accessory
+    });
     // Every pen point, not one per frame: a fast stroke keeps its shape.
     NSEvent::setMouseCoalescingEnabled(false);
     let window = window::make(mtm, scene.size, kept);
@@ -386,8 +391,10 @@ pub fn run(
     {
         dispatch(Event::Resized(Size { width: size.width, height: size.height }), mtm);
     }
-    state.window.makeKeyAndOrderFront(None);
-    app.activate();
+    if kept.front() {
+        state.window.makeKeyAndOrderFront(None);
+        app.activate();
+    }
     app.run();
     Ok(())
 }

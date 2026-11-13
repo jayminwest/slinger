@@ -1,7 +1,8 @@
 //! The agent UI sandbox (docs/design/live-items.md, K4): a UI that tries
 //! every way out reaches neither the network nor a file. It runs the real
 //! app (`slinger-app --preview`) against a daemon of its own, so it needs a
-//! macOS login session: `WebKit` draws in a window.
+//! macOS login session: `WebKit` draws in a window. The window is never
+//! shown (`--background`), so a run takes no focus from the user's work.
 //!
 //! The UI (`fixtures/escape.html`) shows its context, tries each way out
 //! against a TCP listener this test owns and against `/etc/hosts`, then
@@ -60,6 +61,8 @@ fn escapes_nothing(more: &[&str], host: &str) {
         let mut app = Command::new(env!("CARGO_BIN_EXE_slinger-app"))
             .args(["--preview", "escape", "--data", &json!({"port": port}).to_string()])
             .args(more)
+            // No window on the screen: a test run takes no focus.
+            .arg("--background")
             .env("SLINGER_CONFIG", &file)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

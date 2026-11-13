@@ -328,7 +328,8 @@ server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
 ```
 main.rs      wires the modules below. The only caller of platform. With
              `--preview UI [--data JSON]` it shows one agent UI alone and
-             writes each reply's `ui_reply` line to stdout instead. It routes
+             writes each reply's `ui_reply` line to stdout instead; with
+             `--background` last, that window is never shown. It routes
              each event (route.rs, which the window's answer and the tests
              both call; the answer adds a tick's news): keys, the pen, the
              mouse, the trackpad. A pen or
@@ -913,7 +914,10 @@ platform/remember.rs  what the window keeps in the user defaults from one
              main says whose frame a run keeps (platform::Kept): the app's
              window, or a preview's (`--preview`, which the tests run), saved
              under a name of its own so a preview never moves the app's
-             window; a preview never reads or writes the sidebar's.
+             window; a preview never reads or writes the sidebar's. Kept
+             also says whether the run comes to the front: a preview in the
+             background (`--background`) has no Dock icon and its window is
+             never put on a screen.
 platform/files.rs  sets the title bar a scene's Title says (title, subtitle,
              represented file), shows a file in the Finder
              (`show-canvas-file`, from main), and asks for a folder for
