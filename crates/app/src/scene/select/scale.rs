@@ -12,8 +12,9 @@
 //! - A text's size scales evenly, by the geometric mean of the two sides'
 //!   scales (their one scale when they scale together), kept within
 //!   [`TEXT_SIZES`]; its top left goes where the scale puts it.
-//! - A button and an agent UI keep their size (the agent's), and their top
-//!   left goes where the scale puts it.
+//! - A live item's corners scale, as a box's do: its page lays out again
+//!   at the new size as the pen goes.
+//! - A button keeps its size, and its top left goes where the scale puts it.
 //! - A `pdf` item keeps its aspect (docs/design/pdf.md), whichever handle
 //!   is dragged: it scales evenly about the opposite corner, by the
 //!   text's one scale.
@@ -133,16 +134,15 @@ fn reshaped(
         let at = corner(r);
         Rect { x: at.x, y: at.y, ..*r }
     };
+    let spanned = |r: &Rect| {
+        let (a, b) = (corner(r), map(Point { x: r.x + r.width, y: r.y + r.height }));
+        Rect { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y }
+    };
     match shape {
         Shape::Stroke { points, width } => {
             Shape::Stroke { points: points.iter().map(|&p| map(p)).collect(), width: *width }
         }
-        Shape::Box { frame, width } => {
-            let (a, b) =
-                (corner(frame), map(Point { x: frame.x + frame.width, y: frame.y + frame.height }));
-            let frame = Rect { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y };
-            Shape::Box { frame, width: *width }
-        }
+        Shape::Box { frame, width } => Shape::Box { frame: spanned(frame), width: *width },
         Shape::Arrow { from, to, width, bound } => {
             Shape::Arrow { from: map(*from), to: map(*to), width: *width, bound: *bound }
         }
@@ -155,7 +155,7 @@ fn reshaped(
         Shape::Button { frame, status } => Shape::Button { frame: placed(frame), status: *status },
         Shape::Pdf { frame, .. } => shape.reframed(even(frame)),
         Shape::Live { frame, name, open } => {
-            Shape::Live { frame: placed(frame), name: name.clone(), open: open.clone() }
+            Shape::Live { frame: spanned(frame), name: name.clone(), open: open.clone() }
         }
         Shape::Panel { frame, fill, width, dashed } => {
             Shape::Panel { frame: placed(frame), fill: *fill, width: *width, dashed: *dashed }

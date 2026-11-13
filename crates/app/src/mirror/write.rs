@@ -158,13 +158,14 @@ fn set(id: ItemId, shape: &Shape) -> Value {
 }
 
 /// The `set` that draws `item` as it is: a stroke by its points, an agent
-/// UI by its place (only an agent sizes it), anything else as [`set`].
+/// UI by its frame, anything else as [`set`].
 fn reshape(item: &Item) -> Value {
     let fields = match &item.shape {
         Shape::Stroke { points, .. } => serde_json::json!({"pts": deltas(points)}),
-        Shape::Live { frame, .. } => {
-            serde_json::json!({"x": tenths(frame.x), "y": tenths(frame.y)})
-        }
+        Shape::Live { frame, .. } => serde_json::json!({
+            "x": tenths(frame.x), "y": tenths(frame.y),
+            "w": tenths(frame.width), "h": tenths(frame.height),
+        }),
         shape => return set(item.id, shape),
     };
     serde_json::json!({"op": "set", "id": item_ref(item.id), "fields": fields})
@@ -225,7 +226,7 @@ fn fields(shape: &Shape) -> Map<String, Value> {
                 }
             }
         }
-        // Only an agent makes or changes a live item.
+        // Only an agent makes a live item; a resize sets its frame ([`reshape`]).
         // Chrome is the app's alone and never written.
         Shape::Stroke { .. } | Shape::Live { .. } | Shape::Panel { .. } | Shape::Caret { .. } => {}
     }

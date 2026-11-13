@@ -271,6 +271,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** an agent's live page on a canvas now resizes from the
+  selection's corner handles, as a box does, and its page lays out again
+  at the new size as you drag. Before, it kept its size.
 - **CLI and app:** a busy slingerd is no longer taken for a stopped one.
   When the disk is under heavy load a reply can take several seconds; the
   CLI and the app now wait up to 30 seconds for it instead of 5, and no
