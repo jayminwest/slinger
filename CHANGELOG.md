@@ -373,9 +373,10 @@ bullet with the area in bold.
 ### Fixed
 
 - **App:** a sling to a started agent says "working" while the agent works
-  on it, and is answered when the agent's turn ends. Once a sling had
-  waited for a listener, the next one the agent's process took said
-  "nobody listens" and followed the waiting sling instead. `slinger session
+  on it, with about how many tokens its context holds (`· ~2.0k`), and is
+  answered when the agent's turn ends. Once a sling had waited for a
+  listener, the next one the agent's process took said "nobody listens",
+  without the figure, and followed the waiting sling instead. `slinger session
   show` now has `deliver` as `process` while the process runs and nobody
   listens, with the process's `pending`, though slings still wait for a
   listener.
