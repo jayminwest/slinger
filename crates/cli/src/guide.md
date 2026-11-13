@@ -107,11 +107,10 @@ slinger canvas undo <CANVAS> --agent claude
 ```
 
 Make a whole new canvas in one step from a file of the same operations; it
-is made whole or not at all. Its items are the user's, so you cannot edit or
-remove them after:
+is made whole or not at all:
 
 ```bash
-slinger canvas create <CANVAS> --ops ./ops.json
+slinger canvas create <CANVAS> --ops ./ops.json --agent claude
 ```
 
 Show the user a UI in place of a long answer. A UI is one HTML file with

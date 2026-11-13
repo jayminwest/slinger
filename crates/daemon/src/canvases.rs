@@ -128,14 +128,15 @@ impl Canvases {
         self.make(id, log, &bytes)
     }
 
-    /// Makes a new canvas that starts with `ops` applied as the user, in
-    /// one write: the whole canvas or none ([`Log::create_with`]).
+    /// Makes a new canvas that starts with `ops` applied as `by` (`user` or
+    /// `agent:<name>`), in one write: the whole canvas or none
+    /// ([`Log::create_with`]).
     ///
     /// # Errors
     ///
-    /// As [`Canvases::create`], and those of [`Log::apply`].
-    pub fn create_with(&self, id: &str, ops: &Value) -> Result<()> {
-        let (log, bytes) = Log::create_with(id, &Author::User, now(), ops)?;
+    /// As [`Canvases::create`], and those of [`parse_author`] and [`Log::apply`].
+    pub fn create_with(&self, id: &str, by: &str, ops: &Value) -> Result<()> {
+        let (log, bytes) = Log::create_with(id, &parse_author(by)?, now(), ops)?;
         self.make(id, log, &bytes)
     }
 

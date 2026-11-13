@@ -29,7 +29,7 @@ a "did you mean" suggestion.
 | `ui export <UI> [--out DIR]` | The path of the file written, `<DIR>/<name>.v<version>.html`. `--json`: `ui`, `path` |
 | `ui open <UI> [--workspace W] [--as pane] [--data JSON\|-] [--beside N] [--below] [--agent NAME]`, `ui open <UI> --as item --canvas C --beside ITEM [--size W,H] [--data JSON\|-] [--agent NAME]` | `<open>\t<pane>`: the showing's id (`pick-slot#12`) and the new pane's number, or `<open>\t<item>` and the live item's id. `--json`: `open`, `ui`, `workspace`, `pane` or `item` (`canvas`, `item`, `page`, `x`, `y`, `w`, `h`, `seq`), `event` |
 | `blob get <ID> [--out FILE]` | The blob's bytes, exactly, on stdout. With `--out`: nothing, and the file holds the bytes. `--json` (needs `--out`): `id`, `size` |
-| `canvas create <ID> [--ops FILE]` | Nothing. With `--ops`, the canvas starts with the operations in the file (a JSON list, as `canvas apply` takes), made as the user's in one step: an operation the canvas refuses makes no canvas and fails as `canvas apply` would. `--json`: `canvas` |
+| `canvas create <ID> [--ops FILE] [--agent NAME]` | Nothing. With `--ops`, the canvas starts with the operations in the file (a JSON list, as `canvas apply` takes), made in one step as the agent's (`--agent`, else `$SLINGER_AGENT`, else the user's), so that agent can edit and remove them later: an operation the canvas refuses makes no canvas and fails as `canvas apply` would. `--json`: `canvas` |
 | `canvas list` | One canvas id per line. `--json`: `canvases` (list of ids) |
 | `canvas show <ID> [--page PAGE]` | One line per item on the page, in drawing order: id, kind, maker and the item as JSON, separated by tabs. `--json`: `canvas`, `next`, `page`, `pages`, `items`, `path` (the canvas's file) |
 | `canvas apply <ID> <OPS\|-> [--agent NAME]` | The ids the operations made, one per line. `--json`: `seq`, `made` |
@@ -49,7 +49,7 @@ a "did you mean" suggestion.
 | `canvas crop <ID> (--item ITEM \| --box X,Y,W,H [--page PAGE]) [--out FILE]` | The path of each image written, one per line, tiles in reading order. `--json`: `images` (`path`, `x`, `y`, `width`, `height`) |
 | `canvas strokes <ID> --item ITEM` | One stroke per line, as JSON with absolute `points` in tenths. `--json`: `strokes` |
 | `session list` | One line per session, by agent: agent, status (`-` for none) and home, then the note if there is one, separated by tabs. `--json`: `sessions` |
-| `session show <AGENT>` | One field per line, the name and the value separated by a tab: `agent`, `home`, `deliver`, `status`, then those it has of `listening`, `note`, `process`, `pid`, `profile`, `pending`, `session_id` and `answer` (its line breaks as `\n`). `--json`: `session` |
+| `session show <AGENT>` | One field per line, the name and the value separated by a tab: `agent`, `home`, `deliver`, `status`, then those it has of `listening`, `note`, `process`, `pid`, `profile`, `pending`, `context`, `session_id` and `answer` (its line breaks as `\n`). `--json`: `session` |
 | `session start <WORKSPACE> [--fresh] [--profile NAME]`, `session stop <WORKSPACE>` | Nothing. `--json`: `session` |
 | `profile list <WORKSPACE>` | One line per profile, in its file's order: name, directory (`-` for the agent's home) and rules joined by `, ` (`-` for none), separated by tabs. `--json`: `workspace`, `profiles` |
 | `profile set <WORKSPACE> <NAME> [--dir DIR] [--tool RULE]...`, `profile remove <WORKSPACE> <NAME>` | Nothing. `--json`: `workspace`, `profiles` |

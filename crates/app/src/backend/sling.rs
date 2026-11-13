@@ -259,6 +259,7 @@ fn progress(session: &Session) -> Progress {
         blocked: blocked.then(|| session.note.clone().unwrap_or_default()),
         answer: session.answer.clone(),
         profile: session.profile.clone(),
+        tokens: session.context,
     }
 }
 

@@ -242,6 +242,9 @@ pub struct Said {
     /// The answer to one message, when the line ends a turn: its text,
     /// empty when the turn ended with none (an error).
     pub answer: Option<String>,
+    /// How many tokens the conversation's context holds, when the line is
+    /// the session's own model reply: what the model read for it and wrote.
+    pub context: Option<u64>,
 }
 
 /// Reads one line of output. A line that is not a JSON object says nothing.
@@ -254,7 +257,24 @@ pub fn read(line: &str) -> Said {
     let session_id = session_id.filter(|id| !id.is_empty()).map(str::to_string);
     let answer = (object.get("type").and_then(Value::as_str) == Some("result"))
         .then(|| object.get("result").and_then(Value::as_str).unwrap_or_default().to_string());
-    Said { session_id, answer }
+    let context = (object.get("type").and_then(Value::as_str) == Some("assistant"))
+        .then(|| context(&object))
+        .flatten();
+    Said { session_id, answer, context }
+}
+
+/// The context an `assistant` line's usage counts: its input, read from the
+/// cache or not, and its output. A subagent's line (it has a
+/// `parent_tool_use_id`) counts the subagent's context, not the session's.
+fn context(object: &serde_json::Map<String, Value>) -> Option<u64> {
+    if object.get("parent_tool_use_id").is_some_and(|p| !p.is_null()) {
+        return None;
+    }
+    let usage = object.get("message")?.get("usage")?.as_object()?;
+    let fields = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"];
+    let input = fields.iter().filter_map(|f| usage.get(*f)?.as_u64());
+    let sum = input.chain(usage.get("output_tokens").and_then(Value::as_u64)).sum();
+    usage.contains_key("input_tokens").then_some(sum)
 }
 
 #[cfg(test)]
@@ -414,14 +434,30 @@ mod tests {
     #[test]
     fn output_names_the_session_and_a_result_ends_a_turn_with_its_answer() {
         let init = read(r#"{"type":"system","subtype":"init","session_id":"s1"}"#);
-        assert_eq!(init, Said { session_id: Some("s1".into()), answer: None });
+        assert_eq!(init, Said { session_id: Some("s1".into()), ..Said::default() });
         let result =
             read(r#"{"type":"result","subtype":"success","session_id":"s1","result":"hi"}"#);
-        assert_eq!(result, Said { session_id: Some("s1".into()), answer: Some("hi".into()) });
+        let want = Said { session_id: Some("s1".into()), answer: Some("hi".into()), context: None };
+        assert_eq!(result, want);
         let failed = read(r#"{"type":"result","subtype":"error_during_execution"}"#);
         assert_eq!(failed.answer.as_deref(), Some(""));
         for nothing in ["", "not json", "[1]", r#"{"type":"assistant","session_id":""}"#] {
             assert_eq!(read(nothing), Said::default(), "{nothing}");
         }
+    }
+
+    #[test]
+    fn a_model_reply_counts_the_context_and_a_subagents_or_a_results_does_not() {
+        let usage = r#""usage":{"input_tokens":3,"cache_creation_input_tokens":100,"cache_read_input_tokens":2000,"output_tokens":40}"#;
+        let reply = format!(
+            r#"{{"type":"assistant","session_id":"s1","parent_tool_use_id":null,"message":{{"role":"assistant",{usage}}}}}"#
+        );
+        assert_eq!(read(&reply).context, Some(2143));
+        let sub = reply.replace(r#""parent_tool_use_id":null"#, r#""parent_tool_use_id":"t1""#);
+        assert_eq!(read(&sub).context, None, "a subagent's context");
+        let result = format!(r#"{{"type":"result","result":"hi",{usage}}}"#);
+        assert_eq!(read(&result).context, None, "a turn's sum, not a context");
+        let bare = r#"{"type":"assistant","message":{"usage":{"output_tokens":5}}}"#;
+        assert_eq!(read(bare).context, None, "no input counted: no context");
     }
 }

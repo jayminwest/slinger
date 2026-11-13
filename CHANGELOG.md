@@ -21,7 +21,9 @@ bullet with the area in bold.
   or not at all.
 - **CLI:** `slinger canvas create <ID> --ops FILE` makes a canvas that
   starts with the operations in the file (a JSON list, as `canvas apply`
-  takes), all of them or no canvas at all.
+  takes), all of them or no canvas at all. Run by an agent (or with
+  `--agent NAME`), the items are that agent's, so it can edit and remove
+  them later; `canvas_create` takes the author as `by`.
 
 - **App:** recolour what you selected. Picking a colour from the colour
   pop-up with a selection makes its strokes, texts, boxes and arrows that
@@ -328,6 +330,12 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** the sling's pill ("● scout working · 4s · ~12k") follows the
+  agent's session: once the agent replies, the count is how many tokens its
+  conversation holds, and it updates as the agent works. Before, it stayed
+  at what the sling cost when it went. A session that listens for its
+  slings has no count to show, so its pill keeps the sling's cost.
+  `slinger session show` has the count as `context`.
 - **App:** a text on the canvas now breaks into the same lines, a line
   every size, as the box `slinger canvas put` reports and the picture
   `canvas crop` draws. Before, the app set an agent's long text in fewer,

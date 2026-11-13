@@ -75,12 +75,14 @@ pub enum Request {
     /// directory `dir`, as `<name>.v<version>.html`.
     UiExport { ui: String, dir: PathBuf },
     /// Make a new canvas: empty, or holding the operations in the file at
-    /// `path` (a JSON list, as `ops` of `canvas_apply`), applied as the user
-    /// in one write.
+    /// `path` (a JSON list, as `ops` of `canvas_apply`), applied as `by`
+    /// (`user` or `agent:<name>`; absent: the user) in one write.
     CanvasCreate {
         canvas: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         path: Option<PathBuf>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        by: Option<String>,
     },
     /// List the canvases.
     CanvasList,
