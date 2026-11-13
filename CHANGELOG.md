@@ -53,7 +53,8 @@ bullet with the area in bold.
   (`open-pdf`, ⌘O) also takes a `.tldraw` or `.tldr` file, and so does a
   drop on the window: the board becomes a canvas named after the file, its
   pages and items as `slinger canvas import` makes them, in a pane beside
-  the focused one. A name already taken says so.
+  the focused one. A board imported again gets the next free name
+  (`idea-2`), as a PDF opened again does.
 - **App:** start a workspace's agent without the CLI. Start agent
   (`start-agent`, ⌥⌘A) is in the Tools menu and the command palette: it
   starts the agent of the workspace the window shows, with its own limits,

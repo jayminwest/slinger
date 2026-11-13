@@ -2,8 +2,8 @@
 //! a PDF's blob to a file of the app's own, once per blob id, for the
 //! canvas view to draw from. [`open`] makes a PDF a new canvas: the blob,
 //! the canvas, one `pdf` item per page stacked on its first page, and a
-//! pane that shows it; or a tldraw file, by `canvas_import`. Each blocks until the daemon answers or its client
-//! gives up. Only `platform` reads a PDF: `open` is handed its page sizes'
+//! pane that shows it; or a tldraw file, by `canvas_import`. Each blocks
+//! until the daemon answers or its client gives up. Only `platform` reads a PDF: `open` is handed its page sizes'
 //! reader ([`Pages`]).
 
 use std::fs;
@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde_json::Value;
-use slinger_control::{Client, PaneKind};
+use slinger_control::{Client, PaneKind, RemoteError};
 
 use super::Problem;
 use crate::mirror;
@@ -21,7 +21,7 @@ use crate::scene::pdf::{canvas_id, pages};
 /// why it cannot be read, for the user (`platform::pdf::pages`).
 pub type Pages = fn(&Path) -> Result<Vec<(f64, f64)>, String>;
 
-/// The most canvas ids [`open`] tries for one PDF (`-2`, `-3`, ...).
+/// The most canvas ids [`open`] tries for one file (`-2`, `-3`, ...).
 const TRIES: u32 = 999;
 
 /// The page every new canvas starts with, which holds an opened PDF's pages.
@@ -86,11 +86,11 @@ pub struct Opening {
 }
 
 /// Makes the PDF `ask.file` a new canvas, and opens a pane on it beside
-/// `ask.beside` in `ask.workspace`. A tldraw file ([`is_tldraw`]) the
-/// daemon imports (`canvas_import`, named after the file). A PDF: reads its
-/// page sizes with `sizes`,
-/// stores it as a blob, and makes the canvas ([`canvas_id`], the next id
-/// when one is taken) holding one `pdf` item per page on its first page,
+/// `ask.beside` in `ask.workspace`. Either way the canvas is named
+/// [`canvas_id`], the next id when one is taken. A tldraw file
+/// ([`is_tldraw`]) the daemon imports (`canvas_import`). A PDF: reads its
+/// page sizes with `sizes`, stores it as a blob, and makes the canvas
+/// holding one `pdf` item per page on its first page,
 /// in page order. The canvas is made whole in one request or not at all:
 /// its `add`s go in a file of operations in `scratch`, as no request line
 /// would hold a long PDF's. Returns the canvas's id.
@@ -107,7 +107,7 @@ pub fn open(
     scratch: &Path,
 ) -> Result<String, Problem> {
     let canvas = if is_tldraw(&ask.file) {
-        daemon.canvas_import_id(&ask.file, None)?
+        first_free(&ask.file, "", &mut |id| daemon.canvas_import_id(&ask.file, Some(id)).map(drop))?
     } else {
         pdf_canvas(daemon, sizes, &ask.file, scratch)?
     };
@@ -136,17 +136,22 @@ fn pdf_canvas(
     let written = fs::create_dir_all(scratch)
         .and_then(|()| fs::write(&ops, Value::Array(adds).to_string()))
         .map_err(|e| unwritable(&ops, &e));
-    let canvas = written.and_then(|()| create(daemon, file, &ops));
+    let create = &mut |id: &str| daemon.canvas_create_with(id, &ops, None);
+    let canvas = written.and_then(|()| first_free(file, ".pdf", create));
     let _ = fs::remove_file(&ops);
     canvas
 }
 
-/// Makes the canvas for the PDF `file`, holding the operations in the file
-/// `ops`: the first of its ids not taken.
-fn create(daemon: &Client, file: &Path, ops: &Path) -> Result<String, Problem> {
+/// Makes the canvas for `file` with `make`, under the first of its ids
+/// ([`canvas_id`] with `ext`) not taken.
+fn first_free(
+    file: &Path,
+    ext: &str,
+    make: &mut dyn FnMut(&str) -> Result<(), RemoteError>,
+) -> Result<String, Problem> {
     for n in 1..=TRIES {
-        let id = canvas_id(file, n);
-        match daemon.canvas_create_with(&id, ops, None) {
+        let id = canvas_id(file, n, ext);
+        match make(&id) {
             Ok(()) => return Ok(id),
             Err(e) if e.code() == "conflict" => {}
             Err(e) => return Err(e.into()),

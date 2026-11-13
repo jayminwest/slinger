@@ -21,11 +21,12 @@ const STEM: usize = 56;
 /// The longest file name a `pdf` item keeps, in bytes.
 const NAME_BYTES: usize = 255;
 
-/// The canvas id for the PDF `file`, the `try_n`th id tried (from 1): its
-/// stem lowercased, each character outside `a-z 0-9 - _` made `-`, cut to
-/// 56 characters (`pdf` when nothing is left), then `-<n>` from the second
-/// try on, then `.pdf`. `Paper (v2).pdf` is `paper--v2-.pdf`.
-pub fn canvas_id(file: &Path, try_n: u32) -> String {
+/// The canvas id for the opened `file`, the `try_n`th id tried (from 1):
+/// its stem lowercased, each character outside `a-z 0-9 - _` made `-`, cut
+/// to 56 characters (`pdf` when nothing is left), then `-<n>` from the
+/// second try on, then `ext` (`.pdf` for a PDF, none for a tldraw file).
+/// `Paper (v2).pdf` is `paper--v2-.pdf`.
+pub fn canvas_id(file: &Path, try_n: u32, ext: &str) -> String {
     let stem = file.file_stem().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
     let keep = |c: char| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_';
     let mut id: String = stem.chars().map(|c| if keep(c) { c } else { '-' }).take(STEM).collect();
@@ -36,7 +37,7 @@ pub fn canvas_id(file: &Path, try_n: u32) -> String {
         id.push('-');
         id.push_str(&try_n.to_string());
     }
-    id.push_str(".pdf");
+    id.push_str(ext);
     id
 }
 
