@@ -1,14 +1,16 @@
 //! What the window does with a command (`run`, and the selection's commands
 //! in `selection`), a tap on a button that does more (`tap`) or a cut, copy
-//! or paste no text field took (`edit`, and `can_edit` to grey it), and what it
+//! or paste no text field took (`edit`, and `can_edit` to grey it), a PDF to
+//! open (`open_pdf`), and what it
 //! shows (`view`), and where its panes are: the canvas pane under a point
 //! (`pane_at`), the focused pane (`focus`) and whether a press grabs the
 //! selection (`grabs`). Split from `main.rs`, which
 //! routes the events here.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+use crate::backend::pdf::Pages;
 use crate::backend::{self, Problem, Settings};
 use crate::canvases::Canvases;
 use crate::commands::{self, Command};
@@ -116,6 +118,27 @@ pub fn open_workspace(
             None
         }
     }
+}
+
+/// Opens the PDF `file` as a canvas beside the focused pane of `shared`,
+/// its pages read by `sizes` ([`Canvases::open_pdf`]): `open-pdf`'s file,
+/// or the first PDF of files dropped on the window, which focuses the pane
+/// under `at` (a point in `area`) first. False when no file is a PDF.
+pub fn open_pdf(
+    files: &[PathBuf],
+    at: Option<Point>,
+    shared: &mut Shared,
+    canvases: &mut Canvases,
+    area: Rect,
+    sizes: Pages,
+) -> bool {
+    let pdf = |f: &&PathBuf| f.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf"));
+    let Some(file) = files.iter().find(pdf) else { return false };
+    if let Some(at) = at {
+        shared.panes.focus_at(area, at);
+    }
+    canvases.open_pdf(&shared.panes, shared.workspace.as_deref(), file.clone(), sizes);
+    true
 }
 
 /// Runs a selection command (`sling`, `dictate`: the entry; `sling-now`) when the focused pane

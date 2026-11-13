@@ -257,3 +257,39 @@ fn open_workspace_opens_a_folder_and_shows_it_and_flashes_why_it_cannot() {
         assert!(pill.is_some_and(|p| p.label.text.contains("gone")), "the flash says why");
     });
 }
+
+#[expect(clippy::unnecessary_wraps, reason = "it stands in for platform::pdf::pages")]
+fn one_page(_: &Path) -> Result<Vec<(f64, f64)>, String> {
+    Ok(vec![(612.0, 792.0)])
+}
+
+/// slinger-fd53aa: files dropped on the window open their first PDF as
+/// `open-pdf` does, beside the pane under the drop, which takes focus; a
+/// drop with no PDF is refused.
+#[test]
+fn a_pdf_dropped_on_a_pane_opens_as_a_canvas_beside_it() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        w.shared.panes.split(layout::Axis::Row);
+        let area = w.sidebar.panes(w.shared.size.rect());
+        let (left, right) = (w.shared.panes.place(area)[0].0, w.shared.panes.focus());
+        let frame = w.shared.panes.place(area)[0].2;
+        let at = Point { x: frame.x + frame.width / 2.0, y: frame.y + frame.height / 2.0 };
+        assert!(!w.send(Event::Dropped(at, vec!["notes.txt".into()])), "no PDF: refused");
+        assert_eq!(w.shared.panes.focus(), right, "and focus stays");
+
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("Paper.PDF");
+        std::fs::write(&file, b"%PDF-1.7 one page").unwrap();
+        let files = [dir.path().join("notes.txt"), file];
+        let (shared, canvases) = (&mut w.shared, &mut w.canvases);
+        assert!(window::open_pdf(&files, Some(at), shared, canvases, area, one_page));
+        assert_eq!(w.shared.panes.focus(), left, "the pane under the drop took focus");
+        wait_until(|| {
+            w.canvases.poll();
+            daemon.canvas_list().unwrap().contains(&"paper.pdf".to_string())
+        });
+    });
+}

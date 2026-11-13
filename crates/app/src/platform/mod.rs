@@ -17,7 +17,8 @@
 //! the focus border and the flash's pill. `text` sets styled text: the
 //! sidebar's rows and the panes' footers. The window
 //! resizes, down to [`layout::SMALLEST`], and says its new size; `files`
-//! sets its title bar and shows a canvas's file in the Finder; `pdf` reads
+//! sets its title bar, shows a canvas's file in the Finder and hands on files
+//! dropped on the window; `pdf` reads
 //! and draws PDFs, and asks for one to open; `window`
 //! makes it; `remember` keeps its frame, and whether the sidebar was open,
 //! for the next launch.
@@ -45,11 +46,12 @@ mod window;
 use std::cell::{Cell, RefCell};
 
 use objc2::rc::Retained;
-use objc2::runtime::{AnyObject, NSObjectProtocol};
+use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSEvent, NSEventType, NSMenuItem, NSResponder,
-    NSTextAlignment, NSView, NSWindow, NSWindowDelegate, NSWindowOrderingMode,
+    NSApplication, NSApplicationActivationPolicy, NSDragOperation, NSDraggingInfo, NSEvent,
+    NSEventType, NSMenuItem, NSResponder, NSTextAlignment, NSView, NSWindow, NSWindowDelegate,
+    NSWindowOrderingMode,
 };
 use objc2_foundation::{NSNotification, NSObject, NSRect, NSTimer};
 
@@ -118,6 +120,8 @@ pub enum Event {
     Typed(String),
     /// The window's content is this size now: draw a scene of it.
     Resized(Size),
+    /// Files dropped on the window at a point; [`Step::Pass`] refuses them.
+    Dropped(Point, Vec<std::path::PathBuf>),
     /// A menu item was chosen with the pointer: its command.
     Command(Command),
     /// Cut, copy or paste (the Edit menu or its keys) with no text field
@@ -206,6 +210,19 @@ define_class!(
     }
 
     impl KeyWindow {
+        /// Files dragged over the window would be copied, if it takes them.
+        #[unsafe(method(draggingEntered:))]
+        fn drag_over(&self, _info: &ProtocolObject<dyn NSDraggingInfo>) -> NSDragOperation {
+            NSDragOperation::Copy
+        }
+
+        /// Files dropped go to the app, which takes them or not.
+        #[unsafe(method(performDragOperation:))]
+        fn drop_files(&self, info: &ProtocolObject<dyn NSDraggingInfo>) -> bool {
+            let (at, files) = files::dropped(self, info);
+            dispatch(Event::Dropped(at, files), self.mtm())
+        }
+
         /// The timer's action.
         #[unsafe(method(tick:))]
         fn tick(&self, _timer: &NSTimer) {
@@ -343,6 +360,7 @@ pub fn run(
     // Every pen point, not one per frame: a fast stroke keeps its shape.
     NSEvent::setMouseCoalescingEnabled(false);
     let window = window::make(mtm, scene.size, kept);
+    files::take_drops(&window);
     // SAFETY: the target implements `tick:`, which takes the timer. The run
     // loop keeps the repeating timer, and the timer keeps its target.
     let _timer = unsafe {
