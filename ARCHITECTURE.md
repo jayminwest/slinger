@@ -1158,6 +1158,7 @@ Each boundary has something that fails when it is broken:
 | A turn's hooks move a session from working to done and record the file it wrote | `crates/cli/tests/hooks.rs`, with a stand-in for Claude Code and the real binary |
 | Only `platform` holds `unsafe`, objc2 or AppKit code | `check:layers` rule `platform-owns-ffi`, and `unsafe_code = "deny"` everywhere else |
 | Only `main.rs` starts the platform | `check:layers` rule `app-logic-is-pure` |
+| Only `platform/pdf.rs` reads a PDF (CoreGraphics, PDFKit or a PDF crate); the core, the daemon, control and the CLI never parse one | `check:layers` rule `pdf-lives-in-platform-pdf` |
 | A layout reads back as written; a closed pane's space goes to its sibling | the tests of `crates/core/src/workspace/panes.rs`, `crates/app/src/layout/tree.rs` and `crates/app/src/panes.rs` |
 | Panes open, close, resize and list through the socket, each change records `pane_moved`, closing a pane already gone succeeds, the layout survives a restart; the app follows another client's change | `crates/daemon/src/tests/pane.rs` through a real socket, and `crates/app/src/backend.rs` |
 | An agent opens a UI with data; each reply is recorded and reaches its running session as one JSON line, in order; a reply for a stopped session stays in the record; a refused open records nothing; replies are bounded | `crates/daemon/src/tests/showing.rs`, with a stand-in for Claude Code, and `crates/core/src/ui/showing.rs` |
