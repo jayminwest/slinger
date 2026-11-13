@@ -185,7 +185,8 @@ impl Sessions {
     /// or in the directory and within the limits of its profile `profile`,
     /// and returns its session. A running one under the same profile is
     /// left as it is, unless `fresh`: then the agent starts a new session,
-    /// its last one dropped.
+    /// its last one dropped. Its listener's claim goes, and with the sling
+    /// that listener worked on, the agent's `working`.
     ///
     /// # Errors
     ///
@@ -208,9 +209,13 @@ impl Sessions {
             return Err(slinger_core::Error::NotFound { what, hint }.into());
         }
         self.processes.start(&session.agent, profile, &session.home, &limits, fresh)?;
-        // A listener that went away without a word no longer takes its slings.
-        self.listeners.release(&session.agent)?;
-        Ok(session)
+        // A listener that went away without a word no longer takes its slings,
+        // nor works on the one it took: the `working` that set goes.
+        if !self.listeners.release(&session.agent)? {
+            return Ok(session);
+        }
+        rest(&mut self.statuses(), &session.agent);
+        self.show(store, &session.agent)
     }
 
     /// Ends the process of the agent of the workspace `which` names, if it
@@ -225,11 +230,7 @@ impl Sessions {
         let agent = self.of_workspace(store, which)?.agent;
         self.processes.stop(&agent);
         self.listeners.release(&agent)?;
-        let mut set = self.statuses();
-        if set.get(&agent).is_some_and(|r| r.status == Status::Working) {
-            set.remove(&agent);
-        }
-        drop(set);
+        rest(&mut self.statuses(), &agent);
         self.show(store, &agent)
     }
 
@@ -391,9 +392,7 @@ impl Sessions {
     fn statuses(&self) -> MutexGuard<'_, HashMap<String, Report>> {
         let mut set = self.set.lock().unwrap_or_else(PoisonError::into_inner);
         for agent in self.listeners.freed() {
-            if set.get(&agent).is_some_and(|r| r.status == Status::Working) {
-                set.remove(&agent);
-            }
+            rest(&mut set, &agent);
         }
         set
     }
@@ -432,6 +431,14 @@ impl Sessions {
         let body = Body::FileTouched(FileTouched { path: path.display().to_string(), hash });
         let tags = Tags { agent: Some(agent.into()), ..Tags::on("") };
         Ok(Some(store.append(Event::new(0, agent, tags, body))?))
+    }
+}
+
+/// Drops `agent`'s `working` from the statuses `set`, if it is: nothing
+/// works for it any more, and its session shows the status from before.
+fn rest(set: &mut HashMap<String, Report>, agent: &str) {
+    if set.get(agent).is_some_and(|r| r.status == Status::Working) {
+        set.remove(agent);
     }
 }
 

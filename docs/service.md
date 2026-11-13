@@ -663,7 +663,10 @@ answer. `context` is about how many tokens its conversation holds, from
 the usage of its last model reply (an `assistant` line that is not a
 subagent's): its input, cached or not, and its output; absent until it
 replied, and under `listen`, whose session the daemon does not see.
-`session_id` names its conversation.
+`session_id` names its conversation: its process's; after a stop, the one
+its last process had, under its profile if it ran under one; after a
+restart, the one kept under no profile, else one of its profiles'. It is
+absent while slingerd keeps none, as for an agent it never ran.
 
 **Limits.** A session has stated limits, set by its workspace's file
 (`[agent]` in docs/workspace.md). By default it:
@@ -841,6 +844,8 @@ worked on). So `deliver` names what takes the next sling: while the
 process runs and nobody listens it is `process`, with the process's
 `pending`, though slings still wait for a listener. `session_start` and `session_stop`
 forget who listened; the slings that wait stay for the next to listen. The
+sling the listener worked on is dealt with, and the agent's `working` from
+it goes: its status is the one from before. The
 record keeps each sling from the time it waits until its listener deals with
 it, so a daemon that stops loses none: after a restart every sling not dealt
 with waits, oldest first, the one a listener worked on too (the stop ended

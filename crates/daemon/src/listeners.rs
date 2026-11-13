@@ -141,17 +141,19 @@ impl Listeners {
         (shown.attached || shown.pending > 0).then_some(shown)
     }
 
-    /// Forgets who listened for `agent`; the slings that wait stay.
+    /// Forgets who listened for `agent`, and whether it worked on a sling:
+    /// the sling it worked on is dealt with; the slings that wait stay.
     ///
     /// # Errors
     ///
     /// The record's error when the sling it worked on cannot be forgotten.
-    pub fn release(&self, agent: &str) -> Result<()> {
-        if let Some(listener) = self.lock().get_mut(agent) {
-            self.end_work(listener)?;
-            listener.release();
-        }
-        Ok(())
+    pub fn release(&self, agent: &str) -> Result<bool> {
+        let mut all = self.lock();
+        let Some(listener) = all.get_mut(agent) else { return Ok(false) };
+        let worked = listener.working().is_some();
+        self.end_work(listener)?;
+        listener.release();
+        Ok(worked)
     }
 
     /// The agents whose listener was found gone since the last call: each

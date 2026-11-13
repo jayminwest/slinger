@@ -287,8 +287,9 @@ sessions.rs  the statuses agents set since the daemon started (`working`
              `touched` reads and hashes a file an agent wrote and appends
              `file_touched` (path and hash, never the bytes).
              `listen` takes the agent's next sling for a listener and sets
-             `working`; start and stop release a listener's claim. A stop
-             drops the agent's `working`: nothing it stopped says `done`.
+             `working`; start and stop release a listener's claim. A stop,
+             or a start that released a claim, drops the agent's `working`:
+             nothing it ended says `done`.
              `route` picks a sling's way (D10): a listener that is there,
              else the process, started first when none runs; a spawn that
              fails leaves a sling with no profile waiting for a listener.
@@ -318,6 +319,9 @@ processes.rs the agents' processes, one per agent: spawned in the agent's
              messages its turn took in, so one still unanswered 2 s after a
              result with no output since was taken into that turn. The
              reader keeps the context of the last model reply (`context`).
+             `processes/ids.rs` is the file of ids. A session's id is its
+             process's, else its last process's key (kept after a stop),
+             else the agent's own, else one of its profiles'.
 feedback.rs  the feedback file (`--feedback`, default `feedback.jsonl` in
              the checkout it was built from, else the data directory): one
              lock, each note and resolution appended as one line, the
@@ -1255,7 +1259,7 @@ Each boundary has something that fails when it is broken:
 | A session starts with the exact limits its workspace sets: by default its roots, every built-in tool and its MCP servers, the `slinger` CLI and the rules that write files, use the web and skills without asking, and the owner's user config; a profile has only the tools its rules name; wider with the agent's `dirs` and `tools`, narrower with `user_config = false` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
 | A profile is set, listed and removed in the workspace's file, and a bad name, rule or dir is refused loudly with nothing written; a session under one runs in its dir with its rules in place of the agent's and resumes its own conversation; a sling that names one reaches only a process under it | `crates/core/src/workspace/profile.rs`, `crates/core/src/session/stream.rs`, `crates/daemon/src/tests/profile.rs` with a stand-in for Claude Code, `crates/cli/src/tests/profile.rs` |
 | Three slings go into one conversation, each with its packet blob and `sling_sent`; old ink is not sent again; a sling that cannot go stores nothing; each verb the note names is served | `crates/daemon/src/tests/sling.rs`, with a stand-in for Claude Code |
-| A sling with no process waits for a listener, who takes it as text with its images as files and whose put answers it; a listener outranks a running process and a sling that names a profile goes only to a process; a listener that is gone (its reply unread, or the process it named ended mid-sling) loses no sling, `done` ends its work, a stop ends its `working`, and a daemon stop ends an open ask | `crates/core/src/session/listen.rs`, `crates/daemon/src/tests/listen.rs` through a real socket, `crates/cli/src/tests/sling.rs` |
+| A sling with no process waits for a listener, who takes it as text with its images as files and whose put answers it; a listener outranks a running process and a sling that names a profile goes only to a process; a listener that is gone (its reply unread, or the process it named ended mid-sling) loses no sling, `done` ends its work, a stop or a start ends its `working`, and a daemon stop ends an open ask | `crates/core/src/session/listen.rs`, `crates/daemon/src/tests/listen.rs` through a real socket, `crates/cli/src/tests/sling.rs` |
 | An agent verb takes its agent from `--agent` or `SLINGER_AGENT`, else exits 2 | `crates/cli/tests/agent_env.rs`, against the real binary |
 | The hooks: each event runs its CLI command and none exits 2; `file_touched` stores a path and a hash, no contents | `crates/core/src/session/hooks.rs`, and `crates/daemon/src/tests/touched.rs` through a real socket |
 | A turn's hooks move a session from working to done and record the file it wrote | `crates/cli/tests/hooks.rs`, with a stand-in for Claude Code and the real binary |
