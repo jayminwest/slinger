@@ -102,10 +102,11 @@ impl Command {
             Command::ToggleGrid => "Dotted grid",
             Command::Save => "Save",
             Command::ShowCanvasFile => "Show canvas file in Finder",
-            Command::OpenPdf => "Open PDF…",
+            Command::OpenPdf => "Open PDF or tldraw…",
             Command::CropPdf => "Crop PDF",
             Command::OpenWorkspace => "Open workspace…",
             Command::CloseWorkspace => "Close workspace",
+            Command::ShowWorkspaceFolder => "Show workspace folder in Finder",
             Command::StartAgent => "Start agent",
             Command::StopAgent => "Stop agent",
             Command::RestartAgent => "Restart agent in a new conversation",
@@ -148,7 +149,10 @@ impl Command {
             | Command::ToggleGrid
             | Command::Save
             | Command::ShowCanvasFile => Group::Canvas,
-            Command::OpenPdf | Command::OpenWorkspace | Command::CloseWorkspace => Group::File,
+            Command::OpenPdf
+            | Command::OpenWorkspace
+            | Command::CloseWorkspace
+            | Command::ShowWorkspaceFolder => Group::File,
             Command::NextPage
             | Command::PreviousPage
             | Command::NewPage

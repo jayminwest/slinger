@@ -219,7 +219,9 @@
 # Show the focused pane's canvas file in the Finder.
 #show-canvas-file = "cmd+alt+r"
 # Open a PDF as a new canvas, its pages one under the next, in a pane beside the focused
-# one. Write on it with any tool.
+# one. Write on it with any tool. A tldraw file (.tldraw, .tldr) is imported as a canvas
+# named after it, its pages and items as `slinger canvas import` makes them, in a pane
+# there. Dropping either on the window does the same.
 #open-pdf = "cmd+o"
 # Open a folder as a workspace (the panel can make a new folder) and show it in the
 # window. The "+" at the foot of the open sidebar does the same.
@@ -228,6 +230,8 @@
 # its agent stay; open its folder again to bring it back. A workspace whose file is broken
 # shows "Close workspace" under why in the sidebar while the window shows it.
 #close-workspace = "cmd+alt+w"
+# Show the folder of the workspace the window shows in the Finder.
+#show-workspace-folder = "cmd+alt+shift+r"
 # Start the agent of the workspace the window shows, with its own limits, in its last
 # conversation (one that runs stays as it is); a flash names it, or says why not. While its
 # agent is not running, the sidebar shows "Start agent" under it: a tap does the same.

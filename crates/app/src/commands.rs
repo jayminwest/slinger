@@ -106,7 +106,8 @@ pub enum Command {
     /// Show the focused pane's canvas file in the Finder.
     ShowCanvasFile,
     /// Open a PDF as a new canvas, one page under the next, in a pane
-    /// beside the focused one (docs/design/pdf.md).
+    /// beside the focused one (docs/design/pdf.md); or a tldraw file,
+    /// imported as a canvas (`canvas_import`), in a pane there.
     OpenPdf,
     /// Make the pen crop a PDF: a box dragged on a `pdf` item puts that
     /// part of its page on the clipboard (docs/design/pdf.md).
@@ -117,6 +118,8 @@ pub enum Command {
     /// Close the workspace the window shows (its file, canvas and agent
     /// stay), and show the first left.
     CloseWorkspace,
+    /// Show the folder of the workspace the window shows in the Finder.
+    ShowWorkspaceFolder,
     /// Start the agent of the workspace the window shows, with its own
     /// limits, in its last conversation; one that runs stays as it is.
     StartAgent,
@@ -134,7 +137,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 59] = [
+    pub const ALL: [(Command, &str); 60] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -191,6 +194,7 @@ impl Command {
         (Command::CropPdf, "crop-pdf"),
         (Command::OpenWorkspace, "open-workspace"),
         (Command::CloseWorkspace, "close-workspace"),
+        (Command::ShowWorkspaceFolder, "show-workspace-folder"),
         (Command::StartAgent, "start-agent"),
         (Command::StopAgent, "stop-agent"),
         (Command::RestartAgent, "restart-agent"),
@@ -369,6 +373,7 @@ impl Default for Keymap {
             on(CMD, '8'),
             on(CMD | SHIFT, 'o'),
             on(CMD | ALT, 'w'),
+            on(CMD | ALT | SHIFT, 'r'),
             on(CMD | ALT, 'a'),
             on(CMD | ALT, '.'),
             on(CMD | ALT | SHIFT, 'a'),

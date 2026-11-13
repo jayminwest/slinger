@@ -154,10 +154,31 @@ pub fn agent(command: Command, socket: &Path, sidebar: &Sidebar, tools: &mut Too
     tools.flash().say(said, Instant::now());
 }
 
-/// Opens the PDF `file` as a canvas beside the focused pane of `shared`,
-/// its pages read by `sizes` ([`Canvases::open_pdf`]): `open-pdf`'s file,
-/// or the first PDF of files dropped on the window, which focuses the pane
-/// under `at` (a point in `area`) first. False when no file is a PDF.
+/// What `show-canvas-file` or `show-workspace-folder` (`command`) shows in
+/// the Finder: the focused pane's canvas file, or the folder of the
+/// workspace `sidebar` shows; else what the flash says.
+pub fn finder(
+    command: Command,
+    shared: &Shared,
+    canvases: &Canvases,
+    sidebar: &Sidebar,
+) -> Result<String, String> {
+    if command == Command::ShowWorkspaceFolder {
+        let dir = sidebar.shown_dir().ok_or("No workspace is open")?;
+        return Ok(dir.to_string_lossy().into_owned());
+    }
+    match canvases.file(&shared.panes, shared.panes.focus()) {
+        None => Err(title::NO_CANVAS.to_string()),
+        Some((canvas, None)) => Err(format!("slingerd has not said where {canvas} is saved")),
+        Some((_, Some(file))) => Ok(file.to_string()),
+    }
+}
+
+/// Opens the PDF or tldraw `file` as a canvas beside the focused pane of
+/// `shared`, a PDF's pages read by `sizes` ([`Canvases::open_pdf`]):
+/// `open-pdf`'s file, or the first PDF or tldraw file of files dropped on
+/// the window, which focuses the pane under `at` (a point in `area`)
+/// first. False when no file is either.
 pub fn open_pdf(
     files: &[PathBuf],
     at: Option<Point>,
@@ -166,7 +187,9 @@ pub fn open_pdf(
     area: Rect,
     sizes: Pages,
 ) -> bool {
-    let pdf = |f: &&PathBuf| f.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf"));
+    let pdf = |f: &&PathBuf| {
+        f.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf")) || backend::pdf::is_tldraw(f)
+    };
     let Some(file) = files.iter().find(pdf) else { return false };
     if let Some(at) = at {
         shared.panes.focus_at(area, at);

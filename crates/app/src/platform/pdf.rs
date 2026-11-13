@@ -268,16 +268,16 @@ fn shown_box(map: [f64; 6], r: CGRect) -> [f64; 4] {
     [lo(xs), lo(ys), hi(xs), hi(ys)]
 }
 
-/// Asks for one PDF to open, in the open panel; `None` when none was
-/// chosen, or off the main thread.
+/// Asks for one PDF or tldraw file to open, in the open panel; `None` when
+/// none was chosen, or off the main thread.
 pub fn choose() -> Option<PathBuf> {
     let mtm = MainThreadMarker::new()?;
     let panel = NSOpenPanel::openPanel(mtm);
     panel.setCanChooseFiles(true);
     panel.setCanChooseDirectories(false);
     panel.setAllowsMultipleSelection(false);
-    let pdf = NSString::from_str("pdf");
-    allow(&panel, &NSArray::from_slice(&[&*pdf]));
+    let types = ["pdf", "tldraw", "tldr"].map(NSString::from_str);
+    allow(&panel, &NSArray::from_retained_slice(&types));
     if panel.runModal() != NSModalResponseOK {
         return None;
     }

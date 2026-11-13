@@ -41,7 +41,7 @@ pub fn route(
         Event::Press(pen) => window::press(shared, sidebar, canvases, tools, pen),
         _ => false,
     };
-    let asked = asked(&event, shared, canvases, tools, settings, area);
+    let asked = asked(&event, shared, canvases, tools, settings, sidebar);
     let step = match (asked, event) {
         (Ask::Draw(clip), _) => {
             let scene = view(settings, shared, tools, sidebar, canvases);

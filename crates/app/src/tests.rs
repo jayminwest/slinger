@@ -250,6 +250,12 @@ fn open_workspace_opens_a_folder_and_shows_it_and_flashes_why_it_cannot() {
         let rows = sidebar.rows(&settings.config.theme, layout::WINDOW.rect());
         let bold: Vec<_> = rows.iter().filter(|r| r.font.bold).map(|r| &r.label.text).collect();
         assert_eq!(bold, ["ideas"], "the window shows it, not the first");
+        let (shared, canvases) = (Shared::default(), Canvases::new(daemon.clone()));
+        let folder = Command::ShowWorkspaceFolder;
+        let found = window::finder(folder, &shared, &canvases, &sidebar).unwrap();
+        assert_eq!(Path::new(&found).canonicalize().unwrap(), dir.canonicalize().unwrap());
+        let none = window::finder(folder, &shared, &canvases, &Sidebar::new(true)).unwrap_err();
+        assert_eq!(none, "No workspace is open", "the flash says so");
         let gone = home.path().join("gone");
         assert_eq!(window::open_workspace(&gone, socket, &mut sidebar, &mut tools), None);
         let pill =

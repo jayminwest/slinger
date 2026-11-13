@@ -366,7 +366,10 @@ window.rs    runs a command on the focused pane, does a tap on a button that
              shown one's agent for `start-agent`, `stop-agent` and
              `restart-agent` (`agent`: session_start, session_stop or
              session_start `fresh` by its folder, backend/agents.rs) and
-             flashes its name or why not, builds the window's scene (`view`: the footers,
+             flashes its name or why not, finds what `show-canvas-file` and
+             `show-workspace-folder` show in the Finder (`finder`: the
+             canvas file, or the shown workspace's folder from the
+             sidebar; main reveals it), builds the window's scene (`view`: the footers,
              the sidebar's foot, the lit button, the tap targets), and
              finds the canvas pane under a point and the focused pane's
              frame. A cut, copy or paste no text field took (`edit`), and
@@ -437,7 +440,9 @@ backend/pdf.rs  PDFs (docs/design/pdf.md): `fetch` gets a pdf item's blob
              on a taken id) with a file of operations: one whole-page item a
              page stacked down its first page (scene/pdf.rs), so the canvas
              is made whole or not at all; then `pane_open` beside the
-             focused pane. A file that cannot be read makes nothing.
+             focused pane. A file that cannot be read makes nothing. A
+             tldraw file (`is_tldraw`, by its extension) is made a canvas
+             by `canvas_import_id` instead, then the same `pane_open`.
 mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              feed reply applied in order; reads the canvas file's items
              (tenths, delta points, `#rrggbb`, an arrow's bound ends) into
@@ -476,7 +481,8 @@ canvases/live.rs  the live items' pages: each showing a pane draws fetched
              selection, or the item is under 48 points wide on the screen.
              A view kept off the screen (scene/live/away.rs) due to close
              draws the window again.
-canvases/pdf.rs  the `open-pdf` command (cmd+o: the open panel, then
+canvases/pdf.rs  the `open-pdf` command (cmd+o: the open panel, a PDF or
+             a tldraw file, then
              backend/pdf.rs's `open` on a thread, one at a time; a failure
              is a problem until the next open) and each pdf item's file:
              asked for once per hash on a thread as a pane first shows it,
@@ -684,9 +690,9 @@ scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
              pending is working though no hook said so (`Status::of`). `agents`: each
              workspace's agent. `close`: takes the shown workspace out of
              the list for `close-workspace`; `shown_dir`: its folder, which
-             the agent commands go to. Under the shown workspace's agent
-             that does not run, "Start agent" (a tap runs `start-agent`).
-             Pure.
+             the agent commands and `show-workspace-folder` go to. Under the
+             shown workspace's agent that does not run, "Start agent" (a tap
+             runs `start-agent`). Pure.
 scene/sidebar/agent.rs  an agent as the sidebar shows it: its `Status`,
              read against its `Process` (`Status::of`), and its profiles.
              Pure.
@@ -964,7 +970,8 @@ platform/remember.rs  what the window keeps in the user defaults from one
              never put on a screen.
 platform/files.rs  sets the title bar a scene's Title says (title, subtitle,
              represented file), shows a file in the Finder
-             (`show-canvas-file`, from main), and asks for a folder for
+             (`show-canvas-file` and `show-workspace-folder`, from main),
+             and asks for a folder for
              `open-workspace` (the open panel, which can make one).
 platform/menu.rs  makes the menu bar a scene's menus say, again when they
              change. A command item chosen by its key goes to main as that
@@ -1011,7 +1018,8 @@ platform/web.rs  agent UIs in WKWebViews: the scheme handler, navigation and
 platform/pdf.rs  every CoreGraphics PDF call: a PDF's page sizes as displayed
              (crop box, `/Rotate` applied; on any thread), a pdf item's part
              of its page drawn stretched into its frame on white (each
-             document opened once), and the open panel for `open-pdf`.
+             document opened once), and the open panel for `open-pdf`
+             (a `.pdf`, `.tldraw` or `.tldr` file).
              backdrop: one sling area as raw RGB at the packet's scale, and
              the page's words there (PDFKit) in canvas tenths.
 ```

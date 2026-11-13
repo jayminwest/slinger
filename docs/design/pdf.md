@@ -195,7 +195,10 @@ with a backdrop in an image draws the backdrop and no label there.
 A command `open-pdf` ("Open PDF…", group File) in the command registry (D21),
 so the key overlay, the palette and the menu bar show it. It:
 
-1. shows the open panel for one `.pdf` file (`platform`, main thread);
+1. shows the open panel for one `.pdf` file (`platform`, main thread); the
+   panel also takes a `.tldraw` or `.tldr` file, which the backend thread
+   makes a canvas with `canvas_import` instead of the steps below, then opens
+   the same pane (slinger-99061d);
 2. on a backend thread: `pages(path)`; `blob_put(path)`; `canvas_create` with
    the canvas id below and `path`: a file of the `add`s on `p1`, in page order
    (a request line holds 65536 bytes, a long PDF's `add`s more), so the canvas

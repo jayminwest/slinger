@@ -248,6 +248,7 @@ impl Panes {
             | Command::OpenPdf
             | Command::OpenWorkspace
             | Command::CloseWorkspace
+            | Command::ShowWorkspaceFolder
             | Command::StartAgent
             | Command::StopAgent
             | Command::RestartAgent => {}
