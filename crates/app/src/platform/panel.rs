@@ -13,8 +13,11 @@
 //! app's bundle (`Info.plist` says why it asks). A bare `slinger-app` run
 //! from a shell has no bundle, so macOS asks on behalf of what started it
 //! (a terminal, or `sshd` for a run over ssh), which may never be allowed in.
+//! The first panel cancelled in such a run flashes so (slinger-a25c27).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
 
 use objc2::rc::Retained;
 use objc2::runtime::Sel;
@@ -23,6 +26,8 @@ use objc2_app_kit::{
     NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem, NSModalResponseOK, NSOpenPanel,
 };
 use objc2_foundation::{NSArray, NSString};
+
+use crate::scene::flash::Flash;
 
 /// What the open panel asks for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -50,8 +55,36 @@ impl Pick {
 const DOCUMENTS: [&str; 3] = ["pdf", "tldraw", "tldr"];
 
 /// Asks for what `pick` says in the open panel. `None` when the panel is
-/// cancelled, or off the main thread.
-pub fn choose(pick: Pick) -> Option<PathBuf> {
+/// cancelled, or off the main thread; the first cancel in a run outside
+/// the bundle says on `flash` why the guarded folders may not have shown.
+pub fn choose(pick: Pick, flash: &Flash) -> Option<PathBuf> {
+    let chosen = run(pick);
+    let exe = std::env::current_exe().ok();
+    let hint = exe.filter(|_| chosen.is_none()).and_then(|exe| unbundled(&exe));
+    if let Some(hint) = hint.filter(|_| !HINTED.swap(true, Ordering::Relaxed)) {
+        flash.say(hint.to_string(), Instant::now());
+    }
+    chosen
+}
+
+/// Whether a cancel has flashed [`UNBUNDLED`] in this run: it says so once.
+static HINTED: AtomicBool = AtomicBool::new(false);
+
+/// What a cancelled panel flashes in a run outside the bundle.
+const UNBUNDLED: &str = "Run slinger.app to reach Downloads, Desktop and Documents";
+
+/// [`UNBUNDLED`] when `exe`, the app's executable, is not the one in a
+/// bundle (`slinger.app/Contents/MacOS/slinger-app`, scripts/bundle.sh):
+/// macOS then asks for the guarded folders for whatever started it.
+fn unbundled(exe: &Path) -> Option<&'static str> {
+    let inside = exe.parent().is_some_and(|dir| dir.ends_with("Contents/MacOS"));
+    let bundle = exe.ancestors().nth(3).filter(|_| inside);
+    let bundled = bundle.is_some_and(|b| b.extension().is_some_and(|e| e == "app"));
+    (!bundled).then_some(UNBUNDLED)
+}
+
+/// Runs the panel for `pick`: what it chose, if anything.
+fn run(pick: Pick) -> Option<PathBuf> {
     let mtm = MainThreadMarker::new()?;
     let panel = NSOpenPanel::openPanel(mtm);
     let (message, prompt) = pick.words();
@@ -137,6 +170,21 @@ mod tests {
         assert_eq!(messages.iter().collect::<std::collections::HashSet<_>>().len(), 3);
         assert_eq!(Pick::ExportTo.words().1, "Export");
         assert!(Pick::Document.words().0.contains("PDF"));
+    }
+
+    #[test]
+    fn only_a_run_outside_the_bundle_hints_why_the_folders_may_not_show() {
+        let bundled = Path::new("/Applications/slinger.app/Contents/MacOS/slinger-app");
+        assert_eq!(unbundled(bundled), None);
+        for bare in [
+            "/repo/target/debug/slinger-app",
+            "/repo/target/release/slinger-app",
+            "/x/Contents/MacOS/slinger-app",
+            "/x/slinger.app/slinger-app",
+            "slinger-app",
+        ] {
+            assert_eq!(unbundled(Path::new(bare)), Some(UNBUNDLED), "{bare}");
+        }
     }
 
     #[test]

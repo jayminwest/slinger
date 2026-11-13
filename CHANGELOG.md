@@ -11,6 +11,10 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** run outside its `.app` (a bare `slinger-app` from a shell), the
+  app says once, when you cancel a file panel, to run slinger.app to reach
+  Downloads, Desktop and Documents: macOS lets the panel show those folders
+  only to the bundle.
 - **App:** save an agent UI to a file. Export agent UI… (`export-ui`, File
   menu and the command palette; no default key) writes the version the
   focused pane shows to a folder you pick, as `<name>.v<version>.html`
