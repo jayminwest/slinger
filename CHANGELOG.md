@@ -19,6 +19,9 @@ bullet with the area in bold.
 - **Service:** `canvas_create` takes an optional `path`: a file of canvas
   operations the new canvas starts with. The canvas is made with all of them
   or not at all.
+- **CLI:** `slinger canvas create <ID> --ops FILE` makes a canvas that
+  starts with the operations in the file (a JSON list, as `canvas apply`
+  takes), all of them or no canvas at all.
 
 - **App:** recolour what you selected. Picking a colour from the colour
   pop-up with a selection makes its strokes, texts, boxes and arrows that

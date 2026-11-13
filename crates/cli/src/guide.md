@@ -104,6 +104,14 @@ slinger canvas apply <CANVAS> '[{"op":"add","item":{"page":"p1","kind":"box","x"
 slinger canvas undo <CANVAS> --agent claude
 ```
 
+Make a whole new canvas in one step from a file of the same operations; it
+is made whole or not at all. Its items are the user's, so you cannot edit or
+remove them after:
+
+```bash
+slinger canvas create <CANVAS> --ops ./ops.json
+```
+
 Show the user a UI in place of a long answer. A UI is one HTML file with
 everything in it:
 

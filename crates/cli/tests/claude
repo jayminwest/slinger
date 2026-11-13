@@ -1,0 +1,26 @@
+#!/bin/sh
+# A stand-in for Claude Code's turn, as far as its hooks go, for tests/hooks.rs.
+# It reads each hook's command from --settings by its event, and runs it with
+# sh -c, its payload on stdin. Per message: UserPromptSubmit; then, once the
+# test creates `go` in its home, a write of out.txt and its PostToolUse; the
+# answer; and Stop.
+settings=
+while [ $# -gt 0 ]; do
+  case "$1" in --settings) settings="$2"; shift ;; esac
+  shift
+done
+hook() {
+  printf '%s' "$settings" |
+    sed -n "s/.*\"$1\":\[{\"hooks\":\[{\"command\":\"\([^\"]*\)\".*/\1/p"
+}
+while IFS= read -r line; do
+  printf '{"hook_event_name":"UserPromptSubmit","cwd":"%s","prompt":"hi"}' "$PWD" |
+    sh -c "$(hook UserPromptSubmit)"
+  while [ ! -f go ]; do sleep 0.02; done
+  rm go
+  printf 'written by the agent' > out.txt
+  printf '{"hook_event_name":"PostToolUse","cwd":"%s","tool_name":"Write","tool_input":{"file_path":"out.txt","content":"x"}}' "$PWD" |
+    sh -c "$(hook PostToolUse)"
+  printf '{"type":"result","subtype":"success","session_id":"s","result":"ok"}\n'
+  printf '{"hook_event_name":"Stop","cwd":"%s"}' "$PWD" | sh -c "$(hook Stop)"
+done

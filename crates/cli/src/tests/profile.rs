@@ -6,7 +6,7 @@ use crate::output::exit;
 
 #[test]
 fn profiles_are_set_listed_and_removed_and_a_session_starts_under_one() {
-    let (projects, bin) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let projects = tempfile::tempdir().unwrap();
     let dir = projects.path().join("notes");
     std::fs::create_dir(&dir).unwrap();
     let dir = dir.canonicalize().unwrap();
@@ -14,12 +14,8 @@ fn profiles_are_set_listed_and_removed_and_a_session_starts_under_one() {
     std::fs::create_dir(&src).unwrap();
     let file = "version = 1\nname = \"notes\"\n[agent]\nname = \"scout\"\n";
     std::fs::write(dir.join("slinger-workspace.toml"), file).unwrap();
-    // A stand-in for Claude Code: it keeps every line it is sent, where it runs.
-    let claude = bin.path().join("claude");
-    std::fs::write(&claude, "#!/bin/sh\nexec cat >> in.txt\n").unwrap();
-    std::fs::set_permissions(&claude, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
     let (path, src_path) = (dir.to_str().unwrap(), src.to_str().unwrap());
-    let runs = with_daemon_running(&claude, |socket| {
+    let runs = with_daemon_running(|socket| {
         let run = |args: &[&str]| cli_on(socket, args);
         vec![
             run(&["workspace", "open", path]),

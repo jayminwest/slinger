@@ -3,39 +3,18 @@
 //! stand-in runs them as Claude Code would, and they run the real `slinger`
 //! binary, which finds the agent and the socket in the process's environment.
 
-use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use slinger_control::{Client, EventFilter};
 
-/// Claude Code's turn, as far as its hooks go. It reads each hook's command
-/// from `--settings` by its event, and runs it with `sh -c`, its payload on
-/// stdin. Per message: `UserPromptSubmit`; then, once the test creates `go`
-/// in its home, a write of `out.txt` and its `PostToolUse`; the answer; and
-/// `Stop`.
-const FAKE_CLAUDE: &str = r#"#!/bin/sh
-settings=
-while [ $# -gt 0 ]; do
-  case "$1" in --settings) settings="$2"; shift ;; esac
-  shift
-done
-hook() {
-  printf '%s' "$settings" |
-    sed -n "s/.*\"$1\":\[{\"hooks\":\[{\"command\":\"\([^\"]*\)\".*/\1/p"
+/// The stand-in for Claude Code (`tests/claude`, which says what it does).
+/// One file kept in the tree, not one written per run: macOS checks a new
+/// executable on its first exec, one at a time across the machine, so under
+/// load a fresh one starts late (slinger-6d54ed).
+fn fake_claude() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/claude")
 }
-while IFS= read -r line; do
-  printf '{"hook_event_name":"UserPromptSubmit","cwd":"%s","prompt":"hi"}' "$PWD" |
-    sh -c "$(hook UserPromptSubmit)"
-  while [ ! -f go ]; do sleep 0.02; done
-  rm go
-  printf 'written by the agent' > out.txt
-  printf '{"hook_event_name":"PostToolUse","cwd":"%s","tool_name":"Write","tool_input":{"file_path":"out.txt","content":"x"}}' "$PWD" |
-    sh -c "$(hook PostToolUse)"
-  printf '{"type":"result","subtype":"success","session_id":"s","result":"ok"}\n'
-  printf '{"hook_event_name":"Stop","cwd":"%s"}' "$PWD" | sh -c "$(hook Stop)"
-done
-"#;
 
 /// Waits until `met` holds, or fails after 10 s.
 fn until(mut met: impl FnMut() -> bool) {
@@ -52,12 +31,9 @@ fn a_turn_moves_the_status_from_working_to_done_and_records_the_file_it_wrote() 
     // The socket in a directory of its own, removed on drop.
     let sockets = tempfile::tempdir().unwrap();
     let socket = sockets.path().join("d.sock");
-    let claude = work.path().join("claude");
-    std::fs::write(&claude, FAKE_CLAUDE).unwrap();
-    std::fs::set_permissions(&claude, std::fs::Permissions::from_mode(0o755)).unwrap();
     let store = slingerd::Store::open(data.path(), "my-laptop")
         .unwrap()
-        .with_claude(&claude)
+        .with_claude(fake_claude())
         .with_slinger(env!("CARGO_BIN_EXE_slinger"));
     let server = slingerd::Server::bind(&socket).unwrap();
     let stopper = server.stopper();
