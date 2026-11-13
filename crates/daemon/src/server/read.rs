@@ -7,8 +7,9 @@ use std::path::Path;
 use slinger_control::{CanvasPacket, PacketAsk, PacketImage, RemoteError, Reply};
 use slinger_core::packet::Packet;
 use slinger_core::record::{BlobId, Body};
+use slinger_core::session::listen::Heard;
 
-use super::{absolute, drawn, stored, unusable};
+use super::{absolute, drawn, missing, remote, stored, unusable};
 use crate::store::{Query, Store};
 
 /// The name of the packet's text in its directory.
@@ -44,9 +45,46 @@ pub(super) fn packet(store: &Store, ask: PacketAsk) -> Result<Reply, RemoteError
 
 /// Writes the text and the images into `dir`, creating it.
 pub(super) fn write(dir: &Path, packet: &Packet, text: &str) -> Result<(), RemoteError> {
-    fs::create_dir_all(dir).map_err(|e| unusable(dir, &e))?;
     let files = packet.images.iter().map(|i| (i.name.as_str(), i.png.as_slice()));
-    for (name, bytes) in files.chain([(TEXT_FILE, text.as_bytes())]) {
+    put(dir, files.chain([(TEXT_FILE, text.as_bytes())]))
+}
+
+/// Writes the packet of a listener's sling into its directory again from
+/// the record, when a file of it is not there (the directory was deleted,
+/// say while the daemon was down): the text, with `at`, and each image, as
+/// `sling_sent` stored them. A packet whose files are all there is left as
+/// it is.
+pub(super) fn restore(store: &Store, sling: &Heard) -> Result<(), RemoteError> {
+    let query = Query { from: Some(sling.event), to: Some(sling.event), ..Query::default() };
+    let events = store.events(&query).map_err(|e| stored(&e))?;
+    let Some(Body::SlingSent(sent)) = events.into_iter().next().map(|e| e.body) else {
+        let what = format!("the record has no sling_sent {}", sling.event);
+        return Err(RemoteError::new("internal", what, None));
+    };
+    let names = sent.images.iter().map(|i| i.name.as_str()).chain([TEXT_FILE]);
+    if names.into_iter().all(|name| sling.dir.join(name).is_file()) {
+        return Ok(());
+    }
+    let blob = |id: BlobId| store.blob(id).map_err(|e| stored(&e))?.ok_or_else(|| missing(id));
+    let text = String::from_utf8_lossy(&blob(sent.packet)?).into_owned();
+    let mut packet = Packet::read(&text).map_err(|e| remote(&e))?;
+    packet.header.at = Some(sling.dir.to_string_lossy().into_owned());
+    let mut images = Vec::with_capacity(sent.images.len());
+    for image in &sent.images {
+        images.push((image.name.as_str(), blob(image.hash)?));
+    }
+    let text = packet.text();
+    let files = images.iter().map(|(name, png)| (*name, png.as_slice()));
+    put(&sling.dir, files.chain([(TEXT_FILE, text.as_bytes())]))
+}
+
+/// Writes each named file into `dir`, creating it.
+fn put<'a>(
+    dir: &Path,
+    files: impl Iterator<Item = (&'a str, &'a [u8])>,
+) -> Result<(), RemoteError> {
+    fs::create_dir_all(dir).map_err(|e| unusable(dir, &e))?;
+    for (name, bytes) in files {
         let path = dir.join(name);
         fs::write(&path, bytes).map_err(|e| unusable(&path, &e))?;
     }

@@ -273,7 +273,8 @@ No UI reference holds a `#`, so a pane's target is either.
 
 **`ui_open`** resolves `ui` to one version, checks the agent (not blank),
 the host (`pane` or `canvas`), the data (at most 16384 bytes as JSON) and
-the workspace's window (`beside` there, room for a pane), then appends a
+the workspace's window (`beside` there, room for a pane; an empty
+`workspace` is `invalid`, with a hint), then appends a
 `ui_opened` event tagged with the agent and the workspace and opens a pane
 whose target is the showing's id, as `pane_open` does. With `host`
 `canvas` it checks the put instead (`item` on the canvas, a size above 0),
@@ -826,6 +827,9 @@ record keeps each sling from the time it waits until its listener deals with
 it, so a daemon that stops loses none: after a restart every sling not dealt
 with waits, oldest first, the one a listener worked on too (the stop ended
 its claim, as a `pid` that ends does), and nobody listens until one asks.
+A sling handed out whose packet directory lacks a file (deleted while the
+daemon was down, say) has its text and images written there again from the
+record first.
 A stopping daemon ends every open request with no
 sling. A workspace that is not open is `not_found`, one with no agent
 `invalid`.

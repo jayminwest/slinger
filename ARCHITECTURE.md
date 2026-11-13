@@ -271,7 +271,9 @@ server/read.rs  `canvas_read`: the marker is the `to` of the packet the
              canvas's last `sling_sent` names (0 before one), so it lives in
              the record and survives a restart. Stores the text (no `at`)
              and each image as blobs, then writes them into `--out` or the
-             store's `packets/<hex>/`.
+             store's `packets/<hex>/`. `restore` writes a listener's sling's
+             packet there again from its `sling_sent` blobs when a file is
+             missing; `session_listen` calls it on each sling it hands out.
 sessions.rs  the statuses agents set since the daemon started (`working`
              lives only here); else each agent's last status event in the
              record. `status_set` appends its event inside the same lock.

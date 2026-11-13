@@ -333,6 +333,12 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Service:** a sling that waited for a listener across a restart still
+  has its images: if its packet directory was deleted while the daemon was
+  down, `session_listen` writes the text and images there again from the
+  record before handing it out.
+- **Service:** `ui_open` with an empty `workspace` for a pane is `invalid`,
+  with a hint to name one. Before, it was `workspace "" not found`.
 - **App:** the sling's pill ("● scout working · 4s · ~12k") follows the
   agent's session: once the agent replies, the count is how many tokens its
   conversation holds, and it updates as the agent works. Before, it stayed

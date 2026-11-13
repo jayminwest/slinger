@@ -33,6 +33,10 @@ fn open(store: &Store, mut ask: UiOpen) -> Result<Reply, RemoteError> {
     if ask.host == "canvas" {
         return live(store, &ask, &version, body);
     }
+    if ask.workspace.is_empty() {
+        let hint = "name the workspace whose window shows it: --workspace W";
+        return Err(RemoteError::new("invalid", "a pane needs a workspace", Some(hint.into())));
+    }
     let (opened, mut layout, ()) =
         store.workspaces().panes(&ask.workspace, |_| Ok(())).map_err(|e| kept(&e))?;
     let axis = if ask.below { Axis::Column } else { Axis::Row };
