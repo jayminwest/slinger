@@ -168,7 +168,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_list` | none | `sessions`: list of sessions, sorted by agent |
 | `session_show` | `agent`: string | `session` |
 | `status_set` | `agent`: string, `status`: `working`, `blocked` or `done`, `note`: string (optional) | `agent`, `status`, `note` (absent when none), `event`: the number of the event appended (absent for `working`) |
-| `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `ink`: a `pts` list in tenths, `arrow`: `[from, to]` item ids; optional `color`: `#rrggbb` or `#rrggbbaa`, `at`: `[x, y]` in tenths, `size`: a text's character size in tenths (40 to 4000, default 240; text only) | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
+| `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `ink`: a `pts` list in tenths, `arrow`: `[from, to]` item ids; optional `color`: `#rrggbb` or `#rrggbbaa`, `at`: `[x, y]` in tenths, `size`: a text's character size in tenths (40 to 4000; text only). Without `color` or `size`, they match the user's writing beside the item ("Agent canvas verbs") | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
 | `canvas_edit` | `canvas`: canvas id, `agent`: string, `item`: an item id, then any of `text`: string, `size`: a text's character size in tenths (40 to 4000; the frame refits the words), `box`: `[w, h]` in tenths, `move`: `[x, y]` in tenths | `item`, `page`, `x`, `y`, `w`, `h`: its box now, `seq`: the numbers written (empty when nothing changed) |
 | `canvas_remove` | `canvas`: canvas id, `agent`: string, `item`: an item id | `seq`: the numbers written (empty when it was already gone) |
 | `session_start` | `workspace`: string, its name or the directory of its file, `fresh`: bool (default `false`), `profile`: a profile's name (optional) | `session` |
@@ -965,8 +965,13 @@ right, past whatever is in the way. It never comes within 12 units of
 another item. With `at`, the top-left corner of its box goes at `[x, y]`
 instead, wherever that is on the page. An arrow joins `from` and `to`, two
 items on that page, from the edge of one to the edge of the other, and
-points at both; it takes no `at`. `color` draws any of them in that colour;
-without it they are black. The reply gives the new item's id and its box. When a
+points at both; it takes no `at`. `color` draws any of them in that colour,
+and `size` sizes a text's characters. What a put leaves out matches the
+user's writing near it: the colour and size of the user's ink or text it goes
+beside (a stroke counts with its whole cluster), else of the user's ink and
+text on that page, else black and 240. The colour is the one most of those
+items have; the size is the median of a text's own size and, for a cluster
+of ink, the median height of its lines of writing. The reply gives the new item's id and its box. When a
 `sling_sent` tagged with the agent and the canvas is in the record, the put
 answers the latest such sling: the daemon appends `reply_landed` (`sling`,
 `items`: the new item) with the agent as source and tags it with the agent
