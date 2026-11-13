@@ -297,7 +297,7 @@ fn flashed(tools: &Tools, settings: &Settings) -> Option<String> {
 }
 
 #[test]
-fn start_agent_starts_the_shown_workspace_s_agent_and_flashes_its_name_or_why_not() {
+fn start_and_stop_agent_go_to_the_shown_workspace_s_agent_and_flash_its_name_or_why_not() {
     with_agents(|socket| {
         let settings = Settings::load(ConfigFiles::at("/nonexistent/config.toml".into()));
         let mut tools = Tools::new(settings.config.palette.clone());
@@ -319,8 +319,16 @@ fn start_agent_starts_the_shown_workspace_s_agent_and_flashes_its_name_or_why_no
         wait_until(|| runs().contains("--session-id"));
         window::agent(Command::StartAgent, socket, &sidebar, &mut tools);
         assert_eq!(runs().lines().count(), 1, "one that runs stays as it is");
-        daemon.session_stop("notes").unwrap();
+        // Its answer names its conversation, which the daemon keeps.
+        daemon.session_send("notes", "hi").unwrap();
+        wait_until(|| daemon.session_list().unwrap()[0].session_id.is_some());
+        window::agent(Command::StopAgent, socket, &sidebar, &mut tools);
+        assert_eq!(flashed(&tools, &settings).as_deref(), Some("Stop agent · scout"));
         assert!(lines(&mut sidebar).contains(&start), "it stopped: it shows again");
+        window::agent(Command::StartAgent, socket, &sidebar, &mut tools);
+        wait_until(|| runs().contains("--resume"));
+        assert_eq!(runs().lines().count(), 2, "in its last conversation");
+        window::agent(Command::StopAgent, socket, &sidebar, &mut tools);
 
         daemon.workspace_close("notes").unwrap();
         window::agent(Command::StartAgent, socket, &sidebar, &mut tools);

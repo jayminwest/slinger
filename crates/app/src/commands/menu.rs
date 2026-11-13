@@ -128,6 +128,7 @@ const BAR: [(&str, &[Action]); 8] = [
             R(Command::Dictate),
             R(Command::PlaceButton),
             R(Command::StartAgent),
+            R(Command::StopAgent),
         ],
     ),
     (

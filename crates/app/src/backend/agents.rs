@@ -1,7 +1,8 @@
 //! The open workspaces and their agents as the sidebar shows them: each
 //! agent's status read against its process, the profile it runs under,
 //! and the names of the profiles it has, or why its file cannot be used;
-//! a folder opened as one, and one closed; and its agent started.
+//! a folder opened as one, and one closed; and its agent started or
+//! stopped.
 
 use std::path::Path;
 
@@ -69,4 +70,10 @@ pub fn open_workspace(daemon: &Client, dir: &Path) -> Result<String, Problem> {
 /// agent's name.
 pub fn start_agent(daemon: &Client, dir: &Path, fresh: bool) -> Result<String, Problem> {
     Ok(daemon.session_start_with(&dir.to_string_lossy(), None, fresh)?.agent)
+}
+
+/// Stops the agent of the workspace whose file is in `dir`: its process
+/// ends, and its conversation stays. The agent's name.
+pub fn stop_agent(daemon: &Client, dir: &Path) -> Result<String, Problem> {
+    Ok(daemon.session_stop(&dir.to_string_lossy())?.agent)
 }

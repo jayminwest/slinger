@@ -49,7 +49,7 @@ pub fn run(
         c if !selection(canvases, shared, tools, area, c) => return false,
         Command::ToggleSidebar => sidebar.set_open(!sidebar.is_open()),
         Command::DismissNotice => sidebar.dismiss(),
-        Command::StartAgent => agent(command, socket, sidebar, tools),
+        Command::StartAgent | Command::StopAgent => agent(command, socket, sidebar, tools),
         c if canvases.command(&shared.panes, focus(&shared.panes, area), c) || tools.command(c) => {
         }
         c => shared.command(c, area, socket),
@@ -134,13 +134,17 @@ pub fn close_workspace(socket: &Path, sidebar: &mut Sidebar, tools: &mut Tools) 
     closed.is_ok()
 }
 
-/// Runs `start-agent` on the agent of the workspace `sidebar` shows,
+/// Runs `start-agent` or `stop-agent` on the agent of the workspace `sidebar` shows,
 /// through the daemon on `socket`: the flash in `tools` names the agent,
 /// or says why it cannot.
 pub fn agent(command: Command, socket: &Path, sidebar: &Sidebar, tools: &mut Tools) {
     let Some(dir) = sidebar.shown_dir() else { return };
     let daemon = slinger_control::Client::new(socket);
-    let said = match backend::start_agent(&daemon, &dir, false) {
+    let done = match command {
+        Command::StopAgent => backend::stop_agent(&daemon, &dir),
+        _ => backend::start_agent(&daemon, &dir, false),
+    };
+    let said = match done {
         Ok(agent) => format!("{} · {agent}", command.title()),
         Err(problem) => problem.message,
     };
