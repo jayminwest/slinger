@@ -176,7 +176,9 @@ workspace with no root (slinger-c5d7). The name is the one given, or else the
 directory's last part. The canvas is the name made into an id (`slug`):
 `a-z`, `0-9`, `-` and `_`, with every other run of characters one `-`, at most
 64 long, and `workspace` when nothing is left. So `My Notes` opens on
-`my-notes`, and two workspaces get two canvases. An opened directory is the
+`my-notes`, and two workspaces get two canvases. A canvas made for a workspace
+starts with the "send to agent" button at its origin (SPEC section 8); one that
+exists already is used as it is. An opened directory is the
 primary root, on the machine that opened it. A workspace with no root keeps
 its file in `workspaces/<slug>/` in slingerd's data directory.
 

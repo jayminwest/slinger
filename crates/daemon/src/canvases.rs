@@ -117,6 +117,17 @@ impl Canvases {
         self.make(id, log, &header)
     }
 
+    /// Makes a workspace's new canvas: one with its "send to agent" button
+    /// ([`Log::start`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Canvases::create`].
+    pub fn start(&self, id: &str) -> Result<()> {
+        let (log, bytes) = Log::start(id, now())?;
+        self.make(id, log, &bytes)
+    }
+
     /// Makes a new canvas that holds `canvas` whole, in one write.
     ///
     /// # Errors

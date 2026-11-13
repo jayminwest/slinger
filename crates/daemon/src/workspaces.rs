@@ -222,7 +222,7 @@ impl Workspaces {
             mkdir(&opened.dir)?;
             write_synced(&file, opened.workspace.to_toml().as_bytes())?;
         }
-        match canvases.create(&opened.workspace.canvas) {
+        match canvases.start(&opened.workspace.canvas) {
             Err(CanvasError::Core(slinger_core::Error::Conflict { .. })) | Ok(()) => {}
             Err(e) => return Err(e.into()),
         }

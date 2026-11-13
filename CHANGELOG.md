@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **Canvas:** a new workspace's canvas comes with a "send to agent" button
+  in its top left, so a tap slings what is new without placing one first.
+  It is an ordinary item: move it, or delete it and it stays gone. Canvases
+  you already have are left as they are; Place send button still adds one
+  anywhere.
 - **App:** open a workspace without the CLI. Open workspace…
   (`open-workspace`, ⇧⌘O) is in the File menu and the command palette, and
   the "+" at the foot of the open sidebar runs it. Pick a folder, or make a

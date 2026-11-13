@@ -10,7 +10,8 @@ use tempfile::TempDir;
 use super::Daemon;
 
 /// Opens a workspace in a new directory of `parent` whose agent is `agent`,
-/// and returns the directory.
+/// and returns the directory. Its canvas is made bare first, so a test's
+/// items are its own: a workspace's new canvas otherwise has its button.
 pub(super) fn open_with_agent(
     client: &Client,
     parent: &TempDir,
@@ -24,6 +25,7 @@ pub(super) fn open_with_agent(
         "version = 1\nname = \"{name}\"\ncanvas = \"{name}\"\n[agent]\nname = \"{agent}\"\n"
     );
     std::fs::write(dir.join("slinger-workspace.toml"), file).unwrap();
+    client.canvas_create(name).unwrap();
     client.workspace_open(Some(&dir), None).unwrap();
     dir
 }

@@ -420,7 +420,9 @@ part, the directory is the primary root on this machine, and the canvas is
 the name made into an id (`My Notes` gives `my-notes`). With no `dir`, it
 opens the workspace with no root named `name`, whose file lives in
 `workspaces/<id>/` in the data directory. Either way the daemon then makes
-the workspace's canvas if it is missing. Opening an open workspace returns it
+the workspace's canvas if it is missing: a canvas made this way has the
+user's "send to agent" button (`button`, 0,0 160x40) on its first page, as
+its line 1. `canvas_create` makes a bare canvas. Opening an open workspace returns it
 with `new: false`, and so does opening one whose file exists. A `name` that
 differs from the name in an existing file is `conflict`.
 
