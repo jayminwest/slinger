@@ -244,7 +244,8 @@ impl Panes {
             | Command::LeaveFeedback
             | Command::ToggleGrid
             | Command::Save
-            | Command::ShowCanvasFile => {}
+            | Command::ShowCanvasFile
+            | Command::OpenPdf => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),

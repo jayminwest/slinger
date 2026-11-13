@@ -224,9 +224,10 @@ fn remembering(
     }
 }
 
-/// What `event` asks ([`ask`]); `show-canvas-file` is done here, as only
-/// `platform` reaches the Finder: the focused pane's canvas file shows
-/// there, or the flash says why it cannot. A cut, copy or paste no text
+/// What `event` asks ([`ask`]); `show-canvas-file` and `open-pdf` are
+/// done here, as only `platform` reaches the Finder and the open panel: the
+/// focused pane's canvas file shows there, or the flash says why it cannot;
+/// the PDF chosen opens as a canvas, its pages read by `platform`. A cut, copy or paste no text
 /// field took is [`window::edit`]'s in `area` (a pass greys its menu item).
 fn asked(
     event: &Event,
@@ -249,8 +250,16 @@ fn asked(
         }
         _ => ask(event, shared, canvases, tools, settings),
     };
-    if !matches!(asked, Ask::Run(Command::ShowCanvasFile)) {
-        return asked;
+    match asked {
+        Ask::Run(Command::ShowCanvasFile) => {}
+        Ask::Run(Command::OpenPdf) => {
+            if let Some(file) = platform::pdf::choose() {
+                let (panes, workspace) = (&shared.panes, shared.workspace.as_deref());
+                canvases.open_pdf(panes, workspace, file, platform::pdf::pages);
+            }
+            return Ask::Draw(None);
+        }
+        _ => return asked,
     }
     let said = match canvases.file(&shared.panes, shared.panes.focus()) {
         None => Some(scene::title::NO_CANVAS.to_string()),

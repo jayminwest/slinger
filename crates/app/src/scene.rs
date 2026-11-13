@@ -39,6 +39,7 @@ pub mod overlay;
 pub mod pages;
 pub mod palette;
 pub mod paste;
+pub mod pdf;
 pub mod resize;
 pub mod select;
 pub mod shapes;

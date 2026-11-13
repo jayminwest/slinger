@@ -384,6 +384,14 @@ backend/panes.rs  the server's panes: `layout` for the Watch, and `open`,
              `close` and `resize`, which send the window's own splits,
              closes and moved dividers to the server as `pane_open`,
              `pane_close` and `pane_resize`.
+backend/pdf.rs  PDFs (docs/design/pdf.md): `fetch` gets a pdf item's blob
+             once into the app's cache (`$TMPDIR/slinger-app-pdf/<hex>.pdf`,
+             written to a part file and renamed); `open` makes a PDF a
+             canvas: `blob_put`, `canvas_create` (the file's stem, `-2`... on
+             a taken id), one whole-page item a page stacked down its first
+             page (scene/pdf.rs) in `canvas_apply`s of 100, then
+             `pane_open` beside the focused pane. A file that cannot be read
+             makes nothing.
 mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              feed reply applied in order; reads the canvas file's items
              (tenths, delta points, `#rrggbb`, an arrow's bound ends) into
@@ -396,6 +404,10 @@ mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              glyphs, texts saved earlier included. Keeps the canvas's pages,
              with their names. Items carried to another page are `add`s
              there, an arrow carried with its ends still bound to them. Pure.
+             A `pdf` item reads in only with its hash, page and page size
+             (tenths of a point) and a crop, when it has one, inside them;
+             it is written with no colour, and a `set` clears a crop or
+             name it has not. `add_pdf`: an opened page's `add`.
 mirror/clip.rs  the selection's items on the clipboard: their file objects
              as a JSON array, as a carry writes them (no id, maker, time
              or page; an end bound to an item copied with it as `$n`), and
@@ -417,6 +429,11 @@ canvases/live.rs  the live items' pages: each showing a pane draws fetched
              selection, or the item is under 48 points wide on the screen.
              A view kept off the screen (scene/live/away.rs) due to close
              draws the window again.
+canvases/pdf.rs  the `open-pdf` command (cmd+o: the open panel, then
+             backend/pdf.rs's `open` on a thread, one at a time; a failure
+             is a problem until the next open) and each pdf item's file:
+             asked for once per hash on a thread as a pane first shows it,
+             grey until it comes, then drawn (a file's coming repaints).
 canvases/button.rs  the "send to agent" button (SPEC section 8): a tap slings
              what is new on its page (`sling_now`, nothing selected, the
              config's prompt), or sends the open entry; `place-button` puts
@@ -640,6 +657,12 @@ scene/canvas.rs  decides what a canvas pane shows: a page's items and a viewport
              paint is cut off at the pane's edges (`clip`). Chrome over a page
              is two more shapes no server item has: a panel (a box with a
              fill, dashed or not) and a text's caret. Pure.
+scene/pdf.rs  an opened PDF's canvas: its id (the stem kept to a-z 0-9 - _,
+             56 bytes, `-n` from the second try, `.pdf`) and its pages
+             stacked on one column 1600 units wide by one scale, 40 apart;
+             a pdf item's part of its page shown (its crop or the whole
+             page). Pdf items are the paper: drawn first (scene/ink.rs's
+             `shown`), under every other item. Pure.
 scene/title.rs  the title bar: the focused pane's canvas, its file under
              it (`~` for home) and that file as the proxy icon; what `save`
              flashes. Nothing to save by hand: the daemon writes each change
@@ -708,7 +731,9 @@ scene/select/hit.rs  which items an eraser's path touches, which items a
              a press picks and which a drawn box takes are the app's alone:
              a drawn box takes a box by its outline (the core's
              `items_in_box` by its whole frame), else the innermost box it
-             lies inside. Pure.
+             lies inside. A pdf item is never erased, a lasso holds it by its
+             corners, a press picks it inside its frame (ink over it first)
+             and a drawn box takes it only whole. Pure.
 scene/select/pick.rs  the select tool: a press picks the topmost item (a
              stroke or an arrow by its line, a box by its outline, a text, a
              live item or the button by its frame, 6 screen points of reach)
@@ -889,6 +914,10 @@ platform/web.rs  agent UIs in WKWebViews: the scheme handler, navigation and
              page is shown; a live item's in a clip at its pane, just over
              the pane's canvas, at the canvas's pageZoom, hidden while it
              is away. A reply goes to main as Event::Reply.
+platform/pdf.rs  every CoreGraphics PDF call: a PDF's page sizes as displayed
+             (crop box, `/Rotate` applied; on any thread), a pdf item's part
+             of its page drawn stretched into its frame on white (each
+             document opened once), and the open panel for `open-pdf`.
 ```
 
 **Threading rule:** AppKit runs on the main thread only. Every `platform`

@@ -29,6 +29,7 @@ mod flick;
 mod follow;
 mod outbox;
 pub mod panes;
+pub mod pdf;
 mod sling;
 #[cfg(test)]
 pub(crate) mod testing;

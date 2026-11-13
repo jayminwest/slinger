@@ -14,6 +14,9 @@
 //!   [`TEXT_SIZES`]; its top left goes where the scale puts it.
 //! - A button and an agent UI keep their size (the agent's), and their top
 //!   left goes where the scale puts it.
+//! - A `pdf` item keeps its aspect (docs/design/pdf.md), whichever handle
+//!   is dragged: it scales evenly about the opposite corner, by the
+//!   text's one scale.
 //! - An arrow not selected with an end bound to a selected item follows:
 //!   that end goes where the scale puts it ([`shapes::follow`]).
 //!
@@ -99,18 +102,32 @@ impl Grip {
             let size = (size * self.text_factor()).clamp(*TEXT_SIZES.start(), *TEXT_SIZES.end());
             tenth(size)
         };
+        let even = |r: &Rect| {
+            let (k, a) = (self.text_factor(), self.anchor);
+            let (x, y) = (a.x + (r.x - a.x) * k, a.y + (r.y - a.y) * k);
+            Rect {
+                x: tenth(x),
+                y: tenth(y),
+                width: tenth(r.width * k),
+                height: tenth(r.height * k),
+            }
+        };
         let chosen = items.iter().filter(|i| ids.contains(&i.id));
         let mut after: Vec<Item> = chosen
-            .map(|i| Item { shape: reshaped(&i.shape, map, grow), ..(**i).clone() })
+            .map(|i| Item { shape: reshaped(&i.shape, (map, grow, even)), ..(**i).clone() })
             .collect();
         after.extend(shapes::follow_by(items, ids, map));
         after
     }
 }
 
-/// `shape` with its points put where `map` says and a text's size made
-/// what `grow` says, as the module says.
-fn reshaped(shape: &Shape, map: impl Fn(Point) -> Point, grow: impl Fn(f64) -> f64) -> Shape {
+/// `shape` with its points put where `map` says, a text's size made what
+/// `grow` says and a `pdf` item's frame what `even` makes it, as the
+/// module says.
+fn reshaped(
+    shape: &Shape,
+    (map, grow, even): (impl Fn(Point) -> Point, impl Fn(f64) -> f64, impl Fn(&Rect) -> Rect),
+) -> Shape {
     let corner = |r: &Rect| map(Point { x: r.x, y: r.y });
     let placed = |r: &Rect| {
         let at = corner(r);
@@ -136,6 +153,7 @@ fn reshaped(shape: &Shape, map: impl Fn(Point) -> Point, grow: impl Fn(f64) -> f
             Shape::Text { frame, text: text.clone(), size: after }
         }
         Shape::Button { frame, status } => Shape::Button { frame: placed(frame), status: *status },
+        Shape::Pdf { frame, .. } => shape.reframed(even(frame)),
         Shape::Live { frame, name, open } => {
             Shape::Live { frame: placed(frame), name: name.clone(), open: open.clone() }
         }

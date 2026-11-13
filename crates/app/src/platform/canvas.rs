@@ -1,6 +1,7 @@
 //! One `AppKit` view per canvas pane. It keeps the pane's last
 //! [`canvas::Scene`] and paints it: smoothed pen lines at a constant width,
-//! text, boxes and arrows, each in its colour, on the pane's background
+//! text, boxes, arrows and the pages of PDFs (`pdf`), each in its colour,
+//! on the pane's background
 //! and its dotted grid, if any, and the chrome over them: panels and a
 //! text's caret.
 //! A new scene repaints only the box the scene says changed; `AppKit` then
@@ -37,7 +38,7 @@ use objc2_foundation::{
     NSMutableAttributedString, NSObject, NSPoint, NSProcessInfo, NSRange, NSRect, NSSize, NSString,
 };
 
-use super::{Event, color, dispatch};
+use super::{Event, color, dispatch, pdf};
 use crate::config::Rgb;
 use crate::layout::{Point, Rect, Size};
 use crate::scene::canvas::{Draw, ItemId, Mark, Scene};
@@ -154,6 +155,7 @@ impl CanvasView {
                     d.mark,
                     Mark::Text { .. }
                         | Mark::Live { .. }
+                        | Mark::Pdf { .. }
                         | Mark::Button { .. }
                         | Mark::Caret { .. }
                 )
@@ -228,6 +230,14 @@ fn paint(scene: &Scene, dirty: NSRect, texts: &mut HashMap<ItemId, Laid>) {
                 NSBezierPath::bezierPathWithRect(ns_rect(*frame)).stroke();
                 let from = (name.clone(), frame.width / zoom, *size, draw.colour);
                 draw_text(laid(texts, draw.id, from), *at, *zoom);
+            }
+            Mark::Pdf { frame, page, shown, file, at, size, zoom, .. } => {
+                let drawn = file.as_deref().is_some_and(|f| pdf::draw(f, *page, *shown, *frame));
+                if !drawn {
+                    NSBezierPath::bezierPathWithRect(ns_rect(*frame)).stroke();
+                    let from = ("PDF".to_string(), frame.width / zoom, *size, draw.colour);
+                    draw_text(laid(texts, draw.id, from), *at, *zoom);
+                }
             }
             Mark::Button { frame, label, at, size, width, zoom } => {
                 let corner = frame.height / 4.0;

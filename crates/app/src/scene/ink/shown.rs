@@ -13,7 +13,7 @@ impl Ink {
     /// (removed items gone, moved ones moved, edited ones edited, new
     /// strokes, texts, boxes and arrows on top, each under the server's id
     /// once made, and not at all once `items` holds it), then the
-    /// stroke under the pen. Items no change touches are borrowed, not
+    /// stroke under the pen; `pdf` items first, under all of it. Items no change touches are borrowed, not
     /// copied, so a big page costs little.
     pub fn shown<'a>(&self, canvas: &str, page: &str, items: &'a [Item]) -> Vec<Cow<'a, Item>> {
         let mut shown: Vec<Cow<'a, Item>> = items.iter().map(Cow::Borrowed).collect();
@@ -78,7 +78,7 @@ impl Ink {
         }
         let drawing = self.drawing.iter().filter(|(_, s)| here(&s.canvas, &s.page));
         shown.extend(drawing.map(|(key, stroke)| Cow::Owned(local(ItemId(PENDING + key), stroke))));
-        shown
+        paper_first(shown)
     }
 
     /// Each change not yet heard that adds items to `page` of `canvas` (a
@@ -96,6 +96,19 @@ impl Ink {
             here.then(|| (&p.change, (0..adds).map(|n| p.id(n)).collect()))
         })
     }
+}
+
+/// `items` in the order they are drawn: `pdf` items first, the paper
+/// under every other kind (docs/design/pdf.md), then the rest, each in
+/// its order. The scene and every hit test take this order.
+fn paper_first(items: Vec<Cow<'_, Item>>) -> Vec<Cow<'_, Item>> {
+    let paper = |i: &Cow<'_, Item>| matches!(i.shape, Shape::Pdf { .. });
+    if !items.iter().any(paper) {
+        return items;
+    }
+    let (mut first, rest): (Vec<_>, Vec<_>) = items.into_iter().partition(paper);
+    first.extend(rest);
+    first
 }
 
 /// A stroke of local ink as an item, under `id`.

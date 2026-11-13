@@ -108,6 +108,9 @@ pub enum Command {
     Save,
     /// Show the focused pane's canvas file in the Finder.
     ShowCanvasFile,
+    /// Open a PDF as a new canvas, one page under the next, in a pane
+    /// beside the focused one (docs/design/pdf.md).
+    OpenPdf,
 }
 
 /// How many commands there are.
@@ -115,7 +118,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 53] = [
+    pub const ALL: [(Command, &str); 54] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -169,6 +172,7 @@ impl Command {
         (Command::SlingNow, "sling-now"),
         (Command::Save, "save"),
         (Command::ShowCanvasFile, "show-canvas-file"),
+        (Command::OpenPdf, "open-pdf"),
     ];
 
     /// The command called `name` in the config file.
@@ -341,6 +345,7 @@ impl Default for Keymap {
             on(ALT, '\r'),
             on(CMD, 's'),
             on(CMD | ALT, 'r'),
+            on(CMD, 'o'),
         ])
     }
 }

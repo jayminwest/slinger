@@ -28,7 +28,7 @@ mod write;
 use write::tenths;
 #[cfg(test)]
 pub use write::text_frame_at;
-pub use write::{object, ops};
+pub use write::{add_pdf, object, ops};
 
 /// The height of text, in canvas units: the packet's text size, so the pane
 /// and the images an agent reads agree.
@@ -349,6 +349,7 @@ fn read(o: &Map<String, Value>) -> Option<Item> {
             let text = |key: &str| o.get(key).and_then(Value::as_str).map(str::to_string);
             Shape::Live { frame: frame()?, name: text("ui")?, open: text("open")? }
         }
+        "pdf" => pdf(o, frame()?)?,
         "arrow" => {
             let points = points(o.get("pts")?)?;
             let (&from, &to) = (points.first()?, points.last()?);
@@ -360,6 +361,34 @@ fn read(o: &Map<String, Value>) -> Option<Item> {
     };
     let colour = o.get("color").and_then(Value::as_str).and_then(colour);
     Some(Item { id, colour: colour.unwrap_or(Rgb { r: 0, g: 0, b: 0 }), shape })
+}
+
+/// A `pdf` item in `frame` (docs/design/pdf.md); `None` without the
+/// fields it needs or with a size that draws nothing.
+fn pdf(o: &Map<String, Value>, frame: Rect) -> Option<Shape> {
+    let tenths = |key: &str, n: usize| {
+        let list = o.get(key)?.as_array()?;
+        let units: Vec<f64> =
+            list.iter().map(|v| v.as_f64().map(|v| v / 10.0)).collect::<Option<_>>()?;
+        (units.len() == n && units[n - 2] > 0.0 && units[n - 1] > 0.0).then_some(units)
+    };
+    let size = tenths("pagesize", 2)?;
+    let crop = match o.get("crop") {
+        None | Some(Value::Null) => None,
+        Some(_) => {
+            let c = tenths("crop", 4)?;
+            Some(Rect { x: c[0], y: c[1], width: c[2], height: c[3] })
+        }
+    };
+    (frame.width > 0.0 && frame.height > 0.0).then_some(())?;
+    Some(Shape::Pdf {
+        frame,
+        hash: o.get("hash")?.as_str()?.to_string(),
+        pdf_page: u32::try_from(o.get("pdfpage")?.as_u64()?).ok().filter(|&p| p >= 1)?,
+        page_size: (size[0], size[1]),
+        crop,
+        name: o.get("name").and_then(Value::as_str).map(str::to_string),
+    })
 }
 
 /// A stored delta array, `[x0, y0, dx1, dy1, ...]` in tenths, as points.
