@@ -733,7 +733,8 @@ the next start under that profile resumes it. A session shows the
 whose `dir` is no longer there, is `not_found`, and the running process
 stays. **`session_stop`** closes the process's
 input, waits up to 3 seconds and then kills it; stopping one that is not
-running succeeds. **`session_send`** writes `text` to the process as one user
+running succeeds. A stop ends the agent's `working`, which a killed process
+or a listener's session never ends: its session shows the status from before. **`session_send`** writes `text` to the process as one user
 message and returns: the answer is the agent's to deliver, through the CLI.
 Blank text is `invalid`. A send to a process that was never started, or that
 exited, is `unavailable` with a hint to start it: the daemon does not restart

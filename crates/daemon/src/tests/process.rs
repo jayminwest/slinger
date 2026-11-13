@@ -157,6 +157,28 @@ fn a_process_that_dies_shows_as_exited_and_a_send_is_unavailable() {
 }
 
 #[test]
+fn a_stop_mid_turn_ends_the_agents_working_at_once() {
+    // A killed process's Stop hook never runs: no `done` follows its
+    // `working` (slinger-939e4b).
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
+    let client = daemon.client();
+    let home = open_with_agent(&client, &projects, "notes", "scout");
+    client.session_start("notes").unwrap();
+    client.status_set("scout", "done", Some("wrote the plan")).unwrap();
+    client.session_send("notes", "mid-turn").unwrap();
+    wait_lines(&home.join("in.txt"), 1);
+    client.status_set("scout", "working", None).unwrap();
+
+    let stopped = client.session_stop("notes").unwrap();
+    let status = (stopped.status.as_deref(), stopped.note.as_deref());
+    assert_eq!(status, (Some("done"), Some("wrote the plan")), "the status from before");
+    let shown = client.session_show("scout").unwrap();
+    assert_eq!((shown.process, shown.pending, shown.status.as_deref()), (None, None, Some("done")));
+    daemon.stop();
+}
+
+#[test]
 fn a_start_needs_an_open_workspace_with_an_agent_and_a_program_to_run() {
     let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
     let daemon = Daemon::start_with_claude(data.path(), &projects.path().join("no-such-claude"));
