@@ -217,6 +217,9 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Agents:** the first sling to an agent now ends its note with
+  `slinger guide`, so the agent knows where to find every other command
+  and flag.
 - **Agents:** an agent can now edit and create files without any setup, so
   a sling can ask for a code change. Nobody reviews a file before it is
   written. Commands other than `slinger` and read-only ones still need a

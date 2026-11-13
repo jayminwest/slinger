@@ -1,0 +1,27 @@
+slinger-sling 1 canvas=idea agent=scout selected=c51
+slinger-packet 1 canvas=idea page=fable-5.2 from=41 to=58 scale=0.35 at=/data/packets/ab
+# new
+c42 ink 120,80 520x140 colour=black strokes=23 img=c42.png
+c51 ink 120,260 300x90 colour=red strokes=9 to=t12 img=c51.png
+# made
+a13 arrow 420,280 60x20 by=claude from=c51 to=t12
+t12 text 480,240 360x120 by=claude "Packet: images of new ink plus a text index."
+# page
+c3 ink 40,1200 900x400 colour=black strokes=210
+b9 box 980,1200 620x300 by=claude
+c17 ink 1000,1240 560x220 colour=blue strokes=64 in=b9
+t8 text 40,1700 700x60 by=claude "Spike B: 44% of the screenshot cost."
+# reply
+This is a sling from Slinger: the user's canvas page as a packet, then the user's prompt.
+Each packet line is one item: id, kind, x,y, wxh, then fields. `# new` is ink written since the last sling, each image under its line; `# made` is what agents made; `# page` is the rest.
+`selected=` on line 1 names the items the user selected. An empty prompt asks about the selection.
+A `pdf` line is a page of a PDF (`blob get` fetches the file its `blob=` names); a quoted text at the end of an ink line is the PDF's words under that ink.
+Answer on the canvas, not in chat: the user reads the canvas.
+- `slinger canvas put idea --beside <id> --text <text>` puts text beside item <id>; `--box w,h`, `--ink x,y,dx,dy,...` or `--arrow <from-id> <to-id>` in place of `--text` puts a box, a pen stroke or an arrow. `--color #rrggbb` colours it; `--at x,y` puts its top-left corner there instead; `--size n` sizes text (default 240). Put lengths are tenths: the packet's 120 is 1200.
+- `slinger canvas crop idea --item <id>` gives an image of an item the packet shows only as a line.
+`slinger guide` shows every other command and flag.
+You took this sling by listening, as agent `scout`. Each `img=` names a PNG in the packet's `at=` directory: read the ones you need.
+- Add `--agent scout` to each `canvas put` and `status set`.
+- When you have answered, run `slinger status set done --agent scout` (or `blocked --note <what you need>`), then `slinger session listen notes` for the next sling.
+# prompt
+What is missing here?

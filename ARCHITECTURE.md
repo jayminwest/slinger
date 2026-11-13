@@ -1125,7 +1125,7 @@ Each boundary has something that fails when it is broken:
 | The protocol crate does not link the core | `check:layers` rule `control-is-transport-only` |
 | The CLI reaches the core only through the socket | `check:layers` rule `cli-uses-the-socket` |
 | The app reaches the core only through the socket | `check:layers` rule `app-uses-the-socket` |
-| The agent guide, the skill and the plugin name only commands and flags the CLI has; the plugin has the binary's version | `crates/cli/src/tests/guide.rs` |
+| The agent guide, the skill, the plugin and the sling note (the core's stored snapshots) name only commands and flags the CLI has; the plugin has the binary's version | `crates/cli/src/tests/guide.rs` |
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
 | The canvas file format is readable by older readers | `crates/core/tests/canvas_file.rs`, with a stored v1 fixture |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
@@ -1133,7 +1133,7 @@ Each boundary has something that fails when it is broken:
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
 | The packet's image rules: scale, margin, tiles, same bytes for the same input | `crates/core/tests/render.rs`, with golden images |
 | The packet format reads back, an old packet keeps decoding, the board costs under half its screenshots | `crates/core/tests/packet_build.rs`, with a stored v1 packet, on the real board |
-| The sling message: first and later snapshots; the note names only the verbs given | `crates/core/tests/sling.rs`, with stored snapshots |
+| The sling message: first, later and listener snapshots; the note names only the verbs given, and points at `slinger guide` when there is one | `crates/core/tests/sling.rs`, with stored snapshots |
 | Clustering: colours never mix, long strokes join only ink they touch, each fixture page's count | `crates/core/tests/packet_cluster.rs`, on the real board |
 | The workspace file format and rules (docs/workspace.md) | the tests of `crates/core/src/workspace.rs` and its stored fixture |
 | The record on disk is append-only and keeps fields it does not know | `crates/daemon/src/store/tests.rs`, against a real file |
