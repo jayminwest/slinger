@@ -199,11 +199,6 @@
 # listening; press again to stop, and Flick types what it heard into the prompt. Escape or
 # return cancels a dictation still going. Slinger has no speech code of its own.
 #dictate = "cmd+shift+return"
-# Put a "send to agent" button in the middle of the focused pane's canvas page. A tap on
-# it slings what is new on the page since the last sling, with [sling] prompt; its mark is the
-# status of the agent of the canvas's workspace. With nothing selected, `sling` opens the
-# prompt beside it, and a tap sends that prompt. Select, move and delete it like a box.
-#place-button = "cmd+shift+b"
 # Show every command, by group, with its key (the key overlay).
 #show-keys = "cmd+/"
 # Find a command by its name and run it (the command palette).

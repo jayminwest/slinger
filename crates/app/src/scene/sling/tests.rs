@@ -75,18 +75,17 @@ fn the_entry_is_labelled_with_its_agent_and_its_keys_are_beneath() {
     assert_eq!((title.text.as_str(), title.colour), ("Sling to scout", T.muted));
     assert_eq!(title.frame.y + title.frame.height, frame.y, "right above the box");
     assert_eq!(e.title.font.size, Some(11.0));
-    assert_eq!((keys.text.as_str(), keys.colour), ("↩ sends · esc cancels", T.muted));
+    // slinger-d03fb8: the dictate key ends the keys' one row, so no second
+    // row draws over them.
+    let said = ("↩ sends · esc cancels · ⌥D dictate", T.muted);
+    assert_eq!((keys.text.as_str(), keys.colour), said);
     assert_eq!(keys.frame.y, frame.y + frame.height, "right under the box");
-    let dictate = e.dictate.unwrap();
-    assert_eq!(dictate.label.text, "⌥D dictate");
-    assert_eq!((dictate.label.frame, dictate.font), (keys.frame, e.keys.font), "on the keys' line");
-    assert_eq!(dictate.label.fill, None, "it does not cover the keys");
 
     assert_eq!(e.done, Some("Sling"), "the pen's buttons: ✓ Sling, Dictate, ✕");
 
     let alone = sling.entry(&T, None, None).unwrap();
     assert_eq!(alone.title.label.text, "Sling", "a workspace with no agent");
-    assert_eq!(alone.dictate, None, "no key dictates: nothing to show");
+    assert_eq!(alone.keys.label.text, "↩ sends · esc cancels", "no key dictates: nothing to show");
 }
 
 #[test]

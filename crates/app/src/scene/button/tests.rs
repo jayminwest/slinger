@@ -3,6 +3,9 @@ use crate::layout::Size;
 use crate::scene::canvas::{self, Draw, ItemId, Scene};
 
 const SCREEN: Size = Size { width: 800.0, height: 600.0 };
+/// The size the core gives a workspace's button, in canvas points.
+const WIDTH: f64 = 160.0;
+const HEIGHT: f64 = 40.0;
 const FRAME: Rect = Rect { x: 100.0, y: 50.0, width: WIDTH, height: HEIGHT };
 
 fn button(id: u64, status: Option<Status>) -> Item {
@@ -74,12 +77,10 @@ fn shown_gives_each_button_the_status_and_leaves_the_rest() {
 }
 
 #[test]
-fn a_button_is_found_under_a_point_and_a_new_one_is_centred() {
+fn a_button_is_found_under_a_point() {
     let items = [Cow::Owned(button(1, None))];
     assert_eq!(under(&items, Point { x: 101.0, y: 51.0 }), Some(FRAME));
     assert_eq!(under(&items, Point { x: 99.0, y: 51.0 }), None);
     assert_eq!(first(&items), Some(FRAME));
     assert_eq!(first(&[]), None);
-    let centre = Point { x: FRAME.x + WIDTH / 2.0, y: FRAME.y + HEIGHT / 2.0 };
-    assert_eq!(placed(centre), Shape::Button { frame: FRAME, status: None });
 }

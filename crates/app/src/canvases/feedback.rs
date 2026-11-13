@@ -64,9 +64,11 @@ impl Notes {
         self.entry.ticks(theme)
     }
 
-    /// The entry, while it is open, and its lines, in `theme`'s colours.
+    /// The entry, while it is open, and its card and lines, in `theme`'s
+    /// colours.
     pub(super) fn shown(&self, theme: &Theme) -> (Option<Entry>, Vec<Label>) {
-        (self.entry.entry(theme), self.entry.labels(theme))
+        let card = self.entry.card(theme).into_iter();
+        (self.entry.entry(theme), card.chain(self.entry.labels(theme)).collect())
     }
 }
 

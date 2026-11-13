@@ -96,7 +96,6 @@ impl Command {
             Command::Undo => "Undo",
             Command::Redo => "Redo",
             Command::Dictate => "Dictate prompt",
-            Command::PlaceButton => "Place send button",
             Command::ShowKeys => "Show keys",
             Command::ShowCommands => "Show commands",
             Command::LeaveFeedback => "Leave feedback…",
@@ -132,7 +131,6 @@ impl Command {
             Command::Sling
             | Command::SlingNow
             | Command::Dictate
-            | Command::PlaceButton
             | Command::StartAgent
             | Command::StopAgent
             | Command::RestartAgent => Group::Sling,

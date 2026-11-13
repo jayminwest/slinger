@@ -158,14 +158,14 @@ fn each_page_command_says_what_it_did_once() {
     asks.changed(&three, &PageOp::Rename { page: "p2".into(), name: "plan".into() });
     assert_eq!(asks.said().as_deref(), Some("Renamed: plan"));
     asks.changed(&three, &PageOp::Remove { page: "p2".into() });
-    assert_eq!(asks.said().as_deref(), Some("Removed: ideas"));
+    assert_eq!(asks.said().as_deref(), Some("Removed: ideas · Undo brings it back"));
     asks.kept_last();
     assert_eq!(asks.said().as_deref(), Some("The last page stays"));
 
     asks.rename((here, PANE), "main", &three[1]);
     assert_eq!(asks.said().as_deref(), Some("Rename “ideas”"));
     asks.remove(here, "main", &three[2], 4);
-    assert_eq!(asks.said().as_deref(), Some("Remove “Page 3”?"));
+    assert_eq!(asks.said().as_deref(), Some("Remove “Page 3”? Undo brings it back"));
 }
 
 #[test]

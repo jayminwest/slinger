@@ -210,3 +210,22 @@ fn schema_needs_no_daemon_and_names_every_kind_apply_takes() {
         runs[1].err
     );
 }
+
+#[test]
+fn create_with_ops_makes_the_items_as_the_calling_agent_so_it_can_change_them() {
+    let dir = tempfile::TempDir::new().unwrap();
+    let ops = dir.path().join("ops.json");
+    std::fs::write(&ops, format!("[{BOX}]")).unwrap();
+    let ops = ops.to_str().unwrap();
+    with_daemon(|socket| {
+        let made = cli_as("ada", socket, &["canvas", "create", "plan", "--ops", ops]);
+        assert_eq!((made.code, made.err.as_str()), (exit::OK, ""));
+        let gone = r#"{"op":"remove","ids":["i1"]}"#;
+        let removed = cli_as("ada", socket, &["canvas", "apply", "plan", gone]);
+        assert_eq!((removed.code, removed.err.as_str()), (exit::OK, ""), "its own item");
+        let flag = ["canvas", "create", "other", "--ops", ops, "--agent", "bo"];
+        assert_eq!(cli_as("ada", socket, &flag).code, exit::OK);
+        let shown = cli_on(socket, &["canvas", "show", "other"]);
+        assert!(shown.out.starts_with("i1\tbox\tagent:bo\t{"), "--agent wins: {}", shown.out);
+    });
+}

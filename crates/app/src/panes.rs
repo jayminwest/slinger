@@ -239,7 +239,6 @@ impl Panes {
             | Command::Undo
             | Command::Redo
             | Command::Dictate
-            | Command::PlaceButton
             | Command::ShowKeys
             | Command::ShowCommands
             | Command::LeaveFeedback

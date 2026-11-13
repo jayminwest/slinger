@@ -19,7 +19,8 @@ fn notes() -> Panes {
     Panes::new(Pane { kind: Kind::Canvas, name: "notes".into() })
 }
 
-/// What the window shows over the panes: the entry and its lines.
+/// What the window shows over the panes: the entry and its lines (not the
+/// card under them, which has no text).
 fn shown(canvases: &Canvases, panes: &Panes) -> Scene {
     let theme = Config::default().theme;
     let side = Sidebar::new(false);
@@ -28,6 +29,7 @@ fn shown(canvases: &Canvases, panes: &Panes) -> Scene {
         crate::scene::build(WINDOW, panes, &theme, &[], &side, Vec::new(), &uis, &notes);
     scene.labels.clear();
     canvases.show_sling(&mut scene, &theme, &Keymap::default(), &side);
+    scene.labels.retain(|l| !l.text.is_empty());
     scene
 }
 
@@ -255,17 +257,21 @@ fn every_entry_shows_the_dictate_key_and_the_sling_s_has_the_pen_s_buttons() {
         let (mut canvases, panes) = arrived(daemon, &socket);
         let here = (panes.focus(), WINDOW.rect());
         let key = Keymap::default().chord(Command::Dictate).unwrap();
-        let dictate = |canvases: &Canvases| shown(canvases, &panes).entry.unwrap().dictate;
+        let said = format!(" · {} dictate", key.glyphs());
+        let dictate = |canvases: &Canvases| {
+            shown(canvases, &panes).entry.unwrap().keys.label.text.ends_with(&said)
+        };
         assert!(open(&mut canvases, &panes));
-        assert_eq!(dictate(&canvases).unwrap().label.text, format!("{} dictate", key.glyphs()));
+        let keys = shown(&canvases, &panes).entry.unwrap().keys.label.text;
+        assert_eq!(keys, format!("↩ saves · esc cancels{said}"), "one row: nothing over it");
         assert!(canvases.sling_key(ESCAPE));
         assert!(canvases.command(&panes, here, Command::RenamePage));
-        assert!(dictate(&canvases).is_some(), "the new name's entry");
+        assert!(dictate(&canvases), "the new name's entry");
         assert!(canvases.sling_key(ESCAPE));
 
         lasso_the_stroke(&mut canvases, &panes);
         assert!(canvases.sling_command(Command::Sling, &panes, here.1));
-        assert!(dictate(&canvases).is_some(), "the sling's");
+        assert!(dictate(&canvases), "the sling's");
         let (labels, targets) = buttons(&canvases, &panes);
         assert_eq!(labels, ["✓ Sling", DICTATE, CROSS]);
         let entry = shown(&canvases, &panes).entry.unwrap();

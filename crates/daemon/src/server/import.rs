@@ -13,11 +13,12 @@ use super::{absolute, drawn, remote, unreadable};
 use crate::store::{Store, now_ms};
 
 /// Makes the canvas `canvas`: empty, or holding the operations in the file
-/// at `path` applied as the user, the whole canvas or none.
+/// at `path` applied as `by` (default the user), the whole canvas or none.
 pub(super) fn create(
     store: &Store,
     canvas: String,
     path: Option<&Path>,
+    by: Option<&str>,
 ) -> Result<Reply, RemoteError> {
     let canvases = store.canvases();
     let made = match path {
@@ -28,7 +29,7 @@ pub(super) fn create(
                 let what = format!("{} is not JSON: {e}", path.display());
                 RemoteError::new("invalid", what, Some("write a list of canvas operations".into()))
             })?;
-            canvases.create_with(&canvas, &ops)
+            canvases.create_with(&canvas, by.unwrap_or("user"), &ops)
         }
     };
     made.map_err(|e| drawn(&e))?;

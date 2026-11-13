@@ -31,6 +31,7 @@ use crate::layout::{Point, Rect};
 use crate::mirror::TEXT_SIZES;
 use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::cursor::{self, Cursor};
+use crate::scene::glyphs;
 use crate::scene::ink::{Change, Ink};
 use crate::scene::shapes;
 
@@ -150,7 +151,9 @@ fn reshaped(
             let (at, after) = (placed(frame), grow(*size));
             let by = after / size;
             let frame = Rect { width: frame.width * by, height: frame.height * by, ..at };
-            Shape::Text { frame, text: text.clone(), size: after, column: column.map(|c| c * by) }
+            // A text that does not wrap stays so.
+            let column = column.map(|c| if c < glyphs::UNWRAPPED { c * by } else { c });
+            Shape::Text { frame, text: text.clone(), size: after, column }
         }
         Shape::Button { frame, status } => Shape::Button { frame: placed(frame), status: *status },
         Shape::Pdf { frame, .. } => shape.reframed(even(frame)),

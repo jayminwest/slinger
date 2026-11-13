@@ -85,6 +85,7 @@ fn a_sling_is_followed_until_the_agent_answers_or_stops() {
         let home = open_notes(daemon);
         user_stroke(daemon, "notes");
         daemon.session_start("notes").unwrap();
+        wait_until(|| daemon.session_show("scout").unwrap().context.is_some());
         let slinger = Slinger::start(daemon.clone(), None);
         let got = &mut Vec::new();
 
@@ -97,8 +98,9 @@ fn a_sling_is_followed_until_the_agent_answers_or_stops() {
             answer: None,
             profile: None,
             unheard: false,
+            tokens: Some(2008),
         };
-        assert_eq!(wait(&slinger, got), Heard::Progress(working));
+        assert_eq!(wait(&slinger, got), Heard::Progress(working), "the session's context");
 
         std::fs::write(home.path().join("go"), "").unwrap();
         let answer = Some("ok".to_string());
@@ -109,6 +111,7 @@ fn a_sling_is_followed_until_the_agent_answers_or_stops() {
             answer,
             profile: None,
             unheard: false,
+            tokens: Some(2008),
         };
         assert_eq!(wait(&slinger, got), Heard::Progress(answered));
         std::thread::sleep(3 * EVERY);

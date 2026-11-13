@@ -56,7 +56,6 @@ impl Canvases {
             Command::RenamePage => self.rename_page(panes, (pane, frame)),
             Command::RemovePage => self.remove_page(panes, pane),
             Command::Undo | Command::Redo => self.step(panes, pane, command == Command::Redo),
-            Command::PlaceButton => self.place_button(panes, pane, frame),
             Command::ToggleGrid => self.zoomed = Some(self.paper.toggle().to_string()),
             Command::Save => {
                 self.zoomed = Some(self.saved(panes, pane, std::env::home_dir().as_deref()));

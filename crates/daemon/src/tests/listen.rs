@@ -221,7 +221,11 @@ fn the_slings_that_wait_and_the_one_worked_on_wait_again_after_a_restart() {
     let second = sling(&client, "second");
     let taken = client.session_listen("notes", NONE).unwrap().sling.unwrap();
     assert_eq!(taken.event, first.event);
+    let (text, png) = (packet_text(&taken.dir), taken.dir.join("c1.png"));
+    let image = std::fs::read(&png).unwrap();
     daemon.stop();
+    // The packets were deleted while the daemon was down.
+    std::fs::remove_dir_all(data.path().join("packets")).unwrap();
 
     // The listener's claim is gone with the daemon: both wait, oldest first.
     let daemon = Daemon::start_in(data.path());
@@ -229,8 +233,9 @@ fn the_slings_that_wait_and_the_one_worked_on_wait_again_after_a_restart() {
     let waiting = client.session_show("scout").unwrap();
     assert_eq!(heard(&waiting), ("listen", Some(false), Some(2)));
     let again = client.session_listen("notes", NONE).unwrap().sling.unwrap();
-    assert_eq!(again, taken, "the same message, its images still there");
-    assert!(again.dir.join("c1.png").is_file());
+    assert_eq!(again, taken, "the same message");
+    assert_eq!(packet_text(&again.dir), text, "its packet written again, with `at`");
+    assert_eq!(std::fs::read(&png).unwrap(), image, "and its image");
     client.status_set("scout", "done", None).unwrap();
     daemon.stop();
 
@@ -240,6 +245,12 @@ fn the_slings_that_wait_and_the_one_worked_on_wait_again_after_a_restart() {
     let next = client.session_listen("notes", NONE).unwrap().sling.unwrap();
     assert_eq!(next.event, second.event);
     assert!(next.text.ends_with("# prompt\nsecond"));
+    assert!(packet_text(&next.dir).contains(" at="), "written again too");
     assert_eq!(client.session_listen("notes", NONE).unwrap().sling, None);
     daemon.stop();
+}
+
+/// The packet text a listener's sling names in `dir`.
+fn packet_text(dir: &std::path::Path) -> String {
+    std::fs::read_to_string(dir.join("packet.txt")).unwrap()
 }

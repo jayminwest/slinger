@@ -109,10 +109,10 @@ pub struct Entry {
     pub placeholder: String,
     /// "Sling to scout", above the box.
     pub title: Row,
-    /// Beneath the box: how to send and cancel, from its left edge; how to
-    /// dictate, from its right edge, when a key does.
+    /// Beneath the box: how to send and cancel, then how to dictate when a
+    /// key does, on one row (slinger-d03fb8: a second row from the right
+    /// edge drew over the first, as a field does not align styled text).
     pub keys: Row,
-    pub dictate: Option<Row>,
     /// The word on the pen's "✓" button beside the box ([`pen`]): "Sling",
     /// "Save" or "Rename"; none for an entry with no buttons.
     pub done: Option<&'static str>,
@@ -288,7 +288,7 @@ impl Sling {
         entry.text.clone_from(&ask.prompt);
         entry.placeholder = format!("what to ask about {} (or nothing)", count(ask));
         entry.done = Some("Sling");
-        Some(entry.dictated(theme, dictate))
+        Some(entry.dictated(dictate))
     }
 
     /// Whether `at`, a point in the window, is on the open entry's box: a
@@ -352,18 +352,17 @@ impl Entry {
             placeholder: String::new(),
             title: small(theme, frame, title, frame.y - SMALL, fill),
             keys: small(theme, frame, keys, frame.y + HEIGHT, fill),
-            dictate: None,
             done: None,
         }
     }
 
-    /// This entry with `chord`, the key that dictates, if any, beneath its
-    /// box from the right edge, in `theme`'s colours.
+    /// This entry with `chord`, the key that dictates, if any, at the end
+    /// of its keys beneath the box.
     #[must_use]
-    pub fn dictated(mut self, theme: &Theme, chord: Option<Chord>) -> Entry {
-        let text = chord.map(|chord| format!("{} dictate", chord.glyphs()));
-        let under = self.frame.y + HEIGHT;
-        self.dictate = text.map(|text| small(theme, self.frame, text, under, None));
+    pub fn dictated(mut self, chord: Option<Chord>) -> Entry {
+        if let Some(chord) = chord {
+            self.keys.label.text = format!("{} · {} dictate", self.keys.label.text, chord.glyphs());
+        }
         self
     }
 }

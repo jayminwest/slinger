@@ -38,6 +38,11 @@ pub fn answer(store: &Store, ask: SessionAsk) -> Result<Reply, RemoteError> {
             let wait = Duration::from_millis(wait.min(control::MAX_WAIT_MS));
             let (agent, sling) =
                 store.sessions().listen(store, &workspace, wait, pid).map_err(|e| remote(&e))?;
+            // The sling is taken: one whose packet cannot be written again
+            // still goes, its text naming what the listener cannot read.
+            if let Some(sling) = &sling {
+                let _restored = super::read::restore(store, sling);
+            }
             let sling =
                 sling.map(|Heard { event, canvas, dir, text }| Taken { event, canvas, dir, text });
             Ok(Reply::SessionListen(Listened { agent, sling }))
@@ -110,6 +115,8 @@ fn wire(store: &Store, s: Session) -> Result<control::Session, RemoteError> {
     let process = shown.as_ref().map(|p| if p.running { "running" } else { "exited" }.into());
     let answer = shown.as_ref().and_then(|p| p.answer.clone());
     let profile = shown.as_ref().and_then(|p| p.profile.clone());
+    // A listened-for agent's context is its listener's, which the daemon does not see.
+    let context = shown.as_ref().and_then(|p| p.context).filter(|_| s.deliver != Delivery::Listen);
     let running = shown.filter(|p| p.running);
     let (status, note) = s.status.map_or((None, None), |r| (Some(r.status.name().into()), r.note));
     // A listened-for agent's slings are its listener's, not its process's.
@@ -128,6 +135,7 @@ fn wire(store: &Store, s: Session) -> Result<control::Session, RemoteError> {
         answer,
         session_id,
         profile,
+        context,
     })
 }
 

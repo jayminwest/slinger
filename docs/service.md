@@ -149,7 +149,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `ui_open` | `ui`: a UI reference, `agent`: string, `host`: `pane` (default) or `canvas`, `data`: any JSON (optional). A pane: `workspace`: as `workspace_show`, `beside`: a pane number (optional), `below`: bool (default `false`). A canvas: `canvas`, `item`: the item it goes beside, `size`: `[w, h]` in tenths (default `[3200, 2400]`) | `open`: the showing's id, `ui`: the version, `workspace`, `pane`: the new pane's number, or `item`: the live item (`canvas`, `item`, `page`, `x`, `y`, `w`, `h`, `seq`), `event`: the `ui_opened` appended |
 | `ui_shown` | `ui`: a showing's id or a UI reference | `ui`: the version, then for a showing `open`, `data` (absent when `null`) and `agent` |
 | `ui_reply` | `open`: a showing's id, `value`: any JSON | `event`: the `ui_reply` appended, `agent`, `delivered`: whether its session took it |
-| `canvas_create` | `canvas`: canvas id, `path`: absolute path of a file of operations (optional) | `canvas`: the id |
+| `canvas_create` | `canvas`: canvas id, `path`: absolute path of a file of operations (optional), `by`: author of those operations (default `user`) | `canvas`: the id |
 | `canvas_list` | none | `canvases`: list of `{canvas}`, sorted by id |
 | `canvas_show` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `canvas`, `next`: the next operation's number, `page`: the page's id, `pages`: list of `{id, name}`, `items`: list of items, `path`: the absolute path of the canvas's file |
 | `canvas_apply` | `canvas`: canvas id, `by`: author (default `user`), `ops`: one operation or a list, `once`: string (optional) | `seq`: list of numbers, `made`: list of ids |
@@ -273,7 +273,8 @@ No UI reference holds a `#`, so a pane's target is either.
 
 **`ui_open`** resolves `ui` to one version, checks the agent (not blank),
 the host (`pane` or `canvas`), the data (at most 16384 bytes as JSON) and
-the workspace's window (`beside` there, room for a pane), then appends a
+the workspace's window (`beside` there, room for a pane; an empty
+`workspace` is `invalid`, with a hint), then appends a
 `ui_opened` event tagged with the agent and the workspace and opens a pane
 whose target is the showing's id, as `pane_open` does. With `host`
 `canvas` it checks the put instead (`item` on the canvas, a size above 0),
@@ -372,7 +373,9 @@ whole item objects: `id`, `page`, `by`, `t` (when it was made), `kind`,
 **`canvas_create`** makes an empty canvas; its one page is `p1`. With
 `path`, the canvas starts with the operations in that file (a JSON list, as
 `ops` of `canvas_apply`; its bytes travel as a file, so it may hold more than
-a request line), applied as `user` in one step. The file is written whole
+a request line), applied as `by` (`user`, the default, or `agent:<name>`) in
+one step, so only that author edits or removes them later; a `by` that is not
+an author is `invalid`. The file is written whole
 before the reply: an operation the canvas refuses makes no canvas and answers
 as `canvas_apply` would, so a client that makes a canvas from many items
 never leaves one half made. A file that is not there is `not_found`; one that
@@ -647,7 +650,11 @@ answered (a `result` line ends an answer). Claude Code takes a message sent
 mid-turn into that turn, so one result can answer several: a message still
 unanswered when a result has come and the process has said nothing more for
 2 seconds counts as answered. `answer` is the text of its last
-answer. `session_id` names its conversation.
+answer. `context` is about how many tokens its conversation holds, from
+the usage of its last model reply (an `assistant` line that is not a
+subagent's): its input, cached or not, and its output; absent until it
+replied, and under `listen`, whose session the daemon does not see.
+`session_id` names its conversation.
 
 **Limits.** A session has stated limits, set by its workspace's file
 (`[agent]` in docs/workspace.md). By default it:
@@ -820,6 +827,9 @@ record keeps each sling from the time it waits until its listener deals with
 it, so a daemon that stops loses none: after a restart every sling not dealt
 with waits, oldest first, the one a listener worked on too (the stop ended
 its claim, as a `pid` that ends does), and nobody listens until one asks.
+A sling handed out whose packet directory lacks a file (deleted while the
+daemon was down, say) has its text and images written there again from the
+record first.
 A stopping daemon ends every open request with no
 sling. A workspace that is not open is `not_found`, one with no agent
 `invalid`.

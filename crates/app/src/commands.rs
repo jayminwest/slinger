@@ -88,9 +88,6 @@ pub enum Command {
     /// Speak the sling's prompt: Flick's dictation starts (opening the
     /// prompt), and the next press stops it.
     Dictate,
-    /// Put a "send to agent" button in the middle of the focused pane's
-    /// canvas page.
-    PlaceButton,
     /// Show every command by group with its key (the key overlay).
     ShowKeys,
     /// Find a command by its title and run it (the command palette).
@@ -137,7 +134,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 60] = [
+    pub const ALL: [(Command, &str); 59] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -183,7 +180,6 @@ impl Command {
         (Command::Undo, "undo"),
         (Command::Redo, "redo"),
         (Command::Dictate, "dictate"),
-        (Command::PlaceButton, "place-button"),
         (Command::ShowKeys, "show-keys"),
         (Command::ShowCommands, "show-commands"),
         (Command::LeaveFeedback, "leave-feedback"),
@@ -362,7 +358,6 @@ impl Default for Keymap {
             on(CMD, 'z'),
             on(CMD | SHIFT, 'z'),
             on(CMD | SHIFT, '\r'),
-            on(CMD | SHIFT, 'b'),
             on(CMD, '/'),
             on(CMD, 'k'),
             on(CMD | SHIFT, 'f'),

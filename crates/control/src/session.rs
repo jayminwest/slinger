@@ -119,6 +119,10 @@ pub struct Session {
     /// The profile the process runs under; absent: the agent's own limits.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
+    /// About how many tokens the process's conversation holds, as of its
+    /// last model reply. Absent until it replied, and under `listen`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<u64>,
 }
 
 /// The reply to [`SessionAsk::SessionList`]: the sessions, by agent.

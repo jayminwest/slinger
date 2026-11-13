@@ -342,7 +342,11 @@ fn read(o: &Map<String, Value>) -> Option<Item> {
             let text = o.get("text")?.as_str()?.to_string();
             let size = units("size").filter(|s| TEXT_SIZES.contains(s)).unwrap_or(TEXT_SIZE);
             let stored = frame()?;
-            let column = Some(stored.width);
+            // A frame as wide as its longest line is a text that does not
+            // wrap: one typed here, which an edit keeps unwrapped.
+            let typed = write::text_frame_at(Point { x: 0.0, y: 0.0 }, &text, size).width;
+            let unwrapped = tenths(stored.width) == tenths(typed);
+            let column = Some(if unwrapped { glyphs::UNWRAPPED } else { stored.width });
             Shape::Text { frame: drawn_frame(stored, &text, size), text, size, column }
         }
         "box" => Shape::Box { frame: frame()?, width: LINE_WIDTH },
