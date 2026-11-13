@@ -104,3 +104,30 @@ fn apply_undo_and_redo_take_the_agent_from_the_environment(socket: &Path, client
     assert_eq!(slinger(socket, Some("scout"), &["canvas", "redo", "main"]).status.code(), Some(0));
     assert_eq!(makers(client).iter().filter(|by| *by == "agent:scout").count(), 2);
 }
+
+/// With no `--socket` and no `SLINGER_SOCKET`, `slinger` finds the daemon by
+/// the socket it named in the default data directory, on any path, not only
+/// on the default one (slinger-3bd4a6).
+#[test]
+fn a_daemon_on_another_socket_is_found_by_the_name_in_its_data_directory() {
+    let (home, temp) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let data = home.path().join("slinger");
+    std::fs::create_dir(&data).unwrap();
+    let socket = home.path().join("elsewhere.sock");
+    let store = slingerd::Store::open(&data, "my-laptop").unwrap();
+    let server = slingerd::Server::bind(&socket).unwrap();
+    let stopper = server.stopper();
+    let serving = std::thread::spawn(move || server.serve(&store));
+    let list = || {
+        let mut list = Command::new(env!("CARGO_BIN_EXE_slinger"));
+        list.args(["canvas", "list"]).env_remove("SLINGER_SOCKET").env_remove("XDG_RUNTIME_DIR");
+        list.env("XDG_DATA_HOME", home.path()).env("TMPDIR", temp.path()).output().unwrap()
+    };
+    assert_eq!(list().status.code(), Some(6), "nothing named, nothing on the default socket");
+
+    slinger_control::name_socket(&data, &socket).unwrap();
+    let found = list();
+    assert_eq!((found.status.code(), found.stdout.as_slice()), (Some(0), &b""[..]));
+    stopper.stop();
+    serving.join().unwrap().unwrap();
+}

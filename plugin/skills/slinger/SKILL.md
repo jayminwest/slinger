@@ -26,9 +26,7 @@ If you cannot run the guide, these rules hold:
 - Answer on the canvas: `slinger canvas put <CANVAS> --beside <ITEM> --text
   "..." --agent <NAME>`. Leave out `--agent` when `SLINGER_AGENT` is set.
 - Change only the items you made. Never change the user's ink.
-- Exit code 6 means no daemon `slingerd` answers on the socket. Run `pgrep
-  -fl slingerd`: if one runs with `--socket <PATH>`, pass `--socket <PATH>`
-  to each command. If none runs, tell the user; do not start it unless the
-  user asks.
+- Exit code 6 means no daemon `slingerd` answers. Tell the user; do not start
+  it unless the user asks.
 - If `slinger` is not installed: `cargo install --locked --git
   https://github.com/jayminwest/slinger slinger`.

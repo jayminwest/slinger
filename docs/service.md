@@ -76,6 +76,9 @@ writer; other programs reach the record through the socket.
 - The file's layout has a version. A daemon refuses a file laid out by a
   newer one (exit 4).
 
+`socket` names the socket the daemon listens on, while it runs (see
+"Socket").
+
 `sessions.json` keeps each agent's session id, `{agent: id}`, so a start
 after a restart resumes the conversation (see "Sessions").
 
@@ -96,6 +99,14 @@ write at a time, so any thread may write to it while the daemon serves.
 - Default path: `$XDG_RUNTIME_DIR/slinger.sock`. When `XDG_RUNTIME_DIR` is
   not set: `slinger.sock` in the temporary directory (`$TMPDIR`, per user on
   macOS). The daemon and every client take `--socket <PATH>`.
+- **The daemon names its socket.** While it serves, the daemon writes the
+  absolute path of its socket, one line, to `socket` in its data
+  directory, and removes the file as it stops. A client given no socket
+  (and no `$SLINGER_SOCKET`) takes the one named in the default data
+  directory, else the default path. So `slinger` finds the daemon of the
+  user's record on any path, and from a process whose `$TMPDIR` differs
+  from the daemon's. A daemon that died leaves its name; the next one on
+  that data directory writes its own.
 - There is no network transport.
 
 ## Protocol
