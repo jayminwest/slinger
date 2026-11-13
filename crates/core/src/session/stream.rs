@@ -46,8 +46,8 @@ pub enum Start<'a> {
 /// (slinger-29bb9f), but uses without asking only what [`Limits::tools`]
 /// allows (the `slinger` CLI, at least, and read-only commands in those
 /// directories); under no profile it writes files too ([`EDITS`]); it loads
-/// the settings and instructions of its home, and the owner's own with
-/// [`Limits::user_config`] (as the agent's is by default). Under a profile it runs in the profile's
+/// the settings and instructions of its home, and the owner's own only with
+/// [`Limits::user_config`]. Under a profile it runs in the profile's
 /// directory ([`Limits::dir`]), with the profile's rules in place of the
 /// agent's and of [`EDITS`], and only the built-in tools that read, run
 /// commands and its rules name ([`Limits::narrow`]).
@@ -70,8 +70,8 @@ impl Limits {
     /// The limits of `workspace`'s agent on `machine`: its roots on this
     /// machine and the agent's `dirs`, the `slinger` CLI, the rules that
     /// write files ([`EDITS`]) and the agent's `tools`, and its
-    /// `user_config`. A workspace with no agent gets the roots, the CLI,
-    /// those rules and the owner's own config.
+    /// `user_config`. A workspace with no agent gets the roots, the CLI and
+    /// those rules.
     #[must_use]
     pub fn of(workspace: &Workspace, machine: &str) -> Self {
         let agent = workspace.agent.as_ref();
@@ -83,7 +83,7 @@ impl Limits {
             tools: unique(
                 [SLINGER].into_iter().chain(EDITS).chain(rules.iter().map(String::as_str)),
             ),
-            user_config: agent.is_none_or(|a| a.user_config),
+            user_config: agent.is_some_and(|a| a.user_config),
             dir: None,
             narrow: false,
         }
@@ -287,14 +287,13 @@ mod tests {
         );
         let limits = Limits::of(&ws, "here");
         let tools = vec![SLINGER.into(), "Edit".into(), "Write".into()];
-        let want =
-            Limits { dirs: vec!["/data".into()], tools, user_config: true, ..Limits::default() };
+        let want = Limits { dirs: vec!["/data".into()], tools, ..Limits::default() };
         assert_eq!(limits, want);
         assert_eq!(
             args(Start::Fresh("id"), &limits).join(" "),
             [
                 "--print --input-format stream-json --output-format stream-json",
-                "--setting-sources user,project,local --permission-mode dontAsk",
+                "--setting-sources project,local --permission-mode dontAsk",
                 "--allowedTools Bash(slinger *) Edit Write --add-dir /data --verbose --session-id id",
             ]
             .join(" ")
@@ -302,9 +301,9 @@ mod tests {
     }
 
     #[test]
-    fn an_agent_widens_its_limits_with_dirs_and_tools_and_can_leave_out_its_user_config() {
+    fn an_agent_widens_its_limits_with_dirs_tools_and_its_user_config() {
         let ws = workspace(
-            "[agent]\nname = \"a\"\nuser_config = false\ndirs = [\"/docs\", \"/docs\"]\n\
+            "[agent]\nname = \"a\"\nuser_config = true\ndirs = [\"/docs\", \"/docs\"]\n\
              tools = [\"Edit(/docs/**)\", \"Bash(git *)\", \"WebFetch\", \"mcp__gh\"]\n",
         );
         let limits = Limits::of(&ws, "here");
@@ -314,7 +313,7 @@ mod tests {
             let at = args.iter().position(|a| a == flag).unwrap();
             args[at + 1..].iter().take_while(|a| !a.starts_with("--")).cloned().collect::<Vec<_>>()
         };
-        assert_eq!(after("--setting-sources"), ["project,local"]);
+        assert_eq!(after("--setting-sources"), ["user,project,local"]);
         assert!(!args.iter().any(|a| a == "--tools"), "every built-in tool");
         assert!(!args.iter().any(|a| a == "--strict-mcp-config"), "its MCP servers load");
         let rules =
@@ -338,7 +337,7 @@ mod tests {
             dir: Some("/src".into()),
             dirs: vec!["/home/ws".into(), "/docs".into()],
             tools: vec![SLINGER.into(), "Edit".into(), "Bash(git *)".into()],
-            user_config: true,
+            user_config: false,
             narrow: true,
         };
         assert_eq!(dev, want);

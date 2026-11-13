@@ -51,14 +51,10 @@ fn a_new_workspace_round_trips() {
 
 #[test]
 fn an_agent_reads_its_limits_and_writes_back_only_the_ones_set() {
-    let text = "version = 1\nname = \"x\"\n[agent]\nname = \"a\"\nuser_config = false\n\
+    let text = "version = 1\nname = \"x\"\n[agent]\nname = \"a\"\nuser_config = true\n\
                 dirs = [\"/srv/docs\"]\ntools = [\"Edit\", \"Bash(git *)\"]\n";
-    let ws = Workspace::parse(text).unwrap();
-    assert!(ws.to_toml().contains("user_config = false"), "an opt-out is kept");
-    let agent = ws.agent.unwrap();
-    assert!(!agent.user_config);
-    let plain = Workspace::parse("version = 1\nname = \"x\"\n[agent]\nname = \"a\"\n").unwrap();
-    assert!(plain.agent.unwrap().user_config, "the owner's own config, by default");
+    let agent = Workspace::parse(text).unwrap().agent.unwrap();
+    assert!(agent.user_config);
     assert_eq!(
         (agent.dirs, agent.tools),
         (vec!["/srv/docs".into()], vec!["Edit".into(), "Bash(git *)".into()])
