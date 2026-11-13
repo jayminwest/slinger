@@ -252,7 +252,8 @@ impl Panes {
             | Command::StartAgent
             | Command::StopAgent
             | Command::RestartAgent
-            | Command::ExportUi => {}
+            | Command::ExportUi
+            | Command::ShowFeedbackFile => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),

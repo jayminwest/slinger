@@ -2,7 +2,8 @@
 //! entry ([`crate::scene::feedback`]) in the focused pane, with what the
 //! pane shows, and the thread that saves the note ([`Noter`]) sends it.
 //! Each open asks it for the recent notes to list under the entry, and a
-//! tap on a note's "✓" there has it resolve the note.
+//! tap on a note's "✓" there has it resolve the note. `show-feedback-file`
+//! asks the daemon where the notes go ([`Canvases::feedback_file`]).
 //! The entry takes the keys as the sling's does, and only one of the two
 //! is open. Runs on the main thread and never waits.
 
@@ -118,6 +119,12 @@ impl Canvases {
         let Some(ts) = self.notes.entry.resolve(index) else { return false };
         self.notes.noter.resolve(ts);
         true
+    }
+
+    /// The `show-feedback-file` command: the daemon's feedback file, for
+    /// the Finder to show; else what the flash says. Waits for the daemon.
+    pub fn feedback_file(&self) -> Result<String, String> {
+        crate::backend::feedback_file(&self.daemon)
     }
 
     /// What to flash once a note is saved, once.

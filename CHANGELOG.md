@@ -11,6 +11,10 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** find your feedback. Show feedback file in Finder
+  (`show-feedback-file`, Help menu and the command palette; no default
+  key) shows the file your notes go to, as `slinger feedback path` names
+  it; before the first note it says where notes will go.
 - **App:** save an agent UI to a file. Export agent UI… (`export-ui`, File
   menu and the command palette; no default key) writes the version the
   focused pane shows to a folder you pick, as `<name>.v<version>.html`

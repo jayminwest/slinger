@@ -3,6 +3,8 @@
 //! back to the main thread, which never waits on the socket. The recent
 //! open notes come the same way, from one `feedback_list`, and a note
 //! resolves the same way, from one `feedback_resolve`, the list following.
+//! Where the notes go comes at once, from one `feedback_path`
+//! ([`feedback_file`]).
 
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
@@ -104,6 +106,16 @@ enum Job {
     Add(Note),
     List,
     Resolve(String),
+}
+
+/// The daemon's feedback file, for the Finder to show
+/// (`show-feedback-file`), from one `feedback_path`; else what the flash
+/// says: why the daemon did not answer, or, before the first note, where
+/// notes will go.
+pub fn feedback_file(daemon: &Client) -> Result<String, String> {
+    let file = daemon.feedback_path().map_err(|e| Problem::from(e).message)?;
+    let shown = file.to_string_lossy().into_owned();
+    if file.exists() { Ok(shown) } else { Err(format!("No feedback yet: notes go to {shown}")) }
 }
 
 /// When a note was saved, as the entry lists it: `11-11 14:02` from its
@@ -228,6 +240,23 @@ mod tests {
             });
             assert!(got[0].is_err(), "resolved already: {got:?}");
         });
+    }
+
+    #[test]
+    fn the_feedback_file_is_where_notes_go_once_there_is_one_or_the_flash_says_why_not() {
+        with_store(None, |daemon| {
+            let before = feedback_file(daemon).unwrap_err();
+            assert!(before.starts_with("No feedback yet: notes go to /"), "{before}");
+            let noter = Noter::new(daemon.clone());
+            noter.send(note("the pen lags"));
+            assert_eq!(wait(&noter), Ok(()));
+            let file = feedback_file(daemon).unwrap();
+            assert!(before.ends_with(&file), "the same file: {file}");
+            let listed = daemon.feedback_list(false, None).unwrap().path;
+            assert_eq!(std::path::Path::new(&file), listed);
+        });
+        let gone = feedback_file(&Client::new("/nonexistent/x.sock")).unwrap_err();
+        assert!(gone.contains("x.sock"), "{gone}");
     }
 
     #[test]

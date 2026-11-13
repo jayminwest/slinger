@@ -64,6 +64,7 @@ same thing by drawing, or never needs to.
 | `canvas create --ops` of a PDF | `open-pdf` (cmd+O) and a PDF dropped on the window |
 | `canvas import` | `open-pdf` (cmd+O) with a `.tldraw`/`.tldr` file, or one dropped on the window: imported, then shown beside the focused pane (`pane_open`), slinger-99061d |
 | `canvas put --color` | `pick-colour` and recolouring a selection |
+| `feedback path` | `show-feedback-file` (Help menu, palette; no default key): the Finder shows the file, or before the first note the flash says where notes go. Its reply (`FeedbackFile`) is new to the app, slinger-c57a12 |
 | `ui export` (the version a pane shows) | `export-ui` (File menu, palette; no default key): a folder picked, the file `<name>.v<version>.html` revealed. It writes the bytes the pane already has, so it calls no verb: about 790 bytes of `__TEXT`, slinger-401aa5 |
 
 ## Gaps
@@ -82,7 +83,6 @@ a rough size. Known ones name their seed.
 | Read the thinking record (what was slung, answered, touched) | `record_list` | design | slinger-895bde |
 | Browse a UI's versions (`ui list NAME`, `ui show`), or export one that no pane shows | `ui_list`, `ui_show`, `ui_export` | ui | slinger-401aa5 |
 | See resolved feedback notes | `feedback_list` (`all`) | ui | slinger-401aa5 |
-| Find the feedback file | `feedback_path` | arm | slinger-401aa5 |
 
 Notes on the new rows:
 
@@ -98,10 +98,8 @@ Notes on the new rows:
 - **The smaller gaps** (slinger-401aa5, measured 2026-11-13 with 2544
   bytes of `__TEXT` room before `export-ui` and 1752 after; a gap closes
   only if 1.5 KB stays free):
-  - *Find the feedback file*: a `show-feedback-file` command revealing
-    `feedback_path`'s file, built and measured, cost 2320 bytes: its
-    reply (`FeedbackFile`) is new to the app. It waits for room, or for
-    `feedback_path` to answer in a type the app already decodes.
+  - *Find the feedback file*: closed by `show-feedback-file`
+    (slinger-c57a12), once the ceiling rose to 1.5 MB (slinger-9b81a8).
   - *Resolved feedback notes*: `feedback_list` `all` is already decoded,
     but the entry must show a resolved note apart (no "✓", its
     resolution) and a way to ask for them: estimated 1 to 1.5 KB, more
