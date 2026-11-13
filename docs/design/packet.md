@@ -156,7 +156,11 @@ line that overlaps it that much joins the row.
 
 **Kinds**: `ink` (a cluster of strokes), `text`, `box`, `arrow`, `live` (an
 agent UI on the canvas: always text, never an image), `button` (the "send to
-agent" button: always text). Ink in the
+agent" button: always text), `pdf` (one page of a PDF or part of one,
+`docs/design/pdf.md`: always text, never an image, R8). The `page` section
+holds a `pdf` line only when an ink line in the packet names it in `over` or
+it is selected, so a long PDF costs no lines a sling does not touch; `made`
+holds one an agent made or changed. Ink in the
 `page` section is clustered the same way as new ink, and has no image. A
 stroke an agent drew is never clustered and never an image (R2): it is an
 `ink` line of one stroke, with `by`.
@@ -182,7 +186,8 @@ database with their arrows) into one cluster of six tiles, four once tiles
 are cut down to their ink (`c1986`, 10.9 to 4.0 million pixels).
 
 **Ids**: canvas items keep their canvas item number behind a letter for their
-kind (`t12`, `b9`, `a13`, `l14`, and `u15` for a button: `b` is a box's). A cluster's id is `c` plus the item number of its
+kind (`t12`, `b9`, `a13`, `l14`, `u15` for a button: `b` is a box's, and
+`d16` for a `pdf` item). A cluster's id is `c` plus the item number of its
 earliest stroke, so it stays the same across packets while that stroke does,
 and no two lines in a packet share a number. An arrow end bound to a stroke
 names the stroke's cluster.
@@ -197,7 +202,12 @@ names the stroke's cluster.
 | `from`, `to` | arrow | ids at the arrow's ends, when bound |
 | `to` | ink | the id an arrow drawn in this cluster points at: the first arrow whose start is bound to one of its strokes |
 | `ui`, `open` | live | the UI's name and the showing's id (`pick-slot#12`) |
+| `pdfpage` | pdf | the page number in the PDF, from 1 |
+| `crop` | pdf | the part of the page shown, `x,y,w,h` in whole PDF points from the page's top left, when it is not the whole page |
+| `name` | pdf | the PDF's file name, when known |
+| `blob` | pdf | the PDF's blob id (`slinger blob get` fetches the file) |
 | `in` | any | the id of the smallest other box that contains this item's box |
+| `over` | ink | the ids of the `pdf` items whose frame the cluster's box overlaps, comma-separated, in drawing order |
 | `img` | ink in `new` | image file names, comma-separated, tiles in reading order |
 
 The quoted text is last, only on `text` lines: the full text in `new` and
@@ -221,7 +231,9 @@ The tiles kept are numbered from 1 in reading order, and a single one is
 `<id>.png`. `slinger_core::render` draws them and
 holds these numbers as constants. A line is never thinner than 1 px. A crop
 (below) draws every kind: boxes, arrows, live items' and buttons' boxes as 2-unit
-lines (a live item with its UI's name inside, a button with `send to agent`), text in an 8 by 8
+lines (a live item with its UI's name inside, a button with `send to agent`, a
+`pdf` item in grey, `#999999`, with `pdf p<pdfpage>`: the core cannot draw the
+page), text in an 8 by 8
 bitmap font at 24 canvas units a character, wrapped at spaces to its frame
 (ASCII, Latin-1, Greek, box drawing, blocks, hiragana and common typography
 such as dashes, curly quotes and arrows; any other character is drawn as `?`).

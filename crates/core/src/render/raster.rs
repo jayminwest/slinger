@@ -23,6 +23,9 @@ const HEAD: f64 = 16.0;
 /// What a crop writes inside a "send to agent" button.
 const BUTTON_LABEL: &str = "send to agent";
 
+/// The colour of a `pdf` item's frame and label when its page is not drawn.
+const PDF_GREY: Colour = Colour::rgb(0x99, 0x99, 0x99);
+
 /// The size, in canvas units, of one character cell of a label.
 const TEXT_SIZE: f64 = crate::canvas::TEXT_SIZE;
 
@@ -81,16 +84,18 @@ impl Raster {
                 return self.text(text, *frame, *colour, *size);
             }
             // A live item's page is not drawn: its box, and its UI's name
-            // inside. A button the same, with its label.
-            Shape::Live { frame, .. } | Shape::Button { frame } => {
-                let label = match item.shape() {
-                    Shape::Live { ui, .. } => ui.as_str(),
-                    _ => BUTTON_LABEL,
+            // inside. A button the same, with its label; a PDF's page in
+            // grey, with its number (the core cannot read the PDF).
+            Shape::Live { frame, .. } | Shape::Button { frame } | Shape::Pdf { frame, .. } => {
+                let (label, colour) = match item.shape() {
+                    Shape::Live { ui, .. } => (ui.clone(), Colour::BLACK),
+                    Shape::Pdf { pdf_page, .. } => (format!("pdf p{pdf_page}"), PDF_GREY),
+                    _ => (BUTTON_LABEL.to_owned(), Colour::BLACK),
                 };
                 let pad = TEXT_SIZE / 2.0;
                 let inside = Rect::new(frame.x + pad, frame.y + pad, frame.w - 2.0 * pad, frame.h);
-                self.text(label, inside, Colour::BLACK, TEXT_SIZE);
-                (vec![corners(self, *frame)], LINE_WIDTH * SCALE / 2.0, Colour::BLACK)
+                self.text(&label, inside, colour, TEXT_SIZE);
+                (vec![corners(self, *frame)], LINE_WIDTH * SCALE / 2.0, colour)
             }
         };
         let radius = radius.max(MIN_RADIUS);

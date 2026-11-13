@@ -190,7 +190,7 @@ Operation kinds in v1 (their fields follow the envelope):
 | `restore` | `item`: a removed item put back whole, under its own id. The item object adds `by` and `t` (its maker and time) after `page`. Undo and redo write it. |
 | `page.restore` | `page`, `name`, `index` (0-based position), `items` (whole items, as in `restore`). Undo writes it. |
 
-Item objects. Every item has `id`, `page`, `kind` and, but for `live` and `button`, `color`; then by
+Item objects. Every item has `id`, `page`, `kind` and, but for `live`, `button` and `pdf`, `color`; then by
 kind:
 
 | `kind` | fields (lengths and positions in tenths of a unit) |
@@ -201,6 +201,7 @@ kind:
 | `arrow` | `pts` (delta array, two or more pairs); optional `from`, `to` (item ids it points at) |
 | `live` | `x`, `y`, `w`, `h` (both above 0), `ui` (the UI's name), `hash` (the blob id of the version shown), `open` (the showing, `pick-slot#12`) |
 | `button` | `x`, `y`, `w`, `h` (both above 0): the built-in "send to agent" button (SPEC section 8). It names no code: the app draws it, and a tap on it slings what is new on its page |
+| `pdf` | `x`, `y`, `w`, `h` (both above 0), `hash` (the PDF's blob id), `pdfpage` (the page number, from 1), `pagesize` (`[w, h]`, the whole page as displayed, in tenths of a PDF point, both above 0), then optional `crop` (`[x, y, w, h]` in tenths of a point from the page's top left, inside the page, `w` and `h` above 0; absent: the whole page) and optional `name` (the PDF's file name without its directory, 1 to 255 bytes, no `/`, no control character). One page of a PDF, or part of one, stretched to fill the frame (`docs/design/pdf.md`). A `set` carries `"crop":null` and `"name":null` to clear them |
 
 `color` is a string: a palette name the model defines, `#rrggbb`, or `#rrggbbaa` when
 the colour is not opaque. The model has no palette yet, so a reader reads any other
@@ -234,7 +235,8 @@ string as black.
   kind in `add`, not a new operation: a reader from before it keeps that `add` as a
   line it does not know, its counter still moves past the id, and a later `move`,
   `set` or `remove` of the id finds no item and changes nothing, so the rest of the
-  file replays the same. A `button` is added the same way.
+  file replays the same. A `button` is added the same way, and so is a `pdf` item
+  (`docs/design/pdf.md`): an app from before it draws nothing for one.
 
 ### Versions (B5)
 
@@ -286,4 +288,4 @@ string as black.
 - Compaction. Add it when a real canvas file is several times its live size. The
   `first` header field already makes room for it.
 - A persisted undo stack (see shared choices).
-- Images, frames, rotation (SPEC section 4).
+- Images (but for PDF pages, the `pdf` kind), frames, rotation (SPEC section 4).

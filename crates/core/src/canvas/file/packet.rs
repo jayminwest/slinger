@@ -8,8 +8,8 @@ use crate::packet::{Ask, Packet, build};
 use crate::{Error, Result};
 
 /// The letters an item id may start with: the file's `i`, and the packet's
-/// `c` (a cluster: its earliest stroke), `t`, `b`, `a`, `l` and `u`.
-const ID_LETTERS: [char; 7] = ['i', 'c', 't', 'b', 'a', 'l', 'u'];
+/// `c` (a cluster: its earliest stroke), `t`, `b`, `a`, `l`, `u` and `d`.
+pub(super) const ID_LETTERS: [char; 8] = ['i', 'c', 't', 'b', 'a', 'l', 'u', 'd'];
 
 impl Log {
     /// The packet of one page of this canvas, `id`: the page `page` names by
@@ -17,7 +17,7 @@ impl Log {
     /// are new; `after` 0 makes everything new, and one at or past the last
     /// line makes nothing new (B4). `select`, when not empty, narrows the
     /// `page` section (see [`Ask::selection`]); its ids are the file's
-    /// (`i12`) or the packet's (`c12`, `t12`, `b12`, `a12`, `l12`, `u12`).
+    /// (`i12`) or the packet's (`c12`, `t12`, `b12`, `a12`, `l12`, `u12`, `d12`).
     ///
     /// # Errors
     ///

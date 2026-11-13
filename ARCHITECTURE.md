@@ -35,7 +35,7 @@ dev-depend on the daemon's library, so they run against a real socket.
 
 ```
 canvas/      pages of items, changed only by operations. Build (Canvas::new),
-             apply (Canvas::apply(Op)), query (pages, items, item). Ops are data,
+             apply (Canvas::apply(Op)), query (pages, items, drawn, item). Ops are data,
              so a log of them replays to the same canvas, ids included. The
              storage layout is private. Keeps the author rule: an agent changes
              only items it made; removing what is already gone succeeds.
@@ -43,14 +43,19 @@ canvas/      pages of items, changed only by operations. Build (Canvas::new),
              (lasso move, erase gesture). Undo applies inverse ops (Restore,
              PageRestore put things back under their old ids) and returns
              them, so the op log stays append-only. Not persisted.
+             canvas/pdf.rs: the `pdf` kind's rules (docs/design/pdf.md):
+             frame, blob id, page, page size, crop and name as numbers and
+             text; Shape::shown, the crop or the whole page. The core never
+             reads a PDF. `drawn` puts pdf items first: they are the paper
+             under every other kind, for the render and every hit test.
 canvas/delta.rs  what is new after the last sling (R1): an op log and a
              marker (ops applied before it) in; the items new, changed or
              removed against the canvas at the marker out. Compares the two
              canvases, so added-then-removed is nothing. No errors.
 canvas/geometry.rs  pure queries on a page: item at a point, items in a
              lasso (nonzero winding), items an eraser touches (strokes, text,
-             a box by its outline, arrows; never a live item or the
-             button), items touching a
+             a box by its outline, arrows; never a live item, the
+             button or a pdf item), items touching a
              box, bounds of a set, free space beside an item (free_beside: right,
              below, left, above, then further right). No errors: degenerate input
              finds nothing.
@@ -89,6 +94,9 @@ packet/      what an agent reads from a page (docs/design/packet.md). Index::new
              the `new`, `made` and `page` lines in reading order, plus the render list:
              the new clusters that need images. Agent-made items are lines, never in
              the render list (R2). Owns the line grammar, ids and reading order.
+             A `pdf` item is a text line (id d<n>, never an image: R8); an ink
+             line names the pdf items under it (`over`), and `page` holds a
+             pdf line only when an ink line names it or it is selected.
              cluster(canvas, strokes) groups strokes into notes by distance, colour
              and time, sized by each pen's median stroke; a long stroke (frame, arrow,
              divider) joins only ink it touches, and an agent's stroke stays alone.

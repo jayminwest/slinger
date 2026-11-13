@@ -177,6 +177,19 @@ pub(super) fn shape(o: Obj, s: &Shape) -> Obj {
             rect(o.str("kind", "live"), *frame).str("ui", ui).str("hash", hash).str("open", open)
         }
         Shape::Button { frame } => rect(o.str("kind", "button"), *frame),
+        Shape::Pdf { frame, hash, pdf_page, page_size: (pw, ph), crop, name } => {
+            let o = rect(o.str("kind", "pdf"), *frame).str("hash", hash);
+            let size = Value::from(vec![tenths(*pw), tenths(*ph)]).to_string();
+            let mut o = o.int("pdfpage", i64::from(*pdf_page)).raw("pagesize", &size);
+            if let Some(c) = crop {
+                let crop = Value::from([c.x, c.y, c.w, c.h].map(tenths).to_vec()).to_string();
+                o = o.raw("crop", &crop);
+            }
+            match name {
+                Some(name) => o.str("name", name),
+                None => o,
+            }
+        }
     }
 }
 
@@ -232,6 +245,7 @@ pub(super) fn fields(s: &Shape) -> Fields {
     let optional: &[&str] = match s {
         Shape::Arrow { .. } => &["from", "to"],
         Shape::Text { .. } => &["size"],
+        Shape::Pdf { .. } => &["crop", "name"],
         _ => &[],
     };
     for &key in optional {
@@ -272,6 +286,9 @@ pub(super) fn read_shape(m: &Fields) -> Result<Option<Shape>, Bad> {
             frame: Rect::new(at("x")?, at("y")?, at("w")?, at("h")?),
         }));
     }
+    if kind == "pdf" {
+        return read_pdf(m).map(Some);
+    }
     if !matches!(kind, "stroke" | "text" | "box" | "arrow") {
         return Ok(None);
     }
@@ -303,6 +320,40 @@ pub(super) fn read_shape(m: &Fields) -> Result<Option<Shape>, Bad> {
         }
     };
     Ok(Some(shape))
+}
+
+/// A `pdf` item's fields (docs/design/pdf.md). Values the canvas would
+/// refuse (a page 0, a crop off the page) are left for [`Shape::check`].
+fn read_pdf(m: &Fields) -> Result<Shape, Bad> {
+    let at = |key| int(m, key).map(units);
+    let frame = Rect::new(at("x")?, at("y")?, at("w")?, at("h")?);
+    let pdf_page =
+        u32::try_from(int(m, "pdfpage")?).map_err(|_| "`pdfpage` is not a page number")?;
+    let [pw, ph] = tenths_list::<2>(m, "pagesize")?;
+    let crop = match m.get("crop") {
+        None | Some(Value::Null) => None,
+        Some(_) => {
+            let [left, top, width, height] = tenths_list::<4>(m, "crop")?;
+            Some(Rect::new(left, top, width, height))
+        }
+    };
+    Ok(Shape::Pdf {
+        frame,
+        hash: text(m, "hash")?.to_owned(),
+        pdf_page,
+        page_size: (pw, ph),
+        crop,
+        name: opt_text(m, "name")?.map(str::to_owned),
+    })
+}
+
+/// A list of exactly `N` integers in tenths, in units.
+fn tenths_list<const N: usize>(m: &Fields, key: &str) -> Result<[f64; N], Bad> {
+    let bad = || format!("`{key}` is not a list of {N} integers");
+    let list = field(m, key)?.as_array().ok_or_else(bad)?;
+    let values: Vec<f64> =
+        list.iter().map(|v| v.as_i64().map(units)).collect::<Option<_>>().ok_or_else(bad)?;
+    values.try_into().map_err(|_| bad())
 }
 
 pub(super) fn field<'a>(m: &'a Fields, key: &str) -> Result<&'a Value, Bad> {

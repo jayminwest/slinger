@@ -188,3 +188,15 @@ fn zero_width_characters_take_no_cell() {
         crate::render::text_size("hi", usize::MAX, 24.0)
     );
 }
+
+#[test]
+fn a_pdf_page_is_a_grey_frame_with_nothing_drawn_inside_but_its_label() {
+    let hash = format!("sha256:{}", "9f".repeat(32));
+    let frame = Rect::new(10.0, 10.0, 80.0, 80.0);
+    let page = (612.0, 792.0);
+    let pdf = Shape::Pdf { frame, hash, pdf_page: 3, page_size: page, crop: None, name: None };
+    let r = drawn(vec![pdf]);
+    // The left edge, at x = 10 units, is pixel 3.5; the frame is 2 units wide.
+    assert_eq!(r.pixel(3, 28), [0x99, 0x99, 0x99]);
+    assert_eq!(r.pixel(17, 28), WHITE, "the page's inside is not drawn");
+}

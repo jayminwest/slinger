@@ -17,6 +17,7 @@ pub mod file;
 mod geometry;
 mod history;
 mod item;
+mod pdf;
 mod restore;
 
 use std::collections::BTreeMap;
@@ -230,6 +231,14 @@ impl Canvas {
     /// that is not on the canvas has no items.
     pub fn items(&self, page: PageId) -> impl Iterator<Item = &Item> {
         self.items.values().filter(move |i| i.page == page)
+    }
+
+    /// The items on a page in the order they are drawn: the `pdf` items
+    /// first (they are the paper under everything), then the rest, each
+    /// group in item order. The render and every hit test use this order.
+    pub fn drawn(&self, page: PageId) -> impl Iterator<Item = &Item> {
+        let paper = |i: &&Item| matches!(i.shape, Shape::Pdf { .. });
+        self.items(page).filter(paper).chain(self.items(page).filter(move |i| !paper(i)))
     }
 
     /// The item with this id, if it is on the canvas.
