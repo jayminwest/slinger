@@ -9,7 +9,8 @@
 //!
 //! Over a PDF, the sling first asks the daemon which areas of its pages lie
 //! under the new ink (`sling_backdrops`), renders each with the [`Render`]
-//! it was started with, and sends the files with the sling. An area that
+//! it was started with, from the PDF fetched into the directory it was
+//! started with, and sends the files with the sling. An area that
 //! does not render is left out: the sling still goes, that ink on white.
 
 use std::fs;
@@ -68,8 +69,9 @@ pub struct Slinger {
 
 impl Slinger {
     /// Starts sending through `daemon`, rendering the page under new ink
-    /// with `render` (none: ink on white). Returns at once.
-    pub fn start(daemon: Client, render: Option<Render>) -> Self {
+    /// with `render` from PDFs fetched into its directory (none: ink on
+    /// white). Returns at once.
+    pub fn start(daemon: Client, render: Option<(Render, PathBuf)>) -> Self {
         let daemon = Arc::new(Mutex::new(daemon));
         let (asks, to_send) = mpsc::channel::<Ask>();
         let (tell, heard) = mpsc::channel();
@@ -78,7 +80,7 @@ impl Slinger {
             let client = || theirs.lock().unwrap_or_else(PoisonError::into_inner).clone();
             let mut next = to_send.recv().ok();
             while let Some(ask) = next.take() {
-                let (agent, tokens) = match sling(&client(), ask, render) {
+                let (agent, tokens) = match sling(&client(), ask, render.as_ref()) {
                     Ok(went) => went,
                     Err(problem) => {
                         if tell.send(Heard::Failed(problem)).is_err() {
@@ -172,12 +174,12 @@ fn follow(
 /// it first starts the agent of the canvas's workspace under it (the
 /// daemon leaves a process running under it as it is, and restarts one
 /// under another), and the sling goes only to that profile. Returns the
-/// agent it went to and the tokens it costs. With `render`, the page under
-/// the new ink goes with it ([`backdrops`]).
+/// agent it went to and the tokens it costs. With `render` and the PDFs'
+/// directory, the page under the new ink goes with it ([`backdrops`]).
 fn sling(
     daemon: &Client,
     ask: Ask,
-    render: Option<Render>,
+    render: Option<&(Render, PathBuf)>,
 ) -> Result<(String, Option<u64>), Problem> {
     let profile = match ask.profile {
         Profile::Running => None,
@@ -195,8 +197,9 @@ fn sling(
     let (canvas, page, prompt) = (ask.canvas, Some(ask.page), ask.prompt);
     let n = SLINGS.fetch_add(1, Ordering::Relaxed);
     let dir = std::env::temp_dir().join(format!("slinger-app-sling-{}-{n}", std::process::id()));
-    let backdrops =
-        render.map(|r| backdrops(daemon, &canvas, page.as_deref(), r, &dir)).unwrap_or_default();
+    let backdrops = render
+        .map(|(r, pdfs)| backdrops(daemon, &canvas, page.as_deref(), *r, pdfs, &dir))
+        .unwrap_or_default();
     let request = SlingAsk { canvas, page, select, prompt, profile, backdrops };
     let slung = daemon.sling_send(request);
     let _ = fs::remove_dir_all(&dir);
@@ -205,14 +208,16 @@ fn sling(
 }
 
 /// The page under the new ink of `canvas`'s `page`, rendered with `render`
-/// into `dir`: one backdrop per area the daemon names that
-/// renders. A daemon that does not say, a PDF not fetched or an area not
-/// rendered leaves it out, and so do the areas past half a request line.
+/// from the PDFs fetched into `pdfs`, into `dir`: one backdrop per area the
+/// daemon names that renders. A daemon that does not say, a PDF not
+/// fetched or an area not rendered leaves it out, and so do the areas past
+/// half a request line.
 fn backdrops(
     daemon: &Client,
     canvas: &str,
     page: Option<&str>,
     render: Render,
+    pdfs: &Path,
     dir: &Path,
 ) -> Vec<Backdrop> {
     let areas = daemon.sling_backdrops(canvas, page).unwrap_or_default();
@@ -221,7 +226,7 @@ fn backdrops(
     }
     let (mut out, mut room) = (Vec::new(), MAX_LINE / 2);
     for (n, area) in areas.iter().enumerate() {
-        let Ok(pdf) = super::pdf::fetch(daemon, &area.hash, &super::pdf::cache()) else {
+        let Ok(pdf) = super::pdf::fetch(daemon, &area.hash, pdfs) else {
             continue;
         };
         let file = |ext: &str| -> PathBuf { dir.join(format!("{n}.{ext}")) };

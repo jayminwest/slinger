@@ -19,7 +19,8 @@ impl Canvases {
     /// now on (`platform::pdf::backdrop`); without it, ink goes on white.
     #[must_use]
     pub fn rendering(mut self, render: Render) -> Self {
-        self.slinger = Slinger::start(self.daemon.clone(), Some(render));
+        let pdfs = crate::backend::pdf::cache();
+        self.slinger = Slinger::start(self.daemon.clone(), Some((render, pdfs)));
         self
     }
 
