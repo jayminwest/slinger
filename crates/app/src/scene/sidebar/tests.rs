@@ -262,10 +262,7 @@ fn each_workspace_s_lines_are_a_target_a_tap_shows_its_panes() {
     blocked.name = "bo-ws".into();
     let mut sidebar = heard(vec![ws("ada", None), blocked]);
     let targets = sidebar.targets(&T, WINDOW);
-    assert_eq!(
-        targets.iter().map(|t| t.1).collect::<Vec<_>>(),
-        [Tap::Workspace(0), Tap::Workspace(1)]
-    );
+    assert_eq!(targets.iter().map(|t| t.1).collect::<Vec<_>>(), [0, 1]);
     let rows = sidebar.rows(&T, WINDOW);
     let at = |text: &str| rows.iter().find(|r| r.label.text == text).unwrap().label.frame;
     let (ada, bo) = (targets[0].0, targets[1].0);
@@ -420,7 +417,7 @@ fn a_broken_workspace_shows_why_the_field_and_the_hint_wrapped_to_the_sidebar() 
     assert!(joined.starts_with("agent.tools: \"Shell\" is not a tool field: agent.tools fix"));
     assert!(joined.ends_with("'slinger workspace close /w/bad'"), "{joined}");
     assert!(said.len() > 4, "the hint wraps: {said:?}");
-    assert!(!said.contains(&"no agent") && !said.contains(&broken::CLOSE), "not shown: no close");
+    assert!(!said.contains(&"no agent"), "every verb on it fails: no agent");
     assert!(under[1..].iter().all(|&(_, c)| c == T.error || c == T.muted));
     let room = WIDTH - PAD;
     let row = |text: &str| rows.iter().find(|r| r.label.text == text).unwrap().label.frame;
@@ -431,34 +428,11 @@ fn a_broken_workspace_shows_why_the_field_and_the_hint_wrapped_to_the_sidebar() 
 }
 
 #[test]
-fn a_shown_broken_workspace_has_a_close_line_whose_tap_closes_it() {
-    let mut sidebar = heard(vec![broken("", "nameless"), ws("ada", None)]);
+fn a_broken_file_that_names_no_workspace_shows_its_folder_s_name_and_is_a_target() {
+    let sidebar = heard(vec![broken("", "nameless"), ws("ada", None)]);
     let rows = sidebar.rows(&T, WINDOW);
-    assert!(rows.iter().any(|r| r.label.text == "nameless"), "a file with no name: its folder's");
-    let close = rows.iter().find(|r| r.label.text == broken::CLOSE).unwrap().label.frame;
+    let name = rows.iter().find(|r| r.label.text == "nameless").unwrap().label.frame;
     let targets = sidebar.targets(&T, WINDOW);
-    let taps: Vec<_> = targets.iter().map(|t| t.1).collect();
-    let run = Tap::Run(Command::CloseWorkspace);
-    assert_eq!(taps, [Tap::Workspace(0), run, Tap::Workspace(0), Tap::Workspace(1)]);
-    assert_eq!((targets[1].0.y, targets[1].0.height), (close.y, ROW), "the close line alone");
-    assert_eq!(targets[0].0.y + targets[0].0.height, close.y, "above it shows it");
-    assert_eq!(targets[2].0.y, close.y + ROW, "and the hint under it");
-    assert_eq!(sidebar.close(), Some(PathBuf::from("/w/nameless")), "the shown one, by its dir");
-    let names: Vec<_> = sidebar.agents().unwrap().into_iter().map(|(c, _)| c).collect();
-    assert_eq!(names, ["ada-canvas"], "out of the list");
-    assert!(shown(&sidebar.rows(&T, WINDOW)).contains(&("ada-ws", T.text)));
-}
-
-#[test]
-fn close_takes_the_workspace_the_window_shows_and_the_first_shows_next() {
-    let mut sidebar = heard(vec![ws("ada", None), ws("bo", None), ws("cy", None)]);
-    sidebar.pick(1);
-    sidebar.close().unwrap();
-    let left: Vec<_> = sidebar.agents().unwrap().into_iter().map(|(c, _)| c).collect();
-    assert_eq!(left, ["ada-canvas", "cy-canvas"]);
-    let bold: Vec<_> = sidebar.rows(&T, WINDOW).into_iter().filter(|r| r.font.bold).collect();
-    assert_eq!(bold[0].label.text, "ada-ws", "the first shows");
-    sidebar.show(Some("gone".into()));
-    assert_eq!(sidebar.close(), None, "the shown one is not in the list");
-    assert_eq!(Sidebar::new(true).close(), None, "nothing heard yet");
+    assert_eq!(targets.iter().map(|t| t.1).collect::<Vec<_>>(), [0, 1]);
+    assert_eq!(targets[0].0.y, name.y, "a tap on its lines shows it");
 }

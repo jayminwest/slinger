@@ -18,10 +18,8 @@
 use std::path::PathBuf;
 
 use crate::backend::Problem;
-use crate::commands::Command;
 use crate::config::{Rgb, Theme};
 use crate::layout::Rect;
-use crate::scene::taps::{Tap, Target};
 use crate::scene::{Label, status, style};
 
 mod agent;
@@ -186,10 +184,9 @@ impl Sidebar {
     }
 
     /// Where each workspace's lines are in `window` (its name and its
-    /// agent's, as wide as the sidebar): a tap there shows its panes
-    /// ([`Sidebar::pick`]); and a shown broken workspace's close line,
-    /// which runs `close-workspace`. None when collapsed.
-    pub fn targets(&self, theme: &Theme, window: Rect) -> Vec<Target> {
+    /// agent's, as wide as the sidebar), with its index in the list: a
+    /// tap there shows its panes ([`Sidebar::pick`]). None when collapsed.
+    pub fn targets(&self, theme: &Theme, window: Rect) -> Vec<(Rect, usize)> {
         self.laid(theme, window).1
     }
 
@@ -208,18 +205,8 @@ impl Sidebar {
         Some(name)
     }
 
-    /// Takes the workspace the window shows out of the list, and shows the
-    /// first: the directory of the one taken, to close it by. `None` when
-    /// no workspace shows.
-    pub fn close(&mut self) -> Option<PathBuf> {
-        let list = self.workspaces.as_mut()?;
-        let shown = self.shown.take();
-        let at = list.iter().position(|w| shown.as_ref().is_none_or(|s| *s == w.name))?;
-        Some(list.remove(at).dir)
-    }
-
     /// The rows and the workspaces' targets.
-    fn laid(&self, theme: &Theme, window: Rect) -> (Vec<Row>, Vec<Target>) {
+    fn laid(&self, theme: &Theme, window: Rect) -> (Vec<Row>, Vec<(Rect, usize)>) {
         if !self.open {
             return (Vec::new(), Vec::new());
         }
@@ -253,7 +240,7 @@ impl Sidebar {
             frame: Rect { x, y, width: (right - x).max(0.0), height: ROW },
         };
         let (mut rows, mut lit) = (Vec::new(), None::<(f64, f64)>);
-        let mut targets: Vec<Target> = Vec::new();
+        let mut targets: Vec<(Rect, usize)> = Vec::new();
         let wide = WIDTH.min(window.width) - style::HAIRLINE;
         let mut y = window.y + PAD;
         for line in lines {
@@ -273,13 +260,10 @@ impl Sidebar {
             if line.shown {
                 lit = Some((lit.map_or(y, |(top, _)| top), y + ROW));
             }
-            let tap = line.workspace.map(|i| {
-                if line.close { Tap::Run(Command::CloseWorkspace) } else { Tap::Workspace(i) }
-            });
-            match (tap, targets.last_mut()) {
-                (Some(t), Some((frame, at))) if *at == t => frame.height = y + ROW - frame.y,
-                (Some(t), _) => {
-                    targets.push((Rect { x: window.x, y, width: wide, height: ROW }, t))
+            match (line.workspace, targets.last_mut()) {
+                (Some(i), Some((frame, at))) if *at == i => frame.height = y + ROW - frame.y,
+                (Some(i), _) => {
+                    targets.push((Rect { x: window.x, y, width: wide, height: ROW }, i));
                 }
                 (None, _) => {}
             }
@@ -315,8 +299,6 @@ struct Line {
     shown: bool,
     /// The index of the workspace it belongs to, if any.
     workspace: Option<usize>,
-    /// Whether a tap on it closes that workspace rather than shows it.
-    close: bool,
 }
 
 impl Line {
@@ -330,7 +312,6 @@ impl Line {
             gap: 0.0,
             shown: false,
             workspace: None,
-            close: false,
         }
     }
 
@@ -351,7 +332,7 @@ fn block(workspace: &Workspace, shown: bool, theme: &Theme) -> Vec<Line> {
     }
     let mut lines = vec![Line { gap: GAP, ..Line::new(name, theme.text, font) }];
     match (&workspace.broken, &workspace.agent) {
-        (Some(broken), _) => lines.extend(broken.lines(shown, theme)),
+        (Some(broken), _) => lines.extend(broken.lines(theme)),
         (None, None) => lines.push(Line::under("no agent".into(), theme.muted)),
         (None, Some(agent)) => {
             let text = match agent.status {

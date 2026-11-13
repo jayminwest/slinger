@@ -17,9 +17,9 @@ use crate::{Ask, Event, Settings, Step, asked, pen, window};
 pub enum Routed {
     /// Answer the window this.
     Answer(Step),
-    /// A tap in the sidebar or `open-workspace` showed the workspace
-    /// named, or `close-workspace` the first (`None`): watch it, then answer.
-    Watch(Option<String>, Step),
+    /// A tap in the sidebar, or `open-workspace`, showed the workspace
+    /// named: watch it, then answer.
+    Watch(String, Step),
     /// Look at the news (a tick); `true` draws whether or not there is any.
     News(bool),
 }
@@ -57,11 +57,11 @@ pub fn route(
             Ok(true) => Step::Draw(view(settings, shared, tools, sidebar, canvases)),
             Err(why) => Step::Refuse(why),
         },
-        (asked @ (Ask::Tap(_) | Ask::Open(_) | Ask::Run(Command::CloseWorkspace)), _) => {
+        (asked @ (Ask::Tap(_) | Ask::Open(_)), _) => {
             let shown = match asked {
-                Ask::Open(dir) => window::open_workspace(&dir, socket, sidebar, tools).map(Some),
-                Ask::Tap(target) => tap(target, canvases, shared, sidebar).map(Some),
-                _ => window::close_workspace(socket, sidebar, tools).then_some(None),
+                Ask::Open(dir) => window::open_workspace(&dir, socket, sidebar, tools),
+                Ask::Tap(target) => tap(target, canvases, shared, sidebar),
+                _ => None,
             };
             let step = Step::Draw(view(settings, shared, tools, sidebar, canvases));
             return match shown {

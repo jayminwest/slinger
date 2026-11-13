@@ -120,18 +120,6 @@ pub fn open_workspace(
     }
 }
 
-/// Closes the workspace `sidebar` shows through the daemon on `socket`,
-/// and shows the first: whether it closed, for the watch to follow the
-/// first. The flash in `tools` says why it cannot.
-pub fn close_workspace(socket: &Path, sidebar: &mut Sidebar, tools: &mut Tools) -> bool {
-    let Some(dir) = sidebar.close() else { return false };
-    let closed = backend::close_workspace(&slinger_control::Client::new(socket), &dir);
-    if let Err(problem) = &closed {
-        tools.flash().say(problem.message.clone(), Instant::now());
-    }
-    closed.is_ok()
-}
-
 /// Opens the PDF `file` as a canvas beside the focused pane of `shared`,
 /// its pages read by `sizes` ([`Canvases::open_pdf`]): `open-pdf`'s file,
 /// or the first PDF of files dropped on the window, which focuses the pane
@@ -337,7 +325,7 @@ pub fn view(
     let mut targets = sidebar.notice_targets(area);
     targets.extend(sling.targets);
     targets.extend(footers.iter().flat_map(|f| f.targets.clone()));
-    targets.extend(rows);
+    targets.extend(rows.map(|(frame, index)| (frame, Tap::Workspace(index))));
     shared.taps.set(targets);
     let lit = shared.taps.lit(theme);
     if let Some((at, _)) = lit {
