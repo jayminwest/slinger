@@ -48,8 +48,7 @@ fn opening_a_directory_makes_its_file_and_canvas_and_survives_a_restart() {
     assert!(file.contains("name = \"Notes\"") && file.contains("primary = true"), "{file}");
     assert_eq!(client.canvas_list().unwrap(), ["notes"]);
     let items = client.canvas_show("notes", None).unwrap().items;
-    assert_eq!(items.len(), 1, "a new workspace's canvas has its button: {items:?}");
-    assert_eq!((&items[0]["kind"], &items[0]["by"]), (&"button".into(), &"user".into()));
+    assert!(items.is_empty(), "a new workspace's canvas starts empty: {items:?}");
 
     let again = client.workspace_open(Some(&dir.join("..").join("Notes")), None).unwrap();
     assert_eq!((again.new, &again.workspace), (false, &ws));

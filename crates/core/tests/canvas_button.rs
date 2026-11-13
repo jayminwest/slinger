@@ -65,22 +65,3 @@ fn the_packet_says_a_button_as_text_and_an_agent_puts_beside_it() {
     let removed = log.remove(&scout, AT, "u1");
     assert_eq!(removed.unwrap_err().code(), "invalid", "an agent cannot take the user's button");
 }
-
-#[test]
-fn a_new_canvas_starts_with_the_users_button_on_its_first_page() {
-    let (mut log, bytes) = Log::start("idea", AT).unwrap();
-    let line = bytes.lines().nth(1).unwrap();
-    assert_eq!(
-        line,
-        r#"{"n":1,"t":"2025-11-10T16:00:00.000Z","by":"user","op":"add","item":{"id":"i1","page":"p1","kind":"button","x":0,"y":0,"w":1600,"h":400}}"#
-    );
-    let file = read(bytes.as_bytes()).unwrap();
-    assert_eq!(file.canvas().unwrap(), *log.canvas(), "the file replays to the same canvas");
-    assert!(log.undo(&Author::User, AT).bytes.is_empty(), "the button is no undo step");
-    let (mut reopened, _) = Log::open(bytes.as_bytes()).unwrap();
-    assert!(reopened.undo(&Author::User, AT).bytes.is_empty(), "nor once the file is read again");
-    let gone = log.apply(&Author::User, AT, &json!({"op": "remove", "ids": ["i1"]})).unwrap();
-    assert!(!gone.bytes.is_empty(), "the user may take it away");
-    assert_eq!(Log::start("idea", AT).unwrap().0.next(), 2);
-    assert_eq!(Log::start("../x", AT).unwrap_err().code(), "invalid");
-}

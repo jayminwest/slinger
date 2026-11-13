@@ -21,10 +21,6 @@ bullet with the area in bold.
   still win, and it can use the app's colours as `var(--slinger-ink)`,
   `--slinger-muted`, `--slinger-accent`, `--slinger-error` and
   `--slinger-paper`.
-- **Canvas:** a new workspace's canvas comes with a "send to agent" button
-  in its top left, so a tap slings what is new without placing one first.
-  It is an ordinary item: move it, or delete it and it stays gone. Canvases
-  you already have are left as they are.
 - **Service:** `canvas_create` takes an optional `path`: a file of canvas
   operations the new canvas starts with. The canvas is made with all of them
   or not at all.

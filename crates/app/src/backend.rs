@@ -320,9 +320,6 @@ pub(crate) mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = "version = 1\nname = \"notes\"\ncanvas = \"notes\"\n[agent]\nname = \"scout\"\n";
         fs::write(dir.path().join("slinger-workspace.toml"), file).unwrap();
-        // Bare, so a test's items are its own: a workspace's new canvas
-        // otherwise starts with its button.
-        daemon.canvas_create("notes").unwrap();
         daemon.workspace_open(Some(dir.path()), None).unwrap();
         dir
     }
