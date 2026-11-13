@@ -1,9 +1,11 @@
 //! `session_listen` through the real socket: a sling waits for a listener,
 //! the one that asks takes it as text with its images as files, a listener
-//! outranks a running process, and a listener that is gone loses nothing.
+//! outranks a running process, and a listener that is gone, its reply
+//! unread or its process ended, loses nothing.
 
 use std::io::Write;
 use std::os::unix::net::UnixStream;
+use std::process::{Command, Stdio};
 use std::time::Duration;
 
 use serde_json::json;
@@ -61,7 +63,7 @@ fn a_sling_waits_for_a_listener_who_takes_it_as_text_with_its_images_as_files() 
     let at = format!(" at={}", taken.dir.display());
     assert!(taken.text.lines().nth(1).unwrap().contains(&at), "{}", taken.text);
     assert!(taken.text.contains("This is a sling from Slinger"), "the whole note");
-    assert!(taken.text.contains("`slinger session listen notes`"));
+    assert!(taken.text.contains("`slinger session listen notes --pid $PPID`"));
     assert!(taken.text.ends_with("# prompt\nwhat is this?"));
     assert!(taken.text.contains("img=c1.png") && taken.dir.join("c1.png").is_file());
     let working = client.session_show("scout").unwrap();
@@ -159,4 +161,40 @@ fn a_listener_that_is_gone_leaves_its_sling_waiting_and_a_stop_ends_an_open_ask(
         daemon.stop();
         assert_eq!(ask.join().unwrap().sling, None);
     });
+}
+
+#[test]
+fn a_listener_whose_process_ends_mid_sling_is_gone_and_one_that_says_done_is_not() {
+    let (data, projects, home) =
+        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_in(data.path());
+    let client = daemon.client();
+    open_with_agent(&client, &projects, "notes", "scout");
+    // The session that listens: any process that runs until it is ended.
+    let mut session = Command::new(fake_claude())
+        .current_dir(home.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .spawn()
+        .unwrap();
+    draw(&client, 0);
+    let slung = sling(&client, "first");
+    let taken = client.session_listen_in("notes", LONG, Some(session.id())).unwrap();
+    assert_eq!(taken.sling.unwrap().event, slung.event);
+    assert_eq!(heard(&client.session_show("scout").unwrap()), ("listen", Some(true), Some(1)));
+
+    // It is closed before it says it is done: nobody listens, and the sling waits again.
+    session.kill().unwrap();
+    session.wait().unwrap();
+    assert_eq!(heard(&client.session_show("scout").unwrap()), ("listen", Some(false), Some(1)));
+    let err = client.session_listen_in("notes", NONE, Some(session.id())).unwrap_err();
+    assert_eq!(err.code(), "invalid", "{err}");
+    let again = client.session_listen("notes", NONE).unwrap().sling.unwrap();
+    assert_eq!(again.event, slung.event, "the next listener takes it");
+
+    // Saying done (or blocked) ends the work, and the listener stays to ask again.
+    client.status_set("scout", "done", None).unwrap();
+    let done = client.session_show("scout").unwrap();
+    assert_eq!(heard(&done), ("listen", Some(true), Some(0)));
+    daemon.stop();
 }

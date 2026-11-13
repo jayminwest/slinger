@@ -34,10 +34,10 @@ pub fn answer(store: &Store, ask: SessionAsk) -> Result<Reply, RemoteError> {
         SessionAsk::SlingBackdrops { canvas, page } => {
             super::sling::backdrops(store, &canvas, page.as_deref())
         }
-        SessionAsk::SessionListen { workspace, wait } => {
+        SessionAsk::SessionListen { workspace, wait, pid } => {
             let wait = Duration::from_millis(wait.min(control::MAX_WAIT_MS));
             let (agent, sling) =
-                store.sessions().listen(store, &workspace, wait).map_err(|e| remote(&e))?;
+                store.sessions().listen(store, &workspace, wait, pid).map_err(|e| remote(&e))?;
             let sling =
                 sling.map(|Heard { event, canvas, dir, text }| Taken { event, canvas, dir, text });
             Ok(Reply::SessionListen(Listened { agent, sling }))

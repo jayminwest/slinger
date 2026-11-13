@@ -1,27 +1,24 @@
 //! The macOS layer. Every `unsafe` block and every objc2 or `AppKit` call in the
-//! project is in this directory (gate check:layers, rule `platform-owns-ffi`).
-//! It exposes safe functions and makes no decisions: `input` turns a key
-//! press into a [`Chord`], a pen or mouse event into a [`Pen`] (every point:
-//! mouse coalescing is off), a trackpad scroll, a right-button drag or a
-//! pinch into a pan or a zoom, and a tablet pen's proximity into the end in
-//! use, and hands them on, and keeps the pointer's cursor; and it draws what
-//! a [`Scene`] says. A canvas view
-//! says how long after its pen event it painted new ink (SPEC O2). Each
-//! canvas pane is a view of its own (`canvas`) that lives as long as its
-//! pane, so a new scene repaints only what changed.
-//! `web` shows agent UIs in sandboxed web views, each kept as long as its
-//! page is shown. `menu` is the menu bar. `keys` reads a key press, and
-//! reads and writes the clipboard for a cut, copy or paste no text field
-//! takes (greyed in the Edit menu when the app would do nothing). `entry` is the sling's one-line
-//! text field; `overlay` dims the window under the key overlay; `chrome`
-//! the focus border and the flash's pill. `text` sets styled text: the
-//! sidebar's rows and the panes' footers. The window
-//! resizes, down to [`layout::SMALLEST`], and says its new size; `files`
+//! project is in this directory (gate check:layers, rule `platform-owns-ffi`). It
+//! exposes safe functions and makes no decisions: `input` turns a key press into
+//! a [`Chord`], a pen or mouse event into a [`Pen`] (every point: mouse
+//! coalescing is off), a trackpad scroll, a right-button drag or a pinch into a
+//! pan or a zoom, and a tablet pen's proximity into the end in use, and hands
+//! them on, and keeps the pointer's cursor; and it draws what a [`Scene`] says. A
+//! canvas view says how long after its pen event it painted new ink (SPEC O2).
+//! Each canvas pane is a view of its own (`canvas`) that lives as long as its
+//! pane, so a new scene repaints only what changed. `web` shows agent UIs in
+//! sandboxed web views, each kept as long as its page is shown. `menu` is the
+//! menu bar. `keys` reads a key press, and reads and writes the clipboard for a
+//! cut, copy or paste no text field takes (greyed in the Edit menu when the app
+//! would do nothing). `entry` is the sling's one-line text field; `overlay` dims
+//! the window under the key overlay; `chrome` the focus border and the flash's
+//! pill. `text` sets styled text: the sidebar's rows and the panes' footers. The
+//! window resizes, down to [`layout::SMALLEST`], and says its new size; `files`
 //! sets its title bar, shows a canvas's file in the Finder and hands on files
-//! dropped on the window; `pdf` reads
-//! and draws PDFs, and asks for one to open; `window`
-//! makes it; `remember` keeps its frame, and whether the sidebar was open,
-//! for the next launch.
+//! dropped on the window; `pdf` reads and draws PDFs, and asks for one to open;
+//! `window` makes it; `remember` keeps its frame, and whether the sidebar was
+//! open, for the next launch.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
 //! that touches `AppKit` takes a `MainThreadMarker`, which only the main thread
@@ -63,12 +60,11 @@ use crate::commands::{Chord, Command};
 use crate::layout::{PaneId, Point, Size};
 use crate::scene::flash::Pill;
 use crate::scene::ink::Pen;
-use crate::scene::overlay::{Line, Overlay};
 use crate::scene::paste::{Clip, Edit};
 use crate::scene::sidebar::Row;
 use crate::scene::status::Footer;
 use crate::scene::style::Rule;
-use crate::scene::{Border, Label, Scene};
+use crate::scene::{Border, Label, Scene, overlay::Line, overlay::Overlay};
 
 /// How often the main thread looks for a new scene, in seconds.
 const POLL_SECONDS: f64 = 0.5;
@@ -174,18 +170,11 @@ struct Shown {
 }
 
 /// What the chrome is made from: the rules, the sidebar, the footers, the
-/// labels, the border, the overlay, the flash and the pills. A part left
-/// out would show as it was until another part changed (slinger-7d5db9).
-type Chrome = (
-    Vec<Rule>,
-    Vec<Row>,
-    Vec<Footer>,
-    Vec<Label>,
-    Border,
-    Option<Box<Overlay>>,
-    Option<Box<Pill>>,
-    Vec<Line>,
-);
+/// labels and the pills, the border, the overlay and the flash: a part
+/// left out would not redraw when only it changed (slinger-7d5db9).
+type Chrome =
+    (Vec<Rule>, Vec<Row>, Vec<Footer>, Labels, Border, Option<Box<Overlay>>, Option<Box<Pill>>);
+type Labels = (Vec<Label>, Vec<Line>);
 
 thread_local! {
     /// Set once by [`run`], on the main thread, and kept for the app's life.
@@ -366,7 +355,12 @@ pub fn run(
     // Texts are hit where their glyphs are, as this thread lays them out.
     crate::scene::glyphs::set_measure(canvas::measure);
     let app = NSApplication::sharedApplication(mtm);
-    app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+    // A run in the background has no Dock icon and never comes forward.
+    app.setActivationPolicy(if kept.front() {
+        NSApplicationActivationPolicy::Regular
+    } else {
+        NSApplicationActivationPolicy::Accessory
+    });
     // Every pen point, not one per frame: a fast stroke keeps its shape.
     NSEvent::setMouseCoalescingEnabled(false);
     let window = window::make(mtm, scene.size, kept);
@@ -396,8 +390,10 @@ pub fn run(
     {
         dispatch(Event::Resized(Size { width: size.width, height: size.height }), mtm);
     }
-    state.window.makeKeyAndOrderFront(None);
-    app.activate();
+    if kept.front() {
+        state.window.makeKeyAndOrderFront(None);
+        app.activate();
+    }
     app.run();
     Ok(())
 }
@@ -449,11 +445,10 @@ fn draw(state: &State, scene: &Scene, mtm: MainThreadMarker) {
         scene.rules.clone(),
         scene.sidebar.clone(),
         scene.footers.clone(),
-        scene.labels.clone(),
+        (scene.labels.clone(), scene.pills.clone()),
         scene.focus,
         scene.overlay.clone(),
         scene.flash.clone(),
-        scene.pills.clone(),
     ));
     if shown.made_from == made_from {
         return;

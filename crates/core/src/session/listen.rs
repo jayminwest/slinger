@@ -38,10 +38,17 @@ pub struct Listener {
     waiting: VecDeque<Heard>,
     /// How many asks are held open right now.
     asking: u32,
-    /// When an ask last ended.
+    /// When an ask last ended, or the listener last said it was done.
     seen: Option<Instant>,
-    /// It took a sling and has not asked for the next.
-    working: bool,
+    /// The sling it took and has not said it dealt with.
+    working: Option<Work>,
+}
+
+/// A sling a listener works on, and the process that works on it.
+#[derive(Debug)]
+struct Work {
+    sling: Heard,
+    by: Option<u32>,
 }
 
 impl Listener {
@@ -61,11 +68,12 @@ impl Listener {
         self.seen = Some(now);
     }
 
-    /// The oldest sling that waits, taken by the listener that asks. Asking
-    /// says its last sling is dealt with, so it works only if it gets one.
-    pub fn take(&mut self) -> Option<Heard> {
+    /// The oldest sling that waits, taken by the listener that asks, which
+    /// works on it in the process `by` when it names one. Asking says its
+    /// last sling is dealt with, so it works only if it gets one.
+    pub fn take(&mut self, by: Option<u32>) -> Option<Heard> {
         let sling = self.waiting.pop_front();
-        self.working = sling.is_some();
+        self.working = sling.clone().map(|sling| Work { sling, by });
         sling
     }
 
@@ -73,29 +81,56 @@ impl Listener {
     /// is the oldest again, and nobody works on it.
     pub fn put_back(&mut self, sling: Heard) {
         self.waiting.push_front(sling);
-        self.working = false;
+        self.working = None;
     }
 
-    /// Whether a listener is there at `now`: it asks, it asked within
-    /// [`GRACE`], or it works on a sling it took.
+    /// The listener said at `now` that it dealt with its sling (it set its
+    /// status `done` or `blocked`): it counts as there for [`GRACE`], as
+    /// after an ask, so its next ask still finds the slings its own.
+    pub fn done(&mut self, now: Instant) {
+        if self.working.take().is_some() {
+            self.seen = Some(now);
+        }
+    }
+
+    /// The process that works on the sling the listener took, when the
+    /// listener named one. Once it is gone, so is the listener
+    /// ([`Listener::gone`]).
+    #[must_use]
+    pub fn worker(&self) -> Option<u32> {
+        self.working.as_ref().and_then(|work| work.by)
+    }
+
+    /// The process that worked on the sling ended before it said it dealt
+    /// with it: the sling waits again, the oldest, and nobody is there.
+    pub fn gone(&mut self) {
+        if let Some(Work { sling, .. }) = self.working.take() {
+            self.waiting.push_front(sling);
+        }
+        self.seen = None;
+    }
+
+    /// Whether a listener is there at `now`: it asks, it asked or said it
+    /// was done within [`GRACE`], or it works on a sling it took.
     #[must_use]
     pub fn attached(&self, now: Instant) -> bool {
         let lately = self.seen.is_some_and(|seen| now.saturating_duration_since(seen) < GRACE);
-        self.asking > 0 || self.working || lately
+        self.asking > 0 || self.working.is_some() || lately
     }
 
     /// How many slings a listener has still to deal with: those that wait,
     /// and the one it works on.
     #[must_use]
     pub fn pending(&self) -> u32 {
-        u32::try_from(self.waiting.len()).unwrap_or(u32::MAX).saturating_add(self.working.into())
+        let working = u32::from(self.working.is_some());
+        u32::try_from(self.waiting.len()).unwrap_or(u32::MAX).saturating_add(working)
     }
 
     /// Forgets who listened: the agent was stopped, or handed to a process.
     /// The slings that wait stay.
     pub fn release(&mut self) {
         self.seen = None;
-        self.working = false;
+        self.working = None;
     }
 }
 
@@ -111,15 +146,15 @@ mod tests {
     fn slings_wait_for_a_listener_and_come_oldest_first() {
         let mut l = Listener::default();
         let now = Instant::now();
-        assert!(!l.attached(now) && l.pending() == 0 && l.take().is_none());
+        assert!(!l.attached(now) && l.pending() == 0 && l.take(None).is_none());
         l.push(sling(1));
         l.push(sling(2));
         assert!(!l.attached(now), "slings waiting are not a listener");
         assert_eq!(l.pending(), 2);
-        assert_eq!(l.take(), Some(sling(1)));
+        assert_eq!(l.take(None), Some(sling(1)));
         assert_eq!(l.pending(), 2, "one waits, one is worked on");
-        assert_eq!(l.take(), Some(sling(2)));
-        assert_eq!(l.take(), None);
+        assert_eq!(l.take(None), Some(sling(2)));
+        assert_eq!(l.take(None), None);
         assert_eq!(l.pending(), 0);
     }
 
@@ -133,10 +168,34 @@ mod tests {
         assert!(l.attached(now + GRACE / 2));
         assert!(!l.attached(now + GRACE), "it did not ask again");
         l.push(sling(1));
-        l.take();
+        l.take(None);
         assert!(l.attached(now + GRACE * 9), "it works on the sling it took");
-        l.take();
+        l.take(None);
         assert!(!l.attached(now + GRACE), "asking again ends the work");
+    }
+
+    #[test]
+    fn a_listener_that_says_done_stays_for_a_grace_and_one_whose_process_is_gone_leaves() {
+        let mut l = Listener::default();
+        let now = Instant::now();
+        l.push(sling(1));
+        l.push(sling(2));
+        l.take(Some(42));
+        assert_eq!(l.worker(), Some(42));
+        l.done(now + GRACE * 9);
+        assert_eq!((l.worker(), l.pending()), (None, 1), "done ends the work");
+        assert!(l.attached(now + GRACE * 9 + GRACE / 2), "it is about to ask again");
+        assert!(!l.attached(now + GRACE * 10));
+
+        l.take(Some(42));
+        l.gone();
+        assert!(!l.attached(now), "its process is gone");
+        assert_eq!((l.worker(), l.pending()), (None, 1));
+        assert_eq!(l.take(None), Some(sling(2)), "the sling it worked on waits again");
+        assert_eq!(l.worker(), None, "an ask that names no process");
+        l.done(now);
+        l.done(now + GRACE * 9);
+        assert!(!l.attached(now + GRACE * 9), "done with nothing taken is not a sign of life");
     }
 
     #[test]
@@ -145,14 +204,14 @@ mod tests {
         let now = Instant::now();
         l.push(sling(1));
         l.push(sling(2));
-        let taken = l.take().unwrap();
+        let taken = l.take(None).unwrap();
         l.put_back(taken);
         assert!(!l.attached(now), "nobody works on it");
         assert_eq!(l.pending(), 2);
-        assert_eq!(l.take(), Some(sling(1)));
+        assert_eq!(l.take(None), Some(sling(1)));
         l.left(now);
         l.release();
         assert!(!l.attached(now));
-        assert_eq!(l.take(), Some(sling(2)));
+        assert_eq!(l.take(None), Some(sling(2)));
     }
 }

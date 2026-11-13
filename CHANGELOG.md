@@ -33,6 +33,9 @@ bullet with the area in bold.
   new one in the panel, and it opens as a workspace named after the folder
   (its `slinger-workspace.toml` is made the first time) and the window turns
   to it. A folder that cannot be opened says why.
+- **App:** `slinger-app --preview <UI> ... --background` runs a preview
+  without showing its window or a Dock icon. The project's own tests use it,
+  so running them no longer opens windows over your work.
 - **PDF:** open a PDF and write on it. Open PDF… (`open-pdf`, ⌘O) is
   in the File menu, and under a new File group in the key overlay and the
   command palette. It asks for a `.pdf` file and opens it as a new canvas
@@ -308,6 +311,11 @@ bullet with the area in bold.
   it.
 - **App:** a sling's "answered" pill no longer stays on screen after it
   should have gone.
+- **Listening:** a Claude Code session that was closed while it worked on a
+  sling no longer keeps the agent's slings. `session listen --pid $PPID`
+  names the session's process (the `slinger-listen` skill passes it): when
+  it ends, the app shows that nobody listens and the sling waits for the
+  next listener. Setting `done` or `blocked` also ends the work on a sling.
 - **PDF:** a PDF page that stayed a grey frame because its file could not
   be fetched is tried again the next time it is on screen, after a wait
   that grows from a second to about a minute. Before, it stayed grey until

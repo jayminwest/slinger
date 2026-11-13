@@ -182,7 +182,9 @@ session.rs   sessions (SPEC section 5, section 7 status set): a session per
              canvas goes to. No IO.
 session/listen.rs  listen delivery: the slings that wait for one agent's
              listener, oldest first, and whether one is there (it asks, asked
-             within GRACE, or works on a sling it took). No clock, no waiting.
+             or said done within GRACE, or works on a sling it took, and the
+             process it named for that work, `worker`, runs). No clock, no
+             waiting, no process IO.
 session/stream.rs  Claude Code's stream format (D10): the arguments that start
              or resume a session's process, with its limits (what it reads,
              runs and loads, from its workspace's agent, or under one of its
@@ -277,7 +279,8 @@ sessions.rs  the statuses agents set since the daemon started (`working`
              `working`; start and stop release a listener's claim.
 listeners.rs the listeners, one per agent (`session::listen`), behind one
              lock and a condvar: `listen` holds an ask open until a sling
-             comes, the wait passes or the daemon stops.
+             comes, the wait passes or the daemon stops. Each lock finds a
+             listener whose worker process ended `gone` (`alive`: kill 0).
 processes.rs the agents' processes, one per agent: spawned in the agent's
              home (or its profile's dir) within its limits, with `SLINGER_AGENT` and `SLINGER_SOCKET`,
              written to under one lock, read by a thread each so a pipe never
@@ -325,7 +328,8 @@ server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
 ```
 main.rs      wires the modules below. The only caller of platform. With
              `--preview UI [--data JSON]` it shows one agent UI alone and
-             writes each reply's `ui_reply` line to stdout instead. It routes
+             writes each reply's `ui_reply` line to stdout instead; with
+             `--background` last, that window is never shown. It routes
              each event (route.rs, which the window's answer and the tests
              both call; the answer adds a tick's news): keys, the pen, the
              mouse, the trackpad. A pen or
@@ -913,7 +917,10 @@ platform/remember.rs  what the window keeps in the user defaults from one
              main says whose frame a run keeps (platform::Kept): the app's
              window, or a preview's (`--preview`, which the tests run), saved
              under a name of its own so a preview never moves the app's
-             window; a preview never reads or writes the sidebar's.
+             window; a preview never reads or writes the sidebar's. Kept
+             also says whether the run comes to the front: a preview in the
+             background (`--background`) has no Dock icon and its window is
+             never put on a screen.
 platform/files.rs  sets the title bar a scene's Title says (title, subtitle,
              represented file), shows a file in the Finder
              (`show-canvas-file`, from main), and asks for a folder for
@@ -1165,7 +1172,7 @@ Each boundary has something that fails when it is broken:
 | A session starts with the exact limits its workspace sets: by default its roots, the `slinger` CLI, the rules that write files and no user config; wider with the agent's `dirs`, `tools` and `user_config` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
 | A profile is set, listed and removed in the workspace's file, and a bad name, rule or dir is refused loudly with nothing written; a session under one runs in its dir with its rules in place of the agent's and resumes its own conversation; a sling that names one reaches only a process under it | `crates/core/src/workspace/profile.rs`, `crates/core/src/session/stream.rs`, `crates/daemon/src/tests/profile.rs` with a stand-in for Claude Code, `crates/cli/src/tests/profile.rs` |
 | Three slings go into one conversation, each with its packet blob and `sling_sent`; old ink is not sent again; a sling that cannot go stores nothing; each verb the note names is served | `crates/daemon/src/tests/sling.rs`, with a stand-in for Claude Code |
-| A sling with no process waits for a listener, who takes it as text with its images as files and whose put answers it; a listener outranks a running process and a sling that names a profile goes only to a process; a listener that is gone loses no sling and a daemon stop ends an open ask | `crates/core/src/session/listen.rs`, `crates/daemon/src/tests/listen.rs` through a real socket, `crates/cli/src/tests/sling.rs` |
+| A sling with no process waits for a listener, who takes it as text with its images as files and whose put answers it; a listener outranks a running process and a sling that names a profile goes only to a process; a listener that is gone (its reply unread, or the process it named ended mid-sling) loses no sling, `done` ends its work, and a daemon stop ends an open ask | `crates/core/src/session/listen.rs`, `crates/daemon/src/tests/listen.rs` through a real socket, `crates/cli/src/tests/sling.rs` |
 | An agent verb takes its agent from `--agent` or `SLINGER_AGENT`, else exits 2 | `crates/cli/tests/agent_env.rs`, against the real binary |
 | The hooks: each event runs its CLI command and none exits 2; `file_touched` stores a path and a hash, no contents | `crates/core/src/session/hooks.rs`, and `crates/daemon/src/tests/touched.rs` through a real socket |
 | A turn's hooks move a session from working to done and record the file it wrote | `crates/cli/tests/hooks.rs`, with a stand-in for Claude Code and the real binary |
