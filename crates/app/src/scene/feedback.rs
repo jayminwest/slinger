@@ -302,7 +302,9 @@ impl Feedback {
 /// `lines` filled in `theme`'s panel colour, as the card they stand on.
 fn on_card(mut lines: Vec<Label>, theme: &Theme) -> Vec<Label> {
     let fill = Some(style::panel(theme));
-    lines.iter_mut().for_each(|l| l.fill = fill);
+    for line in &mut lines {
+        line.fill = fill;
+    }
     lines
 }
 
