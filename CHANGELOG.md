@@ -399,6 +399,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** when an agent stops before it answers a sling, the sling's
+  note says to sling again (a sling starts it) instead of telling you
+  to run `slinger session start`.
 - **App:** opening the sling entry while typing a text on the canvas
   ends that text, as the feedback entry does. Its caret no longer stays
   on the canvas beside the entry's own, and the text is on the page
