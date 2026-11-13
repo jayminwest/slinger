@@ -47,9 +47,10 @@ Rules:
 
 - A sling waits while you work: you get it when you listen again. Do not run
   two listeners for one workspace.
-- To stop, end the background command. A sling sent after that waits for the
-  next listener, or goes to the agent's process after `slinger session start
-  <WORKSPACE>`.
+- To stop, end the background command. For 10 seconds after that slinger
+  still counts you as listening: a sling sent then waits for the next
+  listener. A sling sent later starts the agent's process, resuming its
+  conversation, and goes to it.
 - Exit code 6 means the daemon is not running. Tell the user; do not start
   it unless the user asks.
 - Change only the items you made. Never change the user's ink.
