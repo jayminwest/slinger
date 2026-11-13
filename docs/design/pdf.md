@@ -196,9 +196,10 @@ so the key overlay, the palette and the menu bar show it. It:
 
 1. shows the open panel for one `.pdf` file (`platform`, main thread);
 2. on a backend thread: `pages(path)`; `blob_put(path)`; `canvas_create` with
-   the canvas id below; one `canvas_apply` per 100 `add`s (a request line holds
-   65536 bytes), in page order; then `pane_open` of the canvas beside the
-   focused pane in the window's workspace;
+   the canvas id below and `path`: a file of the `add`s on `p1`, in page order
+   (a request line holds 65536 bytes, a long PDF's `add`s more), so the canvas
+   is made whole or not at all (slinger-39c3af); then `pane_open` of the
+   canvas beside the focused pane in the window's workspace;
 3. shows a failure as the problem in the pane, with nothing half made but the
    blob (a blob with no item costs nothing).
 
