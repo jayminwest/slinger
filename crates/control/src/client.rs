@@ -226,26 +226,38 @@ impl Client {
     }
 
     /// [`Client::call`] for a request the daemon may take `timeout` to answer.
+    ///
+    /// Only writing the request and reading the reply's type depend on the
+    /// types; the rest is [`Client::answer`], so each new pair of them does
+    /// not build another copy of the socket IO into every binary (slinger-548ea9).
     pub(crate) fn call_within<R: Serialize, T: DeserializeOwned>(
         &self,
         request: &R,
         timeout: Duration,
     ) -> Result<T, RemoteError> {
-        let answer = self.exchange(request, timeout).map_err(|e| self.unavailable(&e, timeout))?;
+        let line = wire::request_line(request).map_err(|e| self.unavailable(&e, timeout))?;
+        serde_json::from_value(self.answer(&line, timeout)?).map_err(internal)
+    }
+
+    /// Sends the request line and returns the reply's document when it is a
+    /// success, or the daemon's error.
+    #[inline(never)]
+    fn answer(&self, line: &str, timeout: Duration) -> Result<Value, RemoteError> {
+        let answer = self.exchange(line, timeout).map_err(|e| self.unavailable(&e, timeout))?;
         let doc: Value = serde_json::from_str(&answer).map_err(internal)?;
         match doc.get("ok").and_then(Value::as_bool) {
-            Some(true) => serde_json::from_value(doc).map_err(internal),
+            Some(true) => Ok(doc),
             Some(false) => Err(serde_json::from_value(doc).map_err(internal)?),
             None => Err(internal("no `ok` field")),
         }
     }
 
     /// Sends the request line and returns the reply line.
-    fn exchange<R: Serialize>(&self, request: &R, timeout: Duration) -> std::io::Result<String> {
+    fn exchange(&self, line: &str, timeout: Duration) -> std::io::Result<String> {
         let mut stream = UnixStream::connect(&self.socket)?;
         stream.set_read_timeout(Some(timeout))?;
         stream.set_write_timeout(Some(TIMEOUT))?;
-        stream.write_all(wire::request_line(request)?.as_bytes())?;
+        stream.write_all(line.as_bytes())?;
         let mut answer = String::new();
         if BufReader::new(stream).read_line(&mut answer)? == 0 {
             return Err(std::io::Error::other("the connection closed before a reply"));

@@ -45,6 +45,7 @@ same thing by drawing, or never needs to.
 |---|---|
 | `workspace open DIR` | `open-workspace` (shift+cmd+O, File menu, palette, sidebar "+"), 36e8844 |
 | `workspace list` | The sidebar; a tap on a workspace shows its panes |
+| `workspace close` | `close-workspace` (opt+cmd+W, File menu, palette; a broken workspace's "Close workspace" line), slinger-c75719 |
 | `session list`, `session show` | The sidebar's mark and note per agent; the sling pill and its answer ("tap to read") |
 | `profile list` | The sling's profile menu lists the agent's profiles |
 | `sling send` (`--page`, `--select`, `--prompt`, `--profile`) | `sling`, `sling-now`, `dictate`, the send-to-agent button, the profile menu |
@@ -62,7 +63,6 @@ a rough size. Known ones name their seed.
 
 | The person cannot | Verb | Size | Seed |
 |---|---|---|---|
-| Close a workspace | `workspace_close` | arm | slinger-c75719 (built, held for the budget) |
 | Make a workspace with no folder, from a typed name | `workspace_open` (`name`) | design | slinger-59bf85 |
 | Start a workspace's agent, or see that it is not running | `session_start` | ui | slinger-35e7d5 |
 | Stop a workspace's agent | `session_stop` | arm | new |

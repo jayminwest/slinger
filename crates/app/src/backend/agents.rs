@@ -1,7 +1,7 @@
 //! The open workspaces and their agents as the sidebar shows them: each
 //! agent's status read against its process, the profile it runs under,
 //! and the names of the profiles it has, or why its file cannot be used;
-//! and a folder opened as one.
+//! a folder opened as one, and one closed.
 
 use std::path::Path;
 
@@ -48,6 +48,13 @@ pub fn workspaces(daemon: &Client) -> Result<Vec<Workspace>, Problem> {
             }),
         })
         .collect())
+}
+
+/// Closes the workspace whose file is in `dir`: by its directory, which
+/// works whatever the file holds.
+pub fn close_workspace(daemon: &Client, dir: &Path) -> Result<(), Problem> {
+    daemon.workspace_close(&dir.to_string_lossy())?;
+    Ok(())
 }
 
 /// Opens the folder `dir` as a workspace, making its file the first time:

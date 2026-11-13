@@ -106,6 +106,7 @@ impl Command {
             Command::OpenPdf => "Open PDF…",
             Command::CropPdf => "Crop PDF",
             Command::OpenWorkspace => "Open workspace…",
+            Command::CloseWorkspace => "Close workspace",
         }
     }
 
@@ -142,7 +143,7 @@ impl Command {
             | Command::ToggleGrid
             | Command::Save
             | Command::ShowCanvasFile => Group::Canvas,
-            Command::OpenPdf | Command::OpenWorkspace => Group::File,
+            Command::OpenPdf | Command::OpenWorkspace | Command::CloseWorkspace => Group::File,
             Command::NextPage
             | Command::PreviousPage
             | Command::NewPage
