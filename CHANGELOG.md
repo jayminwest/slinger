@@ -342,6 +342,10 @@ bullet with the area in bold.
   shorter lines, so notes you wrote below it landed inside its box and on
   top of it in the agent's picture. Canvas text is a little smaller and
   its lines a little closer than before.
+- **App:** an agent's paragraph you resize, move to another page or edit
+  keeps its lines. Before, it was saved as one long line each, so after a
+  reload it no longer wrapped, and an edit unwrapped it as you typed. Text
+  you type yourself still does not wrap.
 - **App:** the sling's pill keeps counting, and a short message still goes
   away on time, while you resize the window or have a menu open. Before,
   both froze until you let go.
