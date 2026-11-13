@@ -38,6 +38,11 @@ pub fn answer(store: &Store, ask: SessionAsk) -> Result<Reply, RemoteError> {
             let wait = Duration::from_millis(wait.min(control::MAX_WAIT_MS));
             let (agent, sling) =
                 store.sessions().listen(store, &workspace, wait, pid).map_err(|e| remote(&e))?;
+            // The sling is taken: one whose packet cannot be written again
+            // still goes, its text naming what the listener cannot read.
+            if let Some(sling) = &sling {
+                let _restored = super::read::restore(store, sling);
+            }
             let sling =
                 sling.map(|Heard { event, canvas, dir, text }| Taken { event, canvas, dir, text });
             Ok(Reply::SessionListen(Listened { agent, sling }))
