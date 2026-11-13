@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** an agent UI looks like part of the canvas: its page starts on
+  the canvas's paper, in its ink and the system font, light or dark as the
+  app's theme is, with no white box before it paints. A page's own styles
+  still win, and it can use the app's colours as `var(--slinger-ink)`,
+  `--slinger-muted`, `--slinger-accent`, `--slinger-error` and
+  `--slinger-paper`.
 - **Canvas:** a new workspace's canvas comes with a "send to agent" button
   in its top left, so a tap slings what is new without placing one first.
   It is an ordinary item: move it, or delete it and it stays gone. Canvases
@@ -39,6 +45,19 @@ bullet with the area in bold.
   (`close-workspace`, ⌥⌘W) is in the File menu and the command palette: it
   closes the workspace the window shows and turns to the first. Its file,
   canvas and agent stay; open its folder again to bring it back.
+- **App:** start a workspace's agent without the CLI. Start agent
+  (`start-agent`, ⌥⌘A) is in the Tools menu and the command palette: it
+  starts the agent of the workspace the window shows, with its own limits,
+  in its last conversation. While that agent is not running, the sidebar
+  says so and shows a Start agent line under it; tap it to start it.
+- **App:** stop a workspace's agent without the CLI. Stop agent
+  (`stop-agent`, ⌥⌘.) is in the Tools menu and the command palette: it ends
+  the process of the agent of the workspace the window shows. Its
+  conversation stays, and Start agent picks it up again.
+- **App:** start a workspace's agent afresh without the CLI. Restart agent
+  in a new conversation (`restart-agent`, ⌥⇧⌘A) is in the Tools menu and the
+  command palette: it stops the agent of the workspace the window shows, if
+  it runs, and starts it in a new conversation.
 - **App:** a workspace whose `slinger-workspace.toml` is broken says why in
   the sidebar: under its name, a red ✗ and the error, the field at fault,
   and the hint, wrapped to fit. A file that names no workspace shows its
@@ -334,6 +353,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** with a broken workspace first in the list and none named in the
+  config, the sidebar highlights the workspace the panes show (the first
+  usable one), not the broken one.
 - **Service:** a sling that waited for a listener across a restart still
   has its images: if its packet directory was deleted while the daemon was
   down, `session_listen` writes the text and images there again from the

@@ -6,11 +6,14 @@
 //! A page is served from `slinger-ui://<hex>/`, the hex of its blob id, with
 //! [`CSP`] on the response; [`RULES`] blocks every other load; the bridge lets
 //! only that first load through. [`SHIM`] defines `window.slinger`, whose two
-//! calls post JSON text to the handler named [`HANDLER`].
+//! calls post JSON text to the handler named [`HANDLER`]. [`script`] adds the
+//! look a page starts from: the canvas's paper, ink and type ([`LOOK`]).
 
 use std::sync::Arc;
 
 use serde_json::{Value, json};
+
+use crate::config::{Rgb, Theme};
 
 /// The URL scheme the page is served from.
 pub const SCHEME: &str = "slinger-ui";
@@ -33,6 +36,45 @@ pub const RULES_ID: &str = "slinger-ui-sandbox-1";
 
 /// Defines `window.slinger` at document start, in the main frame only.
 pub const SHIM: &str = include_str!("ui/shim.js");
+
+/// The look every page starts from, under its own styles: each rule is
+/// `:where()`, so any rule of the page's wins. Its colours are the
+/// `--slinger-*` variables [`script`] sets from the theme. It goes into a
+/// JavaScript template literal: no backtick, backslash or `${`.
+pub const LOOK: &str = include_str!("ui/look.css");
+
+/// The user script each page gets at document start: [`SHIM`], then a
+/// style element, first in the document, that sets the theme's colours as
+/// `--slinger-paper`, `-ink`, `-muted`, `-accent` and `-error`, the colour
+/// scheme its paper calls for, and [`LOOK`]. A page with no styles of its
+/// own sits on the canvas as its ink does.
+pub fn script(theme: &Theme) -> String {
+    // By hand, not `format!`: hex formatting costs the app its size budget.
+    let mut js = String::from(SHIM);
+    js.push_str("(()=>{const s=document.createElement(\"style\");s.textContent=`:root{");
+    let colours = [
+        ("paper", theme.background),
+        ("ink", theme.text),
+        ("muted", theme.muted),
+        ("accent", theme.focus),
+        ("error", theme.error),
+    ];
+    for (name, Rgb { r, g, b }) in colours {
+        js.push_str("--slinger-");
+        js.push_str(name);
+        js.push_str(":#");
+        for nibble in [r >> 4, r & 15, g >> 4, g & 15, b >> 4, b & 15] {
+            js.push(char::from_digit(u32::from(nibble), 16).unwrap_or('0'));
+        }
+        js.push(';');
+    }
+    let Rgb { r, g, b } = theme.background;
+    let light = u32::from(r) * 299 + u32::from(g) * 587 + u32::from(b) * 114 > 127_500;
+    js.push_str(if light { "color-scheme:light}" } else { "color-scheme:dark}" });
+    js.push_str(LOOK);
+    js.push_str("`;document.documentElement.prepend(s)})();");
+    js
+}
 
 /// The largest reply, serialized.
 pub const MAX_REPLY: usize = 16384;

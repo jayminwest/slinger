@@ -5,7 +5,7 @@
 use super::*;
 use crate::backend::ConfigFiles;
 use crate::backend::testing::wait_until;
-use crate::backend::tests::{open_notes, with_socket, with_store};
+use crate::backend::tests::{open_notes, with_agents, with_socket, with_store};
 use crate::commands::{CMD, Chord};
 use crate::panes::{Kind as PaneKind, Pane};
 use crate::scene::ink::Pen;
@@ -276,6 +276,10 @@ fn a_broken_workspace_shows_why_and_close_workspace_closes_it_and_flashes_why_it
         let texts: Vec<_> = rows.iter().map(|r| r.label.text.as_str()).collect();
         assert!(texts.contains(&"notes") && texts.contains(&"field: agent.tools"), "{texts:?}");
         assert!(texts.iter().any(|t| t.contains("\"Shell\"")), "why: {texts:?}");
+        assert!(!texts.contains(&"Close workspace"), "the panes do not show it: {texts:?}");
+        sidebar.pick(0);
+        let rows = sidebar.rows(theme, window);
+        let texts: Vec<_> = rows.iter().map(|r| r.label.text.as_str()).collect();
         assert!(texts.contains(&"Close workspace"), "it shows: it can close {texts:?}");
         assert!(window::close_workspace(socket, &mut sidebar, &mut tools));
         assert_eq!(daemon.workspace_list().unwrap(), [], "closed by its folder");
@@ -287,6 +291,59 @@ fn a_broken_workspace_shows_why_and_close_workspace_closes_it_and_flashes_why_it
         assert!(!window::close_workspace(socket, &mut sidebar, &mut tools), "not open any more");
         let pill = tools.flash().pill(window, theme, Instant::now());
         assert!(pill.is_some_and(|p| !p.label.text.is_empty()), "the flash says why");
+    });
+}
+
+/// The flash's text in `tools`, if one shows.
+fn flashed(tools: &Tools, settings: &Settings) -> Option<String> {
+    let pill = tools.flash().pill(layout::WINDOW.rect(), &settings.config.theme, Instant::now());
+    pill.map(|p| p.label.text)
+}
+
+#[test]
+fn start_stop_and_restart_agent_go_to_the_shown_workspace_s_agent_and_flash_or_say_why_not() {
+    with_agents(|socket| {
+        let settings = Settings::load(ConfigFiles::at("/nonexistent/config.toml".into()));
+        let mut tools = Tools::new(settings.config.palette.clone());
+        let mut sidebar = Sidebar::new(true);
+        let daemon = control::Client::new(socket);
+        let home = open_notes(&daemon);
+        let lines = |sidebar: &mut Sidebar| {
+            sidebar.update(backend::workspaces(&daemon));
+            let rows = sidebar.rows(&settings.config.theme, layout::WINDOW.rect());
+            rows.into_iter().map(|r| r.label.text).collect::<Vec<_>>()
+        };
+        let start = scene::sidebar::START.to_string();
+        assert!(lines(&mut sidebar).contains(&start), "never started: it shows");
+        window::agent(Command::StartAgent, socket, &sidebar, &mut tools);
+        assert_eq!(flashed(&tools, &settings).as_deref(), Some("Start agent · scout"));
+        assert!(!lines(&mut sidebar).contains(&start), "it runs");
+        let runs = || std::fs::read_to_string(home.path().join("args.txt")).unwrap_or_default();
+        // A new conversation the first time.
+        wait_until(|| runs().contains("--session-id"));
+        window::agent(Command::StartAgent, socket, &sidebar, &mut tools);
+        assert_eq!(runs().lines().count(), 1, "one that runs stays as it is");
+        // Its answer names its conversation, which the daemon keeps.
+        daemon.session_send("notes", "hi").unwrap();
+        wait_until(|| daemon.session_list().unwrap()[0].session_id.is_some());
+        window::agent(Command::StopAgent, socket, &sidebar, &mut tools);
+        assert_eq!(flashed(&tools, &settings).as_deref(), Some("Stop agent · scout"));
+        assert!(lines(&mut sidebar).contains(&start), "it stopped: it shows again");
+        window::agent(Command::StartAgent, socket, &sidebar, &mut tools);
+        wait_until(|| runs().contains("--resume"));
+        assert_eq!(runs().lines().count(), 2, "in its last conversation");
+        window::agent(Command::RestartAgent, socket, &sidebar, &mut tools);
+        let restarted = flashed(&tools, &settings).unwrap_or_default();
+        assert_eq!(restarted, "Restart agent in a new conversation · scout");
+        wait_until(|| runs().lines().count() == 3);
+        let last = runs().lines().last().unwrap_or_default().to_string();
+        assert!(last.contains("--session-id"), "a new conversation: {last}");
+        window::agent(Command::StopAgent, socket, &sidebar, &mut tools);
+
+        daemon.workspace_close("notes").unwrap();
+        window::agent(Command::StartAgent, socket, &sidebar, &mut tools);
+        let why = flashed(&tools, &settings).unwrap_or_default();
+        assert!(!why.is_empty() && !why.contains("scout"), "the flash says why: {why}");
     });
 }
 

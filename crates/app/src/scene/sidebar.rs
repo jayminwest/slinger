@@ -6,7 +6,8 @@
 //! shows stands out. It is optional: one command opens or collapses
 //! it, and the panes take the space it leaves. Agent status is a glance, not
 //! a dashboard. A workspace whose file the daemon cannot use shows why
-//! ([`broken`]). A tap on a workspace's rows shows its panes; the foot is
+//! ([`broken`]); the shown one's agent that does not run, a "Start agent"
+//! line. A tap on a workspace's rows shows its panes; the foot is
 //! kept for the button that hides the sidebar, at the spot where the
 //! bottom-left footer shows it while the sidebar is collapsed.
 //!
@@ -56,6 +57,8 @@ const ROW: f64 = 22.0;
 const GAP: f64 = 4.0;
 /// The sidebar's heading.
 const HEADING: &str = "WORKSPACES";
+/// The line under a shown workspace's stopped agent: a tap starts it.
+pub const START: &str = "Start agent";
 /// How far the shown workspace's row moves from the background toward the
 /// text colour, out of 255.
 const LIGHTER: u16 = 24;
@@ -91,7 +94,7 @@ pub struct Sidebar {
     problem: Option<String>,
     /// The agents in the notice, oldest first, with the status each became.
     notice: Vec<notice::Noticed>,
-    /// The workspace whose panes the window shows; `None`: the first.
+    /// The workspace whose panes the window shows; `None`: the first usable.
     shown: Option<String>,
 }
 
@@ -101,7 +104,8 @@ impl Sidebar {
         Self { open, workspaces: None, problem: None, notice: Vec::new(), shown: None }
     }
 
-    /// Marks `workspace` as the one the window shows; `None`: the first.
+    /// Marks `workspace` as the one the window shows; `None`: the first
+    /// that is not broken, as the panes do (`backend::panes::layout`).
     pub fn show(&mut self, workspace: Option<String>) {
         self.shown = workspace;
     }
@@ -187,8 +191,9 @@ impl Sidebar {
 
     /// Where each workspace's lines are in `window` (its name and its
     /// agent's, as wide as the sidebar): a tap there shows its panes
-    /// ([`Sidebar::pick`]); and a shown broken workspace's close line,
-    /// which runs `close-workspace`. None when collapsed.
+    /// ([`Sidebar::pick`]); and a shown workspace's command line, which
+    /// runs its command: a broken one's `close-workspace`, a stopped
+    /// agent's `start-agent`. None when collapsed.
     pub fn targets(&self, theme: &Theme, window: Rect) -> Vec<Target> {
         self.laid(theme, window).1
     }
@@ -209,13 +214,28 @@ impl Sidebar {
     }
 
     /// Takes the workspace the window shows out of the list, and shows the
-    /// first: the directory of the one taken, to close it by. `None` when
-    /// no workspace shows.
+    /// first usable: the directory of the one taken, to close it by. `None`
+    /// when no workspace shows.
     pub fn close(&mut self) -> Option<PathBuf> {
-        let list = self.workspaces.as_mut()?;
-        let shown = self.shown.take();
-        let at = list.iter().position(|w| shown.as_ref().is_none_or(|s| *s == w.name))?;
-        Some(list.remove(at).dir)
+        let at = self.at();
+        self.shown = None;
+        Some(self.workspaces.as_mut()?.remove(at?).dir)
+    }
+
+    /// The directory of the workspace the window shows: what its agent's
+    /// commands go to, whatever its file holds. `None` when none shows.
+    pub fn shown_dir(&self) -> Option<PathBuf> {
+        Some(self.workspaces.as_ref()?.get(self.at()?)?.dir.clone())
+    }
+
+    /// The index of the workspace the window shows: the one named, else
+    /// the first that is not broken, as the panes show.
+    fn at(&self) -> Option<usize> {
+        let mut list = self.workspaces.as_ref()?.iter();
+        match &self.shown {
+            Some(name) => list.position(|w| w.name == *name),
+            None => list.position(|w| w.broken.is_none()),
+        }
     }
 
     /// The rows and the workspaces' targets.
@@ -234,8 +254,9 @@ impl Sidebar {
                 lines.push(Line::new("no open workspaces".into(), theme.muted, Font::PLAIN));
             }
             (Some(list), None) => {
+                let at = self.at();
                 for (i, workspace) in list.iter().enumerate() {
-                    let shown = self.shown.as_ref().map_or(i == 0, |s| *s == workspace.name);
+                    let shown = at == Some(i);
                     lines.extend(
                         block(workspace, shown, theme)
                             .into_iter()
@@ -273,9 +294,7 @@ impl Sidebar {
             if line.shown {
                 lit = Some((lit.map_or(y, |(top, _)| top), y + ROW));
             }
-            let tap = line.workspace.map(|i| {
-                if line.close { Tap::Run(Command::CloseWorkspace) } else { Tap::Workspace(i) }
-            });
+            let tap = line.workspace.map(|i| line.run.map_or(Tap::Workspace(i), Tap::Run));
             match (tap, targets.last_mut()) {
                 (Some(t), Some((frame, at))) if *at == t => frame.height = y + ROW - frame.y,
                 (Some(t), _) => {
@@ -315,8 +334,8 @@ struct Line {
     shown: bool,
     /// The index of the workspace it belongs to, if any.
     workspace: Option<usize>,
-    /// Whether a tap on it closes that workspace rather than shows it.
-    close: bool,
+    /// The command a tap on it runs, rather than show its workspace.
+    run: Option<Command>,
 }
 
 impl Line {
@@ -330,7 +349,7 @@ impl Line {
             gap: 0.0,
             shown: false,
             workspace: None,
-            close: false,
+            run: None,
         }
     }
 
@@ -342,7 +361,8 @@ impl Line {
 
 /// A workspace's lines: its name (its folder's for a broken file that
 /// names none), then why a broken one cannot be used, or its agent and
-/// status, and a blocked agent's note.
+/// status, a blocked agent's note, and while the window shows it and its
+/// agent does not run, "Start agent".
 fn block(workspace: &Workspace, shown: bool, theme: &Theme) -> Vec<Line> {
     let font = Font { bold: shown, ..Font::PLAIN };
     let mut name = workspace.name.clone();
@@ -362,6 +382,10 @@ fn block(workspace: &Workspace, shown: bool, theme: &Theme) -> Vec<Line> {
             lines.push(Line { under: true, mark, ..Line::new(text, theme.muted, Font::PLAIN) });
             if let (Some(Status::Blocked), Some(note)) = (agent.status, &agent.note) {
                 lines.push(Line::under(note.clone(), theme.muted));
+            }
+            if shown && agent.status == Some(Status::Stopped) {
+                let start = Line::under(START.into(), theme.focus);
+                lines.push(Line { run: Some(Command::StartAgent), ..start });
             }
         }
     }
