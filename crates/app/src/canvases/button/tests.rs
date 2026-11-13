@@ -160,7 +160,7 @@ fn placed_with_no_agent(canvases: &mut Canvases, panes: &Panes, daemon: &Client)
     assert!(canvases.command(panes, (panes.focus(), WINDOW.rect()), Command::PlaceButton));
     let (frame, _) = button(canvases, panes, daemon);
     assert!(canvases.agent_of("notes").is_none());
-    // The pill stands under the button the daemon holds: wait for it to be heard.
+    // The button the daemon holds: wait for it to be heard.
     wait_until(|| {
         canvases.poll();
         let mirrors = canvases.open.iter().filter_map(|o| o.mirror.as_ref());
@@ -170,7 +170,7 @@ fn placed_with_no_agent(canvases: &mut Canvases, panes: &Panes, daemon: &Client)
     frame
 }
 
-/// The sling's lines under the button once they show.
+/// The sling's lines once they show.
 fn sling_lines(canvases: &mut Canvases, panes: &Panes) -> Vec<crate::scene::Label> {
     let theme = Config::default().theme;
     let mut lines = Vec::new();
@@ -183,7 +183,7 @@ fn sling_lines(canvases: &mut Canvases, panes: &Panes) -> Vec<crate::scene::Labe
 }
 
 #[test]
-fn a_tap_with_no_agent_running_says_under_the_button_that_nobody_listens() {
+fn a_tap_with_no_agent_running_says_that_nobody_listens_at_the_pane_s_top_right() {
     with_store(None, |daemon| {
         let _home = open_notes(daemon);
         let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
@@ -196,7 +196,9 @@ fn a_tap_with_no_agent_running_says_under_the_button_that_nobody_listens() {
         });
         assert!(!canvases.typing(), "no entry: the pen cannot press escape");
         assert!(lines[1].text.contains("/slinger-listen"), "its hint: {lines:?}");
-        assert!(lines[0].frame.y > frame.y + frame.height, "under the button: {lines:?}");
+        let pill = lines[0].frame;
+        let top_right = pill.y < frame.y && pill.x + pill.width > frame.x + frame.width;
+        assert!(top_right, "at the pane's top right, not by the button: {lines:?}");
 
         // A sling that cannot go says why there too.
         daemon.workspace_close("notes").unwrap();

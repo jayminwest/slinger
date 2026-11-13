@@ -12,7 +12,7 @@ use crate::backend::Heard;
 use crate::config::{Prompt, Theme};
 use crate::layout::{PaneId, Rect, Viewport};
 use crate::panes::{Kind, Panes};
-use crate::scene::canvas::{ItemId, Shape};
+use crate::scene::canvas::ItemId;
 use crate::scene::select::Selection;
 use crate::scene::sidebar::Agent;
 use crate::scene::sling::{Answered, Ask, Profile, buttons};
@@ -93,32 +93,22 @@ impl Canvases {
         if ask.prompt.trim().is_empty() {
             ask.prompt.clone_from(&self.prompt);
         }
-        let (at, newest) = self.made_at(&ask);
+        let newest = self.newest(&ask);
         let under = match &ask.profile {
             Profile::Picked(picked) => picked.clone(),
             Profile::Running => self.agent_of(&ask.canvas).and_then(|a| a.profile.clone()),
         };
-        self.slung.aim((&ask.canvas, &ask.page), at, under.as_deref(), newest, Instant::now());
+        self.slung.aim((&ask.canvas, &ask.page), under.as_deref(), newest, Instant::now());
         self.slinger.send(ask);
     }
 
-    /// Where on its page `ask` was made, in canvas units (around its items;
-    /// with none, the page's first button; else nowhere in particular), and
-    /// the newest item there now.
-    fn made_at(&self, ask: &Ask) -> (Option<Rect>, ItemId) {
+    /// The newest item on the page of `ask` now: the agent's items after
+    /// it are its answer.
+    fn newest(&self, ask: &Ask) -> ItemId {
         let open = self.open.iter().filter(|o| o.canvas == ask.canvas);
         let mirror = open.filter_map(|o| o.mirror.as_ref()).find(|m| m.page() == ask.page);
-        let Some(items) = mirror.map(crate::mirror::Mirror::items) else {
-            return (None, ItemId(0));
-        };
-        let newest = items.iter().map(|i| i.id).max().unwrap_or(ItemId(0));
-        let chosen = items.iter().filter(|i| ask.ids.contains(&i.id));
-        let around = chosen.filter_map(|i| i.shape.bounds()).reduce(Rect::union);
-        let button = items.iter().find_map(|i| match i.shape {
-            Shape::Button { frame, .. } => Some(frame),
-            _ => None,
-        });
-        (around.or(button), newest)
+        let items = mirror.map(crate::mirror::Mirror::items).unwrap_or_default();
+        items.iter().map(|i| i.id).max().unwrap_or(ItemId(0))
     }
 
     /// Takes what the slinger's thread heard, the agent's items on the

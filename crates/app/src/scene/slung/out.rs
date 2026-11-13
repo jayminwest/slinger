@@ -1,14 +1,22 @@
 //! The last sling's own reckoning: moving to a stage, the pane its pill
 //! shows in, where its new items are, what the pill says once the agent
-//! answered, and where the pill stands.
+//! answered; and where the pill stands.
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use super::words::arrow;
-use super::{GAP, HIGH, Out, Stage, View};
+use super::{CLEAR, DONE, GAP, HIGH, Out, Stage, View};
 use crate::layout::{Rect, Size};
 
 impl Out {
+    /// How long the pill shows once the sling ended: [`DONE`] for an
+    /// answer told whose items are on the canvas, or that brought nothing;
+    /// else [`CLEAR`].
+    pub(super) fn lasts(&self) -> Duration {
+        let Stage::Answered(text) = &self.stage else { return CLEAR };
+        if self.told && (!self.items.is_empty() || text.is_none()) { DONE } else { CLEAR }
+    }
+
     /// Moves to `stage` at `now`; an answer opened closes.
     pub(super) fn to(&mut self, stage: Stage, now: Instant) {
         (self.stage, self.since, self.reading) = (stage, now, false);
@@ -62,18 +70,12 @@ impl Out {
             }
         }
     }
+}
 
-    /// The pill's frame, `size` with the lines under it, in `view`: under
-    /// where the sling was made, or at the pane's top left; inside the pane.
-    pub(super) fn place(&self, view: &View, size: Size) -> Rect {
-        let frame = view.frame;
-        let at = self.at.filter(|_| self.shows(view)).map(|at| view.viewport.rect_to_screen(at));
-        let (x, y) = match at {
-            Some(at) => (frame.x + at.x, frame.y + at.y + at.height + GAP),
-            None => (frame.x + GAP, frame.y + GAP),
-        };
-        let x = x.min(frame.x + frame.width - size.width - GAP).max(frame.x + GAP);
-        let y = y.min(frame.y + frame.height - size.height - GAP).max(frame.y + GAP);
-        Rect { x, y, width: size.width, height: HIGH }
-    }
+/// The pill's frame, `width` wide, in `view`: at the pane's top right, the
+/// one place it shows (slinger-b015f9).
+pub(super) fn place(view: &View, width: f64) -> Rect {
+    let frame = view.frame;
+    let x = (frame.x + frame.width - width - GAP).max(frame.x + GAP);
+    Rect { x, y: frame.y + GAP, width, height: HIGH }
 }
