@@ -879,14 +879,18 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              Rename (Tap::Send, as return), Dictate (`dictate`; ● Stop while
              Flick listens) and ✕ (Tap::Cancel, as escape); the box narrows
              or moves to make room. Every entry shows the live dictate key
-             beneath its box (Entry::dictated).
+             at the end of its keys' one row beneath its box
+             (Entry::dictated): a second row aligned right drew over the
+             first, as a field does not align styled text.
 scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
              sling's labelled field (Entry::framed), "Feedback" above and
              "↩ saves · esc cancels" beneath, centred in the focused pane
              below the flash with the pen's buttons beside it. Return saves, escape cancels, an empty note
              saves nothing; "saving feedback…" while it goes, a failure's
              message and hint under the entry opened again, and "Feedback
-             saved" flashed once on success. Pure.
+             saved" flashed once on success. The entry, its label, keys and
+             lines stand on a card in the panel's colour (Feedback::card),
+             not the canvas's. Pure.
 scene/dictation.rs  the dictation into the open entry: start, then stop, one
              request to Flick at a time; that Flick listens, or why it
              failed (Flick not running, or its refusal) and what to do, under

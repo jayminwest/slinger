@@ -330,6 +330,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** the feedback entry is easier to read: it stands on a card in the
+  panel's colour instead of the canvas's, and the dictate key no longer
+  draws over "↩ saves · esc cancels" beneath an entry: it ends that row.
 - **App:** the eraser no longer slings when it touches a "send to agent"
   button. It passes over the button, as before; select the button to
   delete it.

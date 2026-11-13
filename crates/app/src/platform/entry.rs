@@ -24,8 +24,8 @@ use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send};
 use objc2_app_kit::{
-    NSControl, NSFocusRingType, NSFont, NSResponder, NSTextAlignment, NSTextField, NSView,
-    NSWindow, NSWindowOrderingMode,
+    NSControl, NSFocusRingType, NSFont, NSResponder, NSTextField, NSView, NSWindow,
+    NSWindowOrderingMode,
 };
 use objc2_foundation::{NSObject, NSString};
 
@@ -137,13 +137,8 @@ impl Kept {
         edge.setFillColor(&color(entry.fill));
         edge.setCornerRadius(entry.radius);
         self.around.push(Retained::into_super(edge));
-        for (row, align) in
-            [(&entry.title, NSTextAlignment::Left), (&entry.keys, NSTextAlignment::Left)]
-                .into_iter()
-                .chain(entry.dictate.as_ref().map(|row| (row, NSTextAlignment::Right)))
-        {
+        for row in [&entry.title, &entry.keys] {
             let line = sidebar_row(row, height, mtm);
-            line.setAlignment(align);
             self.around.push(Retained::into_super(Retained::into_super(line)));
         }
         // Each right under the field, so the last made is the highest.
