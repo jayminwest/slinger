@@ -177,16 +177,23 @@ impl Sessions {
     }
 
     /// Ends the process of the agent of the workspace `which` names, if it
-    /// has one, and returns its session.
+    /// has one, and returns its session. The agent no longer works: a
+    /// killed process never says it is done, so its `working` goes, and
+    /// its session shows the status from before.
     ///
     /// # Errors
     ///
     /// As [`Sessions::start`], less the process's.
     pub fn stop(&self, store: &Store, which: &str) -> Result<Session> {
-        let session = self.of_workspace(store, which)?;
-        self.processes.stop(&session.agent);
-        self.listeners.release(&session.agent)?;
-        Ok(session)
+        let agent = self.of_workspace(store, which)?.agent;
+        self.processes.stop(&agent);
+        self.listeners.release(&agent)?;
+        let mut set = self.statuses();
+        if set.get(&agent).is_some_and(|r| r.status == Status::Working) {
+            set.remove(&agent);
+        }
+        drop(set);
+        self.show(store, &agent)
     }
 
     /// Delivers `text` as one message to the running process of the agent

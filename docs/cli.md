@@ -284,7 +284,8 @@ a running process first. `session send` delivers one message to it (`-` reads it
 stdin) and returns once it is delivered; `session show` has the process's
 state and its last answer. A send to an agent that was never started, or
 whose process exited, exits 6 (`unavailable`) with a hint to start it.
-`session stop` ends the process; stopping one that is not running succeeds.
+`session stop` ends the process and the agent's `working` (its status shows
+what it was before); stopping one that is not running succeeds.
 A workspace that is not open exits 3, one with no agent exits 5. The process
 gets `SLINGER_AGENT` and `SLINGER_SOCKET`, so its `slinger` calls act as its
 agent on the daemon that started it (see "The process" in
