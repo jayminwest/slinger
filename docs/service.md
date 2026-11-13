@@ -68,6 +68,8 @@ writer; other programs reach the record through the socket.
   when no open workspace, or more than one, matches.
 - Blobs are keyed by their id (`sha256:<hex>`). Storing the same bytes again
   stores nothing new.
+- Beside the log, the file keeps the slings that wait for a listener until
+  it deals with them ("Listening"), so a restart loses none.
 - `packets/<hex>/` holds each packet `canvas_read` wrote, named by the hex
   of its text's blob id: `packet.txt` and its images. It is derived from
   the record and safe to delete; the next read writes it again.
@@ -812,8 +814,11 @@ is dealt with. While slings wait or a listener is there, the session has
 `deliver` as `listen`, `listening` (whether one is there) and `pending` (the
 slings that wait, and the one worked on). `session_start` and `session_stop`
 forget who listened; the slings that wait stay for the next to listen. The
-slings that wait are held in memory: a daemon that stops loses them, though
-each is in the record. A stopping daemon ends every open request with no
+record keeps each sling from the time it waits until its listener deals with
+it, so a daemon that stops loses none: after a restart every sling not dealt
+with waits, oldest first, the one a listener worked on too (the stop ended
+its claim, as a `pid` that ends does), and nobody listens until one asks.
+A stopping daemon ends every open request with no
 sling. A workspace that is not open is `not_found`, one with no agent
 `invalid`.
 

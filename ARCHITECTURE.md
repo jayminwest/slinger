@@ -222,6 +222,9 @@ store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
 store/schema.rs  the file's layout, its version and the steps that bring
              an older file up to date. The file keeps the machine name it
              was created under, so a host rename keeps the tag.
+store/waiting.rs  the slings that wait for a listener, kept in the record
+             (a table of their own, layout 3) from `sling_sent` until the
+             listener deals with them, on the record's connection.
 canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,
              so changes are numbered in the order they apply; append, sync,
              then reply. A failed write closes the canvas; the next request
@@ -282,7 +285,11 @@ listeners.rs the listeners, one per agent (`session::listen`), behind one
              comes, the wait passes or the daemon stops. Each lock finds a
              listener whose worker process ended `gone` (`alive`: kill 0);
              `freed` names those agents, and `sessions.rs` drops the
-             `working` their sling set.
+             `working` their sling set. Writes each change through to
+             `store/waiting.rs` under the same lock: a sling is kept when it
+             waits and forgotten when the listener deals with it (asks again,
+             says done or blocked, or is released); a restart starts with
+             every kept sling waiting and nobody there.
 processes.rs the agents' processes, one per agent: spawned in the agent's
              home (or its profile's dir) within its limits, with `SLINGER_AGENT` and `SLINGER_SOCKET`,
              written to under one lock, read by a thread each so a pipe never

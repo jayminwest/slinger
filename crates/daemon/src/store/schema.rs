@@ -11,7 +11,7 @@ use rusqlite::{OptionalExtension, Transaction};
 use super::{Result, StoreError};
 
 /// The layout this code writes, kept in SQLite's `user_version`.
-pub(super) const VERSION: i64 = 2;
+pub(super) const VERSION: i64 = 3;
 
 /// Layout 1: the event log and the blobs.
 pub(super) const V1: &str = "
@@ -50,6 +50,19 @@ CREATE TABLE settings (
 ) STRICT, WITHOUT ROWID;
 ";
 
+/// Layout 3: the slings that wait for an agent's listener, and the one it
+/// works on, until it deals with them: the daemon's queue, kept so a restart
+/// loses none. Each row is a `sling_sent` and the message the listener takes.
+const V3: &str = "
+CREATE TABLE waiting (
+    event  INTEGER PRIMARY KEY,
+    agent  TEXT NOT NULL,
+    canvas TEXT NOT NULL,
+    dir    BLOB NOT NULL,
+    text   TEXT NOT NULL
+) STRICT;
+";
+
 /// Lays out the file at `path` or brings it up to [`VERSION`], inside `tx`,
 /// and returns the machine name the record keeps. A new record keeps
 /// `machine`; a layout-1 record keeps the name on its first event, else
@@ -76,6 +89,9 @@ pub(super) fn prepare(tx: &Transaction<'_>, path: &Path, machine: String) -> Res
             "INSERT INTO settings (key, value) VALUES ('machine', ?1)",
             [first.unwrap_or(machine)],
         )?;
+    }
+    if found < 3 {
+        tx.execute_batch(V3)?;
         tx.pragma_update(None, "user_version", VERSION)?;
     }
     Ok(tx.query_row("SELECT value FROM settings WHERE key = 'machine'", [], |row| row.get(0))?)

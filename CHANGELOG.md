@@ -305,6 +305,11 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** slings that wait for a listening session survive a daemon
+  restart. Before, stopping `slingerd` lost them. A sling a listener was
+  working on when the daemon stopped waits again, first in line, for the
+  next one to listen. The record's file moves to layout 3: an older
+  `slingerd` no longer opens it.
 - **Agents:** `slinger ui open` from a session Slinger started opens its
   pane in that session's workspace when `--workspace` is not given. Before,
   it failed with `workspace "" not found`. A sling's reply notes now say
