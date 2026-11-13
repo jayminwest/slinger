@@ -1045,7 +1045,9 @@ platform/entry.rs  the open entry (sling, feedback, rename): a native text
              has one, over every view; a new field for each kind of entry.
              One focus path: each draw, and the window becoming key again,
              give it the keyboard if it lost it, and each time it takes the
-             keyboard its caret is set to the text colour. Each edit goes to
+             keyboard its caret is set to the text colour. A press that went
+             on to an agent UI's page gives it back at once, the caret at the
+             end (scene::paste::Keyboard::Entry). Each edit goes to
              main as Event::Typed. The Edit
              menu's cut, copy, paste and select all reach it along the
              responder chain: Flick's dictation pastes with cmd+V.

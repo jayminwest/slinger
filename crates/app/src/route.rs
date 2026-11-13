@@ -38,8 +38,10 @@ pub fn route(
 ) -> Routed {
     let area = sidebar.panes(shared.size.rect());
     // A press focuses the pane under it first, so the press works there.
-    // The app takes it, and the window the keyboard, unless it goes on.
+    // The app takes it, and the window the keyboard, unless it goes on;
+    // then the view under it has the keyboard, but for an open entry's.
     let pressed = matches!(event, Event::Press(_));
+    let on = if canvases.typing() { Keyboard::Window } else { Keyboard::Pressed };
     let refocused = match event {
         Event::Press(pen) => {
             shared.keyboard = Keyboard::Window;
@@ -97,14 +99,13 @@ pub fn route(
             }
         }
         (Ask::Pass | Ask::Not, _) if refocused => {
-            shared.keyboard = Keyboard::Pressed;
+            shared.keyboard = on;
             Step::Through(view(settings, shared, tools, sidebar, canvases))
         }
         (Ask::Pass | Ask::Not, _) => Step::Pass,
     };
-    // A press that goes on gives the view under it the keyboard.
     if pressed && matches!(step, Step::Pass) {
-        shared.keyboard = Keyboard::Pressed;
+        shared.keyboard = on;
     }
     Routed::Answer(step)
 }

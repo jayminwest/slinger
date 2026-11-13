@@ -20,6 +20,8 @@
 //!   cursor after the window was in the background, or past a canvas's edge.
 //!   Where the scene says the pointer is on a divider between panes, or
 //!   holds one, it is the divider's cursor over whatever view is there.
+//! - A press that went on to the view under it (an agent UI's page takes
+//!   the keyboard) gives an open entry the keyboard back ([`went_on`]).
 
 use std::cell::Cell;
 
@@ -116,6 +118,23 @@ pub(super) fn send(window: &NSWindow, event: &NSEvent, mtm: MainThreadMarker) ->
             false
         }
         _ => false,
+    }
+}
+
+/// `event` went on to the view under it: after a move the pointer gets the
+/// cursor of what is under it; after a press (on an agent UI's page, which
+/// took the keyboard) an open entry takes the keyboard back at once
+/// ([`crate::scene::paste::Keyboard::Entry`]).
+pub(super) fn went_on(window: &NSWindow, event: &NSEvent) {
+    match event.r#type() {
+        NSEventType::MouseMoved => cursor(window, event.locationInWindow()),
+        NSEventType::LeftMouseDown => {
+            let shown = STATE.get().and_then(|state| state.shown.try_borrow().ok());
+            if let Some(entry) = shown.as_ref().and_then(|shown| shown.entry.as_ref()) {
+                entry.take_back(window);
+            }
+        }
+        _ => {}
     }
 }
 

@@ -39,12 +39,14 @@ pub enum Edit {
     Paste(Clip),
 }
 
-/// Which view has the keyboard while no entry is open. `AppKit` sends
-/// cut, copy and paste (and Flick's dictation, a paste) to the view with
-/// the keyboard. A press that goes on to an agent UI's page gives that page
-/// the keyboard. A press the app takes moves nothing, so without this a
-/// page clicked once kept every paste meant for a canvas text or the
-/// palette (slinger-145162).
+/// Which view has the keyboard. `AppKit` sends cut, copy and paste (and
+/// Flick's dictation, a paste) to the view with the keyboard. A press that
+/// goes on to an agent UI's page gives that page the keyboard. A press the
+/// app takes moves nothing, so without this a page clicked once kept every
+/// paste meant for a canvas text or the palette (slinger-145162). An open
+/// entry keeps it through a press on a page, which still gets the press:
+/// the entry's keys (return, escape) and its caret stay true
+/// (slinger-8d4191).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Keyboard {
     /// The window, so the app does the edit ([`Edit`]): the last press was
@@ -53,6 +55,9 @@ pub enum Keyboard {
     Window,
     /// The view the last press went on to (an agent UI's page) keeps it.
     Pressed,
+    /// The open entry's field (the sling's, the feedback's, a rename's),
+    /// taken back at once from a page a press went on to.
+    Entry,
 }
 
 /// `text` with each line end (`\r\n`, `\r` or `\n`) as `\n`, each tab as a

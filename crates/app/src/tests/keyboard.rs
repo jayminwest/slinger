@@ -14,32 +14,7 @@ fn a_page_pressed_keeps_the_keyboard_until_the_app_takes_a_press_or_a_text_types
     with_store(None, |daemon| {
         let _home = open_notes(daemon);
         let config = tempfile::tempdir().unwrap();
-        let mut w = world(daemon, config.path());
-        let leaf = |pane, kind, target: &str| {
-            PaneTree::Pane(control::Pane { pane, kind, target: target.into() })
-        };
-        let (canvas, ui) = (leaf(1, ControlKind::Canvas, "notes"), leaf(2, ControlKind::Ui, "b"));
-        let (first, second) = (canvas.into(), ui.into());
-        let tree = PaneTree::Split { split: PaneSplit::Row, ratio: 0.5, first, second };
-        w.shared.panes = Panes::follow(&tree, 1);
-        w.until(|w| w.canvases.page_names(&w.shared.panes, w.shared.panes.focus()).is_some());
-        let area = w.sidebar.panes(w.shared.size.rect());
-        let frames: Vec<_> = w.shared.panes.place(area).iter().map(|(_, _, f)| *f).collect();
-        let (on_canvas, on_page) = (frames[0].x + 100.0, frames[1].x + 100.0);
-        let press = |w: &mut World, x: f64, when: f64| {
-            let (shared, canvases, tools) = (&mut w.shared, &mut w.canvases, &mut w.tools);
-            let pen = Event::Press(at(x, 300.0, when));
-            let routed =
-                route(pen, shared, canvases, tools, &w.settings, &w.socket, &mut w.sidebar);
-            w.send(Event::Lift(at(x, 300.0, when + 0.1)));
-            match routed {
-                Routed::Answer(Step::Draw(scene) | Step::Through(scene)) => Some(scene.keyboard),
-                _ => None,
-            }
-        };
-        let drawn = |w: &mut World| {
-            view(&w.settings, &mut w.shared, &w.tools, &w.sidebar, &mut w.canvases).keyboard
-        };
+        let (mut w, on_canvas, on_page) = beside(daemon, config.path());
         assert_eq!(drawn(&mut w), Keyboard::Window);
         assert_eq!(press(&mut w, on_page, 1.0), Some(Keyboard::Pressed), "focused, it goes on");
         assert_eq!(drawn(&mut w), Keyboard::Pressed, "and the page keeps it");
@@ -61,4 +36,61 @@ fn a_page_pressed_keeps_the_keyboard_until_the_app_takes_a_press_or_a_text_types
         assert!(w.shared.palette.is_open());
         assert_eq!(drawn(&mut w), Keyboard::Window, "the palette's search takes the paste");
     });
+}
+
+/// While an entry is open, a press on an agent UI's page still reaches
+/// the page, but the entry keeps the keyboard: the scene drawn with the
+/// press says so, and the platform takes it back once the press went on
+/// (slinger-8d4191). Once the entry closes, the window has it, not the page.
+#[test]
+fn an_open_entry_keeps_the_keyboard_through_a_press_on_a_page() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let (mut w, _, on_page) = beside(daemon, config.path());
+        assert!(w.send(Event::Command(Command::LeaveFeedback)));
+        assert_eq!(drawn(&mut w), Keyboard::Entry);
+        assert_eq!(press(&mut w, on_page, 1.0), Some(Keyboard::Entry), "focused, it goes on");
+        assert!(w.canvases.typing(), "the entry stays open");
+        assert_eq!(press(&mut w, on_page, 2.0), None, "a press on the focused page goes on");
+        assert_eq!(drawn(&mut w), Keyboard::Entry, "and the entry keeps it");
+        w.key(Chord::new(0, '\u{1b}'), "\u{1b}");
+        assert!(!w.canvases.typing());
+        assert_eq!(drawn(&mut w), Keyboard::Window, "the page never had it");
+    });
+}
+
+/// A window onto `daemon`'s `notes` canvas (focused) beside an agent UI's
+/// page, and a point across from the left of each.
+fn beside(daemon: &control::Client, config: &Path) -> (World, f64, f64) {
+    let mut w = world(daemon, config);
+    let leaf = |pane, kind, target: &str| {
+        PaneTree::Pane(control::Pane { pane, kind, target: target.into() })
+    };
+    let (canvas, ui) = (leaf(1, ControlKind::Canvas, "notes"), leaf(2, ControlKind::Ui, "b"));
+    let (first, second) = (canvas.into(), ui.into());
+    let tree = PaneTree::Split { split: PaneSplit::Row, ratio: 0.5, first, second };
+    w.shared.panes = Panes::follow(&tree, 1);
+    w.until(|w| w.canvases.page_names(&w.shared.panes, w.shared.panes.focus()).is_some());
+    let area = w.sidebar.panes(w.shared.size.rect());
+    let frames: Vec<_> = w.shared.panes.place(area).iter().map(|(_, _, f)| *f).collect();
+    (w, frames[0].x + 100.0, frames[1].x + 100.0)
+}
+
+/// A press and its lift at `x`: the keyboard the scene drawn with the press
+/// says, or none when it went on with no drawing.
+fn press(w: &mut World, x: f64, when: f64) -> Option<Keyboard> {
+    let (shared, canvases, tools) = (&mut w.shared, &mut w.canvases, &mut w.tools);
+    let pen = Event::Press(at(x, 300.0, when));
+    let routed = route(pen, shared, canvases, tools, &w.settings, &w.socket, &mut w.sidebar);
+    w.send(Event::Lift(at(x, 300.0, when + 0.1)));
+    match routed {
+        Routed::Answer(Step::Draw(scene) | Step::Through(scene)) => Some(scene.keyboard),
+        _ => None,
+    }
+}
+
+/// The keyboard the window's scene says now.
+fn drawn(w: &mut World) -> Keyboard {
+    view(&w.settings, &mut w.shared, &w.tools, &w.sidebar, &mut w.canvases).keyboard
 }

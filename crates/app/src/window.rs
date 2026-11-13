@@ -387,11 +387,15 @@ pub fn view(
     }
     let (size, uis, notes) = (shared.size, &shared.uis, &shared.notes);
     let mut scene = scene::build(size, &shared.panes, theme, &problems, sidebar, drawn, uis, notes);
-    // One of the app's own texts takes typing: it takes the paste too.
-    let typing = shared.palette.is_open() || canvases.editing();
-    scene.keyboard = if typing { Keyboard::Window } else { shared.keyboard };
     canvases.show_live(&mut scene, notes, theme);
     canvases.show_sling(&mut scene, theme, &settings.config.keys, sidebar);
+    // An open entry, or one of the app's own texts, takes typing and the paste.
+    let typing = shared.palette.is_open() || canvases.editing();
+    scene.keyboard = match (scene.entry.is_some(), typing) {
+        (true, _) => Keyboard::Entry,
+        (false, true) => Keyboard::Window,
+        (false, false) => shared.keyboard,
+    };
     scene.labels.splice(0..0, canvases.labels(&shared.panes, area, theme));
     let sling = canvases.sling_marks(&shared.panes, area, theme);
     scene.labels.extend(sling.labels);

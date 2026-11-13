@@ -405,6 +405,11 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** with the sling, feedback or rename entry open, clicking an agent
+  UI no longer takes your typing away from the entry: the click still
+  reaches the page, and what you type next goes on at the end of the
+  entry's text. Before, keys went to the page until the window redrew,
+  and then replaced the entry's whole text.
 - **App:** cmd+V and Flick's dictation paste into the canvas text you are
   typing, a page rename and the command palette again after you clicked an
   agent UI. Before, the agent UI you last clicked took every paste until

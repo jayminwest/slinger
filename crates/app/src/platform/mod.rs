@@ -49,7 +49,7 @@ use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSDragOperation, NSDraggingInfo, NSEvent,
-    NSEventType, NSMenuItem, NSResponder, NSTextAlignment, NSView, NSWindow, NSWindowDelegate,
+    NSMenuItem, NSResponder, NSTextAlignment, NSView, NSWindow, NSWindowDelegate,
     NSWindowOrderingMode,
 };
 use objc2_foundation::{NSNotification, NSObject, NSRect, NSTimer};
@@ -279,7 +279,7 @@ define_class!(
         /// Every event for the window comes through here first. A key press,
         /// pen or mouse event, scroll or pinch the app uses stops here, and
         /// keeps a divider's cursor; everything else, moves included, goes on
-        /// as usual. After a move the pointer gets the cursor of what is under it.
+        /// as usual, then [`input::went_on`].
         #[unsafe(method(sendEvent:))]
         fn send_event(&self, event: &NSEvent) {
             if input::send(self, event, self.mtm()) {
@@ -288,9 +288,7 @@ define_class!(
             }
             // SAFETY: `NSWindow`'s own `sendEvent:`, with the event it was given.
             let () = unsafe { msg_send![super(self), sendEvent: event] };
-            if event.r#type() == NSEventType::MouseMoved {
-                input::cursor(self, event.locationInWindow());
-            }
+            input::went_on(self, event);
         }
     }
 );
