@@ -1,6 +1,8 @@
 //! The open workspaces and their agents as the sidebar shows them: each
 //! agent's status read against its process, the profile it runs under,
-//! and the names of the profiles it has.
+//! and the names of the profiles it has; and a folder opened as one.
+
+use std::path::Path;
 
 use slinger_control::Client;
 
@@ -39,4 +41,10 @@ pub fn workspaces(daemon: &Client) -> Result<Vec<Workspace>, Problem> {
             agent: w.agent.map(|a| agent(a.name, a.profiles)),
         })
         .collect())
+}
+
+/// Opens the folder `dir` as a workspace, making its file the first time:
+/// the workspace's name.
+pub fn open_workspace(daemon: &Client, dir: &Path) -> Result<String, Problem> {
+    Ok(daemon.workspace_open(Some(dir), None)?.workspace.name)
 }

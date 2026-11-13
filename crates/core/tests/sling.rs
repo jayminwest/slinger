@@ -1,6 +1,7 @@
 //! The sling message, through the public interface: a packet, a prompt and a
-//! selection in; text and image blocks out. Snapshots hold the first and a
-//! later message.
+//! selection in; text and image blocks out. Snapshots hold the first, a
+//! later and a listener's first message; the CLI's tests hold the commands
+//! they show to the CLI (crates/cli/src/tests/guide.rs).
 #![cfg(test)]
 
 use slinger_core::packet::Packet;
@@ -53,6 +54,16 @@ fn a_later_sling_matches_its_snapshot() {
     let selection = ids(&["c51"]);
     let m = message(&sling(&p, &selection, false));
     assert_eq!(show(&m), include_str!("fixtures/sling/later.txt"));
+}
+
+#[test]
+fn a_listeners_first_sling_matches_its_snapshot() {
+    use slinger_core::sling::Listener;
+    let mut p = packet();
+    p.header.at = Some("/data/packets/ab".into());
+    let listener = Some(Listener { agent: "scout", workspace: "notes" });
+    let m = message(&Sling { listener, ..sling(&p, &ids(&["c51"]), true) });
+    assert_eq!(m.text(), include_str!("fixtures/sling/listener.txt"));
 }
 
 #[test]
@@ -134,11 +145,12 @@ fn ids_not_in_the_packet_are_not_selected() {
     assert!(none.starts_with("slinger-sling 1 canvas=idea\n"));
 }
 
-/// Every `slinger` command the note names, as `noun verb`.
+/// Every `slinger` command the note names, as `noun verb` (`guide` alone).
 fn commands(text: &str) -> Vec<String> {
     let mut out: Vec<String> = text
         .split("`slinger ")
         .skip(1)
+        .map(|rest| rest.split('`').next().unwrap_or(rest))
         .map(|rest| rest.split(' ').take(2).collect::<Vec<_>>().join(" "))
         .collect();
     out.sort();
@@ -154,9 +166,16 @@ fn the_note_names_only_the_verbs_given() {
             let s = Sling { verbs, ..sling(&p, &[], first) };
             commands(&show(&message(&s)))
         };
-        assert_eq!(with(ALL), ["canvas crop", "canvas put"]);
-        assert_eq!(with(&[Verb::Put]), ["canvas put"]);
-        assert_eq!(with(&[Verb::Crop]), ["canvas crop"]);
+        // The whole note ends by pointing at the guide, when there is a verb.
+        let guide = |mut names: Vec<&'static str>| {
+            if first {
+                names.push("guide");
+            }
+            names
+        };
+        assert_eq!(with(ALL), guide(vec!["canvas crop", "canvas put"]));
+        assert_eq!(with(&[Verb::Put]), guide(vec!["canvas put"]));
+        assert_eq!(with(&[Verb::Crop]), guide(vec!["canvas crop"]));
         assert_eq!(with(&[]), Vec::<String>::new());
     }
     // A later sling with nothing to name has no note at all.
@@ -181,11 +200,11 @@ fn a_listeners_sling_names_its_agent_and_says_what_a_listener_does_itself() {
             show(&m).replace("<image c42.png>\n", "").replace("<image c51.png>\n", "")
         );
         assert!(text.contains("img=c42.png") && text.ends_with("# prompt\nWhat is missing here?"));
-        assert_eq!(
-            commands(&text),
-            ["canvas crop", "canvas put", "session listen", "status set"],
-            "{text}"
-        );
+        let mut named = vec!["canvas crop", "canvas put", "session listen", "status set"];
+        if first {
+            named.insert(2, "guide");
+        }
+        assert_eq!(commands(&text), named, "{text}");
         assert!(text.contains("`slinger status set done --agent scout`"));
         assert!(text.contains("`slinger session listen notes`"));
     }

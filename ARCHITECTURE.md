@@ -339,7 +339,9 @@ window.rs    runs a command on the focused pane, does a tap on a button that
              does more than run one (`tap`: the page name opens the page
              menu, a page menu's page turns the pane, the footer's agent
              opens its profile menu and a profile slings under it, a
-             workspace shows its panes), builds the window's scene (`view`: the footers,
+             workspace shows its panes), opens the folder `open-workspace`
+             chose as a workspace (workspace_open: backend/agents.rs) and
+             shows it, or flashes why not, builds the window's scene (`view`: the footers,
              the sidebar's foot, the lit button, the tap targets), and
              finds the canvas pane under a point and the focused pane's
              frame. A cut, copy or paste no text field took (`edit`), and
@@ -406,11 +408,11 @@ backend/panes.rs  the server's panes: `layout` for the Watch, and `open`,
 backend/pdf.rs  PDFs (docs/design/pdf.md): `fetch` gets a pdf item's blob
              once into the app's cache (`$TMPDIR/slinger-app-pdf/<hex>.pdf`,
              written to a part file and renamed); `open` makes a PDF a
-             canvas: `blob_put`, `canvas_create` (the file's stem, `-2`... on
-             a taken id), one whole-page item a page stacked down its first
-             page (scene/pdf.rs) in `canvas_apply`s of 100, then
-             `pane_open` beside the focused pane. A file that cannot be read
-             makes nothing.
+             canvas: `blob_put`, then `canvas_create` (the file's stem, `-2`...
+             on a taken id) with a file of operations: one whole-page item a
+             page stacked down its first page (scene/pdf.rs), so the canvas
+             is made whole or not at all; then `pane_open` beside the
+             focused pane. A file that cannot be read makes nothing.
 mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              feed reply applied in order; reads the canvas file's items
              (tenths, delta points, `#rrggbb`, an arrow's bound ends) into
@@ -579,7 +581,8 @@ scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              when bound. Each runs its command on its pane (the press
              focuses it first). A UI pane's has its name and the pane
              buttons. A narrow pane drops whole groups, the lowest rank
-             first. `strip`: the open sidebar's foot, its hide button.
+             first. `strip`: the open sidebar's foot, its hide button and "+"
+             (`open-workspace`).
              `light`: the button under the pen. `tip`: a lit button that
              is only a glyph or a mark names its command and key just
              above the footer, on a rounded panel with a hairline edge
@@ -909,8 +912,9 @@ platform/remember.rs  what the window keeps in the user defaults from one
              under a name of its own so a preview never moves the app's
              window; a preview never reads or writes the sidebar's.
 platform/files.rs  sets the title bar a scene's Title says (title, subtitle,
-             represented file), and shows a file in the Finder
-             (`show-canvas-file`, from main).
+             represented file), shows a file in the Finder
+             (`show-canvas-file`, from main), and asks for a folder for
+             `open-workspace` (the open panel, which can make one).
 platform/menu.rs  makes the menu bar a scene's menus say, again when they
              change. A command item chosen by its key goes to main as that
              key press, so the keymap runs it once; chosen with the pointer,
@@ -1126,7 +1130,7 @@ Each boundary has something that fails when it is broken:
 | The protocol crate does not link the core | `check:layers` rule `control-is-transport-only` |
 | The CLI reaches the core only through the socket | `check:layers` rule `cli-uses-the-socket` |
 | The app reaches the core only through the socket | `check:layers` rule `app-uses-the-socket` |
-| The agent guide, the skill and the plugin name only commands and flags the CLI has; the plugin has the binary's version | `crates/cli/src/tests/guide.rs` |
+| The agent guide, the skill, the plugin and the sling note (the core's stored snapshots) name only commands and flags the CLI has; the plugin has the binary's version | `crates/cli/src/tests/guide.rs` |
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
 | The canvas file format is readable by older readers | `crates/core/tests/canvas_file.rs`, with a stored v1 fixture |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
@@ -1134,7 +1138,7 @@ Each boundary has something that fails when it is broken:
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
 | The packet's image rules: scale, margin, tiles, same bytes for the same input | `crates/core/tests/render.rs`, with golden images |
 | The packet format reads back, an old packet keeps decoding, the board costs under half its screenshots | `crates/core/tests/packet_build.rs`, with a stored v1 packet, on the real board |
-| The sling message: first and later snapshots; the note names only the verbs given | `crates/core/tests/sling.rs`, with stored snapshots |
+| The sling message: first, later and listener snapshots; the note names only the verbs given, and points at `slinger guide` when there is one | `crates/core/tests/sling.rs`, with stored snapshots |
 | Clustering: colours never mix, long strokes join only ink they touch, each fixture page's count | `crates/core/tests/packet_cluster.rs`, on the real board |
 | The workspace file format and rules (docs/workspace.md) | the tests of `crates/core/src/workspace.rs` and its stored fixture |
 | The record on disk is append-only and keeps fields it does not know | `crates/daemon/src/store/tests.rs`, against a real file |

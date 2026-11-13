@@ -220,3 +220,23 @@ fn a_pdf_item_keeps_its_aspect_whichever_handle_is_dragged() {
     let tenth = |v: f64| (v * 10.0).round() / 10.0;
     assert_eq!(f, frame(0.0, 0.0, tenth(61.2 * k), tenth(79.2 * k)));
 }
+
+#[test]
+fn a_live_item_resizes_from_its_handles_as_a_box_does() {
+    let ui =
+        |r: Rect| item(1, Shape::Live { frame: r, name: "pick".into(), open: "pick#1".into() });
+    let page = [ui(frame(10.0, 10.0, 40.0, 30.0))];
+    let (mut select, mut ink) = (Select::default(), Ink::default());
+    let items = shown(&page);
+    select.pick(HERE, pt(30.0, 30.0), 1.0, false, &items);
+    select.up(None, &items, &mut ink);
+    // The bottom right handle, 6 out from 50,40: 40 right and 15 down.
+    assert!(select.grabs(HERE, pt(56.0, 46.0), 1.0, &items));
+    select.pick(HERE, pt(56.0, 46.0), 1.0, false, &items);
+    select.drag(pt(96.0, 61.0), &items);
+    let over = select.shown(HERE, shown(&page), 1.0, &THEME);
+    assert_eq!(*over[0], ui(frame(10.0, 10.0, 80.0, 45.0)), "its page follows as the pen goes");
+    assert!(select.up(None, &items, &mut ink));
+    let Some((_, Change::Reshape { items: after, .. })) = ink.next() else { panic!() };
+    assert_eq!(after, [ui(frame(10.0, 10.0, 80.0, 45.0))], "the top left stays put");
+}

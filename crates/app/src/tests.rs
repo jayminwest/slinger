@@ -5,7 +5,7 @@
 use super::*;
 use crate::backend::ConfigFiles;
 use crate::backend::testing::wait_until;
-use crate::backend::tests::{open_notes, with_store};
+use crate::backend::tests::{open_notes, with_socket, with_store};
 use crate::commands::{CMD, Chord};
 use crate::panes::{Kind as PaneKind, Pane};
 use crate::scene::ink::Pen;
@@ -141,6 +141,32 @@ fn a_text_left_open_ends_and_the_first_box_drag_after_cmd_5_reaches_the_daemon()
     });
 }
 
+/// slinger-7d8ba2: a colour picked from the pop-up, by its digit, with a
+/// box selected, recolours the box on the daemon.
+#[test]
+fn a_colour_picked_with_a_box_selected_recolours_it() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        w.drag_box(400.0, 10.0);
+        w.until(|_| count(daemon, "box") == 1);
+        assert!(w.send(Event::Command(Command::ToolSelect)));
+        assert!(w.send(Event::Press(at(350.0, 350.0, 11.0))));
+        assert!(w.send(Event::Drag(at(550.0, 500.0, 11.1))));
+        assert!(w.send(Event::Lift(at(550.0, 500.0, 11.2))));
+        assert!(w.canvases.selection().is_some(), "the select tool's box took it");
+        let crate::config::Rgb { r, g, b } = w.settings.config.palette.colours()[1];
+        let want = format!("#{r:02x}{g:02x}{b:02x}");
+        assert!(w.send(Event::Command(Command::PickColour)));
+        w.key(Chord::new(0, '2'), "2");
+        w.until(|_| {
+            let items = daemon.canvas_show("notes", None).unwrap().items;
+            items.iter().any(|i| i["kind"] == "box" && i["color"] == want.as_str())
+        });
+    });
+}
+
 /// slinger-e8d72a: Edit > Undo or Redo chosen with the pointer while an
 /// entry is open passes on to its field (as cmd+Z does), not to the canvas.
 #[test]
@@ -203,5 +229,31 @@ fn a_crop_s_lift_copies_a_snippet_that_pastes_as_a_cropped_pdf_item() {
         assert_eq!(count(daemon, "pdf"), 1, "the canvas does not change");
         assert!(w.send(Event::Edit(Edit::Paste(clip))));
         w.until(|_| count(daemon, "pdf") == 2);
+    });
+}
+
+#[test]
+fn open_workspace_opens_a_folder_and_shows_it_and_flashes_why_it_cannot() {
+    with_socket(|socket| {
+        let settings = Settings::load(ConfigFiles::at("/nonexistent/config.toml".into()));
+        let mut tools = Tools::new(settings.config.palette.clone());
+        let mut sidebar = Sidebar::new(true);
+        let home = tempfile::tempdir().unwrap();
+        let dir = home.path().join("ideas");
+        std::fs::create_dir(&dir).unwrap();
+        let name = window::open_workspace(&dir, socket, &mut sidebar, &mut tools);
+        assert_eq!(name.as_deref(), Some("ideas"), "named for its folder");
+        assert!(dir.join("slinger-workspace.toml").is_file(), "its file is made");
+        let daemon = control::Client::new(socket);
+        let _notes = open_notes(&daemon);
+        sidebar.update(backend::workspaces(&daemon));
+        let rows = sidebar.rows(&settings.config.theme, layout::WINDOW.rect());
+        let bold: Vec<_> = rows.iter().filter(|r| r.font.bold).map(|r| &r.label.text).collect();
+        assert_eq!(bold, ["ideas"], "the window shows it, not the first");
+        let gone = home.path().join("gone");
+        assert_eq!(window::open_workspace(&gone, socket, &mut sidebar, &mut tools), None);
+        let pill =
+            tools.flash().pill(layout::WINDOW.rect(), &settings.config.theme, Instant::now());
+        assert!(pill.is_some_and(|p| p.label.text.contains("gone")), "the flash says why");
     });
 }

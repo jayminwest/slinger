@@ -25,6 +25,8 @@ use crate::scene::canvas::Mark;
 /// The PDFs fetched, and the last PDF opened.
 pub(super) struct Pdfs {
     daemon: Client,
+    /// Where the PDFs are fetched to, and an open writes its operations.
+    dir: PathBuf,
     ask: Sender<String>,
     heard: Receiver<(String, Option<PathBuf>)>,
     /// Each blob asked for, and its file once it has come.
@@ -38,10 +40,10 @@ impl Pdfs {
     pub(super) fn start(daemon: Client, dir: PathBuf) -> Self {
         let (ask, asks) = mpsc::channel::<String>();
         let (tell, heard) = mpsc::channel();
-        let fetcher = daemon.clone();
+        let (fetcher, to) = (daemon.clone(), dir.clone());
         let spawned = thread::Builder::new().name("pdfs".into()).spawn(move || {
             for hash in asks {
-                let file = pdf::fetch(&fetcher, &hash, &dir).ok();
+                let file = pdf::fetch(&fetcher, &hash, &to).ok();
                 if tell.send((hash, file)).is_err() {
                     break;
                 }
@@ -49,7 +51,7 @@ impl Pdfs {
         });
         // Without the thread no PDF comes: each item keeps its grey frame.
         drop(spawned);
-        Self { daemon, ask, heard, files: HashMap::new(), opened: None, problem: None }
+        Self { daemon, dir, ask, heard, files: HashMap::new(), opened: None, problem: None }
     }
 
     /// The file of the PDF that is blob `hash`, once it has come.
@@ -112,10 +114,10 @@ impl Canvases {
         let workspace = workspace.map(str::to_string);
         let ask = Opening { file, workspace, beside: Some(panes.number()) };
         let (tell, opened) = mpsc::channel();
-        let daemon = pdfs.daemon.clone();
+        let (daemon, dir) = (pdfs.daemon.clone(), pdfs.dir.clone());
         let spawned = thread::Builder::new().name("open pdf".into()).spawn(move || {
             // The window may be gone: no one to tell.
-            let _ = tell.send(pdf::open(&daemon, sizes, &ask));
+            let _ = tell.send(pdf::open(&daemon, sizes, &ask, &dir));
         });
         pdfs.problem = None;
         match spawned {

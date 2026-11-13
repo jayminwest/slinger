@@ -1,6 +1,7 @@
 //! `slinger guide` and `slinger skill install`, and the tests that hold the
-//! guide, the skill and the plugin to the CLI: a command or flag they name
-//! that the CLI does not have fails here, so they change with the code.
+//! guide, the skill, the plugin and the sling note to the CLI: a command or
+//! flag they name that the CLI does not have fails here, so they change with
+//! the code.
 use std::fs;
 use std::path::Path;
 
@@ -15,6 +16,13 @@ use crate::output::exit;
 
 const PLUGIN: &str = include_str!("../../../../plugin/.claude-plugin/plugin.json");
 const MARKET: &str = include_str!("../../../../.claude-plugin/marketplace.json");
+/// The note a sling sends an agent, as the core's snapshot tests store it: the
+/// CLI does not link the core, so it reads the note the core is held to.
+const NOTES: [(&str, &str, usize); 3] = [
+    ("first", include_str!("../../../core/tests/fixtures/sling/first.txt"), 3),
+    ("later", include_str!("../../../core/tests/fixtures/sling/later.txt"), 2),
+    ("listener", include_str!("../../../core/tests/fixtures/sling/listener.txt"), 5),
+];
 
 /// Runs the CLI with no daemon: its socket is not there.
 fn alone(args: &[&str]) -> Run {
@@ -183,6 +191,18 @@ fn guide_and_skill_show_only_commands_and_flags_the_cli_has() {
         let faults: Vec<String> = lines.iter().filter_map(|line| fault(&root, line)).collect();
         assert_eq!(faults, [] as [String; 0], "{name} is behind the CLI");
     }
+}
+
+#[test]
+fn the_sling_note_shows_only_commands_and_flags_the_cli_has_and_points_at_the_guide() {
+    let root = command_tree();
+    for (name, note, least) in NOTES {
+        let lines = shown(note);
+        assert!(lines.len() >= least, "the {name} note shows {} commands", lines.len());
+        let faults: Vec<String> = lines.iter().filter_map(|line| fault(&root, line)).collect();
+        assert_eq!(faults, [] as [String; 0], "the {name} note is behind the CLI");
+    }
+    assert!(shown(NOTES[0].1).contains(&"slinger guide".to_string()));
 }
 
 #[test]

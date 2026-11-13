@@ -24,8 +24,10 @@
 //!
 //! The note names only the [`Verb`]s the caller says it serves, so it never
 //! tells an agent to run a command that does not exist. The first sling of a
-//! session gets the whole note; later slings, whose session remembers it
-//! (D10), get one line.
+//! session gets the whole note, which ends by pointing at `slinger guide` for
+//! the rest of the CLI when the agent can run it (it has a verb or listens);
+//! later slings, whose session remembers it (D10), get one line. The CLI's
+//! tests hold every command the stored snapshots show to its command tree.
 //!
 //! A sling a listener takes (a plain Claude Code session, SPEC section 5)
 //! names the agent it answers as on line 1 (`agent=scout`) and adds what a
@@ -57,6 +59,10 @@ Each packet line is one item: id, kind, x,y, wxh, then fields. `# new` is ink wr
 `selected=` on line 1 names the items the user selected. An empty prompt asks about the selection.
 A `pdf` line is a page of a PDF (`blob get` fetches the file its `blob=` names); a quoted text at the end of an ink line is the PDF's words under that ink.
 ";
+
+/// The whole note's last line for an agent that can run the CLI: where the
+/// rest of it is.
+const GUIDE: &str = "`slinger guide` shows every other command and flag.\n";
 
 /// A command the note can tell the agent to use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -252,8 +258,9 @@ fn header(sling: &Sling<'_>) -> String {
     out
 }
 
-/// The `# reply` section: the whole note on a first sling, one line after,
-/// then a listener's lines. Nothing on a later sling when there are no verbs
+/// The `# reply` section: the whole note on a first sling (ending with the
+/// guide's line when there is a CLI to run), one line after, then a
+/// listener's lines. Nothing on a later sling when there are no verbs
 /// to name and no listener.
 fn note(canvas: &str, first: bool, verbs: &[Verb], listener: Option<Listener<'_>>) -> String {
     let theirs = listener.map(Listener::note).unwrap_or_default();
@@ -261,6 +268,9 @@ fn note(canvas: &str, first: bool, verbs: &[Verb], listener: Option<Listener<'_>
         let mut out = format!("# reply\n{INTRO}");
         for verb in verbs {
             out.push_str(&verb.full(canvas));
+        }
+        if !verbs.is_empty() || listener.is_some() {
+            out.push_str(GUIDE);
         }
         return out + &theirs;
     }

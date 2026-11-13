@@ -147,7 +147,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `ui_open` | `ui`: a UI reference, `agent`: string, `host`: `pane` (default) or `canvas`, `data`: any JSON (optional). A pane: `workspace`: as `workspace_show`, `beside`: a pane number (optional), `below`: bool (default `false`). A canvas: `canvas`, `item`: the item it goes beside, `size`: `[w, h]` in tenths (default `[3200, 2400]`) | `open`: the showing's id, `ui`: the version, `workspace`, `pane`: the new pane's number, or `item`: the live item (`canvas`, `item`, `page`, `x`, `y`, `w`, `h`, `seq`), `event`: the `ui_opened` appended |
 | `ui_shown` | `ui`: a showing's id or a UI reference | `ui`: the version, then for a showing `open`, `data` (absent when `null`) and `agent` |
 | `ui_reply` | `open`: a showing's id, `value`: any JSON | `event`: the `ui_reply` appended, `agent`, `delivered`: whether its session took it |
-| `canvas_create` | `canvas`: canvas id | `canvas`: the id |
+| `canvas_create` | `canvas`: canvas id, `path`: absolute path of a file of operations (optional) | `canvas`: the id |
 | `canvas_list` | none | `canvases`: list of `{canvas}`, sorted by id |
 | `canvas_show` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `canvas`, `next`: the next operation's number, `page`: the page's id, `pages`: list of `{id, name}`, `items`: list of items, `path`: the absolute path of the canvas's file |
 | `canvas_apply` | `canvas`: canvas id, `by`: author (default `user`), `ops`: one operation or a list, `once`: string (optional) | `seq`: list of numbers, `made`: list of ids |
@@ -365,6 +365,20 @@ whole item objects: `id`, `page`, `by`, `t` (when it was made), `kind`,
 ```json
 { "v": 1, "op": "canvas_apply", "canvas": "main", "by": "agent:scout", "ops": [{ "op": "add", "item": { "page": "p1", "kind": "text", "x": 0, "y": 0, "text": "plan" } }] }
 { "ok": true, "seq": [7], "made": ["i5"] }
+```
+
+**`canvas_create`** makes an empty canvas; its one page is `p1`. With
+`path`, the canvas starts with the operations in that file (a JSON list, as
+`ops` of `canvas_apply`; its bytes travel as a file, so it may hold more than
+a request line), applied as `user` in one step. The file is written whole
+before the reply: an operation the canvas refuses makes no canvas and answers
+as `canvas_apply` would, so a client that makes a canvas from many items
+never leaves one half made. A file that is not there is `not_found`; one that
+is not JSON is `invalid`.
+
+```json
+{ "v": 1, "op": "canvas_create", "canvas": "paper.pdf", "path": "/tmp/open.json" }
+{ "ok": true, "canvas": "paper.pdf" }
 ```
 
 **`canvas_import`** reads the tldraw file at `path` (a `.tldraw` file or an
@@ -808,7 +822,8 @@ selection as packet ids (a stroke is named by its cluster), the packet with
 each image under the line that names it, a `# reply` note naming only the
 agent verbs this daemon serves (`canvas put`, `canvas crop`), and the
 prompt last. The first sling into a conversation (no `sling_sent` of the
-agent names its session id) gets the whole note, later ones one line. It
+agent names its session id) gets the whole note, which ends by pointing at
+`slinger guide`, later ones one line. It
 reaches the process as one stream-json user message: text blocks and a
 base64 PNG image block per image. The reply's `tokens` estimates the whole
 message by the packet's rule (a token per four characters, and per 750

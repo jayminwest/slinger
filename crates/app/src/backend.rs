@@ -36,7 +36,7 @@ pub(crate) mod testing;
 pub mod ui;
 mod unsent;
 
-pub use agents::workspaces;
+pub use agents::{open_workspace, workspaces};
 pub use feedback::Noter;
 pub use flick::Flick;
 pub use follow::{Follower, News};
@@ -288,7 +288,7 @@ pub(crate) mod tests {
     }
 
     /// Runs `f` with the socket of a daemon that lives for this one call.
-    fn with_socket<T>(f: impl FnOnce(&Path) -> T) -> T {
+    pub(crate) fn with_socket<T>(f: impl FnOnce(&Path) -> T) -> T {
         serve(Path::new("/nonexistent/claude"), f)
     }
 

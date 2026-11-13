@@ -345,3 +345,27 @@ fn on_a_pdfs_canvas_the_select_tool_and_the_lasso_never_take_a_page() {
     assert_eq!(select.selection().unwrap().ids, [ItemId(2)], "and so does a lasso");
     assert_eq!(ink.next(), None, "nothing moved");
 }
+
+#[test]
+fn a_colour_recolours_the_selected_strokes_texts_boxes_and_arrows_in_one_change() {
+    let blue = Rgb { r: 0, g: 0, b: 255 };
+    let mut page = page();
+    page.push(item(
+        5,
+        Shape::Live { frame: frame(0.0, 60.0, 9.0, 9.0), name: "u".into(), open: "u#1".into() },
+    ));
+    page[1].colour = blue;
+    let (mut select, mut ink) = (Select::default(), Ink::default());
+    let items = shown(&page);
+    assert!(!select.recolour(blue, &items, &mut ink), "no selection, nothing to recolour");
+    let ids = [1, 2, 3, 4, 5].map(ItemId).to_vec();
+    select.selection = Some(Selection { canvas: "main".into(), page: "p1".into(), ids });
+    assert!(select.recolour(blue, &items, &mut ink));
+    let Some((_, Change::Reshape { items: after, .. })) = ink.next() else { panic!() };
+    let want: Vec<Item> = [0, 2, 3].map(|i| Item { colour: blue, ..page[i].clone() }).to_vec();
+    assert_eq!(after, want, "not the box already blue, not the live item, nothing moved");
+    assert_eq!(ink.next(), None, "one change");
+    let after: Vec<Item> = page.iter().map(|i| Item { colour: blue, ..i.clone() }).collect();
+    assert!(!select.recolour(blue, &shown(&after), &mut ink), "all blue already");
+    assert_eq!(ink.next(), None);
+}

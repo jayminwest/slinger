@@ -11,6 +11,20 @@ bullet with the area in bold.
 
 ### Added
 
+- **Service:** `canvas_create` takes an optional `path`: a file of canvas
+  operations the new canvas starts with. The canvas is made with all of them
+  or not at all.
+
+- **App:** recolour what you selected. Picking a colour from the colour
+  pop-up with a selection makes its strokes, texts, boxes and arrows that
+  colour, in one step that one undo takes back; the pen takes the colour
+  too. Agent UIs, PDF pages and buttons keep their own.
+- **App:** open a workspace without the CLI. Open workspace…
+  (`open-workspace`, ⇧⌘O) is in the File menu and the command palette, and
+  the "+" at the foot of the open sidebar runs it. Pick a folder, or make a
+  new one in the panel, and it opens as a workspace named after the folder
+  (its `slinger-workspace.toml` is made the first time) and the window turns
+  to it. A folder that cannot be opened says why.
 - **PDF:** open a PDF and write on it. Open PDF… (`open-pdf`, ⌘O) is
   in the File menu, and under a new File group in the key overlay and the
   command palette. It asks for a `.pdf` file and opens it as a new canvas
@@ -20,7 +34,7 @@ bullet with the area in bold.
   its file arrives. Write on the pages with the usual tools: they are the
   paper, under everything else, and the eraser never takes them. A PDF
   that cannot be read, such as one locked with a password, makes nothing
-  and says why.
+  and says why, and an open that fails partway leaves no half-made canvas.
 - **PDF:** a PDF's canvas reads like a document. Its pages fit the pane's
   width, a scroll moves up and down only and stops at the first and last
   page, and pinch and the zoom keys do nothing. A pane resized refits the
@@ -217,6 +231,9 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Agents:** the first sling to an agent now ends its note with
+  `slinger guide`, so the agent knows where to find every other command
+  and flag.
 - **Agents:** an agent can now edit and create files without any setup, so
   a sling can ask for a code change. Nobody reviews a file before it is
   written. Commands other than `slinger` and read-only ones still need a
@@ -274,6 +291,9 @@ bullet with the area in bold.
 - **Agents:** an agent that answers a send at once no longer shows a
   message still pending. `slinger session show` could report one message
   pending for good after a quick answer, so waiting on it never ended.
+- **App:** an agent's live page on a canvas now resizes from the
+  selection's corner handles, as a box does, and its page lays out again
+  at the new size as you drag. Before, it kept its size.
 - **CLI and app:** a busy slingerd is no longer taken for a stopped one.
   When the disk is under heavy load a reply can take several seconds; the
   CLI and the app now wait up to 30 seconds for it instead of 5, and no

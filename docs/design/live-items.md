@@ -231,6 +231,10 @@ for every attempt, so all four stay.
   which loses the page's in-memory state. A UI that must keep state across
   that keeps it in the agent, through `reply`.
 - A pane is the same with a zoom of 1.
+- The user resizes the item from the selection's corner handles, as a box:
+  its `w` and `h` change, and the page lays out again at the new CSS
+  width as the pen goes. A page fills its viewport rather than assume the
+  size it was opened at (slinger-73c018).
 
 As built (slinger-085117): the 48-point and 30 s rules are in
 `scene/live.rs` and `scene/live/away.rs`. Not built yet: a still item
@@ -252,7 +256,8 @@ each step instead of scaling the layer.
 
 That it writes one HTML file of at most 1 MiB, with everything
 inline and no network. The two calls above. That the page is drawn at the
-box it was opened with (`ui open` gives the size), in CSS pixels. About
+box it was opened with (`ui open` gives the size), in CSS pixels, and
+lays out again when the user resizes it. About
 twenty lines of instructions.
 
 ## Alternative B: a closed set of blocks and actions
