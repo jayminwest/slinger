@@ -280,14 +280,18 @@ fn asked(
             window::finder(c, shared, canvases, sidebar)
         }
         Ask::Run(Command::OpenWorkspace) => {
-            return platform::choose(Pick::Workspace).map_or(Ask::Draw(None), Ask::Open);
+            return platform::choose(Pick::Workspace, tools.flash())
+                .map_or(Ask::Draw(None), Ask::Open);
         }
         Ask::Run(Command::ExportUi) => {
-            let Some(dir) = platform::choose(Pick::ExportTo) else { return Ask::Draw(None) };
+            let Some(dir) = platform::choose(Pick::ExportTo, tools.flash()) else {
+                return Ask::Draw(None);
+            };
             window::export_ui(shared, &dir)
         }
         Ask::Run(Command::OpenPdf) => {
-            let file: Vec<_> = platform::choose(Pick::Document).into_iter().collect();
+            let file: Vec<_> =
+                platform::choose(Pick::Document, tools.flash()).into_iter().collect();
             window::open_pdf(&file, None, shared, canvases, area, platform::pdf::pages);
             return Ask::Draw(None);
         }

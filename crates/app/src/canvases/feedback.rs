@@ -76,7 +76,10 @@ impl Canvases {
     /// The `leave-feedback` command: opens the entry in `pane` of `panes`,
     /// whose frame is `frame`, for a note on what it shows: `workspace`,
     /// its canvas and page, `tool` and the items selected there. Another
-    /// open entry closes. False while a note saves.
+    /// open entry closes, and a text being typed ends, as a page's new
+    /// name's entry ends it: the entry's caret is then the only one, and
+    /// the text's frozen caret does not stay on the canvas (slinger-b298f6).
+    /// False while a note saves.
     pub fn open_feedback(
         &mut self,
         panes: &Panes,
@@ -99,6 +102,9 @@ impl Canvases {
             return false;
         }
         self.notes.noter.list();
+        if self.shapes.end(&mut self.ink) {
+            self.send();
+        }
         if self.sling.cancel() | self.asks.cancel_rename() {
             self.entry_closed();
         }
