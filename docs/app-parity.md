@@ -18,8 +18,12 @@ Sizes, as the app is built today:
 - **ui**: needs something new on screen: a text entry, a picker, a form.
 - **design**: needs a decision on what the user sees or does first.
 
-Every new verb the app calls costs its binary about 3 KB until
-slinger-548ea9 lands; the app has under 1 KB of room (slinger-7af57c).
+A new verb's call costs the app's binary about 700 bytes, unless its reply
+type is new to the app: decoding a new reply type can cost many KB (a reply
+full of maps cost about 10 KB), so read the reply into a type the app
+already decodes where you can. The binary grows in 16 KB steps against its
+ceiling (slinger-7af57c), so measure the room left in `__TEXT` before and
+after a change, not the file size.
 
 ## Not for the app
 
