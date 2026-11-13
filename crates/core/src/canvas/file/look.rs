@@ -85,7 +85,7 @@ impl Log {
     pub(super) fn resolve(&self, id: &str) -> Result<Vec<ItemId>> {
         let canvas = self.canvas();
         let number = id
-            .strip_prefix(['i', 'c', 't', 'b', 'a', 'l', 'u'])
+            .strip_prefix(super::packet::ID_LETTERS)
             .filter(|d| d.bytes().all(|b| b.is_ascii_digit()))
             .and_then(|d| d.parse().ok());
         let Some(n) = number else {

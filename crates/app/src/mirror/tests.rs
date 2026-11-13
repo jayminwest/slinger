@@ -93,6 +93,13 @@ fn what_cannot_be_drawn_is_left_out() {
 }
 
 #[test]
+fn a_pdf_item_is_not_drawn_by_an_app_from_before_the_kind() {
+    let pdf = json!({"id": "i1", "page": "p1", "kind": "pdf", "x": 0, "y": 0, "w": 16000,
+        "h": 20706, "hash": "sha256:9f", "pdfpage": 1, "pagesize": [6120, 7920]});
+    assert_eq!(item(&pdf), None, "docs/design/pdf.md: step 3 draws it");
+}
+
+#[test]
 fn text_too_narrow_to_wrap_gets_a_frame_its_size() {
     let m = Mirror::new(&shown(vec![json!({"id": "i1", "page": "p1", "kind": "text",
         "x": 50, "y": 60, "w": 80, "h": 99999, "text": "abcd\nab"})]));

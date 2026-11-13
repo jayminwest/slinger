@@ -4,7 +4,7 @@
 //! the pen moves; the packet asks them for what the user selected.
 //!
 //! Every query takes canvas units, answers in drawing order (first drawn
-//! first), and has no errors: an empty page, a missing page, a lasso of fewer
+//! first: `pdf` items under everything, [`Canvas::drawn`]), and has no errors: an empty page, a missing page, a lasso of fewer
 //! than three points or an empty eraser path finds nothing, and a negative or
 //! not-a-number tolerance counts as zero.
 //!
@@ -12,11 +12,13 @@
 //! - A stroke is its line, thickened by half its width on each side. A stroke
 //!   of one point is a dot.
 //! - An arrow is the line between its ends.
-//! - Text and a box are solid: their whole frame counts, not only its edge.
+//! - Text, a box and a `pdf` item are solid: their whole frame counts, not
+//!   only its edge. A `pdf` item is drawn first, so anything over it wins.
 //!
 //! The eraser is the exception: it takes a box by its outline only, so
 //! erasing the ink inside a box keeps the box. It takes strokes, text,
-//! boxes and arrows, never a live item or the button: those are not ink.
+//! boxes and arrows, never a live item, the button or a `pdf` item: those are
+//! not ink.
 
 use std::borrow::Cow;
 
@@ -32,7 +34,7 @@ impl Canvas {
     pub fn item_at(&self, page: PageId, at: Point, tolerance: f64) -> Option<ItemId> {
         let tolerance = tolerance.max(0.0);
         let near = grown(Rect::new(at.x, at.y, 0.0, 0.0), tolerance);
-        self.items(page)
+        self.drawn(page)
             .filter(|i| overlaps(i.bounds(), near))
             .filter(|i| Geometry::of(i.shape()).distance_to(at, at) <= tolerance)
             .last()
@@ -50,7 +52,7 @@ impl Canvas {
         let Some(outer) = Rect::around(lasso.iter().copied()).filter(|_| lasso.len() >= 3) else {
             return Vec::new();
         };
-        self.items(page)
+        self.drawn(page)
             .filter(|i| {
                 let shape = Geometry::of(i.shape());
                 shape.vertices().all(|p| contains(outer, p) && winding(lasso, p) != 0)
@@ -68,7 +70,7 @@ impl Canvas {
         let Some(swept) = Rect::around(path.iter().copied()).map(|r| grown(r, radius)) else {
             return Vec::new();
         };
-        self.items(page)
+        self.drawn(page)
             .filter(|i| overlaps(i.bounds(), swept))
             .filter(|i| {
                 Geometry::erased(i.shape()).is_some_and(|shape| {
@@ -82,7 +84,7 @@ impl Canvas {
     /// The items on `page` that touch `area`, its edges included.
     #[must_use]
     pub fn items_in_box(&self, page: PageId, area: Rect) -> Vec<ItemId> {
-        self.items(page)
+        self.drawn(page)
             .filter(|i| overlaps(i.bounds(), area))
             .filter(|i| Geometry::of(i.shape()).touches(area))
             .map(Item::id)
@@ -149,19 +151,20 @@ impl<'a> Geometry<'a> {
             Shape::Text { frame, .. }
             | Shape::Box { frame, .. }
             | Shape::Live { frame, .. }
+            | Shape::Pdf { frame, .. }
             | Shape::Button { frame } => Geometry::Area(*frame),
         }
     }
 
-    /// The shape as the eraser sees it: a box is its outline; a live item
-    /// and the button are not erased (`None`).
+    /// The shape as the eraser sees it: a box is its outline; a live item,
+    /// the button and a `pdf` item are not erased (`None`).
     fn erased(shape: &'a Shape) -> Option<Self> {
         match shape {
             Shape::Box { frame, .. } => {
                 let [tl, tr, br, bl] = corners(*frame);
                 Some(Geometry::Line { points: Cow::Owned(vec![tl, tr, br, bl, tl]), radius: 0.0 })
             }
-            Shape::Live { .. } | Shape::Button { .. } => None,
+            Shape::Live { .. } | Shape::Button { .. } | Shape::Pdf { .. } => None,
             Shape::Stroke { .. } | Shape::Text { .. } | Shape::Arrow { .. } => {
                 Some(Self::of(shape))
             }

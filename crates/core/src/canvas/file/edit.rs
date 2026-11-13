@@ -32,7 +32,8 @@ pub struct Edit {
     /// A new size for a text item's characters, in tenths of a unit as the
     /// file stores it. Its frame refits the words, as for new words.
     pub text_size: Option<i64>,
-    /// A new `[w, h]` for a text, a box or a live item, its top-left corner kept.
+    /// A new `[w, h]` for a text, a box, a live item, a pdf item or a
+    /// button, its top-left corner kept.
     pub size: Option<[i64; 2]>,
     /// Where the top-left corner of the item's box goes, `[x, y]`.
     pub to: Option<[i64; 2]>,
@@ -76,11 +77,12 @@ impl Log {
             let (Shape::Text { frame, .. }
             | Shape::Box { frame, .. }
             | Shape::Live { frame, .. }
+            | Shape::Pdf { frame, .. }
             | Shape::Button { frame }) = &mut new
             else {
                 let hint = "move it instead";
                 return Err(invalid(
-                    "only a text, a box, a live item or a button has a size",
+                    "only a text, a box, a live item, a pdf item or a button has a size",
                     hint,
                 ));
             };

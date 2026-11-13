@@ -141,7 +141,7 @@ impl Rect {
         Self::new(self.x + by.x, self.y + by.y, self.w, self.h)
     }
 
-    fn check(self, what: &str) -> Result<()> {
+    pub(super) fn check(self, what: &str) -> Result<()> {
         let finite = [self.x, self.y, self.w, self.h].iter().all(|v| v.is_finite());
         if !finite || self.w < 0.0 || self.h < 0.0 {
             return Err(invalid(
@@ -234,6 +234,24 @@ pub enum Shape {
     /// canvas's workspace. It runs no code and names no blob: the app draws
     /// it and does the sling.
     Button { frame: Rect },
+    /// One page of a PDF, or part of one (docs/design/pdf.md). The core
+    /// never reads the PDF: it knows the blob id and the numbers here.
+    /// `frame` is in canvas units; `page_size` (the whole page as
+    /// displayed) and `crop` in page points, origin at the page's top left.
+    /// The item draws its shown region ([`Shape::shown`]) stretched to
+    /// fill its frame. It has no colour.
+    Pdf {
+        frame: Rect,
+        /// The PDF's blob id as text, as a live item's.
+        hash: String,
+        /// The page number in the PDF, from 1.
+        pdf_page: u32,
+        page_size: (f64, f64),
+        /// The part of the page shown; `None` for the whole page.
+        crop: Option<Rect>,
+        /// The PDF's file name when it was opened, without its directory.
+        name: Option<String>,
+    },
 }
 
 impl Shape {
@@ -248,6 +266,7 @@ impl Shape {
             Shape::Text { frame, .. }
             | Shape::Box { frame, .. }
             | Shape::Live { frame, .. }
+            | Shape::Pdf { frame, .. }
             | Shape::Button { frame } => *frame,
             Shape::Arrow { from, to, .. } => Rect::around([from.at, to.at]).unwrap_or_default(),
         }
@@ -288,6 +307,7 @@ impl Shape {
             Shape::Text { frame, .. }
             | Shape::Box { frame, .. }
             | Shape::Live { frame, .. }
+            | Shape::Pdf { frame, .. }
             | Shape::Button { frame } => *frame = frame.shifted(by),
             Shape::Arrow { from, to, .. } => {
                 from.at = from.at.shifted(by);
@@ -345,6 +365,7 @@ impl Shape {
                 }
                 Ok(())
             }
+            Shape::Pdf { .. } => super::pdf::check(self),
             Shape::Arrow { from, to, .. } => {
                 if from.at.is_finite() && to.at.is_finite() {
                     Ok(())

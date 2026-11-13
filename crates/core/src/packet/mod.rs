@@ -4,7 +4,9 @@
 //! [`Index`] is the text part: one line per item, in three sections. `new`
 //! holds the user's ink clusters with a stroke that changed since the last
 //! sling, `made` the items an agent made or changed since then, and `page`
-//! everything else on the page, as an outline. Items an agent made are always
+//! everything else on the page, as an outline: a `pdf` item only when an ink
+//! line lies over it (`over`) or it is selected, so a long PDF costs nothing
+//! a sling does not touch. Items an agent made are always
 //! text lines, never images (SPEC R2): [`Index::render`] lists only clusters of
 //! the user's ink.
 //!
@@ -46,6 +48,9 @@ pub struct Index {
     new: Vec<Line>,
     made: Vec<Line>,
     page: Vec<Line>,
+    /// The `pdf` lines left out of `page`: no ink line names them. A
+    /// selection may still take them ([`Index::narrow`]).
+    unnamed: Vec<Line>,
     render: Vec<Render>,
 }
 
@@ -61,7 +66,8 @@ impl Index {
     ///
     /// `changed` says whether an item was made or changed in the packet's op
     /// range. A cluster with a changed stroke goes in `new`; an agent's
-    /// changed item goes in `made`; everything else goes in `page`.
+    /// changed item goes in `made`; everything else goes in `page`, but for
+    /// a `pdf` item that no ink line's `over` names.
     #[must_use]
     pub fn new(
         canvas: &Canvas,
@@ -95,7 +101,10 @@ impl Index {
                 strokes: page.clusters[&l.n].iter().map(|s| s.id()).collect(),
             })
             .collect();
-        Self { new, made: reading_order(made), page: reading_order(rest), render }
+        let named = over(new.iter().chain(&made).chain(&rest));
+        let (rest, unnamed) =
+            rest.into_iter().partition(|l| l.kind != "pdf" || named.contains(&l.id));
+        Self { new, made: reading_order(made), page: reading_order(rest), unnamed, render }
     }
 
     /// The clusters that need images, in the order their lines are read. Only
@@ -125,9 +134,16 @@ impl Index {
     }
 
     /// Keeps in the `page` section only the lines whose item number (a
-    /// cluster's is its earliest stroke's) passes `keep`.
+    /// cluster's is its earliest stroke's) passes `keep`, and the `pdf`
+    /// lines an ink line still in the packet names in `over`.
     fn narrow(&mut self, keep: impl Fn(u64) -> bool) {
-        self.page.retain(|l| keep(l.n));
+        let (pdfs, mut page): (Vec<Line>, Vec<Line>) =
+            std::mem::take(&mut self.page).into_iter().partition(|l| l.kind == "pdf");
+        page.retain(|l| keep(l.n));
+        let named = over(self.new.iter().chain(&self.made).chain(&page));
+        page.extend(pdfs.into_iter().filter(|l| keep(l.n) || named.contains(&l.id)));
+        page.extend(std::mem::take(&mut self.unnamed).into_iter().filter(|l| keep(l.n)));
+        self.page = reading_order(page);
     }
 }
 
@@ -139,6 +155,8 @@ struct Page<'a> {
     /// Each stroke's cluster number.
     cluster_of: BTreeMap<ItemId, u64>,
     boxes: Vec<&'a Item>,
+    /// The `pdf` items, in drawing order.
+    pdfs: Vec<&'a Item>,
 }
 
 impl<'a> Page<'a> {
@@ -166,9 +184,16 @@ impl<'a> Page<'a> {
             }
             clusters.insert(n, strokes);
         }
-        let boxes =
-            items.iter().copied().filter(|i| matches!(i.shape(), Shape::Box { .. })).collect();
-        Self { items, clusters, cluster_of, boxes }
+        let kind = |pdf: bool| {
+            let pick = move |i: &&Item| match i.shape() {
+                Shape::Pdf { .. } => pdf,
+                Shape::Box { .. } => !pdf,
+                _ => false,
+            };
+            items.iter().copied().filter(pick).collect()
+        };
+        let (boxes, pdfs) = (kind(false), kind(true));
+        Self { items, clusters, cluster_of, boxes, pdfs }
     }
 
     /// The packet id of an item on this page, if it is still there.
@@ -184,6 +209,7 @@ impl<'a> Page<'a> {
             Shape::Arrow { .. } => "a",
             Shape::Live { .. } => "l",
             Shape::Button { .. } => "u",
+            Shape::Pdf { .. } => "d",
         };
         Some(format!("{prefix}{}", item.get()))
     }
@@ -219,6 +245,16 @@ impl<'a> Page<'a> {
         });
         fields.extend(to.map(|t| ("to", t)));
         fields.extend(self.container(n, frame).map(|b| ("in", b)));
+        // The pages of PDFs the ink lies on, so a reader knows what it marks.
+        let under: Vec<String> = self
+            .pdfs
+            .iter()
+            .filter(|p| overlaps(p.bounds(), frame))
+            .map(|p| format!("d{}", p.id().get()))
+            .collect();
+        if !under.is_empty() {
+            fields.push(("over", under.join(",")));
+        }
         Line { n, id: format!("c{n}"), kind: "ink", frame, fields, text: None }
     }
 
@@ -243,12 +279,37 @@ impl<'a> Page<'a> {
                 ("live", None)
             }
             Shape::Button { .. } => ("button", None),
+            // A PDF's page goes as text, never an image (R8): which page,
+            // which part of it, and the blob that holds the file.
+            Shape::Pdf { hash, pdf_page, crop, name, .. } => {
+                fields.push(("pdfpage", pdf_page.to_string()));
+                if let Some(c) = crop {
+                    let points = [c.x, c.y, c.w, c.h].map(f64::round).map(|v| v.to_string());
+                    fields.push(("crop", points.join(",")));
+                }
+                fields.extend(name.clone().map(|n| ("name", n)));
+                fields.push(("blob", hash.clone()));
+                ("pdf", None)
+            }
         };
         let frame = item.bounds();
         fields.extend(self.container(n, frame).map(|b| ("in", b)));
         let id = self.id_of(item.id()).unwrap_or_default();
         Line { n, id, kind, frame, fields, text }
     }
+}
+
+/// The ids the `over` fields of `lines` name.
+fn over<'a>(lines: impl Iterator<Item = &'a Line>) -> Vec<String> {
+    lines
+        .flat_map(|l| l.fields.iter().filter(|(k, _)| *k == "over"))
+        .flat_map(|(_, v)| v.split(',').map(str::to_owned))
+        .collect()
+}
+
+/// Whether two rectangles share any point, edges included.
+fn overlaps(a: Rect, b: Rect) -> bool {
+    a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h
 }
 
 fn holds(outer: Rect, inner: Rect) -> bool {

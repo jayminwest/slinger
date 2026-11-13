@@ -194,8 +194,8 @@ impl Builder {
                     self.report.arrows += 1;
                     self.arrows.insert(n.id.into(), Arrow { item, from, to, colour });
                 }
-                // tldraw has no live items or buttons; the mapping never makes one.
-                Shape::Live { .. } | Shape::Button { .. } => {}
+                // tldraw has no live items, buttons or PDFs; the mapping never makes one.
+                Shape::Live { .. } | Shape::Button { .. } | Shape::Pdf { .. } => {}
             }
             // A rectangle's label must not hide the box from arrows bound to it.
             self.items.entry(n.id.into()).or_insert((item, shape.bounds()));
