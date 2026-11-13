@@ -11,6 +11,7 @@ pub enum Group {
     Tools,
     PopUps,
     Sling,
+    File,
     Canvas,
     Pages,
     Panes,
@@ -19,10 +20,11 @@ pub enum Group {
 
 impl Group {
     /// Every group, in the order the surfaces show them.
-    pub const ALL: [Group; 7] = [
+    pub const ALL: [Group; 8] = [
         Group::Tools,
         Group::PopUps,
         Group::Sling,
+        Group::File,
         Group::Canvas,
         Group::Pages,
         Group::Panes,
@@ -35,6 +37,7 @@ impl Group {
             Group::Tools => "Tools",
             Group::PopUps => "Pop-ups",
             Group::Sling => "Sling",
+            Group::File => "File",
             Group::Canvas => "Canvas",
             Group::Pages => "Pages",
             Group::Panes => "Panes",
@@ -137,8 +140,8 @@ impl Command {
             | Command::Redo
             | Command::ToggleGrid
             | Command::Save
-            | Command::ShowCanvasFile
-            | Command::OpenPdf => Group::Canvas,
+            | Command::ShowCanvasFile => Group::Canvas,
+            Command::OpenPdf => Group::File,
             Command::NextPage
             | Command::PreviousPage
             | Command::NewPage

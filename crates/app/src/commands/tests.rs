@@ -148,6 +148,7 @@ fn every_command_has_a_title_and_a_group_in_the_list() {
     assert_eq!(Command::SplitRight.title(), "Split right");
     assert_eq!(Command::PickTool.group(), Group::PopUps);
     assert_eq!(Group::PopUps.title(), "Pop-ups");
+    assert_eq!(Command::OpenPdf.group(), Group::File);
 }
 
 #[test]
