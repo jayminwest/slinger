@@ -9,7 +9,7 @@
 use std::path::Path;
 use std::time::Instant;
 
-use crate::backend::{Problem, Settings};
+use crate::backend::{self, Problem, Settings};
 use crate::canvases::Canvases;
 use crate::commands::{self, Command};
 use crate::layout::{PaneId, Point, Rect};
@@ -95,6 +95,27 @@ pub fn tap(
         Tap::Run(_) => {}
     }
     None
+}
+
+/// Opens the folder `dir` as a workspace through the daemon on `socket` and
+/// shows it in `sidebar`: its name, for the watch to follow. The flash in
+/// `tools` says why it cannot.
+pub fn open_workspace(
+    dir: &Path,
+    socket: &Path,
+    sidebar: &mut Sidebar,
+    tools: &mut Tools,
+) -> Option<String> {
+    match backend::open_workspace(&slinger_control::Client::new(socket), dir) {
+        Ok(name) => {
+            sidebar.show(Some(name.clone()));
+            Some(name)
+        }
+        Err(problem) => {
+            tools.flash().say(problem.message, Instant::now());
+            None
+        }
+    }
 }
 
 /// Runs a selection command (`sling`, `dictate`: the entry; `sling-now`) when the focused pane

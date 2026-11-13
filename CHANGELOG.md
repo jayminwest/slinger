@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** open a workspace without the CLI. Open workspace…
+  (`open-workspace`, ⇧⌘O) is in the File menu and the command palette, and
+  the "+" at the foot of the open sidebar runs it. Pick a folder, or make a
+  new one in the panel, and it opens as a workspace named after the folder
+  (its `slinger-workspace.toml` is made the first time) and the window turns
+  to it. A folder that cannot be opened says why.
 - **PDF:** open a PDF and write on it. Open PDF… (`open-pdf`, ⌘O) is
   in the File menu, and under a new File group in the key overlay and the
   command palette. It asks for a `.pdf` file and opens it as a new canvas

@@ -105,6 +105,7 @@ impl Command {
             Command::ShowCanvasFile => "Show canvas file in Finder",
             Command::OpenPdf => "Open PDF…",
             Command::CropPdf => "Crop PDF",
+            Command::OpenWorkspace => "Open workspace…",
         }
     }
 
@@ -141,7 +142,7 @@ impl Command {
             | Command::ToggleGrid
             | Command::Save
             | Command::ShowCanvasFile => Group::Canvas,
-            Command::OpenPdf => Group::File,
+            Command::OpenPdf | Command::OpenWorkspace => Group::File,
             Command::NextPage
             | Command::PreviousPage
             | Command::NewPage

@@ -338,7 +338,9 @@ window.rs    runs a command on the focused pane, does a tap on a button that
              does more than run one (`tap`: the page name opens the page
              menu, a page menu's page turns the pane, the footer's agent
              opens its profile menu and a profile slings under it, a
-             workspace shows its panes), builds the window's scene (`view`: the footers,
+             workspace shows its panes), opens the folder `open-workspace`
+             chose as a workspace (workspace_open: backend/agents.rs) and
+             shows it, or flashes why not, builds the window's scene (`view`: the footers,
              the sidebar's foot, the lit button, the tap targets), and
              finds the canvas pane under a point and the focused pane's
              frame. A cut, copy or paste no text field took (`edit`), and
@@ -578,7 +580,8 @@ scene/status.rs  each pane's footer (SPEC P6), 28 pt along its bottom edge,
              when bound. Each runs its command on its pane (the press
              focuses it first). A UI pane's has its name and the pane
              buttons. A narrow pane drops whole groups, the lowest rank
-             first. `strip`: the open sidebar's foot, its hide button.
+             first. `strip`: the open sidebar's foot, its hide button and "+"
+             (`open-workspace`).
              `light`: the button under the pen. `tip`: a lit button that
              is only a glyph or a mark names its command and key just
              above the footer, on a rounded panel with a hairline edge
@@ -908,8 +911,9 @@ platform/remember.rs  what the window keeps in the user defaults from one
              under a name of its own so a preview never moves the app's
              window; a preview never reads or writes the sidebar's.
 platform/files.rs  sets the title bar a scene's Title says (title, subtitle,
-             represented file), and shows a file in the Finder
-             (`show-canvas-file`, from main).
+             represented file), shows a file in the Finder
+             (`show-canvas-file`, from main), and asks for a folder for
+             `open-workspace` (the open panel, which can make one).
 platform/menu.rs  makes the menu bar a scene's menus say, again when they
              change. A command item chosen by its key goes to main as that
              key press, so the keymap runs it once; chosen with the pointer,

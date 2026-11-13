@@ -244,14 +244,17 @@ pub fn footer(frame: Rect, theme: &Theme, keys: &Keymap, shows: &Shows) -> Foote
 }
 
 /// The open sidebar's foot, at `frame` (its bottom, as high as a footer):
-/// its one button, "◧ Hide sidebar", where a collapsed sidebar's button
-/// sits in the pane footer beside it.
+/// "◧ Hide sidebar", where a collapsed sidebar's button sits in the pane
+/// footer beside it, and at the right "+", which opens a workspace.
 pub fn strip(frame: Rect, theme: &Theme) -> Footer {
-    let run = Run { text: "◧  Hide sidebar".into(), colour: theme.muted, bold: false };
-    let hide = Cell::words(vec![run], Some(Tap::Run(Command::ToggleSidebar)));
+    let run = |text: &str| vec![Run { text: text.into(), colour: theme.muted, bold: false }];
+    let hide = Cell::words(run("◧  Hide sidebar"), Some(Tap::Run(Command::ToggleSidebar)));
+    let open = Cell::glyph(run("+"), Tap::Run(Command::OpenWorkspace));
     let frame =
         Rect { y: frame.y + frame.height - HEIGHT, height: HEIGHT.min(frame.height), ..frame };
-    build(frame, theme, vec![Unit::new(Side::Left, 100, vec![hide])])
+    let units =
+        vec![Unit::new(Side::Left, 100, vec![hide]), Unit::new(Side::Right, 90, vec![open])];
+    build(frame, theme, units)
 }
 
 /// The footer along the bottom of `frame` with `units` laid in it.
