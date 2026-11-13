@@ -12,7 +12,7 @@ on it. Breaking it is a breaking change.
 | `--json` | Exactly one JSON document on stdout, errors included |
 | `-q, --quiet` | Silence progress and confirmations. Never silences errors or a command's main output |
 | `--verbose` | Extra diagnostics on stderr |
-| `--socket <PATH>` | The control socket of `slingerd`. Default: `$SLINGER_SOCKET`, else the socket the running `slingerd` named in its data directory, else see `docs/service.md` |
+| `--socket <PATH>` | The control socket of `slingerd`. Default: `$SLINGER_SOCKET`, else the socket the running `slingerd` named in its data directory (passed over when nothing listens on it), else see `docs/service.md` |
 No arguments prints help. Unknown commands and flags are usage errors with
 a "did you mean" suggestion.
 

@@ -3,10 +3,12 @@
 //! login shell and the programs an agent runs. So the daemon that serves the
 //! default data directory names its socket there, in one file, and a client
 //! that is given no socket takes that one: it finds the daemon wherever it
-//! listens (slinger-3bd4a6).
+//! listens (slinger-3bd4a6). A name left by a daemon that died names a
+//! socket nothing listens on: a client passes over it (slinger-a5678b).
 
 use std::fs;
 use std::io;
+use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 
 const SOCKET_FILE: &str = "slinger.sock";
@@ -26,12 +28,22 @@ fn socket_in(runtime: Option<PathBuf>, temp: PathBuf) -> PathBuf {
     runtime.filter(|dir| !dir.as_os_str().is_empty()).unwrap_or(temp).join(SOCKET_FILE)
 }
 
-/// The socket the daemon of the default data directory named, while it
-/// runs: where a client given no socket finds the daemon, before it tries
+/// The live socket the daemon of the default data directory named: where a
+/// client given no socket finds the daemon, before it tries
 /// [`default_socket`].
 #[must_use]
 pub fn running_socket() -> Option<PathBuf> {
-    default_data_dir().and_then(|dir| named_socket(&dir))
+    default_data_dir().and_then(|dir| live_socket(&dir))
+}
+
+/// The socket the daemon serving `data_dir` named, while something listens
+/// on it. A daemon that died uncleanly leaves its name and its socket file,
+/// which refuses connections: that name is passed over, so a client never
+/// holds on a dead socket. The check is one connect-and-close, which the
+/// daemon reads as no request and answers nothing.
+#[must_use]
+pub fn live_socket(data_dir: &Path) -> Option<PathBuf> {
+    named_socket(data_dir).filter(|named| UnixStream::connect(named).is_ok())
 }
 
 /// Where the record lives when no data directory is given:
@@ -136,6 +148,21 @@ mod tests {
         unname_socket(dir.path()).unwrap();
         fs::write(dir.path().join(NAMED), "\n").unwrap();
         assert_eq!(named_socket(dir.path()), None, "an empty name names nothing");
+    }
+
+    #[test]
+    fn a_name_nothing_listens_on_is_not_live() {
+        let (data, sockets) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        assert_eq!(live_socket(data.path()), None, "nothing named");
+        let socket = sockets.path().join("d.sock");
+        let listening = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+        name_socket(data.path(), &socket).unwrap();
+        assert_eq!(live_socket(data.path()), Some(socket.clone()));
+        // A socket file nothing listens on, as an unclean death leaves it.
+        drop(listening);
+        assert!(socket.exists());
+        assert_eq!(live_socket(data.path()), None);
+        assert_eq!(named_socket(data.path()), Some(socket), "the name itself is kept");
     }
 
     #[test]
