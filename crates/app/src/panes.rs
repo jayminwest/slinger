@@ -251,7 +251,8 @@ impl Panes {
             | Command::ShowWorkspaceFolder
             | Command::StartAgent
             | Command::StopAgent
-            | Command::RestartAgent => {}
+            | Command::RestartAgent
+            | Command::ExportUi => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),

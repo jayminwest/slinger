@@ -3,13 +3,12 @@
 //!
 //! `backend` gets the data, `config` reads the config file, `commands` turns
 //! keys into commands, `panes` keeps the window's panes and their focus,
-//! `shared` keeps them as the server does,
-//! `canvases` keeps what each canvas pane shows (a `mirror` of a page, a
-//! viewport and the pen's ink), `scene` decides what the window shows (the
-//! agents' statuses in `scene::sidebar`), `ui` holds an agent UI's page and
-//! its bridge, `layout` does the geometry, `window` runs a command and builds the
-//! window's scene, `route` routes each event the window hears, and
-//! `platform` draws.
+//! `shared` keeps them as the server does, `canvases` keeps what each canvas
+//! pane shows (a `mirror` of a page, a viewport and the pen's ink), `scene`
+//! decides what the window shows (the agents' statuses in `scene::sidebar`),
+//! `ui` holds an agent UI's page and its bridge, `layout` does the geometry,
+//! `window` runs a command and builds the window's scene, `route` routes
+//! each event the window hears, and `platform` draws.
 //! Only `platform` touches `AppKit`, and only this file starts it (gate
 //! check:layers).
 //!
@@ -234,13 +233,13 @@ fn remembering(
 }
 
 /// What `event` asks ([`ask`]); `show-canvas-file`, `show-workspace-folder`,
-/// `open-pdf` and `open-workspace` (its folder) are
-/// done here, as only `platform` reaches the Finder and the open panel: the
-/// focused pane's canvas file, or the folder of the workspace `sidebar`
-/// shows, shows there ([`window::finder`]), or the flash says why it cannot;
-/// the PDF chosen, or dropped on the window, opens as a canvas, its pages
-/// read by `platform`. A cut, copy or paste no text
-/// field took is [`window::edit`]'s in `area` (a pass greys its menu item).
+/// `export-ui`, `open-pdf` and `open-workspace` are done here, as only
+/// `platform` reaches the Finder and the open panel: the focused pane's
+/// canvas file, the folder of the workspace `sidebar` shows ([`window::finder`])
+/// or the agent UI saved in a folder picked ([`window::export_ui`]) shows
+/// there, or the flash says why not; the PDF chosen, or dropped on the
+/// window, opens as a canvas, its pages read by `platform`. A cut, copy or
+/// paste no text field took is [`window::edit`]'s in `area` (a pass greys its menu item).
 fn asked(
     event: &Event,
     shared: &mut Shared,
@@ -274,6 +273,10 @@ fn asked(
         }
         Ask::Run(Command::OpenWorkspace) => {
             return platform::choose_folder().map_or(Ask::Draw(None), Ask::Open);
+        }
+        Ask::Run(Command::ExportUi) => {
+            let Some(dir) = platform::choose_folder() else { return Ask::Draw(None) };
+            window::export_ui(shared, &dir)
         }
         Ask::Run(Command::OpenPdf) => {
             let file: Vec<_> = platform::pdf::choose().into_iter().collect();

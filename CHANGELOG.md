@@ -11,6 +11,10 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** save an agent UI to a file. Export agent UI… (`export-ui`, File
+  menu and the command palette; no default key) writes the version the
+  focused pane shows to a folder you pick, as `<name>.v<version>.html`
+  like `slinger ui export`, and shows it in the Finder.
 - **App:** an agent UI looks like part of the canvas: its page starts on
   the canvas's paper, in its ink and the system font, light or dark as the
   app's theme is, with no white box before it paints. A page's own styles

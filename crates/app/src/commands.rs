@@ -130,6 +130,9 @@ pub enum Command {
     /// conversation: a running process ends first, and its last
     /// conversation is dropped.
     RestartAgent,
+    /// Save the agent UI the focused pane shows, the version it shows, as
+    /// a file in a folder the user picks, and show it in the Finder.
+    ExportUi,
 }
 
 /// How many commands there are.
@@ -137,7 +140,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 60] = [
+    pub const ALL: [(Command, &str); 61] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -198,6 +201,7 @@ impl Command {
         (Command::StartAgent, "start-agent"),
         (Command::StopAgent, "stop-agent"),
         (Command::RestartAgent, "restart-agent"),
+        (Command::ExportUi, "export-ui"),
     ];
 
     /// The command called `name` in the config file.
@@ -378,6 +382,7 @@ impl Default for Keymap {
             on(CMD | ALT, 'a'),
             on(CMD | ALT, '.'),
             on(CMD | ALT | SHIFT, 'a'),
+            None,
         ])
     }
 }
