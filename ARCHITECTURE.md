@@ -768,7 +768,8 @@ scene/pages.rs  pages (SPEC D6): the next and previous page, a new page's
              its pane with the pen's buttons beside it; a removal of a page with items, asked once in the
              footer); what each page command did, said once for the flash
              (`Page 2 · 2/3`, `New page: Page 3 · 3/3`, `Renamed: plan`,
-             `Removed: ideas`, `The last page stays`). Pure.
+             `Removed: ideas · Undo brings it back`, `The last page
+             stays`). Pure.
 scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
              hides the strokes, text, boxes and arrows it touches at once and
              removes them on the lift (one change, one undo step); a loop

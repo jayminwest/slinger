@@ -330,6 +330,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** removing a page now says that Undo brings it back ("Removed:
+  ideas · Undo brings it back"), and so does the question before a page
+  with items goes. Undo returns the page and its items, also after the app
+  restarts, while the daemon keeps running.
 - **App:** the feedback entry is easier to read: it stands on a card in the
   panel's colour instead of the canvas's, and the dictate key no longer
   draws over "↩ saves · esc cancels" beneath an entry: it ends that row.
