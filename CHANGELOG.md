@@ -26,7 +26,8 @@ bullet with the area in bold.
   or not at all.
 - **CLI:** `slinger canvas create <ID> --ops FILE` makes a canvas that
   starts with the operations in the file (a JSON list, as `canvas apply`
-  takes), all of them or no canvas at all. Run by an agent (or with
+  takes; `--ops -` reads them from standard input), all of them or no
+  canvas at all. Run by an agent (or with
   `--agent NAME`), the items are that agent's, so it can edit and remove
   them later; `canvas_create` takes the author as `by`.
 
@@ -561,8 +562,9 @@ bullet with the area in bold.
   dashes, curly quotes, an ellipsis, bullets, arrows, check marks, box
   drawing and blocks as themselves, instead of as `?`. It also draws
   katakana (as the hiragana of the same sound), full-width letters and
-  Japanese punctuation, Russian, Central European and Vietnamese letters
-  (the last two without their accents), stars, circles, squares, ballot boxes, triangles and the
+  Japanese punctuation, Russian, Ukrainian, Belarusian and Serbian
+  Cyrillic, Central European and Vietnamese letters (the last two without
+  their accents), stars, circles, squares, ballot boxes, triangles and the
   emoji people type as marks (✅ ❌ ❗ ➡ 🔴 ⭐). A character it still has no
   glyph for (Chinese, Korean, most emoji) is drawn as an empty box, not as
   `?`, so it no longer reads as a question mark that was typed.

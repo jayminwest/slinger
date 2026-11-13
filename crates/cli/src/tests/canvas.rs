@@ -77,6 +77,14 @@ fn operations_can_come_from_standard_input() {
         assert_eq!(cli_on(socket, &["canvas", "create", "main"]).code, exit::OK);
         let r = cli_raw(socket, &["canvas", "apply", "main", "-"], BOX.as_bytes(), &mut Vec::new());
         assert_eq!((r.code, r.out.as_str()), (exit::OK, "i1\n"), "{}", r.err);
+        let list = format!("[{BOX},{BOX}]");
+        let args = ["canvas", "create", "plan", "--ops", "-"];
+        let r = cli_raw(socket, &args, list.as_bytes(), &mut Vec::new());
+        assert_eq!((r.code, r.out.as_str(), r.err.as_str()), (exit::OK, "", ""));
+        assert_eq!(cli_on(socket, &["canvas", "show", "plan"]).out.lines().count(), 2);
+        let r =
+            cli_raw(socket, &["canvas", "create", "bad", "--ops", "-"], b"{not", &mut Vec::new());
+        assert_eq!(r.code, exit::INVALID, "{}", r.err);
     });
 }
 

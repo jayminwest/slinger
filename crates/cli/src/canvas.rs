@@ -27,7 +27,7 @@ pub enum Canvas {
         /// The canvas id: a-z, 0-9, '-', '_' and '.'
         canvas: String,
         /// A file holding a JSON list of operations, as 'canvas apply' takes, made in one
-        /// step as the agent's (else the user's): the whole canvas or none
+        /// step as the agent's (else the user's): the whole canvas or none; - reads standard input
         #[arg(long, value_name = "FILE")]
         ops: Option<PathBuf>,
         #[arg(long, value_name = "NAME", help = AGENT_OR_USER_HELP)]
@@ -138,6 +138,11 @@ pub fn execute(
         Canvas::Create { canvas, ops, agent } => {
             let by = by(env, agent.as_deref());
             match ops {
+                Some(file) if file.as_os_str() == "-" => {
+                    let (scratch, mut copy) = crate::cli::Scratch::new()?;
+                    std::io::copy(input, &mut copy)?;
+                    daemon.canvas_create_with(canvas, &scratch.0, Some(&by))?;
+                }
                 Some(file) => daemon.canvas_create_with(canvas, file, Some(&by))?,
                 None => daemon.canvas_create(canvas)?,
             }
