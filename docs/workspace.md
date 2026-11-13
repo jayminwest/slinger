@@ -52,7 +52,7 @@ version = 1
 | `[agent]` | no | The agent that works here. |
 | `agent.name` | yes, in `[agent]` | The agent's name, as the server's session list knows it. No `#`. |
 | `agent.durable` | no | `true` when a harness keeps the agent alive (D20). Defaults to `false`. |
-| `agent.user_config` | no | `true` to load the owner's own Claude Code settings and instructions into the agent's session. Defaults to `false`. |
+| `agent.user_config` | no | Whether the agent's session loads the owner's own Claude Code settings, instructions, skills, plugins and MCP servers, as a session started by hand does. Defaults to `true`; `false` leaves them out. |
 | `agent.dirs` | no | More directories on slingerd's machine the session may read, beyond the roots. Absolute paths. |
 | `agent.tools` | no | More Claude Code permission rules the session may use without asking, beyond the `slinger` CLI: `"Edit"`, `"Bash(git *)"`, `"mcp__github"`. Each is a rule slinger knows (below). |
 | `[[agent.profile]]` | no | One table per profile of the agent: limits a session can run under instead of the agent's. Zero or more. |
@@ -92,17 +92,22 @@ no limit fields it has every Claude Code tool and the MCP servers its
 settings name (slinger-29bb9f), but reads only the workspace's roots on
 slingerd's machine, runs without asking only the `slinger` CLI and
 read-only commands, writes files (the `Edit` and `Write` rules,
-slinger-05ad22), and does not load the owner's own agent instructions.
-Nobody answers a permission prompt, so a file it writes is not reviewed
-first, and a tool no rule allows (a web fetch, an MCP tool) is denied. The
-three `agent` fields above widen it:
+slinger-05ad22), fetches and searches the web and uses skills (the
+`WebFetch`, `WebSearch` and `Skill` rules, slinger-6313eb), and loads the
+owner's own Claude Code settings and instructions (slinger-a1c1db), whose
+permission rules apply too. Nobody answers a permission prompt, so a file
+it writes is not reviewed first, and a tool no rule allows (another
+command, an MCP tool) is denied. An MCP tool needs a rule that names its
+server (`mcp__github`), in the owner's own settings or in `tools`: Claude
+Code skips `mcp__*`. `dirs` and `tools` widen it; `user_config = false`
+leaves the owner's own config out:
 
 ```toml
 [agent]
 name = "scout"
-user_config = true
+user_config = false
 dirs = ["/Users/me/reference"]
-tools = ["Bash(git *)", "Bash(cargo *)", "WebFetch", "mcp__github"]
+tools = ["Bash(git *)", "Bash(cargo *)", "mcp__github"]
 ```
 
 ## Profiles
@@ -110,7 +115,7 @@ tools = ["Bash(git *)", "Bash(cargo *)", "WebFetch", "mcp__github"]
 A profile (slinger-c8359a) is named limits the agent runs under when a
 session start names it (docs/service.md, "Profiles"): it runs in the
 profile's `dir`, and its `tools` take the place of `agent.tools` and of the
-default `Edit` and `Write`, and it has only the built-in tools that read,
+default `Edit`, `Write`, `WebFetch`, `WebSearch` and `Skill`, and it has only the built-in tools that read,
 run commands and its `tools` name: a profile is how you opt into a
 narrower session. The `slinger` CLI, `agent.dirs` and
 `agent.user_config` stay. A start with no profile runs within the agent's

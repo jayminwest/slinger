@@ -192,8 +192,8 @@ fn a_session_starts_within_its_workspaces_limits() {
     assert_eq!(
         wait_lines(&plain.join("args.txt"), 1),
         [format!(
-            "{fixed} --setting-sources project,local {denied} \
-         --allowedTools Bash(slinger *) Edit Write --verbose --session-id {id}"
+            "{fixed} --setting-sources user,project,local {denied} \
+         --allowedTools Bash(slinger *) Edit Write WebFetch WebSearch Skill --verbose --session-id {id}"
         )]
     );
 
@@ -201,7 +201,7 @@ fn a_session_starts_within_its_workspaces_limits() {
     let wide = projects.path().join("wide").canonicalize().unwrap();
     let file = format!(
         "version = 1\nname = \"wide\"\ncanvas = \"wide\"\n\
-         [agent]\nname = \"ada\"\nuser_config = true\n\
+         [agent]\nname = \"ada\"\nuser_config = false\n\
          dirs = [\"/srv/docs\"]\ntools = [\"Edit\", \"Bash(git *)\"]\n\
          [[root]]\nmachine = \"test-machine\"\npath = \"{}\"\nprimary = true\n\
          [[root]]\nmachine = \"test-machine\"\npath = \"/srv/data\"\n\
@@ -215,8 +215,8 @@ fn a_session_starts_within_its_workspaces_limits() {
     assert_eq!(
         wait_lines(&wide.join("args.txt"), 1),
         [format!(
-            "{fixed} --setting-sources user,project,local {denied} \
-         --allowedTools Bash(slinger *) Edit Write Bash(git *) \
+            "{fixed} --setting-sources project,local {denied} \
+         --allowedTools Bash(slinger *) Edit Write WebFetch WebSearch Skill Bash(git *) \
          --add-dir /srv/data /srv/docs --verbose --session-id {id}"
         )]
     );

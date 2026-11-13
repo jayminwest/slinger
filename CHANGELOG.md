@@ -293,9 +293,17 @@ bullet with the area in bold.
   to-do lists, skills, web search and the rest) and the MCP servers its
   settings name, as a session you start by hand does. What it may do without
   asking is unchanged: the `slinger` CLI, read-only commands and writing
-  files, plus the rules in `agent.tools` (add `"WebFetch"` or
-  `"mcp__github"` there to let it use those). A profile still limits a
-  session to the tools its rules name.
+  files, plus the rules in `agent.tools` (add `"mcp__github"` there to
+  let it use that server). A profile still limits a session to the tools
+  its rules name.
+- **Agents:** a workspace's agent now loads your own Claude Code settings,
+  `CLAUDE.md`, skills and plugins, as a session you start by hand does, and
+  your own permission rules apply to it. Set `user_config = false` under
+  `[agent]` to leave them out, as before.
+- **Agents:** a workspace's agent fetches web pages, searches the web and
+  uses skills without asking. Its MCP tools still need a rule: one in your
+  own Claude Code settings (`"mcp__github__*"` under `permissions.allow`)
+  or in `agent.tools`. A profile still allows only the rules it names.
 - **Canvas:** an agent's reply matches the writing it goes beside. Text an
   agent puts without a colour or size takes the colour of your ink there and
   the height of your lines of writing, so it shows on a dark page and next

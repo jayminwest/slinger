@@ -27,8 +27,11 @@ const TOOLS: [&str; 4] = ["Read", "Glob", "Grep", "Bash"];
 /// The permission rule every session has: running the `slinger` CLI.
 const SLINGER: &str = "Bash(slinger *)";
 
-/// The permission rules a session under no profile has too: writing files.
-const EDITS: [&str; 2] = ["Edit", "Write"];
+/// The permission rules a session under no profile has too: writing files,
+/// fetching and searching the web, and using skills (slinger-6313eb). Claude
+/// Code skips an allow rule for every MCP server (`mcp__*`), so an MCP tool
+/// needs the owner's own rule or one in the agent's `tools`.
+const DEFAULTS: [&str; 5] = ["Edit", "Write", "WebFetch", "WebSearch", "Skill"];
 
 /// How a session's process starts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,11 +48,12 @@ pub enum Start<'a> {
 /// every built-in tool of Claude Code and the MCP servers its settings name
 /// (slinger-29bb9f), but uses without asking only what [`Limits::tools`]
 /// allows (the `slinger` CLI, at least, and read-only commands in those
-/// directories); under no profile it writes files too ([`EDITS`]); it loads
-/// the settings and instructions of its home, and the owner's own only with
-/// [`Limits::user_config`]. Under a profile it runs in the profile's
-/// directory ([`Limits::dir`]), with the profile's rules in place of the
-/// agent's and of [`EDITS`], and only the built-in tools that read, run
+/// directories); under no profile it also writes files, uses the web and
+/// skills ([`DEFAULTS`]); it loads the settings and instructions of its
+/// home, and the owner's own, whose permission rules apply too, with
+/// [`Limits::user_config`] (on by default). Under a profile it runs in the
+/// profile's directory ([`Limits::dir`]), with the profile's rules in place
+/// of the agent's and of [`DEFAULTS`], and only the built-in tools that read, run
 /// commands and its rules name ([`Limits::narrow`]).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Limits {
@@ -69,9 +73,10 @@ pub struct Limits {
 impl Limits {
     /// The limits of `workspace`'s agent on `machine`: its roots on this
     /// machine and the agent's `dirs`, the `slinger` CLI, the rules that
-    /// write files ([`EDITS`]) and the agent's `tools`, and its
-    /// `user_config`. A workspace with no agent gets the roots, the CLI and
-    /// those rules.
+    /// write files and use the web and skills ([`DEFAULTS`]) and the agent's
+    /// `tools`, and its
+    /// `user_config`. A workspace with no agent gets the roots, the CLI,
+    /// those rules and the owner's own config.
     #[must_use]
     pub fn of(workspace: &Workspace, machine: &str) -> Self {
         let agent = workspace.agent.as_ref();
@@ -81,9 +86,9 @@ impl Limits {
         Self {
             dirs: unique(roots.map(|r| r.path.as_str()).chain(more.iter().map(String::as_str))),
             tools: unique(
-                [SLINGER].into_iter().chain(EDITS).chain(rules.iter().map(String::as_str)),
+                [SLINGER].into_iter().chain(DEFAULTS).chain(rules.iter().map(String::as_str)),
             ),
-            user_config: agent.is_some_and(|a| a.user_config),
+            user_config: agent.is_none_or(|a| a.user_config),
             dir: None,
             narrow: false,
         }
@@ -91,7 +96,7 @@ impl Limits {
 
     /// The limits of `workspace`'s agent on `machine` under the profile
     /// `profile` names, or [`Limits::of`] with none. A profile's rules take
-    /// the place of the agent's `tools` and of [`EDITS`] (the `slinger` CLI
+    /// the place of the agent's `tools` and of [`DEFAULTS`] (the `slinger` CLI
     /// stays), so a profile with no rules cannot write, and it has only the
     /// built-in tools they name ([`Limits::narrow`]). A profile
     /// with a directory runs there, and still reads the home (the primary
@@ -298,7 +303,8 @@ mod tests {
     }
 
     #[test]
-    fn a_default_session_reads_its_local_roots_has_every_tool_and_runs_only_the_cli_and_edits() {
+    fn a_default_session_reads_its_local_roots_has_every_tool_and_runs_the_cli_edits_web_and_skills()
+     {
         let ws = workspace(
             "[agent]\nname = \"a\"\n\
              [[root]]\nmachine = \"here\"\npath = \"/home/ws\"\nprimary = true\n\
@@ -306,24 +312,27 @@ mod tests {
              [[root]]\nmachine = \"there\"\npath = \"/remote\"\n",
         );
         let limits = Limits::of(&ws, "here");
-        let tools = vec![SLINGER.into(), "Edit".into(), "Write".into()];
-        let want = Limits { dirs: vec!["/data".into()], tools, ..Limits::default() };
+        let tools = [SLINGER, "Edit", "Write", "WebFetch", "WebSearch", "Skill"].map(String::from);
+        let tools = tools.to_vec();
+        let want =
+            Limits { dirs: vec!["/data".into()], tools, user_config: true, ..Limits::default() };
         assert_eq!(limits, want);
         assert_eq!(
             args(Start::Fresh("id"), &limits).join(" "),
             [
                 "--print --input-format stream-json --output-format stream-json",
-                "--setting-sources project,local --permission-mode dontAsk",
-                "--allowedTools Bash(slinger *) Edit Write --add-dir /data --verbose --session-id id",
+                "--setting-sources user,project,local --permission-mode dontAsk",
+                "--allowedTools Bash(slinger *) Edit Write WebFetch WebSearch Skill",
+                "--add-dir /data --verbose --session-id id",
             ]
             .join(" ")
         );
     }
 
     #[test]
-    fn an_agent_widens_its_limits_with_dirs_tools_and_its_user_config() {
+    fn an_agent_widens_its_limits_with_dirs_and_tools_and_can_leave_out_its_user_config() {
         let ws = workspace(
-            "[agent]\nname = \"a\"\nuser_config = true\ndirs = [\"/docs\", \"/docs\"]\n\
+            "[agent]\nname = \"a\"\nuser_config = false\ndirs = [\"/docs\", \"/docs\"]\n\
              tools = [\"Edit(/docs/**)\", \"Bash(git *)\", \"WebFetch\", \"mcp__gh\"]\n",
         );
         let limits = Limits::of(&ws, "here");
@@ -333,11 +342,20 @@ mod tests {
             let at = args.iter().position(|a| a == flag).unwrap();
             args[at + 1..].iter().take_while(|a| !a.starts_with("--")).cloned().collect::<Vec<_>>()
         };
-        assert_eq!(after("--setting-sources"), ["user,project,local"]);
+        assert_eq!(after("--setting-sources"), ["project,local"]);
         assert!(!args.iter().any(|a| a == "--tools"), "every built-in tool");
         assert!(!args.iter().any(|a| a == "--strict-mcp-config"), "its MCP servers load");
-        let rules =
-            [SLINGER, "Edit", "Write", "Edit(/docs/**)", "Bash(git *)", "WebFetch", "mcp__gh"];
+        let rules = [
+            SLINGER,
+            "Edit",
+            "Write",
+            "WebFetch",
+            "WebSearch",
+            "Skill",
+            "Edit(/docs/**)",
+            "Bash(git *)",
+            "mcp__gh",
+        ];
         assert_eq!(after("--allowedTools"), rules);
         assert_eq!(after("--add-dir"), ["/docs"]);
         assert_eq!(args[args.len() - 2..], ["--resume", "id"]);
@@ -357,7 +375,7 @@ mod tests {
             dir: Some("/src".into()),
             dirs: vec!["/home/ws".into(), "/docs".into()],
             tools: vec![SLINGER.into(), "Edit".into(), "Bash(git *)".into()],
-            user_config: false,
+            user_config: true,
             narrow: true,
         };
         assert_eq!(dev, want);
