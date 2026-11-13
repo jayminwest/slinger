@@ -168,6 +168,7 @@ const BAR: [(&str, &[Action]); 8] = [
             R(Command::ShowKeys),
             R(Command::ShowCommands),
             R(Command::LeaveFeedback),
+            R(Command::ShowAllFeedback),
             R(Command::ShowFeedbackFile),
         ],
     ),

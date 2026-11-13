@@ -561,7 +561,9 @@ canvases/feedback.rs  the `leave-feedback` command: opens the feedback
              entry in the focused pane with its workspace, canvas, page
              name, tool and selection count, closing an open sling's entry;
              saves it through the Noter, and asks it for the recent open
-             notes (`feedback_list`) to list under the entry. It takes the
+             notes (`feedback_list`) to list under the entry;
+             `show-all-feedback` opens it the same way, listing the
+             resolved notes too (`feedback_list` `all`). It takes the
              keys and the sling's place in the scene while open.
 canvases/dictation.rs  the `dictate` command: opens the sling's entry when
              no entry is open, then starts or stops Flick's dictation into
@@ -922,7 +924,9 @@ scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
              message and hint under the entry opened again, and "Feedback
              saved" flashed once on success. The entry, its label, keys and
              lines stand on a card in the panel's colour (Feedback::card),
-             not the canvas's. Pure.
+             not the canvas's. Listing all (`show-all-feedback`), the
+             resolved notes show under "All feedback" with how they were
+             resolved and no "✓". Pure.
 scene/dictation.rs  the dictation into the open entry: start, then stop, one
              request to Flick at a time; that Flick listens, or why it
              failed (Flick not running, or its refusal) and what to do, under

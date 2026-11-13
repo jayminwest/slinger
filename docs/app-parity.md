@@ -64,6 +64,7 @@ same thing by drawing, or never needs to.
 | `canvas create --ops` of a PDF | `open-pdf` (cmd+O) and a PDF dropped on the window |
 | `canvas import` | `open-pdf` (cmd+O) with a `.tldraw`/`.tldr` file, or one dropped on the window: imported, then shown beside the focused pane (`pane_open`), slinger-99061d |
 | `canvas put --color` | `pick-colour` and recolouring a selection |
+| `feedback ls --all` | `show-all-feedback` (Help menu, palette; no default key): the feedback entry lists the resolved notes too, each with its resolution and no "✓"; `feedback_list` `all`, a reply the app already decodes, slinger-c57a12 |
 | `feedback path` | `show-feedback-file` (Help menu, palette; no default key): the Finder shows the file, or before the first note the flash says where notes go. Its reply (`FeedbackFile`) is new to the app, slinger-c57a12 |
 | `ui export` (the version a pane shows) | `export-ui` (File menu, palette; no default key): a folder picked, the file `<name>.v<version>.html` revealed. It writes the bytes the pane already has, so it calls no verb: about 790 bytes of `__TEXT`, slinger-401aa5 |
 
@@ -82,7 +83,6 @@ a rough size. Known ones name their seed.
 | Pick the size of a new text, or resize a text's characters | `canvas_put`/`canvas_edit` `size` (agent side); the app's own text tool | design | slinger-34a2ae |
 | Read the thinking record (what was slung, answered, touched) | `record_list` | design | slinger-895bde |
 | Browse a UI's versions (`ui list NAME`, `ui show`), or export one that no pane shows | `ui_list`, `ui_show`, `ui_export` | ui | slinger-401aa5 |
-| See resolved feedback notes | `feedback_list` (`all`) | ui | slinger-401aa5 |
 
 Notes on the new rows:
 
@@ -100,9 +100,9 @@ Notes on the new rows:
   only if 1.5 KB stays free):
   - *Find the feedback file*: closed by `show-feedback-file`
     (slinger-c57a12), once the ceiling rose to 1.5 MB (slinger-9b81a8).
-  - *Resolved feedback notes*: `feedback_list` `all` is already decoded,
-    but the entry must show a resolved note apart (no "✓", its
-    resolution) and a way to ask for them: estimated 1 to 1.5 KB, more
-    than the room allows.
+  - *Resolved feedback notes*: closed by `show-all-feedback`
+    (slinger-c57a12).
   - *A UI's versions*: needs a picker over `ui_list`/`ui_show` (the
-    `Vec<Ui>` reply is new to the app): ui work and several KB.
+    `Vec<Ui>` reply is new to the app): the same list UI as showing a
+    stored agent UI in a pane (slinger-51fc92), which waits on its
+    design; it stays open until that list exists.

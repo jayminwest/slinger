@@ -1,15 +1,16 @@
 //! Saving feedback (docs/service.md, "Feedback"): each [`Note`] goes as one
 //! `feedback_add` on a thread of its own, and the daemon's answer comes
 //! back to the main thread, which never waits on the socket. The recent
-//! open notes come the same way, from one `feedback_list`, and a note
-//! resolves the same way, from one `feedback_resolve`, the list following.
+//! open notes (or all of them, resolved ones too) come the same way, from
+//! one `feedback_list`, and a note resolves the same way, from one
+//! `feedback_resolve`, the list following.
 //! Where the notes go comes at once, from one `feedback_path`
 //! ([`feedback_file`]).
 
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-use slinger_control::{Client, FeedbackNote};
+use slinger_control::{Client, FeedbackEntry, FeedbackNote};
 
 use crate::backend::Problem;
 use crate::scene::feedback::{LISTED, Note, Recent};
@@ -51,16 +52,17 @@ impl Noter {
         self.answers.try_iter().collect()
     }
 
-    /// Asks a thread for the most recent open notes. Never waits. A daemon
-    /// that does not answer lists nothing: saving a note says why.
-    pub fn list(&self) {
-        self.spawn(Job::List);
+    /// Asks a thread for the most recent open notes, or with `all` the
+    /// most recent notes, resolved ones too. Never waits. A daemon that
+    /// does not answer lists nothing: saving a note says why.
+    pub fn list(&self, all: bool) {
+        self.spawn(Job::List(all));
     }
 
     /// Hands the note named `ts` to a thread that resolves it, then lists
-    /// the recent notes again. Never waits.
-    pub fn resolve(&self, ts: String) {
-        self.spawn(Job::Resolve(ts));
+    /// the recent notes again, as [`Noter::list`] with `all`. Never waits.
+    pub fn resolve(&self, ts: String, all: bool) {
+        self.spawn(Job::Resolve(ts, all));
     }
 
     /// Hands `job` to a thread of its own, which sends its answers back.
@@ -69,22 +71,21 @@ impl Noter {
         let (list, resolution) = (self.list.clone(), self.resolution.clone());
         thread::spawn(move || {
             // The noter is gone, and the answers with it: nobody waits for them.
-            match job {
+            let all = match job {
                 Job::Add(note) => {
                     let _ = answer.send(add(&daemon, note));
                     return;
                 }
-                Job::List => {}
-                Job::Resolve(ts) => {
+                Job::List(all) => all,
+                Job::Resolve(ts, all) => {
                     let resolved = daemon.feedback_resolve(&ts, None);
                     let _ = resolution.send(resolved.map(drop).map_err(Problem::from));
+                    all
                 }
-            }
+            };
             let limit = Some(LISTED as u64);
-            let Ok(listed) = daemon.feedback_list(false, limit) else { return };
-            let recent = listed.entries.into_iter();
-            let recent = recent.map(|e| Recent { when: when(&e.ts), ts: e.ts, text: e.text });
-            let _ = list.send(recent.collect());
+            let Ok(listed) = daemon.feedback_list(all, limit) else { return };
+            let _ = list.send(listed.entries.into_iter().map(recent).collect());
         });
     }
 
@@ -100,12 +101,23 @@ impl Noter {
     }
 }
 
-/// What a [`Noter`]'s thread does: save a note, list the recent ones, or
-/// resolve one by its `ts` and list them again.
+/// What a [`Noter`]'s thread does: save a note, list the recent ones (all
+/// of them, or the open ones), or resolve one by its `ts` and list them
+/// again.
 enum Job {
     Add(Note),
-    List,
-    Resolve(String),
+    List(bool),
+    Resolve(String, bool),
+}
+
+/// A listed note as the entry lists it: when it was saved, and how it was
+/// resolved, if it was: `resolved 11-12 09:30`, then `: ` and the note.
+fn recent(entry: FeedbackEntry) -> Recent {
+    let resolved = entry.resolved.map(|r| match r.note {
+        Some(note) => format!("resolved {}: {note}", when(&r.ts)),
+        None => format!("resolved {}", when(&r.ts)),
+    });
+    Recent { when: when(&entry.ts), ts: entry.ts, text: entry.text, resolved }
 }
 
 /// The daemon's feedback file, for the Finder to show
@@ -197,13 +209,13 @@ mod tests {
     fn the_recent_open_notes_list_newest_first_with_when() {
         with_store(None, |daemon| {
             let noter = Noter::new(daemon.clone());
-            noter.list();
+            noter.list(false);
             assert_eq!(listed(&noter), []);
             for text in ["one", "two", "three", "four", "five", "six"] {
                 noter.send(note(text));
                 assert_eq!(wait(&noter), Ok(()));
             }
-            noter.list();
+            noter.list(false);
             let got = listed(&noter);
             let texts: Vec<_> = got.iter().map(|r| r.text.as_str()).collect();
             assert_eq!(texts, ["six", "five", "four", "three", "two", "one"]);
@@ -220,9 +232,9 @@ mod tests {
                 noter.send(note(text));
                 assert_eq!(wait(&noter), Ok(()));
             }
-            noter.list();
+            noter.list(false);
             let two = listed(&noter).remove(0);
-            noter.resolve(two.ts.clone());
+            noter.resolve(two.ts.clone(), false);
             let mut got = Vec::new();
             wait_until(|| {
                 got.extend(noter.resolutions());
@@ -232,7 +244,7 @@ mod tests {
             let after = listed(&noter);
             assert_eq!(after.iter().map(|r| r.text.as_str()).collect::<Vec<_>>(), ["one"]);
 
-            noter.resolve(two.ts);
+            noter.resolve(two.ts, false);
             let mut got = Vec::new();
             wait_until(|| {
                 got.extend(noter.resolutions());
@@ -257,6 +269,32 @@ mod tests {
         });
         let gone = feedback_file(&Client::new("/nonexistent/x.sock")).unwrap_err();
         assert!(gone.contains("x.sock"), "{gone}");
+    }
+
+    #[test]
+    fn all_lists_the_resolved_notes_too_with_how_they_were_resolved() {
+        with_store(None, |daemon| {
+            let noter = Noter::new(daemon.clone());
+            for text in ["one", "two", "three"] {
+                noter.send(note(text));
+                assert_eq!(wait(&noter), Ok(()));
+            }
+            let saved = daemon.feedback_list(false, None).unwrap().entries;
+            daemon.feedback_resolve(&saved[2].ts, Some("slinger-1234".into())).unwrap();
+            noter.resolve(saved[1].ts.clone(), true);
+            let all = listed(&noter);
+            let texts: Vec<_> = all.iter().map(|r| r.text.as_str()).collect();
+            assert_eq!(texts, ["three", "two", "one"], "newest first, resolved or not");
+            assert_eq!(all[0].resolved, None, "open");
+            let two = all[1].resolved.as_deref().unwrap();
+            assert!(two.starts_with("resolved ") && two.len() == 20, "{two}");
+            let one = all[2].resolved.as_deref().unwrap();
+            assert!(one.starts_with("resolved ") && one.ends_with(": slinger-1234"), "{one}");
+
+            noter.list(false);
+            let open = listed(&noter);
+            assert_eq!(open.iter().map(|r| r.text.as_str()).collect::<Vec<_>>(), ["three"]);
+        });
     }
 
     #[test]

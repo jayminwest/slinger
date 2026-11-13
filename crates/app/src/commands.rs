@@ -136,6 +136,9 @@ pub enum Command {
     /// Show the daemon's feedback file, where `leave-feedback` saves
     /// notes, in the Finder.
     ShowFeedbackFile,
+    /// Open the feedback entry, as `leave-feedback` does, listing every
+    /// recent note, the resolved ones with how they were resolved.
+    ShowAllFeedback,
 }
 
 /// How many commands there are.
@@ -143,7 +146,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 62] = [
+    pub const ALL: [(Command, &str); 63] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -206,6 +209,7 @@ impl Command {
         (Command::RestartAgent, "restart-agent"),
         (Command::ExportUi, "export-ui"),
         (Command::ShowFeedbackFile, "show-feedback-file"),
+        (Command::ShowAllFeedback, "show-all-feedback"),
     ];
 
     /// The command called `name` in the config file.
@@ -386,6 +390,7 @@ impl Default for Keymap {
             on(CMD | ALT, 'a'),
             on(CMD | ALT, '.'),
             on(CMD | ALT | SHIFT, 'a'),
+            None,
             None,
             None,
         ])

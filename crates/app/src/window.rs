@@ -219,7 +219,8 @@ pub fn open_pdf(
 
 /// Runs a selection command (`sling`, `dictate`: the entry; `sling-now`) when the focused pane
 /// of `shared` laid in `area` shows its canvas; false when it does not. `leave-feedback` opens its entry
-/// there, with the pen's tool in `tools`. Any other command goes on (true).
+/// there, with the pen's tool in `tools`, listing the open notes; `show-all-feedback` the same, listing
+/// the resolved ones too. Any other command goes on (true).
 pub fn selection(
     canvases: &mut Canvases,
     shared: &Shared,
@@ -229,8 +230,9 @@ pub fn selection(
 ) -> bool {
     let panes = &shared.panes;
     match command {
-        Command::LeaveFeedback => {
+        Command::LeaveFeedback | Command::ShowAllFeedback => {
             let (at, workspace) = (focus(panes, area), shared.workspace.as_deref());
+            canvases.list_all_feedback(command == Command::ShowAllFeedback);
             canvases.open_feedback(panes, at, workspace, tools.tool());
             true
         }

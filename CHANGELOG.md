@@ -11,6 +11,10 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** see your resolved feedback. Show all feedback… (`show-all-feedback`,
+  Help menu and the command palette; no default key) opens the feedback
+  entry listing your resolved notes too, as `slinger feedback ls --all`
+  does: each says when it was resolved and with what note.
 - **App:** find your feedback. Show feedback file in Finder
   (`show-feedback-file`, Help menu and the command palette; no default
   key) shows the file your notes go to, as `slinger feedback path` names

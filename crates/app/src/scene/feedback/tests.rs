@@ -115,7 +115,8 @@ fn a_narrow_pane_keeps_the_entry_inside_it() {
 }
 
 fn recent(text: &str) -> Recent {
-    Recent { ts: format!("ts {text}"), text: text.into(), when: "11-11 14:02".into() }
+    let when = "11-11 14:02".into();
+    Recent { ts: format!("ts {text}"), text: text.into(), when, resolved: None }
 }
 
 #[test]
@@ -200,6 +201,35 @@ fn a_note_that_does_not_resolve_says_why_under_the_entry_until_the_next_try() {
     assert!(first.abs() < 0.01, "the notes under the problem");
     assert_eq!(feedback.resolve(0).as_deref(), Some("ts 0"));
     assert_eq!(texts(&feedback)[0].0, "Recent feedback", "the problem goes");
+}
+
+/// slinger-c57a12: listing all, the resolved notes show how they were
+/// resolved, with no "✓"; the open ones keep theirs, by their own index.
+#[test]
+fn all_feedback_lists_the_resolved_notes_apart_with_no_tick() {
+    let mut feedback = Feedback::default();
+    feedback.listed(vec![recent("old")]);
+    feedback.list_all(true);
+    assert!(feedback.lists_all());
+    assert!(feedback.open(Rect { height: 400.0, ..PANE }, context()));
+    assert_eq!(texts(&feedback), [], "the open notes listed before go");
+    let done =
+        Recent { resolved: Some("resolved 11-12 09:30: slinger-1234".into()), ..recent("b") };
+    assert!(feedback.listed(vec![recent("a"), done, recent("c")]));
+    let lines: Vec<_> = texts(&feedback).into_iter().map(|(text, _)| text).collect();
+    let all =
+        ["All feedback", "11-11 14:02 · a", "11-11 14:02 · b · resolved 11-12 09:30: slinger-1234"];
+    assert_eq!(lines[..3], all);
+    let (labels, targets) = feedback.ticks(&T);
+    assert_eq!(labels.len(), 2, "none for the resolved note");
+    assert_eq!(targets.iter().map(|t| t.1).collect::<Vec<_>>(), [Tap::Resolve(0), Tap::Resolve(2)]);
+    let rows = feedback.labels(&T);
+    assert!((targets[1].0.y - rows[3].frame.y).abs() < 0.01, "level with its own note");
+    assert_eq!(feedback.resolve(2).as_deref(), Some("ts c"));
+
+    feedback.list_all(false);
+    assert!(!feedback.lists_all());
+    assert_eq!(texts(&feedback), [], "until the open notes are listed");
 }
 
 /// slinger-d03fb8: the open entry stands on a card in the panel's colour,

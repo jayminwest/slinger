@@ -967,6 +967,8 @@ runs, and a person or an agent reads it with any tool.
   in a tall pane), from one `feedback_list` each time it opens. The "✓" at
   a note's end sends one `feedback_resolve` with its `ts` and no `note`,
   then one `feedback_list`; it needs no other verb. The app's
+  `show-all-feedback` lists with `all`: a resolved note shows how it was
+  resolved and has no "✓". The app's
   `show-feedback-file` asks `feedback_path` and shows the file in the
   Finder.
 

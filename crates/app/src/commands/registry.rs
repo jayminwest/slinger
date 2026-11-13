@@ -112,6 +112,7 @@ impl Command {
             Command::RestartAgent => "Restart agent in a new conversation",
             Command::ExportUi => "Export agent UI…",
             Command::ShowFeedbackFile => "Show feedback file in Finder",
+            Command::ShowAllFeedback => "Show all feedback…",
         }
     }
 
@@ -178,7 +179,8 @@ impl Command {
             | Command::ShowKeys
             | Command::ShowCommands
             | Command::LeaveFeedback
-            | Command::ShowFeedbackFile => Group::Window,
+            | Command::ShowFeedbackFile
+            | Command::ShowAllFeedback => Group::Window,
         }
     }
 }

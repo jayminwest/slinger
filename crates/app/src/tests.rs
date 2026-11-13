@@ -191,6 +191,45 @@ fn undo_by_the_pointer_with_an_entry_open_is_the_field_s() {
     });
 }
 
+/// The lines over the panes of `w`: the feedback entry's, while it is open.
+fn entry_lines(w: &World) -> Vec<String> {
+    let (theme, side) = (&w.settings.config.theme, Sidebar::new(false));
+    let (uis, notes) = (crate::scene::Uis::new(), crate::scene::Notes::new());
+    let panes = &w.shared.panes;
+    let mut scene =
+        crate::scene::build(layout::WINDOW, panes, theme, &[], &side, Vec::new(), &uis, &notes);
+    scene.labels.clear();
+    w.canvases.show_sling(&mut scene, theme, &w.settings.config.keys, &side);
+    scene.labels.into_iter().map(|l| l.text).collect()
+}
+
+/// slinger-c57a12: `show-all-feedback` opens the feedback entry listing the
+/// resolved notes too; `leave-feedback` then lists the open ones again.
+#[test]
+fn show_all_feedback_lists_the_resolved_notes_under_the_entry() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        for text in ["kept", "done"] {
+            daemon
+                .feedback_add(control::FeedbackNote { text: text.into(), ..Default::default() })
+                .unwrap();
+        }
+        let done = daemon.feedback_list(false, None).unwrap().entries.remove(0).ts;
+        daemon.feedback_resolve(&done, Some("slinger-1234".into())).unwrap();
+        assert!(w.send(Event::Command(Command::ShowAllFeedback)));
+        assert!(w.canvases.typing());
+        w.until(|w| entry_lines(w).iter().any(|l| l.ends_with(": slinger-1234")));
+        assert!(entry_lines(&w).contains(&"All feedback".to_string()));
+        w.key(Chord::new(0, '\u{1b}'), "\u{1b}");
+        assert!(w.send(Event::Command(Command::LeaveFeedback)));
+        w.until(|w| entry_lines(w).contains(&"Recent feedback".to_string()));
+        let lines = entry_lines(&w);
+        assert!(!lines.iter().any(|l| l.contains("done")), "{lines:?}");
+    });
+}
+
 /// docs/design/pdf.md, "Snippets": the crop tool's lift answers the window
 /// with the snippet to put on the clipboard and leaves the canvas as it
 /// was; pasted, the snippet is one more `pdf` item, cropped.

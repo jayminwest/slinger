@@ -250,3 +250,7 @@
 # the first note it flashes where notes will go. No key by default: the palette and the
 # Help menu run it.
 #show-feedback-file = ""
+# Open the feedback entry, as leave-feedback does, listing your resolved notes too: each
+# with when it was resolved and its note, and no "✓". No key by default: the palette and
+# the Help menu run it.
+#show-all-feedback = ""
