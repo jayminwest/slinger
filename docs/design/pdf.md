@@ -204,6 +204,12 @@ so the key overlay, the palette and the menu bar show it. It:
 3. shows a failure as the problem in the pane, with nothing half made but the
    blob (a blob with no item costs nothing).
 
+A drop on the window is the other way in (slinger-fd53aa): `platform` takes
+file URLs dragged onto the window and hands them on with the drop's point;
+`window::open_pdf` focuses the pane under that point, takes the first file
+whose extension is `pdf` (any case) and runs steps 2 and 3 as above. A drop
+with no PDF is refused (the drag slides back).
+
 - **Canvas id.** The file's stem, lowercased, each character outside
   `a-z 0-9 - _` made `-`, cut to 56 characters, then `.pdf`: `Paper (v2).pdf`
   is `paper--v2-.pdf`, and a stem left empty is `pdf`. When `canvas_create` says `conflict`, try `-2`, `-3`,
