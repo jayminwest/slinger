@@ -1246,6 +1246,10 @@ The rules are in `budgets/layer-rules.json`. To exempt one file, add an
   front end that needs it.
 - **A command:** see "Adding a command" in `docs/cli.md`.
 - **A verb:** see "Adding a verb" in `docs/service.md`.
+- **A command a person would use:** it comes to the app too, as a command in
+  `Command::ALL` (palette, key overlay and menu bar) or a tap target, or
+  with a row in `docs/app-parity.md` saying why not or naming the seed
+  that brings it.
 - **Something on screen:** get the data in `backend.rs`, decide what to show
   in `scene.rs`, place it in `layout.rs`, and draw it in `platform/`. If
   `platform` needs an `if` about content, the decision is in the wrong module.

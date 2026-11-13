@@ -370,3 +370,5 @@ others. Never renumber.
 4. Add tests to `crates/cli/src/tests.rs`. They run against a real daemon.
 5. If agents use the command often, show it under "Tasks" in `crates/cli/src/guide.md`.
    `slinger guide` lists every command without this step.
+6. Give the app its entry, or add a row to `docs/app-parity.md` saying
+   why not (an agent verb, plumbing) or naming the seed that brings it.
