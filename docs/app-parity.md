@@ -50,7 +50,7 @@ same thing by drawing, or never needs to.
 | `workspace open DIR` | `open-workspace` (shift+cmd+O, File menu, palette, sidebar "+"), 36e8844 |
 | `workspace list` | The sidebar; a tap on a workspace shows its panes |
 | `workspace close` | `close-workspace` (opt+cmd+W, File menu, palette; a broken workspace's "Close workspace" line), slinger-c75719 |
-| `workspace show` (`dir`) | `show-workspace-folder` (opt+shift+cmd+R, File menu, palette): the Finder shows the folder; the sidebar already has it from `workspace_list`, so no new verb, slinger-190b1b |
+| `workspace show` (`dir`) | `show-workspace-folder` (File menu, palette; no default key): the Finder shows the folder; the sidebar already has it from `workspace_list`, so no new verb, slinger-190b1b |
 | `session list`, `session show` | The sidebar's mark and note per agent; the sling pill and its answer ("tap to read") |
 | `profile list` | The sling's profile menu lists the agent's profiles |
 | `sling send` (`--page`, `--select`, `--prompt`, `--profile`) | `sling`, `sling-now`, `dictate`, the send-to-agent button, the profile menu |

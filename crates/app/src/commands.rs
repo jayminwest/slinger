@@ -312,8 +312,9 @@ fn key_named(name: &str) -> Option<char> {
 pub struct Keymap([Option<Chord>; COUNT]);
 
 impl Default for Keymap {
-    /// The few defaults; `config.example.toml` lists them. The final keys
-    /// wait for a canvas to use them on (SPEC O4).
+    /// The few defaults; `config.example.toml` lists them. A command with
+    /// none runs from the palette and the menu bar until the user binds
+    /// one. The final keys wait for a canvas to use them on (SPEC O4).
     fn default() -> Self {
         let on = |mods, key| Some(Chord { mods, key });
         Keymap([
@@ -373,7 +374,7 @@ impl Default for Keymap {
             on(CMD, '8'),
             on(CMD | SHIFT, 'o'),
             on(CMD | ALT, 'w'),
-            on(CMD | ALT | SHIFT, 'r'),
+            None,
             on(CMD | ALT, 'a'),
             on(CMD | ALT, '.'),
             on(CMD | ALT | SHIFT, 'a'),

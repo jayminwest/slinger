@@ -45,10 +45,10 @@ bullet with the area in bold.
   (`close-workspace`, ⌥⌘W) is in the File menu and the command palette: it
   closes the workspace the window shows and turns to the first. Its file,
   canvas and agent stay; open its folder again to bring it back.
-- **App:** Show workspace folder in Finder (`show-workspace-folder`, ⌥⇧⌘R)
-  is in the File menu and the command palette: the Finder shows the folder
-  of the workspace the window shows, as Show canvas file in Finder does for
-  the canvas's file.
+- **App:** Show workspace folder in Finder (`show-workspace-folder`) is in
+  the File menu and the command palette: the Finder shows the folder of the
+  workspace the window shows, as Show canvas file in Finder does for the
+  canvas's file. It has no key by default; bind one in `[keys]`.
 - **App:** import a tldraw board without the CLI. Open PDF or tldraw…
   (`open-pdf`, ⌘O) also takes a `.tldraw` or `.tldr` file, and so does a
   drop on the window: the board becomes a canvas named after the file, its

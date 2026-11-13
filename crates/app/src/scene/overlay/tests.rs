@@ -55,7 +55,8 @@ fn every_command_shows_exactly_once_with_its_key_under_its_group() {
     for (command, _) in Command::ALL {
         let count = texts.iter().filter(|t| *t == command.title()).count();
         assert_eq!(count, 1, "{command:?}");
-        assert_eq!(chip(&keys, command), keys.chord(command).unwrap().glyphs());
+        let key = keys.chord(command).map_or(NO_KEY.into(), Chord::glyphs);
+        assert_eq!(chip(&keys, command), key, "{command:?}");
         let at = texts.iter().position(|t| *t == heading(command.group())).unwrap();
         let row = texts.iter().position(|t| t == command.title()).unwrap();
         let next = Group::ALL.iter().filter_map(|&g| texts.iter().position(|t| *t == heading(g)));
@@ -72,6 +73,7 @@ fn every_command_shows_exactly_once_with_its_key_under_its_group() {
 #[test]
 fn a_rebind_changes_the_row_and_an_unbound_command_says_no_key() {
     let mut keys = Keymap::default();
+    assert_eq!(chip(&keys, Command::ShowWorkspaceFolder), NO_KEY, "no key by default");
     keys.bind(Command::ToolPen, Some(key("cmd+shift+p")));
     assert_eq!(chip(&keys, Command::ToolPen), "⇧⌘P");
     keys.bind(Command::ToolPen, None);
