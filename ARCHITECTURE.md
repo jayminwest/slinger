@@ -371,10 +371,11 @@ window.rs    runs a command on the focused pane, does a tap on a button that
              shown one's agent for `start-agent`, `stop-agent` and
              `restart-agent` (`agent`: session_start, session_stop or
              session_start `fresh` by its folder, backend/agents.rs) and
-             flashes its name or why not, finds what `show-canvas-file` and
-             `show-workspace-folder` show in the Finder (`finder`: the
-             canvas file, or the shown workspace's folder from the
-             sidebar; main reveals it), saves the focused pane's agent UI
+             flashes its name or why not, finds what `show-canvas-file`,
+             `show-workspace-folder` and `show-feedback-file` show in the
+             Finder (`finder`: the canvas file, the shown workspace's folder
+             from the sidebar, or the daemon's feedback file; main reveals
+             it), saves the focused pane's agent UI
              in a folder for `export-ui` (`export_ui`: the bytes the pane
              has, named as ui_export names them; main picks the folder and
              reveals the file), builds the window's scene (`view`: the footers,
@@ -427,7 +428,9 @@ backend/sling.rs  the Slinger: each sling as one `sling_send` (canvas, page,
              takes and answers it; while nobody listens the pill says so.
 backend/feedback.rs  the Noter: each feedback note as one `feedback_add`
              (the text and what the window showed) on a thread of its own,
-             and the daemon's answer back.
+             and the daemon's answer back; `feedback_file`: one
+             `feedback_path` for `show-feedback-file`, or before the first
+             note where notes will go.
 backend/flick.rs  Flick's dictation (SPEC D2, K6): `dictation start`,
              `stop` and `cancel` as Flick's own control requests (one JSON
              array line to `$FLICK_SOCKET`, else Flick's default socket; one
@@ -558,7 +561,9 @@ canvases/feedback.rs  the `leave-feedback` command: opens the feedback
              entry in the focused pane with its workspace, canvas, page
              name, tool and selection count, closing an open sling's entry;
              saves it through the Noter, and asks it for the recent open
-             notes (`feedback_list`) to list under the entry. It takes the
+             notes (`feedback_list`) to list under the entry;
+             `show-all-feedback` opens it the same way, listing the
+             resolved notes too (`feedback_list` `all`). It takes the
              keys and the sling's place in the scene while open.
 canvases/dictation.rs  the `dictate` command: opens the sling's entry when
              no entry is open, then starts or stops Flick's dictation into
@@ -919,7 +924,9 @@ scene/feedback.rs  the feedback entry (Flick's "leave feedback"): the
              message and hint under the entry opened again, and "Feedback
              saved" flashed once on success. The entry, its label, keys and
              lines stand on a card in the panel's colour (Feedback::card),
-             not the canvas's. Pure.
+             not the canvas's. Listing all (`show-all-feedback`), the
+             resolved notes show under "All feedback" with how they were
+             resolved and no "✓". Pure.
 scene/dictation.rs  the dictation into the open entry: start, then stop, one
              request to Flick at a time; that Flick listens, or why it
              failed (Flick not running, or its refusal) and what to do, under
@@ -979,7 +986,8 @@ platform/remember.rs  what the window keeps in the user defaults from one
              never put on a screen.
 platform/files.rs  sets the title bar a scene's Title says (title, subtitle,
              represented file), shows a file in the Finder
-             (`show-canvas-file`, `show-workspace-folder` and `export-ui`,
+             (`show-canvas-file`, `show-workspace-folder`,
+             `show-feedback-file` and `export-ui`,
              from main), and hands on files dropped on the window.
 platform/panel.rs  the open panel, for a Pick: a folder for `open-workspace`
              or `export-ui` (it can make one), or a `.pdf`, `.tldraw` or

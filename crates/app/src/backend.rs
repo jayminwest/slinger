@@ -37,7 +37,7 @@ pub mod ui;
 mod unsent;
 
 pub use agents::{close_workspace, open_workspace, start_agent, stop_agent, workspaces};
-pub use feedback::Noter;
+pub use feedback::{Noter, feedback_file};
 pub use flick::Flick;
 pub use follow::{Follower, News};
 pub use outbox::{Outbox, run};

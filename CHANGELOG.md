@@ -15,6 +15,14 @@ bullet with the area in bold.
   app says once, when you cancel a file panel, to run slinger.app to reach
   Downloads, Desktop and Documents: macOS lets the panel show those folders
   only to the bundle.
+- **App:** see your resolved feedback. Show all feedback… (`show-all-feedback`,
+  Help menu and the command palette; no default key) opens the feedback
+  entry listing your resolved notes too, as `slinger feedback ls --all`
+  does: each says when it was resolved and with what note.
+- **App:** find your feedback. Show feedback file in Finder
+  (`show-feedback-file`, Help menu and the command palette; no default
+  key) shows the file your notes go to, as `slinger feedback path` names
+  it; before the first note it says where notes will go.
 - **App:** save an agent UI to a file. Export agent UI… (`export-ui`, File
   menu and the command palette; no default key) writes the version the
   focused pane shows to a folder you pick, as `<name>.v<version>.html`

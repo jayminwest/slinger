@@ -2,7 +2,10 @@
 //! entry ([`crate::scene::feedback`]) in the focused pane, with what the
 //! pane shows, and the thread that saves the note ([`Noter`]) sends it.
 //! Each open asks it for the recent notes to list under the entry, and a
-//! tap on a note's "✓" there has it resolve the note.
+//! tap on a note's "✓" there has it resolve the note. `show-all-feedback`
+//! lists the resolved notes there too ([`Canvases::list_all_feedback`]).
+//! `show-feedback-file`
+//! asks the daemon where the notes go ([`Canvases::feedback_file`]).
 //! The entry takes the keys as the sling's does, and only one of the two
 //! is open. Runs on the main thread and never waits.
 
@@ -101,7 +104,7 @@ impl Canvases {
         if !self.notes.entry.open(frame, context) {
             return false;
         }
-        self.notes.noter.list();
+        self.notes.noter.list(self.notes.entry.lists_all());
         if self.shapes.end(&mut self.ink) {
             self.send();
         }
@@ -111,13 +114,26 @@ impl Canvases {
         true
     }
 
+    /// Whether the feedback entry lists the resolved notes too, from its
+    /// next open on: `show-all-feedback`, or only the open ones:
+    /// `leave-feedback`.
+    pub fn list_all_feedback(&mut self, all: bool) {
+        self.notes.entry.list_all(all);
+    }
+
     /// A tap on the "✓" of the recent note listed `index`th under the
     /// open feedback entry: it leaves the list and the daemon resolves it.
     /// False when there is no such note.
     pub fn resolve_feedback(&mut self, index: usize) -> bool {
         let Some(ts) = self.notes.entry.resolve(index) else { return false };
-        self.notes.noter.resolve(ts);
+        self.notes.noter.resolve(ts, self.notes.entry.lists_all());
         true
+    }
+
+    /// The `show-feedback-file` command: the daemon's feedback file, for
+    /// the Finder to show; else what the flash says. Waits for the daemon.
+    pub fn feedback_file(&self) -> Result<String, String> {
+        crate::backend::feedback_file(&self.daemon)
     }
 
     /// What to flash once a note is saved, once.

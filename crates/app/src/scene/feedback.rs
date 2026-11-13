@@ -10,7 +10,9 @@
 //! own, so the user sees what is already said: five, or as many more as
 //! the pane has room for. A "✓" at each one's end resolves it
 //! ([`Feedback::ticks`]); a failure shows under the entry as a failed save
-//! does.
+//! does. Listing all ([`Feedback::list_all`]: `show-all-feedback`) lists
+//! the resolved notes too, under "All feedback": each says how it was
+//! resolved, and has no "✓".
 //!
 //! Pure: `canvases` hands in the pane, the context, the text as it is typed,
 //! the keys, the daemon's answer and the recent notes, and reads back the
@@ -59,6 +61,9 @@ pub struct Recent {
     pub text: String,
     /// When it was saved, as shown: `11-11 14:02`.
     pub when: String,
+    /// How it was resolved, as shown (`resolved 11-12 09:30: slinger-1234`);
+    /// `None` while it is open.
+    pub resolved: Option<String>,
 }
 
 /// How many recent notes the entry lists at least, and at most: a tall
@@ -86,6 +91,9 @@ pub struct Feedback {
     open: Option<(Note, Rect, Stage)>,
     saved: bool,
     recent: Vec<Recent>,
+    /// Whether the recent notes are all of them, resolved ones too, or
+    /// the open ones.
+    all: bool,
     /// The bottom of the pane the entry opened in.
     bottom: f64,
 }
@@ -164,6 +172,19 @@ impl Feedback {
         changed
     }
 
+    /// Lists all the recent notes, resolved ones too, or the open ones,
+    /// from now on. A change drops the notes listed, until the next list.
+    pub fn list_all(&mut self, all: bool) {
+        if all != self.all {
+            (self.all, self.recent) = (all, Vec::new());
+        }
+    }
+
+    /// Whether the entry lists all the recent notes, resolved ones too.
+    pub fn lists_all(&self) -> bool {
+        self.all
+    }
+
     /// The user resolved the recent note listed `index`th: its `ts`, to
     /// send. It leaves the list now, and any problem shown goes. `None`
     /// when the entry is closed or lists no such note.
@@ -186,13 +207,16 @@ impl Feedback {
         true
     }
 
-    /// The "✓" at the end of each recent note listed under the open entry,
+    /// The "✓" at the end of each open note listed under the open entry,
     /// in `theme`'s colours: their labels and their targets, which resolve
-    /// it ([`Tap::Resolve`]).
+    /// it ([`Tap::Resolve`]). A resolved note has none.
     pub fn ticks(&self, theme: &Theme) -> (Vec<Label>, Vec<Target>) {
         let rows = self.labels(theme);
         let (mut labels, mut targets) = (Vec::new(), Vec::new());
         for (index, row) in rows[rows.len() - self.shown()..].iter().enumerate() {
+            if self.recent[index].resolved.is_some() {
+                continue;
+            }
             let frame = Rect { x: row.frame.x + row.frame.width, width: style::TAP, ..row.frame };
             let fill = Some(style::panel(theme));
             labels.push(Label { text: "✓".into(), colour: theme.text, fill, frame });
@@ -285,13 +309,17 @@ impl Feedback {
             }
         }
         if !self.recent.is_empty() {
-            below("Recent feedback".into(), theme.muted);
+            below(if self.all { "All feedback" } else { "Recent feedback" }.into(), theme.muted);
         }
         for recent in &self.recent[..self.shown()] {
             n += 1.0;
-            let mut row =
-                line(*frame, n, format!("{} · {}", recent.when, recent.text), theme.muted, theme);
-            // It makes room for its "✓" at the end.
+            let mut text = format!("{} · {}", recent.when, recent.text);
+            if let Some(resolved) = &recent.resolved {
+                text = format!("{text} · {resolved}");
+            }
+            let mut row = line(*frame, n, text, theme.muted, theme);
+            // It makes room for its "✓" at the end; a resolved note's
+            // rows stay as wide, so the notes stay in one column.
             row.frame.width = (row.frame.width - style::TAP).max(0.0);
             lines.push(row);
         }

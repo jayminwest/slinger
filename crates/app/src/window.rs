@@ -155,9 +155,10 @@ pub fn agent(command: Command, socket: &Path, sidebar: &Sidebar, tools: &mut Too
     tools.flash().say(said, Instant::now());
 }
 
-/// What `show-canvas-file` or `show-workspace-folder` (`command`) shows in
-/// the Finder: the focused pane's canvas file, or the folder of the
-/// workspace `sidebar` shows; else what the flash says.
+/// What `show-canvas-file`, `show-workspace-folder` or
+/// `show-feedback-file` (`command`) shows in the Finder: the focused pane's
+/// canvas file, the folder of the workspace `sidebar` shows, or the
+/// daemon's feedback file; else what the flash says.
 pub fn finder(
     command: Command,
     shared: &Shared,
@@ -167,6 +168,9 @@ pub fn finder(
     if command == Command::ShowWorkspaceFolder {
         let dir = sidebar.shown_dir().ok_or("No workspace is open")?;
         return Ok(dir.to_string_lossy().into_owned());
+    }
+    if command == Command::ShowFeedbackFile {
+        return canvases.feedback_file();
     }
     match canvases.file(&shared.panes, shared.panes.focus()) {
         None => Err(title::NO_CANVAS.to_string()),
@@ -215,7 +219,8 @@ pub fn open_pdf(
 
 /// Runs a selection command (`sling`, `dictate`: the entry; `sling-now`) when the focused pane
 /// of `shared` laid in `area` shows its canvas; false when it does not. `leave-feedback` opens its entry
-/// there, with the pen's tool in `tools`. Any other command goes on (true).
+/// there, with the pen's tool in `tools`, listing the open notes; `show-all-feedback` the same, listing
+/// the resolved ones too. Any other command goes on (true).
 pub fn selection(
     canvases: &mut Canvases,
     shared: &Shared,
@@ -225,8 +230,9 @@ pub fn selection(
 ) -> bool {
     let panes = &shared.panes;
     match command {
-        Command::LeaveFeedback => {
+        Command::LeaveFeedback | Command::ShowAllFeedback => {
             let (at, workspace) = (focus(panes, area), shared.workspace.as_deref());
+            canvases.list_all_feedback(command == Command::ShowAllFeedback);
             canvases.open_feedback(panes, at, workspace, tools.tool());
             true
         }
