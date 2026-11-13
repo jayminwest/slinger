@@ -103,6 +103,8 @@ pub struct Tools {
     tool: Tool,
     eraser_end: bool,
     colour: Rgb,
+    /// A colour picked from the pop-up and not yet taken ([`Tools::picked`]).
+    picked: Option<Rgb>,
     palette: Palette,
     width: Width,
     widths: Widths,
@@ -124,6 +126,7 @@ impl Tools {
             tool: Tool::Pen,
             eraser_end: false,
             colour,
+            picked: None,
             palette,
             width,
             widths,
@@ -214,6 +217,12 @@ impl Tools {
     /// The pen's colour.
     pub fn colour(&self) -> Rgb {
         self.colour
+    }
+
+    /// The colour picked from the pop-up since the last call, if any (the
+    /// pen's colour, picked again too): it recolours the selection.
+    pub fn picked(&mut self) -> Option<Rgb> {
+        self.picked.take()
     }
 
     /// The open pop-up's kind, if one is open.
@@ -325,7 +334,10 @@ impl Tools {
     fn pick(&mut self, i: usize) {
         let Some(popup) = self.popup.take() else { return };
         match popup.kind {
-            Kind::Colour => self.colour = self.palette.colours()[i],
+            Kind::Colour => {
+                self.colour = self.palette.colours()[i];
+                self.picked = Some(self.colour);
+            }
             Kind::Shape => self.tool = SHAPES[i],
             Kind::Tool => self.tool = TOOLS[i],
             Kind::Width => self.width = self.widths.widths()[i],
