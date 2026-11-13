@@ -33,8 +33,9 @@
 
 # --- daemon: how the app reaches slingerd.
 [daemon]
-# The control socket; a leading "~/" is the home folder. Unset by default: the daemon's
-# own default ($XDG_RUNTIME_DIR/slinger.sock, else in the temp folder). Example:
+# The control socket; a leading "~/" is the home folder. Unset by default: the socket
+# the running slingerd named in its data directory, as `slinger` finds it, else the
+# daemon's own default ($XDG_RUNTIME_DIR/slinger.sock, else in the temp folder). Example:
 #socket = "~/.local/state/slinger/slinger.sock"
 
 # --- workspace: what the window shows.

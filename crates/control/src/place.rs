@@ -58,10 +58,17 @@ fn data_dir_in(xdg: Option<PathBuf>, home: Option<PathBuf>, macos: bool) -> Opti
     Some(base.join("slinger"))
 }
 
+/// The file in `data_dir` that names its daemon's socket, there while that
+/// daemon serves: a client that follows the daemon watches it.
+#[must_use]
+pub fn socket_name_file(data_dir: &Path) -> PathBuf {
+    data_dir.join(NAMED)
+}
+
 /// The socket the daemon serving `data_dir` named, if one did.
 #[must_use]
 pub fn named_socket(data_dir: &Path) -> Option<PathBuf> {
-    let text = fs::read_to_string(data_dir.join(NAMED)).ok()?;
+    let text = fs::read_to_string(socket_name_file(data_dir)).ok()?;
     let path = text.trim_end_matches('\n');
     (!path.is_empty()).then(|| PathBuf::from(path))
 }
@@ -74,7 +81,7 @@ pub fn named_socket(data_dir: &Path) -> Option<PathBuf> {
 /// The file cannot be written.
 pub fn name_socket(data_dir: &Path, socket: &Path) -> io::Result<()> {
     let socket = std::path::absolute(socket)?;
-    fs::write(data_dir.join(NAMED), format!("{}\n", socket.display()))
+    fs::write(socket_name_file(data_dir), format!("{}\n", socket.display()))
 }
 
 /// Takes the name back as the daemon stops, so no client goes to a socket
@@ -84,7 +91,7 @@ pub fn name_socket(data_dir: &Path, socket: &Path) -> io::Result<()> {
 ///
 /// The file is there and cannot be removed.
 pub fn unname_socket(data_dir: &Path) -> io::Result<()> {
-    match fs::remove_file(data_dir.join(NAMED)) {
+    match fs::remove_file(socket_name_file(data_dir)) {
         Err(e) if e.kind() != io::ErrorKind::NotFound => Err(e),
         _ => Ok(()),
     }

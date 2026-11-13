@@ -107,6 +107,12 @@ write at a time, so any thread may write to it while the daemon serves.
   user's record on any path, and from a process whose `$TMPDIR` differs
   from the daemon's. A daemon that died leaves its name; the next one on
   that data directory writes its own.
+- **The app finds the daemon the same way.** Its config's `[daemon]
+  socket` wins; else it takes the socket named in the default data
+  directory while something listens on it, else the default path. It
+  passes over a name left by a daemon that died, and it watches the name,
+  so the window follows a daemon that starts, moves or stops after it
+  opened.
 - There is no network transport.
 
 ## Protocol

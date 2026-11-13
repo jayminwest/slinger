@@ -303,6 +303,10 @@ bullet with the area in bold.
   it runs. A session no longer needs `--socket` when you start `slingerd`
   with `--socket`, or when its temporary directory differs from the
   daemon's. `--socket` and `$SLINGER_SOCKET` still win.
+- **App:** the app finds the running `slingerd` the same way, and follows
+  it when it starts, moves to another socket or stops while the window is
+  open. A `[daemon] socket` in the config still wins. A name left by a
+  daemon that crashed is ignored, so the app never waits on a dead socket.
 - **Agents:** a sling to a workspace whose agent is not running starts it,
   resuming its conversation, and goes in; you no longer need Start agent
   (or `slinger session start`) first, and a sling after Stop agent starts
