@@ -174,7 +174,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_start` | `workspace`: string, its name or the directory of its file, `fresh`: bool (default `false`), `profile`: a profile's name (optional) | `session` |
 | `session_stop` | `workspace`: string | `session` |
 | `session_send` | `workspace`: string, `text`: string | `session` |
-| `session_listen` | `workspace`: string, `wait`: milliseconds to hold the request open (default 0, at most 60000) | `agent`, `sling`: `{event, canvas, dir, text}`, the oldest sling that waits (absent when none came) |
+| `session_listen` | `workspace`: string, `wait`: milliseconds to hold the request open (default 0, at most 60000), `pid`: the process that works on the sling (optional) | `agent`, `sling`: `{event, canvas, dir, text}`, the oldest sling that waits (absent when none came) |
 | `sling_backdrops` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `backdrops`: list of `{item, hash, pdfpage, pagesize, crop, frame, area, width, height}`, the areas of PDF pages under the new ink (empty when none) |
 | `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty), `profile`: a profile's name (optional), `backdrops`: list of `{item, area, image, words}` (optional) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` (empty when a listener takes it), `deliver`: `process` or `listen`, `tokens`: about how many tokens the agent reads for it (optional) |
 | `profile_list` | `workspace`: as `workspace_show` | `workspace`: its name, `profiles`: list of `{name, dir, tools}`, in its file's order |
@@ -793,12 +793,18 @@ knows whom it acts as, its packet header with `at=<dir>`, the directory that
 holds the packet's images, and a note that says to pass `--agent`, to set
 `done` and to listen again. Taking a sling sets the agent's status to
 `working`. A reply that cannot be written puts the sling back, so a listener
-that is gone loses none.
+that is gone loses none. With `pid`, the listener works on the sling in that
+process (the Claude Code session, not the CLI that asked): when it ends
+before the listener says it is done, the listener is gone and the sling
+waits again, the oldest, for the next to listen (the agent's status stays
+`working`). A `pid` that is not running is `invalid`.
 
 One listener state per agent (`slinger_core::session::listen`). A listener
 is there while a request of its is open, for 10 seconds after one ended, and
-while it works on a sling it took, until it asks again: asking says the last
-one is dealt with. While slings wait or a listener is there, the session has
+while it works on a sling it took, until it asks again or its agent sets
+`done` or `blocked` (then for 10 seconds, so its next ask finds the slings
+still its own), or until the `pid` it named ends. Asking says the last one
+is dealt with. While slings wait or a listener is there, the session has
 `deliver` as `listen`, `listening` (whether one is there) and `pending` (the
 slings that wait, and the one worked on). `session_start` and `session_stop`
 forget who listened; the slings that wait stay for the next to listen. The

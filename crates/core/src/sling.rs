@@ -141,8 +141,8 @@ impl Listener<'_> {
              the packet's `at=` directory: read the ones you need.\n\
              - Add `--agent {agent}` to each `canvas put` and `status set`.\n\
              - When you have answered, run `slinger status set done --agent {agent}` (or \
-             `blocked --note <what you need>`), then `slinger session listen {workspace}` \
-             for the next sling.\n"
+             `blocked --note <what you need>`), then `slinger session listen {workspace} --pid \
+             $PPID` for the next sling.\n"
         )
     }
 }

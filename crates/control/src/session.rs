@@ -52,11 +52,14 @@ pub enum SessionAsk {
     },
     /// Take the next sling that waits for a listener of a workspace's
     /// agent. With `wait`, the reply waits up to that many milliseconds for
-    /// one (at most [`crate::MAX_WAIT_MS`]).
+    /// one (at most [`crate::MAX_WAIT_MS`]). With `pid`, the listener works
+    /// on the sling in that process, and is gone once it ends.
     SessionListen {
         workspace: String,
         #[serde(default)]
         wait: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pid: Option<u32>,
     },
     /// An agent wrote a file: the absolute `path`, or the one a Claude Code
     /// `PostToolUse` hook's payload (`hook`) names. One of the two.
@@ -297,8 +300,25 @@ impl Client {
     /// `not_found` for a workspace that is not open, `invalid` for one with
     /// no agent, and `unavailable` when the daemon does not answer.
     pub fn session_listen(&self, workspace: &str, wait: Duration) -> Result<Listened, RemoteError> {
+        self.session_listen_in(workspace, wait, None)
+    }
+
+    /// [`Client::session_listen`] for a listener that works on the sling it
+    /// takes in the process `pid`: while it works, it counts as there only
+    /// while that process runs. Once it ends, the sling waits again.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Client::session_listen`], and `invalid` for a `pid` that
+    /// is not running.
+    pub fn session_listen_in(
+        &self,
+        workspace: &str,
+        wait: Duration,
+        pid: Option<u32>,
+    ) -> Result<Listened, RemoteError> {
         let wait = u64::try_from(wait.as_millis()).unwrap_or(u64::MAX).min(MAX_WAIT_MS);
-        let ask = SessionAsk::SessionListen { workspace: workspace.into(), wait };
+        let ask = SessionAsk::SessionListen { workspace: workspace.into(), wait, pid };
         self.call_within(&ask, TIMEOUT + Duration::from_millis(wait))
     }
 
@@ -405,8 +425,12 @@ mod tests {
                 r#"{"v":1,"op":"sling_send","canvas":"c","prompt":""}"#,
             ),
             (
-                SessionAsk::SessionListen { workspace: "w".into(), wait: 250 },
+                SessionAsk::SessionListen { workspace: "w".into(), wait: 250, pid: None },
                 r#"{"v":1,"op":"session_listen","workspace":"w","wait":250}"#,
+            ),
+            (
+                SessionAsk::SessionListen { workspace: "w".into(), wait: 0, pid: Some(7) },
+                r#"{"v":1,"op":"session_listen","workspace":"w","wait":0,"pid":7}"#,
             ),
             (
                 SessionAsk::FileTouched { agent: "a".into(), path: Some("/f".into()), hook: None },
