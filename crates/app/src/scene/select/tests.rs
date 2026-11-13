@@ -38,7 +38,12 @@ fn page() -> Vec<Item> {
         item(2, Shape::Box { frame: frame(20.0, -5.0, 10.0, 10.0), width: 2.0 }),
         item(
             3,
-            Shape::Text { frame: frame(40.0, -5.0, 10.0, 10.0), text: "hi".into(), size: 24.0 },
+            Shape::Text {
+                frame: frame(40.0, -5.0, 10.0, 10.0),
+                text: "hi".into(),
+                size: 24.0,
+                column: None,
+            },
         ),
         item(
             4,
@@ -143,7 +148,7 @@ fn a_selection_shows_a_tinted_box_four_handles_and_its_count_at_screen_size() {
         assert_eq!(h, frame(x - 2.25, y - 2.25, 4.5, 4.5), "9 screen points, on the corner");
         assert_eq!((fill, width), (Some(Fill { colour: THEME.background, alpha: 1.0 }), 0.75));
     }
-    let Shape::Text { frame: label, text, size } = &chrome[5].shape else { panic!() };
+    let Shape::Text { frame: label, text, size, .. } = &chrome[5].shape else { panic!() };
     assert_eq!((text.as_str(), *size), ("3 items", 5.5), "11 screen points");
     assert_eq!(label.x, b.x);
     assert!(label.y + label.height < b.y - 2.25, "above the handles");
@@ -259,7 +264,12 @@ fn the_eraser_takes_text_boxes_and_arrows_but_not_ink_on_its_way() {
 
 #[test]
 fn an_eraser_reaches_a_text_frame_a_box_outline_and_an_arrow_by_their_width() {
-    let text = Shape::Text { frame: frame(0.0, 0.0, 10.0, 10.0), text: "hi".into(), size: 24.0 };
+    let text = Shape::Text {
+        frame: frame(0.0, 0.0, 10.0, 10.0),
+        text: "hi".into(),
+        size: 24.0,
+        column: None,
+    };
     assert!(hit::erases(&text, pt(5.0, 5.0), pt(5.0, 5.0), 0.0), "a dab inside");
     assert!(hit::erases(&text, pt(-3.0, -10.0), pt(-3.0, 20.0), 3.0), "past its side, in reach");
     assert!(!hit::erases(&text, pt(-4.0, -10.0), pt(-4.0, 20.0), 3.0));

@@ -341,7 +341,9 @@ fn read(o: &Map<String, Value>) -> Option<Item> {
         "text" => {
             let text = o.get("text")?.as_str()?.to_string();
             let size = units("size").filter(|s| TEXT_SIZES.contains(s)).unwrap_or(TEXT_SIZE);
-            Shape::Text { frame: drawn_frame(frame()?, &text, size), text, size }
+            let stored = frame()?;
+            let column = Some(stored.width);
+            Shape::Text { frame: drawn_frame(stored, &text, size), text, size, column }
         }
         "box" => Shape::Box { frame: frame()?, width: LINE_WIDTH },
         "button" => Shape::Button { frame: frame()?, status: None },
@@ -406,12 +408,12 @@ fn points(pts: &Value) -> Option<Vec<Point>> {
 }
 
 /// The frame a stored text of `size` is drawn in, and hit in: the box its
-/// glyphs fill ([`glyphs::frame`]), wrapped to its stored width, never the
-/// stored width itself. A stored frame narrower than one character would
-/// wrap the text a character a line; such text is drawn unwrapped.
+/// glyphs fill in the core's rows for its stored width ([`glyphs::rows_frame`]),
+/// never the stored width itself. A stored frame narrower than one
+/// character would wrap the text a character a line; such text is drawn
+/// unwrapped.
 fn drawn_frame(frame: Rect, text: &str, size: f64) -> Rect {
-    let column = if frame.width >= size { frame.width } else { glyphs::UNWRAPPED };
-    glyphs::frame(Point { x: frame.x, y: frame.y }, text, size, column)
+    glyphs::rows_frame(Point { x: frame.x, y: frame.y }, text, size, frame.width)
 }
 
 /// `#rrggbb`, or `#rrggbbaa` with its alpha dropped; `None` for anything else.

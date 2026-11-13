@@ -328,6 +328,12 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a text on the canvas now breaks into the same lines, a line
+  every size, as the box `slinger canvas put` reports and the picture
+  `canvas crop` draws. Before, the app set an agent's long text in fewer,
+  shorter lines, so notes you wrote below it landed inside its box and on
+  top of it in the agent's picture. Canvas text is a little smaller and
+  its lines a little closer than before.
 - **App:** the sling's pill keeps counting, and a short message still goes
   away on time, while you resize the window or have a menu open. Before,
   both froze until you let go.

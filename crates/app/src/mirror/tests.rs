@@ -63,9 +63,10 @@ fn a_shown_page_reads_every_kind_in_units() {
     let frame = Rect { x: 1.0, y: 2.0, width: 30.0, height: 40.0 };
     assert_eq!(items[1].shape, Shape::Box { frame, width: LINE_WIDTH });
     assert_eq!(items[1].colour, Rgb { r: 0, g: 255, b: 0 });
-    // Drawn and hit in its glyphs' frame, wrapped to its stored 200.
-    let frame = glyphs::frame(pt(0.0, 0.0), "plan", TEXT_SIZE, 200.0);
-    assert_eq!(items[2].shape, Shape::Text { frame, text: "plan".into(), size: TEXT_SIZE });
+    // Drawn and hit in its glyphs' frame, in the core's rows for its stored 200.
+    let frame = glyphs::rows_frame(pt(0.0, 0.0), "plan", TEXT_SIZE, 200.0);
+    let plan = Shape::Text { frame, text: "plan".into(), size: TEXT_SIZE, column: Some(200.0) };
+    assert_eq!(items[2].shape, plan);
     assert_eq!(items[2].colour, Rgb { r: 0, g: 0, b: 255 });
     let arrow = Shape::Arrow {
         from: pt(0.0, 0.0),
@@ -97,7 +98,7 @@ fn text_too_narrow_to_wrap_gets_a_frame_its_size() {
     let m = Mirror::new(&shown(vec![json!({"id": "i1", "page": "p1", "kind": "text",
         "x": 50, "y": 60, "w": 80, "h": 99999, "text": "abcd\nab"})]));
     let Shape::Text { frame, .. } = &m.items()[0].shape else { panic!() };
-    let expected = glyphs::frame(pt(5.0, 6.0), "abcd\nab", TEXT_SIZE, glyphs::UNWRAPPED);
+    let expected = glyphs::rows_frame(pt(5.0, 6.0), "abcd\nab", TEXT_SIZE, glyphs::UNWRAPPED);
     assert_eq!(*frame, expected);
 }
 
@@ -309,8 +310,9 @@ fn a_text_a_box_and_an_arrow_are_written_as_they_read_back() {
         shape,
     };
     // A text shows in its glyphs' frame; the file keeps the core's cells.
-    let glyphs = glyphs::frame(pt(1.0, -2.5), "hi", TEXT_SIZE, glyphs::UNWRAPPED);
-    let text = Shape::Text { frame: glyphs, text: "hi".into(), size: TEXT_SIZE };
+    let glyphs = glyphs::rows_frame(pt(1.0, -2.5), "hi", TEXT_SIZE, 48.0);
+    let text =
+        Shape::Text { frame: glyphs, text: "hi".into(), size: TEXT_SIZE, column: Some(48.0) };
     let boxed = Shape::Box {
         frame: Rect { x: 0.0, y: 0.0, width: 30.0, height: 40.04 },
         width: LINE_WIDTH,
@@ -348,7 +350,7 @@ fn a_text_a_box_and_an_arrow_are_written_as_they_read_back() {
 fn an_edit_is_a_set_and_a_move_sets_each_arrow_that_follows() {
     let (canvas, page) = ("main".to_string(), "p1".to_string());
     let frame = Rect { x: 0.0, y: 0.0, width: 24.0, height: 31.2 };
-    let shape = Shape::Text { frame, text: "a".into(), size: TEXT_SIZE };
+    let shape = Shape::Text { frame, text: "a".into(), size: TEXT_SIZE, column: None };
     let edit = Change::Set { canvas: canvas.clone(), page: page.clone(), id: ItemId(3), shape };
     assert_eq!(
         ops(&edit),
@@ -472,8 +474,8 @@ fn a_text_size_is_read_and_written_and_the_usual_one_left_out() {
         json!({"id": "i2", "page": "p1", "kind": "text", "color": "#000000",
                "x": 0, "y": 0, "text": "odd", "size": 1}),
     ]));
-    let frame = glyphs::frame(pt(0.0, 0.0), "big", 36.0, glyphs::UNWRAPPED);
-    let big = Shape::Text { frame, text: "big".into(), size: 36.0 };
+    let frame = glyphs::rows_frame(pt(0.0, 0.0), "big", 36.0, glyphs::UNWRAPPED);
+    let big = Shape::Text { frame, text: "big".into(), size: 36.0, column: Some(0.0) };
     assert_eq!(m.items()[0].shape, big);
     let Shape::Text { size, .. } = m.items()[1].shape else { panic!() };
     assert!((size - TEXT_SIZE).abs() < f64::EPSILON, "a size out of range reads as the usual");

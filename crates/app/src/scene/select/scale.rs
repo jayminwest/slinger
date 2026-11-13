@@ -146,11 +146,11 @@ fn reshaped(
         Shape::Arrow { from, to, width, bound } => {
             Shape::Arrow { from: map(*from), to: map(*to), width: *width, bound: *bound }
         }
-        Shape::Text { frame, text, size } => {
+        Shape::Text { frame, text, size, column } => {
             let (at, after) = (placed(frame), grow(*size));
             let by = after / size;
             let frame = Rect { width: frame.width * by, height: frame.height * by, ..at };
-            Shape::Text { frame, text: text.clone(), size: after }
+            Shape::Text { frame, text: text.clone(), size: after, column: column.map(|c| c * by) }
         }
         Shape::Button { frame, status } => Shape::Button { frame: placed(frame), status: *status },
         Shape::Pdf { frame, .. } => shape.reframed(even(frame)),

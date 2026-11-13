@@ -42,7 +42,12 @@ fn page() -> Vec<Item> {
         stroke(2, &[(5000.0, 5000.0), (5010.0, 5010.0)]),
         item(
             3,
-            Shape::Text { frame: rect(100.0, 100.0, 80.0, 20.0), text: "hi".into(), size: 16.0 },
+            Shape::Text {
+                frame: rect(100.0, 100.0, 80.0, 20.0),
+                text: "hi".into(),
+                size: 16.0,
+                column: None,
+            },
         ),
         item(4, Shape::Box { frame: rect(-900.0, 0.0, 50.0, 50.0), width: 2.0 }),
         item(
@@ -94,7 +99,14 @@ fn marks_are_in_screen_points_and_scale_with_the_zoom() {
     assert_eq!(scene.draws[0].bounds, rect(28.0, 18.0, 84.0, 64.0));
     assert_eq!(
         scene.draws[1].mark,
-        Mark::Text { at: pt(210.0, 200.0), width: 80.0, text: "hi".into(), size: 16.0, zoom: 2.0 }
+        Mark::Text {
+            at: pt(210.0, 200.0),
+            width: 80.0,
+            text: "hi".into(),
+            size: 16.0,
+            line: 0.0,
+            zoom: 2.0
+        }
     );
     let boxed = [item(9, Shape::Box { frame: rect(1.0, 2.0, 3.0, 4.0), width: 1.0 })];
     let scene = at(&boxed, view, None);
@@ -236,7 +248,12 @@ fn a_pen_line_that_changes_at_its_end_repaints_only_its_end() {
 fn paint_stops_at_the_pane_edge_when_ink_runs_past_it() {
     // A pan right puts a text and a box part past the pane's left edge
     // (slinger-d90e4d): both are drawn, and their ink runs past the edge.
-    let text = Shape::Text { frame: rect(20.0, 100.0, 80.0, 20.0), text: "hi".into(), size: 16.0 };
+    let text = Shape::Text {
+        frame: rect(20.0, 100.0, 80.0, 20.0),
+        text: "hi".into(),
+        size: 16.0,
+        column: None,
+    };
     let boxed = Shape::Box { frame: rect(30.0, 200.0, 40.0, 40.0), width: 2.0 };
     let scene = at(&[item(1, text), item(2, boxed)], Viewport::default().pan(-60.0, 0.0), None);
     assert_eq!(ids(&scene), [1, 2]);
@@ -276,11 +293,24 @@ fn chrome_scales_with_the_zoom_and_moves_like_an_item() {
     let scene = at(&[item(1, panel), item(2, caret)], view, None);
     let Mark::Panel { frame, fill, width, dashed } = scene.draws[0].mark else { panic!() };
     assert_eq!((frame, fill, width, dashed), (rect(20.0, 20.0, 40.0, 20.0), tint, 2.0, true));
-    let Mark::Caret { at, column, ref text, size, zoom, width } = scene.draws[1].mark else {
+    let Mark::Caret { at, column, ref text, size, line, zoom, width } = scene.draws[1].mark else {
         panic!()
     };
+    // Laid out as the canvas text it is in: in its rows, a size apart.
     assert_eq!(
-        (at, column, text.as_str(), size, zoom, width),
-        (pt(20.0, 60.0), 48.0, "Hi", 24.0, 2.0, 2.0)
+        (at, column, text.as_str(), size, line, zoom, width),
+        (pt(20.0, 60.0), glyphs::UNWRAPPED, "Hi", 24.0 * glyphs::FONT, 24.0, 2.0, 2.0)
     );
+}
+
+/// slinger-f66a97: a canvas text draws in the core's rows for its stored
+/// column, a size apart, in the system font at a part of the size.
+#[test]
+fn a_canvas_text_draws_in_the_core_s_rows_a_size_apart() {
+    let frame = rect(0.0, 0.0, 30.0, 48.0);
+    let text = Shape::Text { frame, text: "ab cd".into(), size: 24.0, column: Some(48.0) };
+    let scene = at(&[item(1, text)], Viewport::default(), None);
+    let Mark::Text { width, ref text, size, line, .. } = scene.draws[0].mark else { panic!() };
+    assert_eq!((text.as_str(), line), ("ab\ncd", 24.0), "two cells a row");
+    assert_eq!((width, size), (glyphs::UNWRAPPED, 24.0 * glyphs::FONT), "its own breaks only");
 }
