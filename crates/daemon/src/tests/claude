@@ -1,0 +1,29 @@
+#!/bin/sh
+# A stand-in for Claude Code's stream mode, as far as the daemon uses it, for
+# the daemon's tests (tests/process.rs). It runs in the agent's home and
+# leaves its evidence there: its arguments (args.txt, one run per line), its
+# environment (env.txt, and its PATH in path.txt) and each line it was sent
+# (in.txt). Its store of conversations is known.txt, one id per line: a
+# resume of an id not there fails, as Claude Code's does. For each line it
+# names its session and answers.
+printf '%s\n' "$*" >> args.txt
+printf '%s %s\n' "$SLINGER_AGENT" "$SLINGER_SOCKET" > env.txt
+printf '%s\n' "$PATH" > path.txt
+id=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --session-id) id="$2"; printf '%s\n' "$id" >> known.txt; shift ;;
+    --resume)
+      id="$2"; shift
+      grep -qx "$id" known.txt 2>/dev/null || {
+        printf 'No conversation found with session ID: %s\n' "$id" >&2; exit 1; } ;;
+  esac
+  shift
+done
+n=0
+while IFS= read -r line; do
+  n=$((n + 1))
+  printf '%s\n' "$line" >> in.txt
+  printf '{"type":"system","subtype":"init","session_id":"%s"}\n' "$id"
+  printf '{"type":"result","subtype":"success","session_id":"%s","result":"answer %s"}\n' "$id" "$n"
+done

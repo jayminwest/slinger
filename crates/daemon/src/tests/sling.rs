@@ -84,9 +84,8 @@ fn first_gets_the_whole_note(got: &[(String, usize)]) {
 
 #[test]
 fn three_slings_go_into_one_conversation_and_each_is_in_the_record() {
-    let (data, projects, bin) =
-        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
-    let daemon = Daemon::start_with_claude(data.path(), &fake_claude(bin.path()));
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
     let client = daemon.client();
     let home = open_with_agent(&client, &projects, "notes", "scout");
     let id = client.session_start("notes").unwrap().session_id.unwrap();
@@ -126,9 +125,8 @@ fn three_slings_go_into_one_conversation_and_each_is_in_the_record() {
 
 #[test]
 fn a_sling_that_cannot_go_leaves_no_trace() {
-    let (data, projects, bin) =
-        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
-    let daemon = Daemon::start_with_claude(data.path(), &fake_claude(bin.path()));
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
     let client = daemon.client();
     let ask = SlingAsk { canvas: "notes".into(), ..SlingAsk::default() };
     let err = client.sling_send(ask.clone()).unwrap_err();

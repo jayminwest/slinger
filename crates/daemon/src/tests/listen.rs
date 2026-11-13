@@ -98,9 +98,8 @@ fn answers_and_is_in_the_record(client: &Client, slung: &Slung) {
 
 #[test]
 fn a_listener_outranks_a_running_process_and_a_profile_names_only_a_process() {
-    let (data, projects, bin) =
-        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
-    let daemon = Daemon::start_with_claude(data.path(), &fake_claude(bin.path()));
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
     let client = daemon.client();
     let home = open_with_agent(&client, &projects, "notes", "scout");
     let dev = Profile { name: "dev".into(), dir: None, tools: Vec::new() };

@@ -271,6 +271,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** an agent that answers a send at once no longer shows a
+  message still pending. `slinger session show` could report one message
+  pending for good after a quick answer, so waiting on it never ended.
 - **CLI and app:** a busy slingerd is no longer taken for a stopped one.
   When the disk is under heavy load a reply can take several seconds; the
   CLI and the app now wait up to 30 seconds for it instead of 5, and no

@@ -61,7 +61,7 @@ fn reply_twice(client: &Client, open: &str, home: &std::path::Path) -> Vec<Value
 fn an_agent_opens_a_ui_and_each_reply_reaches_its_session_as_one_json_line() {
     let (data, projects, bin) =
         (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
-    let daemon = Daemon::start_with_claude(data.path(), &fake_claude(bin.path()));
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
     let client = daemon.client();
     let home = open_with_agent(&client, &projects, "notes", "scout");
     let first = put(&client, &bin, "pick-slot", "<p>one</p>");
