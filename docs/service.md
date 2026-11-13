@@ -124,6 +124,10 @@ and `error` is for people. Branch on `code`, never on `error`.
   its end, then answers `too_large`.
 - A request must arrive within 5 seconds of the connection. A connection
   that closes without a request gets no reply.
+- The client waits up to 30 seconds for a reply. A daemon that took the
+  connection is running; under heavy disk load its reply can take several
+  seconds. The client reports `unavailable` when it cannot connect, or when
+  no reply comes in that time.
 - The daemon ignores fields it does not know.
 
 ### Verbs
@@ -528,7 +532,7 @@ A stream would need framing for many replies, a way to end them, and a client
 that reads lines as they arrive; every verb today is one exchange the client
 can time out. Holding one reply back (a long poll) keeps all of that. It
 costs one request per change burst, which is nothing on a local socket. The
-client's read timeout is its usual 5 seconds plus the wait. A waiting
+client's read timeout is its usual 30 seconds plus the wait. A waiting
 request holds one daemon thread, and a stop answers it at once.
 
 ```json
@@ -1011,7 +1015,7 @@ The protocol adds:
 | `bad_request` | The line is not JSON, has no `v`, names no known `op`, or has wrong arguments |
 | `too_large` | The request line is over the limit |
 | `unsupported_version` | `v` is not a version this daemon speaks |
-| `unavailable` | The agent's process is not running (`session_send`, `sling_send` with a `profile`); made by the client when the daemon did not answer |
+| `unavailable` | The agent's process is not running (`session_send`, `sling_send` with a `profile`); made by the client when it cannot connect, or the daemon did not reply within 30 seconds |
 | `internal` | The daemon could not read or write its record, or the client could not read the reply |
 
 `not_found` also covers a blob the record does not hold, a file to put
