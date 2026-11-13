@@ -30,7 +30,7 @@ Each decision has an id (D1, D2, ...). Each open item has an id (O1, O2, ...). R
 - D3. Client and server are both custom. herdr is an inspiration only. There is no herdr adapter.
 - D4. Client and server are separate from day one. They talk over a local socket. One server per machine.
 - D5. The canvas is a native rebuild. It does not embed tldraw.
-- D6. Canvas v1: pen at a constant width (no pressure), eraser, lasso, select, text, box, arrow, pages, undo, endless pan and zoom. Nothing else.
+- D6. Canvas v1: pen at a constant width (no pressure), eraser, lasso, select, text, box, arrow, pages, undo, endless pan and zoom, and PDF pages. Nothing else. Amended 2026-11-12: a `pdf` item shows one page of a PDF, or a part of one (a snippet); the PDF is a blob in the record. Opening a PDF makes a canvas of its pages stacked on one canvas page, read in reader mode (fit to width, vertical scroll). Only the app reads a PDF; the core and the server never parse one. See `docs/design/pdf.md`.
 - D7. Canvas files use Slinger's own format. Slinger can import a tldraw file. It cannot export one.
 - D8. An agent gets a packet, not a screenshot (section 6).
 - D9. Handwriting recognition runs only when the user asks. It is never a layer between the canvas and the agent.
@@ -54,7 +54,8 @@ Each decision has an id (D1, D2, ...). Each open item has an id (O1, O2, ...). R
 - Sending the record to the always-on machine. Events carry the machine name from day one, so this can be added with no redesign.
 - More than one machine in one session.
 - Control of the tablet display or its drivers.
-- Canvas features outside D6: snapping, frames, images, rotation, export.
+- Canvas features outside D6: snapping, frames, images (a PDF page is not an image: D6), rotation, export.
+- A PDF pane, PDF export, and a PDF made from the CLI alone (the CLI cannot read a PDF's page sizes).
 - A data model beyond events and blobs.
 
 ## 5. System
@@ -78,6 +79,7 @@ Packet rules:
 - R5. The rest of the page is an outline of one line per item. The agent asks for a crop when it needs one.
 - R6. Raw stroke points are not in the packet. One command returns them for the rare case.
 - R7. Every packet is stored as a blob in the record.
+- R8. Ink over a PDF page goes with the page under it: its image shows the page beneath the ink, and its line carries the PDF's words under the ink. A PDF page never goes as an image on its own: its line names the blob and the page. Only the app can render a PDF, so a sling without the app carries the ink on white.
 
 ## 7. Agent commands
 
@@ -148,7 +150,7 @@ Rules:
 - O5. Closed 2026-11-10: an append-only operation log per canvas. See `docs/design/canvas-file.md`.
 - O6. The workspace definition file: its name and fields. Decided 2026-11-10: `slinger-workspace.toml` in the primary root, versioned TOML that keeps unknown fields. The fields and rules are in `docs/workspace.md`.
 - O7. The scaffold has no GUI layer and no service layer yet. The brief for that work is `BRIEF-gui-service-layers.md` in the scaffold-project repository. It must be done before Slinger is scaffolded. The spikes do not wait for it.
-- O8. A UI's code is in one machine's record (D19). A canvas opened on a second machine needs that blob. This waits for the copy to the always-on machine (D15).
+- O8. A UI's code is in one machine's record (D19), and so is a PDF (D6). A canvas opened on a second machine needs that blob. This waits for the copy to the always-on machine (D15).
 
 ## 14. Plan
 
@@ -177,7 +179,7 @@ The project is made with scaffold-project (Rust, with the CLI front end). Its ph
 - B3. The CLI follows the scaffold's contract: one JSON document with `--json`, a stable error code and a hint on failure, typed exit codes, nothing extra on stdout.
 - B4. Define errors out of existence first. Removing an item that is already gone succeeds. A packet with nothing new is a valid packet.
 - B5. Data formats are API. The packet, the record's events and the canvas file each carry a version. A change never breaks a reader.
-- B6. Design it twice. The packet format, the canvas file format (O5) and the live-item code (O1) each get two real alternatives in writing before one is picked.
+- B6. Design it twice. The packet format, the canvas file format (O5), the live-item code (O1) and how the app supplies the page under the ink of a sling (`docs/design/pdf.md`) each get two real alternatives in writing before one is picked.
 - B7. Seams are paid for. There is no harness trait until the second harness arrives. Claude Code uses the CLI like any outside program.
 - B8. One verify command, the same in the pre-commit hook and in CI. Budgets only tighten. Tests go through public interfaces with real inputs: real boards are the fixtures for the packet and the importer.
 - B9. Spikes are throwaway code and stay outside the repository. What a spike proves goes into this spec with its evidence (command output, numbers). Spike code is not promoted.
