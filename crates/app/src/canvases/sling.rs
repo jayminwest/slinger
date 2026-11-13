@@ -4,6 +4,7 @@
 //! Runs on the main thread and never waits.
 
 use super::{Canvases, pane_shown};
+use crate::backend::{Render, Slinger};
 use crate::commands::{Chord, Command, Keymap};
 use crate::config::Theme;
 use crate::layout::{Point, Rect, Viewport};
@@ -14,6 +15,14 @@ use crate::scene::sidebar::Sidebar;
 use crate::scene::sling::{Key, Profile, edits};
 
 impl Canvases {
+    /// Renders the page under new ink with `render` for every sling from
+    /// now on (`platform::pdf::backdrop`); without it, ink goes on white.
+    #[must_use]
+    pub fn rendering(mut self, render: Render) -> Self {
+        self.slinger = Slinger::start(self.daemon.clone(), Some(render));
+        self
+    }
+
     /// The `sling` command: opens the entry at the selection, when the
     /// focused pane of `panes` laid in `area` shows it; else beside the
     /// first button on that pane's page, to sling what is new there. False

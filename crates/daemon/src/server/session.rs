@@ -31,6 +31,9 @@ pub fn answer(store: &Store, ask: SessionAsk) -> Result<Reply, RemoteError> {
             Ok(Reply::SessionSend(info(store, session)?))
         }
         SessionAsk::SlingSend(ask) => super::sling::send(store, ask),
+        SessionAsk::SlingBackdrops { canvas, page } => {
+            super::sling::backdrops(store, &canvas, page.as_deref())
+        }
         SessionAsk::SessionListen { workspace, wait } => {
             let wait = Duration::from_millis(wait.min(control::MAX_WAIT_MS));
             let (agent, sling) =

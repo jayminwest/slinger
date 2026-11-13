@@ -56,6 +56,8 @@ pub fn execute(
         select: select.clone(),
         prompt,
         profile: profile.clone(),
+        // Only the app can render a PDF: ink on white, `over=` names the pages.
+        backdrops: Vec::new(),
     };
     let slung = daemon.sling_send(ask)?;
     Ok(Output::new(serde_json::to_value(slung)?, String::new()))

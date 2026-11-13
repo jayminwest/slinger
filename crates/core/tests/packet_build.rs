@@ -60,7 +60,7 @@ fn board() -> (Vec<Op>, Vec<PageId>) {
 }
 
 fn ask(page: PageId, since: u64) -> Ask<'static> {
-    Ask { canvas: "idea", page, since: Marker(since), selection: &[] }
+    Ask { canvas: "idea", page, since: Marker(since), selection: &[], backdrops: &[] }
 }
 
 #[test]

@@ -53,7 +53,7 @@ fn a_button_is_one_add_line_with_its_box_and_reads_back() {
 #[test]
 fn the_packet_says_a_button_as_text_and_an_agent_puts_beside_it() {
     let (mut log, _) = log();
-    let packet = log.packet("idea", None, 0, &["u1".into()]).unwrap();
+    let packet = log.packet("idea", None, 0, &["u1".into()], &[]).unwrap();
     let text = packet.text();
     assert!(text.contains("u1 button 0,0 160x40\n"), "{text}");
     assert!(packet.images.is_empty(), "a button is never an image");

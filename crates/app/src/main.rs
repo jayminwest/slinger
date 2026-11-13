@@ -204,7 +204,7 @@ fn window(mut settings: Settings) -> ExitCode {
 /// The canvases of the window, through the daemon on `socket`, keeping
 /// the strokes not yet written on disk ([`backend::Unsent`]).
 fn canvases(socket: &Path) -> Canvases {
-    let canvases = Canvases::new(control::Client::new(socket));
+    let canvases = Canvases::new(control::Client::new(socket)).rendering(platform::pdf::backdrop);
     backend::Unsent::locate().into_iter().fold(canvases, Canvases::keeping)
 }
 

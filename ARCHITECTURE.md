@@ -106,6 +106,11 @@ packet/      what an agent reads from a page (docs/design/packet.md). Index::new
              the selection as packet ids: a stroke as its cluster c<n>) out.
              It hides the delta, clustering (whole page), rendering and the index.
              Packet::text / Packet::read own the versioned format (VERSION, B5).
+             backdrops(log, ask) names the areas of `pdf` items under the new
+             clusters' images (Area), for the app to render; with the rendered
+             Backdrops in Ask, those images show the page under the ink and an
+             ink line ends with the PDF's words under it (words.rs, capped at
+             MAX_WORDS_CHARS).
 tldraw/      the tldraw importer (SPEC D7): import(bytes, time) -> canvas and a
              report of what it made and skipped. Reads the zip + SQLite file
              and the older JSON one itself (no IO, no new dependencies); every
@@ -119,6 +124,9 @@ render/      images of items (docs/design/packet.md, Images): a set of items or 
              text_size: the frame text needs as drawn; text_frame: the one rule for a text
              item's frame (Shape::fitted), which Canvas::apply and the file's
              snap both keep, so no text item covers less than it draws.
+             backdrop.rs: a Backdrop (a `pdf` item's pixels over an area, raw
+             RGB from the app, and its Words); an ink image draws the usable
+             ones under its ink, cut to the item's frame, white elsewhere.
 sling.rs     the sling message (SPEC section 6, D10): a packet, the prompt, the
              selected packet ids, first-or-later and the verbs the caller serves in;
              text and image blocks out, each image after the packet line naming it.
@@ -297,6 +305,9 @@ server/sling.rs  `sling_send`: the workspace of the canvas, the marker, the
              one: its images go to the store's `packets/<hex>/` and its text
              to the agent's listener. The reply carries the message's token estimate. Nothing is stored when delivery fails. One sling at a
              time (`Sessions::slinging`), so packets never overlap.
+             `sling_backdrops` names the PDF areas a sling of a page would
+             draw over; `sling_send`'s `backdrops` (files the app wrote)
+             are read here and handed to the packet.
 server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
              agent's latest sling on the canvas (`sling::landed`), if any,
              looked up under the sling lock so a fast reply finds its sling;
@@ -363,6 +374,9 @@ backend/sling.rs  the Slinger: each sling as one `sling_send` (canvas, page,
              it (`session_start` with `profile`: the daemon leaves one
              running under it as it is and restarts one under another),
              then sends with `profile`.
+             Before it sends, with a Render given, it asks `sling_backdrops`,
+             renders each area of the fetched PDF into a per-sling temp dir
+             and sends the files as `backdrops`; the dir goes after the reply.
              After a sling goes it follows the agent's session
              (`session_show` at once, then every 0.5 s: process, pending,
              answer) until nothing is pending or the process stops, or the
@@ -918,6 +932,8 @@ platform/pdf.rs  every CoreGraphics PDF call: a PDF's page sizes as displayed
              (crop box, `/Rotate` applied; on any thread), a pdf item's part
              of its page drawn stretched into its frame on white (each
              document opened once), and the open panel for `open-pdf`.
+             backdrop: one sling area as raw RGB at the packet's scale, and
+             the page's words there (PDFKit) in canvas tenths.
 ```
 
 **Threading rule:** AppKit runs on the main thread only. Every `platform`
@@ -1029,7 +1045,8 @@ pane's selection; return hands the selection (server ids only, so ink still
 on its way is never in it) and the prompt to `canvases`, which holds it
 until every change of that canvas made before it is written
 (`Ink::settled`; a daemon that cannot be reached does not hold it), then
-gives it to the `Slinger` thread as one `sling_send`. The main thread never
+gives it to the `Slinger` thread as one `sling_send`, with the page under
+any new ink over a PDF rendered first (`sling_backdrops`). The main thread never
 waits on the socket. No chat view: the answer comes on the canvas through
 the change feed and the agent's status in the sidebar. A failure opens the
 entry again with its prompt, and the error's message and hint under it.

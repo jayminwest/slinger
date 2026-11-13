@@ -24,7 +24,7 @@ pub(super) fn packet(store: &Store, ask: PacketAsk) -> Result<Reply, RemoteError
     };
     let canvases = store.canvases();
     let mut packet = canvases
-        .packet(&ask.canvas, ask.page.as_deref(), after, &ask.select)
+        .packet(&ask.canvas, ask.page.as_deref(), after, &ask.select, &[])
         .map_err(|e| drawn(&e))?;
     let id = store.put_blob(packet.text().as_bytes()).map_err(|e| stored(&e))?;
     let mut images = Vec::with_capacity(packet.images.len());

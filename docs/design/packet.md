@@ -210,8 +210,19 @@ names the stroke's cluster.
 | `over` | ink | the ids of the `pdf` items whose frame the cluster's box overlaps, comma-separated, in drawing order |
 | `img` | ink in `new` | image file names, comma-separated, tiles in reading order |
 
-The quoted text is last, only on `text` lines: the full text in `new` and
-`made`, the first 80 characters plus `…` in `page`.
+The quoted text is last. On `text` lines: the full text in `new` and
+`made`, the first 80 characters plus `…` in `page`. On an `ink` line in
+`new` over a PDF: the PDF's words under the ink, when the sling came with
+backdrops (below); `page` ink lines never carry words.
+
+**Words** (docs/design/pdf.md): a word of a backdrop belongs to a new
+cluster when the word's centre lies inside the cluster's box (its strokes'
+bounds) grown on every side by half the word's height: a circle or a strike
+takes the words in it, an underline the words over it. Words from several
+backdrops are taken in backdrop order, then the file's order; one equal in
+text and box to a word already taken is dropped. They are joined by single
+spaces, at most 2000 characters (`packet::MAX_WORDS_CHARS`), then `…`:
+`c42 ink 120,80 520x140 colour=red strokes=3 over=d3 img=c42.png "the exact words circled"`.
 
 **Images**: PNG, rendered at `scale` (pixel = canvas unit × 0.35, rounded
 up), ink in its own colour on white, with a 16 canvas unit margin. Names are
@@ -238,6 +249,20 @@ bitmap font at 24 canvas units a character, wrapped at spaces to its frame
 (ASCII, Latin-1, Greek, box drawing, blocks, hiragana and common typography
 such as dashes, curly quotes and arrows; any other character is drawn as `?`).
 
+**Backdrops** (docs/design/pdf.md, "Sling"): only the app can render a PDF,
+so a sling from it first asks `sling_backdrops` for the area of each `pdf`
+item under each new cluster's image frame (`packet::backdrops`), renders
+those, and passes them back with `sling_send`. A backdrop is raw RGB, `width
+* height * 3` bytes at `scale` (`render::Backdrop`: no PNG decoder), and the
+words over its area. Each image of a new cluster is filled white, then each
+backdrop that meets it is painted in its item's draw order, cut to the
+item's frame (each pixel takes the backdrop pixel nearest its centre), then
+the ink. Which tiles are kept, and how far each is cut down, is decided from
+the ink alone: a backdrop never makes a tile worth an image. Ink with no
+backdrop under it (a sling from the CLI, ink drawn between the two
+requests) is on white. A backdrop of an item that is gone, not a `pdf` item
+or on another page is skipped.
+
 **Nothing new** (B4): both `new` and `made` are empty and `from` is greater
 than `to`. It is a valid packet.
 
@@ -247,7 +272,7 @@ stay whole.
 
 **Building and reading** (slinger-6ebe): `packet::build(log, ask)` takes a
 canvas's op log and an `Ask` (canvas id, page, the last sling's marker,
-selection) and returns a `Packet`: header, three sections of entries and the
+selection, backdrops) and returns a `Packet`: header, three sections of entries and the
 images. `Packet::text` writes this format; `Packet::read` reads it back
 (keeping unknown kinds and fields on entries, skipping unknown header fields
 and sections). `Packet::tokens` estimates the cost: a token per 4 characters
@@ -279,6 +304,27 @@ their own image. `c5717` (`fable-5.2`, a `[` beside a note) is its own
 cluster for the same reason. `c1759-2` (108 by 64 px) and `c1294-2` (195 by
 86 px) are the ends of long lines of writing that do not fit one image with
 the rest.
+
+**A sling over a PDF** (slinger-f20d48), measured offline on 2026-11-12: a
+letter page of 10-point body text (cupsfilter's Courier, 753 words) opened
+as a `pdf` item 1600 units wide, one red ellipse drawn around eight words of
+one line, then slung (the stand-in agent; no model was asked):
+
+| | Without backdrops (CLI) | With backdrops (app) |
+|---|---|---|
+| Message tokens (`Slung.tokens`) | 490 | 511 |
+| Packet tokens (header `tokens`) | 80 | 101 |
+| Image | `c2.png`, 267 × 27 px, 2 350 bytes | same size, 5 600 bytes |
+| Words on the ink line | none | 14: the circled line and the start of the next |
+| Backdrop pixels | none | 267 × 27 × 3 = 21 627 bytes, raw |
+
+The words cost about 21 tokens; the image costs the same either way (its
+size is the ink's). A whole page at this scale is 560 × 725 px (1 218 000
+bytes raw) with a 38 764-byte words file, but a sling only ever renders the
+area under its ink. At `scale` 0.35 a 10-point line is about 9 px high:
+legible only just, which is why the words travel as text. The ellipse here
+reached a third of a line past its text, so the centre rule also took the
+next line's words: a looser circle takes more than it holds.
 
 ## Delivery and storage
 

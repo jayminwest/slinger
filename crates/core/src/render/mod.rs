@@ -12,14 +12,22 @@
 //! (at most [`SPECK`] pixels a side) is folded into a tile it touches when
 //! the two fit one image. Ink is never left out for being small.
 //!
+//! A sling over a PDF draws ink over a [`Backdrop`] ([`over`]): the page as
+//! the app rendered it. Which tiles are worth an image, and how far each is
+//! cut down, is decided from the ink alone; the backdrop is painted under it
+//! after, and never makes a tile worth an image.
+//!
 //! Pure and deterministic: no IO, no clock, and the same input gives the same
 //! bytes. There are no errors: ids not on the canvas are skipped, and nothing
 //! to draw gives no images.
 
+mod backdrop;
 mod png;
 mod raster;
 
 use crate::canvas::{Canvas, Item, ItemId, PageId, Rect};
+pub use backdrop::{Backdrop, Word};
+pub(crate) use backdrop::{meet, usable};
 use raster::Raster;
 
 /// Pixels per canvas unit. Spike B read handwriting at this scale.
@@ -61,6 +69,15 @@ pub struct Image {
 /// its ink plus the margin; `x` and `y` place each in the whole picture.
 #[must_use]
 pub fn items(canvas: &Canvas, items: &[ItemId], id: &str) -> Vec<Image> {
+    over(canvas, items, id, &[])
+}
+
+/// [`items`], each image drawn over the `backdrops` that meet it: white,
+/// then each backdrop in its item's draw order, cut to its item's frame,
+/// then the ink. A backdrop of an item that is not a `pdf` item on the
+/// items' page is skipped; where none lies, the image stays white.
+#[must_use]
+pub fn over(canvas: &Canvas, items: &[ItemId], id: &str, backdrops: &[Backdrop]) -> Vec<Image> {
     let found: Vec<&Item> = items.iter().filter_map(|i| canvas.item(*i)).collect();
     let Some(frame) = found.iter().map(|i| i.bounds()).reduce(union) else {
         return Vec::new();
@@ -71,7 +88,8 @@ pub fn items(canvas: &Canvas, items: &[ItemId], id: &str) -> Vec<Image> {
         frame.w + 2.0 * MARGIN,
         frame.h + 2.0 * MARGIN,
     );
-    draw(&found, frame, id, true)
+    let under = found.first().map(|i| usable(canvas, i.page(), backdrops)).unwrap_or_default();
+    draw(&found, frame, id, true, &under)
 }
 
 /// Draws what is on `page` inside `area`, cut at its edges: every item that
@@ -81,7 +99,7 @@ pub fn items(canvas: &Canvas, items: &[ItemId], id: &str) -> Vec<Image> {
 pub fn crop(canvas: &Canvas, page: PageId, area: Rect, id: &str) -> Vec<Image> {
     let found: Vec<&Item> =
         canvas.items_in_box(page, area).into_iter().filter_map(|i| canvas.item(i)).collect();
-    draw(&found, area, id, false)
+    draw(&found, area, id, false, &[])
 }
 
 /// The frame size, in canvas units, that holds `text` as it is drawn at
@@ -115,11 +133,21 @@ pub fn text_frame(text: &str, w: f64, h: f64, size: f64) -> (f64, f64) {
 /// Draws `items` into the picture of `frame`, as one image or as tiles.
 /// With `trim`, tiles are cut down to their ink ([`trimmed`]) and specks are
 /// folded into a neighbour ([`folded`]); without, each tile is whole, white
-/// or not.
-fn draw(items: &[&Item], frame: Rect, id: &str, trim: bool) -> Vec<Image> {
+/// or not. Each part is drawn over `under` (a backdrop and the part of the
+/// canvas it may cover) once the parts are decided.
+fn draw(
+    items: &[&Item],
+    frame: Rect,
+    id: &str,
+    trim: bool,
+    under: &[(&Backdrop, Rect)],
+) -> Vec<Image> {
     let (width, height) = (pixels(frame.w), pixels(frame.h));
-    let paint = |[x, y, w, h]: [u32; 4]| {
+    let paint = |[x, y, w, h]: [u32; 4], under: &[(&Backdrop, Rect)]| {
         let mut raster = Raster::new(frame, x, y, w, h);
+        for (backdrop, clip) in under {
+            raster.backdrop(backdrop, *clip);
+        }
         for item in items {
             raster.item(item);
         }
@@ -128,7 +156,7 @@ fn draw(items: &[&Item], frame: Rect, id: &str, trim: bool) -> Vec<Image> {
     let drawn: Vec<([u32; 4], Raster)> = spans(height)
         .into_iter()
         .flat_map(|(y, h)| spans(width).into_iter().map(move |(x, w)| [x, y, w, h]))
-        .map(|tile| (tile, paint(tile)))
+        .map(|tile| (tile, paint(tile, &[])))
         .collect();
     let parts: Vec<(usize, [u32; 4])> = if trim {
         folded(trimmed(&drawn))
@@ -141,11 +169,12 @@ fn draw(items: &[&Item], frame: Rect, id: &str, trim: bool) -> Vec<Image> {
         .zip(parts)
         .map(|(n, (k, part @ [x, y, w, h]))| {
             let ([left, top, tw, th], raster) = &drawn[k];
-            // A part that a speck grew past its tile is drawn afresh.
-            let png = if x + w <= left + tw && y + h <= top + th {
+            // A part that a speck grew past its tile, or one over a
+            // backdrop, is drawn afresh.
+            let png = if under.is_empty() && x + w <= left + tw && y + h <= top + th {
                 raster.png([x - left, y - top, w, h])
             } else {
-                paint(part).png([0, 0, w, h])
+                paint(part, under).png([0, 0, w, h])
             };
             Image { name: name(n), x, y, width: w, height: h, png }
         })
@@ -234,7 +263,7 @@ fn touch([ax, ay, aw, ah]: [u32; 4], [bx, by, bw, bh]: [u32; 4]) -> bool {
 }
 
 /// A length in canvas units as pixels: rounded up, and at least one.
-fn pixels(units: f64) -> u32 {
+pub(crate) fn pixels(units: f64) -> u32 {
     // The cast saturates; a picture that large is cut into tiles anyway.
     #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "clamped above")]
     let px = (units.max(0.0) * SCALE).ceil().min(f64::from(u32::MAX)) as u32;
@@ -255,7 +284,7 @@ fn spans(len: u32) -> Vec<(u32, u32)> {
     out
 }
 
-fn union(a: Rect, b: Rect) -> Rect {
+pub(crate) fn union(a: Rect, b: Rect) -> Rect {
     let (x, y) = (a.x.min(b.x), a.y.min(b.y));
     Rect::new(x, y, (a.x + a.w).max(b.x + b.w) - x, (a.y + a.h).max(b.y + b.h) - y)
 }
