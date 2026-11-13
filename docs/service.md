@@ -127,7 +127,9 @@ and `error` is for people. Branch on `code`, never on `error`.
 - The client waits up to 30 seconds for a reply. A daemon that took the
   connection is running; under heavy disk load its reply can take several
   seconds. The client reports `unavailable` when it cannot connect, or when
-  no reply comes in that time.
+  no reply comes in that time. Only the first hints to start the daemon:
+  the second's error says it did not reply in time, and its hint says to
+  try again or restart it.
 - The daemon ignores fields it does not know.
 
 ### Verbs
