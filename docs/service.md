@@ -662,17 +662,22 @@ replied, and under `listen`, whose session the daemon does not see.
 - has every built-in tool of Claude Code (no `--tools`) and the MCP servers
   its settings name (no `--strict-mcp-config`), as a session started by hand
   does (slinger-29bb9f). Without asking it runs only the `slinger` CLI and
-  read-only commands inside those directories, and it writes files
-  (`--allowedTools 'Bash(slinger *)' Edit Write`). Whatever else would need
-  a permission (another command, a web fetch, an MCP tool) is denied, since
-  nobody is there to ask (`--permission-mode dontAsk`);
-- loads the settings and the instructions (`CLAUDE.md`) of its home, but not
-  the owner's own (`--setting-sources project,local`).
+  read-only commands inside those directories, writes files, fetches and
+  searches the web and uses skills (`--allowedTools 'Bash(slinger *)' Edit
+  Write WebFetch WebSearch Skill`, slinger-6313eb). Whatever else would need
+  a permission (another command, an MCP tool) and no rule allows is denied,
+  since nobody is there to ask (`--permission-mode dontAsk`). Claude Code
+  skips an allow rule for every MCP server (`mcp__*`), so an MCP tool needs
+  a rule that names its server: the owner's own or the agent's `tools`;
+- loads the settings and the instructions (`CLAUDE.md`) of its home and the
+  owner's own, with the owner's skills, plugins and permission rules, as a
+  session started by hand does (`--setting-sources user,project,local`,
+  slinger-a1c1db).
 
 The agent's `dirs` adds directories, its `tools` adds permission rules
-(`WebFetch`, `Bash(git *)`, `mcp__github`), and `user_config = true` loads the
-owner's settings and instructions too (`--setting-sources
-user,project,local`). The home's own `.claude/settings.json` belongs to the
+(`Bash(git *)`, `mcp__github`), and `user_config = false` leaves
+out the owner's own settings and instructions (`--setting-sources
+project,local`). The home's own `.claude/settings.json` belongs to the
 workspace and still applies, so the owner can widen a session there too.
 
 **Profiles.** An agent can have profiles (`[[agent.profile]]` in its
