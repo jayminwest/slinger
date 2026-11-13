@@ -304,7 +304,8 @@ processes.rs the agents' processes, one per agent: spawned in the agent's
              CLI at `--slinger` (default: beside slingerd).
              `processes/turns.rs` counts `pending`: a result answers the
              messages its turn took in, so one still unanswered 2 s after a
-             result with no output since was taken into that turn.
+             result with no output since was taken into that turn. The
+             reader keeps the context of the last model reply (`context`).
 feedback.rs  the feedback file (`--feedback`, default `feedback.jsonl` in
              the checkout it was built from, else the data directory): one
              lock, each note and resolution appended as one line, the
@@ -404,7 +405,7 @@ backend/sling.rs  the Slinger: each sling as one `sling_send` (canvas, page,
              and sends the files as `backdrops`; the dir goes after the reply.
              After a sling goes it follows the agent's session
              (`session_show` at once, then every 0.5 s: process, pending,
-             answer) until nothing is pending or the process stops, or the
+             answer, context for the pill's count) until nothing is pending or the process stops, or the
              next sling. A sling that waits for a listener is out until one
              takes and answers it; while nobody listens the pill says so.
 backend/feedback.rs  the Noter: each feedback note as one `feedback_add`

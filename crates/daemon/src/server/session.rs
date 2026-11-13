@@ -110,6 +110,8 @@ fn wire(store: &Store, s: Session) -> Result<control::Session, RemoteError> {
     let process = shown.as_ref().map(|p| if p.running { "running" } else { "exited" }.into());
     let answer = shown.as_ref().and_then(|p| p.answer.clone());
     let profile = shown.as_ref().and_then(|p| p.profile.clone());
+    // A listened-for agent's context is its listener's, which the daemon does not see.
+    let context = shown.as_ref().and_then(|p| p.context).filter(|_| s.deliver != Delivery::Listen);
     let running = shown.filter(|p| p.running);
     let (status, note) = s.status.map_or((None, None), |r| (Some(r.status.name().into()), r.note));
     // A listened-for agent's slings are its listener's, not its process's.
@@ -128,6 +130,7 @@ fn wire(store: &Store, s: Session) -> Result<control::Session, RemoteError> {
         answer,
         session_id,
         profile,
+        context,
     })
 }
 

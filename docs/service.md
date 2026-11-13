@@ -647,7 +647,11 @@ answered (a `result` line ends an answer). Claude Code takes a message sent
 mid-turn into that turn, so one result can answer several: a message still
 unanswered when a result has come and the process has said nothing more for
 2 seconds counts as answered. `answer` is the text of its last
-answer. `session_id` names its conversation.
+answer. `context` is about how many tokens its conversation holds, from
+the usage of its last model reply (an `assistant` line that is not a
+subagent's): its input, cached or not, and its output; absent until it
+replied, and under `listen`, whose session the daemon does not see.
+`session_id` names its conversation.
 
 **Limits.** A session has stated limits, set by its workspace's file
 (`[agent]` in docs/workspace.md). By default it:

@@ -13,10 +13,10 @@
 //! and the sidebar's notice at the bottom. It says, in turn:
 //!
 //! - `● scout working · 4s · ~12k` (`● scout (dev) working …` under a
-//!   profile) from the moment the sling is in the
-//!   agent's process until it answers, the time counting each second (each
-//!   minute past one, so the window is drawn at most once a second), then
-//!   about how many tokens the agent reads for it, when the daemon counts;
+//!   profile) from the moment the sling is in the agent's process until it
+//!   answers, the time counting each second (each minute past one, so the
+//!   window is drawn at most once a second), then about how many tokens the
+//!   agent reads for it, then its session's context, when the daemon counts;
 //! - `■ scout blocked: <note> · ~12k` (its profile named too) while the agent says it waits;
 //! - `○ scout: nobody listens · 4s` while the sling waits for a listener
 //!   and none listens, with how to listen under it;
@@ -85,6 +85,8 @@ pub struct Progress {
     pub profile: Option<String>,
     /// The sling waits for a listener and nobody listens.
     pub unheard: bool,
+    /// The tokens its process's context holds, when the daemon counts.
+    pub tokens: Option<u64>,
 }
 
 /// One canvas pane as the pill sees it: its frame in the window (above its
@@ -158,7 +160,8 @@ struct Out {
     /// The profile it goes under, when the agent runs under one: as aimed,
     /// then as the agent's session says while it works.
     under: Option<String>,
-    /// About how many tokens the agent reads for it, when the daemon said.
+    /// About how many tokens the agent reads for it, when the daemon said,
+    /// then its session's context while it works, when the daemon counts.
     tokens: Option<u64>,
     went: Instant,
     stage: Stage,
@@ -253,6 +256,7 @@ impl Slung {
         if renamed {
             out.under.clone_from(&progress.profile);
         }
+        let counted = progress.tokens.is_some_and(|t| out.tokens.replace(t) != Some(t));
         let next = if !progress.running {
             Stage::Stopped
         } else if progress.pending == 0 {
@@ -269,7 +273,7 @@ impl Slung {
             out.to(next, now);
         }
         self.tell(now);
-        changed || renamed
+        changed || renamed || counted
     }
 
     /// Flashes the answer once what it brought is known: its items landed,

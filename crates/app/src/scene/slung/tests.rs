@@ -20,12 +20,13 @@ fn view(focused: bool) -> View<'static> {
 }
 
 fn working(pending: u32) -> Progress {
-    Progress { running: true, pending, blocked: None, answer: None, profile: None, unheard: false }
+    let (blocked, answer, profile) = (None, None, None);
+    Progress { running: true, pending, blocked, answer, profile, unheard: false, tokens: None }
 }
 
 fn answered(answer: Option<&str>) -> Progress {
     let answer = answer.map(str::to_string);
-    Progress { running: true, pending: 0, blocked: None, answer, profile: None, unheard: false }
+    Progress { pending: 0, answer, ..working(0) }
 }
 
 /// A sling of page p1 of notes at `now`, gone to scout.
@@ -231,6 +232,11 @@ fn the_pill_says_what_the_sling_costs_when_the_daemon_counts_it() {
     let blocked = Progress { blocked: Some("which key?".into()), ..working(1) };
     slung.heard(&blocked, now);
     assert_eq!(said(&slung, &[view(true)], now), ["■ scout blocked: which key? · ~12k"]);
+    let counted = Progress { tokens: Some(48_200), ..working(1) };
+    assert!(slung.heard(&counted, now), "the session's context, once the daemon counts it");
+    assert_eq!(said(&slung, &[view(true)], now), ["● scout working · 0s · ~48k"]);
+    assert!(!slung.heard(&working(1), now), "a daemon that does not count leaves it");
+    assert_eq!(said(&slung, &[view(true)], now), ["● scout working · 0s · ~48k"]);
     slung.heard(&answered(None), now);
     assert!(!said(&slung, &[view(true)], now)[0].contains('~'), "only while it is out");
     let costs = [840, 1_234, 9_960, 999_499, 1_250_000].map(|n| words::cost(Some(n)));

@@ -25,10 +25,12 @@ done
 "#;
 
 /// A stand-in for Claude Code that holds each answer until a file `go`
-/// shows up in its home, and takes the file.
+/// shows up in its home, and takes the file. Its context holds 2008 tokens
+/// from the start, as a resumed conversation's does.
 const WAITING_CLAUDE: &str = r#"#!/bin/sh
 id=00000000-0000-4000-8000-000000000001
 printf '{"type":"system","subtype":"init","session_id":"%s"}\n' "$id"
+printf '{"type":"assistant","message":{"usage":{"input_tokens":3,"cache_read_input_tokens":2000,"output_tokens":5}}}\n'
 while IFS= read -r line; do
   printf '%s\n' "$line" >> in.txt
   while [ ! -e go ]; do sleep 0.02; done
