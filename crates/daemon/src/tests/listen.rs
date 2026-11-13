@@ -1,7 +1,7 @@
 //! `session_listen` through the real socket: a sling waits for a listener,
 //! the one that asks takes it as text with its images as files, a listener
 //! outranks a running process, and a listener that is gone, its reply
-//! unread or its process ended, loses nothing.
+//! unread or its process ended, or a daemon that stops, loses nothing.
 
 use std::io::Write;
 use std::os::unix::net::UnixStream;
@@ -206,5 +206,40 @@ fn a_listener_whose_process_ends_mid_sling_is_gone_and_one_that_says_done_is_not
     client.status_set("scout", "done", None).unwrap();
     let done = client.session_show("scout").unwrap();
     assert_eq!(heard(&done), ("listen", Some(true), Some(0)));
+    daemon.stop();
+}
+
+#[test]
+fn the_slings_that_wait_and_the_one_worked_on_wait_again_after_a_restart() {
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_in(data.path());
+    let client = daemon.client();
+    open_with_agent(&client, &projects, "notes", "scout");
+    draw(&client, 0);
+    let first = sling(&client, "first");
+    draw(&client, 200);
+    let second = sling(&client, "second");
+    let taken = client.session_listen("notes", NONE).unwrap().sling.unwrap();
+    assert_eq!(taken.event, first.event);
+    daemon.stop();
+
+    // The listener's claim is gone with the daemon: both wait, oldest first.
+    let daemon = Daemon::start_in(data.path());
+    let client = daemon.client();
+    let waiting = client.session_show("scout").unwrap();
+    assert_eq!(heard(&waiting), ("listen", Some(false), Some(2)));
+    let again = client.session_listen("notes", NONE).unwrap().sling.unwrap();
+    assert_eq!(again, taken, "the same message, its images still there");
+    assert!(again.dir.join("c1.png").is_file());
+    client.status_set("scout", "done", None).unwrap();
+    daemon.stop();
+
+    // What a listener dealt with stays dealt with.
+    let daemon = Daemon::start_in(data.path());
+    let client = daemon.client();
+    let next = client.session_listen("notes", NONE).unwrap().sling.unwrap();
+    assert_eq!(next.event, second.event);
+    assert!(next.text.ends_with("# prompt\nsecond"));
+    assert_eq!(client.session_listen("notes", NONE).unwrap().sling, None);
     daemon.stop();
 }

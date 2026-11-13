@@ -101,6 +101,14 @@ impl Listener {
         self.working.as_ref().and_then(|work| work.by)
     }
 
+    /// The `sling_sent` number of the sling the listener took and has not
+    /// said it dealt with. A [`Listener::take`], [`Listener::done`] or
+    /// [`Listener::release`] while there is one deals with it.
+    #[must_use]
+    pub fn working(&self) -> Option<u64> {
+        self.working.as_ref().map(|work| work.sling.event)
+    }
+
     /// The process that worked on the sling ended before it said it dealt
     /// with it: the sling waits again, the oldest, and nobody is there.
     pub fn gone(&mut self) {
@@ -181,7 +189,7 @@ mod tests {
         l.push(sling(1));
         l.push(sling(2));
         l.take(Some(42));
-        assert_eq!(l.worker(), Some(42));
+        assert_eq!((l.worker(), l.working()), (Some(42), Some(1)));
         l.done(now + GRACE * 9);
         assert_eq!((l.worker(), l.pending()), (None, 1), "done ends the work");
         assert!(l.attached(now + GRACE * 9 + GRACE / 2), "it is about to ask again");
@@ -190,7 +198,7 @@ mod tests {
         l.take(Some(42));
         l.gone();
         assert!(!l.attached(now), "its process is gone");
-        assert_eq!((l.worker(), l.pending()), (None, 1));
+        assert_eq!((l.worker(), l.working(), l.pending()), (None, None, 1));
         assert_eq!(l.take(None), Some(sling(2)), "the sling it worked on waits again");
         assert_eq!(l.worker(), None, "an ask that names no process");
         l.done(now);

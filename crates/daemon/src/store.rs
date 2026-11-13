@@ -13,15 +13,21 @@
 //! hands them out ([`Store::canvases`]) so every verb reaches its data the
 //! same way. And it holds `packets/`, where `canvas read` writes each packet
 //! for agents to read ([`Store::packet_dir`]): derived files, safe to delete.
+//!
+//! Beside the log, the file keeps the slings that wait for a listener
+//! ([`Waiting`]), so a restart loses none.
 
 mod schema;
 #[cfg(test)]
 mod tests;
+mod waiting;
+
+pub use waiting::Waiting;
 
 use std::fs::DirBuilder;
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{
@@ -31,6 +37,7 @@ use slinger_core::record::{self, BlobId, Event};
 
 use crate::canvases::Canvases;
 use crate::feedback::Feedback;
+use crate::listeners::Listeners;
 use crate::lock::Lock;
 use crate::sessions::Sessions;
 use crate::workspaces::Workspaces;
@@ -135,7 +142,8 @@ pub struct Query {
 /// One machine's record and canvases. Safe to share between threads.
 #[derive(Debug)]
 pub struct Store {
-    db: Mutex<Connection>,
+    /// Shared with the slings that wait ([`Waiting`]).
+    db: Arc<Mutex<Connection>>,
     machine: String,
     canvases: Canvases,
     workspaces: Workspaces,
@@ -175,9 +183,10 @@ impl Store {
         let canvases = Canvases::new(dir.join(CANVASES));
         let workspaces = Workspaces::new(dir.join(WORKSPACES), machine.clone());
         let packets = dir.join(PACKETS);
-        let sessions = Sessions::new(CLAUDE.into(), dir.join(SESSION_IDS));
+        let db = Arc::new(Mutex::new(db));
+        let listeners = Listeners::kept(Waiting::new(Arc::clone(&db)))?;
+        let sessions = Sessions::new(CLAUDE.into(), dir.join(SESSION_IDS), listeners);
         let feedback = Feedback::new(dir.join(slinger_core::feedback::FILE));
-        let db = Mutex::new(db);
         Ok(Self { db, machine, canvases, workspaces, packets, sessions, feedback, _lock: lock })
     }
 
