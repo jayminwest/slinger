@@ -63,7 +63,7 @@ fn shown_gives_each_button_the_status_and_leaves_the_rest() {
     let text = Item {
         id: ItemId(2),
         colour: Rgb { r: 9, g: 9, b: 9 },
-        shape: Shape::Text { frame: FRAME, text: "hi".into(), size: 16.0 },
+        shape: Shape::Text { frame: FRAME, text: "hi".into(), size: 16.0, column: None },
     };
     let (a, b) = (button(1, None), text.clone());
     let items = shown(vec![Cow::Borrowed(&a), Cow::Borrowed(&b)], Some(Status::Blocked));
