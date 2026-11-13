@@ -11,6 +11,10 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** run outside its `.app` (a bare `slinger-app` from a shell), the
+  app says once, when you cancel a file panel, to run slinger.app to reach
+  Downloads, Desktop and Documents: macOS lets the panel show those folders
+  only to the bundle.
 - **App:** save an agent UI to a file. Export agent UI… (`export-ui`, File
   menu and the command palette; no default key) writes the version the
   focused pane shows to a folder you pick, as `<name>.v<version>.html`
@@ -375,6 +379,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** opening the sling entry while typing a text on the canvas
+  ends that text, as the feedback entry does. Its caret no longer stays
+  on the canvas beside the entry's own, and the text is on the page
+  before the sling goes.
 - **App:** opening the feedback entry while typing a text on the canvas
   ends that text, as renaming a page does. Its caret no longer stays
   frozen on the canvas beside the entry's own, and the text is kept.
