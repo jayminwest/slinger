@@ -119,9 +119,17 @@ fn a_refused_open_records_nothing_and_replies_are_bounded() {
         UiOpen { agent: " ".into(), ..ask("pick", Value::Null) },
         UiOpen { host: "canvas".into(), ..ask("pick", Value::Null) },
         ask("pick", json!("x".repeat(16384))),
+        UiOpen { workspace: String::new(), ..ask("pick", Value::Null) },
     ];
     let codes: Vec<String> = refused.into_iter().map(code).collect();
-    assert_eq!(codes, ["not_found", "not_found", "not_found", "invalid", "invalid", "invalid"]);
+    assert_eq!(codes[..3], ["not_found"; 3]);
+    assert_eq!(
+        codes[3..],
+        ["invalid"; 4],
+        "blank agent, canvas without item, big data, no workspace"
+    );
+    let blank = client.ui_open(UiOpen { workspace: String::new(), ..ask("pick", Value::Null) });
+    assert!(blank.unwrap_err().hint().is_some_and(|h| h.contains("--workspace")));
     assert_eq!(events(&client, "ui_opened"), Vec::<Value>::new());
     assert_eq!(client.pane_list("notes").unwrap().layout.panes().len(), 1);
 
