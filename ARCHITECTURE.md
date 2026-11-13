@@ -407,11 +407,11 @@ backend/panes.rs  the server's panes: `layout` for the Watch, and `open`,
 backend/pdf.rs  PDFs (docs/design/pdf.md): `fetch` gets a pdf item's blob
              once into the app's cache (`$TMPDIR/slinger-app-pdf/<hex>.pdf`,
              written to a part file and renamed); `open` makes a PDF a
-             canvas: `blob_put`, `canvas_create` (the file's stem, `-2`... on
-             a taken id), one whole-page item a page stacked down its first
-             page (scene/pdf.rs) in `canvas_apply`s of 100, then
-             `pane_open` beside the focused pane. A file that cannot be read
-             makes nothing.
+             canvas: `blob_put`, then `canvas_create` (the file's stem, `-2`...
+             on a taken id) with a file of operations: one whole-page item a
+             page stacked down its first page (scene/pdf.rs), so the canvas
+             is made whole or not at all; then `pane_open` beside the
+             focused pane. A file that cannot be read makes nothing.
 mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              feed reply applied in order; reads the canvas file's items
              (tenths, delta points, `#rrggbb`, an arrow's bound ends) into

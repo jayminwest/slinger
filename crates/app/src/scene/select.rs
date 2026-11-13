@@ -17,8 +17,10 @@
 //!   focus colour, a square handle at each corner (a drag on one resizes
 //!   the selection, [`scale`]) and the number of items above it. It
 //!   is app state, read by what acts on it ([`Select::selection`]); delete
-//!   removes it in one `remove`. It is of a page, not of a pane: every pane
-//!   on its page shows it, and its move, as the items themselves do.
+//!   removes it in one `remove`, and a colour picked recolours its strokes,
+//!   texts, boxes and arrows in one `set` each ([`Select::recolour`]). It
+//!   is of a page, not of a pane: every pane on its page shows it, and its
+//!   move, as the items themselves do.
 //! - On a PDF's canvas the select tool and the lasso do not take `pdf`
 //!   items ([`takes`]): the pages are fixed paper.
 //! - A drag of the selection follows the pane under the pen, and can carry
@@ -43,7 +45,7 @@ use carry::{Arriving, Target};
 use std::borrow::Cow;
 use std::collections::HashSet;
 
-use crate::config::Theme;
+use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Fill, Item, ItemId, Shape};
 use crate::scene::ink::{Change, Ink, on_server};
@@ -249,6 +251,27 @@ impl Select {
         let Some(Selection { canvas, page, ids }) = self.selection.take() else { return false };
         ink.push(Change::Remove { canvas, page, ids });
         true
+    }
+
+    /// Makes the selected strokes, texts, boxes and arrows in `items` (its
+    /// page as shown) `colour`, as one change to `ink`; any other item keeps
+    /// its own. Returns false when there is no selection or none of it changes.
+    pub fn recolour(&self, colour: Rgb, items: &[Cow<'_, Item>], ink: &mut Ink) -> bool {
+        let Some(Selection { canvas, page, ids }) = &self.selection else { return false };
+        let takes = |i: &&Cow<'_, Item>| {
+            let kind = matches!(
+                i.shape,
+                Shape::Stroke { .. } | Shape::Text { .. } | Shape::Box { .. } | Shape::Arrow { .. }
+            );
+            kind && i.colour != colour && ids.contains(&i.id)
+        };
+        let items: Vec<Item> =
+            items.iter().filter(takes).map(|i| Item { colour, ..i.as_ref().clone() }).collect();
+        let changed = !items.is_empty();
+        if changed {
+            ink.push(Change::Reshape { canvas: canvas.clone(), page: page.clone(), items });
+        }
+        changed
     }
 
     /// Items that showed under the first id of each of `ids` show under the

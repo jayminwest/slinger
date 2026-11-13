@@ -8,10 +8,14 @@ use crate::scene::pdf::stack;
 
 const LETTER: (f64, f64) = (612.0, 792.0);
 
-/// 150 Letter pages, as `platform` would read them: more than one batch.
+/// How many pages [`letters`] reads: their `add`s are more than one
+/// request line holds.
+const PAGES: usize = 400;
+
+/// [`PAGES`] Letter pages, as `platform` would read them.
 #[expect(clippy::unnecessary_wraps, reason = "it stands in for platform::pdf::pages")]
 fn letters(_: &Path) -> Result<Vec<(f64, f64)>, String> {
-    Ok(vec![LETTER; 150])
+    Ok(vec![LETTER; PAGES])
 }
 
 fn locked(path: &Path) -> Result<Vec<(f64, f64)>, String> {
@@ -62,9 +66,9 @@ fn fetches_of_one_blob_at_once_each_get_the_whole_file() {
     });
 }
 
-/// `item` is whole page `n` of the 150 Letter pages of `hash`, on `page`.
+/// `item` is whole page `n` of the [`PAGES`] Letter pages of `hash`, on `page`.
 fn is_page(item: &serde_json::Value, n: usize, hash: &str, page: &str) {
-    let frame = stack(&[LETTER; 150])[n - 1];
+    let frame = stack(&[LETTER; PAGES])[n - 1];
     let tenths = |v: f64| (v * 10.0).round();
     assert_eq!(item["kind"], "pdf");
     assert_eq!(item["pdfpage"], n);
@@ -85,21 +89,24 @@ fn an_opened_pdf_is_a_canvas_of_its_pages_stacked_in_a_pane_beside_the_focused_o
         let file = dir.path().join("Paper (v2).pdf");
         fs::write(&file, b"%PDF-1.7").unwrap();
         let ask = Opening { file: file.clone(), workspace: Some("notes".into()), beside: Some(1) };
-        assert_eq!(open(d, letters, &ask).unwrap(), "paper--v2-.pdf");
+        let scratch = dir.path().join("cache");
+        assert_eq!(open(d, letters, &ask, &scratch).unwrap(), "paper--v2-.pdf");
+        assert_eq!(fs::read_dir(&scratch).unwrap().count(), 0, "no operations file left");
 
         let shown = d.canvas_show("paper--v2-.pdf", None).unwrap();
-        assert_eq!(shown.items.len(), 150, "two canvas_apply, one page");
+        assert_eq!(shown.items.len(), PAGES, "every page, on one page");
+        assert_eq!(shown.pages.len(), 1);
         let hash = d.blob_put(&file).unwrap();
-        for n in [1, 150] {
+        for n in [1, PAGES] {
             is_page(&shown.items[n - 1], n, &hash, &shown.page);
         }
         let layout = d.pane_list("notes").unwrap().layout;
         let panes = layout.panes();
         assert!(panes.iter().any(|p| p.target == "paper--v2-.pdf"), "{panes:?}");
 
-        assert_eq!(open(d, letters, &ask).unwrap(), "paper--v2--2.pdf", "the id is taken");
+        assert_eq!(open(d, letters, &ask, &scratch).unwrap(), "paper--v2--2.pdf", "id taken");
         let alone = Opening { workspace: None, beside: None, ..ask };
-        assert_eq!(open(d, letters, &alone).unwrap(), "paper--v2--3.pdf");
+        assert_eq!(open(d, letters, &alone, &scratch).unwrap(), "paper--v2--3.pdf");
     });
 }
 
@@ -110,10 +117,40 @@ fn a_pdf_that_cannot_be_read_makes_nothing() {
         let file = dir.path().join("secret.pdf");
         fs::write(&file, b"%PDF-1.7").unwrap();
         let ask = Opening { file, workspace: None, beside: None };
-        let problem = open(d, locked, &ask).unwrap_err();
+        let scratch = dir.path().join("cache");
+        let problem = open(d, locked, &ask, &scratch).unwrap_err();
         assert!(problem.message.ends_with("secret.pdf is locked with a password"), "{problem:?}");
         let none = |_: &Path| Ok(Vec::new());
-        assert!(open(d, none, &ask).unwrap_err().message.ends_with("has no pages"));
+        assert!(open(d, none, &ask, &scratch).unwrap_err().message.ends_with("has no pages"));
         assert!(!d.canvas_list().unwrap().iter().any(|c| c.starts_with("secret")));
+    });
+}
+
+/// 40 pages, then one the canvas refuses: a size of 0.
+#[expect(clippy::unnecessary_wraps, reason = "it stands in for platform::pdf::pages")]
+fn torn(_: &Path) -> Result<Vec<(f64, f64)>, String> {
+    let mut sizes = vec![LETTER; 40];
+    sizes.push((0.0, 792.0));
+    Ok(sizes)
+}
+
+#[test]
+fn an_open_that_fails_partway_makes_no_canvas() {
+    with_daemon(|d| {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("torn.pdf");
+        fs::write(&file, b"%PDF-1.7").unwrap();
+        let ask = Opening { file, workspace: None, beside: None };
+        let scratch = dir.path().join("cache");
+        let problem = open(d, torn, &ask, &scratch).unwrap_err();
+        assert_eq!(problem.message, "the pdf item has no area", "the 41st page");
+        let blocked = dir.path().join("blocked");
+        fs::write(&blocked, b"a file, not a directory").unwrap();
+        assert!(open(d, letters, &ask, &blocked).is_err(), "no operations file: no canvas");
+        assert!(
+            !d.canvas_list().unwrap().iter().any(|c| c.starts_with("torn")),
+            "no partial canvas"
+        );
+        assert_eq!(fs::read_dir(&scratch).unwrap().count(), 0, "no operations file left");
     });
 }

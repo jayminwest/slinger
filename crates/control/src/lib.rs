@@ -74,8 +74,14 @@ pub enum Request {
     /// Write the version `ui` names (`name`, `name@3` or a blob id) into the
     /// directory `dir`, as `<name>.v<version>.html`.
     UiExport { ui: String, dir: PathBuf },
-    /// Make a new, empty canvas.
-    CanvasCreate { canvas: String },
+    /// Make a new canvas: empty, or holding the operations in the file at
+    /// `path` (a JSON list, as `ops` of `canvas_apply`), applied as the user
+    /// in one write.
+    CanvasCreate {
+        canvas: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        path: Option<PathBuf>,
+    },
     /// List the canvases.
     CanvasList,
     /// One page of a canvas: the first, or the one `page` names (id or name).

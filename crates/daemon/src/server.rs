@@ -215,10 +215,7 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
             Ok(Reply::UiShow(uis(catalog(store)?.versions(&name).map_err(|e| remote(&e))?)))
         }
         Request::UiExport { ui, dir } => ui_export(store, &ui, &dir),
-        Request::CanvasCreate { canvas } => {
-            store.canvases().create(&canvas).map_err(|e| drawn(&e))?;
-            Ok(Reply::CanvasCreate(CanvasInfo { canvas }))
-        }
+        Request::CanvasCreate { canvas, path } => import::create(store, canvas, path.as_deref()),
         Request::CanvasList => {
             let ids = store.canvases().list().map_err(|e| drawn(&e))?;
             let canvases = ids.into_iter().map(|canvas| CanvasInfo { canvas }).collect();

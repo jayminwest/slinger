@@ -175,6 +175,19 @@ impl Log {
         Ok((log, bytes))
     }
 
+    /// A new canvas that starts with `ops` applied as one step of `by`
+    /// ([`Log::apply`]), and the bytes of its file: the header and their
+    /// lines. Its first page is `p1`, as on every new canvas.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Log::create`] and [`Log::apply`]: no canvas then.
+    pub fn create_with(id: &str, by: &Author, at: Time, ops: &Value) -> Result<(Self, String)> {
+        let (mut log, mut bytes) = Self::create(id)?;
+        bytes.push_str(&log.apply(by, at, ops)?.bytes);
+        Ok((log, bytes))
+    }
+
     /// A new canvas file holding `canvas` whole (an import, say), and its
     /// bytes. The log holds the canvas as the file rebuilds it, so what the
     /// daemon serves is what it will read back. Page lines are the user's at
