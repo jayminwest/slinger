@@ -20,22 +20,9 @@ cargo build --release --locked --bin slinger-app
 version=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
 mkdir -p "$app/Contents/MacOS"
 cp "$target/release/slinger-app" "$app/Contents/MacOS/slinger-app"
-cat >"$app/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleName</key><string>slinger</string>
-  <key>CFBundleIdentifier</key><string>com.github.jayminwest.slinger</string>
-  <key>CFBundleExecutable</key><string>slinger-app</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>$version</string>
-  <key>CFBundleVersion</key><string>$version</string>
-  <key>LSMinimumSystemVersion</key><string>14.0</string>
-  <key>NSHighResolutionCapable</key><true/>
-  <key>NSPrincipalClass</key><string>NSApplication</string>
-</dict>
-</plist>
-PLIST
+# The plist names the bundle and says why it reads the folders macOS guards
+# (Desktop, Documents, Downloads), which the open panel shows.
+sed "s/@VERSION@/$version/g" crates/app/Info.plist >"$app/Contents/Info.plist"
+plutil -lint -s "$app/Contents/Info.plist"
 codesign --force --sign - "$app" 2>/dev/null
 echo "$app"

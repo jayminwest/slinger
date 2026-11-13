@@ -1,7 +1,7 @@
 //! PDFs (docs/design/pdf.md): every `CoreGraphics` PDF call in the project.
 //! [`pages`] reads each page's size as displayed, [`draw`] draws the part of
-//! a page a `pdf` item shows into its frame of the canvas view, and
-//! [`choose`] asks for the PDF to open. This is the only code that knows a
+//! a page a `pdf` item shows into its frame of the canvas view (the open
+//! panel, `panel`, asks for the PDF to open). This is the only code that knows a
 //! PDF's own space (origin at the bottom left, y up, the page unrotated);
 //! everything else measures a page as displayed: its crop box, its
 //! `/Rotate` applied, origin at the top left, y down.
@@ -17,16 +17,16 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use objc2::msg_send;
 use objc2::rc::{Allocated, Retained};
 use objc2::runtime::{AnyClass, AnyObject};
-use objc2::{MainThreadMarker, msg_send};
-use objc2_app_kit::{NSGraphicsContext, NSModalResponseOK, NSOpenPanel};
+use objc2_app_kit::NSGraphicsContext;
 use objc2_core_foundation::{CFRetained, CFURL, CGAffineTransform, CGPoint, CGRect, CGSize};
 use objc2_core_graphics::{
     CGBitmapContextCreate, CGColorSpace, CGContext, CGImageAlphaInfo, CGPDFBox, CGPDFDocument,
     CGPDFPage,
 };
-use objc2_foundation::{NSArray, NSString, NSURL};
+use objc2_foundation::{NSString, NSURL};
 use slinger_control::BackdropArea;
 
 use crate::layout::Rect;
@@ -266,30 +266,6 @@ fn shown_box(map: [f64; 6], r: CGRect) -> [f64; 4] {
     let lo = |v: [f64; 4]| v.into_iter().fold(f64::INFINITY, f64::min);
     let hi = |v: [f64; 4]| v.into_iter().fold(f64::NEG_INFINITY, f64::max);
     [lo(xs), lo(ys), hi(xs), hi(ys)]
-}
-
-/// Asks for one PDF or tldraw file to open, in the open panel; `None` when
-/// none was chosen, or off the main thread.
-pub fn choose() -> Option<PathBuf> {
-    let mtm = MainThreadMarker::new()?;
-    let panel = NSOpenPanel::openPanel(mtm);
-    panel.setCanChooseFiles(true);
-    panel.setCanChooseDirectories(false);
-    panel.setAllowsMultipleSelection(false);
-    let types = ["pdf", "tldraw", "tldr"].map(NSString::from_str);
-    allow(&panel, &NSArray::from_retained_slice(&types));
-    if panel.runModal() != NSModalResponseOK {
-        return None;
-    }
-    panel.URLs().firstObject()?.to_file_path()
-}
-
-#[expect(
-    deprecated,
-    reason = "allowedContentTypes needs UniformTypeIdentifiers, a crate more for one type"
-)]
-fn allow(panel: &NSOpenPanel, types: &NSArray<NSString>) {
-    panel.setAllowedFileTypes(Some(types));
 }
 
 /// The PDF at `path`, opened; `None` when it cannot be.
