@@ -305,6 +305,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** the sling's pill keeps counting, and a short message still goes
+  away on time, while you resize the window or have a menu open. Before,
+  both froze until you let go.
 - **Agents:** `slinger ui open` from a session Slinger started opens its
   pane in that session's workspace when `--workspace` is not given. Before,
   it failed with `workspace "" not found`. A sling's reply notes now say
