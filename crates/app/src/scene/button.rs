@@ -1,5 +1,5 @@
 //! The built-in "send to agent" button (SPEC section 8) on a canvas page.
-//! Pure: what it shows, and where a new one goes.
+//! Pure: what it shows.
 //!
 //! The button is an item of the canvas (`kind` `button`): it moves, scales
 //! and is selected, deleted and undone like a box. It draws as an outline
@@ -17,9 +17,6 @@ use crate::layout::{Point, Rect, Viewport};
 
 /// What the button says, after its mark.
 pub const LABEL: &str = "send to agent";
-/// A new button's size, in canvas points.
-pub const WIDTH: f64 = 160.0;
-pub const HEIGHT: f64 = 40.0;
 /// How high its label is set, and how far inside its left edge, in canvas
 /// points; its outline's width.
 const SIZE: f64 = 16.0;
@@ -55,15 +52,6 @@ pub fn first(items: &[Cow<'_, Item>]) -> Option<Rect> {
         Shape::Button { frame, .. } => Some(frame),
         _ => None,
     })
-}
-
-/// A new button centred on `centre`, a canvas point.
-pub fn placed(centre: Point) -> Shape {
-    let (x, y) = (centre.x - WIDTH / 2.0, centre.y - HEIGHT / 2.0);
-    Shape::Button {
-        frame: Rect { x: x.round(), y: y.round(), width: WIDTH, height: HEIGHT },
-        status: None,
-    }
 }
 
 /// The button in `frame` with its agent at `status`, seen through `view`.

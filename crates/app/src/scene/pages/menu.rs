@@ -1,8 +1,7 @@
 //! The page menu: a small panel a tap on a footer's page name opens just
 //! above it, so the pen picks a page with no keyboard. One row per page of
 //! the pane's canvas (the shown one marked ✓), then "New page", "Rename
-//! page…", "Place send button" (a "send to agent" button in the middle of
-//! the pane) and "Remove page", which run those commands on the pane. Pure:
+//! page…" and "Remove page", which run those commands on the pane. Pure:
 //! `main` opens it with the pane's pages, hands in the pen, and draws the
 //! [`Overlay`] it gives back (no dim: the window stays as it is).
 //!
@@ -43,10 +42,9 @@ const SLOP: f64 = 6.0;
 const RULE: f64 = 9.0;
 const ESCAPE: Chord = Chord::new(0, '\u{1b}');
 /// The commands under the pages, each as its row says it.
-const COMMANDS: [(Command, &str); 4] = [
+const COMMANDS: [(Command, &str); 3] = [
     (Command::NewPage, "New page"),
     (Command::RenamePage, "Rename page…"),
-    (Command::PlaceButton, "Place send button"),
     (Command::RemovePage, "Remove page"),
 ];
 
