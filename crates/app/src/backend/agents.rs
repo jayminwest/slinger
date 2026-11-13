@@ -1,13 +1,14 @@
 //! The open workspaces and their agents as the sidebar shows them: each
 //! agent's status read against its process, the profile it runs under,
-//! and the names of the profiles it has; and a folder opened as one.
+//! and the names of the profiles it has, or why its file cannot be used;
+//! a folder opened as one, and one closed.
 
 use std::path::Path;
 
 use slinger_control::Client;
 
 use crate::backend::Problem;
-use crate::scene::sidebar::{Agent, Process, Status, Workspace};
+use crate::scene::sidebar::{Agent, Broken, Process, Status, Workspace};
 
 /// The open workspaces, by name, each with its agent's status from the
 /// daemon's sessions: what the agent last said, read against its process
@@ -35,12 +36,25 @@ pub fn workspaces(daemon: &Client) -> Result<Vec<Workspace>, Problem> {
     Ok(open
         .into_iter()
         .map(|w| Workspace {
-            // Richer display of a broken file: slinger-44766e follow-up.
-            name: if w.error.is_some() { format!("{} (invalid file)", w.name) } else { w.name },
+            name: w.name,
             canvas: w.canvas,
             agent: w.agent.map(|a| agent(a.name, a.profiles)),
+            dir: w.dir,
+            broken: w.error.map(|e| {
+                // Less the file's path: the sidebar is narrow, and it is its own file.
+                let file = e.file.to_str().unwrap_or_default();
+                let rest = e.message.strip_prefix(file).and_then(|m| m.strip_prefix(": "));
+                Broken { message: rest.unwrap_or(&e.message).into(), hint: e.hint, field: e.field }
+            }),
         })
         .collect())
+}
+
+/// Closes the workspace whose file is in `dir`: by its directory, which
+/// works whatever the file holds.
+pub fn close_workspace(daemon: &Client, dir: &Path) -> Result<(), Problem> {
+    daemon.workspace_close(&dir.to_string_lossy())?;
+    Ok(())
 }
 
 /// Opens the folder `dir` as a workspace, making its file the first time:

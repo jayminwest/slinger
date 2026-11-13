@@ -1,4 +1,6 @@
 use super::*;
+use crate::layout::Point;
+use crate::scene::glyphs;
 use crate::scene::taps::Tap;
 
 const T: Theme = Theme {
@@ -16,7 +18,12 @@ const WINDOW: Rect = Rect { x: 0.0, y: 0.0, width: 960.0, height: 600.0 };
 fn ws(agent: &str, status: Option<Status>) -> Workspace {
     let agent = Agent { name: agent.into(), status, note: None, ..Agent::default() };
     let canvas = format!("{}-canvas", agent.name);
-    Workspace { name: format!("{}-ws", agent.name), canvas, agent: Some(agent) }
+    Workspace {
+        name: format!("{}-ws", agent.name),
+        canvas,
+        agent: Some(agent),
+        ..Workspace::default()
+    }
 }
 
 fn noted(agent: &str, status: Status, note: &str) -> Workspace {
@@ -54,7 +61,7 @@ fn reads_the_three_statuses_and_nothing_else() {
 fn open_it_lists_each_workspace_under_a_heading_with_its_agents_mark_and_status() {
     let mut idle = ws("x", None);
     idle.name = "idle".into();
-    let none = Workspace { name: "plain".into(), canvas: "plain".into(), agent: None };
+    let none = Workspace { name: "plain".into(), canvas: "plain".into(), ..Workspace::default() };
     let sidebar = heard(vec![
         noted("ada", Status::Working, "only a blocked note shows"),
         noted("bo", Status::Blocked, "which key?"),
@@ -154,7 +161,7 @@ fn before_the_first_list_it_is_empty_and_with_none_it_says_so() {
 #[test]
 fn each_canvas_has_its_workspaces_agent_for_its_button_and_footer() {
     assert_eq!(Sidebar::new(false).agents(), None);
-    let none = Workspace { name: "plain".into(), canvas: "plain".into(), agent: None };
+    let none = Workspace { name: "plain".into(), canvas: "plain".into(), ..Workspace::default() };
     let mut sidebar = heard(vec![ws("ada", Some(Status::Blocked)), ws("bo", None), none]);
     let agents = sidebar.agents().unwrap();
     let canvases: Vec<&str> = agents.iter().map(|(c, _)| c.as_str()).collect();
@@ -231,7 +238,7 @@ fn the_notice_s_x_dismisses_it_and_the_rest_shows_the_agent_s_workspace() {
 #[test]
 fn a_canvas_names_its_workspaces_agent_for_the_sling() {
     assert_eq!(Sidebar::new(false).agent("ada-canvas"), None, "no list yet");
-    let none = Workspace { name: "plain".into(), canvas: "plain".into(), agent: None };
+    let none = Workspace { name: "plain".into(), canvas: "plain".into(), ..Workspace::default() };
     let mut sidebar = heard(vec![ws("ada", None), none]);
     assert_eq!(sidebar.agent("ada-canvas"), Some("ada"));
     assert_eq!(sidebar.agent("plain"), None, "a workspace with no agent");
@@ -255,7 +262,10 @@ fn each_workspace_s_lines_are_a_target_a_tap_shows_its_panes() {
     blocked.name = "bo-ws".into();
     let mut sidebar = heard(vec![ws("ada", None), blocked]);
     let targets = sidebar.targets(&T, WINDOW);
-    assert_eq!(targets.iter().map(|t| t.1).collect::<Vec<_>>(), [0, 1]);
+    assert_eq!(
+        targets.iter().map(|t| t.1).collect::<Vec<_>>(),
+        [Tap::Workspace(0), Tap::Workspace(1)]
+    );
     let rows = sidebar.rows(&T, WINDOW);
     let at = |text: &str| rows.iter().find(|r| r.label.text == text).unwrap().label.frame;
     let (ada, bo) = (targets[0].0, targets[1].0);
@@ -384,4 +394,71 @@ fn an_agent_under_a_profile_says_which() {
     let texts: Vec<&str> = shown(&rows).into_iter().map(|(text, _)| text).collect();
     assert!(texts.contains(&"ada (dev) · working"), "{texts:?}");
     assert!(texts.contains(&"bo"), "no profile, no mention: {texts:?}");
+}
+
+/// A workspace whose file is broken, named `name`, in `/w/<dir>`.
+fn broken(name: &str, dir: &str) -> Workspace {
+    let broken = Broken {
+        message: "agent.tools: \"Shell\" is not a tool".into(),
+        hint: Some("fix that file, or close it: 'slinger workspace close /w/bad'".into()),
+        field: Some("agent.tools".into()),
+    };
+    let dir = PathBuf::from("/w").join(dir);
+    Workspace { name: name.into(), dir, broken: Some(broken), ..Workspace::default() }
+}
+
+#[test]
+fn a_broken_workspace_shows_why_the_field_and_the_hint_wrapped_to_the_sidebar() {
+    let sidebar = heard(vec![ws("ada", None), broken("bad", "bad")]);
+    let rows = sidebar.rows(&T, WINDOW);
+    let texts = shown(&rows);
+    let at = texts.iter().position(|(t, _)| *t == "bad").unwrap();
+    let under: Vec<_> = texts[at + 1..].to_vec();
+    assert_eq!(under[0], ("✗", T.error), "a mark, in the error colour");
+    let said: Vec<_> = under[1..].iter().map(|(t, _)| *t).collect();
+    let joined = said.join(" ");
+    assert!(joined.starts_with("agent.tools: \"Shell\" is not a tool field: agent.tools fix"));
+    assert!(joined.ends_with("'slinger workspace close /w/bad'"), "{joined}");
+    assert!(said.len() > 4, "the hint wraps: {said:?}");
+    assert!(!said.contains(&"no agent") && !said.contains(&broken::CLOSE), "not shown: no close");
+    assert!(under[1..].iter().all(|&(_, c)| c == T.error || c == T.muted));
+    let room = WIDTH - PAD;
+    let row = |text: &str| rows.iter().find(|r| r.label.text == text).unwrap().label.frame;
+    for text in &said {
+        let fits = glyphs::frame(Point { x: 0.0, y: 0.0 }, text, 13.0, glyphs::UNWRAPPED);
+        assert!(row(text).x + fits.width <= room, "{text:?} fits the sidebar");
+    }
+}
+
+#[test]
+fn a_shown_broken_workspace_has_a_close_line_whose_tap_closes_it() {
+    let mut sidebar = heard(vec![broken("", "nameless"), ws("ada", None)]);
+    let rows = sidebar.rows(&T, WINDOW);
+    assert!(rows.iter().any(|r| r.label.text == "nameless"), "a file with no name: its folder's");
+    let close = rows.iter().find(|r| r.label.text == broken::CLOSE).unwrap().label.frame;
+    let targets = sidebar.targets(&T, WINDOW);
+    let taps: Vec<_> = targets.iter().map(|t| t.1).collect();
+    let run = Tap::Run(Command::CloseWorkspace);
+    assert_eq!(taps, [Tap::Workspace(0), run, Tap::Workspace(0), Tap::Workspace(1)]);
+    assert_eq!((targets[1].0.y, targets[1].0.height), (close.y, ROW), "the close line alone");
+    assert_eq!(targets[0].0.y + targets[0].0.height, close.y, "above it shows it");
+    assert_eq!(targets[2].0.y, close.y + ROW, "and the hint under it");
+    assert_eq!(sidebar.close(), Some(PathBuf::from("/w/nameless")), "the shown one, by its dir");
+    let names: Vec<_> = sidebar.agents().unwrap().into_iter().map(|(c, _)| c).collect();
+    assert_eq!(names, ["ada-canvas"], "out of the list");
+    assert!(shown(&sidebar.rows(&T, WINDOW)).contains(&("ada-ws", T.text)));
+}
+
+#[test]
+fn close_takes_the_workspace_the_window_shows_and_the_first_shows_next() {
+    let mut sidebar = heard(vec![ws("ada", None), ws("bo", None), ws("cy", None)]);
+    sidebar.pick(1);
+    sidebar.close().unwrap();
+    let left: Vec<_> = sidebar.agents().unwrap().into_iter().map(|(c, _)| c).collect();
+    assert_eq!(left, ["ada-canvas", "cy-canvas"]);
+    let bold: Vec<_> = sidebar.rows(&T, WINDOW).into_iter().filter(|r| r.font.bold).collect();
+    assert_eq!(bold[0].label.text, "ada-ws", "the first shows");
+    sidebar.show(Some("gone".into()));
+    assert_eq!(sidebar.close(), None, "the shown one is not in the list");
+    assert_eq!(Sidebar::new(true).close(), None, "nothing heard yet");
 }

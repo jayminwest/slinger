@@ -465,5 +465,7 @@ impl Slung {
 mod out;
 mod words;
 
+pub(crate) use words::wrap;
+
 #[cfg(test)]
 mod tests;

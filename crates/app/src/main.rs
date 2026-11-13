@@ -160,7 +160,7 @@ fn window(mut settings: Settings) -> ExitCode {
         let force = match routed {
             Routed::Answer(step) => return step,
             Routed::Watch(name, step) => {
-                watch.want(Some(name));
+                watch.want(name);
                 return step;
             }
             Routed::News(force) => force,

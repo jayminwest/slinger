@@ -341,7 +341,9 @@ window.rs    runs a command on the focused pane, does a tap on a button that
              opens its profile menu and a profile slings under it, a
              workspace shows its panes), opens the folder `open-workspace`
              chose as a workspace (workspace_open: backend/agents.rs) and
-             shows it, or flashes why not, builds the window's scene (`view`: the footers,
+             shows it, or flashes why not, closes the shown one for
+             `close-workspace` (workspace_close by its folder) and shows the
+             first, or flashes why not, builds the window's scene (`view`: the footers,
              the sidebar's foot, the lit button, the tap targets), and
              finds the canvas pane under a point and the focused pane's
              frame. A cut, copy or paste no text field took (`edit`), and
@@ -655,7 +657,17 @@ scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
              running` (hollow, muted), one slingerd never started (no
              session id) shows what its hooks said, and one with a message
              pending is working though no hook said so (`Status::of`). `agents`: each
-             workspace's agent. Pure.
+             workspace's agent. `close`: takes the shown workspace out of
+             the list for `close-workspace`. Pure.
+scene/sidebar/agent.rs  an agent as the sidebar shows it: its `Status`,
+             read against its `Process` (`Status::of`), and its profiles.
+             Pure.
+scene/sidebar/broken.rs  a workspace whose file the daemon cannot use:
+             under its name a red ✗ and the error's message (less the file's
+             path: backend/agents.rs), the field that broke a rule, then,
+             while it shows, "Close workspace" (a tap runs
+             `close-workspace`), then the hint; each wrapped to the
+             sidebar's width (`slung::wrap`). No agent line. Pure.
 scene/sidebar/notice.rs  the notice: a 28 pt bar above the footers (it
              hides none), "<agent> is blocked: <note>" or "is done", with a
              ✕ (`dismiss-notice`); a tap on the rest shows the agent's

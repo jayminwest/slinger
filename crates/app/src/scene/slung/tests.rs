@@ -333,10 +333,10 @@ fn a_new_sling_takes_the_last_one_s_place() {
 #[test]
 fn wrap_breaks_between_words_and_keeps_each_line() {
     let room = |n: usize| move |line: &str| line.chars().count() <= n;
-    assert_eq!(wrap("one two three", room(7)), ["one two", "three"]);
-    assert_eq!(wrap("a\n\nb", room(10)), ["a", "", "b"]);
-    assert_eq!(wrap("abcdefghij", room(4)), ["abcd", "efgh", "ij"]);
-    assert_eq!(wrap("ab cd", room(0)), ["a", "b", "c", "d"], "a character at least");
+    assert_eq!(wrap("one two three", &room(7)), ["one two", "three"]);
+    assert_eq!(wrap("a\n\nb", &room(10)), ["a", "", "b"]);
+    assert_eq!(wrap("abcdefghij", &room(4)), ["abcd", "efgh", "ij"]);
+    assert_eq!(wrap("ab cd", &room(0)), ["a", "b", "c", "d"], "a character at least");
 }
 
 #[test]

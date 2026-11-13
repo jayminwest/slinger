@@ -35,7 +35,7 @@ pub(super) fn page(answer: &str, width: f64, agent: &str) -> Vec<String> {
     let room = width - 2.0 * PAD;
     let at = Point { x: 0.0, y: 0.0 };
     let fits = |line: &str| glyphs::frame(at, line, TEXT, glyphs::UNWRAPPED).width <= room;
-    let mut lines = wrap(answer, fits);
+    let mut lines = wrap(answer, &fits);
     if lines.len() > MOST {
         lines.truncate(MOST - 1);
         lines.push(format!("… the rest: slinger session show {agent}"));
@@ -47,7 +47,7 @@ pub(super) fn page(answer: &str, width: f64, agent: &str) -> Vec<String> {
 /// `text` in lines that each `fits`, broken between words where it can
 /// be (a word too wide alone is cut, a character at least a line), each of
 /// its own lines kept.
-pub fn wrap(text: &str, fits: impl Fn(&str) -> bool) -> Vec<String> {
+pub fn wrap(text: &str, fits: &dyn Fn(&str) -> bool) -> Vec<String> {
     let mut lines = Vec::new();
     for paragraph in text.trim().lines() {
         let mut line = String::new();

@@ -36,7 +36,7 @@ pub(crate) mod testing;
 pub mod ui;
 mod unsent;
 
-pub use agents::{open_workspace, workspaces};
+pub use agents::{close_workspace, open_workspace, workspaces};
 pub use feedback::Noter;
 pub use flick::Flick;
 pub use follow::{Follower, News};
@@ -320,10 +320,18 @@ pub(crate) mod tests {
         dir
     }
 
-    fn notes(status: Option<Status>, note: Option<&str>) -> Vec<Workspace> {
+    /// The workspace `notes` that `d` holds open, as the sidebar shows it.
+    fn notes(d: &Client, status: Option<Status>, note: Option<&str>) -> Vec<Workspace> {
         let note = note.map(str::to_string);
+        let dir = d.workspace_list().unwrap().remove(0).dir;
         let agent = Agent { name: "scout".into(), status, note, ..Agent::default() };
-        vec![Workspace { name: "notes".into(), canvas: "notes".into(), agent: Some(agent) }]
+        vec![Workspace {
+            name: "notes".into(),
+            canvas: "notes".into(),
+            agent: Some(agent),
+            dir,
+            broken: None,
+        }]
     }
 
     #[test]
@@ -331,9 +339,9 @@ pub(crate) mod tests {
         with_daemon(|d| {
             assert_eq!(workspaces(d), Ok(vec![]));
             let _dir = open_notes(d);
-            assert_eq!(workspaces(d), Ok(notes(Some(Status::Stopped), None)), "no process");
+            assert_eq!(workspaces(d), Ok(notes(d, Some(Status::Stopped), None)), "no process");
             d.status_set("scout", "blocked", Some("which key?")).unwrap();
-            let hooks = notes(Some(Status::Blocked), Some("which key?"));
+            let hooks = notes(d, Some(Status::Blocked), Some("which key?"));
             assert_eq!(workspaces(d), Ok(hooks), "never started: its hooks say");
         });
     }
@@ -363,9 +371,9 @@ pub(crate) mod tests {
             let d = &Client::new(socket);
             let _dir = open_notes(d);
             watch.follow(socket.to_path_buf());
-            until(&watch, &Ok(notes(Some(Status::Stopped), None)));
+            until(&watch, &Ok(notes(d, Some(Status::Stopped), None)));
             d.status_set("scout", "blocked", Some("which key?")).unwrap();
-            until(&watch, &Ok(notes(Some(Status::Blocked), Some("which key?"))));
+            until(&watch, &Ok(notes(d, Some(Status::Blocked), Some("which key?"))));
         });
     }
 

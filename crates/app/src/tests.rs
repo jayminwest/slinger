@@ -257,3 +257,35 @@ fn open_workspace_opens_a_folder_and_shows_it_and_flashes_why_it_cannot() {
         assert!(pill.is_some_and(|p| p.label.text.contains("gone")), "the flash says why");
     });
 }
+
+#[test]
+fn a_broken_workspace_shows_why_and_close_workspace_closes_it_and_flashes_why_it_cannot() {
+    with_socket(|socket| {
+        let settings = Settings::load(ConfigFiles::at("/nonexistent/config.toml".into()));
+        let (theme, window) = (&settings.config.theme, layout::WINDOW.rect());
+        let mut tools = Tools::new(settings.config.palette.clone());
+        let mut sidebar = Sidebar::new(true);
+        let daemon = control::Client::new(socket);
+        let notes = open_notes(&daemon);
+        let file = notes.path().join("slinger-workspace.toml");
+        let broken = "version = 1\nname = \"notes\"\ncanvas = \"notes\"\n\
+                      [agent]\nname = \"scout\"\ntools = [\"Shell\"]\n";
+        std::fs::write(&file, broken).unwrap();
+        sidebar.update(backend::workspaces(&daemon));
+        let rows = sidebar.rows(theme, window);
+        let texts: Vec<_> = rows.iter().map(|r| r.label.text.as_str()).collect();
+        assert!(texts.contains(&"notes") && texts.contains(&"field: agent.tools"), "{texts:?}");
+        assert!(texts.iter().any(|t| t.contains("\"Shell\"")), "why: {texts:?}");
+        assert!(texts.contains(&"Close workspace"), "it shows: it can close {texts:?}");
+        assert!(window::close_workspace(socket, &mut sidebar, &mut tools));
+        assert_eq!(daemon.workspace_list().unwrap(), [], "closed by its folder");
+        assert!(file.is_file(), "its file stays");
+
+        let gone =
+            scene::sidebar::Workspace { dir: "/nonexistent/gone".into(), ..Default::default() };
+        sidebar.update(Ok(vec![gone]));
+        assert!(!window::close_workspace(socket, &mut sidebar, &mut tools), "not open any more");
+        let pill = tools.flash().pill(window, theme, Instant::now());
+        assert!(pill.is_some_and(|p| !p.label.text.is_empty()), "the flash says why");
+    });
+}
