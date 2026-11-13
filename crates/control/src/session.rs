@@ -86,8 +86,9 @@ pub struct Session {
     pub agent: String,
     /// The agent's home: the directory of its workspace's file.
     pub home: PathBuf,
-    /// How a sling reaches it: `process`, a process the daemon holds, or
-    /// `listen`, a session that asks for its slings (`session_listen`).
+    /// How its next sling reaches it: `process`, a process the daemon
+    /// holds, or `listen`, a session that asks for its slings
+    /// (`session_listen`): one is there, or slings wait and no process runs.
     pub deliver: String,
     /// Under `listen`, whether a listener is there now. Absent under `process`.
     #[serde(default, skip_serializing_if = "Option::is_none")]

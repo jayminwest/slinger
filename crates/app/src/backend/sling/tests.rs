@@ -63,6 +63,10 @@ fn a_sling_reaches_the_running_agent_with_the_selection_and_the_prompt() {
             }
         };
         assert_eq!(to, "scout");
+        // The first sling still waits for a listener, but the process took
+        // this one: the pill does not say nobody listens (slinger-2eee43).
+        let Heard::Progress(took) = wait(&slinger, got) else { panic!("no progress") };
+        assert!(took.running && !took.unheard, "{took:?}");
         let message = delivered(home.path(), "what is missing?");
         assert!(message.contains("slinger-sling 1 canvas=notes selected=c1"), "{message}");
         assert!(message.contains("what is missing?"), "{message}");

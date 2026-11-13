@@ -817,9 +817,12 @@ is there while a request of its is open, for 10 seconds after one ended, and
 while it works on a sling it took, until it asks again or its agent sets
 `done` or `blocked` (then for 10 seconds, so its next ask finds the slings
 still its own), or until the `pid` it named ends. Asking says the last one
-is dealt with. While slings wait or a listener is there, the session has
-`deliver` as `listen`, `listening` (whether one is there) and `pending` (the
-slings that wait, and the one worked on). `session_start` and `session_stop`
+is dealt with. While a listener is there, or slings wait and no process of
+the agent's runs, the session has `deliver` as `listen`, `listening`
+(whether one is there) and `pending` (the slings that wait, and the one
+worked on). So `deliver` names what takes the next sling: while the
+process runs and nobody listens it is `process`, with the process's
+`pending`, though slings still wait for a listener. `session_start` and `session_stop`
 forget who listened; the slings that wait stay for the next to listen. The
 record keeps each sling from the time it waits until its listener deals with
 it, so a daemon that stops loses none: after a restart every sling not dealt

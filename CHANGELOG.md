@@ -364,6 +364,13 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a sling to a started agent says "working" while the agent works
+  on it, and is answered when the agent's turn ends. Once a sling had
+  waited for a listener, the next one the agent's process took said
+  "nobody listens" and followed the waiting sling instead. `slinger session
+  show` now has `deliver` as `process` while the process runs and nobody
+  listens, with the process's `pending`, though slings still wait for a
+  listener.
 - **Canvas:** an agent's text fills its box. Its lines broke as if every
   character were as wide as it is tall, so in the app each line stopped
   less than half way across the box `canvas put` reported, in a narrow

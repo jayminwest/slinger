@@ -283,8 +283,10 @@ impl Sessions {
                 })
             })
         });
+        // A session shows what takes its next sling: slings that wait for a
+        // listener while its process runs and nobody listens are not its.
         for session in &mut sessions {
-            if self.listeners.shown(&session.agent).is_some() {
+            if self.listeners.shown(&session.agent).is_some() && self.listens(&session.agent) {
                 session.deliver = Delivery::Listen;
             }
         }

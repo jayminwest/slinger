@@ -128,11 +128,16 @@ fn a_listener_outranks_a_running_process_and_a_profile_names_only_a_process() {
     // While it works on that one, the next waits for it too.
     assert_eq!(sling(&client, "and this").deliver.as_deref(), Some("listen"));
     assert_eq!(heard(&client.session_show("scout").unwrap()), ("listen", Some(true), Some(2)));
-    // A start hands the agent back to its process; the sling that waits stays.
+    // A start hands the agent back to its process; the sling that waits
+    // stays, and the session shows the process, which takes the next one
+    // and whose pending is that one's (slinger-2eee43).
     client.session_start("notes").unwrap();
-    assert_eq!(heard(&client.session_show("scout").unwrap()), ("listen", Some(false), Some(1)));
+    let process = client.session_show("scout").unwrap();
+    assert_eq!(heard(&process), ("process", None, Some(0)));
     assert_eq!(sling(&client, "to the process again").deliver.as_deref(), Some("process"));
     assert_eq!(wait_lines(&home.join("in.txt"), 2).len(), 2);
+    let working = client.session_show("scout").unwrap();
+    assert_eq!((working.deliver.as_str(), working.listening), ("process", None));
     let left = client.session_listen("notes", NONE).unwrap().sling.unwrap();
     assert!(left.text.ends_with("# prompt\nand this"));
     daemon.stop();
