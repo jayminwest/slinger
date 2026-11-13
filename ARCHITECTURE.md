@@ -980,8 +980,17 @@ platform/remember.rs  what the window keeps in the user defaults from one
 platform/files.rs  sets the title bar a scene's Title says (title, subtitle,
              represented file), shows a file in the Finder
              (`show-canvas-file`, `show-workspace-folder` and `export-ui`,
-             from main), and asks for a folder for `open-workspace` and
-             `export-ui` (the open panel, which can make one).
+             from main), and hands on files dropped on the window.
+platform/panel.rs  the open panel, for a Pick: a folder for `open-workspace`
+             or `export-ui` (it can make one), or a `.pdf`, `.tldraw` or
+             `.tldr` file for `open-pdf`; each with its message and button.
+             It runs app-modal with the app in front, the menu bar swapped
+             for a bare Edit menu (to the panel's fields) and put back after,
+             so no app key shadows the panel's own (⇧⌘D, ⇧⌘O, ⌘1...). The
+             panel runs out of process and reads the guarded folders
+             (Desktop, Documents, Downloads) as the bundle, whose Info.plist
+             (crates/app/Info.plist, scripts/bundle.sh) says why. An agent
+             UI's reply while it is up is refused (the app is busy).
 platform/menu.rs  makes the menu bar a scene's menus say, again when they
              change. A command item chosen by its key goes to main as that
              key press, so the keymap runs it once; chosen with the pointer,
@@ -1027,8 +1036,7 @@ platform/web.rs  agent UIs in WKWebViews: the scheme handler, navigation and
 platform/pdf.rs  every CoreGraphics PDF call: a PDF's page sizes as displayed
              (crop box, `/Rotate` applied; on any thread), a pdf item's part
              of its page drawn stretched into its frame on white (each
-             document opened once), and the open panel for `open-pdf`
-             (a `.pdf`, `.tldraw` or `.tldr` file).
+             document opened once).
              backdrop: one sling area as raw RGB at the packet's scale, and
              the page's words there (PDFKit) in canvas tenths.
 ```
