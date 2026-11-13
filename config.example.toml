@@ -226,3 +226,6 @@
 # Open a PDF as a new canvas, its pages one under the next, in a pane beside the focused
 # one. Write on it with any tool.
 #open-pdf = "cmd+o"
+# Open a folder as a workspace (the panel can make a new folder) and show it in the
+# window. The "+" at the foot of the open sidebar does the same.
+#open-workspace = "cmd+shift+o"

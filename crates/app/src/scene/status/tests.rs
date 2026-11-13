@@ -243,9 +243,12 @@ fn the_open_sidebar_s_foot_hides_it_where_the_collapsed_one_s_button_shows() {
     let sidebar = Rect { x: 0.0, y: 0.0, width: 199.0, height: 400.0 };
     let strip = strip(sidebar, &T);
     assert_eq!(strip.frame, Rect { y: 400.0 - HEIGHT, height: HEIGHT, ..sidebar });
-    assert_eq!(said(&strip), ["◧  Hide sidebar"]);
-    let [(hide, tap)] = strip.targets[..] else { panic!() };
+    assert_eq!(said(&strip), ["◧  Hide sidebar", "+"]);
+    let [(hide, tap), (open, opens)] = strip.targets[..] else { panic!() };
     assert_eq!(tap, run(Command::ToggleSidebar));
+    assert_eq!(opens, run(Command::OpenWorkspace));
+    assert!(open.x + open.width <= sidebar.width && open.x > hide.x + hide.width, "at the right");
+    assert_eq!(strip.tips.len(), 1, "the glyph names its command in a tip");
     let pane = Rect { x: 0.0, ..PANE };
     let footer = canvas(pane, &Keymap::default(), pen(Tool::Pen, State::Idle), true);
     let show = footer.targets[0].0;

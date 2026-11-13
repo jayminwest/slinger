@@ -34,7 +34,7 @@ mod ui;
 mod window;
 
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Instant;
@@ -224,7 +224,8 @@ fn remembering(
     }
 }
 
-/// What `event` asks ([`ask`]); `show-canvas-file` and `open-pdf` are
+/// What `event` asks ([`ask`]); `show-canvas-file`, `open-pdf` and
+/// `open-workspace` (its folder) are
 /// done here, as only `platform` reaches the Finder and the open panel: the
 /// focused pane's canvas file shows there, or the flash says why it cannot;
 /// the PDF chosen opens as a canvas, its pages read by `platform`. A cut, copy or paste no text
@@ -252,6 +253,9 @@ fn asked(
     };
     match asked {
         Ask::Run(Command::ShowCanvasFile) => {}
+        Ask::Run(Command::OpenWorkspace) => {
+            return platform::choose_folder().map_or(Ask::Draw(None), Ask::Open);
+        }
         Ask::Run(Command::OpenPdf) => {
             if let Some(file) = platform::pdf::choose() {
                 let (panes, workspace) = (&shared.panes, shared.workspace.as_deref());
@@ -279,6 +283,8 @@ enum Ask {
     Run(Command),
     /// A tap on a button that does more than run a command.
     Tap(Target),
+    /// Open this folder as a workspace and show it.
+    Open(PathBuf),
     /// Draw again: something took it; and put a copy's clip on the clipboard.
     Draw(Option<Clip>),
     /// Answer the window this, and do nothing more.

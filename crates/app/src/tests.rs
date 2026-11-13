@@ -5,7 +5,7 @@
 use super::*;
 use crate::backend::ConfigFiles;
 use crate::backend::testing::wait_until;
-use crate::backend::tests::{open_notes, with_store};
+use crate::backend::tests::{open_notes, with_socket, with_store};
 use crate::commands::{CMD, Chord};
 use crate::panes::{Kind as PaneKind, Pane};
 use crate::scene::ink::Pen;
@@ -203,5 +203,31 @@ fn a_crop_s_lift_copies_a_snippet_that_pastes_as_a_cropped_pdf_item() {
         assert_eq!(count(daemon, "pdf"), 1, "the canvas does not change");
         assert!(w.send(Event::Edit(Edit::Paste(clip))));
         w.until(|_| count(daemon, "pdf") == 2);
+    });
+}
+
+#[test]
+fn open_workspace_opens_a_folder_and_shows_it_and_flashes_why_it_cannot() {
+    with_socket(|socket| {
+        let settings = Settings::load(ConfigFiles::at("/nonexistent/config.toml".into()));
+        let mut tools = Tools::new(settings.config.palette.clone());
+        let mut sidebar = Sidebar::new(true);
+        let home = tempfile::tempdir().unwrap();
+        let dir = home.path().join("ideas");
+        std::fs::create_dir(&dir).unwrap();
+        let name = window::open_workspace(&dir, socket, &mut sidebar, &mut tools);
+        assert_eq!(name.as_deref(), Some("ideas"), "named for its folder");
+        assert!(dir.join("slinger-workspace.toml").is_file(), "its file is made");
+        let daemon = control::Client::new(socket);
+        let _notes = open_notes(&daemon);
+        sidebar.update(backend::workspaces(&daemon));
+        let rows = sidebar.rows(&settings.config.theme, layout::WINDOW.rect());
+        let bold: Vec<_> = rows.iter().filter(|r| r.font.bold).map(|r| &r.label.text).collect();
+        assert_eq!(bold, ["ideas"], "the window shows it, not the first");
+        let gone = home.path().join("gone");
+        assert_eq!(window::open_workspace(&gone, socket, &mut sidebar, &mut tools), None);
+        let pill =
+            tools.flash().pill(layout::WINDOW.rect(), &settings.config.theme, Instant::now());
+        assert!(pill.is_some_and(|p| p.label.text.contains("gone")), "the flash says why");
     });
 }

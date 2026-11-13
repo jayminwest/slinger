@@ -55,7 +55,7 @@ use objc2_foundation::{NSNotification, NSObject, NSRect, NSTimer};
 
 use self::canvas::CanvasView;
 use self::chrome::{color, flipped, label};
-pub use self::files::reveal;
+pub use self::files::{choose_folder, reveal};
 pub use self::remember::{Kept, remember_sidebar, sidebar as remembered_sidebar};
 use crate::commands::{Chord, Command};
 use crate::layout::{PaneId, Point, Size};
