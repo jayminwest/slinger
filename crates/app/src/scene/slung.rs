@@ -6,10 +6,11 @@
 //! target on it, the answer's panel and what to flash.
 //!
 //! One sling is followed at a time: a new one takes the last one's place,
-//! so marks never pile up. The pill stands under where the sling was made
-//! (the selection, or the button tapped), moves with the canvas, and is
-//! held inside the pane when that place is off screen; a sling of the whole
-//! page from the footer pins it to the pane's top left. It says, in turn:
+//! so marks never pile up. The pill has one place, however the sling was
+//! made: the top right of the pane that shows the sling's page (the
+//! focused one first; else the focused pane), its lines under it. The
+//! canvas's own button sits at the top left, the flash at the top centre
+//! and the sidebar's notice at the bottom. It says, in turn:
 //!
 //! - `● scout working · 4s · ~12k` (`● scout (dev) working …` under a
 //!   profile) from the moment the sling is in the
@@ -40,7 +41,7 @@ use std::time::{Duration, Instant};
 
 use crate::backend::Problem;
 use crate::config::Theme;
-use crate::layout::{Point, Rect, Size, Viewport};
+use crate::layout::{Point, Rect, Viewport};
 use crate::scene::canvas::ItemId;
 use crate::scene::overlay::{Align, Line, Overlay};
 use crate::scene::taps::{Tap, Target};
@@ -145,7 +146,6 @@ enum Stage {
 struct Out {
     canvas: String,
     page: String,
-    at: Option<Rect>,
     /// The newest item on its page when it went: the agent's items above
     /// it are its answer.
     newest: ItemId,
@@ -174,13 +174,12 @@ pub struct Slung {
 }
 
 impl Slung {
-    /// A sling of `page` of `canvas` leaves from `at` (canvas units; `None`:
-    /// the page as a whole) at `now`, under the profile `under`, with
-    /// `newest` the newest item there. What showed for the last sling goes.
+    /// A sling of `page` of `canvas` leaves at `now`, under the profile
+    /// `under`, with `newest` the newest item there. What showed for the
+    /// last sling goes.
     pub fn aim(
         &mut self,
         (canvas, page): (&str, &str),
-        at: Option<Rect>,
         under: Option<&str>,
         newest: ItemId,
         now: Instant,
@@ -191,7 +190,6 @@ impl Slung {
         let out = Out {
             canvas,
             page,
-            at,
             newest,
             agent,
             under: under.map(str::to_string),
@@ -423,14 +421,16 @@ impl Slung {
         let lines = answer.map_or_else(|| under.clone(), |a| page(a, block, &out.agent));
         let tall =
             HIGH + count(lines.len()) * LINE + if answer.is_some() { 2.0 * GAP } else { 0.0 };
-        let pill = out.place(&view, Size { width: wide.min(block), height: tall });
+        let pill = out::place(&view, wide.min(block));
+        // The lines under the pill end where it does.
+        let left = pill.x + pill.width - block;
         let fill = style::panel(theme);
         let label = Label { text, colour, fill: Some(fill), frame: pill };
         let line = Line::text(String::new(), colour, pill, TEXT, Align::Centre);
         let line = Line { label, radius: style::FIELD_RADIUS, ..line };
         let (mut labels, mut target) = (Vec::new(), pill);
         let panel = answer.map(|_| {
-            let frame = Rect { y: pill.y + HIGH, width: block, height: tall - HIGH, ..pill };
+            let frame = Rect { x: left, y: pill.y + HIGH, width: block, height: tall - HIGH };
             target = target.union(frame);
             let mut shown = vec![Line {
                 edge: Some(style::edge(theme)),
@@ -448,8 +448,12 @@ impl Slung {
         });
         if panel.is_none() {
             for (n, line) in lines.into_iter().enumerate() {
-                let frame =
-                    Rect { y: pill.y + HIGH + count(n) * LINE, height: LINE, width: block, ..pill };
+                let frame = Rect {
+                    x: left,
+                    y: pill.y + HIGH + count(n) * LINE,
+                    width: block,
+                    height: LINE,
+                };
                 labels.push(Label {
                     text: line,
                     colour: theme.muted,

@@ -221,8 +221,8 @@ bullet with the area in bold.
   wrote and do what it asks." Tap + prompt beside the selection (or ⌘↩) to
   type words first. A workspace with no agent says "No agent in this
   workspace" and sends nothing.
-- **App:** a sling shows what the agent is doing, in a pill under where you
-  slung: "● scout working · 4s", "■ scout blocked: <its question>", then
+- **App:** a sling shows what the agent is doing, in a pill at the top
+  right of the pane that shows its page, wherever you slung from: "● scout working · 4s", "■ scout blocked: <its question>", then
   "✓ scout answered · 2 new items" (tap to bring them into view), "✓ scout
   answered in text · tap to read" (tap to read the answer in a panel),
   "✓ scout is done, with nothing on the canvas", or "✗ scout stopped before

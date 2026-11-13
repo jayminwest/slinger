@@ -662,8 +662,8 @@ scene/sidebar/notice.rs  the notice: a 28 pt bar above the footers (it
              workspace. Done leaves on its own 5 s after it shows or at the
              pen's next press; blocked stays until ✕, `dismiss-notice` or
              its status moves on. Pure.
-scene/slung.rs  the sling's pill (SPEC P6): under where the sling was
-             made (a page's sling at its top left), inside its pane, what
+scene/slung.rs  the sling's pill (SPEC P6): at the top right of the pane
+             that shows the sling's page, however it was made, what
              the agent is doing: "● scout working · 4s · ~12k" ("scout
              (dev)" under a profile, as its session says), "■ scout
              blocked: <note> · ~12k" (the sling's tokens, when the daemon's
