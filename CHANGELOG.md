@@ -288,6 +288,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** an agent that answers a send at once no longer shows a
+  message still pending. `slinger session show` could report one message
+  pending for good after a quick answer, so waiting on it never ended.
 - **App:** an agent's live page on a canvas now resizes from the
   selection's corner handles, as a box does, and its page lays out again
   at the new size as you drag. Before, it kept its size.

@@ -235,12 +235,18 @@ impl Processes {
                 want,
             });
         }
-        let stdin = process.stdin.as_mut().ok_or_else(|| not("its input is closed"))?;
-        stdin
-            .write_all(line.as_bytes())
-            .and_then(|()| stdin.flush())
-            .map_err(|_| not("it exited"))?;
-        process.heard().pending += 1;
+        let Held { stdin, heard, .. } = process;
+        let stdin = stdin.as_mut().ok_or_else(|| not("its input is closed"))?;
+        let heard = || heard.lock().unwrap_or_else(PoisonError::into_inner);
+        // Counted before it is written: the answer can come back, and be
+        // counted off, before the write returns (slinger-d71082).
+        heard().pending += 1;
+        let written = stdin.write_all(line.as_bytes()).and_then(|()| stdin.flush());
+        if written.is_err() {
+            let mut heard = heard();
+            heard.pending = heard.pending.saturating_sub(1);
+            return Err(not("it exited"));
+        }
         Ok(())
     }
 

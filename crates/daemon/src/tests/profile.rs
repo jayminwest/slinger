@@ -115,9 +115,8 @@ fn open_with_profile(client: &Client, projects: &TempDir) -> (PathBuf, PathBuf) 
 
 #[test]
 fn a_session_under_a_profile_runs_in_its_dir_with_its_rules_and_its_own_conversation() {
-    let (data, projects, bin) =
-        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
-    let daemon = Daemon::start_with_claude(data.path(), &fake_claude(bin.path()));
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
     let client = daemon.client();
     let (home, src) = open_with_profile(&client, &projects);
 
@@ -166,9 +165,8 @@ fn a_session_under_a_profile_runs_in_its_dir_with_its_rules_and_its_own_conversa
 
 #[test]
 fn a_start_under_a_profile_that_is_not_there_is_not_found_and_ends_nothing() {
-    let (data, projects, bin) =
-        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
-    let daemon = Daemon::start_with_claude(data.path(), &fake_claude(bin.path()));
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
     let client = daemon.client();
     open_with_profile(&client, &projects);
     let running = client.session_start_with("notes", Some("dev"), false).unwrap();
@@ -189,9 +187,8 @@ fn a_start_under_a_profile_that_is_not_there_is_not_found_and_ends_nothing() {
 
 #[test]
 fn a_sling_that_names_a_profile_reaches_only_a_process_under_it() {
-    let (data, projects, bin) =
-        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
-    let daemon = Daemon::start_with_claude(data.path(), &fake_claude(bin.path()));
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_with_claude(data.path(), &fake_claude());
     let client = daemon.client();
     let (_, src) = open_with_profile(&client, &projects);
     let ask = |profile: Option<&str>| SlingAsk {

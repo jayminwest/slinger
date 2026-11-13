@@ -18,7 +18,7 @@ mod schema;
 #[cfg(test)]
 mod tests;
 
-use std::fs::{DirBuilder, File, TryLockError};
+use std::fs::DirBuilder;
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
@@ -31,6 +31,7 @@ use slinger_core::record::{self, BlobId, Event};
 
 use crate::canvases::Canvases;
 use crate::feedback::Feedback;
+use crate::lock::Lock;
 use crate::sessions::Sessions;
 use crate::workspaces::Workspaces;
 
@@ -142,7 +143,7 @@ pub struct Store {
     sessions: Sessions,
     feedback: Feedback,
     /// Held for the store's life: two stores never share one directory.
-    _lock: File,
+    _lock: Lock,
 }
 
 impl Store {
@@ -402,14 +403,9 @@ fn select(db: &Connection, query: &Query) -> Result<Vec<Event>> {
 
 /// Takes the lock on `dir`, so no other store opens the record while this one
 /// has it. The lock ends with the process, so a daemon that died leaves none.
-fn lock(dir: &Path) -> Result<File> {
+fn lock(dir: &Path) -> Result<Lock> {
     let locking = |source| StoreError::Lock { path: dir.to_owned(), source };
-    let lock = File::options().create(true).append(true).open(dir.join(LOCK)).map_err(locking)?;
-    match lock.try_lock() {
-        Ok(()) => Ok(lock),
-        Err(TryLockError::WouldBlock) => Err(StoreError::Taken(dir.to_owned())),
-        Err(TryLockError::Error(e)) => Err(locking(e)),
-    }
+    Lock::take(&dir.join(LOCK)).map_err(locking)?.ok_or_else(|| StoreError::Taken(dir.to_owned()))
 }
 
 /// Where the record lives when `--data-dir` is not given:
