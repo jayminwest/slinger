@@ -982,7 +982,9 @@ user's writing near it: the colour and size of the user's ink or text it goes
 beside (a stroke counts with its whole cluster), else of the user's ink and
 text on that page, else black and 240. The colour is the one most of those
 items have; the size is the median of a text's own size and, for a cluster
-of ink, the median height of its lines of writing. The reply gives the new item's id and its box. When a
+of ink, the median height of its lines of writing. A cluster whose every
+stroke is over twice the median height of the strokes counted (a frame
+drawn apart from any writing) is not writing and gives no size. The reply gives the new item's id and its box. When a
 `sling_sent` tagged with the agent and the canvas is in the record, the put
 answers the latest such sling: the daemon appends `reply_landed` (`sling`,
 `items`: the new item) with the agent as source and tags it with the agent

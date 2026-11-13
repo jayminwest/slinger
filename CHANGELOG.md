@@ -265,8 +265,9 @@ bullet with the area in bold.
   agent puts without a colour or size takes the colour of your ink there and
   the height of your lines of writing, so it shows on a dark page and next
   to large handwriting; boxes, ink and arrows take the colour too. Beside
-  something that is not your writing, it matches your writing on that page;
-  on a page with none, it is black and 240 as before. A colour or size the
+  something that is not your writing, it matches your writing on that page
+  (a large drawing apart from it, such as a frame, does not count toward
+  the size); on a page with none, it is black and 240 as before. A colour or size the
   agent gives still wins.
 - **Agents:** the first sling to an agent now ends its note with
   `slinger guide`, so the agent knows where to find every other command
