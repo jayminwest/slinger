@@ -395,3 +395,20 @@ fn each_pick_command_opens_its_popup() {
     assert_eq!(opened[..4], kinds);
     assert_eq!(opened[4], None);
 }
+
+#[test]
+fn a_colour_picked_is_taken_once_even_the_pen_s_own() {
+    let mut tools = tools();
+    assert_eq!(tools.picked(), None);
+    tools.open(Kind::Colour, WITHIN);
+    assert!(tools.key(key("1")));
+    assert_eq!((tools.picked(), tools.picked()), (Some(RED), None), "red again, taken once");
+    tools.open(Kind::Colour, WITHIN);
+    assert!(tools.press(cell(&tools, 2)));
+    assert_eq!(tools.picked(), Some(BLUE));
+    tools.open(Kind::Tool, WITHIN);
+    assert!(tools.press(cell(&tools, 2)));
+    tools.open(Kind::Colour, WITHIN);
+    assert!(tools.key(key("escape")));
+    assert_eq!(tools.picked(), None, "a tool, or a closed pop-up, picks no colour");
+}

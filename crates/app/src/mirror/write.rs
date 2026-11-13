@@ -32,8 +32,7 @@ pub fn ops(change: &Change) -> Value {
         }
         Change::Put { page, colour, shape, .. } => {
             let mut item = fields(shape);
-            let Rgb { r, g, b } = *colour;
-            item.insert("color".into(), format!("#{r:02x}{g:02x}{b:02x}").into());
+            item.insert("color".into(), hex(*colour).into());
             item.insert("page".into(), page.as_str().into());
             serde_json::json!({"op": "add", "item": item})
         }
@@ -88,8 +87,7 @@ pub fn object(item: &Item) -> Option<Value> {
     o.insert("id".into(), item_ref(item.id).into());
     // A `pdf` item has no colour (docs/design/pdf.md).
     if !matches!(item.shape, Shape::Pdf { .. }) {
-        let Rgb { r, g, b } = item.colour;
-        o.insert("color".into(), format!("#{r:02x}{g:02x}{b:02x}").into());
+        o.insert("color".into(), hex(item.colour).into());
     }
     Some(Value::Object(o))
 }
@@ -158,16 +156,23 @@ fn set(id: ItemId, shape: &Shape) -> Value {
 }
 
 /// The `set` that draws `item` as it is: a stroke by its points, an agent
-/// UI by its frame, anything else as [`set`].
+/// UI by its frame, anything else as [`set`]; a stroke, a text, a box and
+/// an arrow with its colour too (a recolour, [`crate::scene::select`]).
 fn reshape(item: &Item) -> Value {
-    let fields = match &item.shape {
+    let mut fields = match &item.shape {
         Shape::Stroke { points, .. } => serde_json::json!({"pts": deltas(points)}),
         Shape::Live { frame, .. } => serde_json::json!({
             "x": tenths(frame.x), "y": tenths(frame.y),
             "w": tenths(frame.width), "h": tenths(frame.height),
         }),
-        shape => return set(item.id, shape),
+        shape => set(item.id, shape)["fields"].take(),
     };
+    if matches!(
+        item.shape,
+        Shape::Stroke { .. } | Shape::Text { .. } | Shape::Box { .. } | Shape::Arrow { .. }
+    ) {
+        fields["color"] = hex(item.colour).into();
+    }
     serde_json::json!({"op": "set", "id": item_ref(item.id), "fields": fields})
 }
 
@@ -257,6 +262,11 @@ pub fn text_frame_at(at: Point, text: &str, size: f64) -> Rect {
     }
 }
 
+/// `colour` as the canvas file writes it: `#rrggbb`.
+fn hex(Rgb { r, g, b }: Rgb) -> String {
+    format!("#{r:02x}{g:02x}{b:02x}")
+}
+
 /// A length in canvas units as the whole tenths the canvas file stores.
 #[expect(clippy::cast_possible_truncation, reason = "canvas units are far inside i64")]
 pub(super) fn tenths(v: f64) -> i64 {
@@ -268,11 +278,10 @@ pub(super) fn tenths(v: f64) -> i64 {
 /// before the deltas are taken (so error does not build up along it). A
 /// width is at least one tenth.
 pub(super) fn stroke_object(stroke: &Stroke) -> Value {
-    let Rgb { r, g, b } = stroke.colour;
     serde_json::json!({
         "page": stroke.page,
         "kind": "stroke",
-        "color": format!("#{r:02x}{g:02x}{b:02x}"),
+        "color": hex(stroke.colour),
         "width": tenths(stroke.width).max(1),
         "pts": deltas(&stroke.points),
     })

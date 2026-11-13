@@ -1,8 +1,10 @@
 //! What the keys do on the canvas panes: typed and pasted text go to a
 //! page command's question or the text being typed, and delete and escape
-//! act on the selection from any pane that shows its page.
+//! act on the selection from any pane that shows its page; a colour picked
+//! recolours it.
 
 use super::{Canvases, canvas_of, find, wanted};
+use crate::config::Rgb;
 use crate::layout::PaneId;
 use crate::mirror::Mirror;
 use crate::panes::Panes;
@@ -61,6 +63,20 @@ impl Canvases {
     pub fn delete_selection(&mut self, panes: &Panes, pane: PaneId) -> bool {
         let shown = self.shows_selection(panes, pane);
         shown && self.select.delete(&mut self.ink) && {
+            self.send();
+            true
+        }
+    }
+
+    /// Makes the selection's strokes, texts, boxes and arrows `colour`, in
+    /// one step ([`crate::scene::select::Select::recolour`]). Returns false
+    /// when there is no selection, or none of it changes.
+    pub fn recolour(&mut self, colour: Rgb) -> bool {
+        let Some(s) = self.select.selection() else { return false };
+        let open = find(&self.open, &s.canvas, Some(&s.page)).and_then(|o| o.mirror.as_ref());
+        let Some(mirror) = open else { return false };
+        let items = self.ink.shown(&s.canvas, &s.page, mirror.items());
+        self.select.recolour(colour, &items, &mut self.ink) && {
             self.send();
             true
         }

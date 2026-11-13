@@ -11,6 +11,10 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** recolour what you selected. Picking a colour from the colour
+  pop-up with a selection makes its strokes, texts, boxes and arrows that
+  colour, in one step that one undo takes back; the pen takes the colour
+  too. Agent UIs, PDF pages and buttons keep their own.
 - **App:** open a workspace without the CLI. Open workspace…
   (`open-workspace`, ⇧⌘O) is in the File menu and the command palette, and
   the "+" at the foot of the open sidebar runs it. Pick a folder, or make a

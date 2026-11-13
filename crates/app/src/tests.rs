@@ -141,6 +141,32 @@ fn a_text_left_open_ends_and_the_first_box_drag_after_cmd_5_reaches_the_daemon()
     });
 }
 
+/// slinger-7d8ba2: a colour picked from the pop-up, by its digit, with a
+/// box selected, recolours the box on the daemon.
+#[test]
+fn a_colour_picked_with_a_box_selected_recolours_it() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        w.drag_box(400.0, 10.0);
+        w.until(|_| count(daemon, "box") == 1);
+        assert!(w.send(Event::Command(Command::ToolSelect)));
+        assert!(w.send(Event::Press(at(350.0, 350.0, 11.0))));
+        assert!(w.send(Event::Drag(at(550.0, 500.0, 11.1))));
+        assert!(w.send(Event::Lift(at(550.0, 500.0, 11.2))));
+        assert!(w.canvases.selection().is_some(), "the select tool's box took it");
+        let crate::config::Rgb { r, g, b } = w.settings.config.palette.colours()[1];
+        let want = format!("#{r:02x}{g:02x}{b:02x}");
+        assert!(w.send(Event::Command(Command::PickColour)));
+        w.key(Chord::new(0, '2'), "2");
+        w.until(|_| {
+            let items = daemon.canvas_show("notes", None).unwrap().items;
+            items.iter().any(|i| i["kind"] == "box" && i["color"] == want.as_str())
+        });
+    });
+}
+
 /// slinger-e8d72a: Edit > Undo or Redo chosen with the pointer while an
 /// entry is open passes on to its field (as cmd+Z does), not to the canvas.
 #[test]

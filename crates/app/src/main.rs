@@ -352,7 +352,7 @@ fn ask(
 
 /// Hands `chord` to what takes keys before the keymap: the open key overlay
 /// in `shared` (every key), the page menu (escape), the sling's entry, then
-/// a pop-up. False when none took it.
+/// a pop-up ([`picked`]). False when none took it.
 fn taken(
     chord: Chord,
     shared: &mut Shared,
@@ -363,7 +363,15 @@ fn taken(
     shared.overlay.key(chord, &settings.config.keys)
         || shared.menu.key(chord)
         || canvases.sling_key(chord)
-        || tools.key(chord)
+        || tools.key(chord) && picked(tools, canvases)
+}
+
+/// A colour picked from the pop-up recolours the selection. Always true.
+fn picked(tools: &mut Tools, canvases: &mut Canvases) -> bool {
+    if let Some(colour) = tools.picked() {
+        canvases.recolour(colour);
+    }
+    true
 }
 
 /// Hands a press on a divider between panes (with no pop-up open, and not
@@ -434,7 +442,7 @@ fn pointer(
         // A text being typed takes the keys that type, which come back as text.
         Event::Text(ref text) => canvases.typed(text),
         Event::EraserEnd(eraser) => tools.set_eraser_end(eraser),
-        Event::Press(pen) if tools.press(pen.at) => true,
+        Event::Press(pen) if tools.press(pen.at) => picked(tools, canvases),
         Event::Press(pen) => {
             tools.set_eraser_end(pen.eraser);
             let tool = (tools.tool(), tools.colour());
