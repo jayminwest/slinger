@@ -230,6 +230,10 @@ canvases.rs  canvas files on disk, the only writer (K5): one lock per canvas,
 canvases/feed.rs  the change feed: the stored lines after a number, read back
              from the file, and a wait on the canvas's condition variable that
              a change or `Canvases::stop` (called when `serve` stops) ends.
+server/lock.rs  the lock beside the socket that says which daemon owns the path.
+             Dropping it unlocks it, so a spawned process's copy of the file,
+             open from its fork to its exec, cannot hold the path a moment
+             past the daemon's stop.
 server/import.rs  `canvas_import`: reads the client's file, calls the tldraw
              importer, stores the canvas, replies with the counts.
 workspaces.rs the open workspaces: the list of directories that hold their

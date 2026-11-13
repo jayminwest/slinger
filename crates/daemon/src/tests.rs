@@ -46,11 +46,6 @@ fn socket_path() -> (TempDir, PathBuf) {
     (dir, socket)
 }
 
-/// Takes `socket`, waiting out a lock a test released a moment ago.
-fn bind(socket: &Path) -> Server {
-    when_free(|| Server::bind(socket), |e| matches!(e, StartError::Taken(_))).unwrap()
-}
-
 /// Opens the record in `data`, waiting out a lock a store or daemon that
 /// stopped a moment ago released.
 fn open(data: &Path) -> Store {
@@ -190,7 +185,7 @@ fn a_socket_file_left_by_a_dead_daemon_is_replaced() {
     let (socket_dir, socket) = socket_path();
     drop(Server::bind(&socket).unwrap());
     assert!(socket.exists());
-    let server = bind(&socket);
+    let server = Server::bind(&socket).unwrap();
     let stopper = server.stopper();
     let data = TempDir::new().unwrap();
     let thread = serving(server, data.path());
@@ -460,7 +455,7 @@ fn a_data_dir_it_cannot_create_is_an_error() {
     assert!(err.starts_with("✗ cannot create data directory /dev/null/slinger"), "{err}");
     assert!(err.contains("\n  pass another --data-dir"), "{err}");
     // The lock is free again: a daemon with a good data dir can take the socket.
-    drop(bind(&socket));
+    drop(Server::bind(&socket).unwrap());
 }
 
 #[test]
