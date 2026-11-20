@@ -694,7 +694,7 @@ scene/paste.rs  the clipboard as the app sees it (`Clip`: plain text, a
 scene/cursor.rs  the pointer over a canvas pane, per tool: the pen a ring in
              its colour, the eraser a ring its width, the lasso and the
              shapes cross hairs, text an I-beam, the select tool and an open
-             pop-up the arrow. The arrow elsewhere (sidebar, agent UI, chrome).
+             pop-up the arrow; with space held, the open or closed hand. The arrow elsewhere (sidebar, agent UI, chrome).
              On a divider between panes, the resize cursor across it; on a
              selection handle, the diagonal resize cursor through it. Pure.
 ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
@@ -957,7 +957,15 @@ scene/tools.rs  the pen's tool, colour and width, and the pop-up at the pen (col
              hold it for new strokes (`set_pen_width`). While a tablet pen's
              eraser end is in use the tool is the eraser (footer, cursor,
              gesture); the chosen tool (menu check, flash, pop-up) comes
-             back with the tip. Pure.
+             back with the tip. The pen tool is the tablet's
+             (docs/design/pen-less.md 1B): while the device last seen
+             (`set_device`: a proximity event, each press) is a mouse or a
+             trackpad, it acts as the select tool. Pure.
+scene/hand.rs  space held for a pan: taken only while nothing takes typed
+             text; a press with it held pans the pane under it with each
+             drag, to the lift; the open hand while held, the closed hand
+             during a pan. `route` hands it space, presses, drags and lifts
+             before anything else. Pure.
 layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
              about a point or to a level, limits, the level as people read it,
              how far a scroll zooms; the canvas has no edge; a pane's view
@@ -977,10 +985,13 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              event into a point, a time, whether a finger made it and whether
              a tablet pen's eraser end did (mouse coalescing off: every
              point); `input` does this. A scroll with cmd or ctrl held is a
-             zoom about the pointer, as a pinch. A right-button drag is a scroll at
-             its press point, so it pans as two fingers do. A tablet
-             proximity event says which end of the pen is near
-             (Event::EraserEnd). The pointer's cursor is set again from the
+             zoom about the pointer, as a pinch. A right- or middle-button
+             drag is a scroll at its press point, so it pans as two fingers
+             do. A tablet proximity event says the pen came or left and which
+             end is near (Event::Proximity); a pen event's subtype says a
+             tablet made it (Pen::tablet). Space with no modifier says
+             Event::Space down (and each repeat) and up, and the window
+             losing the keys says it up. The pointer's cursor is set again from the
              view under it on each move and when the window becomes key
              (a canvas's cursor, the arrow over the chrome). One view per canvas pane repaints
              only the box its scene says changed, and says how long after
@@ -1295,6 +1306,7 @@ Each boundary has something that fails when it is broken:
 | The select tool picks the topmost item under a press, a drawn box selects what it touches, shift adds or takes out, a drag moves the selection | `crates/app/src/scene/select/pick/tests.rs` |
 | A drag of a corner handle scales the selection about the opposite corner in one change, a text's size scales evenly within its range, bound arrows follow, no side turns over, shift keeps the shape | `crates/app/src/scene/select/scale/tests.rs` |
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
+| With the pen tool a mouse press selects and a tablet press draws; space held turns a drag into a pan with no tool, and types in a text being typed | `crates/app/src/scene/tools/tests.rs`, `crates/app/src/scene/hand.rs`, and `crates/app/src/tests/pointer.rs` against a real daemon |
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |
 | Page commands turn, name and remove pages; removing a page with items asks once | `crates/app/src/scene/pages/tests.rs` |

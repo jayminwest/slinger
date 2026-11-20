@@ -123,8 +123,14 @@ fn escape_cancels_and_a_lost_daemon_opens_the_entry_again() {
     assert!(!canvases.typing() && !canvases.sling_key(ESCAPE), "closed: the keymap's");
 
     assert!(open(&mut canvases, &panes));
-    let pen =
-        Pen { at: Point { x: 9.0, y: 9.0 }, when: 0.0, touch: true, eraser: false, shift: false };
+    let pen = Pen {
+        at: Point { x: 9.0, y: 9.0 },
+        when: 0.0,
+        touch: true,
+        eraser: false,
+        shift: false,
+        tablet: false,
+    };
     let (here, ink) = ((panes.focus(), WINDOW.rect()), (Tool::Pen, Config::default().theme.text));
     canvases.pen_down(&panes, here, pen, ink);
     assert!(canvases.typing(), "a palm on the canvas leaves it open");
@@ -166,6 +172,7 @@ fn the_entry_ends_the_text_being_typed_so_its_caret_is_the_only_one() {
             touch: false,
             eraser: false,
             shift: false,
+            tablet: false,
         };
         assert!(canvases.pen_down(&panes, here, pen, (Tool::Text, Config::default().theme.text)));
         canvases.pen_up(&panes, Pen { when: 0.1, ..pen }, Some(here));
@@ -347,8 +354,14 @@ fn sling_by_the_button(canvases: &mut Canvases, panes: &Panes) {
 fn lasso_the_stroke(canvases: &mut Canvases, panes: &Panes) {
     let at = (panes.focus(), WINDOW.rect());
     let here = Some(at);
-    let pen =
-        |x, y| Pen { at: Point { x, y }, when: 0.0, touch: false, eraser: false, shift: false };
+    let pen = |x, y| Pen {
+        at: Point { x, y },
+        when: 0.0,
+        touch: false,
+        eraser: false,
+        shift: false,
+        tablet: false,
+    };
     let lasso = (Tool::Lasso, Config::default().theme.text);
     assert!(canvases.pen_down(panes, at, pen(50.0, 50.0), lasso));
     for (x, y) in [(200.0, 50.0), (200.0, 200.0), (50.0, 200.0)] {

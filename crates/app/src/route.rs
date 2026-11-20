@@ -1,6 +1,8 @@
 //! The window's routing (`main.rs`'s `window` answers through it, and the
 //! tests hand their events in through it): an event goes to the open
 //! palette or overlay, a command, a tap, the pen, or on to the focused view.
+//! Space held, and the press, drags and lift of a pan with it, are the
+//! hand's ([`hand`]) before anything else.
 
 use std::path::Path;
 use std::time::Instant;
@@ -8,6 +10,7 @@ use std::time::Instant;
 use crate::canvases::Canvases;
 use crate::commands::menu::Native;
 use crate::commands::{Chord, Command};
+use crate::layout::Rect;
 use crate::scene::paste::Keyboard;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::tools::Tools;
@@ -38,6 +41,18 @@ pub fn route(
     sidebar: &mut Sidebar,
 ) -> Routed {
     let area = sidebar.panes(shared.size.rect());
+    if let Event::Press(pen) = event
+        && !pen.touch
+    {
+        tools.set_device(pen.tablet);
+    }
+    match hand(&event, shared, canvases, tools, area) {
+        Some(true) => {
+            return Routed::Answer(Step::Draw(view(settings, shared, tools, sidebar, canvases)));
+        }
+        Some(false) => return Routed::Answer(Step::Stay),
+        None => {}
+    }
     // A press focuses the pane under it first, so the press works there.
     // The app takes it, and the window the keyboard, unless it goes on;
     // then the view under it has the keyboard, but for an open entry's.
@@ -114,6 +129,38 @@ pub fn route(
         shared.keyboard = on;
     }
     Routed::Answer(step)
+}
+
+/// Hands `event` to the hand of `shared` (docs/design/pen-less.md): space
+/// down while nothing in `canvases`, `shared` or `tools` takes typed text
+/// holds it; a press with it held starts a pan, its drags pan the canvas
+/// pane of `shared` laid in `area` under the press, as a two-finger scroll
+/// there would, and its lift ends it. `Some(draw)` when the hand took it;
+/// `None` when it goes on.
+fn hand(
+    event: &Event,
+    shared: &mut Shared,
+    canvases: &mut Canvases,
+    tools: &Tools,
+    area: Rect,
+) -> Option<bool> {
+    let hand = &mut shared.hand;
+    match *event {
+        Event::Space(down) => {
+            let typing = canvases.typing() || canvases.editing();
+            let free = !typing && !shared.modal() && tools.open_kind().is_none();
+            let was = shared.hand.cursor();
+            let took = shared.hand.space(down, free);
+            let changed = shared.hand.cursor() != was;
+            (took || changed).then_some(changed)
+        }
+        Event::Press(pen) if hand.press(pen.at) => Some(true),
+        Event::Drag(pen) => hand.drag(pen.at).map(|(at, dx, dy)| {
+            window::gesture(canvases, &shared.panes, area, &Event::Scroll { at, dx, dy })
+        }),
+        Event::Lift(_) if hand.lift() => Some(true),
+        _ => None,
+    }
 }
 
 /// Flashes why a paste went nowhere when `chord` is paste's key and the

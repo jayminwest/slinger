@@ -471,7 +471,7 @@ fn pointer(
         Event::Typed(ref text) => canvases.sling_typed(text),
         // A text being typed takes the keys that type, which come back as text.
         Event::Text(ref text) => canvases.typed(text),
-        Event::EraserEnd(eraser) => tools.set_eraser_end(eraser),
+        Event::Proximity { near, eraser } => tools.set_eraser_end(eraser) | tools.set_device(near),
         Event::Press(pen) if tools.press(pen.at) => picked(tools, canvases),
         Event::Press(pen) => {
             tools.set_eraser_end(pen.eraser);

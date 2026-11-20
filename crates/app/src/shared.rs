@@ -1,7 +1,8 @@
 //! The window's panes as the server keeps them for its workspace, and what
 //! goes with them: the window's size, the agent UIs, the notes, the
-//! divider under the pen, the footers' and the sidebar's tap targets, and
-//! the key overlay, the command palette and the page menu over them.
+//! divider under the pen, the footers' and the sidebar's tap targets, the
+//! key overlay, the command palette and the page menu over them, and the
+//! hand that space holds for a pan.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -12,6 +13,7 @@ use crate::backend::{self, Problem};
 use crate::commands::Command;
 use crate::layout::{self, Point, Rect, Size};
 use crate::panes::{self, Pane, Panes};
+use crate::scene::hand::Hand;
 use crate::scene::overlay::KeyOverlay;
 use crate::scene::pages::menu::PageMenu;
 use crate::scene::palette::Palette;
@@ -49,6 +51,8 @@ pub struct Shared {
     pub taps: Taps,
     /// Where the last press left the keyboard ([`crate::route`]).
     pub keyboard: Keyboard,
+    /// Space held for a pan, and the pan under way ([`crate::route`]).
+    pub hand: Hand,
 }
 
 impl Default for Shared {
@@ -73,6 +77,7 @@ impl Default for Shared {
             menu,
             taps,
             keyboard,
+            hand: Hand::default(),
         }
     }
 }

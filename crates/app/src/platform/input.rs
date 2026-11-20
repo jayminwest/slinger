@@ -7,13 +7,16 @@
 //!   [`Event::Zoom`] about the pointer, as a pinch there would be: a mouse
 //!   has no pinch. A scroll away from the user (as the hand moved, natural
 //!   scrolling or not) zooms in ([`scroll_zoom`]).
-//! - A right-button drag is an [`Event::Scroll`] by how far the pointer
-//!   moved, at the point it was pressed, so it pans what a two-finger
-//!   scroll there would, and keeps to that pane.
+//! - A right- or middle-button drag is an [`Event::Scroll`] by how far the
+//!   pointer moved, at the point it was pressed, so it pans what a
+//!   two-finger scroll there would, and keeps to that pane.
 //! - A tablet pen's end is known from its proximity events (the pen came
-//!   near the tablet, or left): each says [`Event::EraserEnd`], and each
+//!   near the tablet, or left): each says [`Event::Proximity`], and each
 //!   pen event after it carries it ([`Pen::eraser`]). `AppKit` names the
-//!   end only on those events, so it is kept here between them.
+//!   end only on those events, so it is kept here between them. A pen
+//!   event is a tablet's ([`Pen::tablet`]) by its subtype.
+//! - Space with no modifier says [`Event::Space`] before it goes on as a
+//!   key, and stops there if taken; its key up says it too.
 //! - The pointer's cursor is set again from the view under it on each move
 //!   and when the window becomes key: a canvas view's cursor over a canvas,
 //!   the arrow over the chrome. `AppKit`'s cursor rects alone leave a stale
@@ -35,10 +38,13 @@ use objc2_foundation::NSPoint;
 
 use super::keys::{chord, typed};
 use super::{CanvasView, Event, STATE, dispatch};
+use crate::commands::Chord;
 use crate::layout::{Point, scroll_zoom};
 use crate::scene::cursor::Cursor;
 use crate::scene::ink::Pen;
 
+/// Space with no modifier: held, a drag pans ([`Event::Space`]).
+const SPACE: Chord = Chord::new(0, ' ');
 /// How far one line of a mouse wheel scrolls, in points. A trackpad gives points.
 const WHEEL_LINE: f64 = 16.0;
 /// A scroll with either of these held zooms.
@@ -48,16 +54,16 @@ const ZOOMS: NSEventModifierFlags =
 thread_local! {
     /// Whether the tablet pen near the tablet has its eraser end down.
     static ERASER: Cell<bool> = const { Cell::new(false) };
-    /// The right-button drag under way, if any: where it was pressed and
-    /// where it was last, in the window from its top left.
+    /// The right- or middle-button drag under way, if any: where it was
+    /// pressed and where it was last, in the window from its top left.
     static RIGHT: Cell<Option<(Point, Point)>> = const { Cell::new(None) };
     /// The scene's cursor over a divider between panes, if any.
     pub(super) static DIVIDER: Cell<Option<Cursor>> = const { Cell::new(None) };
 }
 
 /// Hands `event`, sent to `window`, to the app as an [`Event`]. True when
-/// the app used it, so it goes no further; moves, proximity and right-button
-/// presses always go on.
+/// the app used it, so it goes no further; moves, proximity, key ups and
+/// right- or middle-button presses always go on.
 pub(super) fn send(window: &NSWindow, event: &NSEvent, mtm: MainThreadMarker) -> bool {
     let kind = event.r#type();
     let at = || point(window, event);
@@ -75,9 +81,19 @@ pub(super) fn send(window: &NSWindow, event: &NSEvent, mtm: MainThreadMarker) ->
         let eraser = event.isEnteringProximity()
             && event.pointingDeviceType() == NSPointingDeviceType::Eraser;
         ERASER.set(eraser);
-        dispatch(Event::EraserEnd(eraser), mtm);
+        dispatch(Event::Proximity { near: event.isEnteringProximity(), eraser }, mtm);
     }
+    let middle = || event.buttonNumber() == 2;
     match kind {
+        NSEventType::KeyDown
+            if chord(event) == Some(SPACE) && dispatch(Event::Space(true), mtm) =>
+        {
+            true
+        }
+        NSEventType::KeyUp if chord(event).is_some_and(|c| c.key() == ' ') => {
+            dispatch(Event::Space(false), mtm);
+            false
+        }
         NSEventType::KeyDown => {
             chord(event).is_some_and(|chord| dispatch(Event::Key(chord), mtm))
                 || typed(event).is_some_and(|text| dispatch(Event::Text(text), mtm))
@@ -85,17 +101,24 @@ pub(super) fn send(window: &NSWindow, event: &NSEvent, mtm: MainThreadMarker) ->
         NSEventType::LeftMouseDown => dispatch(Event::Press(pen(window, event)), mtm),
         NSEventType::LeftMouseDragged => dispatch(Event::Drag(pen(window, event)), mtm),
         NSEventType::LeftMouseUp => dispatch(Event::Lift(pen(window, event)), mtm),
-        NSEventType::RightMouseDown => {
+        NSEventType::OtherMouseDown
+        | NSEventType::OtherMouseDragged
+        | NSEventType::OtherMouseUp
+            if !middle() =>
+        {
+            false
+        }
+        NSEventType::RightMouseDown | NSEventType::OtherMouseDown => {
             RIGHT.set(Some((at(), at())));
             false
         }
-        NSEventType::RightMouseDragged => {
+        NSEventType::RightMouseDragged | NSEventType::OtherMouseDragged => {
             let Some((from, last)) = RIGHT.get() else { return false };
             let now = at();
             RIGHT.set(Some((from, now)));
             dispatch(Event::Scroll { at: from, dx: now.x - last.x, dy: now.y - last.y }, mtm)
         }
-        NSEventType::RightMouseUp => {
+        NSEventType::RightMouseUp | NSEventType::OtherMouseUp => {
             RIGHT.set(None);
             false
         }
@@ -200,12 +223,13 @@ fn point(window: &NSWindow, event: &NSEvent) -> Point {
 }
 
 /// A left-button or pen event: where, when, whether a finger made it,
-/// whether a tablet pen's eraser end did, and whether shift was held.
+/// whether a tablet pen's eraser end did, whether shift was held, and
+/// whether a tablet pen made it at all.
 fn pen(window: &NSWindow, event: &NSEvent) -> Pen {
     let subtype = event.subtype();
     let touch = subtype == NSEventSubtype::Touch;
     let tablet = matches!(subtype, NSEventSubtype::TabletPoint | NSEventSubtype::TabletProximity);
     let eraser = tablet && ERASER.get();
     let shift = event.modifierFlags().contains(NSEventModifierFlags::Shift);
-    Pen { at: point(window, event), when: event.timestamp(), touch, eraser, shift }
+    Pen { at: point(window, event), when: event.timestamp(), touch, eraser, shift, tablet }
 }

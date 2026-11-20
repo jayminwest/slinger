@@ -205,8 +205,14 @@ mod tests {
     use crate::scene::tools::Tool;
 
     /// A press of the pen's tip.
-    const PEN: Pen =
-        Pen { at: Point { x: 0.0, y: 0.0 }, when: 0.0, touch: false, eraser: false, shift: false };
+    const PEN: Pen = Pen {
+        at: Point { x: 0.0, y: 0.0 },
+        when: 0.0,
+        touch: false,
+        eraser: false,
+        shift: false,
+        tablet: false,
+    };
 
     fn notes() -> Panes {
         Panes::new(Pane { kind: Kind::Canvas, name: "notes".into() })

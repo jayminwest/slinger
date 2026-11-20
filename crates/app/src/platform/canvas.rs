@@ -325,6 +325,8 @@ pub(super) fn ns_cursor(cursor: Cursor) -> Retained<NSCursor> {
         Cursor::Arrow => NSCursor::arrowCursor(),
         Cursor::Crosshair => NSCursor::crosshairCursor(),
         Cursor::IBeam => NSCursor::IBeamCursor(),
+        Cursor::OpenHand => NSCursor::openHandCursor(),
+        Cursor::ClosedHand => NSCursor::closedHandCursor(),
         Cursor::ResizeLeftRight | Cursor::ResizeUpDown => resize(cursor),
         Cursor::ResizeFalling => diagonal(false),
         Cursor::ResizeRising => diagonal(true),

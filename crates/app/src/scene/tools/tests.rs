@@ -22,9 +22,11 @@ fn rgb_palette() -> Palette {
         .palette
 }
 
+/// The tools with a tablet pen near.
 fn tools() -> Tools {
     let mut tools = Tools::new(rgb_palette());
     tools.moved(Point { x: 220.0, y: 80.0 });
+    assert!(tools.set_device(true));
     tools
 }
 
@@ -411,4 +413,33 @@ fn a_colour_picked_is_taken_once_even_the_pen_s_own() {
     tools.open(Kind::Colour, WITHIN);
     assert!(tools.key(key("escape")));
     assert_eq!(tools.picked(), None, "a tool, or a closed pop-up, picks no colour");
+}
+
+#[test]
+fn a_mouse_selects_with_the_pen_tool_and_gets_every_other_tool_as_chosen() {
+    let mut tools = tools();
+    assert!(tools.set_device(false), "the pen left: the mouse");
+    assert_eq!((tools.tool(), tools.chosen()), (Tool::Select, Tool::Pen));
+    for (command, tool) in [
+        (Command::ToolEraser, Tool::Eraser),
+        (Command::ToolLasso, Tool::Lasso),
+        (Command::ToolText, Tool::Text),
+        (Command::ToolBox, Tool::Box),
+        (Command::ToolArrow, Tool::Arrow),
+        (Command::ToolSelect, Tool::Select),
+        (Command::CropPdf, Tool::CropPdf),
+    ] {
+        assert!(tools.command(command));
+        assert_eq!(tools.tool(), tool, "{command:?} is the mouse's too");
+    }
+    assert!(tools.command(Command::ToolPen));
+    assert!(!tools.set_device(false), "no change");
+    assert!(tools.set_device(true), "the pen came near");
+    assert_eq!(tools.tool(), Tool::Pen, "the tablet draws");
+}
+
+#[test]
+fn before_any_tablet_event_the_device_is_the_mouse() {
+    let tools = Tools::new(rgb_palette());
+    assert_eq!((tools.tool(), tools.chosen()), (Tool::Select, Tool::Pen));
 }

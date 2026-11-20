@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** pan without a right button. Hold space and drag (mouse,
+  trackpad or pen) to pan the pane under the press; the pointer is a hand.
+  A middle-button drag pans as a right-button drag does. While you type a
+  text or an entry is open, space types a space as before.
+
 - **App:** run outside its `.app` (a bare `slinger-app` from a shell), the
   app says once, when you cancel a file panel, to run slinger.app to reach
   Downloads, Desktop and Documents: macOS lets the panel show those folders
@@ -300,6 +305,12 @@ bullet with the area in bold.
   sidebar (default `"#4cc36b"`, the green it always had).
 
 ### Changed
+
+- **App:** a mouse or trackpad no longer draws stray lines. With the pen
+  tool chosen, a mouse or trackpad press selects and moves items, as the
+  select tool does; the tablet pen draws exactly as before. Every other
+  tool (text, box, arrow, lasso, eraser, crop) works with the mouse as
+  chosen. The footer and the pointer show what a press will do.
 
 - **CLI:** `slinger` finds the running `slingerd` on any socket, not only on
   the default one: the daemon names its socket in its data directory while

@@ -5,7 +5,8 @@
 //! between panes, and while one is dragged, the pointer is the resize
 //! cursor across it ([`over_divider`]) over whatever is there. On a corner
 //! handle of the selection, and while one is dragged, it is the resize
-//! cursor along the diagonal through that corner ([`over_handle`]).
+//! cursor along the diagonal through that corner ([`over_handle`]). With
+//! space held for a pan, it is a hand ([`crate::scene::hand::Hand::cursor`]).
 
 use crate::config::{Rgb, Theme};
 use crate::layout::{Axis, Point};
@@ -33,6 +34,10 @@ pub enum Cursor {
     /// Arrows to the top right and the bottom left: the selection's handle
     /// on either of those corners.
     ResizeRising,
+    /// The open hand: space is held, and a drag pans ([`crate::scene::hand`]).
+    OpenHand,
+    /// The closed hand: a pan with space held is under way.
+    ClosedHand,
 }
 
 /// The narrowest the pen's ring is, in screen points: a thin line's ring
@@ -108,6 +113,7 @@ mod tests {
         let palette = crate::config::Palette::default();
         let ink = palette.colours()[0];
         let mut tools = Tools::new(palette);
+        tools.set_device(true);
         let pen = Cursor::Ring { colour: ink, diameter: PEN_RING_LEAST };
         assert_eq!(over_canvas(&tools, &T, 1.0), pen);
         let each = [
@@ -125,6 +131,14 @@ mod tests {
         }
         tools.open(Kind::Colour, Rect { x: 0.0, y: 0.0, width: 400.0, height: 300.0 });
         assert_eq!(over_canvas(&tools, &T, 1.0), Cursor::Arrow);
+    }
+
+    #[test]
+    fn a_mouse_with_the_pen_tool_has_the_select_tool_s_arrow() {
+        let mut tools = Tools::new(crate::config::Palette::default());
+        assert_eq!(over_canvas(&tools, &T, 1.0), Cursor::Arrow, "no pen seen yet");
+        tools.set_device(true);
+        assert!(matches!(over_canvas(&tools, &T, 1.0), Cursor::Ring { .. }), "the pen near");
     }
 
     #[test]
@@ -154,6 +168,7 @@ mod tests {
         let ink = palette.colours()[0];
         // The default widths: 2, 4, 8 and 16 points.
         let mut tools = Tools::new(palette);
+        tools.set_device(true);
         let ring = |diameter| Cursor::Ring { colour: ink, diameter };
         assert_eq!(over_canvas(&tools, &T, 1.0), ring(PEN_RING_LEAST), "a thin line");
         for _ in 0..3 {

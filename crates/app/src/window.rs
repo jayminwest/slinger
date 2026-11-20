@@ -347,7 +347,7 @@ pub fn divider(
     area: Rect,
     at: Point,
 ) -> bool {
-    let still = Pen { at, when: 0.0, touch: false, eraser: false, shift: false };
+    let still = Pen { at, when: 0.0, touch: false, eraser: false, shift: false, tablet: false };
     let open = tools.open_kind().is_some();
     let under = pane_at(&shared.panes, area, at).filter(|_| !open);
     let handle = canvases.hover_handle(&shared.panes, under, at, tools.tool());
@@ -462,7 +462,7 @@ pub fn view(
     scene.overlay = overlay.or(sling.panel).map(Box::new);
     let free = !shared.modal() && tools.open_kind().is_none();
     for pane in &mut scene.canvases {
-        let handle = canvases.handle_cursor(pane.pane).filter(|_| free);
+        let handle = shared.hand.cursor().or(canvases.handle_cursor(pane.pane).filter(|_| free));
         let tool = || cursor::over_canvas(tools, theme, pane.scene.viewport.zoom());
         pane.cursor = handle.unwrap_or_else(tool);
     }

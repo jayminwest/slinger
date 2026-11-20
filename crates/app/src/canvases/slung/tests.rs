@@ -38,8 +38,14 @@ fn arrived(canvases: &mut Canvases, panes: &Panes) {
 /// Lassoes all of the page's one stroke.
 fn select_the_stroke(canvases: &mut Canvases, panes: &Panes) {
     let area = WINDOW.rect();
-    let pen =
-        |x, y| Pen { at: Point { x, y }, when: 0.0, touch: false, eraser: false, shift: false };
+    let pen = |x, y| Pen {
+        at: Point { x, y },
+        when: 0.0,
+        touch: false,
+        eraser: false,
+        shift: false,
+        tablet: false,
+    };
     let lasso = (Tool::Lasso, Rgb { r: 0, g: 0, b: 0 });
     assert!(canvases.pen_down(panes, (panes.focus(), area), pen(50.0, 50.0), lasso));
     for (x, y) in [(200.0, 50.0), (200.0, 200.0), (50.0, 200.0)] {
@@ -125,7 +131,7 @@ fn one_tap_with_nothing_selected_slings_what_is_new_on_the_page() {
         assert!(lines.iter().any(|l| l.label.text == "ok"), "{lines:?}");
         // slinger-9fe67e: the next stroke takes the answer away.
         let at = Point { x: 300.0, y: 300.0 };
-        let pen = Pen { at, when: 0.0, touch: false, eraser: false, shift: false };
+        let pen = Pen { at, when: 0.0, touch: false, eraser: false, shift: false, tablet: false };
         let ink = (Tool::Pen, Rgb { r: 0, g: 0, b: 0 });
         assert!(canvases.pen_down(&panes, (panes.focus(), WINDOW.rect()), pen, ink));
         let marks = canvases.sling_marks(&panes, WINDOW.rect(), &Config::default().theme);

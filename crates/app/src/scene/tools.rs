@@ -10,6 +10,12 @@
 //! (so the footer and the cursor say so), and the chosen tool
 //! ([`Tools::chosen`]) comes back with the tip.
 //!
+//! The pen tool is the tablet's (docs/design/pen-less.md, pick 1B): while
+//! the device last seen is a mouse or a trackpad ([`Tools::set_device`]),
+//! the pen tool chosen acts as the select tool, so a mouse never draws a
+//! stray line. Every other tool does with the mouse what it does with the
+//! pen, and a tablet press always gets the chosen tool.
+//!
 //! A pop-up opens from a key command where the pen or pointer last was, or
 //! at the focused pane's centre before either has been in the window. The
 //! pen picks a cell; a digit picks the cell with that number; the arrow keys
@@ -102,6 +108,8 @@ pub struct Popup {
 pub struct Tools {
     tool: Tool,
     eraser_end: bool,
+    /// Whether the device last seen is a tablet pen, not a mouse or a trackpad.
+    tablet: bool,
     colour: Rgb,
     /// A colour picked from the pop-up and not yet taken ([`Tools::picked`]).
     picked: Option<Rgb>,
@@ -125,6 +133,7 @@ impl Tools {
         Self {
             tool: Tool::Pen,
             eraser_end: false,
+            tablet: false,
             colour,
             picked: None,
             palette,
@@ -161,10 +170,15 @@ impl Tools {
         self.width
     }
 
-    /// What the pen does: the eraser while the pen's eraser end is in use,
+    /// What a press does: the eraser while the pen's eraser end is in use;
+    /// the select tool for a mouse or a trackpad with the pen tool chosen;
     /// else the chosen tool.
     pub fn tool(&self) -> Tool {
-        if self.eraser_end { Tool::Eraser } else { self.tool }
+        match self.tool {
+            _ if self.eraser_end => Tool::Eraser,
+            Tool::Pen if !self.tablet => Tool::Select,
+            tool => tool,
+        }
     }
 
     /// The tool chosen with a key, a menu or a pop-up: what the pen's tip does.
@@ -176,6 +190,13 @@ impl Tools {
     /// or a trackpad is (`false`). Returns whether that changed.
     pub fn set_eraser_end(&mut self, eraser: bool) -> bool {
         std::mem::replace(&mut self.eraser_end, eraser) != eraser
+    }
+
+    /// The device last seen is a tablet pen (`true`: it came near the
+    /// tablet, or pressed) or a mouse or a trackpad (`false`: the pen left,
+    /// or the mouse pressed). Returns whether that changed.
+    pub fn set_device(&mut self, tablet: bool) -> bool {
+        std::mem::replace(&mut self.tablet, tablet) != tablet
     }
 
     /// Runs a tool command (`tool-pen` to `tool-select`, `crop-pdf`): the tool it names
