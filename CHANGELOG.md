@@ -11,6 +11,13 @@ bullet with the area in bold.
 
 ### Added
 
+- **Daemon:** a daemon you did not start from a terminal finds Claude Code
+  and gives its agents your tools. Without `--claude`, slingerd looks for
+  `claude` at each session start on your login shell's `PATH` and in the
+  usual places (`~/.local/bin`, `~/.claude/local`, Homebrew,
+  `/usr/local/bin`, nix profiles), and every agent gets that `PATH`, so its
+  hooks, MCP servers and Bash calls find git and the rest. Not found, a
+  start says where it looked and how to fix it.
 - **Daemon:** `slingerd --log <FILE>` writes the daemon's warnings and
   every agent's stderr to a file, with a line as it starts and as it stops,
   so a daemon nobody started from a terminal still has a log. A log over

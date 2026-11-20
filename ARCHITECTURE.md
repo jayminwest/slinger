@@ -342,6 +342,12 @@ processes.rs the agents' processes, one per agent: spawned in the agent's
              messages its turn took in, so one still unanswered 2 s after a
              result with no output since was taken into that turn. The
              reader keeps the context of the last model reply (`context`).
+             `processes/program.rs` is where the program comes from: the
+             `--claude` given, else the first `claude` its `Search` finds at
+             each start (the agents' PATH, then fixed places). `Search::login`
+             reads the login shell's PATH once, in `serve`; that PATH (the
+             hooks' CLI folder first) is every agent's. Pure functions over
+             values, so no test sets the process environment.
              `processes/ids.rs` is the file of ids. A session's id is its
              process's, else its last process's key (kept after a stop),
              else the agent's own, else one of its profiles'.

@@ -18,6 +18,10 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 - [ ] sling over a PDF in the real app: backdrop and words line up with the ink in a live sling, on rotated pages and on cropped pdf items (only unit tests and one rendered image were checked) (slinger-9fd6f0)
 - [ ] crop-pdf in the real app: cmd+8, drag on a PDF page in reader mode shows the dashed box; cmd+V on an ordinary canvas shows the cropped region at the right aspect; select moves and resizes it keeping aspect; a crop of a pasted snippet maps correctly (slinger-7105bd)
 
+## Launcher (plan pl-ac18df)
+
+- [ ] from a slingerd that the bundled app started (once slinger-5e8b60 lands; until then `env -i HOME=$HOME USER=$USER SHELL=$SHELL PATH=/usr/bin:/bin:/usr/sbin:/sbin slingerd` with no --claude), start an agent and sling once: Claude Code is found, its hooks report, its Bash tool finds git/cargo/sd, its MCP servers load (slinger-be3082)
+
 ## Agent sessions, workspaces and the rest
 
 - [ ] the file panels in the BUNDLED app after 01bd66f (scripts/bundle.sh && open target/slinger.app, never a bare binary or ssh): cmd+O reaches Downloads (allow the macOS prompt) and opens a PDF; shift+cmd+D / shift+cmd+O / cmd+V in Go-to-folder work in the panel; the app menu bar returns after; Open Workspace and Export UI show their message and button (rest of 03cad2) (slinger-4e7b98)

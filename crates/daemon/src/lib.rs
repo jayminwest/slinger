@@ -36,7 +36,7 @@ use slinger_control as control;
 pub use canvases::{CanvasError, Canvases};
 pub use feedback::{Feedback, FeedbackError};
 pub use listeners::{Listeners, Listening};
-pub use processes::{ProcessError, Processes, Shown};
+pub use processes::{ProcessError, Processes, Search, Shown};
 pub use server::{Server, StartError, Stopper};
 pub use sessions::{SessionError, Sessions};
 pub use store::{CLAUDE, Query, SLINGER, Store, StoreError, default_data_dir, machine_name};
@@ -52,6 +52,9 @@ const DATA_DIR_HELP: &str = "Directory that holds the record [default: $XDG_DATA
 /// Help for `--feedback`, for the same reason.
 const FEEDBACK_HELP: &str = "File that feedback notes go to [default: feedback.jsonl in the \
      checkout slingerd was built from, else in the data directory]";
+/// Help for `--claude`.
+const CLAUDE_HELP: &str = "The program each agent's process runs: Claude Code [default: claude \
+     on the login shell's PATH, else in ~/.local/bin and other usual places]";
 /// Help for `--log`.
 const LOG_HELP: &str = "File that slingerd's and its agents' stderr go to, moved aside to \
      <PATH>.1 at start when over 1 MiB [default: stderr]";
@@ -79,9 +82,8 @@ struct Args {
     /// Let the data directory be in a temporary directory: the record may be lost
     #[arg(long)]
     scratch: bool,
-    /// The program each agent's process runs: Claude Code
-    #[arg(long, value_name = "PATH", default_value = CLAUDE)]
-    claude: PathBuf,
+    #[arg(long, value_name = "PATH", help = CLAUDE_HELP)]
+    claude: Option<PathBuf>,
     /// The slinger CLI each agent's hooks run [default: the one beside slingerd, else slinger on PATH]
     #[arg(long, value_name = "PATH")]
     slinger: Option<PathBuf>,
@@ -220,7 +222,7 @@ fn data_dir(given: Option<PathBuf>, scratch: bool) -> Result<PathBuf, Failure> {
 fn serve(
     socket: &Path,
     dir: &Path,
-    (claude, slinger): (PathBuf, PathBuf),
+    (claude, slinger): (Option<PathBuf>, PathBuf),
     feedback: Option<PathBuf>,
     log: Option<(PathBuf, Redirect)>,
     err: &mut dyn Write,
@@ -235,7 +237,9 @@ fn serve(
     let feedback = feedback.map(|f| std::path::absolute(&f).unwrap_or(f));
     let store = Store::open(dir, machine_name())
         .map_err(stored)?
-        .with_claude(claude)
+        // The login shell's PATH, read once: where Claude Code is looked
+        // for and the PATH every agent gets.
+        .with_search(claude, Search::login())
         .with_slinger(slinger)
         .with_feedback(feedback.unwrap_or_else(|| feedback::default_file(dir)));
     let log = log.map(|(path, redirect)| logging(&path, redirect, socket, dir)).transpose()?;

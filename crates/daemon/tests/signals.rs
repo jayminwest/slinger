@@ -16,6 +16,8 @@ fn sigterm_stops_the_daemon_cleanly() {
     let socket = socket_dir.path().join("s.sock");
     let data = tempfile::tempdir().unwrap();
     let daemon = Command::new(env!("CARGO_BIN_EXE_slingerd"))
+        // No login shell to ask for a PATH: the fixed folders stand in.
+        .env_remove("SHELL")
         .arg("--socket")
         .arg(&socket)
         .arg("--data-dir")
@@ -71,6 +73,8 @@ fn until(what: &str, mut met: impl FnMut() -> bool) {
 fn start_logged(socket: &Path, data: &Path, log: &Path) -> Child {
     let claude = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/tests/claude");
     let daemon = Command::new(env!("CARGO_BIN_EXE_slingerd"))
+        // No login shell to ask for a PATH: the fixed folders stand in.
+        .env_remove("SHELL")
         .arg("--socket")
         .arg(socket)
         .arg("--data-dir")

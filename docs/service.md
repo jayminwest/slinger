@@ -23,8 +23,24 @@ slingerd [--socket <PATH>] [--data-dir <PATH>] [--scratch] [--claude <PATH>]
   before that (a taken socket, a bad data directory) still goes to the
   stderr it started with. A file it cannot use stops it with exit 1 and a
   hint. Without `--log`, stderr is left as it is.
-- `--claude` is the program an agent's process runs (see "Sessions"):
-  Claude Code, `claude` on `PATH` by default. `--slinger` is the CLI its
+- `--claude` is the program an agent's process runs (see "Sessions"),
+  used as written. Without it the daemon looks for Claude Code at each
+  session start, so an install made after it started is found: the first
+  executable `claude` in a folder of the agents' `PATH` (below), then
+  `~/.local/bin/claude`, `~/.claude/local/claude`,
+  `/opt/homebrew/bin/claude`, `/usr/local/bin/claude`,
+  `~/.nix-profile/bin/claude` and `/etc/profiles/per-user/<user>/bin/claude`.
+  None there fails the start with `not_found`, the places searched and the
+  hint `install Claude Code, or start slingerd with --claude <PATH>`.
+- **The agents' `PATH`.** As it starts, the daemon asks the user's login
+  shell for its `PATH` once (`$SHELL -l -c env`, at most 3 seconds; never
+  per sling). Without an answer it takes `~/.local/bin`,
+  `/opt/homebrew/bin`, `/usr/local/bin` and the nix profile folders
+  instead. The daemon's own `PATH` follows, less the folders already named.
+  That one `PATH` is where Claude Code is looked for and the `PATH` every
+  agent's process gets, so a daemon started by the app or launchd (whose
+  `PATH` is `/usr/bin:/bin:/usr/sbin:/sbin`) gives its agents the tools a
+  terminal has. `--slinger` is the CLI its
   hooks run (see "Sessions", "Hooks"): the `slinger` beside `slingerd`, else
   `slinger` on `PATH`, by default.
 - `--feedback` is the file feedback notes go to (see "Feedback"). By
@@ -729,8 +745,10 @@ D10): `<claude> --print --input-format stream-json --output-format
 stream-json --verbose` and the session's limits (below), in the agent's home,
 with `SLINGER_AGENT` set to the agent and `SLINGER_SOCKET` to the daemon's
 socket, so the agent's own `slinger` calls act as it and reach this daemon.
-When `--slinger` is an absolute path, its folder comes first on the process's
-`PATH`, so those bare `slinger` calls run the CLI its hooks run. Its stderr goes to the
+The process runs `--claude`, or the Claude Code the daemon finds, with the
+agents' `PATH` (see "The daemon"). When `--slinger` is an absolute path, its
+folder comes first on that `PATH`, so those bare `slinger` calls run the CLI
+its hooks run. Its stderr goes to the
 daemon's. A session adds what the daemon knows of it: `process` (`running`,
 or `exited` when it ended without a stop; absent when there is none), and
 while it runs its `pid` and `pending`, the messages sent that it has not
