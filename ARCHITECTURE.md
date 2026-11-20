@@ -462,10 +462,14 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
              daemon for the workspaces and their agents' statuses, the
              profile each runs under and the names of its profiles
              (workspace_list, session_list: backend/agents.rs) and for the window's workspace's
-             panes (pane_list: the config's, else the first open one) every
-             second on a thread of its own, and the main thread takes the
-             news without blocking. When the layout changes it fetches the
-             code of each agent UI the panes show first. Every backend
+             panes (pane_list: the config's, else the first open one) in
+             rounds on a thread of its own: at once when the window picks a
+             workspace or a socket (a condvar want and follow notify), else
+             every second for a pane changed from outside the app (the
+             daemon has no layout feed); the main thread takes the news
+             without blocking. A round asks the layout first; when it
+             changed, it fetches the code of each agent UI the panes show,
+             tells it, then the layout; only then the agents' list. Every backend
              thread (the Watch, each Follower, the Outbox, the Slinger, the
              Noter, Flick's, the live pages' and the PDFs') sends its news on
              a Teller (backend/wake.rs), which wakes the main thread.
@@ -483,9 +487,11 @@ backend/wake.rs  Wake and Teller, pure: a Teller's send puts the news in its
              an undo or a redo as `canvas_undo` or `canvas_redo`) on a
              thread of its own, in the order handed in, and hands back each
              answer (a new page's id with it).
-backend/watch.rs  the Watch: its thread, its round every second, and the
-             layout sent with the time it read the wanted name and the time
-             it sent it (trace.rs).
+backend/watch.rs  the Watch: its thread, which waits on a condvar for a poke
+             (want, follow, drop) or one second; its round (`round`: UIs,
+             layout, agents, told to a sink, so a test records the order);
+             and the layout sent with the time it read the wanted name and
+             the time it sent it (trace.rs).
 backend/sling.rs  the Slinger: each sling as one `sling_send` (canvas, page,
              the selected ids, the prompt) on a thread of its own, and the
              daemon's answer back (`Heard`). The daemon picks the agent.
