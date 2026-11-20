@@ -7,7 +7,9 @@
 //! change adds still names it after the start ([`Ink::resume`]). The file
 //! follows the ink each time the changes waiting change; an undo or a redo
 //! is not kept ([`Ink::unsent`]). A pane waiting for a page kept to be
-//! added turns to it once it is, after the start too (slinger-857848).
+//! added turns to it once it is, after the start too (slinger-857848): the
+//! pane by the server's id, which stays while it is open (a file an older
+//! build wrote names it by its place: at worst that pane does not turn).
 //!
 //! [`Ink::resume`]: crate::scene::ink::Ink::resume
 //! [`Ink::unsent`]: crate::scene::ink::Ink::unsent

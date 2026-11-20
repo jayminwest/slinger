@@ -53,6 +53,8 @@ pub struct Shared {
     pub keyboard: Keyboard,
     /// Space held for a pan, and the pan under way ([`crate::route`]).
     pub hand: Hand,
+    /// The pane each workspace left had focus on, in this run.
+    pub focused: Vec<(String, layout::PaneId)>,
 }
 
 impl Default for Shared {
@@ -78,21 +80,42 @@ impl Default for Shared {
             taps,
             keyboard,
             hand: Hand::default(),
+            focused: Vec::new(),
         }
     }
 }
 
 impl Shared {
     /// Takes the server's newest layout, or the problem asking for it: the
-    /// panes follow it, focus kept on the same number.
+    /// panes follow it. In the same workspace focus stays on the same pane,
+    /// or, when it closed, goes to the pane now at its number; in another,
+    /// it goes to the pane that had it there last, else the first, and the
+    /// page menu closes.
     pub fn follow(&mut self, news: Result<PaneLayout, Problem>) {
-        match news {
-            Ok(layout) => {
-                self.panes = Panes::follow(&layout.layout, self.panes.number());
-                (self.workspace, self.trouble) = (Some(layout.workspace), None);
+        let layout = match news {
+            Ok(layout) => layout,
+            Err(problem) => return (self.workspace, self.trouble) = (None, Some(problem)),
+        };
+        let name = layout.workspace.as_str();
+        let left = self.panes.workspace().filter(|w| *w != name).map(str::to_string);
+        let (number, focus) = (self.panes.number(), self.panes.focus());
+        let mut panes = if let Some(left) = left {
+            self.focused.retain(|(w, _)| *w != left);
+            self.focused.push((left, focus));
+            self.menu = PageMenu::default();
+            let mut panes = Panes::follow(&layout.layout, 1);
+            if let Some(&(_, was)) = self.focused.iter().find(|(w, _)| w == name) {
+                panes.focus_on(was);
             }
-            Err(problem) => (self.workspace, self.trouble) = (None, Some(problem)),
+            panes
+        } else {
+            Panes::follow(&layout.layout, number)
+        };
+        if self.panes.workspace() == Some(name) {
+            panes.focus_on(focus);
         }
+        self.panes = panes.of(name);
+        (self.workspace, self.trouble) = (Some(layout.workspace), None);
     }
 
     /// Takes the agent UIs' code the watch fetched, each as a page for a
@@ -233,13 +256,13 @@ impl Shared {
             (Command::SplitRight | Command::SplitDown, Some((daemon, workspace))) => {
                 let below = command == Command::SplitDown;
                 backend::panes::open(&daemon, workspace, panes.focused(), panes.number(), below)
-                    .map(|(layout, number)| Panes::follow(&layout, number))
+                    .map(|(layout, number)| Panes::follow(&layout, number).of(workspace))
             }
             (Command::ClosePane, Some((daemon, workspace))) => {
                 // Focus goes to the pane before it; the first's to the next.
                 let number = panes.number();
                 backend::panes::close(&daemon, workspace, number)
-                    .map(|layout| Panes::follow(&layout, number.saturating_sub(1)))
+                    .map(|layout| Panes::follow(&layout, number.saturating_sub(1)).of(workspace))
             }
             _ => return panes.command(command, area),
         };
@@ -258,7 +281,11 @@ impl Shared {
         };
         let daemon = control::Client::new(socket);
         match backend::panes::resize(&daemon, workspace, number, ratio) {
-            Ok(layout) => self.panes = Panes::follow(&layout, self.panes.number()),
+            Ok(layout) => {
+                let mut panes = Panes::follow(&layout, self.panes.number());
+                panes.focus_on(self.panes.focus());
+                self.panes = panes.of(workspace);
+            }
             Err(problem) => self.trouble = Some(problem),
         }
     }

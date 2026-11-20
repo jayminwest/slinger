@@ -4,7 +4,10 @@
 //!
 //! The server keeps a workspace's panes (docs/service.md, "Panes"); the
 //! window follows them ([`Panes::follow`]) and names a pane to the server by
-//! its number, 1 for the first in order. Focus is the window's own.
+//! its number, 1 for the first in order. Each pane's [`PaneId`] is the id
+//! the server gives it, which stays while it is open, so what the window
+//! keeps per pane (its view) stays with it when others open or close. Focus
+//! is the window's own.
 
 use slinger_control::{PaneKind, PaneSplit, PaneTree};
 
@@ -38,6 +41,9 @@ pub struct Panes {
     /// What each pane in the tree shows; one entry per pane.
     shows: Vec<(PaneId, Pane)>,
     focus: PaneId,
+    /// The workspace the server keeps these panes for; `None` for the
+    /// window's own.
+    workspace: Option<String>,
 }
 
 impl Panes {
@@ -45,16 +51,20 @@ impl Panes {
     pub fn new(pane: Pane) -> Self {
         let tree = Tree::default();
         let focus = tree.panes()[0];
-        Self { tree, shows: vec![(focus, pane)], focus }
+        Self { tree, shows: vec![(focus, pane)], focus, workspace: None }
     }
 
-    /// The panes the server keeps, with focus on pane number `focus` (the
-    /// last pane past the last; the first for 0).
+    /// The panes the server keeps, each with the server's id, with focus on
+    /// pane number `focus` (the last pane past the last; the first for 0).
+    /// A layout from a daemon that gives no ids (each 0), or gives one
+    /// twice, numbers the panes in the order they are built instead.
     pub fn follow(layout: &PaneTree, focus: u32) -> Self {
-        let tree = Tree::default();
+        let ids: Vec<u32> = layout.panes().iter().map(|p| p.id).collect();
+        let keyed = ids.iter().enumerate().all(|(at, &id)| id > 0 && !ids[..at].contains(&id));
+        let tree = if keyed { Tree::single(PaneId::numbered(ids[0])) } else { Tree::default() };
         let root = tree.panes()[0];
-        let mut panes = Self { tree, shows: Vec::new(), focus: root };
-        panes.build(root, layout);
+        let mut panes = Self { tree, shows: Vec::new(), focus: root, workspace: None };
+        panes.build(root, layout, keyed);
         let order = panes.tree.panes();
         let at = (focus.max(1) as usize).min(order.len());
         panes.focus = order[at - 1];
@@ -63,7 +73,7 @@ impl Panes {
 
     /// Makes pane `at` show `node`, splitting it for a split. A full tree
     /// shows the first side of a split it cannot make.
-    fn build(&mut self, at: PaneId, node: &PaneTree) {
+    fn build(&mut self, at: PaneId, node: &PaneTree, keyed: bool) {
         match node {
             PaneTree::Pane(pane) => {
                 let kind = match pane.kind {
@@ -77,17 +87,43 @@ impl Panes {
                     PaneSplit::Row => Axis::Row,
                     PaneSplit::Column => Axis::Column,
                 };
-                if let Some(new) = self.tree.split_by(at, axis, *ratio) {
-                    self.build(new, second);
+                let new = match second.panes().first() {
+                    Some(pane) if keyed => {
+                        self.tree.split_as(at, axis, *ratio, PaneId::numbered(pane.id))
+                    }
+                    _ => self.tree.split_by(at, axis, *ratio),
+                };
+                if let Some(new) = new {
+                    self.build(new, second, keyed);
                 }
-                self.build(at, first);
+                self.build(at, first, keyed);
             }
         }
+    }
+
+    /// These panes, as the server keeps them for `workspace`.
+    pub fn of(self, workspace: &str) -> Self {
+        Self { workspace: Some(workspace.to_string()), ..self }
+    }
+
+    /// The workspace the server keeps these panes for; `None` for the
+    /// window's own.
+    pub fn workspace(&self) -> Option<&str> {
+        self.workspace.as_deref()
     }
 
     /// The pane with focus.
     pub fn focus(&self) -> PaneId {
         self.focus
+    }
+
+    /// Moves focus to pane `id`; whether it is one of these panes.
+    pub fn focus_on(&mut self, id: PaneId) -> bool {
+        let here = self.tree.panes().contains(&id);
+        if here {
+            self.focus = id;
+        }
+        here
     }
 
     /// The focused pane's number: 1 for the first in order.

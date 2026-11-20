@@ -593,6 +593,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a workspace no longer opens at another workspace's zoom and
+  scroll, or shows its ink while its own page comes. Going back to a
+  workspace finds each pane, and the focus, where you left them. Closing
+  or opening a pane no longer moves the other panes' views.
 - **Workspaces:** closing a workspace ends its agent's running process.
   Before, the process ran on with no way to reach, stop or list it. An
   agent another open workspace still names keeps running; reopening the

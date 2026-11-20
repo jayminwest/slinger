@@ -218,3 +218,16 @@ fn split_by_gives_the_first_side_its_share_held_in_the_limits() {
     odd.split_by(id(0), Axis::Row, f64::NAN).unwrap();
     assert_eq!(odd.rects(AREA)[0].1.width, 400.0, "no share is half");
 }
+
+#[test]
+fn a_tree_built_with_the_servers_ids_keeps_them_and_splits_above_the_highest() {
+    let mut tree = Tree::single(id(5));
+    assert_eq!(tree.split_as(id(5), Axis::Row, 0.5, id(9)), Some(id(9)));
+    assert_eq!(tree.split_as(id(9), Axis::Column, 0.5, id(2)), Some(id(2)));
+    assert_eq!(tree.panes(), [id(5), id(9), id(2)]);
+    assert_eq!(tree.split_as(id(2), Axis::Row, 0.5, id(9)), None, "an id held already");
+    assert_eq!(tree.split_as(id(7), Axis::Row, 0.5, id(8)), None, "no such pane");
+    assert_eq!(tree.split(id(2), Axis::Row), Some(id(10)), "the window's own split");
+    let mut last = Tree::single(id(u32::MAX));
+    assert_eq!(last.split(id(u32::MAX), Axis::Row), None, "no id is left to give");
+}

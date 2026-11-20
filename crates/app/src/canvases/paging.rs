@@ -196,7 +196,7 @@ impl Canvases {
     /// The panes that asked for page `gone` of `canvas` show `next` (the
     /// first page without one) instead.
     fn leave(&mut self, canvas: &str, gone: &str, next: Option<&str>) {
-        for (_, view) in &mut self.views {
+        for (_, view) in self.views.iter_mut() {
             if view.page.as_ref().is_some_and(|(c, p)| c == canvas && p == gone) {
                 view.page = next.map(|n| (canvas.to_string(), n.to_string()));
             }
