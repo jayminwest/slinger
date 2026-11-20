@@ -141,6 +141,22 @@ impl Viewport {
         }
     }
 
+    /// A view kept elsewhere (the daemon's, docs/service.md `pane_view`):
+    /// canvas point `origin` at the screen's top left, at `zoom` held in
+    /// `MIN_ZOOM..=MAX_ZOOM`. One whose numbers are not finite, or whose
+    /// zoom is not above 0, gives [`Viewport::start`].
+    pub fn kept(origin: Point, zoom: f64) -> Self {
+        if !(origin.x.is_finite() && origin.y.is_finite() && zoom.is_finite() && zoom > 0.0) {
+            return Self::start();
+        }
+        Self { origin, zoom: zoom.clamp(MIN_ZOOM, MAX_ZOOM) }
+    }
+
+    /// The canvas point at the screen's top left.
+    pub fn origin(self) -> Point {
+        self.origin
+    }
+
     /// Screen points per canvas point.
     pub fn zoom(self) -> f64 {
         self.zoom

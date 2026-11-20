@@ -168,3 +168,34 @@ fn a_copy_takes_the_page_and_the_place_and_none_from_a_pane_with_no_view() {
     views.copy(pane(2), pane(2));
     assert_eq!(views.get(pane(2)).page, Some(("main".into(), "p3".into())), "kept");
 }
+
+fn kept(canvas: &str, x: f64, zoom: f64) -> PaneView {
+    PaneView { canvas: canvas.into(), page: Some("p2".into()), x, y: 10.0, zoom }
+}
+
+#[test]
+fn a_new_view_takes_the_kept_view_of_its_canvas_placed() {
+    let mut view = View::default();
+    view.learn("a", Some(&kept("a", 120.0, 2.0)));
+    assert!(view.placed, "no fit runs");
+    assert_eq!(view.viewport, Viewport::kept(Point { x: 120.0, y: 10.0 }, 2.0));
+    assert_eq!(view.page, Some(("a".into(), "p2".into())));
+    view.place(None, Size { width: 800.0, height: 600.0 });
+    assert_eq!(view.viewport.zoom(), 2.0, "placed: the first-open fit does not run");
+}
+
+#[test]
+fn a_kept_view_of_another_canvas_is_ignored_and_a_placed_view_wins() {
+    let mut view = View::default();
+    view.learn("a", Some(&kept("b", 120.0, 2.0)));
+    assert!(!view.placed && view.page.is_none());
+    assert_eq!(view.viewport, Viewport::start());
+    view.learn("a", None);
+    assert!(!view.placed);
+
+    view.viewport = view.viewport.pan(40.0, 0.0);
+    view.placed = true;
+    let mine = view.viewport;
+    view.learn("a", Some(&kept("a", 120.0, 2.0)));
+    assert_eq!((view.viewport, view.page.clone()), (mine, None), "the view in memory wins");
+}

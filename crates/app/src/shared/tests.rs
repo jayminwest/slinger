@@ -158,3 +158,42 @@ fn focus_stays_on_its_pane_in_a_workspace_and_comes_back_to_it_from_another() {
     shared.follow(Err(Problem { message: "gone".into(), hint: None }));
     assert_eq!(shared.panes.workspace(), Some("a"), "a problem keeps the panes");
 }
+
+/// The two panes of `two()`, as the server keeps them for `workspace`,
+/// with the focus it kept.
+fn kept(workspace: &str, focus: Option<u32>) -> PaneLayout {
+    let leaf = |id| {
+        PaneTree::Pane(Shown {
+            pane: id,
+            id,
+            kind: PaneKind::Canvas,
+            target: "c".into(),
+            view: None,
+        })
+    };
+    let layout = PaneTree::Split {
+        split: PaneSplit::Row,
+        ratio: 0.5,
+        first: leaf(1).into(),
+        second: leaf(2).into(),
+    };
+    PaneLayout { workspace: workspace.into(), layout, pane: None, event: None, focus }
+}
+
+#[test]
+fn a_workspace_first_shown_in_this_run_takes_the_focus_the_daemon_kept() {
+    let mut shared = Shared::default();
+    shared.follow(Ok(kept("a", Some(2))));
+    assert_eq!(shared.panes.focus(), layout::PaneId::numbered(2), "the first layout");
+    shared.follow(Ok(kept("a", Some(1))));
+    assert_eq!(shared.panes.focus(), layout::PaneId::numbered(2), "then the window's own");
+    shared.follow(Ok(kept("b", Some(2))));
+    assert_eq!(shared.panes.focus(), layout::PaneId::numbered(2), "b first shown");
+    shared.panes.focus_on(layout::PaneId::numbered(1));
+    shared.follow(Ok(kept("a", Some(1))));
+    assert_eq!(shared.panes.focus(), layout::PaneId::numbered(2), "a as this run left it");
+    shared.follow(Ok(kept("b", Some(2))));
+    assert_eq!(shared.panes.focus(), layout::PaneId::numbered(1), "b as this run left it");
+    shared.follow(Ok(kept("c", Some(9))));
+    assert_eq!(shared.panes.focus(), layout::PaneId::numbered(1), "a pane not there: the first");
+}
