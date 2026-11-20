@@ -58,6 +58,7 @@ Choices an agent made and shipped that the owner has not confirmed. An agent tha
 ## Agent sessions, workspaces and the rest
 
 - [ ] a broken workspace's sidebar lines are cut short with '…': its error at 2 lines, its field at 1, and its hint at 3, shown only under the workspace the window shows (the panes show error and hint at their width); the sidebar still does not scroll, so many workspaces can still run past its foot (slinger-a57147)
+- [ ] a config (or open) naming a workspace that no open workspace has shows the broken file that names none in a folder of that name (a new workspace takes its folder's name, and the sidebar labels such a file by it): its row is highlighted and the panes say why its file is broken; a workspace that has the name wins (scene/sidebar/broken.rs `by_folder`) (slinger-6bab5c)
 - [ ] slings left waiting for a listener that went away stay queued while later slings start a process (7ef062f); should starting the agent hand them to it? Also: after stop-agent the next sling starts the agent again; confirm (follow-up of 38ddde) (slinger-7e2d5f)
 - [ ] allow MCP tools by default: Claude Code has no allow rule for every server ('mcp__*' is skipped), so the daemon would read the configured server names and add 'mcp__<server>__*' each; today the owner's own permissions.allow covers it (rest of 6313eb) (slinger-a4b1f3)
 - [ ] a listener replaces the agent's hidden process in the daemon (session_listen stops it), so no sling leaks to it after the 10 s grace; today the slinger-listen skill runs 'session stop' itself (slinger-72175b)

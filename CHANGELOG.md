@@ -659,6 +659,10 @@ bullet with the area in bold.
 - **App:** while the panes show why a workspace cannot be shown (its file
   is broken, or it is not open), a 'canvas main not found' from the panes
   the window had before no longer shows under it.
+- **App:** when the config names a workspace whose file broke and no
+  longer names one, the sidebar highlights that workspace (by its folder's
+  name) at launch, and the panes say why its file is broken rather than
+  'open workspace not found'.
 - **App:** a workspace no longer opens at another workspace's zoom and
   scroll, or shows its ink while its own page comes. Going back to a
   workspace finds each pane, and the focus, where you left them. Closing

@@ -7,6 +7,8 @@
 //! (slinger-a57147): a tap on it shows it, wider, in the panes' area. Every
 //! verb on it fails, so it shows no agent.
 
+use std::path::Path;
+
 use super::{Line, MARK, PAD, WIDTH};
 use crate::commands::Command;
 use crate::config::Theme;
@@ -63,6 +65,16 @@ impl Broken {
         }
         lines
     }
+}
+
+/// Whether a workspace named `name` in `dir` is the one `wanted` means
+/// when no workspace has that name: a broken file that names none, in a
+/// folder called `wanted` (slinger-6bab5c). A new workspace takes its
+/// folder's name (docs/workspace.md, "Making one"), and the sidebar shows
+/// such a file by its folder's name, so a config that named it before it
+/// broke still finds it.
+pub fn by_folder(name: &str, dir: &Path, wanted: &str) -> bool {
+    name.is_empty() && dir.file_name().is_some_and(|folder| *folder == *wanted)
 }
 
 /// `text` wrapped to lines that each `fits`, at most `most` of them (one

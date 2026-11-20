@@ -266,14 +266,16 @@ impl Sidebar {
         Some(name).filter(|n| !n.is_empty())
     }
 
-    /// The index of the workspace the window shows: the one named or
+    /// The index of the workspace the window shows: the one named (else
+    /// the broken file in a folder of that name, [`broken::by_folder`]) or
     /// tapped, else the last shown if it is open and not broken, else the
     /// first that is not broken, as the panes show (`backend::panes::layout`).
     fn at(&self) -> Option<usize> {
         let list = self.workspaces.as_ref()?;
         let at = |is: &dyn Fn(&Workspace) -> bool| list.iter().position(is);
         match &self.shown {
-            Some(Shown::Name(name)) => at(&|w| w.name == *name),
+            Some(Shown::Name(name)) => at(&|w| w.name == *name)
+                .or_else(|| at(&|w| broken::by_folder(&w.name, &w.dir, name))),
             Some(Shown::Dir(dir)) => at(&|w| w.dir == *dir),
             None => at(&|w| w.broken.is_none() && Some(&w.name) == self.last.as_ref())
                 .or_else(|| at(&|w| w.broken.is_none())),

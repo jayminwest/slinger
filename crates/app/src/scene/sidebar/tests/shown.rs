@@ -75,3 +75,18 @@ fn a_broken_file_that_names_none_has_no_name_to_show_again() {
     sidebar.pick(0);
     assert_eq!((sidebar.shown_name(), sidebar.shown_dir()), (None, Some("/w/one".into())));
 }
+
+#[test]
+fn a_name_no_workspace_has_shows_the_broken_file_that_names_none_in_its_folder() {
+    // The config names `one`; its file broke and names none (slinger-6bab5c).
+    let mut sidebar = heard(vec![ws("ada", None), broken("", "one")]);
+    sidebar.show(Some("one".into()));
+    let bold: Vec<_> = sidebar.rows(&T, WINDOW).into_iter().filter(|r| r.font.bold).collect();
+    assert_eq!(bold[0].label.text, "one", "its row stands out");
+    assert_eq!(sidebar.shown_dir(), Some("/w/one".into()), "what closes it");
+    let mut named = heard(vec![broken("", "ada-ws"), ws("ada", None)]);
+    named.show(Some("ada-ws".into()));
+    assert_eq!(named.shown_dir(), Some("/w/ada".into()), "a workspace with the name wins");
+    named.show(Some("two".into()));
+    assert_eq!(named.shown_dir(), None, "no folder of that name");
+}
