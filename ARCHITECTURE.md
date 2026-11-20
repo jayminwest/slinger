@@ -883,7 +883,9 @@ scene/daemon.rs  what the window says of the daemon, pure: the launch line
              do (ask, restart, or the flash of why not: not managed, not
              started by this app, too old to stop). window/launched.rs
              carries the launcher's news to the sidebar and the flash, and
-             these commands to it.
+             these commands to it; the daemon it started coming to answer
+             pokes the Watch (`Watch::poke`), so the sidebar's list comes
+             at once.
 scene/sidebar/launched.rs  the launch line and the restart offer the
              sidebar holds: a two-row bar of the notice, above the agents'
              bar, naming both builds, with "Restart slingerd" and the count

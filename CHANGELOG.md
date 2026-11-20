@@ -610,6 +610,8 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** once the slingerd that slinger.app started answers, the sidebar
+  lists the workspaces at once; before, it could take up to a second more.
 - **Workspaces:** closing a workspace ends its agent's running process.
   Before, the process ran on with no way to reach, stop or list it. An
   agent another open workspace still names keeps running; reopening the

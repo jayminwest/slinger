@@ -200,7 +200,11 @@ fn window(mut settings: Settings, drive: Option<&Path>) -> ExitCode {
         };
         // Before the channels are drained: news sent from here on wakes again.
         wake.taken();
-        let (daemon_heard, _) = window::launched::heard(launcher.as_ref(), sidebar, &mut tools);
+        let (daemon_heard, up) = window::launched::heard(launcher.as_ref(), sidebar, &mut tools);
+        if up {
+            // The daemon it started answers: the sidebar's list, at once.
+            watch.poke();
+        }
         let heard = watch.latest().is_some_and(|now| sidebar.update(now)) | daemon_heard;
         let moved = watch
             .layout()
