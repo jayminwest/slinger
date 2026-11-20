@@ -749,7 +749,8 @@ scene/editor.rs  the canvas text being typed (docs/design/pen-less.md 2A):
              frame's right edge sets it, `widen`, on half a cell so it never
              reads back as unwrapped, glyphs::column); its caret bar and
              selection boxes are scene items (`Shape::Caret` is a plain
-             bar). Pure.
+             bar). Its undo (editor/undo.rs, `History`) holds its edits and
+             its new sizes and columns (`Look`, `Editing::undo`). Pure.
 scene/paste.rs  the clipboard as the app sees it (`Clip`: plain text, a
              canvas's items) and the edits no text field takes (`Edit`:
              cut, copy, paste); pasted text made fit to type: line ends as

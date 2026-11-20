@@ -5,6 +5,7 @@ use crate::scene::select::Select;
 
 mod follow;
 mod taps;
+mod undo;
 
 const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
 const BLUE: Rgb = Rgb { r: 0, g: 0, b: 255 };

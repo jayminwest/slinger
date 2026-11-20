@@ -6,7 +6,7 @@ use super::*;
 /// Undoes (or with `redo`, redoes) `n` times, each a step.
 fn undo(e: &mut Editor, redo: bool, n: usize) -> String {
     for _ in 0..n {
-        assert!(e.undo(redo), "a step to {}", if redo { "redo" } else { "undo" });
+        assert!(e.undo(redo, &mut (0.0, 0.0)), "a step to {}", if redo { "redo" } else { "undo" });
     }
     shown(e)
 }
@@ -16,9 +16,9 @@ fn a_run_of_typing_is_one_step_and_a_move_ends_it() {
     let mut e = at("|");
     e.typed("one\rtwo");
     assert_eq!(undo(&mut e, false, 1), "|", "the run, lines and all");
-    assert!(!e.undo(false), "nothing more");
+    assert!(!e.undo(false, &mut (0.0, 0.0)), "nothing more");
     assert_eq!(undo(&mut e, true, 1), "one\ntwo|");
-    assert!(!e.undo(true), "nothing more to redo");
+    assert!(!e.undo(true, &mut (0.0, 0.0)), "nothing more to redo");
 
     e.typed(" three");
     pressed(&mut e, &["left", "right"]);
@@ -66,12 +66,12 @@ fn typing_over_a_selection_starts_a_step_and_an_edit_drops_the_redo() {
     e.typed("2");
     assert_eq!(undo(&mut e, false, 1), "one [two]", "the selection replaced, and the run after");
     e.typed("x");
-    assert!(!e.undo(true), "an edit drops what was undone");
+    assert!(!e.undo(true, &mut (0.0, 0.0)), "an edit drops what was undone");
 
     let mut e = at("ab|");
     e.typed("\u{7f}");
     pressed(&mut e, &["left"]);
     e.typed("\u{7f}");
     assert_eq!(undo(&mut e, false, 1), "ab|", "a delete at the start changes nothing");
-    assert!(!e.undo(false));
+    assert!(!e.undo(false, &mut (0.0, 0.0)));
 }

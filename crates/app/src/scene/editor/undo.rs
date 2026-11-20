@@ -4,10 +4,16 @@
 //! a word or row delete, ctrl+K, ctrl+T and ctrl+O are a step each; moving
 //! the caret or the selection ends a run. Undo puts back the text with its
 //! caret and selection as they were before the step; redo goes forward
-//! again until the next edit. The history lives with the text: once it
-//! ends, undo is the canvas's.
+//! again until the next edit. A new size (the size keys) and a new column
+//! (one drag of the frame's edge) are a step each too (slinger-0b424a). The
+//! history lives with the text: once it ends, undo is the canvas's.
 
-use super::Editor;
+use super::{Editing, Editor};
+use crate::scene::glyphs;
+
+/// How a text is set: its size and the column it wraps in, which the
+/// [`Editing`] holds and a step can take back.
+pub type Look = (f64, f64);
 
 /// An edit that a next one of its kind can join, as a field joins them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,12 +26,14 @@ pub(super) enum Run {
     Forward,
 }
 
-/// The text with its caret and selection anchor, before or after a step.
+/// The text with its caret and selection anchor, before or after a step,
+/// and its look when the step changed that.
 #[derive(Debug, Clone, Default, PartialEq)]
 struct Snapshot {
     text: String,
     caret: usize,
     anchor: Option<usize>,
+    look: Option<Look>,
 }
 
 /// The steps to undo and to redo, newest last, and the run the last edit
@@ -38,14 +46,18 @@ pub(super) struct History {
 }
 
 impl Editor {
-    /// Undoes the last step (with `redo`, redoes the last undone one).
-    /// False, and nothing changes, when there is none.
-    pub fn undo(&mut self, redo: bool) -> bool {
+    /// Undoes the last step (with `redo`, redoes the last undone one), a
+    /// step of the text's look putting `look` back too. False, and nothing
+    /// changes, when there is none.
+    pub fn undo(&mut self, redo: bool, look: &mut Look) -> bool {
         let now = self.snapshot();
         let History { undo, redo: undone, .. } = &mut self.history;
         let (from, to) = if redo { (undone, undo) } else { (undo, undone) };
         let Some(back) = from.pop() else { return false };
-        to.push(now);
+        to.push(Snapshot { look: back.look.map(|_| *look), ..now });
+        if let Some(back) = back.look {
+            *look = back;
+        }
         self.history.run = None;
         self.text = back.text;
         self.caret = back.caret;
@@ -79,7 +91,47 @@ impl Editor {
         self.history.run = run.map(|r| (r, self.caret));
     }
 
+    /// Called after the text's look changed from `before`: that is a step.
+    fn restyled(&mut self, before: Look) {
+        let snapshot = Snapshot { look: Some(before), ..self.snapshot() };
+        self.history.undo.push(snapshot);
+        self.history.redo.clear();
+        self.history.run = None;
+    }
+
     fn snapshot(&self) -> Snapshot {
-        Snapshot { text: self.text.clone(), caret: self.caret, anchor: self.anchor }
+        Snapshot { text: self.text.clone(), caret: self.caret, anchor: self.anchor, look: None }
+    }
+}
+
+impl Editing {
+    /// Undoes its last step, its look's or its editor's (with `redo`,
+    /// redoes one). False when there is none.
+    pub fn undo(&mut self, redo: bool) -> bool {
+        let mut look = (self.size, self.column);
+        let done = self.editor.undo(redo, &mut look);
+        (self.size, self.column) = look;
+        done
+    }
+
+    /// It takes `size`, a step of its own: a wrapped text stays about as
+    /// wide, on half a cell of the new size.
+    pub fn resize(&mut self, size: f64) {
+        let before = (self.size, self.column);
+        self.size = size;
+        if self.column < glyphs::UNWRAPPED {
+            self.column = glyphs::column(self.column, size);
+        }
+        if (self.size, self.column) != before {
+            self.editor.restyled(before);
+        }
+    }
+
+    /// A drag of its frame's edge, that began with its column at `column`,
+    /// ended: a new column is a step of its own.
+    pub fn widened(&mut self, column: f64) {
+        if self.column.total_cmp(&column).is_ne() {
+            self.editor.restyled((self.size, column));
+        }
     }
 }

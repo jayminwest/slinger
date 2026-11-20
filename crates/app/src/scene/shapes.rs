@@ -39,7 +39,6 @@ use crate::layout::{Point, Rect};
 use crate::mirror::{LINE_WIDTH, TEXT_SIZE};
 use crate::scene::canvas::{Fill, Item, ItemId, Shape};
 use crate::scene::editor::Editing;
-use crate::scene::glyphs;
 use crate::scene::ink::{Change, Ink, on_server};
 use crate::scene::paste;
 use crate::scene::tools::{Resize, Tool};
@@ -117,7 +116,7 @@ pub struct Shapes {
     editing: Option<Editing>,
     ended: Option<(String, String, Rect)>,
     selecting: bool,
-    widening: Option<f64>,
+    widening: Option<(f64, f64)>,
     /// How many quick presses in a row landed inside the text being typed.
     taps: u8,
     last: Option<(String, String, Press)>,
@@ -138,15 +137,11 @@ impl Shapes {
         self.size.unwrap_or(TEXT_SIZE)
     }
 
-    /// The text being typed takes the size `resize` makes of its own.
-    /// False when none is.
+    /// The text being typed takes the size `resize` makes of its own, as
+    /// a step of its undo ([`Editing::resize`]). False when none is.
     pub fn resize(&mut self, resize: Resize) -> bool {
         let Some(editing) = &mut self.editing else { return false };
-        editing.size = resize.of(editing.size);
-        if editing.column < glyphs::UNWRAPPED {
-            // About as wide, on half a cell of the new size.
-            editing.column = glyphs::column(editing.column, editing.size);
-        }
+        editing.resize(resize.of(editing.size));
         true
     }
 
@@ -179,7 +174,7 @@ impl Shapes {
             let here = editing.canvas == canvas && editing.page == page;
             if here && on_edge(editing, press.at, press.zoom) {
                 let bounds = editing.bounds();
-                self.widening = Some(press.at.x - (bounds.x + bounds.width));
+                self.widening = Some((press.at.x - (bounds.x + bounds.width), editing.column));
                 return true;
             }
             if here && editing.bounds().outset(reach).contains(press.at) {
@@ -240,7 +235,7 @@ impl Shapes {
     /// the text wraps in ([`Editing::widen`]). Returns false when none of
     /// them is under it.
     pub fn drag(&mut self, at: Point) -> bool {
-        if let Some((editing, off)) = self.editing.as_mut().zip(self.widening) {
+        if let Some((editing, (off, _))) = self.editing.as_mut().zip(self.widening) {
             editing.widen(at.x - off);
             return true;
         }
@@ -264,7 +259,11 @@ impl Shapes {
         if let Some(at) = at {
             self.drag(at);
         }
-        if std::mem::take(&mut self.selecting) | self.widening.take().is_some() {
+        let widened = self.widening.take();
+        if let Some((editing, (_, column))) = self.editing.as_mut().zip(widened) {
+            editing.widened(column);
+        }
+        if std::mem::take(&mut self.selecting) | widened.is_some() {
             return true;
         }
         let Some((canvas, page, drag)) = self.drag.take() else { return false };
@@ -322,10 +321,11 @@ impl Shapes {
         self.editing.as_mut().is_some_and(|editing| editing.key(chord))
     }
 
-    /// Undoes the last edit of the text being typed, or with `redo` redoes
-    /// one. False when no text is being typed or it has no such step.
+    /// Undoes the last edit of the text being typed (a new size or column
+    /// too), or with `redo` redoes one. False when no text is being typed
+    /// or it has no such step.
     pub fn undo(&mut self, redo: bool) -> bool {
-        self.editing.as_mut().is_some_and(|editing| editing.editor.undo(redo))
+        self.editing.as_mut().is_some_and(|editing| editing.undo(redo))
     }
 
     /// The characters selected in the text being typed, if any; with `cut`,

@@ -14,7 +14,8 @@ bullet with the area in bold.
 - **App:** undo and redo while you type a canvas text. Cmd+Z and
   Shift+Cmd+Z (and Undo and Redo in the Edit menu) step through the text's
   own edits, as a Mac text field does: a run of typing is one step, a run of
-  deletes another, a paste or a cut one each. Once the text ends, undo
+  deletes another, a paste or a cut one each, and a new size (the size
+  keys) or a drag of its column one each. Once the text ends, undo
   takes back the whole text from the canvas, as before.
 - **App:** a typed text wraps. A new text wraps at 48 characters, and
   while you type it its dashed frame shows that column; drag the frame's
