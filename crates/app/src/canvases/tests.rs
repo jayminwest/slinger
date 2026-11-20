@@ -155,7 +155,7 @@ fn the_first_press_of_any_tool_after_a_text_left_open_ends_it_and_is_that_tool_s
 
         let n = word(&mut canvases, 10.0);
         let said = footer(&mut canvases, &panes, Tool::Text);
-        assert!(said.starts_with("Text") && said.contains("|· typing|"), "{said:?}");
+        assert!(said.starts_with("Size 24|Text") && said.contains("|· typing|"), "{said:?}");
         assert!(said.contains(" · 1/1|"), "the page: {said:?}");
         gesture(&mut canvases, &panes, Tool::Box, &[(400.0, 400.0), (500.0, 480.0)], 12.0);
         until(&mut canvases, &panes, daemon, |d| count(d, "text") == 1 && count(d, "box") == 1);
