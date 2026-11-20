@@ -32,6 +32,7 @@ impl Canvases {
             if let Some((canvas, op)) = self.asks.typed(text) {
                 self.change_pages(canvas, op);
             }
+            self.seek_sought();
             return true;
         }
         let used = self.shapes.typed(text, &mut self.ink);

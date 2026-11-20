@@ -75,7 +75,7 @@ impl Canvases {
         let lines = self.voice.dictation.lines(theme);
         if self.notes.is_typing() {
             self.notes.under(theme, lines)
-        } else if self.asks.renaming() {
+        } else if self.asks.entering() {
             self.asks.under(theme, lines)
         } else {
             self.sling.under(theme, lines)

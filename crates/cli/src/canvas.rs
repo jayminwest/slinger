@@ -101,6 +101,7 @@ pub enum Canvas {
     },
     Crop(crate::look::Crop),
     Strokes(crate::look::Strokes),
+    Find(crate::look::Find),
     Put(crate::put::Put),
     Edit(crate::edit::Edit),
     Remove(crate::edit::Remove),
@@ -121,6 +122,7 @@ impl Canvas {
             Self::Changes { .. } => "canvas changes",
             Self::Crop(_) => "canvas crop",
             Self::Strokes(_) => "canvas strokes",
+            Self::Find(_) => "canvas find",
             Self::Put(_) => "canvas put",
             Self::Edit(_) => "canvas edit",
             Self::Remove(_) => "canvas remove",
@@ -210,6 +212,7 @@ pub fn execute(
         }
         Canvas::Crop(args) => crate::look::crop(args, daemon),
         Canvas::Strokes(args) => crate::look::strokes(args, daemon),
+        Canvas::Find(args) => crate::look::find(args, daemon),
         Canvas::Put(args) => crate::put::put(args, daemon, env),
         Canvas::Edit(args) => crate::edit::edit(args, daemon, env),
         Canvas::Remove(args) => crate::edit::remove(args, daemon, env),

@@ -279,3 +279,10 @@
 # Copy the selection a little down and right of itself, in one undo step; the copy is
 # selected. (cmd+d is split-right.)
 #duplicate = "cmd+j"
+# Find typed text on any page of the focused pane's canvas: an entry asks for the words
+# (case and spacing do not matter); return turns the pane to the first text that holds
+# them, on its page or a later one, and centres it. The flash says which of how many.
+#find = "cmd+f"
+# Go to the next text that holds the last find's words, after the last back to the first;
+# with no find yet, as find.
+#find-next = "cmd+g"

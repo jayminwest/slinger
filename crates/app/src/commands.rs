@@ -160,6 +160,13 @@ pub enum Command {
     /// Copy the selection beside itself, in one undo step; the copy is
     /// the selection.
     Duplicate,
+    /// Find typed text on the focused pane's canvas: an entry asks for the
+    /// words, and the pane turns to the first text that holds them, on its
+    /// page or a page after it, centred.
+    Find,
+    /// Go to the next text that holds the last find's words, round to the
+    /// first; with no find yet, as `find`.
+    FindNext,
 }
 
 /// How many commands there are.
@@ -167,7 +174,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 74] = [
+    pub const ALL: [(Command, &str); 76] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -242,6 +249,8 @@ impl Command {
         (Command::NudgeUp, "nudge-up"),
         (Command::NudgeDown, "nudge-down"),
         (Command::Duplicate, "duplicate"),
+        (Command::Find, "find"),
+        (Command::FindNext, "find-next"),
     ];
 
     /// The command called `name` in the config file.
@@ -443,6 +452,8 @@ impl Default for Keymap {
             on(0, UP),
             on(0, DOWN),
             on(CMD, 'j'),
+            on(CMD, 'f'),
+            on(CMD, 'g'),
         ])
     }
 }

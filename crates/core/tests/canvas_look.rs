@@ -120,3 +120,32 @@ fn a_crop_is_limited_in_size_and_needs_a_box_and_page_that_are_ones() {
     assert_eq!(err.code(), "invalid");
     assert!(err.hint().unwrap().contains("box"));
 }
+
+/// A text item on `page` at (x, y), in tenths.
+fn text(page: &str, x: i64, y: i64, words: &str) -> Value {
+    json!({ "op": "add", "item": { "page": page, "kind": "text", "x": x, "y": y, "text": words } })
+}
+
+#[test]
+fn find_gives_the_texts_that_hold_a_phrase_page_by_page_in_reading_order() {
+    let ops = json!([
+        { "op": "page.add", "name": "Later" },
+        text("p2", 0, 0, "plan B"),
+        text("p1", 900, 500, "the PLAN"),
+        text("p1", 0, 500, "a plan\nthat wraps"),
+        text("p1", 400, 0, "no match"),
+        { "op": "add", "item": { "page": "p1", "kind": "box", "x": 0, "y": 0, "w": 10, "h": 10 } },
+    ]);
+    let log = canvas(&ops, None);
+    let found = log.find("Plan");
+    let at = |v: &Value| format!("{}:{}", v["page"].as_str().unwrap(), v["id"].as_str().unwrap());
+    let ids: Vec<_> = found.iter().map(at).collect();
+    // Page 1 first, top to bottom and left to right; then page 2.
+    assert_eq!(ids, ["p1:i3", "p1:i2", "p2:i1"]);
+    assert_eq!(found[0]["text"], "a plan\nthat wraps");
+    assert_eq!(found[0]["kind"], "text");
+    // Spaces and line breaks count as one space; a phrase of no words finds nothing.
+    assert_eq!(log.find("  plan   that ").len(), 1);
+    assert_eq!(log.find(" \n"), [] as [Value; 0]);
+    assert_eq!(log.find("nowhere"), [] as [Value; 0]);
+}

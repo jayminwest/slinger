@@ -16,7 +16,7 @@
 //! Each pane keeps its own page, followed once however many panes show it:
 //! page commands, undo and redo are in [`paging`], live items' pages in [`live`];
 //! typed text and the selection's keys in [`keys`]; cut, copy and paste in
-//! [`clip`]; the PDFs `pdf` items show, and opening
+//! [`clip`]; finding text on a canvas's pages in [`seek`]; the PDFs `pdf` items show, and opening
 //! one, in [`pdf`]; a PDF's canvas in reader mode, in [`reader`].
 
 mod button;
@@ -29,6 +29,7 @@ mod live;
 mod paging;
 mod pdf;
 mod reader;
+mod seek;
 
 use std::rc::Rc;
 
@@ -86,6 +87,8 @@ pub struct Canvases {
     unshown: Option<f64>,
     /// The question a page command asks, if any.
     asks: Pages,
+    /// The last find, for `find-next`.
+    found: Option<seek::Last>,
     /// The panes waiting for a new page, by the key of its `page.add`.
     turning: Vec<(u64, PaneId, String)>,
     lives: live::Lives,
@@ -166,6 +169,7 @@ impl Canvases {
             pen,
             unshown,
             asks,
+            found: None,
             turning,
             lives,
             pdfs,
