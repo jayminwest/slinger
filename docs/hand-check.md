@@ -8,10 +8,6 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 - [ ] (bundle) an agent's `slinger canvas put` appears with no half-second step, also while a pen stroke or a divider drag is under way; the trace's taken and heard come a few ms after layout and shown; the app idles at no more CPU than before. Driven window after slinger-1e161b: drawn mean 990 ms (945-1035), of which the watch's wait ~970 ms (step 3's); taken and heard 0-35 ms after layout and shown; a `canvas apply` showed in the scene 24-26 ms later (slinger-1e161b)
 - [ ] (bundle) with SLINGER_TRACE=switch: tap between two workspaces ten times; 'drawn' is under about 50 ms warm; paste the ten lines in slinger-eaa98b beside the baseline. Driven window after slinger-2c5d60: drawn mean 18 ms (11-27), watch +0 ms, layout +0 ms, taken 4-12 ms (slinger-2c5d60)
 
-## Fold and boxes (plan pl-f130a2)
-
-- [ ] FAILED in a driven window (slinger-585af9): a box drawn around short typed texts folds empty and leaves them on the page: a typed text's frame is 582 pt wide (its wrap column), so the box does not hold it. Fold, peek, step in, split, nest, move and sling of boxes holding ink passed with the pen and the keyboard (slinger-03095f)
-
 ## Pen-less use and text (plan pl-c5e2a3)
 
 - [ ] (rest of 7ada2a) a day of notes in the BUNDLE with keyboard and trackpad only: how it feels; log gaps with leave-feedback; the real trackpad's middle/right drag and cmd+scroll (a driven window passed the rest; it found the key overlay's chips cut to '⌥⌘…' at 960 pt: Close workspace, Focus pane left/right, Remove page, Restart agent, and labels 'Select a word, a r…', 'Set where it wra…') (slinger-75514e)
