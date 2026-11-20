@@ -4,7 +4,6 @@
 //! command that talks to the app, not to slingerd.
 
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 
 use clap::{Args, Subcommand};
@@ -44,10 +43,14 @@ struct Pen {
     eraser: bool,
 }
 
+/// The help of a point: either form, as `drive scene` prints it.
+const AT: &str = "The point, from the window's top left, as X,Y or X Y";
+
 #[derive(Subcommand)]
 enum Op {
     /// Press a key, such as cmd+j, escape or shift+a; prints taken or passed
     Key {
+        /// The key and its modifiers: cmd+j, shift+a, escape, return, delete, left
         chord: String,
         /// The text it types when the app passes the key on [default: the key's character, none with cmd or ctrl]
         #[arg(long)]
@@ -55,51 +58,58 @@ enum Op {
     },
     /// Type text, a key press per character
     Type {
+        /// The text; the words are joined with a space
         #[arg(required = true, num_args = 1..)]
         text: Vec<String>,
     },
     /// Press the pen or the mouse button at a point of the window, from its top left
     Press {
-        x: f64,
-        y: f64,
+        #[arg(help = AT, value_name = "X,Y", num_args = 1..=2, required = true, allow_negative_numbers = true)]
+        at: Vec<String>,
         #[command(flatten)]
         pen: Pen,
     },
     /// Move the pen or the mouse to a point while it is down
     Drag {
-        x: f64,
-        y: f64,
+        #[arg(help = AT, value_name = "X,Y", num_args = 1..=2, required = true, allow_negative_numbers = true)]
+        at: Vec<String>,
         #[command(flatten)]
         pen: Pen,
     },
     /// Lift the pen, or let the mouse button up, at a point
     Lift {
-        x: f64,
-        y: f64,
+        #[arg(help = AT, value_name = "X,Y", num_args = 1..=2, required = true, allow_negative_numbers = true)]
+        at: Vec<String>,
         #[command(flatten)]
         pen: Pen,
     },
     /// Press at the first point, drag through the others and lift at the last
     Stroke {
-        /// The points, each as x,y
-        #[arg(required = true, num_args = 1.., value_name = "X,Y")]
+        /// The points, each as X,Y (or all as X Y X Y ...)
+        #[arg(required = true, num_args = 1.., value_name = "X,Y", allow_negative_numbers = true)]
         points: Vec<String>,
         #[command(flatten)]
         pen: Pen,
     },
     /// Move the pointer to a point with no button down
-    Move { x: f64, y: f64 },
-    /// Scroll by dx,dy points over a point
-    Scroll {
-        x: f64,
-        y: f64,
-        #[arg(allow_negative_numbers = true)]
-        dx: f64,
-        #[arg(allow_negative_numbers = true)]
-        dy: f64,
+    Move {
+        #[arg(help = AT, value_name = "X,Y", num_args = 1..=2, required = true, allow_negative_numbers = true)]
+        at: Vec<String>,
     },
-    /// Pinch over a point: zoom by a factor about it
-    Zoom { x: f64, y: f64, factor: f64 },
+    /// Scroll by DX,DY points over a point (X,Y DX,DY or X Y DX DY)
+    #[command(override_usage = "slinger drive scroll [OPTIONS] X,Y DX,DY | X Y DX DY")]
+    Scroll {
+        /// The point, then how far: X,Y DX,DY or X Y DX DY; a negative DY scrolls up
+        #[arg(value_name = "ARG", num_args = 2..=4, required = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Pinch over a point: zoom by a factor about it (X,Y FACTOR or X Y FACTOR)
+    #[command(override_usage = "slinger drive zoom [OPTIONS] X,Y FACTOR | X Y FACTOR")]
+    Zoom {
+        /// The point, then the factor (over 1 zooms in): X,Y FACTOR or X Y FACTOR
+        #[arg(value_name = "ARG", num_args = 2..=3, required = true)]
+        args: Vec<String>,
+    },
     /// Hold the space bar down, as for a pan with the pointer; --up lets it go
     Space {
         /// Let the space bar up
@@ -107,17 +117,28 @@ enum Op {
         up: bool,
     },
     /// Choose a command as its menu item does, by its name in the config file
-    Run { name: String },
+    Run {
+        /// The command's name, such as toggle-sidebar (the config file lists them)
+        name: String,
+    },
     /// Copy the selection to the driven window's own clipboard, never yours
     Copy,
     /// Cut the selection to the driven window's own clipboard
     Cut,
     /// Paste the text given, else what the driven window last cut or copied
-    Paste { text: Vec<String> },
+    Paste {
+        /// The text to paste; the words are joined with a space
+        text: Vec<String>,
+    },
     /// Print the text the driven window last cut or copied
     Clip,
-    /// Drop a file on the window at a point
-    Drop { x: f64, y: f64, file: PathBuf },
+    /// Drop a file on the window at a point (X,Y FILE or X Y FILE)
+    #[command(override_usage = "slinger drive drop [OPTIONS] X,Y FILE | X Y FILE")]
+    Drop {
+        /// The point, then the file: X,Y FILE or X Y FILE
+        #[arg(value_name = "ARG", num_args = 2..=3, required = true)]
+        args: Vec<String>,
+    },
     /// Let the window take the daemon's news now, as its timer does twice a second
     Tick,
     /// Print what the window shows, a line each: place, colour and text
@@ -127,9 +148,17 @@ enum Op {
         debug: bool,
     },
     /// Write the window's content to a PNG file; prints its path
-    Shot { file: PathBuf },
-    /// Make the window's content w by h points
-    Resize { w: f64, h: f64 },
+    Shot {
+        /// The PNG file to write
+        file: PathBuf,
+    },
+    /// Make the window's content W by H points
+    Resize {
+        /// The width, in points
+        w: f64,
+        /// The height, in points
+        h: f64,
+    },
 }
 
 impl Drive {
@@ -176,27 +205,32 @@ impl Drive {
 impl Op {
     /// The request line's object (crates/app/src/drive.rs reads it).
     fn request(&self) -> anyhow::Result<Value> {
-        let penned =
-            |op: &str, x: f64, y: f64, pen: &Pen| with(json!({ "op": op, "x": x, "y": y }), pen);
+        let penned = |op: &str, at: &[String], pen: &Pen| -> anyhow::Result<Value> {
+            let [x, y] = numbers(at)?;
+            Ok(with(json!({ "op": op, "x": x, "y": y }), pen))
+        };
         Ok(match self {
             Self::Key { chord, text } => json!({ "op": "key", "chord": chord, "text": text }),
             Self::Type { text } => json!({ "op": "type", "text": text.join(" ") }),
-            Self::Press { x, y, pen } => penned("press", *x, *y, pen),
-            Self::Drag { x, y, pen } => penned("drag", *x, *y, pen),
-            Self::Lift { x, y, pen } => penned("lift", *x, *y, pen),
+            Self::Press { at, pen } => penned("press", at, pen)?,
+            Self::Drag { at, pen } => penned("drag", at, pen)?,
+            Self::Lift { at, pen } => penned("lift", at, pen)?,
             Self::Stroke { points, pen } => {
-                let points: Option<Vec<[f64; 2]>> = points.iter().map(|p| point(p)).collect();
-                let Some(points) = points else {
-                    let hint = "write each point as x,y: 100,200 140.5,220".to_string();
-                    return Err(RemoteError::new("usage", "a point is not x,y", Some(hint)).into());
-                };
+                let flat =
+                    split(points).filter(|n| n.len() % 2 == 0).ok_or_else(|| wrong(points))?;
+                let points = flat.as_chunks::<2>().0;
                 with(json!({ "op": "stroke", "points": points }), pen)
             }
-            Self::Move { x, y } => json!({ "op": "move", "x": x, "y": y }),
-            Self::Scroll { x, y, dx, dy } => {
+            Self::Move { at } => {
+                let [x, y] = numbers(at)?;
+                json!({ "op": "move", "x": x, "y": y })
+            }
+            Self::Scroll { args } => {
+                let [x, y, dx, dy] = numbers(args)?;
                 json!({ "op": "scroll", "x": x, "y": y, "dx": dx, "dy": dy })
             }
-            Self::Zoom { x, y, factor } => {
+            Self::Zoom { args } => {
+                let [x, y, factor] = numbers(args)?;
                 json!({ "op": "zoom", "x": x, "y": y, "factor": factor })
             }
             Self::Space { up } => json!({ "op": "space", "down": !up }),
@@ -206,7 +240,10 @@ impl Op {
             Self::Paste { text } if text.is_empty() => json!({ "op": "paste" }),
             Self::Paste { text } => json!({ "op": "paste", "text": text.join(" ") }),
             Self::Clip => json!({ "op": "clip" }),
-            Self::Drop { x, y, file } => {
+            Self::Drop { args } => {
+                let mut args = args.clone();
+                let file = args.pop().map(PathBuf::from).unwrap_or_default();
+                let [x, y] = numbers(&args)?;
                 json!({ "op": "drop", "x": x, "y": y, "path": std::path::absolute(file)? })
             }
             Self::Tick => json!({ "op": "tick" }),
@@ -227,10 +264,23 @@ fn with(mut request: Value, pen: &Pen) -> Value {
     request
 }
 
-/// `x,y` as a point.
-fn point(text: &str) -> Option<[f64; 2]> {
-    let (x, y) = text.split_once(',')?;
-    Some([x.trim().parse().ok()?, y.trim().parse().ok()?])
+/// The `N` numbers `args` give, each arg one number or several joined
+/// with commas: a point is `10,20` or `10 20`.
+fn numbers<const N: usize>(args: &[String]) -> anyhow::Result<[f64; N]> {
+    split(args).and_then(|n| n.try_into().ok()).ok_or_else(|| wrong(args))
+}
+
+/// The numbers in `args`, split at commas; none if one is not a number.
+fn split(args: &[String]) -> Option<Vec<f64>> {
+    args.iter().flat_map(|arg| arg.split(',')).map(|n| n.trim().parse().ok()).collect()
+}
+
+/// Why `args` are not the numbers an op takes.
+fn wrong(args: &[String]) -> anyhow::Error {
+    let hint = "write a point as X,Y or X Y (100,200 or 100 200); \
+                `slinger drive <OP> --help` says what an op takes";
+    let said = format!("not the numbers it takes: {}", args.join(" "));
+    RemoteError::new("usage", said, Some(hint.to_string())).into()
 }
 
 /// Sends `request` to the app on `socket` and waits for its reply.
@@ -243,7 +293,7 @@ fn ask(socket: &Path, request: &Value) -> anyhow::Result<Value> {
             Some(hint.to_string()),
         )
     };
-    let mut stream = UnixStream::connect(socket).map_err(gone)?;
+    let mut stream = slinger_control::connect_socket(socket).map_err(gone)?;
     writeln!(stream, "{request}").map_err(gone)?;
     let mut line = String::new();
     BufReader::new(&stream).read_line(&mut line).map_err(gone)?;

@@ -9,18 +9,18 @@
 mod outline;
 
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use serde_json::{Value, json};
 
 pub use self::outline::outline;
-use crate::Event;
 use crate::commands::{Chord, Command, SHIFT};
 use crate::layout::{Point, Size};
+use crate::scene::Scene;
 use crate::scene::ink::Pen;
 use crate::scene::paste::{Clip, Edit};
+use crate::{Event, Step};
 
 /// What a request asks of the window.
 #[derive(Debug, PartialEq)]
@@ -40,6 +40,23 @@ pub enum Ask {
     Paste,
     /// The text the driven window last cut or copied.
     Clip,
+}
+
+/// Keeps `last`, the scene a driven window shows, up to date with `step`,
+/// the answer to an event: a scene drawn replaces it. An entry's field
+/// shows its own typing with no draw, so the text typed into it (`typed`,
+/// an [`Event::Typed`]'s) goes into `last`'s entry (slinger-16d634).
+pub fn shown(last: &mut Scene, typed: Option<String>, step: &Step) {
+    match step {
+        Step::Draw(scene) | Step::Through(scene) | Step::Copy(_, scene) => {
+            last.clone_from(scene);
+        }
+        _ => {
+            if let (Some(text), Some(entry)) = (typed, last.entry.as_mut()) {
+                entry.text = text;
+            }
+        }
+    }
 }
 
 /// Seconds between the points of a `stroke`.
@@ -154,7 +171,7 @@ fn stroke(points: &Value, pen: impl Fn(Point, f64) -> Pen) -> Result<Ask, String
     Ok(Ask::Send(events.into_iter().map(|e| (e, None)).collect()))
 }
 
-/// Listens on `socket` (a file there is replaced) on a thread of its own
+/// Listens on `socket` (a file there is replaced; a path of any length) on a thread of its own
 /// and hands each request to `hand`, which answers what the window said.
 ///
 /// # Errors
@@ -166,7 +183,7 @@ pub fn listen(
 ) -> std::io::Result<()> {
     // A socket left by a run that ended is in the way of the new one.
     let _ = std::fs::remove_file(socket);
-    let listener = UnixListener::bind(socket)?;
+    let listener = slinger_control::bind_socket(socket)?;
     let start = Instant::now();
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {

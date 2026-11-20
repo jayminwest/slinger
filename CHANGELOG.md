@@ -17,6 +17,14 @@ bullet with the area in bold.
   way when its ink lies out of the first view, instead of at the empty
   origin.
 
+- **Daemon:** slingerd keeps where each pane of each workspace looks (its
+  page, pan and zoom) and which pane has the focus, in
+  `workspaces/views.json` in its data directory, through the new `pane_view`
+  verb. Every pane reply carries them, so they survive a restart and a
+  workspace closed and opened again; a pane opened beside another on the
+  same canvas starts where that one looks. The workspace file is not
+  written. `slinger pane list --json` shows them. The app uses them in a
+  coming step.
 - **App:** after an update, slinger.app notices a slingerd of another
   build and offers to restart it: a notice names both builds and how many
   running agents a restart would end, and "Restart slingerd" (the notice,
@@ -66,7 +74,9 @@ bullet with the area in bold.
   a canvas text or an entry such as Find or Feedback), pen and mouse
   events, scrolls, the space bar held for a pan, and commands, then reads back what the window
   shows as text (`drive scene`) or as a PNG (`drive shot`). It never
-  touches your clipboard, your saved window or your own daemon. See
+  touches your clipboard, your saved window or your own daemon. Every
+  point is written `X,Y` or `X Y`, `slinger drive <op> --help` says what
+  each op takes, and a socket path of any length works. See
   `slinger guide`.
 - **App:** undo and redo while you type a canvas text. Cmd+Z and
   Shift+Cmd+Z (and Undo and Redo in the Edit menu) step through the text's
@@ -626,6 +636,15 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a workspace whose file is broken no longer pushes the
+  workspaces under it out of the sidebar. Its error takes at most two
+  lines, cut short with "…"; the hint shows only while you show that
+  workspace, in at most three lines; the panes show both, wider.
+- **App:** a broken workspace's error in the sidebar no longer loses
+  its last word: each line now wraps to the room its text really has.
+- **App:** tapping a workspace whose file is broken and names no
+  workspace shows why its file is broken where the panes go, rather than
+  leaving an 'open workspace not found' notice there.
 - **App:** a workspace no longer opens at another workspace's zoom and
   scroll, or shows its ink while its own page comes. Going back to a
   workspace finds each pane, and the focus, where you left them. Closing

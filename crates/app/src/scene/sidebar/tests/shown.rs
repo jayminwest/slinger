@@ -44,9 +44,11 @@ fn with_none_named_the_first_usable_workspace_stands_out_as_the_panes_show_it() 
     assert_eq!(sidebar.close(), Some(PathBuf::from("/w/ada")), "closes the one shown: ada's");
     assert_eq!(bold(&sidebar), ["bo-ws"]);
     sidebar.update(Ok(vec![broken("", "one"), broken("", "two")]));
-    // Of two that name none: by its folder, and no name for the panes to ask for.
+    // Of two that name none: by its folder, which the panes ask for, so
+    // they say why its file is broken, not that no workspace has its name
+    // (slinger-7e27ff).
     let two = (sidebar.pick(1), bold(&sidebar), sidebar.shown_dir());
-    assert_eq!(two, (None, vec!["two".into()], Some("/w/two".into())));
+    assert_eq!(two, (Some("/w/two".into()), vec!["two".into()], Some("/w/two".into())));
 }
 
 #[test]

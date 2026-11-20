@@ -16,7 +16,7 @@ use objc2_foundation::{NSDictionary, NSSize, NSString};
 
 use super::event::{_dispatch_main_q, dispatch_async_f};
 use super::{Event, STATE, Step, dispatch};
-use crate::drive::Ask;
+use crate::drive::{self, Ask};
 use crate::scene::Scene;
 use crate::scene::paste::{Clip, Edit};
 
@@ -30,26 +30,32 @@ thread_local! {
 /// A request and where its answer goes.
 type Job = (Ask, mpsc::Sender<Result<String, String>>);
 
-/// `answer`, keeping each scene it draws (and `first`) for [`Ask::Scene`].
+/// `answer`, keeping the scene the window shows (`first`, each it draws and
+/// the text typed in an entry: [`drive::shown`]) for [`Ask::Scene`].
 pub fn watching(
     first: &Scene,
     mut answer: impl FnMut(Event) -> Step + 'static,
 ) -> impl FnMut(Event) -> Step + 'static {
     LAST.set(Some(Box::new(first.clone())));
     move |event| {
+        let typed = match &event {
+            Event::Typed(text) => Some(text.clone()),
+            _ => None,
+        };
         let step = answer(event);
+        LAST.with_borrow_mut(|last| {
+            if let Some(last) = last {
+                drive::shown(last, typed, &step);
+            }
+        });
         // A cut or a copy stays in the driven window: the user's clipboard is theirs.
-        let step = match step {
+        match step {
             Step::Copy(clip, scene) => {
                 CLIP.set(clip);
                 Step::Draw(scene)
             }
             step => step,
-        };
-        if let Step::Draw(scene) | Step::Through(scene) = &step {
-            LAST.set(Some(scene.clone()));
         }
-        step
     }
 }
 

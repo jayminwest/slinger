@@ -57,6 +57,7 @@ Find where to work:
 slinger workspace list          # name, canvas and directory of each workspace
 slinger canvas list             # every canvas id
 slinger pane list <WORKSPACE>   # what the user's window shows
+slinger pane list <WORKSPACE> --json  # also each pane's page, pan and zoom, and the focused pane
 ```
 
 Read a canvas:
@@ -191,25 +192,26 @@ real app on a daemon of your own; it is never shown on a screen, and it does
 not start unless its config names that daemon's socket:
 
 ```bash
-cd "$(mktemp -d)" && mkdir ws           # short socket paths: a path over 104 bytes fails
+cd "$(mktemp -d)" && mkdir ws           # d.sock stays relative: slingerd takes 103 bytes at most
 slingerd --socket d.sock --data-dir data --scratch & sleep 1
 slinger --socket d.sock workspace open ws
 printf '[daemon]\nsocket = "d.sock"\n[workspace]\nname = "ws"\n' > config.toml
 SLINGER_CONFIG=$PWD/config.toml slinger-app --drive a.sock &
 export SLINGER_DRIVE=$PWD/a.sock
 slinger drive key cmd+4                 # a key, as the keyboard sends it
-slinger drive press 300 200             # a mouse press; --tablet for the pen
-slinger drive lift 300 200
+slinger drive press 300,200             # a mouse press; --tablet for the pen
+slinger drive lift 300,200
 slinger drive type "A note"
 slinger drive stroke 300,300 340,320 380,300 --tablet
 slinger drive space                     # hold the space bar (a pan with the pointer); --up lets go
 slinger drive tick                      # take the daemon's news now
+slinger drive scroll 300,200 0,-40      # scroll over a point (a negative DY scrolls up)
 slinger drive scene                     # what the window shows, a line each
 slinger drive shot window.png           # the window as a PNG, to look at
 ```
 
 Points are in the window's points from its top left, as `drive scene`
-prints them. `taken` means the app used the event, `passed` that it did
+prints them, written `X,Y` or `X Y`. `taken` means the app used the event, `passed` that it did
 not. A cut or a copy stays in the driven window (`drive clip` prints it).
 Stop the app and the daemon by their pids when you are done. A driven
 window cannot check what comes before the app hears an event (a real

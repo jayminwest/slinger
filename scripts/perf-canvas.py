@@ -258,15 +258,11 @@ def drive(bins, sock, runs):
                 time.sleep(0.02)
             sys.exit(f"✗ the window did not settle on {title}")
 
-        settled('"small"')
-        for x in (1000, 1001):
-            # A driven window's first toggle leaves the sidebar shut, and a
-            # command draws nothing until the next event: a pointer move draws it.
+        side = settled('"small"')
+        # A driven window starts with the sidebar open; a command draws at once.
+        if "WORKSPACES" not in side:
             go({"op": "command", "name": "toggle-sidebar"})
-            go({"op": "move", "x": x, "y": 500})
             side = settled('"small"')
-            if "WORKSPACES" in side:
-                break
         rows_at = {}
         for line in side.split("\n"):
             m = re.match(r'sidebar ([\d.]+),([\d.]+) ([\d.]+)x([\d.]+) \S+(?: on \S+)? "(big|small)"', line)

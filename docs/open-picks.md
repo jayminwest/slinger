@@ -51,8 +51,13 @@ Choices an agent made and shipped that the owner has not confirmed. An agent tha
 - [ ] a folder that already holds `<canvas>.canvas` is adopted; a header-only twin in the data dir goes to `moved/`, a twin with content stays and is reported (slinger-7c18bc)
 - [ ] canvases stay out of network file systems (smbfs, nfs, afpfs, webdav); loose and rootless canvases stay in the data directory, not `~/Documents/Slinger`; ids stay global and the header's id wins over a Finder rename (slinger-7c18bc)
 
+## Switching and views (plan pl-85bfa0)
+
+- [ ] kept views (slinger-f8f069): in the data directory (`workspaces/views.json`, as docs/design/storage.md also picks), keyed by the workspace file's directory; `pane_view` merges (named views replace, others stay), leaves out a view for a gone pane, a UI pane or another canvas, and refuses the whole call on one bad number; a UI pane gets no view; the daemon writes and fsyncs on every changing call and does not coalesce (the app must debounce); a reply shows a view only for the canvas the pane shows now (slinger-f8f069)
+
 ## Agent sessions, workspaces and the rest
 
+- [ ] a broken workspace's sidebar lines are cut short with '…': its error at 2 lines, its field at 1, and its hint at 3, shown only under the workspace the window shows (the panes show error and hint at their width); the sidebar still does not scroll, so many workspaces can still run past its foot (slinger-a57147)
 - [ ] slings left waiting for a listener that went away stay queued while later slings start a process (7ef062f); should starting the agent hand them to it? Also: after stop-agent the next sling starts the agent again; confirm (follow-up of 38ddde) (slinger-7e2d5f)
 - [ ] allow MCP tools by default: Claude Code has no allow rule for every server ('mcp__*' is skipped), so the daemon would read the configured server names and add 'mcp__<server>__*' each; today the owner's own permissions.allow covers it (rest of 6313eb) (slinger-a4b1f3)
 - [ ] a listener replaces the agent's hidden process in the daemon (session_listen stops it), so no sling leaks to it after the 10 s grace; today the slinger-listen skill runs 'session stop' itself (slinger-72175b)
