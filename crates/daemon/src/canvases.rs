@@ -336,6 +336,24 @@ impl Canvases {
         self.change(id, |log| Ok(log.remove(&by, now(), item)?))
     }
 
+    /// Folds the box `item` names as `by`, or unfolds it when `open`.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Log::fold`] and [`Log::unfold`] and of the file.
+    pub fn fold(
+        &self,
+        id: &str,
+        by: &str,
+        item: &str,
+        open: bool,
+        once: Option<&str>,
+    ) -> Result<Placed> {
+        let by = parse_author(by)?;
+        let fold = if open { Log::unfold } else { Log::fold };
+        self.change(id, |log| Ok(fold(log, &by, now(), item, once)?))
+    }
+
     /// Undoes the last step of `by` on the canvas.
     ///
     /// # Errors
