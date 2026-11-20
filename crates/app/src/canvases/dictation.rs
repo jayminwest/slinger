@@ -9,7 +9,7 @@
 use std::path::PathBuf;
 
 use super::Canvases;
-use crate::backend::Flick;
+use crate::backend::{Flick, Wake};
 use crate::commands::Command;
 use crate::config::Theme;
 use crate::layout::Rect;
@@ -28,8 +28,8 @@ pub(super) struct Voice {
 
 impl Voice {
     /// Asks the Flick listening on `socket`, once the user dictates.
-    pub(super) fn new(socket: PathBuf) -> Self {
-        Self { dictation: Dictation::default(), flick: Flick::start(socket) }
+    pub(super) fn new(socket: PathBuf, wake: &Wake) -> Self {
+        Self { dictation: Dictation::default(), flick: Flick::start(socket, wake) }
     }
 }
 
@@ -97,6 +97,6 @@ impl Canvases {
     /// Asks the Flick on `socket` from now on: a test's stand-in.
     #[cfg(test)]
     pub(super) fn listen_to(&mut self, socket: PathBuf) {
-        self.voice = Voice::new(socket);
+        self.voice = Voice::new(socket, &Wake::none());
     }
 }

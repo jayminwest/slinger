@@ -12,12 +12,14 @@
 //! a change sent again at once is not sent many times a second.
 
 use std::sync::mpsc::{self, Receiver, Sender};
+
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use slinger_control::{CanvasFold, CanvasOps, CanvasStep, Client, FoldAsk};
 
+use super::Wake;
 use crate::mirror;
 use crate::scene::canvas::ItemId;
 use crate::scene::ink::{Answer, Change};
@@ -43,11 +45,12 @@ pub struct Outbox {
 }
 
 impl Outbox {
-    /// Starts sending through `daemon`. Returns at once.
-    pub fn start(daemon: Client) -> Self {
+    /// Starts sending through `daemon`, waking the main thread with each
+    /// answer. Returns at once.
+    pub fn start(daemon: Client, wake: &Wake) -> Self {
         let daemon = Arc::new(Mutex::new(daemon));
         let (changes, to_send) = mpsc::channel::<(u64, String, Change, Option<ItemId>)>();
-        let (answer, answers) = mpsc::channel();
+        let (answer, answers) = wake.channel();
         let theirs = Arc::clone(&daemon);
         thread::spawn(move || {
             for (key, once, change, inside) in to_send {
@@ -182,7 +185,7 @@ mod tests {
 
     #[test]
     fn strokes_are_written_in_the_order_given_and_a_lost_daemon_is_unreachable() {
-        let outbox = Outbox::start(Client::new("/nonexistent/x.sock"));
+        let outbox = Outbox::start(Client::new("/nonexistent/x.sock"), &Wake::none());
         outbox.send(1, "t.1".into(), stroke("main", 0.0), None);
         let lost = wait(&outbox, 1);
         let [(1, Answer::Unreachable(problem))] = lost.as_slice() else { panic!("{lost:?}") };
@@ -214,7 +217,7 @@ mod tests {
     fn a_move_and_a_removal_are_one_step_each_and_reach_an_agent_s_items() {
         with_daemon(|daemon| {
             daemon.canvas_create("main").unwrap();
-            let outbox = Outbox::start(daemon.clone());
+            let outbox = Outbox::start(daemon.clone(), &Wake::none());
             for key in 1..=3 {
                 outbox.send(
                     key,
@@ -274,7 +277,7 @@ mod tests {
     fn undo_and_redo_take_only_the_user_s_steps_in_turn_and_a_new_page_says_its_id() {
         with_daemon(|daemon| {
             daemon.canvas_create("main").unwrap();
-            let outbox = Outbox::start(daemon.clone());
+            let outbox = Outbox::start(daemon.clone(), &Wake::none());
             outbox.send(1, "t.1".into(), stroke("main", 1.0), None);
             wait(&outbox, 1);
             let note = serde_json::json!({"op": "add", "item":
@@ -334,7 +337,7 @@ mod tests {
         use crate::scene::canvas::{Item, Shape};
         with_daemon(|daemon| {
             daemon.canvas_create("main").unwrap();
-            let outbox = Outbox::start(daemon.clone());
+            let outbox = Outbox::start(daemon.clone(), &Wake::none());
             let colour = Rgb { r: 0, g: 0, b: 255 };
             let here = || ("main".to_string(), "p1".to_string());
             let frame = Rect { x: 0.0, y: 0.0, width: 10.0, height: 10.0 };

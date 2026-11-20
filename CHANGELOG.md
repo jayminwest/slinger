@@ -449,6 +449,10 @@ bullet with the area in bold.
 
 ### Changed
 
+- **App:** a tap on a workspace shows it at once (about 20 ms, from one
+  to two seconds), and what an agent draws or a page that comes shows at
+  once too: the window no longer waits for its timer or a one-second round
+  before it shows news from the daemon.
 - **App:** a mouse or trackpad no longer draws stray lines. With the pen
   tool chosen, a mouse or trackpad press selects and moves items, as the
   select tool does; the tablet pen draws exactly as before. Every other

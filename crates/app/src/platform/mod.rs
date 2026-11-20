@@ -1,7 +1,8 @@
 //! The macOS layer. Every `unsafe` block and every objc2 or `AppKit` call in the
 //! project is in this directory (gate check:layers, rule `platform-owns-ffi`). It
 //! exposes safe functions and makes no decisions: `input` turns a key press into
-//! a [`Chord`], a pen or mouse event into a [`Pen`] (every point: mouse
+//! a [`Chord`](crate::commands::Chord), a pen or mouse event into a
+//! [`Pen`](crate::scene::ink::Pen) (every point: mouse
 //! coalescing is off), a trackpad scroll, a right- or middle-button drag or a
 //! pinch into a pan or a zoom, and a tablet pen's proximity into its end and
 //! device, and hands them on, and keeps the pointer's cursor; and it draws what a
@@ -19,6 +20,8 @@
 //! dropped on the window; `pdf` reads and draws PDFs; `panel` asks for a folder
 //! or a file to open; `window` makes it; `remember` keeps its frame, whether the
 //! sidebar was open and the workspace it showed, for the next launch.
+//! `event` holds what the app hears and answers, and [`waker`], which any
+//! thread calls to have the main thread look at the news ([`Event::Wake`]).
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
 //! that touches `AppKit` takes a `MainThreadMarker`, which only the main thread
@@ -30,6 +33,7 @@ mod canvas;
 mod chrome;
 pub mod drive;
 mod entry;
+mod event;
 mod files;
 mod input;
 mod keys;
@@ -56,21 +60,25 @@ use objc2_foundation::{NSNotification, NSObject, NSRect, NSTimer};
 
 use self::canvas::CanvasView;
 use self::chrome::{color, flipped, label};
+pub use self::event::{Event, Step, waker};
 pub use self::files::reveal;
 pub use self::panel::{Pick, choose};
 pub use self::remember::{Kept, remember_sidebar, sidebar as remembered_sidebar};
 pub use self::remember::{remember_workspace, workspace as remembered_workspace};
-use crate::commands::{Chord, Command};
-use crate::layout::{PaneId, Point, Size};
+use crate::layout::{PaneId, Size};
 use crate::scene::flash::Pill;
-use crate::scene::ink::Pen;
-use crate::scene::paste::{Clip, Edit};
+use crate::scene::paste::Edit;
 use crate::scene::sidebar::Row;
 use crate::scene::status::Footer;
 use crate::scene::style::Rule;
 use crate::scene::{Border, Label, Scene, overlay::Line, overlay::Overlay};
 
-/// How often the main thread looks for a new scene, in seconds.
+/// How often the window's timer ticks, in seconds. It is a clock, not the
+/// way news comes: a backend thread's news wakes the main thread at once
+/// ([`waker`]). A tick stats the config files, fades the flash and the
+/// sidebar's notice, ticks the sling's pill and retries a missed PDF; and it
+/// takes any news whose wake came while the answer ran, which [`dispatch`]
+/// drops.
 const POLL_SECONDS: f64 = 0.5;
 
 /// [`run`] was called off the main thread.
@@ -81,76 +89,6 @@ impl std::fmt::Display for NotMainThread {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("the app must start on the main thread")
     }
-}
-
-/// What the app hears.
-#[derive(Debug, PartialEq)]
-pub enum Event {
-    /// The timer: twice a second.
-    Tick,
-    /// A key press.
-    Key(Chord),
-    /// The text a key press types, when its [`Event::Key`] was passed on:
-    /// as typed, with every modifier (control keys as their characters:
-    /// delete, return, escape).
-    Text(String),
-    /// The pen or pointer moved to a point in the window (top-left origin),
-    /// with no button down.
-    Moved(Point),
-    /// A tablet pen came near the tablet (`near`) or left it, with its eraser end or not.
-    Proximity { near: bool, eraser: bool },
-    /// Space, no modifier, went down (true, and each repeat) or up; or the keys went.
-    Space(bool),
-    /// The pen or the mouse button went down.
-    Press(Pen),
-    /// The pen or the mouse moved while down.
-    Drag(Pen),
-    /// The pen lifted, or the mouse button came up.
-    Lift(Pen),
-    /// A two-finger scroll (a mouse wheel, a right-button drag) over a point in the window:
-    /// drag what is under it by `dx`, `dy` points.
-    Scroll { at: Point, dx: f64, dy: f64 },
-    /// A pinch, or a scroll with command or control held, over a point in
-    /// the window: zoom by `factor` about it.
-    Zoom { at: Point, factor: f64 },
-    /// An agent UI replied: its `ui_reply` line, for the daemon to hand to
-    /// the agent. Answer [`Step::Refuse`] when it cannot go on.
-    Reply(String),
-    /// A canvas pane painted, this many seconds after the pen event its
-    /// scene was the first to show.
-    Painted(f64),
-    /// The user edited the text of the sling's entry: all of it now.
-    Typed(String),
-    /// The window's content is this size now: draw a scene of it.
-    Resized(Size),
-    /// Files dropped on the window at a point; [`Step::Pass`] refuses them.
-    Dropped(Point, Vec<std::path::PathBuf>),
-    /// A menu item was chosen with the pointer: its command.
-    Command(Command),
-    /// Cut, copy or paste (the Edit menu or its keys) with no text field
-    /// taking it; a paste holds what the clipboard does. Flick's dictation
-    /// comes this way, as a paste.
-    Edit(Edit),
-    /// Whether the app would do this edit: [`Step::Pass`] greys its Edit
-    /// menu item, any other step leaves it on.
-    Can(Edit),
-}
-
-/// What to do about an [`Event`].
-pub enum Step {
-    /// Nothing: the key is not a command, so the window handles it as usual.
-    Pass,
-    /// Nothing more.
-    Stay,
-    Draw(Box<Scene>),
-    /// Draw, and let the event go on as with [`Step::Pass`]: a press that
-    /// focused an agent UI's pane still reaches its page.
-    Through(Box<Scene>),
-    Quit,
-    /// Put this on the clipboard, and draw.
-    Copy(Clip, Box<Scene>),
-    /// The reply cannot go on, and why.
-    Refuse(String),
 }
 
 /// The running app's state: the window, what answers its events, and what

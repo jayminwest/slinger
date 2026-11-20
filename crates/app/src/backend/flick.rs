@@ -14,7 +14,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
 
-use crate::backend::Problem;
+use crate::backend::{Problem, Wake};
 use crate::scene::dictation::Verb;
 
 /// How long Flick has to answer one request. Its dictation verbs answer at
@@ -37,9 +37,9 @@ pub struct Flick {
 impl Flick {
     /// Starts asking the Flick listening on `socket`. Returns at once; no
     /// request goes until [`Flick::send`].
-    pub fn start(socket: PathBuf) -> Self {
+    pub fn start(socket: PathBuf, wake: &Wake) -> Self {
         let (asks, to_send) = mpsc::channel::<Verb>();
-        let (answer, answers) = mpsc::channel();
+        let (answer, answers) = wake.channel();
         thread::spawn(move || {
             for verb in to_send {
                 let said = ask(&socket, &["dictation", verb.word()]).map(drop);
@@ -126,7 +126,7 @@ mod tests {
     fn each_verb_is_one_request_line_as_the_flick_cli_sends_it() {
         let dir = tempfile::tempdir().unwrap();
         let (socket, heard) = fake_flick(dir.path(), ready);
-        let flick = Flick::start(socket);
+        let flick = Flick::start(socket, &Wake::none());
         for verb in [Verb::Start, Verb::Stop, Verb::Cancel] {
             flick.send(verb);
             assert_eq!(next(&flick), (verb, Ok(())));
@@ -141,7 +141,7 @@ mod tests {
     fn a_refusal_is_flick_s_own_message_with_where_to_look() {
         let dir = tempfile::tempdir().unwrap();
         let (socket, _) = fake_flick(dir.path(), off);
-        let flick = Flick::start(socket);
+        let flick = Flick::start(socket, &Wake::none());
         flick.send(Verb::Start);
         let (verb, said) = next(&flick);
         let problem = said.unwrap_err();
@@ -153,7 +153,7 @@ mod tests {
     #[test]
     fn with_no_flick_listening_it_says_flick_is_not_running() {
         let dir = tempfile::tempdir().unwrap();
-        let flick = Flick::start(dir.path().join("flick.sock"));
+        let flick = Flick::start(dir.path().join("flick.sock"), &Wake::none());
         flick.send(Verb::Start);
         let problem = next(&flick).1.unwrap_err();
         assert_eq!(problem.message, "Flick is not running");

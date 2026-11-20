@@ -13,6 +13,7 @@ use objc2::MainThreadMarker;
 use objc2_app_kit::{NSBitmapImageFileType, NSWindow};
 use objc2_foundation::{NSDictionary, NSSize};
 
+use super::event::{_dispatch_main_q, dispatch_async_f};
 use super::{Event, STATE, Step, dispatch};
 use crate::drive::Ask;
 use crate::scene::Scene;
@@ -23,16 +24,6 @@ thread_local! {
     static LAST: RefCell<Option<Box<Scene>>> = const { RefCell::new(None) };
     /// What the driven window last cut or copied, in place of the clipboard.
     static CLIP: RefCell<Clip> = RefCell::new(Clip::default());
-}
-
-unsafe extern "C" {
-    /// The main thread's queue, which `AppKit`'s run loop serves.
-    static _dispatch_main_q: c_void;
-    fn dispatch_async_f(
-        queue: *const c_void,
-        context: *mut c_void,
-        work: extern "C" fn(*mut c_void),
-    );
 }
 
 /// A request and where its answer goes.
