@@ -311,6 +311,9 @@ sessions.rs  the statuses agents set since the daemon started (`working`
              `route` picks a sling's way (D10): a listener that is there,
              else the process, started first when none runs; a spawn that
              fails leaves a sling with no profile waiting for a listener.
+             `close` (sessions/close.rs) is the one way `workspace_close`
+             closes: it ends the agent's process as a stop does, unless
+             another open workspace names that agent.
 listeners.rs the listeners, one per agent (`session::listen`), behind one
              lock and a condvar: `listen` holds an ask open until a sling
              comes, the wait passes or the daemon stops. Each lock finds a
