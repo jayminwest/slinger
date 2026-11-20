@@ -29,6 +29,10 @@ pub struct PacketAsk {
     /// The page's id or name; the first page without one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub page: Option<String>,
+    /// A box on the page (`b4` or `i4`): read what it holds, open or folded,
+    /// as if it were the page. Its page is the page.
+    #[serde(default, rename = "in", skip_serializing_if = "Option::is_none")]
+    pub inside: Option<String>,
     /// The canvas operations numbered above this are new. Without it, the
     /// ones after the canvas's last sling are.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -88,6 +92,7 @@ mod tests {
         let full = PacketAsk {
             canvas: "idea".into(),
             page: Some("p2".into()),
+            inside: Some("b4".into()),
             after: Some(3),
             select: vec!["c1".into()],
             out: Some("/tmp/p".into()),

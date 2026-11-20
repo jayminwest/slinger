@@ -131,6 +131,48 @@ impl Log {
         out
     }
 
+    /// Makes the item the last `add` of `out` makes join the folded box
+    /// `inside` names (docs/design/fold.md, "Step in"): an edit of the box,
+    /// after the add, that lists the item and grows the open size, right
+    /// and down only, to hold it. The box as an earlier action of `out`
+    /// left it, else as it is. An `in` an open box adds plainly: what lies
+    /// inside an open box is its contents already.
+    ///
+    /// # Errors
+    ///
+    /// `invalid` for an `in` that is not an item id, an item that is not a
+    /// box, or a box on another page than the item; `not_found` for a box
+    /// that is not there.
+    pub(super) fn join(&self, inside: &serde_json::Value, out: &mut Vec<Action>) -> Result<()> {
+        let hint = "pass `in` as the id of a folded box on the item's page (b4 or i4)";
+        let id = inside.as_str().ok_or_else(|| invalid("`in` is not an item id", hint))?;
+        let (item, _, on) = self.named(id)?;
+        let adds = out.iter().filter(|a| matches!(a, Action::Add { .. } | Action::PageAdd { .. }));
+        let made = self.made(out, &(adds.count().saturating_sub(1)).to_string());
+        let (Some(made), Some(Action::Add { page, shape: added })) = (made, out.last()) else {
+            return Ok(());
+        };
+        let earlier = out.iter().rev().find_map(|a| match a {
+            Action::Edit { item: e, shape } if *e == item => Some(shape.clone()),
+            _ => None,
+        });
+        let current = earlier.or_else(|| self.canvas().item(item).map(|i| i.shape().clone()));
+        let Some(shape) = current else { return Ok(()) };
+        if !matches!(shape, Shape::Box { .. }) {
+            return Err(invalid(&format!("{id} is not a box"), hint));
+        }
+        if *page != on {
+            return Err(invalid(&format!("{id} is on another page than the item"), hint));
+        }
+        let Shape::Box { frame, colour, fold: Some(mut fold) } = shape else { return Ok(()) };
+        let r = added.clone().fitted().bounds();
+        fold.open.0 = fold.open.0.max(r.x + r.w - frame.x);
+        fold.open.1 = fold.open.1.max(r.y + r.h - frame.y);
+        fold.items.push(made);
+        out.push(Action::Edit { item, shape: Shape::Box { frame, colour, fold: Some(fold) } });
+        Ok(())
+    }
+
     /// The box `id` names, if `by` may change it: its id, the folded box
     /// that holds it and its shape.
     fn a_box(&self, by: &Author, id: &str) -> Result<(ItemId, Option<ItemId>, Shape)> {

@@ -393,3 +393,67 @@ fn a_reader_from_before_folds_loses_no_item() {
     assert!(c.hidden(id(&made[2])), "the inner box keeps its own fold");
     assert_eq!(c.items(P1).count(), 5, "no item lost");
 }
+
+#[test]
+fn an_add_in_a_folded_box_joins_it_and_grows_its_open_size_in_one_step() {
+    let mut book = Book::new();
+    let b = book
+        .apply(&json!({"op": "add", "item": {"page": "p1", "kind": "box",
+        "x": 1000, "y": 1000, "w": 4000, "h": 2000}}))
+        .remove(0);
+    let inner = book
+        .apply(&json!({"op": "add", "item": {"page": "p1", "kind": "stroke", "width": 20,
+            "pts": [1500, 1500, 100, 100]}}))
+        .remove(0);
+    book.fold(&b);
+    let mini = frame(&book.log, &b);
+    // Two adds in one request: the second reaches past the open frame.
+    let made = book.apply(&json!([
+        {"op": "add", "in": b, "item": {"page": "p1", "kind": "stroke", "width": 20, "pts": [2000, 2000, 100, 100]}},
+        {"op": "add", "in": "b1", "item": {"page": "p1", "kind": "text", "x": 1200, "y": 4000, "text": "later"}},
+    ]));
+    let canvas = book.log.canvas();
+    let fold = canvas.item(id(&b)).unwrap().shape().fold().unwrap().clone();
+    assert_eq!(fold.items, ids(&[&inner, &made[0], &made[1]]));
+    assert_eq!(fold.open.0, 400.0, "nothing reached past the right edge");
+    assert_eq!(fold.open.1, 324.0, "down to the text's foot: 400 + 24 - 100");
+    assert_eq!(frame(&book.log, &b), mini, "the miniature stays");
+    assert_eq!(shown(&book.log), ids(&[&b]));
+    // One undo takes both adds and the joins back.
+    let undone = book.log.undo(&Author::User, AT);
+    book.keep(&undone);
+    let canvas = book.log.canvas();
+    assert_eq!(canvas.item(id(&b)).unwrap().shape().fold().unwrap().items, ids(&[&inner]));
+    assert!(canvas.item(id(&made[0])).is_none());
+    // Replayed from its bytes, the file holds the same.
+    let (reopened, _) = Log::open(book.bytes.as_bytes()).unwrap();
+    assert_eq!(reopened.canvas().item(id(&b)).unwrap().shape().fold().unwrap().items.len(), 1);
+}
+
+#[test]
+fn an_add_in_an_open_box_adds_plainly_and_a_bad_in_fails() {
+    let (mut log, _) = Log::create("c").unwrap();
+    let b = boxed(&mut log, 0, 0, 4000, 2000);
+    let text =
+        add(&mut log, &Author::User, json!({"kind": "text", "x": 100, "y": 100, "text": "t"}));
+    let stroke = |inside: &str| {
+        json!({"op": "add", "in": inside,
+        "item": {"page": "p1", "kind": "stroke", "width": 20, "pts": [500, 500, 100, 100]}})
+    };
+    let w = log.apply(&Author::User, AT, &stroke(&b)).unwrap();
+    assert_eq!(w.seq.len(), 1, "only the add");
+    assert!(log.canvas().item(id(&b)).unwrap().shape().fold().is_none());
+    let code = |log: &mut Log, inside: &str| {
+        log.apply(&Author::User, AT, &stroke(inside)).unwrap_err().code()
+    };
+    assert_eq!(code(&mut log, &text), "invalid");
+    assert_eq!(code(&mut log, "b99"), "not_found");
+    assert_eq!(code(&mut log, "zz"), "invalid");
+    log.fold(&Author::User, AT, &b, None).unwrap();
+    // An agent may not change the user's folded box, so it may not add into it.
+    assert_eq!(code_by(&mut log, &scout(), &stroke(&b)), "invalid");
+}
+
+fn code_by(log: &mut Log, by: &Author, op: &Value) -> &'static str {
+    log.apply(by, AT, op).unwrap_err().code()
+}

@@ -395,6 +395,9 @@ impl Log {
                 let page = json::text(&item, "page").and_then(json::parse_page).map_err(bad)?;
                 let shape = read_shape(&item)?;
                 out.push(Action::Add { page, shape });
+                if let Some(inside) = m.get("in") {
+                    self.join(inside, out)?;
+                }
             }
             "remove" => {
                 let ids = json::ids(m, "ids").map_err(bad)?;
@@ -433,7 +436,7 @@ impl Log {
     /// is `made[n]` (counting from 0) will make. Adds take ids in order,
     /// from the canvas's next. `None` when `n` is not a number, or names a
     /// page or nothing made yet.
-    fn made(&self, out: &[Action], n: &str) -> Option<ItemId> {
+    pub(super) fn made(&self, out: &[Action], n: &str) -> Option<ItemId> {
         let n: usize = n.parse().ok()?;
         let mut next = self.canvas.next_item().get();
         let mut made = out.iter().filter_map(|action| match action {
