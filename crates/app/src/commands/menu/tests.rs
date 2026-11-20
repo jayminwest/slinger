@@ -6,6 +6,7 @@ const ABLE: Facts = Facts {
     canvas: true,
     pages: 2,
     ui: true,
+    ui_pane: true,
     items: true,
     selected: true,
     boxed: true,

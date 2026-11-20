@@ -119,6 +119,7 @@ fn each_default_chord_runs_its_own_command_and_a_few_commands_have_none() {
                     command,
                     Command::ShowWorkspaceFolder
                         | Command::ExportUi
+                        | Command::ReloadUi
                         | Command::ShowFeedbackFile
                         | Command::ShowAllFeedback
                         | Command::StartSlingerd
@@ -174,6 +175,7 @@ fn every_command_has_a_title_and_a_group_in_the_list() {
         (Command::CloseWorkspace, Group::File),
         (Command::ShowWorkspaceFolder, Group::File),
         (Command::ExportUi, Group::File),
+        (Command::ReloadUi, Group::File),
         (Command::StartAgent, Group::Sling),
         (Command::StopAgent, Group::Sling),
         (Command::RestartAgent, Group::Sling),

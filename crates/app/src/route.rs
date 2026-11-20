@@ -40,6 +40,9 @@ pub enum Routed {
     News(bool),
     /// `start-slingerd` or `restart-daemon`: for the launcher, then draw.
     Launch(Command),
+    /// `reload-ui` forgot the focused pane's agent UI: the watch fetches
+    /// it again, then draw.
+    Refetch,
 }
 
 /// The workspace a tap, an open or a close leaves shown, for the watch to
@@ -148,6 +151,7 @@ pub fn route(
         (Ask::Run(c @ (Command::StartSlingerd | Command::RestartDaemon)), _) => {
             return Routed::Launch(c);
         }
+        (Ask::Run(Command::ReloadUi), _) if shared.reload_ui() => return Routed::Refetch,
         // It flashes, and the window is drawn whether or not the files changed.
         (Ask::Run(Command::ReloadConfig), _) => {
             tools.flash().command(Command::ReloadConfig, &settings.config.keys, Instant::now());

@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** Reload agent UI (in the File menu, the palette and an agent UI
+  pane's right-click menu) fetches the pane's agent UI again and starts its
+  page over: a new version or new data shows, and one that could not show
+  tries again. It has no key by default; bind `reload-ui` to give it one.
+
 - **App:** a right click on a workspace in the sidebar offers Close
   workspace, Show workspace folder in Finder, Start agent, Stop agent and
   Restart agent for that workspace, without switching to it; the items grey

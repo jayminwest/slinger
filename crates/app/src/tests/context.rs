@@ -111,7 +111,9 @@ fn an_agent_ui_pane_s_footer_pops_its_menu_and_its_page_keeps_its_own() {
         w.shared.panes = Panes::new(Pane { kind: PaneKind::Ui, name: "board".into() });
         let at = w.footer(0);
         let popup = w.context(at.x, at.y).expect("a menu");
-        assert_eq!(titles(&popup), ["Export agent UI…", "Split right", "Split down", "Close pane"]);
+        let all =
+            ["Reload agent UI", "Export agent UI…", "Split right", "Split down", "Close pane"];
+        assert_eq!(titles(&popup), all);
         assert_eq!(popup.items, w.offers(&Subject::Pane { ui: true }));
         let on_page = Event::Button {
             button: Button::Secondary,

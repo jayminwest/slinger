@@ -147,6 +147,19 @@ impl Shared {
         any
     }
 
+    /// `reload-ui`: forgets the agent UI the focused pane shows, so its
+    /// view closes, until the watch fetches its showing again
+    /// (`Watch::refetch`) and a new view loads it; one
+    /// that could not show tries again. False when the pane shows no UI.
+    pub fn reload_ui(&mut self) -> bool {
+        let pane = self.panes.focused();
+        let ui = pane.kind == panes::Kind::Ui;
+        if ui {
+            self.uis.remove(&pane.name);
+        }
+        ui
+    }
+
     /// A press at `at`, a point in the window: the open palette's, else
     /// the open key overlay's, else the open page menu's (each takes every
     /// press, and a press on a row holds it until the lift); with none open,
