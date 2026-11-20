@@ -9,7 +9,8 @@ crates/core   slinger-core: domain logic, typed errors. No terminal, process or 
 crates/cli    slinger: argv -> control-socket requests -> output contract (docs/cli.md).
               Does not link the core.
 crates/control  slinger-control: the control protocol (docs/service.md): requests, replies,
-              the wire format and the socket client. Does not link the core.
+              the wire format and the socket client, and the build stamp every binary
+              carries (its build.rs, `control::stamp`). Does not link the core.
 crates/daemon slingerd: owns the IO the core leaves out (socket, signals, startup, the
               record's SQLite file) and serves the core. A thin main over its library.
               No domain logic.
@@ -229,7 +230,12 @@ adding fields, and the change bumps that kind's `version`.
 ```
 lib.rs       argv, startup and signals: `run`. While `serve` runs, the data
              directory names the socket (`control::name_socket`), so a client
-             given none finds the daemon on any path.
+             given none finds the daemon on any path. SIGHUP is caught and
+             ignored. `run_with` takes the `Redirect` the binary applies to
+             the `--log` file (main.rs points fd 2 at it with rustix); `run`
+             leaves stderr alone, so an in-process test keeps its own.
+log.rs       the `--log` file: rotated once at start (over 1 MiB to `.1`),
+             opened for appending, and the daemon's start and stop lines.
 server.rs    the control socket and `answer`, one arm per verb. `serve` takes the
              store, so a verb that reads or writes the record reaches it here.
              Blob and UI verbs read and write the file the client names: a
@@ -340,6 +346,12 @@ processes.rs the agents' processes, one per agent: spawned in the agent's
              messages its turn took in, so one still unanswered 2 s after a
              result with no output since was taken into that turn. The
              reader keeps the context of the last model reply (`context`).
+             `processes/program.rs` is where the program comes from: the
+             `--claude` given, else the first `claude` its `Search` finds at
+             each start (the agents' PATH, then fixed places). `Search::login`
+             reads the login shell's PATH once, in `serve`; that PATH (the
+             hooks' CLI folder first) is every agent's. Pure functions over
+             values, so no test sets the process environment.
              `processes/ids.rs` is the file of ids. A session's id is its
              process's, else its last process's key (kept after a stop),
              else the agent's own, else one of its profiles'.
@@ -347,11 +359,21 @@ feedback.rs  the feedback file (`--feedback`, default `feedback.jsonl` in
              the checkout it was built from, else the data directory): one
              lock, each note and resolution appended as one line, the
              file read back for a list or a resolve; the time from `date
-             +%z` and the build from `SLINGER_BUILD_SHA` at build time.
-build.rs     stamps that build: `SLINGER_BUILD_SHA` and `SLINGER_BUILD_DIRTY`
-             from git (`HEAD`, tracked changes), unless the environment
-             sets them; neither without git, so notes say `dev`.
+             +%z` and the build from `control::stamp`.
+             The build stamp lives in slinger-control, so the daemon, the
+             CLI and the app name a build the same way: its build.rs sets
+             `SLINGER_BUILD_SHA` and `SLINGER_BUILD_DIRTY` from git (`HEAD`,
+             tracked changes), unless the environment sets them; neither
+             without git, so the stamp is `dev`. It names a commit, not the
+             bytes: two dirty builds of one commit carry the same stamp.
 server/feedback.rs  the four feedback verbs on the wire.
+server/daemon.rs  `daemon_info` and `daemon_stop`: the process's own facts,
+             with no core half. `serve` hands every connection a `Here`
+             (the socket, when it began to serve, the `Stopper`); the
+             store keeps its data directory and the `--log` path. A stop
+             writes `stopped` in the data directory (`control::stop_mark`),
+             then stops as SIGTERM does; `lib.rs` `serve` removes the mark
+             as the next daemon starts.
 server/session.rs  the session verbs on the wire, each session with its process
              and its listener. `session_listen` is a long poll; a reply that
              cannot be written puts its sling back (`unheard`).
@@ -392,7 +414,8 @@ main.rs      wires the modules below. The only caller of platform. With
              start unless the config names the daemon's socket, so it never
              falls back to the user's daemon. It routes
              each event (route.rs, which the window's answer and the tests
-             both call; the answer adds a tick's news): keys, the pen, the
+             both call; the answer adds the news a wake or a tick brings):
+             keys, the pen, the
              mouse, the trackpad. A pen or
              mouse press first focuses the pane under it (its content or its
              footer; not a touch, a divider, or under the key overlay or the
@@ -436,6 +459,13 @@ shared.rs    the window's panes as the server keeps them for its workspace,
              them: it routes a press and its lift to the first of those
              that takes it, follows the server's layout and sends the pane
              commands.
+trace.rs     a workspace switch's timing line (SLINGER_TRACE=switch, read
+             once by main.rs, which writes the line to stderr): from a pick
+             (a sidebar tap, open-workspace, close-workspace, the config's
+             workspace changing) to the first scene with every canvas
+             pane's page. Phases: watch and layout (stamped by the Watch),
+             taken, shown (stamped by the Follower), heard (canvases/news.rs)
+             and drawn. Pure.
 backend.rs   the app's IO: the one module that talks to the daemon, and the
              one that reads and watches the config files and the daemon's
              name for its socket (backend/place.rs: the config's socket,
@@ -443,10 +473,22 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
              daemon for the workspaces and their agents' statuses, the
              profile each runs under and the names of its profiles
              (workspace_list, session_list: backend/agents.rs) and for the window's workspace's
-             panes (pane_list: the config's, else the first open one) every
-             second on a thread of its own, and the window's timer takes the
-             news without blocking. When the layout changes it fetches the
-             code of each agent UI the panes show first.
+             panes (pane_list: the config's, else the first open one) in
+             rounds on a thread of its own: at once when the window picks a
+             workspace or a socket (a condvar want and follow notify), else
+             every second for a pane changed from outside the app (the
+             daemon has no layout feed); the main thread takes the news
+             without blocking. A round asks the layout first; when it
+             changed, it fetches the code of each agent UI the panes show,
+             tells it, then the layout; only then the agents' list. Every backend
+             thread (the Watch, each Follower, the Outbox, the Slinger, the
+             Noter, Flick's, the live pages' and the PDFs') sends its news on
+             a Teller (backend/wake.rs), which wakes the main thread.
+backend/wake.rs  Wake and Teller, pure: a Teller's send puts the news in its
+             channel and then wakes the main thread through the post
+             platform::waker gives, unless a wake is pending; the main
+             thread clears the mark (Wake::taken) before it drains, so a
+             send racing the drain posts again. Wake::none for tests.
              Its Follower keeps one canvas page coming: `canvas_show`,
              then the change feed. Its Outbox sends the pen's changes
              (`canvas_apply`, one each: a stroke's, text's, box's or
@@ -456,6 +498,11 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
              an undo or a redo as `canvas_undo` or `canvas_redo`) on a
              thread of its own, in the order handed in, and hands back each
              answer (a new page's id with it).
+backend/watch.rs  the Watch: its thread, which waits on a condvar for a poke
+             (want, follow, drop) or one second; its round (`round`: UIs,
+             layout, agents, told to a sink, so a test records the order);
+             and the layout sent with the time it read the wanted name and
+             the time it sent it (trace.rs).
 backend/sling.rs  the Slinger: each sling as one `sling_send` (canvas, page,
              the selected ids, the prompt) on a thread of its own, and the
              daemon's answer back (`Heard`). The daemon picks the agent.
@@ -1128,6 +1175,10 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              layout::SMALLEST) and says its new size as Event::Resized; main
              lays the scene out again at it. All unsafe, objc2 and AppKit
              code. No decisions.
+platform/event.rs  what the app hears (Event) and answers (Step), and
+             waker: the post any thread calls to queue Event::Wake on the
+             main dispatch queue, which the run loop serves in its common
+             modes (during a stroke, a drag or a live resize too).
 platform/window.rs  makes the window (its style, smallest size and
              delegate) and puts it at its saved frame.
 platform/drive.rs  the driven window on the main thread: runs each ask from
@@ -1226,10 +1277,14 @@ The app reads `config.toml` and merges `config.local.toml` (the machine's
 overlay) over it. A main-thread timer stats both files twice a second and,
 on a change, rereads them and draws a new scene. The agents' statuses and
 the workspace's panes come from `backend::Watch`'s one thread, so a daemon
-that is slow to answer never holds up the window; the timer takes its
+that is slow to answer never holds up the window. Each backend thread's
+news wakes the main thread (Event::Wake, backend/wake.rs), which takes the
 latest answers and draws only when the scene changed. A pane opened from a
 terminal shows within a second, and a daemon that cannot be reached shows
-as the problem. The same timer drains the canvas followers.
+as the problem. The timer is a clock, not the way news comes: it fades the
+flash and the notice, ticks the sling's pill, retries a missed PDF, and is
+the backstop for a wake that came while the answer ran (dispatch drops
+such an event; the pending mark stays until the next look).
 The release profile builds the app at `opt-level = "z"`. A file
 with an error keeps the last good config, and the window shows the file,
 the line and what to fix.
@@ -1386,6 +1441,7 @@ Each boundary has something that fails when it is broken:
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
 | The canvas file format is readable by older readers | `crates/core/tests/canvas_file.rs`, with a stored v1 fixture |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
+| `daemon_info` names the process that answers (pid, build, socket, data directory, the Claude Code it would run now, log); `daemon_stop` replies, answers what came before it, ends the daemon as SIGTERM does with exit 0 and leaves the `stopped` mark that the next start removes (docs/service.md) | `crates/daemon/src/tests/daemon.rs`, `crates/daemon/tests/signals.rs`, `crates/cli/src/tests/stop.rs` |
 | A daemon names its socket in its data directory while it serves and takes the name back as it stops; `slinger` given no socket finds it there, on any path, and so does the app with no `[daemon] socket`; both pass over a name nothing listens on (`control::live_socket`), and an explicit socket is kept (docs/service.md) | `crates/control/src/place.rs` tests, `crates/daemon/tests/signals.rs`, `crates/cli/tests/agent_env.rs`, `crates/app/src/backend/place.rs` tests |
 | The client takes a reply slower than 5 s (the daemon under disk load) as an answer, not `unavailable`; it waits 30 s at most, and no reply in that time hints to retry or restart, not to start the daemon (docs/service.md) | `crates/control/src/client.rs` tests, with a fake daemon |
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
@@ -1436,7 +1492,8 @@ Each boundary has something that fails when it is broken:
 | A workspace's new canvas starts empty; the `sling` entry opens beside a page's button | `crates/daemon/src/tests/workspace.rs`, `crates/app/src/canvases/button/tests.rs` |
 | The button's mark and colour follow its agent's status (none, working, blocked, done), scale with the canvas and repaint on a change | `crates/app/src/scene/button/tests.rs` |
 | a button on the page (put through the daemon); a tap slings what is new with no selection, the reply lands beside the note, a typed prompt goes with a tap, a failure shows under the button, the eraser over it slings nothing | `crates/app/src/canvases/button/tests.rs` against a real daemon and a stand-in for Claude Code |
-| A follower shows the page, hands on each change, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
+| A follower shows the page, hands on each change, wakes the main thread with each, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
+| Two wakes post once, a teller wakes after its news is in the channel, Event::Wake runs the news path | `crates/app/src/backend/wake.rs`, `crates/app/src/tests/wake.rs` |
 | A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |
 | Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |
 | Ink not yet written is selected, moved and erased at once; each change goes in turn by the ids the daemon made, one undo step each | `crates/app/src/scene/ink/tests.rs`, and `crates/app/src/canvases/tests.rs` against a real daemon |

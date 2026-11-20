@@ -2,6 +2,12 @@
 
 Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/slinger.app`) or real hardware. First check what a driven window can show (`slinger drive`; `slinger guide` says how). An agent that ships something only a person can check adds one line here, with the commit, under the right heading. It does not file a seed. The owner ticks a line or deletes it. Each line keeps the id of the seed it came from; `sd show <id>` gives its history.
 
+## Switching and views (slinger-eaa98b)
+
+- [ ] (bundle) `open target/slinger.app --env SLINGER_TRACE=switch --stderr <file>`, tap between two workspaces ten times, paste the lines in slinger-eaa98b: the baseline in the shown window (a driven window measured 818 to 1925 ms to drawn, of which under 5 ms was the daemon) (slinger-9fd400)
+- [ ] (bundle) an agent's `slinger canvas put` appears with no half-second step, also while a pen stroke or a divider drag is under way; the trace's taken and heard come a few ms after layout and shown; the app idles at no more CPU than before. Driven window after slinger-1e161b: drawn mean 990 ms (945-1035), of which the watch's wait ~970 ms (step 3's); taken and heard 0-35 ms after layout and shown; a `canvas apply` showed in the scene 24-26 ms later (slinger-1e161b)
+- [ ] (bundle) with SLINGER_TRACE=switch: tap between two workspaces ten times; 'drawn' is under about 50 ms warm; paste the ten lines in slinger-eaa98b beside the baseline. Driven window after slinger-2c5d60: drawn mean 18 ms (11-27), watch +0 ms, layout +0 ms, taken 4-12 ms (slinger-2c5d60)
+
 ## Fold and boxes (plan pl-f130a2)
 
 - [ ] FAILED in a driven window (slinger-585af9): a box drawn around short typed texts folds empty and leaves them on the page: a typed text's frame is 582 pt wide (its wrap column), so the box does not hold it. Fold, peek, step in, split, nest, move and sling of boxes holding ink passed with the pen and the keyboard (slinger-03095f)
@@ -16,6 +22,10 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 ## PDF (plan pl-d2285b)
 
 - [ ] sling over a PDF: the sling image's backdrop lines up with the ink (a driven window passed the words: ink over a cropped pdf item and a rotated page's crop gets the words under it) (slinger-9fd6f0)
+
+## Launcher (plan pl-ac18df)
+
+- [ ] from a slingerd that the bundled app started (once slinger-5e8b60 lands; until then `env -i HOME=$HOME USER=$USER SHELL=$SHELL PATH=/usr/bin:/bin:/usr/sbin:/sbin slingerd` with no --claude), start an agent and sling once: Claude Code is found, its hooks report, its Bash tool finds git/cargo/sd, its MCP servers load (slinger-be3082)
 
 ## Agent sessions, workspaces and the rest
 

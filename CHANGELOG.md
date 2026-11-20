@@ -11,6 +11,23 @@ bullet with the area in bold.
 
 ### Added
 
+- **CLI:** `slinger daemon info` shows which slingerd answers: its version
+  and build (the commit it was built from), pid, executable, socket, data
+  directory, the Claude Code it would run and its log file.
+  `slinger daemon stop` stops it as SIGTERM does, without its pid, and it
+  stays stopped until it is started again.
+- **Daemon:** a daemon you did not start from a terminal finds Claude Code
+  and gives its agents your tools. Without `--claude`, slingerd looks for
+  `claude` at each session start on your login shell's `PATH` and in the
+  usual places (`~/.local/bin`, `~/.claude/local`, Homebrew,
+  `/usr/local/bin`, nix profiles), and every agent gets that `PATH`, so its
+  hooks, MCP servers and Bash calls find git and the rest. Not found, a
+  start says where it looked and how to fix it.
+- **Daemon:** `slingerd --log <FILE>` writes the daemon's warnings and
+  every agent's stderr to a file, with a line as it starts and as it stops,
+  so a daemon nobody started from a terminal still has a log. A log over
+  1 MiB is moved aside to `<FILE>.1` at start. The daemon now ignores
+  SIGHUP: closing the terminal you started it from no longer stops it.
 - **Agents:** an agent can check the app itself. `slinger-app --drive
   <SOCKET>` starts the real app as a window that is never shown, on a
   daemon of the agent's own, and `slinger drive` sends it keys, typing (into
@@ -433,6 +450,10 @@ bullet with the area in bold.
 
 ### Changed
 
+- **App:** a tap on a workspace shows it at once (about 20 ms, from one
+  to two seconds), and what an agent draws or a page that comes shows at
+  once too: the window no longer waits for its timer or a one-second round
+  before it shows news from the daemon.
 - **App:** a mouse or trackpad no longer draws stray lines. With the pen
   tool chosen, a mouse or trackpad press selects and moves items, as the
   select tool does; the tablet pen draws exactly as before. Every other

@@ -7,12 +7,12 @@
 //! Where the notes go comes at once, from one `feedback_path`
 //! ([`feedback_file`]).
 
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::Receiver;
 use std::thread;
 
 use slinger_control::{Client, FeedbackEntry, FeedbackNote};
 
-use crate::backend::Problem;
+use crate::backend::{Problem, Teller, Wake};
 use crate::scene::feedback::{LISTED, Note, Recent};
 
 /// Sends notes and hands back what the daemon said to each, and lists the
@@ -20,20 +20,21 @@ use crate::scene::feedback::{LISTED, Note, Recent};
 #[derive(Debug)]
 pub struct Noter {
     daemon: Client,
-    answer: Sender<Result<(), Problem>>,
+    answer: Teller<Result<(), Problem>>,
     answers: Receiver<Result<(), Problem>>,
-    list: Sender<Vec<Recent>>,
+    list: Teller<Vec<Recent>>,
     lists: Receiver<Vec<Recent>>,
-    resolution: Sender<Result<(), Problem>>,
+    resolution: Teller<Result<(), Problem>>,
     resolutions: Receiver<Result<(), Problem>>,
 }
 
 impl Noter {
-    /// Sends through `daemon`. Starts no thread until a note goes.
-    pub fn new(daemon: Client) -> Self {
-        let (answer, answers) = mpsc::channel();
-        let (list, lists) = mpsc::channel();
-        let (resolution, resolutions) = mpsc::channel();
+    /// Sends through `daemon`, waking the main thread with each answer.
+    /// Starts no thread until a note goes.
+    pub fn new(daemon: Client, wake: &Wake) -> Self {
+        let (answer, answers) = wake.channel();
+        let (list, lists) = wake.channel();
+        let (resolution, resolutions) = wake.channel();
         Self { daemon, answer, answers, list, lists, resolution, resolutions }
     }
 
@@ -178,7 +179,7 @@ mod tests {
     #[test]
     fn a_note_reaches_the_daemon_with_its_context_or_says_why_not() {
         with_store(None, |daemon| {
-            let noter = Noter::new(daemon.clone());
+            let noter = Noter::new(daemon.clone(), &Wake::none());
             noter.send(note("the pen lags"));
             assert_eq!(wait(&noter), Ok(()));
             let saved = daemon.feedback_list(false, None).unwrap().entries;
@@ -189,7 +190,7 @@ mod tests {
             noter.send(note(" "));
             assert!(wait(&noter).unwrap_err().message.contains("empty"));
         });
-        let mut gone = Noter::new(Client::new("/nonexistent/x.sock"));
+        let mut gone = Noter::new(Client::new("/nonexistent/x.sock"), &Wake::none());
         gone.reconnect(Client::new("/nonexistent/y.sock"));
         gone.send(note("x"));
         assert!(wait(&gone).unwrap_err().message.contains("y.sock"), "the new socket");
@@ -208,7 +209,7 @@ mod tests {
     #[test]
     fn the_recent_open_notes_list_newest_first_with_when() {
         with_store(None, |daemon| {
-            let noter = Noter::new(daemon.clone());
+            let noter = Noter::new(daemon.clone(), &Wake::none());
             noter.list(false);
             assert_eq!(listed(&noter), []);
             for text in ["one", "two", "three", "four", "five", "six"] {
@@ -227,7 +228,7 @@ mod tests {
     #[test]
     fn a_note_resolves_by_its_ts_then_leaves_the_list_or_says_why_not() {
         with_store(None, |daemon| {
-            let noter = Noter::new(daemon.clone());
+            let noter = Noter::new(daemon.clone(), &Wake::none());
             for text in ["one", "two"] {
                 noter.send(note(text));
                 assert_eq!(wait(&noter), Ok(()));
@@ -259,7 +260,7 @@ mod tests {
         with_store(None, |daemon| {
             let before = feedback_file(daemon).unwrap_err();
             assert!(before.starts_with("No feedback yet: notes go to /"), "{before}");
-            let noter = Noter::new(daemon.clone());
+            let noter = Noter::new(daemon.clone(), &Wake::none());
             noter.send(note("the pen lags"));
             assert_eq!(wait(&noter), Ok(()));
             let file = feedback_file(daemon).unwrap();
@@ -274,7 +275,7 @@ mod tests {
     #[test]
     fn all_lists_the_resolved_notes_too_with_how_they_were_resolved() {
         with_store(None, |daemon| {
-            let noter = Noter::new(daemon.clone());
+            let noter = Noter::new(daemon.clone(), &Wake::none());
             for text in ["one", "two", "three"] {
                 noter.send(note(text));
                 assert_eq!(wait(&noter), Ok(()));

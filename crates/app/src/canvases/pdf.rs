@@ -20,8 +20,8 @@ use std::time::{Duration, Instant};
 use slinger_control::Client;
 
 use super::Canvases;
-use crate::backend::Problem;
 use crate::backend::pdf::{self, Opening, Pages};
+use crate::backend::{Problem, Wake};
 use crate::panes::Panes;
 use crate::scene::CanvasPane;
 use crate::scene::canvas::Mark;
@@ -58,13 +58,15 @@ pub(super) struct Pdfs {
     files: HashMap<String, Fetch>,
     opened: Option<Receiver<Result<String, Problem>>>,
     problem: Option<Problem>,
+    /// Wakes the main thread when a PDF comes or an open ends.
+    wake: Wake,
 }
 
 impl Pdfs {
     /// Fetches through `daemon` into `dir`, on a thread that ends with this.
-    pub(super) fn start(daemon: Client, dir: PathBuf) -> Self {
+    pub(super) fn start(daemon: Client, dir: PathBuf, wake: &Wake) -> Self {
         let (ask, asks) = mpsc::channel::<String>();
-        let (tell, heard) = mpsc::channel();
+        let (tell, heard) = wake.channel();
         let (fetcher, to) = (daemon.clone(), dir.clone());
         let spawned = thread::Builder::new().name("pdfs".into()).spawn(move || {
             for hash in asks {
@@ -76,7 +78,8 @@ impl Pdfs {
         });
         // Without the thread no PDF comes: each item keeps its grey frame.
         drop(spawned);
-        Self { daemon, dir, ask, heard, files: HashMap::new(), opened: None, problem: None }
+        let (files, wake) = (HashMap::new(), wake.clone());
+        Self { daemon, dir, ask, heard, files, opened: None, problem: None, wake }
     }
 
     /// The file of the PDF that is blob `hash`, once it has come.
@@ -149,7 +152,7 @@ impl Canvases {
         }
         let workspace = workspace.map(str::to_string);
         let ask = Opening { file, workspace, beside: Some(panes.number()) };
-        let (tell, opened) = mpsc::channel();
+        let (tell, opened) = pdfs.wake.channel();
         let (daemon, dir) = (pdfs.daemon.clone(), pdfs.dir.clone());
         let spawned = thread::Builder::new().name("open pdf".into()).spawn(move || {
             // The window may be gone: no one to tell.

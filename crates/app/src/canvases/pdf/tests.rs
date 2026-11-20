@@ -41,7 +41,7 @@ fn an_opened_pdf_shows_grey_then_its_pages_once_its_file_has_come() {
         // A cache of its own: the app's is shared by every test process and
         // worktree, and a fetched file is named by its bytes (slinger-f19088).
         let cache = tempfile::tempdir().unwrap();
-        canvases.pdfs = Pdfs::start(daemon.clone(), cache.path().to_owned());
+        canvases.pdfs = Pdfs::start(daemon.clone(), cache.path().to_owned(), &Wake::none());
         canvases.open_pdf(&notes, Some("notes"), file.clone(), two_pages);
         wait_until(|| canvases.poll() && canvases.pdfs.opened.is_none());
         assert_eq!(canvases.problems().next(), None);
@@ -115,7 +115,7 @@ fn a_pdf_that_did_not_come_is_asked_for_again_the_next_time_it_is_drawn() {
         let blocker = dir.path().join("blocked");
         fs::write(&blocker, "").unwrap();
         let mut canvases = Canvases::new(daemon.clone());
-        canvases.pdfs = Pdfs::start(daemon.clone(), blocker.join("cache"));
+        canvases.pdfs = Pdfs::start(daemon.clone(), blocker.join("cache"), &Wake::none());
         let notes = Panes::new(Pane { kind: Kind::Canvas, name: "notes".into() });
         wait_until(|| {
             pages(&mut canvases, &notes);

@@ -67,6 +67,8 @@ a "did you mean" suggestion.
 | `feedback ls [--all] [--limit N]` | One line per note, newest first: `ts`, text and, with `--all`, `resolved` and its note for a resolved one, separated by tabs. `--limit` defaults to 20. `--json`: `path`, `entries` |
 | `feedback resolve <TS> [NOTE]...` | Nothing. `--json`: `path`, `resolves`, `ts`, `note` |
 | `feedback path` | The feedback file's path. `--json`: `path` |
+| `daemon info` | One field per line, the name and the value separated by a tab: `version`, `build`, `protocol`, `pid`, `started_ms`, `exe`, `socket`, `data_dir`, `claude`, `slinger`, `log` (`-` for a path it has none of). `--json`: those fields (`claude`, `log` null when none) |
+| `daemon stop` | Nothing. `--json`: `pid` |
 | `drive [--app PATH] key <CHORD> [--text TEXT]`, `drive type <TEXT>...`, `drive press\|drag\|lift <X> <Y> [--tablet] [--shift] [--touch] [--eraser]`, `drive stroke <X,Y>... [--tablet] [--shift] [--touch] [--eraser]`, `drive move <X> <Y>`, `drive scroll <X> <Y> <DX> <DY>`, `drive zoom <X> <Y> <FACTOR>`, `drive space [--up]`, `drive run <NAME>`, `drive copy`, `drive cut`, `drive paste [TEXT]...`, `drive drop <X> <Y> <FILE>`, `drive tick` | `taken` or `passed` for each event, separated by spaces. `--json`: `said` |
 | `drive [--app PATH] scene [--debug]` | What the driven window shows, one line per thing: its kind, its place `x,y wxh`, its colour and its text. `--json`: `said` |
 | `drive [--app PATH] shot <FILE>`, `drive clip`, `drive resize <W> <H>` | The PNG's path; the text last cut or copied; nothing. `--json`: `said` |
@@ -126,6 +128,12 @@ a blank note exits 5 (`invalid`). `feedback ls` lists the open notes;
 `ls` prints it, and a note of how it was resolved (a tracker id, say): an
 unknown `ts` exits 3 (`not_found`) and one resolved already exits 4
 (`conflict`).
+
+`daemon info` names the `slingerd` that answers: its build, its process
+and its files (`docs/service.md`, "The daemon's own verbs"). `daemon stop`
+stops it as SIGTERM does and leaves it stopped: the app does not start it
+again on its own. A daemon older than these commands exits 1 with
+`bad_request`.
 
 `record append` takes the payload as a JSON object (default `{}`); the
 kinds and their payloads are in `docs/service.md`. A payload that is not

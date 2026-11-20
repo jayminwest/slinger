@@ -25,6 +25,7 @@ mod put;
 mod read;
 mod session;
 mod sling;
+mod stop;
 mod ui_open;
 mod workspace;
 

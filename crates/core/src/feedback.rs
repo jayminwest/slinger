@@ -218,23 +218,6 @@ pub fn offset(text: &str) -> Option<i32> {
     (hours <= 23 && minutes <= 59).then_some(sign * (hours * 3600 + minutes * 60))
 }
 
-/// The build label for a commit `sha` and a `dirty` flag (`1` for a build
-/// with uncommitted changes): the sha in lowercase, `-dirty` after it when
-/// dirty, and `dev` when `sha` is not one.
-#[must_use]
-pub fn build(sha: Option<&str>, dirty: Option<&str>) -> String {
-    let sha = sha.map(str::trim);
-    let sha =
-        sha.filter(|s| (7..=40).contains(&s.len()) && s.bytes().all(|b| b.is_ascii_hexdigit()));
-    match sha {
-        Some(sha) if dirty.is_some_and(|d| d.trim() == "1") => {
-            format!("{}-dirty", sha.to_lowercase())
-        }
-        Some(sha) => sha.to_lowercase(),
-        None => "dev".into(),
-    }
-}
-
 /// The civil date (year, month, day) of day `z` since 1970-01-01, in the
 /// proleptic Gregorian calendar (Howard Hinnant's algorithm).
 fn civil_from_days(z: i64) -> (i64, i64, i64) {

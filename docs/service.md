@@ -7,12 +7,40 @@ and agents rely on this contract. Breaking it is a breaking change.
 
 ```
 slingerd [--socket <PATH>] [--data-dir <PATH>] [--scratch] [--claude <PATH>]
-         [--slinger <PATH>] [--feedback <PATH>]
+         [--slinger <PATH>] [--feedback <PATH>] [--log <PATH>]
 ```
 
-- It says nothing on success and runs until SIGTERM or SIGINT.
-- `--claude` is the program an agent's process runs (see "Sessions"):
-  Claude Code, `claude` on `PATH` by default. `--slinger` is the CLI its
+- It says nothing on success and runs until SIGTERM or SIGINT. SIGHUP is
+  ignored, so a daemon started from a terminal outlives the terminal.
+- `--log` is the file its stderr goes to: its own warnings and every
+  agent's stderr (agents inherit it). Once the daemon holds the socket and
+  the data directory, it makes the file's folder, moves a file over 1 MiB
+  aside to `<PATH>.1` (replacing an older one), opens it for appending and
+  points its stderr there. A relative path is taken from the directory
+  `slingerd` starts in. It writes one line as it starts,
+  `<local time> slingerd <version> (<build>) pid <pid>: serving <data dir>
+  on <socket>`, and `... pid <pid>: stopped` at a clean stop. An error
+  before that (a taken socket, a bad data directory) still goes to the
+  stderr it started with. A file it cannot use stops it with exit 1 and a
+  hint. Without `--log`, stderr is left as it is.
+- `--claude` is the program an agent's process runs (see "Sessions"),
+  used as written. Without it the daemon looks for Claude Code at each
+  session start, so an install made after it started is found: the first
+  executable `claude` in a folder of the agents' `PATH` (below), then
+  `~/.local/bin/claude`, `~/.claude/local/claude`,
+  `/opt/homebrew/bin/claude`, `/usr/local/bin/claude`,
+  `~/.nix-profile/bin/claude` and `/etc/profiles/per-user/<user>/bin/claude`.
+  None there fails the start with `not_found`, the places searched and the
+  hint `install Claude Code, or start slingerd with --claude <PATH>`.
+- **The agents' `PATH`.** As it starts, the daemon asks the user's login
+  shell for its `PATH` once (`$SHELL -l -c env`, at most 3 seconds; never
+  per sling). Without an answer it takes `~/.local/bin`,
+  `/opt/homebrew/bin`, `/usr/local/bin` and the nix profile folders
+  instead. The daemon's own `PATH` follows, less the folders already named.
+  That one `PATH` is where Claude Code is looked for and the `PATH` every
+  agent's process gets, so a daemon started by the app or launchd (whose
+  `PATH` is `/usr/bin:/bin:/usr/sbin:/sbin`) gives its agents the tools a
+  terminal has. `--slinger` is the CLI its
   hooks run (see "Sessions", "Hooks"): the `slinger` beside `slingerd`, else
   `slinger` on `PATH`, by default.
 - `--feedback` is the file feedback notes go to (see "Feedback"). By
@@ -24,7 +52,8 @@ slingerd [--socket <PATH>] [--data-dir <PATH>] [--scratch] [--claude <PATH>]
   `<socket>.lock` for its whole life. A second daemon on the same path exits
   4 with `✗ socket <path> is in use by another slingerd` and a hint. A
   socket file left by a daemon that died is replaced.
-- **Clean stop.** On SIGTERM or SIGINT the daemon stops accepting, answers
+- **Clean stop.** On SIGTERM or SIGINT, or after it answers `daemon_stop`
+  (see "The daemon's own verbs"), the daemon stops accepting, answers
   every request on a connection made before the signal, removes the socket
   file and exits 0. A request waiting on a canvas feed gets its reply at
   once, with what it has. The agents' processes end with it. The lock file stays. It is empty and safe to delete while
@@ -34,7 +63,7 @@ slingerd [--socket <PATH>] [--data-dir <PATH>] [--scratch] [--claude <PATH>]
 
 | Code | Name | Meaning |
 |---|---|---|
-| 0 | ok | Stopped by a signal |
+| 0 | ok | Stopped by a signal or by `daemon_stop` |
 | 1 | error | Unexpected failure, such as a socket path or data directory that cannot be created |
 | 2 | usage | Bad arguments, or a data directory in a temporary directory without `--scratch` |
 | 4 | conflict | Another daemon serves the socket or the data directory, or the record was laid out by a newer slingerd |
@@ -85,6 +114,9 @@ writer; other programs reach the record through the socket.
 
 `socket` names the socket the daemon listens on, while it runs (see
 "Socket").
+
+`stopped` says the last daemon here was stopped on purpose (`daemon_stop`);
+the next daemon to serve removes it (see "The daemon's own verbs").
 
 `sessions.json` keeps each agent's session id, `{agent: id}`, so a start
 after a restart resumes the conversation (see "Sessions").
@@ -214,6 +246,8 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `feedback_list` | `all`: bool (default `false`: the open notes only), `limit`: number (optional) | `path`, `entries`: notes, newest first |
 | `feedback_resolve` | `ts`: a note's `ts`, `note`: string (optional) | `path`, `resolves`: the `ts`, `ts`: when it was resolved, `note` (absent when none) |
 | `feedback_path` | none | `path` |
+| `daemon_info` | none | `version`, `build`, `protocol`, `pid`, `started_ms`, `exe`, `socket`, `data_dir`, `claude` (null when none is found), `slinger`, `log` (null without `--log`) |
+| `daemon_stop` | none | `pid`: the process that stops |
 | `file_touched` | `agent`: string, then one of `path`: absolute path of a file, `hook`: a Claude Code `PostToolUse` hook's payload, as a string | `agent`, `path`, `hash`: the file's blob id, `event`: the `file_touched` appended (all three absent when the payload names no file) |
 
 **`record_append`** appends one event to this machine's record. `tags`
@@ -723,8 +757,10 @@ D10): `<claude> --print --input-format stream-json --output-format
 stream-json --verbose` and the session's limits (below), in the agent's home,
 with `SLINGER_AGENT` set to the agent and `SLINGER_SOCKET` to the daemon's
 socket, so the agent's own `slinger` calls act as it and reach this daemon.
-When `--slinger` is an absolute path, its folder comes first on the process's
-`PATH`, so those bare `slinger` calls run the CLI its hooks run. Its stderr goes to the
+The process runs `--claude`, or the Claude Code the daemon finds, with the
+agents' `PATH` (see "The daemon"). When `--slinger` is an absolute path, its
+folder comes first on that `PATH`, so those bare `slinger` calls run the CLI
+its hooks run. Its stderr goes to the
 daemon's. A session adds what the daemon knows of it: `process` (`running`,
 or `exited` when it ended without a stop; absent when there is none), and
 while it runs its `pid` and `pending`, the messages sent that it has not
@@ -1080,6 +1116,37 @@ runs, and a person or an agent reads it with any tool.
 { "ok": true, "path": "/Users/me/slinger/feedback.jsonl", "resolves": "2026-11-11T14:02:09.120-08:00", "ts": "2026-11-11T15:40:00.031-08:00", "note": "slinger-1234" }
 ```
 
+#### The daemon's own verbs
+
+They describe and end the process that answers, which the core cannot
+know, so they have no core half. A client tells with them which build
+serves it and stops it without its pid (`slinger daemon info|stop`).
+
+- **`daemon_info`**: `version` is the package version (`slingerd
+  --version`); `build` is the build stamp every binary carries (the commit,
+  `-dirty` for uncommitted changes, `dev` when the build did not say; two
+  dirty builds of one commit share it); `protocol` is `v`; `started_ms` is
+  when it began to serve (milliseconds since the Unix epoch, UTC); `exe`,
+  `socket` and `data_dir` are absolute paths; `claude` is the Claude Code
+  an agent started now would run (`--claude`, else what the search finds;
+  null when it finds none); `slinger` is the CLI its agents' hooks run;
+  `log` is the `--log` file.
+- **`daemon_stop`** writes the file `stopped` (its pid) in the data
+  directory, replies, then stops as SIGTERM does: requests on connections
+  made before it still get their replies, the agents end, the socket file
+  and its name go, and it exits 0. The next daemon to serve that data
+  directory removes `stopped`, so the file means "stopped on purpose": a
+  launcher that finds it and no daemon leaves the daemon stopped, and one
+  that finds no daemon and no file may start one. A mark it cannot write is
+  `internal`, and the daemon keeps serving.
+
+```json
+{ "v": 1, "op": "daemon_info" }
+{ "ok": true, "version": "0.1.0", "build": "93ea49d", "protocol": 1, "pid": 4242, "started_ms": 1795128000000, "exe": "/Applications/slinger.app/Contents/MacOS/slingerd", "socket": "/tmp/slinger.sock", "data_dir": "/Users/me/Library/Application Support/slinger", "claude": "/Users/me/.local/bin/claude", "slinger": "/Applications/slinger.app/Contents/MacOS/slinger", "log": null }
+{ "v": 1, "op": "daemon_stop" }
+{ "ok": true, "pid": 4242 }
+```
+
 #### Agent canvas verbs
 
 An agent answers on the canvas, not in chat (SPEC section 7). Each answer
@@ -1209,10 +1276,13 @@ not open, and an agent with no session.
   `crates/control/src/wire.rs`. A daemon answers a version it does not speak
   with `unsupported_version`.
 - Error codes are never renamed.
+- `v` stays `1` for `daemon_info` and `daemon_stop`. A daemon older than
+  them answers `bad_request`, which a client reads as "an older build".
 
 ## Adding a verb
 
-1. Add the capability to `crates/core` with tests.
+1. Add the capability to `crates/core` with tests. A verb about the
+   daemon's own process (`daemon_info`, `daemon_stop`) has no core half.
 2. In `crates/control/src/lib.rs`, add a `Request` variant, a reply type and
    its `Reply` variant. Add a typed method to `Client` in
    `crates/control/src/client.rs`. Every variant `Request` serializes adds

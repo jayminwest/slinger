@@ -26,7 +26,7 @@ use std::time::Duration;
 
 use slinger_control::{Backdrop, BackdropArea, Client, MAX_LINE, Session, SlingAsk};
 
-use crate::backend::Problem;
+use crate::backend::{Problem, Teller, Wake};
 use crate::mirror;
 use crate::scene::sling::{Ask, Profile};
 use crate::scene::slung::Progress;
@@ -74,10 +74,10 @@ impl Slinger {
     /// Starts sending through `daemon`, rendering the page under new ink
     /// with `render` from PDFs fetched into its directory (none: ink on
     /// white). Returns at once.
-    pub fn start(daemon: Client, render: Option<(Render, PathBuf)>) -> Self {
+    pub fn start(daemon: Client, render: Option<(Render, PathBuf)>, wake: &Wake) -> Self {
         let daemon = Arc::new(Mutex::new(daemon));
         let (asks, to_send) = mpsc::channel::<Ask>();
-        let (tell, heard) = mpsc::channel();
+        let (tell, heard) = wake.channel();
         let theirs = Arc::clone(&daemon);
         thread::spawn(move || {
             let client = || theirs.lock().unwrap_or_else(PoisonError::into_inner).clone();
@@ -140,7 +140,7 @@ fn follow(
     client: &impl Fn() -> Client,
     (agent, to): (&str, Option<To>),
     asks: &Receiver<Ask>,
-    tell: &Sender<Heard>,
+    tell: &Teller<Heard>,
 ) -> Option<Followed> {
     let mut last = None;
     // The first look is at once: a sling nobody listens for says so from the start.

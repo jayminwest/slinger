@@ -31,6 +31,7 @@ mod platform;
 mod route;
 mod scene;
 mod shared;
+mod trace;
 mod ui;
 mod window;
 
@@ -40,22 +41,21 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Instant;
 
-use slinger_control as control;
+use slinger_control::{self as control, PaneKind::Canvas};
 
-use crate::backend::{Settings, Watch};
+use crate::backend::{Settings, Wake, Watch};
 use crate::canvases::Canvases;
 use crate::commands::Command;
 use crate::config::Shown;
-use crate::layout::Rect;
-use crate::panes::Panes;
 use crate::platform::{Event, Pick, Step};
-use crate::route::{Routed, picked, route, taken};
+use crate::route::{Routed, route, taken};
 use crate::scene::paste::Clip;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::taps::{Tap, Target, Took};
 use crate::scene::tools::{Kind, Tools};
 use crate::shared::Shared;
-use crate::window::{Edited, grabs, pane_at, view};
+use crate::trace::Trace;
+use crate::window::{Edited, view};
 
 fn main() -> ExitCode {
     let settings = backend::Settings::load(backend::ConfigFiles::locate());
@@ -130,9 +130,12 @@ fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
             }
         }
         Event::Key(chord) if keys.command(chord) == Some(Command::Quit) => Step::Quit,
-        Event::Tick | Event::Moved(_) | Event::Painted(_) | Event::Typed(_) | Event::Edit(_) => {
-            Step::Stay
-        }
+        Event::Tick
+        | Event::Wake
+        | Event::Moved(_)
+        | Event::Painted(_)
+        | Event::Typed(_)
+        | Event::Edit(_) => Step::Stay,
         _ => Step::Pass,
     };
     match platform::run(&scene, kept, answer) {
@@ -148,43 +151,56 @@ fn window(mut settings: Settings, drive: Option<&Path>) -> ExitCode {
     // A driven window keeps nothing and takes nothing the app kept.
     let own = drive.is_none();
     let last = platform::remembered_workspace().filter(|_| own);
-    let watch = Watch::start(socket.clone(), settings.config.workspace.clone(), last.clone());
+    let wake = Wake::new(platform::waker());
+    let wanted = settings.config.workspace.clone();
+    let watch = Watch::start(socket.clone(), wanted, last.clone(), &wake);
     let mut shown = settings.config.sidebar;
     let open = Shown::starts_open(shown, platform::remembered_sidebar().filter(|_| own));
     let mut sidebar = Sidebar::new(open).preferring(last);
     sidebar.show(settings.config.workspace.clone());
     let mut tools = Tools::configured(&settings.config);
     let mut shared = Shared::default();
-    let mut canvases = canvases(&socket, own);
+    let mut canvases = canvases(&socket, own, wake.clone());
+    let mut trace = Trace::new(std::env::var("SLINGER_TRACE").ok().as_deref());
     let first = view(&settings, &mut shared, &tools, &sidebar, &mut canvases);
     // The workspace the config names, to tell when an edit changes it; a
     // tap on another in the sidebar shows that one until it does.
     let mut named = settings.config.workspace.clone();
     // Runs on the main thread for each key press, menu item, pen, mouse or
-    // trackpad event, paint of new ink, cut, copy or paste, and tick of the window's timer. The
-    // open command palette, then the open key overlay, takes every key and
-    // press (the palette's run and a menu item's go as a key's); then the
-    // sling's entry, then a pop-up, takes its keys first; a press on a
-    // divider between panes drags it; the pen draws with the pen tool on a
-    // canvas pane. A tick stats the two config files and takes the watch's news of the
-    // agents and the panes and what the canvases' followers heard; the watch
-    // and the followers follow an edit that moves the socket or the
-    // workspace. Only a split, a close or a resize asks the daemon here.
-    // Any pen or mouse press first focuses the pane under it; one an agent
-    // UI's page takes still draws the new focus.
+    // trackpad event, paint of new ink, cut, copy or paste, wake and tick
+    // of the window's timer. The open command palette, then the open key
+    // overlay, takes every key and press (the palette's run and a menu
+    // item's go as a key's); then the sling's entry, then a pop-up, takes
+    // its keys first; a press on a divider between panes drags it; the pen
+    // draws with the pen tool on a canvas pane. A wake (a backend thread's
+    // news) or a tick stats the two config files and takes the watch's
+    // news of the agents and the panes and what the canvases' followers
+    // heard; the watch and the followers follow an edit that moves the
+    // socket or the workspace. Only a split, a close or a resize asks the
+    // daemon here. Any pen or mouse press first focuses the pane under it;
+    // one an agent UI's page takes still draws the new focus.
     let mut step = move |event, sidebar: &mut Sidebar| {
         let routed =
             route(event, &mut shared, &mut canvases, &mut tools, &settings, &socket, sidebar);
         let force = match routed {
             Routed::Answer(step) => return step,
             Routed::Watch(name, step) => {
+                trace.pick(name.clone(), Instant::now());
                 watch.want(name);
                 return step;
             }
             Routed::News(force) => force,
         };
+        // Before the channels are drained: news sent from here on wakes again.
+        wake.taken();
         let heard = watch.latest().is_some_and(|now| sidebar.update(now));
-        let moved = watch.layout().map(|news| shared.follow(news)).is_some();
+        let moved = watch
+            .layout()
+            .map(|(news, stamps)| {
+                say(trace.taken(stamps, canvas_panes(news.as_ref().ok()), Instant::now()));
+                shared.follow(news);
+            })
+            .is_some();
         let fetched = shared.fetched(watch.uis());
         let drawn = canvases.poll();
         let reloaded = settings.refresh(force);
@@ -200,6 +216,7 @@ fn window(mut settings: Settings, drive: Option<&Path>) -> ExitCode {
             }
             if settings.config.workspace != named {
                 named.clone_from(&settings.config.workspace);
+                trace.pick(named.clone(), Instant::now());
                 watch.want(named.clone());
                 sidebar.show(named.clone());
             }
@@ -210,7 +227,10 @@ fn window(mut settings: Settings, drive: Option<&Path>) -> ExitCode {
                 socket = now;
             }
         }
-        Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases))
+        let scene = view(&settings, &mut shared, &tools, sidebar, &mut canvases);
+        let area = sidebar.panes(shared.size.rect());
+        say(trace.drawn(canvases.paged(&shared.panes, area), Instant::now()));
+        Step::Draw(scene)
     };
     let ran = match drive {
         None => platform::run(&first, platform::Kept::Window, remembering(step, sidebar)),
@@ -228,10 +248,26 @@ fn window(mut settings: Settings, drive: Option<&Path>) -> ExitCode {
     }
 }
 
+/// Writes the switch's trace `line`, if any, to stderr.
+fn say(line: Option<String>) {
+    if let Some(line) = line {
+        // Nothing can be done if stderr is closed.
+        let _ = writeln!(io::stderr(), "{line}");
+    }
+}
+
+/// The workspace `layout` shows and whether it has a canvas pane.
+fn canvas_panes(layout: Option<&control::PaneLayout>) -> Option<(&str, bool)> {
+    let canvas = |l: &control::PaneLayout| l.layout.panes().iter().any(|p| p.kind == Canvas);
+    layout.map(|l| (l.workspace.as_str(), canvas(l)))
+}
+
 /// The canvases of the window, through the daemon on `socket`, keeping
-/// the strokes not yet written on disk ([`backend::Unsent`]).
-fn canvases(socket: &Path, keep: bool) -> Canvases {
-    let canvases = Canvases::new(control::Client::new(socket)).rendering(platform::pdf::backdrop);
+/// the strokes not yet written on disk ([`backend::Unsent`]), their threads'
+/// news woken by `wake`.
+fn canvases(socket: &Path, keep: bool, wake: Wake) -> Canvases {
+    let daemon = control::Client::new(socket);
+    let canvases = Canvases::waking(daemon, wake).rendering(platform::pdf::backdrop);
     backend::Unsent::locate().filter(|_| keep).into_iter().fold(canvases, Canvases::keeping)
 }
 
@@ -394,97 +430,6 @@ fn ask(
         (Took::No, &Event::Key(chord)) if canvases.takes(chord, keys) => Ask::Pass,
         (Took::No, &Event::Key(chord)) => keys.command(chord).map_or(Ask::Pass, Ask::Run),
         (Took::No, _) => Ask::Not,
-    }
-}
-
-/// Hands a press on a divider between panes (with no pop-up open, and not
-/// grabbing the selection: [`grabs`]), and the
-/// drag and lift after it, to the panes of `shared` laid in `area`, which
-/// resize; a moved divider goes to the daemon on `socket`. A resized window
-/// lays its panes out again. A move goes to the pop-ups (where one
-/// opens) and lights the button, or the open overlay's or menu's row, under the pen. The open
-/// key overlay scrolls with a drag or a scroll, and with the palette and the page menu takes
-/// every other pen, mouse or trackpad event and typed text; a drag after a press on a button is
-/// the button's. Any other event goes on to [`pointer`]. False when nothing used it.
-fn pen(
-    event: &Event,
-    tools: &mut Tools,
-    canvases: &mut Canvases,
-    shared: &mut Shared,
-    area: Rect,
-    socket: &Path,
-) -> bool {
-    let free = tools.open_kind().is_none();
-    match *event {
-        Event::Resized(size) => std::mem::replace(&mut shared.size, size) != size,
-        Event::Moved(at) => {
-            tools.moved(at);
-            shared.hover(at) | window::divider(shared, canvases, tools, area, at)
-        }
-        Event::Drag(pen) if shared.drag(pen.at) => true,
-        Event::Scroll { dy, .. } if shared.scroll(dy) => true,
-        Event::Lift(_) | Event::Zoom { .. } | Event::Text(_) if shared.modal() => true,
-        Event::Press(pen)
-            if free
-                && !grabs(canvases, &shared.panes, tools, area, pen)
-                && shared.dividers.down(&shared.panes, area, pen.at) =>
-        {
-            true
-        }
-        Event::Drag(pen) if shared.dividers.drag(&mut shared.panes, pen.at) => true,
-        Event::Lift(pen) if shared.dividers.held() => {
-            let moved = shared.dividers.up(&mut shared.panes, pen.at);
-            shared.resized(moved, socket);
-            true
-        }
-        _ => pointer(event, tools, canvases, &shared.panes, area),
-    }
-}
-
-/// Hands a pen or mouse press, drag or lift to the pop-up at the pen, then to
-/// the canvas pane of `panes` laid in `area` under it, where the tool draws,
-/// erases, selects, places text or draws a shape; typed text to the text being
-/// typed (the sling's open entry keeps its presses and keys); a scroll or a
-/// pinch pans or zooms. The pen's eraser end, near or pressed, erases with
-/// any tool. False when nothing used it, and for a paint.
-/// A lift writes the stroke's delay log.
-fn pointer(
-    event: &Event,
-    tools: &mut Tools,
-    canvases: &mut Canvases,
-    panes: &Panes,
-    area: Rect,
-) -> bool {
-    match *event {
-        Event::Painted(delay) => {
-            canvases.painted(delay);
-            false
-        }
-        Event::Press(pen) if canvases.sling_covers(pen.at) => false,
-        Event::Typed(ref text) => canvases.sling_typed(text),
-        // A text being typed takes the keys that type, which come back as text.
-        Event::Text(ref text) => canvases.typed(text),
-        Event::Proximity { near, eraser } => tools.set_eraser_end(eraser) | tools.set_device(near),
-        Event::Press(pen) if tools.press(pen.at) => picked(tools, canvases),
-        Event::Press(pen) => {
-            tools.set_eraser_end(pen.eraser);
-            let tool = (tools.tool(), tools.colour());
-            canvases.set_pen(tools);
-            pane_at(panes, area, pen.at).is_some_and(|u| canvases.pen_down(panes, u, pen, tool))
-        }
-        Event::Drag(pen) => {
-            tools.moved(pen.at);
-            canvases.pen_drag(panes, pen, pane_at(panes, area, pen.at))
-        }
-        Event::Lift(pen) => {
-            let ended = canvases.pen_up(panes, pen, pane_at(panes, area, pen.at));
-            if let Some(line) = canvases.delay_log() {
-                // Nothing can be done if stderr is closed.
-                let _ = writeln!(io::stderr(), "{line}");
-            }
-            ended
-        }
-        _ => window::gesture(canvases, panes, area, event),
     }
 }
 

@@ -17,6 +17,7 @@
 //! Beside the log, the file keeps the slings that wait for a listener
 //! ([`Waiting`]), so a restart loses none.
 
+mod process;
 mod schema;
 #[cfg(test)]
 mod tests;
@@ -40,6 +41,7 @@ use crate::canvases::Canvases;
 use crate::feedback::Feedback;
 use crate::listeners::Listeners;
 use crate::lock::Lock;
+use crate::processes::Search;
 use crate::sessions::Sessions;
 use crate::workspaces::Workspaces;
 
@@ -151,6 +153,9 @@ pub struct Store {
     packets: PathBuf,
     sessions: Sessions,
     feedback: Feedback,
+    /// The data directory it opened, and the daemon's `--log` file if any.
+    dir: PathBuf,
+    log: Option<PathBuf>,
     /// Held for the store's life: two stores never share one directory.
     _lock: Lock,
 }
@@ -188,7 +193,19 @@ impl Store {
         let listeners = Listeners::kept(Waiting::new(Arc::clone(&db)))?;
         let sessions = Sessions::new(CLAUDE.into(), dir.join(SESSION_IDS), listeners);
         let feedback = Feedback::new(dir.join(slinger_core::feedback::FILE));
-        Ok(Self { db, machine, canvases, workspaces, packets, sessions, feedback, _lock: lock })
+        let (dir, log) = (dir.to_owned(), None);
+        Ok(Self {
+            db,
+            machine,
+            canvases,
+            workspaces,
+            packets,
+            sessions,
+            feedback,
+            dir,
+            log,
+            _lock: lock,
+        })
     }
 
     /// Appends `event` to the log and returns it as stored: with the next
@@ -342,7 +359,18 @@ impl Store {
     /// Runs `program` as each agent's process, in place of `claude` on `PATH`.
     #[must_use]
     pub fn with_claude(mut self, program: impl Into<PathBuf>) -> Self {
-        self.sessions.processes_mut().set_program(program.into());
+        self.sessions.processes_mut().set_program(Some(program.into()));
+        self
+    }
+
+    /// Runs `claude` as each agent's process, as written; with none, the
+    /// Claude Code that `search` finds at each start. Every agent's process
+    /// gets the search's `PATH`.
+    #[must_use]
+    pub fn with_search(mut self, claude: Option<PathBuf>, search: Search) -> Self {
+        let processes = self.sessions.processes_mut();
+        processes.set_program(claude);
+        processes.set_search(search);
         self
     }
 

@@ -69,7 +69,7 @@ fn a_sling_reaches_the_running_agent_with_the_selection_and_the_prompt() {
     with_store(Some(&fake_claude(bin.path())), |daemon| {
         let home = open_notes(daemon);
         user_stroke(daemon, "notes");
-        let slinger = Slinger::start(Client::new("/nonexistent/x.sock"), None);
+        let slinger = Slinger::start(Client::new("/nonexistent/x.sock"), None, &Wake::none());
         let got = &mut Vec::new();
 
         slinger.send(ask(vec![ItemId(1)], "what is missing?"));
@@ -105,7 +105,7 @@ fn a_sling_is_followed_until_the_agent_answers_or_stops() {
         user_stroke(daemon, "notes");
         daemon.session_start("notes").unwrap();
         wait_until(|| daemon.session_show("scout").unwrap().context.is_some());
-        let slinger = Slinger::start(daemon.clone(), None);
+        let slinger = Slinger::start(daemon.clone(), None, &Wake::none());
         let got = &mut Vec::new();
 
         slinger.send(ask(vec![ItemId(1)], "what is missing?"));
@@ -156,7 +156,7 @@ fn a_started_agent_s_pill_counts_its_context_while_older_slings_wait_for_a_liste
     with_store(Some(&waiting_claude(bin.path())), |daemon| {
         let home = open_notes(daemon);
         user_stroke(daemon, "notes");
-        let slinger = Slinger::start(daemon.clone(), None);
+        let slinger = Slinger::start(daemon.clone(), None, &Wake::none());
         let got = &mut Vec::new();
         sling_unheard(daemon, &slinger, got, "nobody listens");
 
@@ -187,7 +187,7 @@ fn a_sling_waiting_for_a_listener_waits_through_a_process_started_since() {
     with_store(Some(&fake_claude(bin.path())), |daemon| {
         let _home = open_notes(daemon);
         user_stroke(daemon, "notes");
-        let slinger = Slinger::start(daemon.clone(), None);
+        let slinger = Slinger::start(daemon.clone(), None, &Wake::none());
         let got = &mut Vec::new();
         let waits = sling_unheard(daemon, &slinger, got, "nobody listens");
         assert!(waits.running, "{waits:?}");
@@ -216,7 +216,7 @@ fn a_sling_under_a_picked_profile_starts_the_agent_under_it_first() {
         let dir = Some(dev.path().to_string_lossy().into_owned());
         let profile = slinger_control::Profile { name: "dev".into(), dir, tools: vec![] };
         daemon.profile_set("notes", profile).unwrap();
-        let slinger = Slinger::start(daemon.clone(), None);
+        let slinger = Slinger::start(daemon.clone(), None, &Wake::none());
         let got = &mut Vec::new();
         let under = |profile: Option<&str>, prompt: &str| Ask {
             profile: Profile::Picked(profile.map(str::to_string)),
@@ -275,7 +275,8 @@ fn a_sling_over_a_pdf_sends_the_page_it_rendered_and_its_words() {
         // A cache of its own: the app's is shared by every test process and
         // worktree, and a fetched file is named by its bytes (slinger-f19088).
         let cache = tempfile::tempdir().unwrap();
-        let slinger = Slinger::start(daemon.clone(), Some((grey, cache.path().to_owned())));
+        let render: Option<(Render, _)> = Some((grey, cache.path().to_owned()));
+        let slinger = Slinger::start(daemon.clone(), render, &Wake::none());
         let got = &mut Vec::new();
         slinger.send(ask(vec![], "what does it say?"));
         assert_eq!(went(wait(&slinger, got)), "scout");

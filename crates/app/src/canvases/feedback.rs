@@ -12,7 +12,7 @@
 use slinger_control::Client;
 
 use super::{Canvases, canvas_of};
-use crate::backend::Noter;
+use crate::backend::{Noter, Wake};
 use crate::commands::Chord;
 use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Point, Rect};
@@ -31,9 +31,9 @@ pub(super) struct Notes {
 }
 
 impl Notes {
-    /// Saves through `daemon`.
-    pub(super) fn new(daemon: Client) -> Self {
-        Self { entry: Feedback::default(), noter: Noter::new(daemon) }
+    /// Saves through `daemon`, waking the main thread with each answer.
+    pub(super) fn new(daemon: Client, wake: &Wake) -> Self {
+        Self { entry: Feedback::default(), noter: Noter::new(daemon, wake) }
     }
 
     /// Saves through `daemon` from the next note on.

@@ -8,6 +8,8 @@
 # names its session and answers, but for the message "mid-turn": its turn
 # runs on, and takes the next message in, so the two get one answer. Its
 # model reply before the nth answer says its context holds 1000n + 8 tokens.
+# Given SLINGER_TEST_STDERR, it first writes that line to its stderr.
+[ -z "$SLINGER_TEST_STDERR" ] || printf '%s\n' "$SLINGER_TEST_STDERR" >&2
 printf '%s\n' "$*" >> args.txt
 printf '%s %s\n' "$SLINGER_AGENT" "$SLINGER_SOCKET" > env.txt
 printf '%s\n' "$PATH" > path.txt

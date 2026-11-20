@@ -29,8 +29,11 @@ use slinger_core::session::hooks;
 use slinger_core::session::stream::{self, Limits, Start};
 
 mod ids;
+mod program;
 mod turns;
 use ids::{Ids, key};
+pub use program::Search;
+use program::path_first;
 use turns::Turns;
 
 /// How long a stop waits for a process to end after its input closes, before
@@ -53,6 +56,9 @@ pub enum ProcessError {
     OtherProfile { agent: String, running: Option<String>, want: String },
     #[error("cannot start {}: {source}", program.display())]
     Spawn { program: PathBuf, source: io::Error },
+    /// No `--claude` was given, and no place looked in holds Claude Code.
+    #[error("Claude Code was not found in: {}", searched.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", "))]
+    NoClaude { searched: Vec<PathBuf> },
     #[error("cannot keep the session ids in {}: {source}", path.display())]
     Ids { path: PathBuf, source: io::Error },
 }
@@ -65,6 +71,7 @@ impl ProcessError {
             Self::NotRunning { .. } => "unavailable",
             Self::OtherProfile { .. } => "conflict",
             Self::Spawn { source, .. } if source.kind() == io::ErrorKind::NotFound => "not_found",
+            Self::NoClaude { .. } => "not_found",
             Self::Spawn { .. } | Self::Ids { .. } => "internal",
         }
     }
@@ -81,6 +88,9 @@ impl ProcessError {
             )),
             Self::Spawn { .. } => {
                 Some("install Claude Code, or pass its path with 'slingerd --claude <PATH>'".into())
+            }
+            Self::NoClaude { .. } => {
+                Some("install Claude Code, or start slingerd with --claude <PATH>".into())
             }
             Self::Ids { .. } => None,
         }
@@ -108,7 +118,11 @@ pub struct Shown {
 /// The processes, by agent. Safe to share between threads.
 #[derive(Debug)]
 pub struct Processes {
-    program: PathBuf,
+    /// The program given (`--claude`), run as written; `None` to look for
+    /// Claude Code with `search` at each start.
+    program: Option<PathBuf>,
+    /// Where Claude Code is looked for, and the `PATH` every process gets.
+    search: Search,
     /// The CLI the processes' hooks run (docs/service.md, "Hooks").
     slinger: PathBuf,
     /// The daemon's socket, named to each process. Set once it serves.
@@ -121,18 +135,40 @@ pub struct Processes {
 
 impl Processes {
     /// No processes yet. `program` is Claude Code's path (a bare name is
-    /// looked up on `PATH`); `ids` is the file of session ids.
+    /// looked up on `PATH`); `ids` is the file of session ids. Processes
+    /// get the daemon's own `PATH` ([`Search::inherited`]).
     #[must_use]
     pub fn new(program: PathBuf, ids: PathBuf) -> Self {
         let ids = Arc::new(Ids::new(ids));
         let slinger = crate::store::SLINGER.into();
         let (socket, held, last) = (OnceLock::new(), Mutex::default(), Mutex::default());
-        Self { program, slinger, socket, ids, held, last }
+        let (program, search) = (Some(program), Search::inherited());
+        Self { program, search, slinger, socket, ids, held, last }
     }
 
-    /// Starts `program` from now on, in place of the one [`Processes::new`] took.
-    pub fn set_program(&mut self, program: PathBuf) {
+    /// Starts `program` from now on, in place of the one [`Processes::new`]
+    /// took; `None` looks for Claude Code with the search at each start.
+    pub fn set_program(&mut self, program: Option<PathBuf>) {
         self.program = program;
+    }
+
+    /// Looks for Claude Code with `search`, and hands its `PATH` to every
+    /// process, from now on.
+    pub fn set_search(&mut self, search: Search) {
+        self.search = search;
+    }
+
+    /// The program a start would run now: the one given, else the Claude
+    /// Code the search finds; `None` when it finds none.
+    #[must_use]
+    pub fn claude(&self) -> Option<PathBuf> {
+        self.program.clone().or_else(|| self.search.claude().ok())
+    }
+
+    /// The CLI the hooks of a process started now run.
+    #[must_use]
+    pub fn slinger(&self) -> &Path {
+        &self.slinger
     }
 
     /// Has the hooks of every process started from now on run `slinger`.
@@ -159,7 +195,8 @@ impl Processes {
     ///
     /// # Errors
     ///
-    /// [`ProcessError::Spawn`] when the program cannot run, and
+    /// [`ProcessError::NoClaude`] when no program was given and none is
+    /// found, [`ProcessError::Spawn`] when the program cannot run, and
     /// [`ProcessError::Ids`] when the file of ids cannot be read or written.
     pub fn start(
         &self,
@@ -191,7 +228,11 @@ impl Processes {
             None => new_id().map_err(|source| self.ids.failed(source))?,
         };
         let start = if resume { Start::Resume(&id) } else { Start::Fresh(&id) };
-        let mut command = Command::new(&self.program);
+        let program = match &self.program {
+            Some(given) => given.clone(),
+            None => self.search.claude().map_err(|searched| ProcessError::NoClaude { searched })?,
+        };
+        let mut command = Command::new(&program);
         // Its hooks report its status and the files it writes. Passed as an
         // argument, they are this process's alone: no settings file changes.
         command.arg("--settings").arg(hooks::settings(&self.slinger));
@@ -202,14 +243,13 @@ impl Processes {
         }
         // The agent's own Bash calls run a bare `slinger`: the CLI its hooks
         // run comes first on its PATH, so both reach the same one.
-        if let Some(path) = path_first(&self.slinger) {
+        if let Some(path) = path_first(&self.slinger, self.search.path()) {
             command.env("PATH", path);
         }
         // Its chatter on stderr goes where the daemon's goes: the service log.
         command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::inherit());
         let spawned = command.spawn();
-        let mut child = spawned
-            .map_err(|source| ProcessError::Spawn { program: self.program.clone(), source })?;
+        let mut child = spawned.map_err(|source| ProcessError::Spawn { program, source })?;
         let (stdin, stdout) = (child.stdin.take(), child.stdout.take());
         let heard = Arc::new(Mutex::new(Heard::default()));
         if let Some(out) = stdout {
@@ -406,18 +446,6 @@ fn listen(out: ChildStdout, key: &str, heard: &Arc<Mutex<Heard>>, ids: &Arc<Ids>
         }
         heard.lock().unwrap_or_else(PoisonError::into_inner).ended = true;
     });
-}
-
-/// The daemon's `PATH` with the folder of `slinger` first, when `slinger`
-/// is an absolute path; `None` (the daemon's `PATH` as it is) otherwise.
-fn path_first(slinger: &Path) -> Option<std::ffi::OsString> {
-    let folder = slinger.parent().filter(|_| slinger.is_absolute())?;
-    // No PATH, or an empty one, adds nothing: not an empty entry, the cwd.
-    let rest = std::env::var_os("PATH").filter(|p| !p.is_empty());
-    let folders =
-        std::iter::once(folder.to_owned()).chain(rest.iter().flat_map(std::env::split_paths));
-    // A folder with a ':' in it cannot be on a PATH: leave it as it is.
-    std::env::join_paths(folders).ok()
 }
 
 /// A new session id from the system's random source.
