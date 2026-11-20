@@ -38,9 +38,7 @@ impl Canvases {
             return false;
         }
         self.asks.cancel_entry();
-        let selected = self.selection_in(panes, area).map(|(s, a, w)| (s.clone(), a, w));
-        let target = selected.or_else(|| self.button_in(panes, area));
-        let Some((selection, around, within)) = target.or_else(|| self.room_in(panes, area)) else {
+        let Some((selection, around, within)) = self.sling_target(panes, area, false) else {
             return false;
         };
         let inside = self.sling_box(panes.focus(), &selection);

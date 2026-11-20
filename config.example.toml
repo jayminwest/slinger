@@ -121,6 +121,9 @@
 # Without a pen: new-text starts a text, the arrows and tab act on the selected items,
 # find finds a typed text, pick-size sets a new text's size, and a mouse press with the
 # pen tool selects ([pointer] press).
+#
+# cmd+h (hide), alt+cmd+h (hide others) and ctrl+cmd+f (full screen) are macOS's while
+# no command is bound to them.
 [keys]
 # Quit the app.
 #quit = "cmd+q"

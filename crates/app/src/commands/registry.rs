@@ -50,7 +50,7 @@ impl Command {
     /// The command's name for people: "Split right".
     pub const fn title(self) -> &'static str {
         match self {
-            Command::Quit => "Quit",
+            Command::Quit => "Quit slinger",
             Command::ReloadConfig => "Reload config",
             Command::PickColour => "Pick a colour",
             Command::PickShape => "Pick a shape",

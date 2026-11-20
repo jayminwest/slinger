@@ -46,6 +46,11 @@ impl Sidebar {
         self.waive();
     }
 
+    /// Whether the notice or the offer shows: what `dismiss-notice` hides.
+    pub fn noticed(&self) -> bool {
+        !self.notice.is_empty() || self.offer().is_some()
+    }
+
     /// Lets time pass to `now`: an agent the notice shows for the first
     /// time is stamped, and a done agent shown [`FADE`] ago leaves. Returns
     /// whether the notice changed.

@@ -445,7 +445,12 @@ main.rs      wires the modules below. The only caller of platform. With
              takes still draws the new focus (Step::Through). A press on
              a footer's or the sidebar's button goes no further; the lift
              on it runs it.
-window.rs    runs a command on the focused pane, does a tap on a button that
+window.rs    reads the window's Facts for `able::can` (window/facts.rs)
+             from the queries the commands' own gates ask
+             (`window::items::holds`, `Canvases::shows_selection`,
+             `step_target`, `inside`, `can_sling`, `can_sling_now`), so
+             the menu greys exactly what would not act; it
+             runs a command on the focused pane, does a tap on a button that
              does more than run one (`tap`: the page name opens the page
              menu, a page menu's page turns the pane, the footer's agent
              opens its profile menu and a profile slings under it, a
@@ -805,8 +810,18 @@ commands.rs  key commands: the closed list of commands, the chord parser
              chord to a command (and a command to its live chord). `registry` gives each command a title and a
              group and prints a chord in macOS glyphs: the key overlay,
              the palette and the menu bar read it (SPEC D21). `menu` lays
-             the menu bar out: each menu's items, the key each shows and
-             the check mark on the pen's tool. Pure.
+             the menu bar out: each menu's role (the app's, Window, Help
+             or plain), its items and separators, macOS's own items
+             (About, Services, Hide, Hide Others, Show All, Minimize, Zoom,
+             Enter Full Screen, Bring All to Front: macOS's titles, each
+             usual key shown only while the keymap leaves it free), the key
+             each shows, the check mark on the pen's tool and which items
+             are grey;
+             `same_layout` says two bars differ only in that. `able` is the
+             one enabled predicate: `can(command, &Facts)`, one exhaustive
+             match, false only where the command would now do nothing or
+             only flash why not; the menu bar greys by it, and the context
+             menus will (plan pl-9880f1). Pure.
 panes.rs     the window's panes: what each shows (a canvas or an agent UI, by
              name), how they tile (a layout::Tree), the one focused pane and
              the pane commands. `follow` builds them from the server's pane
@@ -1333,10 +1348,19 @@ platform/panel.rs  the open panel, for a Pick: a folder for `open-workspace`
              and gets no folder access: check files by hand from the bundle.
              An agent UI's reply while it is up is refused (the app is busy).
 platform/menu.rs  makes the menu bar a scene's menus say, again when they
-             change. A command item chosen by its key goes to main as that
+             change; a change only in which items are grey keeps the made
+             menus (an open one stays open) and only stores the new model,
+             which the menu target's validateMenuItem: reads by the item's
+             tag, as a menu opens and before an item's key fires. A command item chosen by its key goes to main as that
              key press, so the keymap runs it once; chosen with the pointer,
-             as Event::Command. Cut, copy, paste, select all, minimise and
-             about go along the responder chain. An undo or redo key main
+             as Event::Command. Cut, copy, paste, select all, about, hide,
+             hide others, show all, minimize, zoom, full screen and bring
+             all to front go along the responder chain with macOS's own
+             selectors. A separator is NSMenuItem's; the Services item
+             holds an empty submenu given to setServicesMenu:, and the
+             menus whose role is Window and Help go to setWindowsMenu: and
+             setHelpMenu: (by role, never by title), again after an open
+             panel puts the bar back (platform/panel.rs). An undo or redo key main
              passes on (the entry has it) goes on as undo: or redo: along
              the responder chain, to the field's own undo.
 platform/keys.rs  a key press as a chord and the text it types (none with
@@ -1522,7 +1546,10 @@ text field. Cut, copy, paste and select all keep their usual keys unless the
 keymap binds them (the window's close button quits too). Cut, copy and paste
 with no text field focused come to main as Event::Edit (platform/keys.rs,
 window.rs's `edit`), greyed when they would do nothing, and a key with cmd
-held never types.
+held never types. A command's item is grey where `commands::able::can`
+says it cannot act; its key is unchanged: AppKit does not fire a disabled
+item for its key, so the key reaches the keymap as any key does and the
+command answers as before (a flash that says why).
 The sling's open entry takes every key before the keymap but the `dictate`
 chord and the keymap's other chords with cmd or ctrl that a text field does
 not use (`scene::sling::edits`): return and escape are its, a key that types,
@@ -1537,6 +1564,7 @@ inside a pop-up a command opened, so they are not commands themselves.
 A new command adds a variant and a name to `Command::ALL` in
 `commands.rs`, a title and a group in `commands/registry.rs`, an item in
 one menu of `commands/menu.rs` (a test holds it), an arm in
+`commands/able.rs`'s `can` (the match has no `_`), an arm in
 `main`'s match, and a line in the example file (with its default chord, if
 it has one).
 ## Boundaries

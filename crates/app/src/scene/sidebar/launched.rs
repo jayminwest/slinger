@@ -40,9 +40,22 @@ pub struct Launched {
     offer: Option<Offer>,
     /// The offer the user dismissed: hidden for its daemon's pid.
     dismissed: Option<Offer>,
+    /// The app manages a bundled slingerd ([`crate::launch`]).
+    managed: bool,
 }
 
 impl Sidebar {
+    /// Takes whether the app manages a bundled slingerd: what
+    /// `start-slingerd` and `restart-daemon` can act on.
+    pub fn set_managed(&mut self, managed: bool) {
+        self.launched.managed = managed;
+    }
+
+    /// Whether the app manages a bundled slingerd.
+    pub fn managed(&self) -> bool {
+        self.launched.managed
+    }
+
     /// Takes what the app now says of the daemon it starts; whether that changed.
     pub fn set_daemon(&mut self, daemon: Option<Daemon>) -> bool {
         let changed = self.launched.daemon != daemon;

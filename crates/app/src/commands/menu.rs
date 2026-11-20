@@ -6,16 +6,40 @@
 //! key that types (no command or control held) stays off the menu, as the
 //! menu would take it from a text field first. An edit item (cut, copy,
 //! paste) goes to the text field with the focus, and keeps its usual key only
-//! while the keymap does not bind that chord.
+//! while the keymap does not bind that chord; so do the items every Mac app
+//! has (hide, full screen, zoom...), which macOS runs itself. Each menu has a
+//! [`Role`], which tells `AppKit` which menu is the app's, the Window menu
+//! and the Help menu.
+//!
+//! A command's item is grey when [`able::can`] says the command cannot act
+//! now. That never changes what its key does: `AppKit` does not fire a
+//! disabled item for its key, so the key reaches the keymap as any key
+//! does, and the command answers as before (a flash that says why). An
+//! edit item is always on here: the window greys cut, copy and paste
+//! itself (`Event::Can`). A bar that differs from the last only in which
+//! items are grey ([`same_layout`]) is not made again.
 
-use super::{CMD, Chord, Command, Keymap};
-use Action::{Native as N, Run as R};
+use super::able::{self, Facts};
+use super::{ALT, CMD, CTRL, Chord, Command, Keymap};
+use Action::{Native as N, Run as R, Separator as S};
 
 /// One menu of the bar: "Edit".
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Menu {
     pub title: &'static str,
+    pub role: Role,
     pub items: Vec<Item>,
+}
+
+/// What a menu is to `AppKit`: the app's own (named after it), the Window
+/// menu (which lists the windows), the Help menu (which has the search
+/// field), or any other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    App,
+    Plain,
+    Window,
+    Help,
 }
 
 /// One item of a menu.
@@ -27,6 +51,8 @@ pub struct Item {
     pub key: Option<Chord>,
     /// A check mark: the tool the pen has.
     pub checked: bool,
+    /// Not grey: its command can act now.
+    pub enabled: bool,
 }
 
 /// What an item does.
@@ -35,48 +61,90 @@ pub enum Action {
     Run(Command),
     /// What macOS does itself, in the window or the text field with the focus.
     Native(Native),
+    /// A line between groups of items.
+    Separator,
 }
 
-/// The items macOS runs: the about panel, the text field's edits and the
-/// window's minimise.
+/// The items macOS runs: the about panel, the Services submenu, hiding the
+/// app, the text field's edits, and the window's minimise, zoom and full
+/// screen; macOS's own titles, which it localises and changes ("Exit Full
+/// Screen").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Native {
     About,
+    Services,
+    Hide,
+    HideOthers,
+    ShowAll,
     Cut,
     Copy,
     Paste,
     Minimise,
+    Zoom,
+    FullScreen,
+    BringAllToFront,
 }
 
 impl Native {
     const fn title(self) -> &'static str {
         match self {
             Native::About => "About slinger",
+            Native::Services => "Services",
+            Native::Hide => "Hide slinger",
+            Native::HideOthers => "Hide Others",
+            Native::ShowAll => "Show All",
             Native::Cut => "Cut",
             Native::Copy => "Copy",
             Native::Paste => "Paste",
-            Native::Minimise => "Minimise",
+            Native::Minimise => "Minimize",
+            Native::Zoom => "Zoom",
+            Native::FullScreen => "Enter Full Screen",
+            Native::BringAllToFront => "Bring All to Front",
         }
     }
 
     /// The usual macOS key: `cmd+x` for cut.
     pub const fn key(self) -> Option<Chord> {
-        let key = match self {
-            Native::About => return None,
-            Native::Cut => 'x',
-            Native::Copy => 'c',
-            Native::Paste => 'v',
-            Native::Minimise => 'm',
+        let (mods, key) = match self {
+            Native::About
+            | Native::Services
+            | Native::ShowAll
+            | Native::Zoom
+            | Native::BringAllToFront => return None,
+            Native::Hide => (CMD, 'h'),
+            Native::HideOthers => (CMD | ALT, 'h'),
+            Native::Cut => (CMD, 'x'),
+            Native::Copy => (CMD, 'c'),
+            Native::Paste => (CMD, 'v'),
+            Native::Minimise => (CMD, 'm'),
+            Native::FullScreen => (CMD | CTRL, 'f'),
         };
-        Some(Chord::new(CMD, key))
+        Some(Chord::new(mods, key))
     }
 }
 
-/// Each menu and its items, in order. The first is the app's own menu.
-const BAR: [(&str, &[Action]); 8] = [
-    ("slinger", &[N(Native::About), R(Command::ReloadConfig), R(Command::Quit)]),
+/// Each menu, its role and its items, in order. The first is the app's own menu.
+const BAR: [(&str, Role, &[Action]); 8] = [
+    (
+        "slinger",
+        Role::App,
+        &[
+            N(Native::About),
+            S,
+            R(Command::ReloadConfig),
+            S,
+            N(Native::Services),
+            S,
+            N(Native::Hide),
+            N(Native::HideOthers),
+            N(Native::ShowAll),
+            S,
+            R(Command::Quit),
+        ],
+    ),
     (
         "File",
+        Role::Plain,
         &[
             R(Command::OpenWorkspace),
             R(Command::CloseWorkspace),
@@ -94,6 +162,7 @@ const BAR: [(&str, &[Action]); 8] = [
     ),
     (
         "Edit",
+        Role::Plain,
         &[
             R(Command::Undo),
             R(Command::Redo),
@@ -125,6 +194,7 @@ const BAR: [(&str, &[Action]); 8] = [
     ),
     (
         "Tools",
+        Role::Plain,
         &[
             R(Command::ToolPen),
             R(Command::ToolEraser),
@@ -153,6 +223,7 @@ const BAR: [(&str, &[Action]); 8] = [
     ),
     (
         "Canvas",
+        Role::Plain,
         &[
             R(Command::ZoomIn),
             R(Command::ZoomOut),
@@ -167,6 +238,7 @@ const BAR: [(&str, &[Action]); 8] = [
     ),
     (
         "Pane",
+        Role::Plain,
         &[
             R(Command::SplitRight),
             R(Command::SplitDown),
@@ -182,16 +254,23 @@ const BAR: [(&str, &[Action]); 8] = [
     ),
     (
         "Window",
+        Role::Window,
         &[
+            N(Native::Minimise),
+            N(Native::Zoom),
+            N(Native::FullScreen),
+            S,
             R(Command::ToggleSidebar),
             R(Command::DismissNotice),
             R(Command::StartSlingerd),
             R(Command::RestartDaemon),
-            N(Native::Minimise),
+            S,
+            N(Native::BringAllToFront),
         ],
     ),
     (
         "Help",
+        Role::Help,
         &[
             R(Command::ShowKeys),
             R(Command::ShowCommands),
@@ -203,25 +282,44 @@ const BAR: [(&str, &[Action]); 8] = [
 ];
 
 /// The menu bar for the keys in `keys`, with a check mark on `checked` (the
-/// command of the pen's tool).
-pub fn bar(keys: &Keymap, checked: Command) -> Vec<Menu> {
+/// command of the pen's tool), each command's item grey where `facts` say
+/// it cannot act.
+pub fn bar(keys: &Keymap, checked: Command, facts: &Facts) -> Vec<Menu> {
     let item = |action| match action {
         Action::Run(command) => Item {
             title: command.title(),
             action,
             key: keys.chord(command).filter(|c| !c.types()),
             checked: command == checked,
+            enabled: able::can(command, facts),
         },
         Action::Native(native) => Item {
             title: native.title(),
             action,
             key: native.key().filter(|&c| keys.command(c).is_none()),
             checked: false,
+            enabled: true,
         },
+        Action::Separator => Item { title: "", action, key: None, checked: false, enabled: true },
     };
-    BAR.iter()
-        .map(|&(title, actions)| Menu { title, items: actions.iter().copied().map(item).collect() })
-        .collect()
+    let menu = |&(title, role, actions): &(_, _, &[Action])| Menu {
+        title,
+        role,
+        items: actions.iter().copied().map(item).collect(),
+    };
+    BAR.iter().map(menu).collect()
+}
+
+/// Whether the bars `a` and `b` differ at most in which items are grey:
+/// the same menus, items, titles, keys and check marks, in the same order.
+pub fn same_layout(a: &[Menu], b: &[Menu]) -> bool {
+    let item = |i: &Item| Item { enabled: true, ..*i };
+    let menu = |(a, b): (&Menu, &Menu)| {
+        (a.title, a.role) == (b.title, b.role)
+            && a.items.len() == b.items.len()
+            && a.items.iter().zip(&b.items).all(|(x, y)| item(x) == item(y))
+    };
+    a.len() == b.len() && a.iter().zip(b).all(menu)
 }
 
 impl Chord {

@@ -40,14 +40,14 @@ pub fn run(command: Command, shared: &Shared, canvases: &mut Canvases, area: Rec
         return true;
     }
     let Some(keyed) = Keyed::of(command) else { return true };
-    items(shared, canvases) && canvases.keyed(&shared.panes, focus(&shared.panes, area), keyed)
+    holds(shared, canvases) && canvases.keyed(&shared.panes, focus(&shared.panes, area), keyed)
 }
 
 /// Deletes the selection on the focused pane of `shared` while the items
 /// hold the keyboard, as [`run`] says. False when it did nothing, so the
 /// key goes on (a delete to a page's form, or to a live item's page).
 pub fn delete(shared: &Shared, canvases: &mut Canvases) -> bool {
-    items(shared, canvases) && canvases.delete_selection(&shared.panes, shared.panes.focus())
+    holds(shared, canvases) && canvases.delete_selection(&shared.panes, shared.panes.focus())
 }
 
 /// Clears the selection on the focused pane of `shared` while the items
@@ -57,13 +57,13 @@ pub fn delete(shared: &Shared, canvases: &mut Canvases) -> bool {
 /// it is in, one level (docs/design/fold.md).
 pub fn clear(shared: &Shared, canvases: &mut Canvases) -> bool {
     let (panes, focus) = (&shared.panes, shared.panes.focus());
-    items(shared, canvases)
+    holds(shared, canvases)
         && (canvases.clear_selection(panes, focus) || canvases.step_out(panes, focus))
 }
 
 /// Whether the items hold the keyboard: the window has it and no text of
 /// the app takes typing.
-fn items(shared: &Shared, canvases: &Canvases) -> bool {
+pub fn holds(shared: &Shared, canvases: &Canvases) -> bool {
     keyboard(shared, canvases) == Keyboard::Window && !canvases.editing()
 }
 

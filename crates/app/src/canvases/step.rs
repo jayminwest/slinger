@@ -199,17 +199,27 @@ impl Canvases {
     /// Steps `pane` of `panes` out of the box it is in, one level, back to
     /// the view it had. False when it is in none.
     pub fn step_out(&mut self, panes: &Panes, pane: PaneId) -> bool {
-        let Some(canvas) = canvas_of(panes, pane) else { return false };
-        let open = find(&self.open, canvas, wanted(&self.views, pane, canvas));
-        let Some(shown) = open.and_then(|o| o.mirror.as_ref()).map(|m| m.page().to_string()) else {
-            return false;
-        };
-        let view = self.view(pane);
-        let n = view.trail.on((canvas, &shown)).len();
+        let n = self.depth(panes, pane);
         n > 0 && {
+            let view = self.view(pane);
             view.trail.keep(n - 1, &mut view.viewport);
             true
         }
+    }
+
+    /// Whether `pane` of `panes` is stepped into a box on the page it
+    /// shows: what a step out takes it out of.
+    pub fn inside(&self, panes: &Panes, pane: PaneId) -> bool {
+        self.depth(panes, pane) > 0
+    }
+
+    /// How many boxes deep `pane` of `panes` is on the page it shows.
+    fn depth(&self, panes: &Panes, pane: PaneId) -> usize {
+        let Some(canvas) = canvas_of(panes, pane) else { return 0 };
+        let open = find(&self.open, canvas, wanted(&self.views, pane, canvas));
+        let Some(mirror) = open.and_then(|o| o.mirror.as_ref()) else { return 0 };
+        let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v);
+        view.map_or(0, |v| v.trail.on((canvas, mirror.page())).len())
     }
 
     /// The trail of `pane` of `panes` as its footer says it after the
