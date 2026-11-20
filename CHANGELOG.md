@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **Agents:** a folded box is one line in what an agent reads,
+  `b4 box … folded=7 "its first text"`, and what it holds makes no lines;
+  new ink in it puts the box's line under the new things with `new=`.
+  `slinger canvas read <ID> --in b4` reads what a box holds, open or folded,
+  and `slinger canvas crop <ID> --item b4` of a folded box shows it open.
+
 - **App:** a canvas text being typed has a real caret. The arrow keys move
   it (alt by words, cmd to a row's ends or the text's start and end), shift
   selects, delete and forward delete (alt by words, cmd to the row's start)

@@ -8,7 +8,7 @@ use std::fmt::Write as _;
 use crate::canvas::{Colour, Rect};
 
 /// How many characters of a text item the `page` section keeps.
-const PAGE_TEXT_CHARS: usize = 80;
+pub(super) const PAGE_TEXT_CHARS: usize = 80;
 
 /// One line: `id kind x,y wxh field... "text"`.
 #[derive(Debug, Clone, PartialEq)]

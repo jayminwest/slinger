@@ -190,7 +190,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `pane_open` | `workspace`, `kind`: `canvas` or `ui`, `target`: canvas id or UI name, `beside`: a pane number (optional), `below`: bool (default `false`) | `workspace`, `layout`, `pane`: the new pane's number, `event`: the `pane_moved` appended |
 | `pane_close` | `workspace`, `pane`: a pane number | `workspace`, `layout`, `event`: the `pane_moved` appended (absent when nothing changed) |
 | `pane_resize` | `workspace`, `pane`: a pane number, `ratio`: number | `workspace`, `layout`, `event`: the `pane_moved` appended (absent when nothing changed) |
-| `canvas_read` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `after`: number (optional, default the last sling's), `select`: list of item ids (optional), `out`: absolute path of a directory (optional) | `packet`: blob id of the text, `dir`: the directory written, `text`: the packet with `at`, `images`: list of `{name, id}` |
+| `canvas_read` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `in`: a box's id (optional: read what it holds), `after`: number (optional, default the last sling's), `select`: list of item ids (optional), `out`: absolute path of a directory (optional) | `packet`: blob id of the text, `dir`: the directory written, `text`: the packet with `at`, `images`: list of `{name, id}` |
 | `canvas_crop` | `canvas`: canvas id, `of`: an item id or a box, `path`: absolute path of a PNG file | `images`: list of `{path, x, y, width, height}` |
 | `canvas_strokes` | `canvas`: canvas id, `item`: an item id | `strokes`: list of stroke items with `points` |
 | `canvas_find` | `canvas`: canvas id, `text`: string | `found`: list of text items that hold it, page by page in reading order |
@@ -442,7 +442,11 @@ event tagged with the canvas names, and 0 (everything is new) before the
 first. A read never moves it; a sling does. `after` at or past the last
 operation is a valid packet with nothing new. `select` takes ids as the
 file (`i12`) or a packet (`c12`, `t12`) writes them, and keeps only those
-items in the `page` section. The text, without `at`, is stored as a blob,
+items in the `page` section. `in` names a box (`b4` or `i4`) and reads what
+it holds directly, open or folded, as if it were the page, on the box's own
+page (docs/design/fold.md); a `page` that is not the box's page, or a box
+that is not there, is `not_found`, and an item that is not a box is
+`invalid`. The text, without `at`, is stored as a blob,
 so the same page gives the same id; each image is a blob too. The daemon
 writes `packet.txt` and the images into `out` (made if missing), or into
 `packets/<hex>/` in its data directory, and `text` carries
@@ -609,7 +613,9 @@ in its colour on white, and tiles of at most 1568 pixels a side, overlapping
 by 64. An item is framed by a 16-unit margin. A box `of` is `x,y,w,h` in
 tenths of a unit on the first page, or `<page>:x,y,w,h` on the page with
 that id or name; it is cut at its edges, and a box with nothing in it is a
-white image. A `pdf` item draws as its frame in grey with `pdf p<page>`
+white image. A folded box `of` draws open: its open frame and what it
+holds directly (docs/design/fold.md); a box of the page draws only what
+the page shows, a folded box as its miniature. A `pdf` item draws as its frame in grey with `pdf p<page>`
 at its top left: only the app can draw a PDF's page, and a crop takes no
 backdrop (docs/design/pdf.md). A crop is at most 16000 units a side (at most 4 by 4 tiles):
 a larger one, or a negative size, is `invalid` with a hint. The daemon

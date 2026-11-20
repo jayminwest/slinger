@@ -10,6 +10,11 @@
 //! text lines, never images (SPEC R2): [`Index::render`] lists only clusters of
 //! the user's ink.
 //!
+//! Items hidden in a folded box make no line: a folded box is one `box`
+//! line with `folded=<n>` and, when it holds new ink, `new=<strokes>` and a
+//! place in `new` (docs/design/fold.md, [`fold`]). An end of an arrow bound
+//! to a hidden item names the folded box that holds it.
+//!
 //! [`cluster`] groups strokes into the clusters the index takes. What counts
 //! as changed is decided elsewhere and passed in; the index decides the ids,
 //! the lines and their order.
@@ -21,11 +26,12 @@
 mod areas;
 mod build;
 mod cluster;
+mod fold;
 mod format;
 mod line;
 mod words;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::canvas::{Author, Canvas, Item, ItemId, PageId, Rect, Shape};
 use line::{Line, colour_name, reading_order};
@@ -69,9 +75,11 @@ impl Index {
     /// `by`, and no image.
     ///
     /// `changed` says whether an item was made or changed in the packet's op
-    /// range. A cluster with a changed stroke goes in `new`; an agent's
+    /// range. A cluster with a changed stroke goes in `new`, and so does a
+    /// folded box that holds a changed stroke of the user's; an agent's
     /// changed item goes in `made`; everything else goes in `page`, but for
-    /// a `pdf` item that no ink line's `over` names.
+    /// a `pdf` item that no ink line's `over` names. Items hidden in a
+    /// folded box are left out.
     #[must_use]
     pub fn new(
         canvas: &Canvas,
@@ -79,7 +87,19 @@ impl Index {
         clusters: &[Vec<ItemId>],
         changed: impl Fn(ItemId) -> bool,
     ) -> Self {
-        let page = Page::new(canvas, page, clusters);
+        Self::of(canvas, page, canvas.visible(page).collect(), clusters, &changed)
+    }
+
+    /// The index of `items` of `page`, as [`Index::new`] builds a page's:
+    /// the visible items, or what one box holds (`canvas read --in`).
+    pub(crate) fn of(
+        canvas: &Canvas,
+        page: PageId,
+        items: Vec<&Item>,
+        clusters: &[Vec<ItemId>],
+        changed: &dyn Fn(ItemId) -> bool,
+    ) -> Self {
+        let page = Page::new(canvas, page, items, clusters);
         let (mut new, mut made, mut rest) = (Vec::new(), Vec::new(), Vec::new());
         for (&n, strokes) in &page.clusters {
             let line = page.ink_line(n, strokes);
@@ -91,8 +111,9 @@ impl Index {
             }
         }
         for item in page.items.iter().filter(|i| !matches!(i.shape(), Shape::Stroke { .. })) {
-            let line = page.item_line(item);
+            let line = page.item_line(item, changed);
             match item.author() {
+                _ if line.fields.iter().any(|(k, _)| *k == "new") => new.push(line),
                 Author::Agent(_) if changed(item.id()) => made.push(line),
                 _ => rest.push(line),
             }
@@ -100,6 +121,7 @@ impl Index {
         let new = reading_order(new);
         let render = new
             .iter()
+            .filter(|l| l.kind == "ink")
             .map(|l| Render {
                 id: l.id.clone(),
                 strokes: page.clusters[&l.n].iter().map(|s| s.id()).collect(),
@@ -109,6 +131,11 @@ impl Index {
         let (rest, unnamed) =
             rest.into_iter().partition(|l| l.kind != "pdf" || named.contains(&l.id));
         Self { new, made: reading_order(made), page: reading_order(rest), unnamed, render }
+    }
+
+    /// How many lines the three sections hold.
+    pub(crate) fn len(&self) -> usize {
+        self.new.len() + self.made.len() + self.page.len()
     }
 
     /// The clusters that need images, in the order their lines are read. Only
@@ -159,9 +186,14 @@ impl Index {
     }
 }
 
-/// One page's items, with strokes grouped into clusters.
+/// One page's items, or one box's, with strokes grouped into clusters.
 struct Page<'a> {
+    canvas: &'a Canvas,
+    /// The page the items are on.
+    on: PageId,
     items: Vec<&'a Item>,
+    /// Each item a folded box on the page holds, with that box.
+    holders: HashMap<ItemId, ItemId>,
     /// By cluster number (its earliest stroke's), the strokes in drawing order.
     clusters: BTreeMap<u64, Vec<&'a Item>>,
     /// Each stroke's cluster number.
@@ -172,15 +204,18 @@ struct Page<'a> {
 }
 
 impl<'a> Page<'a> {
-    fn new(canvas: &'a Canvas, page: PageId, given: &[Vec<ItemId>]) -> Self {
-        let items: Vec<&Item> = canvas.items(page).collect();
+    fn new(canvas: &'a Canvas, page: PageId, items: Vec<&'a Item>, given: &[Vec<ItemId>]) -> Self {
+        let here: HashSet<ItemId> = items.iter().map(|i| i.id()).collect();
         let is_stroke = |i: &Item| matches!(i.shape(), Shape::Stroke { .. });
         let mut cluster_of = BTreeMap::new();
         let mut clusters: BTreeMap<u64, Vec<&Item>> = BTreeMap::new();
         let user = |i: &&Item| *i.author() == Author::User;
         let given = given.iter().map(|group| {
             let found = group.iter().filter_map(|id| canvas.item(*id));
-            found.filter(|i| i.page() == page && is_stroke(i)).filter(user).collect::<Vec<_>>()
+            found
+                .filter(|i| here.contains(&i.id()) && is_stroke(i))
+                .filter(user)
+                .collect::<Vec<_>>()
         });
         // Every stroke left over, the agents' included, is a cluster of its own.
         let lone = items.iter().copied().filter(|i| is_stroke(i)).map(|i| vec![i]);
@@ -205,15 +240,23 @@ impl<'a> Page<'a> {
             items.iter().copied().filter(pick).collect()
         };
         let (boxes, pdfs) = (kind(false), kind(true));
-        Self { items, clusters, cluster_of, boxes, pdfs }
+        let holders = canvas.holders(page);
+        Self { canvas, on: page, items, holders, clusters, cluster_of, boxes, pdfs }
     }
 
-    /// The packet id of an item on this page, if it is still there.
+    /// The packet id of an item here, if it is still there: for an item
+    /// hidden in a folded box, the outermost folded box here that holds it.
     fn id_of(&self, item: ItemId) -> Option<String> {
         if let Some(n) = self.cluster_of.get(&item) {
             return Some(format!("c{n}"));
         }
-        let found = self.items.iter().find(|i| i.id() == item)?;
+        let mut item = item;
+        let found = loop {
+            match self.items.iter().find(|i| i.id() == item) {
+                Some(found) => break found,
+                None => item = *self.holders.get(&item)?,
+            }
+        };
         let prefix = match found.shape() {
             Shape::Stroke { .. } => "c",
             Shape::Text { .. } => "t",
@@ -270,7 +313,7 @@ impl<'a> Page<'a> {
         Line { n, id: format!("c{n}"), kind: "ink", frame, fields, text: None }
     }
 
-    fn item_line(&self, item: &Item) -> Line {
+    fn item_line(&self, item: &Item, changed: &dyn Fn(ItemId) -> bool) -> Line {
         let n = item.id().get();
         let mut fields = Vec::new();
         if let Author::Agent(name) = item.author() {
@@ -278,6 +321,11 @@ impl<'a> Page<'a> {
         }
         let (kind, text) = match item.shape() {
             Shape::Text { text, .. } => ("text", Some(text.clone())),
+            Shape::Box { fold: Some(_), .. } => {
+                let (folded, text) = fold::line(self.canvas, self.on, item, changed);
+                fields.extend(folded);
+                ("box", text)
+            }
             Shape::Box { .. } => ("box", None),
             Shape::Arrow { from, to, .. } => {
                 fields.extend(from.item.and_then(|f| self.id_of(f)).map(|f| ("from", f)));

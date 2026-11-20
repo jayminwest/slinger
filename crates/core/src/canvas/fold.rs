@@ -101,6 +101,16 @@ impl Canvas {
         self.items(page).map(Item::id).filter(|&id| under(id)).collect()
     }
 
+    /// A folded box as it stands open: its open frame and no fold. `None`
+    /// for an open box or any other item. What a crop of the box draws.
+    #[must_use]
+    pub fn opened(&self, of: ItemId) -> Option<Item> {
+        let item = self.item(of)?;
+        let Shape::Box { frame, colour, fold: Some(fold) } = &item.shape else { return None };
+        let frame = Rect::new(frame.x, frame.y, fold.open.0, fold.open.1);
+        Some(Item { shape: Shape::Box { frame, colour: *colour, fold: None }, ..item.clone() })
+    }
+
     /// The items in the way of a folded box's unfold, in item order: those
     /// in the same place as the box whose bounds touch its open frame. None
     /// for an open box.

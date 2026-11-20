@@ -144,10 +144,11 @@ impl Packet {
     }
 
     /// How many strokes of the user's ink are new: the `strokes` of each
-    /// `new` line.
+    /// `new` ink line, and the `new` of each folded box there.
     #[must_use]
     pub fn new_strokes(&self) -> u64 {
-        let strokes = self.new.iter().filter_map(|e| e.field("strokes")?.parse::<u64>().ok());
+        let count = |e: &Entry| e.field("strokes").or_else(|| e.field("new"))?.parse::<u64>().ok();
+        let strokes = self.new.iter().filter_map(count);
         strokes.sum()
     }
 

@@ -198,22 +198,25 @@ impl Canvases {
         self.with(id, |log| Ok((log.show(page)?, log.next())))
     }
 
-    /// The packet of one page (see [`Log::packet`]): the lines after
-    /// `after` are new, and the images of new ink are drawn over `under`.
+    /// The packet of one page, or of what the box `inside` holds (see
+    /// [`Log::packet`]): the lines after `after` are new, and the images of
+    /// new ink are drawn over `under`.
     ///
     /// # Errors
     ///
-    /// `not_found` for a canvas or page that is not there, `invalid` for a
-    /// selected id that is not one, and the errors of reading the file.
+    /// `not_found` for a canvas, page or box that is not there, `invalid`
+    /// for a selected id that is not one or an `inside` that is not a box,
+    /// and the errors of reading the file.
     pub fn packet(
         &self,
         id: &str,
         page: Option<&str>,
+        inside: Option<&str>,
         after: u64,
         select: &[String],
         under: &[Backdrop],
     ) -> Result<Packet> {
-        self.with(id, |log| Ok(log.packet(id, page, after, select, under)?))
+        self.with(id, |log| Ok(log.packet(id, page, inside, after, select, under)?))
     }
 
     /// The areas of PDF pages under the new ink of one page (see
