@@ -828,8 +828,9 @@ canvases/dictation.rs  the `dictate` command: opens the sling's entry when
              beside a note's or a new name's entry (scene/sling/pen.rs),
              with the selection's in sling_marks.
 drive.rs     a driven window's requests (`slinger-app --drive SOCKET`, which
-             `slinger drive` sends): one line of JSON per connection in, one
-             line out. `parse` turns a request into the events platform hands
+             `slinger drive` sends): one line per connection in, one line
+             out, read and written as `control::{DriveAsk, DriveReply}`
+             (crates/control/src/drive.rs). `parse` turns a request into the events platform hands
              in for real input (a key and the text it types, the pen, the
              right or middle button or a ctrl+press, a scroll, a pinch, a command, a paste, a drop, a tick), or an ask
              for the scene, a PNG, a resize or the window's own clipboard; a
@@ -1654,6 +1655,7 @@ Each boundary has something that fails when it is broken:
 | The protocol crate does not link the core | `check:layers` rule `control-is-transport-only` |
 | The CLI reaches the core only through the socket | `check:layers` rule `cli-uses-the-socket` |
 | The app reaches the core only through the socket | `check:layers` rule `app-uses-the-socket` |
+| `slinger drive` and a driven window write and read drive lines only as `control::{DriveAsk, DriveReply}`, never as hand-built JSON; each op's line is golden (`crates/control/tests/fixtures/drive.jsonl`) | `check:layers` rule `drive-speaks-typed`, `crates/control/src/drive.rs` tests, `crates/cli/src/tests/drive_wire.rs`, `crates/app/src/drive.rs` tests |
 | The agent guide, the skill, the plugin and the sling note (the core's stored snapshots) name only commands and flags the CLI has; the plugin has the binary's version | `crates/cli/src/tests/guide.rs` |
 | A driven window's request becomes the events real input makes, and a wrong one says how; the outline says a typed text and its caret; `slinger drive` sends the request and maps the reply to its exit code | `crates/app/src/drive.rs`, `crates/app/src/tests/drive.rs`, `crates/cli/src/tests/drive.rs` |
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |

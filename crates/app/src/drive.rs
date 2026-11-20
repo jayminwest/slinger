@@ -13,7 +13,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use serde_json::{Value, json};
+use slinger_control::{DriveAsk, DriveButton, DriveReply, PenAt, PenFlags};
 
 pub use self::outline::{menu, outline};
 use crate::commands::context::Popup;
@@ -128,93 +128,62 @@ const STEP: f64 = 0.01;
 /// What the request `line` asks, its pen events made at `when` (seconds);
 /// else what is wrong with it.
 pub fn parse(line: &str, when: f64) -> Result<Ask, String> {
-    let ask: Value = serde_json::from_str(line).map_err(|e| format!("not JSON: {e}"))?;
-    let op = ask["op"].as_str().ok_or("no \"op\"")?;
-    match op {
-        "scene" => Ok(Ask::Scene { debug: ask["debug"].as_bool().unwrap_or(false) }),
-        "shot" => Ok(Ask::Shot(PathBuf::from(text(&ask, "path")?))),
-        "resize" => Ok(Ask::Resize(Size { width: num(&ask, "w")?, height: num(&ask, "h")? })),
-        "key" => Ok(Ask::Send(vec![key(text(&ask, "chord")?, ask["text"].as_str())?])),
-        "type" => Ok(Ask::Send(text(&ask, "text")?.chars().map(typed).collect())),
-        "clip" => Ok(Ask::Clip),
-        "pick" => Ok(Ask::Pick(text(&ask, "title")?.to_string())),
-        "paste" if ask["text"].is_null() => Ok(Ask::Paste),
-        "stroke" => stroke(&ask["points"], |at, i| pen(&ask, at, when + STEP * i)),
-        _ => Ok(Ask::Send(vec![(event(op, &ask, when)?, None)])),
+    let one = |event| Ok(Ask::Send(vec![(event, None)]));
+    match DriveAsk::read(line)? {
+        DriveAsk::Scene { debug } => Ok(Ask::Scene { debug }),
+        DriveAsk::Shot { path } => Ok(Ask::Shot(path)),
+        DriveAsk::Resize { w, h } => Ok(Ask::Resize(Size { width: w, height: h })),
+        DriveAsk::Key { chord, text } => Ok(Ask::Send(vec![key(&chord, text.as_deref())?])),
+        DriveAsk::Type { text } => Ok(Ask::Send(text.chars().map(typed).collect())),
+        DriveAsk::Clip => Ok(Ask::Clip),
+        DriveAsk::Pick { title } => Ok(Ask::Pick(title)),
+        DriveAsk::Paste { text: None } => Ok(Ask::Paste),
+        DriveAsk::Paste { text: Some(text) } => {
+            one(Event::Edit(Edit::Paste(Clip::new(Some(text), None))))
+        }
+        DriveAsk::Stroke { points, pen: flags } => {
+            stroke(&points, |at, i| pen(flags, at, when + STEP * i))
+        }
+        DriveAsk::Press(at) => one(penned(&at, Phase::Down, when)),
+        DriveAsk::Drag(at) => one(penned(&at, Phase::Drag, when)),
+        DriveAsk::Lift(at) => one(penned(&at, Phase::Up, when)),
+        DriveAsk::Tick => one(Event::Tick),
+        DriveAsk::Move { x, y } => one(Event::Moved(Point { x, y })),
+        DriveAsk::Scroll { x, y, dx, dy } => one(Event::Scroll { at: Point { x, y }, dx, dy }),
+        DriveAsk::Zoom { x, y, factor } => one(Event::Zoom { at: Point { x, y }, factor }),
+        DriveAsk::Space { down } => one(Event::Space(down)),
+        DriveAsk::Proximity { near, eraser } => one(Event::Proximity { near, eraser }),
+        DriveAsk::Copy => one(Event::Edit(Edit::Copy)),
+        DriveAsk::Cut => one(Event::Edit(Edit::Cut)),
+        DriveAsk::Drop { x, y, path } => one(Event::Dropped(Point { x, y }, vec![path])),
+        DriveAsk::Command { name } => one(Event::Command(
+            Command::named(&name).ok_or_else(|| format!("no command {name:?}"))?,
+        )),
     }
 }
 
-/// The number `ask` has under `key`.
-fn num(ask: &Value, key: &str) -> Result<f64, String> {
-    ask[key].as_f64().ok_or_else(|| format!("it needs a number \"{key}\""))
+/// A pen event at `at` with what `flags` say of it: a mouse's unless `tablet`.
+fn pen(flags: PenFlags, at: Point, when: f64) -> Pen {
+    let PenFlags { tablet, shift, touch, eraser } = flags;
+    Pen { at, when, touch, eraser, shift, tablet }
 }
 
-/// The string `ask` has under `key`.
-fn text<'a>(ask: &'a Value, key: &str) -> Result<&'a str, String> {
-    ask[key].as_str().ok_or_else(|| format!("it needs a string \"{key}\""))
-}
-
-/// The point `ask` names, in the window from its top left.
-fn at(ask: &Value) -> Result<Point, String> {
-    Ok(Point { x: num(ask, "x")?, y: num(ask, "y")? })
-}
-
-/// A pen event at `at` with what `ask` says of it: a mouse's unless `tablet`.
-fn pen(ask: &Value, at: Point, when: f64) -> Pen {
-    let flag = |key: &str| ask[key].as_bool().unwrap_or(false);
-    Pen {
-        at,
-        when,
-        touch: flag("touch"),
-        eraser: flag("eraser"),
-        shift: flag("shift"),
-        tablet: flag("tablet"),
-    }
-}
-
-/// The one event `op` names, from the fields of `ask`.
-fn event(op: &str, ask: &Value, when: f64) -> Result<Event, String> {
-    let flag = |key: &str| ask[key].as_bool().unwrap_or(false);
-    Ok(match op {
-        "tick" => Event::Tick,
-        "move" => Event::Moved(at(ask)?),
-        "press" | "drag" | "lift" => {
-            let (at, pen) = (at(ask)?, pen(ask, at(ask)?, when));
-            match (button(ask)?, op) {
-                (Some(button), "press") => Event::Button { button, phase: Phase::Down, at },
-                (Some(button), "drag") => Event::Button { button, phase: Phase::Drag, at },
-                (Some(button), _) => Event::Button { button, phase: Phase::Up, at },
-                (None, "press") => Event::Press(pen),
-                (None, "drag") => Event::Drag(pen),
-                (None, _) => Event::Lift(pen),
-            }
-        }
-        "scroll" => Event::Scroll { at: at(ask)?, dx: num(ask, "dx")?, dy: num(ask, "dy")? },
-        "zoom" => Event::Zoom { at: at(ask)?, factor: num(ask, "factor")? },
-        "space" => Event::Space(flag("down")),
-        "proximity" => Event::Proximity { near: flag("near"), eraser: flag("eraser") },
-        "copy" => Event::Edit(Edit::Copy),
-        "cut" => Event::Edit(Edit::Cut),
-        "paste" => Event::Edit(Edit::Paste(Clip::new(Some(text(ask, "text")?.into()), None))),
-        "drop" => Event::Dropped(at(ask)?, vec![PathBuf::from(text(ask, "path")?)]),
-        "command" => {
-            let name = text(ask, "name")?;
-            Event::Command(Command::named(name).ok_or_else(|| format!("no command {name:?}"))?)
-        }
-        _ => return Err(format!("no op {op:?}")),
-    })
-}
-
-/// The button `ask` names (`"button": "right"` or `"middle"`), or the
-/// secondary one for a left press with `"control": true`, as macOS takes a
-/// ctrl+click; `None` for the left button (a pen event).
-fn button(ask: &Value) -> Result<Option<Button>, String> {
-    let control = ask["control"].as_bool().unwrap_or(false);
-    match ask["button"].as_str() {
-        None | Some("left") => Ok(control.then_some(Button::Secondary)),
-        Some("right") => Ok(Some(Button::Secondary)),
-        Some("middle") => Ok(Some(Button::Middle)),
-        Some(other) => Err(format!("no button {other:?}: left, right or middle")),
+/// The press, drag or lift (`phase`) at `ask`: a button's for the right or
+/// middle one, or the left with control held, as macOS takes a ctrl+click;
+/// else the pen's.
+fn penned(ask: &PenAt, phase: Phase, when: f64) -> Event {
+    let at = Point { x: ask.x, y: ask.y };
+    let button = match (ask.button, ask.control) {
+        (DriveButton::Left, false) => None,
+        (DriveButton::Left | DriveButton::Right, _) => Some(Button::Secondary),
+        (DriveButton::Middle, _) => Some(Button::Middle),
+    };
+    let pen = pen(ask.pen, at, when);
+    match (button, phase) {
+        (Some(button), phase) => Event::Button { button, phase, at },
+        (None, Phase::Down) => Event::Press(pen),
+        (None, Phase::Drag) => Event::Drag(pen),
+        (None, Phase::Up) => Event::Lift(pen),
     }
 }
 
@@ -239,13 +208,13 @@ fn typed(c: char) -> (Event, Option<String>) {
     (Event::Key(Chord::new(mods, c)), Some(c.to_string()))
 }
 
-/// A press at the first of `points` (`[[x, y], ...]`), a drag to each
-/// other, and a lift at the last.
-fn stroke(points: &Value, pen: impl Fn(Point, f64) -> Pen) -> Result<Ask, String> {
-    let point = |p: &Value| Some(Point { x: p[0].as_f64()?, y: p[1].as_f64()? });
-    let points: Option<Vec<Point>> = points.as_array().into_iter().flatten().map(point).collect();
-    let points =
-        points.filter(|p| !p.is_empty()).ok_or("stroke needs \"points\": [[x, y], ...]")?;
+/// A press at the first of `points`, a drag to each other, and a lift at
+/// the last.
+fn stroke(points: &[[f64; 2]], pen: impl Fn(Point, f64) -> Pen) -> Result<Ask, String> {
+    if points.is_empty() {
+        return Err("stroke needs \"points\": [[x, y], ...]".into());
+    }
+    let points: Vec<Point> = points.iter().map(|&[x, y]| Point { x, y }).collect();
     let mut events = Vec::new();
     let mut i = 0.0;
     for (n, &at) in points.iter().enumerate() {
@@ -277,11 +246,11 @@ pub fn listen(
                 continue;
             }
             let reply = match parse(&line, start.elapsed().as_secs_f64()).and_then(&hand) {
-                Ok(said) => json!({ "ok": true, "said": said }),
-                Err(error) => json!({ "ok": false, "error": error }),
+                Ok(said) => DriveReply::Said(said),
+                Err(error) => DriveReply::Refused(error),
             };
             // A client that went away gets no reply.
-            let _ = writeln!(&stream, "{reply}");
+            let _ = writeln!(&stream, "{}", reply.line());
         }
     });
     Ok(())
@@ -379,6 +348,19 @@ mod tests {
         assert_eq!(
             parse(r#"{"op":"pick","title":"New text"}"#, 0.0),
             Ok(Ask::Pick("New text".into()))
+        );
+    }
+
+    #[test]
+    fn each_line_slinger_drive_writes_is_a_request() {
+        let golden = include_str!("../../control/tests/fixtures/drive.jsonl");
+        for line in golden.lines() {
+            assert!(parse(line, 0.0).is_ok(), "{line}: {:?}", parse(line, 0.0));
+        }
+        let near = parse(r#"{"op":"proximity","near":true}"#, 0.0);
+        assert_eq!(
+            near,
+            Ok(Ask::Send(vec![(Event::Proximity { near: true, eraser: false }, None)]))
         );
     }
 

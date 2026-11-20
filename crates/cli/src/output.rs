@@ -38,6 +38,11 @@ impl Output {
     pub fn new(data: Value, human: String) -> Self {
         Self { data, human }
     }
+
+    /// A result whose text is one field, `key`, of its `--json` object.
+    pub fn one(key: &str, text: String) -> Self {
+        Self { data: json!({ key: text }), human: text }
+    }
 }
 
 /// A failure as callers see it: a stable code, a message, a hint, an exit code.

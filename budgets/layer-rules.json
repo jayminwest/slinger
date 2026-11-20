@@ -71,6 +71,20 @@
 			]
 		},
 		{
+			"name": "drive-speaks-typed",
+			"why": "slinger drive and a driven window write and read the drive protocol only as control's DriveAsk and DriveReply, so neither end builds or picks apart a line by hand",
+			"paths": [
+				"crates/cli/src/drive.rs",
+				"crates/app/src/drive.rs"
+			],
+			"except": [],
+			"forbid": [
+				"json",
+				"serde_json",
+				"Value"
+			]
+		},
+		{
 			"name": "app-logic-is-pure",
 			"why": "only main.rs starts the platform, so the modules that decide what the window shows run in unit tests without AppKit",
 			"paths": [
