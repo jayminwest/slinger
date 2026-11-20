@@ -445,7 +445,7 @@ operation is a valid packet with nothing new. `select` takes ids as the
 file (`i12`) or a packet (`c12`, `t12`) writes them, and keeps only those
 items in the `page` section. `in` names a box (`b4` or `i4`) and reads what
 it holds directly, open or folded, as if it were the page, on the box's own
-page (docs/design/fold.md); a `page` that is not the box's page, or a box
+page (docs/design/fold.md), its header naming the box (`in=b4`); a `page` that is not the box's page, or a box
 that is not there, is `not_found`, and an item that is not a box is
 `invalid`. The text, without `at`, is stored as a blob,
 so the same page gives the same id; each image is a blob too. The daemon
@@ -1090,7 +1090,8 @@ points at both; it takes no `at`. `color` draws any of them in that colour,
 and `size` sizes a text's characters. What a put leaves out matches the
 user's writing near it: the colour and size of the user's ink or text it goes
 beside (a stroke counts with its whole cluster), else of the user's ink and
-text on that page, else black and 240. The colour is the one most of those
+text the page shows (not what a folded box hides; beside a hidden item, what
+the same folded box holds), else black and 240. The colour is the one most of those
 items have; the size is the median of a text's own size and, for a cluster
 of ink, the median height of its lines of writing. A cluster whose every
 stroke is over twice the median height of the strokes counted (a frame

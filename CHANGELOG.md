@@ -22,6 +22,7 @@ bullet with the area in bold.
   new ink in it puts the box's line under the new things with `new=`.
   `slinger canvas read <ID> --in b4` reads what a box holds, open or folded,
   and `slinger canvas crop <ID> --item b4` of a folded box shows it open.
+  Such a packet's header names the box: `in=b4`.
 - **Agents:** `slinger canvas find` finds texts inside folded boxes too,
   and names the folded box that hides each (`i7 in i4`).
 - **Agents:** an `add` in `slinger canvas apply` may name a folded box with
@@ -494,6 +495,8 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** a reply that leaves out its colour and size no longer takes
+  them from writing hidden in a folded box; it matches what the page shows.
 - **App:** the caret in a canvas text moves, and delete deletes, by what
   reads as one character: an emoji joined from several (a family, a skin
   tone), a letter with its accents, a flag. It no longer stops inside one.
