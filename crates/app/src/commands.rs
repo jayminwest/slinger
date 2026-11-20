@@ -42,7 +42,8 @@ pub enum Command {
     ShrinkPane,
     /// Open the sidebar, or collapse it.
     ToggleSidebar,
-    /// Hide the notice that an agent is blocked or done.
+    /// Hide the notice that an agent is blocked or done, and the offer to
+    /// restart a slingerd of another build.
     DismissNotice,
     /// Move the focused pane's canvas: the view goes left (the ink right).
     PanLeft,
@@ -186,6 +187,9 @@ pub enum Command {
     /// Start the bundled slingerd that was stopped on purpose (a bundled
     /// app only: `crate::launch`).
     StartSlingerd,
+    /// Stop slingerd and start the bundled one: what the offer for a
+    /// slingerd of another build runs (a bundled app only: `crate::launch`).
+    RestartDaemon,
 }
 
 /// How many commands there are.
@@ -193,7 +197,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 86] = [
+    pub const ALL: [(Command, &str); 87] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -280,6 +284,7 @@ impl Command {
         (Command::StepInBeside, "step-in-beside"),
         (Command::StepOut, "step-out"),
         (Command::StartSlingerd, "start-slingerd"),
+        (Command::RestartDaemon, "restart-daemon"),
     ];
 
     /// The command called `name` in the config file.
@@ -419,6 +424,7 @@ impl Default for Keymap {
             on(CMD | ALT, 'i'),
             on(CMD | ALT | SHIFT, 'i'),
             on(CMD | ALT, 'o'),
+            None,
             None,
         ])
     }

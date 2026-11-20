@@ -32,6 +32,7 @@ pub fn workspaces(daemon: &Client) -> Result<Vec<Workspace>, Problem> {
             profile: session.and_then(|s| s.profile.clone()).filter(|_| running),
             profiles,
             name,
+            running,
         }
     };
     Ok(open

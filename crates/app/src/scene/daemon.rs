@@ -28,6 +28,45 @@ pub enum Daemon {
 pub const STARTING: &str = "Starting slingerd…";
 /// The sidebar's line under a stopped daemon: a tap starts it.
 pub const START: &str = "Start slingerd";
+/// What `start-slingerd` flashes in an app that starts no daemon.
+pub const NOT_MANAGED: &str = "Only slinger.app starts slingerd, when its config names no socket";
+/// What `restart-daemon` flashes in an app that did not start the daemon.
+pub const NOT_STARTED: &str = "slinger did not start this slingerd: restart it where it runs";
+/// What `restart-daemon` flashes for a daemon older than `daemon_stop`.
+pub const OLD: &str = "This slingerd is too old to stop from here: stop it once with SIGTERM";
+
+/// What `start-slingerd` and `restart-daemon` ask of the launcher.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Launching {
+    Start,
+    Restart,
+}
+
+/// What `command` (`start-slingerd` or `restart-daemon`) does in an app
+/// that is `managed` or not, with the daemon that answers `old` (it
+/// predates `daemon_stop`) or not: what to ask the launcher, or why not.
+///
+/// # Errors
+///
+/// What to flash when the app cannot.
+pub fn launching(command: Command, managed: bool, old: bool) -> Result<Launching, &'static str> {
+    match (command, managed) {
+        (Command::RestartDaemon, false) => Err(NOT_STARTED),
+        (Command::RestartDaemon, true) if old => Err(OLD),
+        (Command::RestartDaemon, true) => Ok(Launching::Restart),
+        (_, false) => Err(NOT_MANAGED),
+        (_, true) => Ok(Launching::Start),
+    }
+}
+
+/// What the window flashes when the daemon refused `daemon_stop` with
+/// `code`, saying `why`.
+pub fn refused(code: &str, why: &str) -> String {
+    match code {
+        "bad_request" => OLD.into(),
+        _ => format!("slingerd did not stop: {why}"),
+    }
+}
 
 impl Daemon {
     /// Its lines, each with its colour: what it is, then what to do.
@@ -155,6 +194,28 @@ mod tests {
         let silent = Daemon::Failed { code: None, said: None, log: "/l".into() };
         assert_eq!(texts(&silent.lines(&T))[0], ("✗ slingerd did not start", T.error));
         assert_eq!(silent.sidebar(&T), [("✗ slingerd did not start".into(), T.error, None)]);
+    }
+
+    #[test]
+    fn start_and_restart_in_a_managed_app_or_not() {
+        let (start, restart) = (Command::StartSlingerd, Command::RestartDaemon);
+        let table = [
+            ((start, true, false), Ok(Launching::Start)),
+            ((start, true, true), Ok(Launching::Start)),
+            ((start, false, false), Err(NOT_MANAGED)),
+            ((restart, true, false), Ok(Launching::Restart)),
+            ((restart, true, true), Err(OLD)),
+            ((restart, false, false), Err(NOT_STARTED)),
+            ((restart, false, true), Err(NOT_STARTED)),
+        ];
+        for ((command, managed, old), want) in table {
+            assert_eq!(launching(command, managed, old), want, "{command:?} {managed} {old}");
+        }
+        assert_eq!(refused("bad_request", "x"), OLD);
+        assert_eq!(
+            refused("internal", "cannot write /d/stopped"),
+            "slingerd did not stop: cannot write /d/stopped"
+        );
     }
 
     #[test]

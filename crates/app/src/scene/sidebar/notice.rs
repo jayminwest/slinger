@@ -39,9 +39,11 @@ impl Noticed {
 }
 
 impl Sidebar {
-    /// Hides the notice until an agent next becomes blocked or done.
+    /// Hides the notice until an agent next becomes blocked or done, and
+    /// the offer to restart the daemon for that daemon.
     pub fn dismiss(&mut self) {
         self.notice.clear();
+        self.waive();
     }
 
     /// Lets time pass to `now`: an agent the notice shows for the first
@@ -81,10 +83,12 @@ impl Sidebar {
     }
 
     /// The notice in the panes' area `panes`: its text, then its ✕ at its
-    /// right end. Empty when there is none.
+    /// right end; then the offer to restart the daemon above it
+    /// ([`Sidebar::offer`]). Empty when there is none.
     pub fn notice(&self, theme: &Theme, panes: Rect) -> Vec<Label> {
+        let (offer, _) = self.offer_bar(theme, panes, self.notice_frame(panes));
         let Some(frame) = self.notice_frame(panes) else {
-            return Vec::new();
+            return offer;
         };
         let parts: Vec<String> = self
             .notice
@@ -96,20 +100,24 @@ impl Sidebar {
             .collect();
         let (text, close) = split(frame);
         let fill = Some(theme.focus);
-        vec![
+        let mut labels = vec![
             Label { text: parts.join(" · "), colour: theme.background, fill, frame: text },
             Label { text: CLOSE.into(), colour: theme.background, fill, frame: close },
-        ]
+        ];
+        labels.extend(offer);
+        labels
     }
 
-    /// The notice's tap targets: its ✕ runs `dismiss-notice`, and the rest
-    /// shows the workspace of the first agent it names.
-    pub fn notice_targets(&self, panes: Rect) -> Vec<Target> {
+    /// The notice's tap targets: the offer's ([`Sidebar::offer`]); its ✕
+    /// runs `dismiss-notice`, and the rest shows the workspace of the first
+    /// agent it names.
+    pub fn notice_targets(&self, theme: &Theme, panes: Rect) -> Vec<Target> {
+        let (_, mut targets) = self.offer_bar(theme, panes, self.notice_frame(panes));
         let Some(frame) = self.notice_frame(panes) else {
-            return Vec::new();
+            return targets;
         };
         let (text, close) = split(frame);
-        let mut targets = vec![(close, Tap::Run(Command::DismissNotice))];
+        targets.push((close, Tap::Run(Command::DismissNotice)));
         let list = self.workspaces.iter().flatten();
         let first = &self.notice[0].agent;
         let index = list

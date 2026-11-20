@@ -493,15 +493,23 @@ backend/daemon.rs  the Launcher of a bundled app (launch.rs decides): a
              thread that looks at the socket about once a second, runs the
              bundled slingerd with `--log` in its own process group, reaps
              it, reads what it said before its log opened, and tells the
-             window the launch line (scene/daemon.rs). The spawn is a
-             closure, so tests run a stand-in or the daemon library.
+             window the launch line (scene/daemon.rs). Each time the daemon
+             comes to answer, or answers on another socket, it asks
+             `daemon_info` and tells the window the Offer when the build is
+             another (launch/skew.rs); `restart-daemon` sends `daemon_stop`
+             from this thread and `Launch::restart` starts the bundled one
+             once the old is gone, its stop mark notwithstanding. The spawn
+             is a closure, so tests run a stand-in or the daemon library.
 launch.rs    whether and when the app starts slingerd, pure: `bundled`
              (`<X>.app/Contents/MacOS/slingerd` beside the app's resolved
              path, none for a bare binary), `managed` (bundled, no
              `[daemon] socket`, not driven, data directory known) and
              `Launch`: up, starting (10 s), failed (retry after 30 s; exit
              4 is a lost race, waited for), stopped on purpose (until the
-             app opens again or `start-slingerd`); one child at a time.
+             app opens again or `start-slingerd`); one child at a time, a
+             child still ending reaped before the next start. launch/skew.rs:
+             `skew(mine, theirs)` is Same, Differs (both builds named) or
+             Old (`bad_request` to `daemon_info`); no answer is asked again.
 backend/wake.rs  Wake and Teller, pure: a Teller's send puts the news in its
              channel and then wakes the main thread through the post
              platform::waker gives, unless a wake is pending; the main
@@ -870,7 +878,20 @@ ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
 scene/daemon.rs  what the window says of the daemon, pure: the launch line
              (starting, did not start with its exit and log, stopped with
              the sidebar's Start slingerd line) in place of every problem
-             from asking the daemon (`said`), and why a save waits.
+             from asking the daemon (`said`), and why a save waits;
+             `launching` decides what `start-slingerd` and `restart-daemon`
+             do (ask, restart, or the flash of why not: not managed, not
+             started by this app, too old to stop). window/launched.rs
+             carries the launcher's news to the sidebar and the flash, and
+             these commands to it; the daemon it started coming to answer
+             pokes the Watch (`Watch::poke`), so the sidebar's list comes
+             at once.
+scene/sidebar/launched.rs  the launch line and the restart offer the
+             sidebar holds: a two-row bar of the notice, above the agents'
+             bar, naming both builds, with "Restart slingerd" and the count
+             of agents' processes a restart ends (an old daemon: how to
+             stop it, no button); its ✕ (`Tap::Waive`) or `dismiss-notice`
+             hides it for that daemon's pid.
 scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
              their agents in; the sidebar's rows (a `WORKSPACES` heading; each
              workspace, the shown one bold on a lighter row; its agent's mark,
@@ -1466,6 +1487,7 @@ Each boundary has something that fails when it is broken:
 | `daemon_info` names the process that answers (pid, build, socket, data directory, the Claude Code it would run now, log); `daemon_stop` replies, answers what came before it, ends the daemon as SIGTERM does with exit 0 and leaves the `stopped` mark that the next start removes (docs/service.md) | `crates/daemon/src/tests/daemon.rs`, `crates/daemon/tests/signals.rs`, `crates/cli/src/tests/stop.rs` |
 | A daemon names its socket in its data directory while it serves and takes the name back as it stops; `slinger` given no socket finds it there, on any path, and so does the app with no `[daemon] socket`; both pass over a name nothing listens on (`control::live_socket`), and an explicit socket is kept (docs/service.md) | `crates/control/src/place.rs` tests, `crates/daemon/tests/signals.rs`, `crates/cli/tests/agent_env.rs`, `crates/app/src/backend/place.rs` tests |
 | A bare `slinger-app`, a driven window and an app whose config names a socket never start a daemon; a bundled one starts its own slingerd only when none answers and none was stopped on purpose, one at a time | `crates/app/src/launch/tests.rs`, `crates/app/src/backend/daemon/tests.rs` |
+| A slingerd of another build is offered for a restart, never restarted unasked; `restart-daemon` stops it and the bundled one answers in its place; one that lacks `daemon_info` reads as old and is not stopped from the app | `crates/app/src/launch/skew.rs`, `crates/app/src/backend/daemon/tests.rs`, `crates/app/src/scene/sidebar/launched/tests.rs` |
 | The client takes a reply slower than 5 s (the daemon under disk load) as an answer, not `unavailable`; it waits 30 s at most, and no reply in that time hints to retry or restart, not to start the daemon (docs/service.md) | `crates/control/src/client.rs` tests, with a fake daemon |
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
 | The packet's image rules: scale, margin, tiles, same bytes for the same input | `crates/core/tests/render.rs`, with golden images |

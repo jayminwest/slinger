@@ -1,7 +1,11 @@
 //! The [`Launcher`]: a bundled app's daemon, started when none answers
 //! (docs/service.md, "Socket"). [`crate::launch`] decides; this thread looks
 //! at the socket about once a second, spawns the bundled `slingerd` and
-//! reaps it, and tells the window what to say ([`Daemon`]).
+//! reaps it, and tells the window what to say ([`Daemon`]). Each time the
+//! daemon comes to answer, or answers on another socket, it asks
+//! `daemon_info` and tells the window when the build is another
+//! ([`Offer`]); `restart-daemon` stops it ([`Launcher::restart`]) and the
+//! same loop starts the bundled one.
 //!
 //! The daemon it starts takes the defaults (no `--socket`, no
 //! `--data-dir`, never `--scratch`) and writes its log in its record. It
@@ -19,12 +23,13 @@ use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
-use slinger_control as control;
+use slinger_control::{self as control, Client, DaemonInfo, RemoteError};
 
 use super::Settings;
 use super::wake::Wake;
-use crate::launch::{self, Found, Launch, Managed, Seen};
-use crate::scene::daemon::Daemon;
+use crate::launch::{self, Build, Found, Launch, Managed, Seen, Skew};
+use crate::scene::daemon::{self as said, Daemon};
+use crate::scene::sidebar::launched::Offer;
 
 /// How often the launcher looks at the socket.
 const EVERY: Duration = Duration::from_secs(1);
@@ -82,16 +87,33 @@ impl Started for Child {
 }
 
 /// Whether the daemon of `data_dir` answers, on the socket it named, else
-/// on `socket`, and whether it was stopped on purpose. Only a refused
-/// connect or no socket file is no daemon: one that takes the connection
-/// is running, however slowly it answers (slinger-2f9883).
-fn look(data_dir: &Path, socket: &Path) -> Seen {
+/// on `socket`, and whether it was stopped on purpose; and the socket
+/// looked at. Only a refused connect or no socket file is no daemon: one
+/// that takes the connection is running, however slowly it answers
+/// (slinger-2f9883).
+fn look(data_dir: &Path, socket: &Path) -> (Seen, PathBuf) {
     let socket = control::live_socket(data_dir).unwrap_or_else(|| socket.to_path_buf());
     let answers = match UnixStream::connect(&socket) {
         Ok(_) => true,
         Err(e) => !matches!(e.kind(), ErrorKind::NotFound | ErrorKind::ConnectionRefused),
     };
-    Seen { answers, stopped: control::stop_mark(data_dir).exists() }
+    (Seen { answers, stopped: control::stop_mark(data_dir).exists() }, socket)
+}
+
+/// The skew of the daemon that said `info` to `daemon_info`: `None` when
+/// it said nothing to go by (ask again later).
+fn skew(info: &Result<DaemonInfo, RemoteError>) -> Option<Skew> {
+    let stamp = control::stamp();
+    let mine = Build { version: control::PACKAGE, stamp: &stamp };
+    let theirs = info.as_ref().map(|i| Build { version: &i.version, stamp: &i.build });
+    launch::skew(mine, theirs.map_err(RemoteError::code))
+}
+
+/// The offer for the daemon that said `info` and is `skew`: none for this
+/// app's own build.
+fn offer(info: &Result<DaemonInfo, RemoteError>, skew: Skew) -> Option<Offer> {
+    let pid = info.as_ref().ok().map(|i| i.pid);
+    (skew != Skew::Same).then_some(Offer { pid, skew })
 }
 
 /// The thread that keeps a bundled app's daemon running, and what it last
@@ -102,38 +124,63 @@ pub struct Launcher {
     news: Receiver<Said>,
 }
 
-/// What the window says of the daemon now; `None`: nothing.
+/// What the launcher tells the window.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Said(pub Option<Daemon>);
+pub enum Said {
+    /// What the window says of the daemon now; `None`: nothing, it answers.
+    Daemon(Option<Daemon>),
+    /// The offer to restart the daemon that answers; `None`: its build is
+    /// this app's, or none answers.
+    Offer(Option<Offer>),
+    /// The daemon did not stop for a restart: what to flash.
+    Refused(String),
+}
 
-/// Whether the user asked for a daemon since the thread last looked, and
-/// whether the launcher is gone; the bell that wakes the thread.
+/// What the user asked since the thread last looked, and whether the
+/// launcher is gone.
+#[derive(Debug, Default, Clone, Copy)]
+struct Asks {
+    start: bool,
+    restart: bool,
+    gone: bool,
+}
+
+/// The [`Asks`] and the bell that wakes the thread.
 #[derive(Debug, Default)]
 struct Asked {
-    now: Mutex<(bool, bool)>,
+    now: Mutex<Asks>,
     bell: Condvar,
 }
 
 impl Asked {
-    fn lock(&self) -> MutexGuard<'_, (bool, bool)> {
+    fn lock(&self) -> MutexGuard<'_, Asks> {
         self.now.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn ring(&self, change: impl FnOnce(&mut (bool, bool))) {
+    fn ring(&self, change: impl FnOnce(&mut Asks)) {
         change(&mut self.lock());
         self.bell.notify_all();
     }
 
-    /// Waits up to `every`; whether the user asked meanwhile, or `None`
-    /// once the launcher is gone.
-    fn next(&self, every: Duration) -> Option<bool> {
+    /// Waits up to `every`; what the user asked meanwhile, or `None` once
+    /// the launcher is gone.
+    fn next(&self, every: Duration) -> Option<Asks> {
         let (mut now, _) = self
             .bell
-            .wait_timeout_while(self.lock(), every, |&mut (asked, gone)| !asked && !gone)
+            .wait_timeout_while(self.lock(), every, |a| !a.start && !a.restart && !a.gone)
             .unwrap_or_else(PoisonError::into_inner);
-        let (asked, gone) = std::mem::take(&mut *now);
-        (!gone).then_some(asked)
+        let asks = std::mem::take(&mut *now);
+        (!asks.gone).then_some(asks)
     }
+}
+
+/// What the thread last told the window, and the socket whose daemon's
+/// build it last read.
+#[derive(Default)]
+struct Told {
+    daemon: Option<Daemon>,
+    offer: Option<Offer>,
+    read: Option<PathBuf>,
 }
 
 impl Launcher {
@@ -155,29 +202,56 @@ impl Launcher {
         let (tell, news) = wake.channel();
         let theirs = Arc::clone(&asked);
         std::thread::spawn(move || {
-            let (mut launch, mut child, mut told) = (Launch::new(), None::<Box<dyn Started>>, None);
+            let (mut launch, mut child) = (Launch::new(), None::<Box<dyn Started>>);
+            let mut told = Told::default();
             loop {
                 if let Some(exit) = child.as_mut().and_then(|c| c.exited()) {
                     child = None;
                     launch.exited(exit.0, exit.1, Instant::now());
                 }
-                if launch.look(look(&managed.data_dir, &socket), Instant::now()) {
+                let (seen, at) = look(&managed.data_dir, &socket);
+                if launch.look(seen, Instant::now()) {
                     match spawn(&managed) {
                         Ok(started) => child = Some(started),
                         Err(e) => launch.exited(None, Some(e.to_string()), Instant::now()),
                     }
                 }
                 let shown = launch.shown(&managed.log());
-                if shown != told {
-                    if tell.send(Said(shown.clone())).is_err() {
+                if shown != told.daemon {
+                    if tell.send(Said::Daemon(shown.clone())).is_err() {
                         return;
                     }
-                    told = shown;
+                    told.daemon = shown;
                 }
-                match theirs.next(every) {
-                    None => return,
-                    Some(true) => launch.ask(),
-                    Some(false) => {}
+                // The build of a daemon that came to answer, or moved.
+                let mut offered = told.offer.clone();
+                if !launch.is_up() {
+                    (told.read, offered) = (None, None);
+                } else if told.read.as_ref() != Some(&at) {
+                    let info = Client::new(&at).daemon_info();
+                    if let Some(skew) = skew(&info) {
+                        (told.read, offered) = (Some(at.clone()), offer(&info, skew));
+                    }
+                }
+                if offered != told.offer {
+                    if tell.send(Said::Offer(offered.clone())).is_err() {
+                        return;
+                    }
+                    told.offer = offered;
+                }
+                let Some(asks) = theirs.next(every) else { return };
+                if asks.restart {
+                    match Client::new(&at).daemon_stop() {
+                        Ok(_) => launch.restart(),
+                        Err(e) => {
+                            let why = said::refused(e.code(), &e.to_string());
+                            if tell.send(Said::Refused(why)).is_err() {
+                                return;
+                            }
+                        }
+                    }
+                } else if asks.start {
+                    launch.ask();
                 }
             }
         });
@@ -187,19 +261,25 @@ impl Launcher {
     /// The user asks for a daemon (`start-slingerd`): one starts at once,
     /// even one stopped on purpose.
     pub fn ask(&self) {
-        self.asked.ring(|now| now.0 = true);
+        self.asked.ring(|now| now.start = true);
     }
 
-    /// What the window says of the daemon now, if that changed since the
-    /// last call. Never blocks.
-    pub fn latest(&self) -> Option<Said> {
-        self.news.try_iter().last()
+    /// The user asks for a restart (`restart-daemon`): the daemon that
+    /// answers is stopped, and the bundled one started once it is gone.
+    /// Its agents' processes end with it.
+    pub fn restart(&self) {
+        self.asked.ring(|now| now.restart = true);
+    }
+
+    /// What the launcher told since the last call, oldest first. Never blocks.
+    pub fn news(&self) -> Vec<Said> {
+        self.news.try_iter().collect()
     }
 }
 
 impl Drop for Launcher {
     fn drop(&mut self) {
-        self.asked.ring(|now| now.1 = true);
+        self.asked.ring(|now| now.gone = true);
     }
 }
 

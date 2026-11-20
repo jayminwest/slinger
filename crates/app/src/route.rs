@@ -29,8 +29,8 @@ pub enum Routed {
     Watch(Option<String>, Step),
     /// Look at the news (a wake or a tick); `true` draws whether or not there is any.
     News(bool),
-    /// `start-slingerd`: ask the launcher for a daemon, then draw.
-    Start,
+    /// `start-slingerd` or `restart-daemon`: for the launcher, then draw.
+    Launch(Command),
 }
 
 /// Routes `event` as the window's answer does, all but the news a tick
@@ -99,7 +99,9 @@ pub fn route(
             };
         }
         (Ask::Run(Command::Quit), _) => Step::Quit,
-        (Ask::Run(Command::StartSlingerd), _) => return Routed::Start,
+        (Ask::Run(c @ (Command::StartSlingerd | Command::RestartDaemon)), _) => {
+            return Routed::Launch(c);
+        }
         // It flashes, and the window is drawn whether or not the files changed.
         (Ask::Run(Command::ReloadConfig), _) => {
             tools.flash().command(Command::ReloadConfig, &settings.config.keys, Instant::now());
