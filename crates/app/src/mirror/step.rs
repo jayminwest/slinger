@@ -47,6 +47,12 @@ impl Inside {
         self.folded
     }
 
+    /// The innermost box of the trail, open or folded: what a sling from
+    /// the pane is of.
+    pub fn innermost(&self) -> Option<ItemId> {
+        self.open.last().map(|(id, _)| *id).or(self.folded)
+    }
+
     /// Whether the pane shows the hidden items: it is inside a folded box.
     pub fn held(&self) -> bool {
         self.folded.is_some()

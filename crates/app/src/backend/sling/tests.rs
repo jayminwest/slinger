@@ -33,7 +33,7 @@ fn failed(heard: Heard) -> Problem {
 
 fn ask(ids: Vec<ItemId>, prompt: &str) -> Ask {
     let (canvas, page, prompt) = ("notes".into(), "p1".into(), prompt.into());
-    Ask { canvas, page, ids, prompt, profile: Profile::Running }
+    Ask { canvas, page, ids, inside: None, prompt, profile: Profile::Running }
 }
 
 /// Slings `prompt` so that it waits for a listener and nobody listens: a

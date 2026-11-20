@@ -172,8 +172,8 @@ fn follow(
     }
 }
 
-/// Sends `ask` as one `sling_send`: the canvas, the page, the selected
-/// items by the canvas file's ids, and the prompt. Under a picked profile
+/// Sends `ask` as one `sling_send`: the canvas, the page, the box it is of,
+/// the selected items by the canvas file's ids, and the prompt. Under a picked profile
 /// it first starts the agent of the canvas's workspace under it (the
 /// daemon leaves a process running under it as it is, and restarts one
 /// under another), and the sling goes only to that profile. Returns the
@@ -200,12 +200,14 @@ fn sling(
     };
     let select = ask.ids.into_iter().map(mirror::item_ref).collect();
     let (canvas, page, prompt) = (ask.canvas, Some(ask.page), ask.prompt);
+    // A sling of a box reads, and renders backdrops for, only what it holds.
+    let inside = ask.inside.map(mirror::item_ref);
     let n = SLINGS.fetch_add(1, Ordering::Relaxed);
     let dir = std::env::temp_dir().join(format!("slinger-app-sling-{}-{n}", std::process::id()));
-    let backdrops = render
-        .map(|(r, pdfs)| backdrops(daemon, &canvas, page.as_deref(), *r, pdfs, &dir))
-        .unwrap_or_default();
-    let request = SlingAsk { canvas, page, inside: None, select, prompt, profile, backdrops };
+    let here = (canvas.as_str(), page.as_deref(), inside.as_deref());
+    let backdrops =
+        render.map(|(r, pdfs)| backdrops(daemon, here, *r, pdfs, &dir)).unwrap_or_default();
+    let request = SlingAsk { canvas, page, inside, select, prompt, profile, backdrops };
     let slung = daemon.sling_send(request);
     let _ = fs::remove_dir_all(&dir);
     let slung = slung.map_err(Problem::from)?;
@@ -213,20 +215,19 @@ fn sling(
     Ok((slung.agent, slung.tokens, to))
 }
 
-/// The page under the new ink of `canvas`'s `page`, rendered with `render`
-/// from the PDFs fetched into `pdfs`, into `dir`: one backdrop per area the
-/// daemon names that renders. A daemon that does not say, a PDF not
-/// fetched or an area not rendered leaves it out, and so do the areas past
-/// half a request line.
+/// The page under the new ink of `canvas`'s `page` (only the ink box
+/// `inside` holds, when given), rendered with `render` from the PDFs
+/// fetched into `pdfs`, into `dir`: one backdrop per area the daemon names
+/// that renders. A daemon that does not say, a PDF not fetched or an area
+/// not rendered leaves it out, and so do the areas past half a request line.
 fn backdrops(
     daemon: &Client,
-    canvas: &str,
-    page: Option<&str>,
+    (canvas, page, inside): (&str, Option<&str>, Option<&str>),
     render: Render,
     pdfs: &Path,
     dir: &Path,
 ) -> Vec<Backdrop> {
-    let areas = daemon.sling_backdrops(canvas, page, None).unwrap_or_default();
+    let areas = daemon.sling_backdrops(canvas, page, inside).unwrap_or_default();
     if areas.is_empty() || fs::create_dir_all(dir).is_err() {
         return Vec::new();
     }

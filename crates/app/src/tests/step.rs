@@ -7,26 +7,26 @@ use super::*;
 use crate::commands::{ALT, SHIFT};
 use crate::scene::canvas::Draw;
 
-const STEP_IN: Chord = Chord::new(CMD | ALT, 'i');
+pub(super) const STEP_IN: Chord = Chord::new(CMD | ALT, 'i');
 const BESIDE: Chord = Chord::new(CMD | ALT | SHIFT, 'i');
 const FOLD: Chord = Chord::new(CMD | ALT, 'f');
 const ESCAPE: Chord = Chord::new(0, '\u{1b}');
 /// The dashed frame round the room a pane is inside (`canvases::step`).
-const ROOM: u64 = (1 << 60) - 2;
+pub(super) const ROOM: u64 = (1 << 60) - 2;
 
-fn apply(daemon: &control::Client, item: &serde_json::Value) {
+pub(super) fn apply(daemon: &control::Client, item: &serde_json::Value) {
     let ops = serde_json::json!({"op": "add", "item": item});
     let (canvas, by) = ("notes".to_string(), "user".to_string());
     daemon.canvas_apply(control::CanvasOps { canvas, by, ops, once: None }).unwrap();
 }
 
-fn stroke(x: i64, y: i64) -> serde_json::Value {
+pub(super) fn stroke(x: i64, y: i64) -> serde_json::Value {
     serde_json::json!({"page": "p1", "kind": "stroke", "color": "#000000", "width": 20,
         "pts": [x, y, 100, 100]})
 }
 
 /// Box `i1` from (100, 100), 400 by 300; stroke `i2` inside it, `i3` outside.
-fn page(daemon: &control::Client) {
+pub(super) fn page(daemon: &control::Client) {
     apply(
         daemon,
         &serde_json::json!({"page": "p1", "kind": "box", "color": "#000000",
@@ -37,7 +37,7 @@ fn page(daemon: &control::Client) {
 }
 
 /// The ids the first pane draws.
-fn drawn(w: &mut World) -> Vec<u64> {
+pub(super) fn drawn(w: &mut World) -> Vec<u64> {
     let area = w.sidebar.panes(w.shared.size.rect());
     let theme = w.settings.config.theme;
     let panes = w.canvases.show(&w.shared.panes, area, &theme);
@@ -45,7 +45,7 @@ fn drawn(w: &mut World) -> Vec<u64> {
 }
 
 /// Ticks until the first pane draws what `met` wants.
-fn settle(w: &mut World, met: impl Fn(&[u64]) -> bool) {
+pub(super) fn settle(w: &mut World, met: impl Fn(&[u64]) -> bool) {
     wait_until(|| {
         w.send(Event::Tick);
         met(&drawn(w))
@@ -53,7 +53,7 @@ fn settle(w: &mut World, met: impl Fn(&[u64]) -> bool) {
 }
 
 /// Selects all (cmd+a) until `n` items are selected.
-fn select_all(w: &mut World, n: usize) {
+pub(super) fn select_all(w: &mut World, n: usize) {
     wait_until(|| {
         w.send(Event::Tick);
         w.send(Event::Key(Chord::new(CMD, 'a')));
@@ -61,7 +61,7 @@ fn select_all(w: &mut World, n: usize) {
     });
 }
 
-fn held(daemon: &control::Client) -> serde_json::Value {
+pub(super) fn held(daemon: &control::Client) -> serde_json::Value {
     let items = daemon.canvas_show("notes", None).unwrap().items;
     items
         .iter()

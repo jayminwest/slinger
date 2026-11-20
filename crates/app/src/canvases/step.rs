@@ -20,6 +20,7 @@ use crate::mirror::{Inside, LINE_WIDTH, Mirror};
 use crate::panes::Panes;
 use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::ink::{Change, Ink};
+use crate::scene::select::Selection;
 use crate::scene::shapes::DOUBLE_TAP;
 
 /// The draw id of the dashed frame round the room a pane is inside: below
@@ -227,6 +228,22 @@ impl Canvases {
         let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v)?;
         let mirror = find(&self.open, here.0, Some(here.1))?.mirror.as_ref()?;
         mirror.step(&view.trail.on(here)).0?.joins()
+    }
+
+    /// The box a sling of `selection` from `pane` is of (docs/design/fold.md,
+    /// "Sling a box"): a box selected alone, else the innermost box the
+    /// pane is stepped into on the selection's page, if any.
+    pub(super) fn sling_box(&self, pane: PaneId, selection: &Selection) -> Option<ItemId> {
+        let here = (selection.canvas.as_str(), selection.page.as_str());
+        let mirror = find(&self.open, here.0, Some(here.1))?.mirror.as_ref()?;
+        let boxed = |id| mirror.item(id).is_some_and(|i| matches!(i.shape, Shape::Box { .. }));
+        if let [id] = selection.ids[..]
+            && boxed(id)
+        {
+            return Some(id);
+        }
+        let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v)?;
+        mirror.step(&view.trail.on(here)).0?.innermost()
     }
 
     /// The folded box whose miniature a press at `at` on `items` (`page`

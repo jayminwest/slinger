@@ -41,7 +41,7 @@ impl Canvases {
         self.close_entries();
         let selection = Selection { canvas: canvas.into(), page: page.into(), ids: Vec::new() };
         let around = in_window(viewport, frame, button);
-        self.sling_now(&selection, ("", Profile::Running), around, frame)
+        self.sling_now((&selection, None), ("", Profile::Running), around, frame)
     }
 
     /// The first button on the page the focused pane of `panes` laid in
