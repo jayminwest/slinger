@@ -647,6 +647,9 @@ the canvas's order, and on a page top to bottom, then left to right. A match
 ignores case, and a run of spaces or line breaks in either counts as one
 space, so it finds words a text wraps. Ink and a PDF's words are not
 searched. A `text` of no words finds nothing (an empty list, not an error).
+Find sees into folded boxes (docs/design/fold.md): a text a folded box holds
+is found, placed in reading order where the page shows the outermost folded
+box that holds it, and carries `folded`: that box's id (`i4`).
 The app's `find` and `find-next` ask it; a client writes it with its own
 type (`crates/control/src/find.rs`).
 

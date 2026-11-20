@@ -144,3 +144,29 @@ fn a_cluster_id_on_a_hidden_stroke_names_its_cluster_in_its_box() {
     assert_eq!(strokes.len(), 1);
     assert_eq!(strokes[0]["id"], "i5");
 }
+
+#[test]
+fn find_sees_into_folded_boxes_and_names_the_outermost_one() {
+    let (mut log, _) = Log::create("find").unwrap();
+    // Far down the page, a box holding a box holding the text; above, a plain text.
+    add(&mut log, json!({"kind": "box", "x": 0, "y": 5000, "w": 4000, "h": 4000}));
+    add(&mut log, json!({"kind": "box", "x": 500, "y": 5500, "w": 2000, "h": 2000}));
+    add(&mut log, json!({"kind": "text", "x": 600, "y": 7000, "text": "the plan, deep"}));
+    add(&mut log, json!({"kind": "text", "x": 600, "y": 6000, "text": "the plan, near"}));
+    add(&mut log, json!({"kind": "text", "x": 600, "y": 0, "text": "the plan, open"}));
+    log.fold(&Author::User, AT, "i2", None).unwrap();
+    log.fold(&Author::User, AT, "i1", None).unwrap();
+    let canvas = log.canvas();
+    let found: Vec<String> =
+        canvas.find("THE plan").into_iter().map(|i| format!("i{}", i.get())).collect();
+    assert_eq!(found, ["i5", "i4", "i3"], "the open one first, then by their own place");
+    assert_eq!(
+        canvas
+            .outermost(slinger_core::canvas::ItemId::new(3))
+            .map(slinger_core::canvas::ItemId::get),
+        Some(1)
+    );
+    let hits = log.find("the plan");
+    let folded: Vec<&Value> = hits.iter().map(|h| &h["folded"]).collect();
+    assert_eq!(folded, [&Value::Null, &json!("i1"), &json!("i1")]);
+}

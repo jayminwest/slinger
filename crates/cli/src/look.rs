@@ -74,7 +74,8 @@ pub fn find(args: &Find, daemon: &control::Client) -> anyhow::Result<Output> {
         |item: &serde_json::Value, key: &str| item[key].as_str().unwrap_or_default().to_string();
     let line = |item: &serde_json::Value| {
         let text = field(item, "text").replace('\n', "\\n");
-        format!("{}\t{}\t{text}", field(item, "page"), field(item, "id"))
+        let folded = item["folded"].as_str().map(|b| format!(" in {b}")).unwrap_or_default();
+        format!("{}\t{}{folded}\t{text}", field(item, "page"), field(item, "id"))
     };
     let human = found.iter().map(line).collect::<Vec<_>>();
     Ok(Output::new(json!({ "found": found }), human.join("\n")))

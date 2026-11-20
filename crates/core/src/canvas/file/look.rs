@@ -98,13 +98,24 @@ impl Log {
 
     /// The text items whose words hold `phrase`, page by page in reading
     /// order ([`crate::canvas::Canvas::find`]), each as `canvas show` gives
-    /// an item, its page included. A phrase of no words finds nothing.
+    /// an item, its page included. A text hidden in a folded box also has
+    /// `folded`: the outermost folded box that holds it (`i4`), what the
+    /// page shows in its place. A phrase of no words finds nothing.
     #[must_use]
     pub fn find(&self, phrase: &str) -> Vec<Value> {
         let canvas = self.canvas();
         let found = canvas.find(phrase).into_iter().filter_map(|i| canvas.item(i));
         found
-            .map(|item| serde_json::from_str(&json::whole_item(item)).unwrap_or_default())
+            .map(|item| {
+                let mut whole: Value =
+                    serde_json::from_str(&json::whole_item(item)).unwrap_or_default();
+                if let (Some(fields), Some(b)) =
+                    (whole.as_object_mut(), canvas.outermost(item.id()))
+                {
+                    fields.insert("folded".into(), json::item_id(b).into());
+                }
+                whole
+            })
             .collect()
     }
 

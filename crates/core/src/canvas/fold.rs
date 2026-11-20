@@ -59,6 +59,19 @@ impl Canvas {
         self.holders(page).get(&item).copied()
     }
 
+    /// The outermost folded box that holds `item`, at any depth: the one
+    /// the page shows in its place. `None` for an item that is not hidden.
+    #[must_use]
+    pub fn outermost(&self, item: ItemId) -> Option<ItemId> {
+        let page = self.item(item)?.page;
+        let holders = self.holders(page);
+        let mut up = *holders.get(&item)?;
+        while let Some(&next) = holders.get(&up) {
+            up = next;
+        }
+        Some(up)
+    }
+
     /// Whether a folded box holds `item`, at any depth.
     #[must_use]
     pub fn hidden(&self, item: ItemId) -> bool {

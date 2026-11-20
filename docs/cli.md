@@ -234,7 +234,9 @@ there exits 3 (`not_found`).
 
 `canvas find` matches the words of text items on every page, ignoring case
 and spacing (a line break counts as a space), not ink or a PDF's words. A
-`TEXT` of no words finds nothing.
+`TEXT` of no words finds nothing. A text hidden in a folded box is found
+too: its item id is followed by ` in <BOX>`, the outermost folded box that
+holds it (`folded` in `--json`); read it with `canvas read --in <BOX>`.
 
 `status set` is an agent verb: it acts as the calling agent, named by
 `--agent <NAME>` or else by the `SLINGER_AGENT` environment variable, so a
