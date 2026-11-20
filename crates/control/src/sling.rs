@@ -111,20 +111,24 @@ pub struct Slung {
 }
 
 impl Client {
-    /// The areas of PDF pages under the new ink of a canvas page, as the
-    /// sling that would go now draws them. Empty when there is none.
+    /// The areas of PDF pages under the new ink of a canvas page, or of the
+    /// box `inside` names, as the sling that would go now draws them. Empty
+    /// when there is none.
     ///
     /// # Errors
     ///
-    /// `not_found` for a canvas or page that is not there, and
-    /// `unavailable` when the daemon does not answer.
+    /// `not_found` for a canvas, page or box that is not there, `invalid`
+    /// for an `inside` that is not a box, and `unavailable` when the daemon
+    /// does not answer.
     pub fn sling_backdrops(
         &self,
         canvas: &str,
         page: Option<&str>,
+        inside: Option<&str>,
     ) -> Result<Vec<BackdropArea>, RemoteError> {
         let (canvas, page) = (canvas.to_string(), page.map(str::to_string));
-        let reply: Backdrops = self.call(&SessionAsk::SlingBackdrops { canvas, page })?;
+        let inside = inside.map(str::to_string);
+        let reply: Backdrops = self.call(&SessionAsk::SlingBackdrops { canvas, page, inside })?;
         Ok(reply.backdrops)
     }
 

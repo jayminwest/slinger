@@ -40,7 +40,8 @@ bullet with the area in bold.
   what the box holds, and the agent's note asks for the answer in it.
   `slinger canvas put <ID> --beside c12 --in b4` puts the answer in the box,
   among what it holds, and an answer in a folded box joins it, the user's
-  box too.
+  box too. Over a PDF, the sling of a box renders only the page under the
+  ink the box holds (`sling_backdrops` takes `in`).
 - **Agents:** an `add` in `slinger canvas apply` may name a folded box with
   `in`: the new item joins it, and the box's open size grows to hold it.
 - **App:** start a text without a tap. New text (`new-text`, ctrl+return,

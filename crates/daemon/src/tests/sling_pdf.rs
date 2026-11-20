@@ -30,17 +30,17 @@ fn a_sling_over_a_pdf_takes_the_page_and_its_words() {
         &json!({ "page": "p1", "kind": "pdf", "x": 0, "y": 0, "w": 16000,
         "h": 20706, "hash": hash, "pdfpage": 1, "pagesize": [6120, 7920], "name": "paper.pdf" }),
     );
-    assert_eq!(client.sling_backdrops("notes", None).unwrap(), [], "no ink yet");
+    assert_eq!(client.sling_backdrops("notes", None, None).unwrap(), [], "no ink yet");
     apply(
         &client,
         &json!({ "page": "p1", "kind": "stroke", "color": "#ff0000", "width": 30,
         "pts": [1000, 1000, 400, 0] }),
     );
-    let [area] = client.sling_backdrops("notes", Some("p1")).unwrap().try_into().unwrap();
+    let [area] = client.sling_backdrops("notes", Some("p1"), None).unwrap().try_into().unwrap();
     assert_eq!((area.item.as_str(), area.hash.as_str(), area.pdfpage), ("i1", &*hash, 1));
     assert_eq!((area.pagesize, area.crop, area.frame), ([6120, 7920], None, [0, 0, 16000, 20706]));
     assert_eq!((area.area, area.width, area.height), ([825, 825, 750, 350], 27, 13));
-    assert_eq!(client.sling_backdrops("gone", None).unwrap_err().code(), "not_found");
+    assert_eq!(client.sling_backdrops("gone", None, None).unwrap_err().code(), "not_found");
 
     let image = files.path().join("1.rgb");
     let words = files.path().join("1.json");
@@ -59,6 +59,6 @@ fn a_sling_over_a_pdf_takes_the_page_and_its_words() {
     client.blob_get(&slung.packet, &text).unwrap();
     let text = std::fs::read_to_string(text).unwrap();
     assert!(text.contains("over=d1 img=c2.png \"circled\"\n"), "{text}");
-    assert_eq!(client.sling_backdrops("notes", None).unwrap(), [], "nothing new since");
+    assert_eq!(client.sling_backdrops("notes", None, None).unwrap(), [], "nothing new since");
     daemon.stop();
 }
