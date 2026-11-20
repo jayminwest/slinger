@@ -16,6 +16,7 @@
 //!   lets the agent change or remove it (`edit`). It folds and unfolds a
 //!   box (`fold`), and a move or an erase of a folded box carries what it
 //!   holds.
+//! - [`Synthetic`] makes a large canvas file of realistic shape, for measuring.
 //! - [`snap`] rounds an operation to what the file can hold. Apply the
 //!   snapped op, so the canvas in memory is the one the file rebuilds.
 //!
@@ -48,6 +49,7 @@ mod once;
 mod packet;
 mod put;
 mod replay;
+mod synthetic;
 mod time;
 mod whole;
 
@@ -58,6 +60,7 @@ pub use once::ONCES;
 pub use packet::{backdrop, rect_tenths, size_tenths};
 pub use put::{How, INK_WIDTH, Placed, Put, TEXT_COLUMNS};
 use serde_json::{Map, Value};
+pub use synthetic::{SESSIONS, Synthetic};
 
 use super::{Action, Applied, Author, Item, ItemId, Op, Page, PageId, Point, Shape, Step, Time};
 use crate::{Error, Result};

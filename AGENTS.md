@@ -36,6 +36,8 @@ cargo test --workspace
 
 `scripts/e2e-sling.sh` sends three slings to the real Claude Code on a scratch daemon and checks the Spike C pass line (SPEC section 14). It is not part of `check-all`: it needs a logged-in Claude Code, spends tokens (`--model`, default `haiku`) and adds transcripts to Claude Code's session store. Run it by hand after a change to the session, the sling or the agent verbs.
 
+`scripts/perf-canvas.py` times the daemon verbs and a driven window on a synthetic 5 MB+ canvas (`--scale N` for larger) on a scratch daemon, with the stand-in agent: no tokens. It is not part of `check-all`. The method and the last results are in `docs/perf/canvas.md`; run it after a change to canvas storage, packets, slings or the scene, and update that file.
+
 ## Conventions
 
 - Run verify before every commit. Warnings fail.

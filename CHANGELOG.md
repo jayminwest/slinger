@@ -40,8 +40,9 @@ bullet with the area in bold.
   SIGHUP: closing the terminal you started it from no longer stops it.
 - **Agents:** an agent can check the app itself. `slinger-app --drive
   <SOCKET>` starts the real app as a window that is never shown, on a
-  daemon of the agent's own, and `slinger drive` sends it keys, typing, pen
-  and mouse events, scrolls and commands, then reads back what the window
+  daemon of the agent's own, and `slinger drive` sends it keys, typing (into
+  a canvas text or an entry such as Find or Feedback), pen and mouse
+  events, scrolls, the space bar held for a pan, and commands, then reads back what the window
   shows as text (`drive scene`) or as a PNG (`drive shot`). It never
   touches your clipboard, your saved window or your own daemon. See
   `slinger guide`.
@@ -459,6 +460,10 @@ bullet with the area in bold.
 
 ### Changed
 
+- **App:** a tap on a workspace shows it at once (about 20 ms, from one
+  to two seconds), and what an agent draws or a page that comes shows at
+  once too: the window no longer waits for its timer or a one-second round
+  before it shows news from the daemon.
 - **App:** a mouse or trackpad no longer draws stray lines. With the pen
   tool chosen, a mouse or trackpad press selects and moves items, as the
   select tool does; the tablet pen draws exactly as before. Every other

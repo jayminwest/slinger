@@ -56,6 +56,11 @@ fn drive_sends_one_request_and_prints_what_the_window_said() {
     let (_, got) = asked(&["scroll", "10", "20", "0", "-30"], &taken);
     assert_eq!((&got["op"], &got["dy"]), (&json!("scroll"), &json!(-30.0)));
 
+    let (_, got) = asked(&["space"], &taken);
+    assert_eq!(got, json!({ "op": "space", "down": true }));
+    let (_, got) = asked(&["space", "--up"], &taken);
+    assert_eq!(got["down"], false);
+
     let (_, got) = asked(&["paste"], &taken);
     assert_eq!(got, json!({ "op": "paste" }), "the driven window's own clipboard");
     let (_, got) = asked(&["paste", "two", "words"], &taken);

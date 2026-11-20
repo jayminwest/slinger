@@ -189,7 +189,7 @@ impl Canvases {
         for open in self.open.iter_mut().filter(on) {
             open.asked = open.asked.as_ref().and(next.map(str::to_string));
             let (daemon, asked) = (self.daemon.clone(), open.asked.clone());
-            open.follower = Follower::start(daemon, canvas.to_string(), asked);
+            open.follower = Follower::start(daemon, canvas.to_string(), asked, &self.wake);
         }
     }
 

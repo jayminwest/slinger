@@ -24,6 +24,7 @@ mod sling_box;
 mod start;
 mod step;
 mod undo;
+mod wake;
 
 /// The window's state, as `window` keeps it, with no watch.
 struct World {

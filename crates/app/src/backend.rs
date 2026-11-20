@@ -10,6 +10,8 @@
 //! the pen's strokes are sent on another ([`Outbox`]) and kept on disk until
 //! sent ([`Unsent`]), slings on a third ([`Slinger`]) and notes of feedback
 //! on their own ([`Noter`]). It also asks Flick to dictate ([`Flick`]), on a fourth.
+//! Each of these threads hands its news on through a [`Teller`], which wakes
+//! the main thread to take it ([`wake`]): news never waits for the timer.
 
 use std::fs;
 use std::io::ErrorKind;
@@ -33,6 +35,7 @@ mod sling;
 pub(crate) mod testing;
 pub mod ui;
 mod unsent;
+pub mod wake;
 mod watch;
 
 pub use agents::{close_workspace, open_workspace, start_agent, stop_agent, workspaces};
@@ -42,6 +45,7 @@ pub use follow::{Follower, News};
 pub use outbox::{Outbox, run};
 pub use sling::{Heard, Render, Slinger};
 pub use unsent::Unsent;
+pub use wake::{Teller, Wake};
 pub use watch::Watch;
 
 /// A failure as the window shows it: the message and what to do about it.

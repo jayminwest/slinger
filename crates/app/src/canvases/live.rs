@@ -17,7 +17,7 @@ use std::time::Instant;
 use slinger_control::Client;
 
 use super::Canvases;
-use crate::backend::{Problem, ui::fetch};
+use crate::backend::{Problem, Wake, ui::fetch};
 use crate::config::Theme;
 use crate::layout::Point;
 use crate::scene::canvas::{Item, Shape};
@@ -35,10 +35,11 @@ pub(super) struct Lives {
 }
 
 impl Lives {
-    /// Fetches through `daemon`, on a thread that ends with this.
-    pub(super) fn start(daemon: Client) -> Self {
+    /// Fetches through `daemon`, on a thread that ends with this and wakes
+    /// the main thread with each page.
+    pub(super) fn start(daemon: Client, wake: &Wake) -> Self {
         let (ask, asks) = mpsc::channel::<String>();
-        let (tell, heard) = mpsc::channel();
+        let (tell, heard) = wake.channel();
         let spawned = thread::Builder::new().name("live items".into()).spawn(move || {
             for open in asks {
                 let shown = fetch(&daemon, &open);

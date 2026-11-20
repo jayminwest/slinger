@@ -201,6 +201,7 @@ slinger drive press 300 200             # a mouse press; --tablet for the pen
 slinger drive lift 300 200
 slinger drive type "A note"
 slinger drive stroke 300,300 340,320 380,300 --tablet
+slinger drive space                     # hold the space bar (a pan with the pointer); --up lets go
 slinger drive tick                      # take the daemon's news now
 slinger drive scene                     # what the window shows, a line each
 slinger drive shot window.png           # the window as a PNG, to look at
