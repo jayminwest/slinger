@@ -13,8 +13,10 @@
 //! responder chain, so it acts on the typing there.
 //!
 //! A context menu ([`pop`]) is made from its popup's items the same way;
-//! its command items send `pick:`, which always runs the command, and are
-//! grey or on as the popup says, never asked again.
+//! its command items send `pick:` to a target of their own that holds the
+//! popup's subject, which always runs the command as [`Event::Picked`]
+//! with that subject; they are grey or on as the popup says, never asked
+//! again. The target goes with the menu: nothing of a popup outlives it.
 //!
 //! A command item is grey where the newest model says (`Item::enabled`):
 //! `AppKit` asks the target (`validateMenuItem:`) as a menu opens and
@@ -26,7 +28,7 @@ use std::cell::RefCell;
 
 use objc2::rc::Retained;
 use objc2::runtime::{NSObjectProtocol, Sel};
-use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
+use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSControlStateValueOn, NSEventModifierFlags, NSEventType, NSMenu, NSMenuItem,
     NSView,
@@ -36,15 +38,17 @@ use objc2_foundation::{NSObject, NSPoint, NSString};
 use super::keys::chord;
 use super::{Event, dispatch};
 use crate::commands::Command;
-use crate::commands::context::Popup;
+use crate::commands::context::{Popup, Subject};
 use crate::commands::menu::{Action, Item, Menu, Native, Role, same_layout};
 
 define_class!(
     // SAFETY: `NSObject` has no subclassing requirements, and `Target` has
-    // no ivars and no `Drop` impl.
+    // no `Drop` impl. Its ivar is the subject of the context menu it is the
+    // target of; the bar's has none.
     #[unsafe(super(NSObject))]
     #[thread_kind = MainThreadOnly]
     #[name = "SlingerMenuTarget"]
+    #[ivars = Option<Subject>]
     struct Target;
 
     unsafe impl NSObjectProtocol for Target {}
@@ -70,11 +74,16 @@ define_class!(
         }
 
         /// A context menu's command item: its command, however it was
-        /// chosen (the pointer, or return in the open menu).
+        /// chosen (the pointer, or return in the open menu), with the
+        /// subject of the menu, which this target holds.
         #[unsafe(method(pick:))]
         fn pick(&self, item: &NSMenuItem) {
             if let Some(&(command, _)) = usize::try_from(item.tag()).ok().and_then(|i| Command::ALL.get(i)) {
-                dispatch(Event::Command(command), self.mtm());
+                let event = match self.ivars() {
+                    Some(subject) => Event::Picked(command, subject.clone()),
+                    None => Event::Command(command),
+                };
+                dispatch(event, self.mtm());
             }
         }
 
@@ -130,8 +139,7 @@ pub(super) fn show(menus: &[Menu], mtm: MainThreadMarker) {
     if kept {
         return;
     }
-    // SAFETY: `NSObject`'s `init` on a fresh allocation.
-    let target: Retained<Target> = unsafe { msg_send![Target::alloc(mtm), init] };
+    let target = Target::new(None, mtm);
     let bar = NSMenu::new(mtm);
     let mut roles = Roles::default();
     for menu in menus {
@@ -177,10 +185,9 @@ pub(super) fn register(mtm: MainThreadMarker) {
 /// waits while it is open: `AppKit` runs the menu's own loop. Each item is
 /// on or grey as the popup says, a native one always on (a paste that goes
 /// nowhere flashes why, as its key does). A pick reaches the app from
-/// inside that loop, as an [`Event::Command`] or a native edit.
+/// inside that loop, as an [`Event::Picked`] or a native edit.
 pub(super) fn pop(popup: &Popup, view: &NSView, mtm: MainThreadMarker) {
-    // SAFETY: `NSObject`'s `init` on a fresh allocation.
-    let target: Retained<Target> = unsafe { msg_send![Target::alloc(mtm), init] };
+    let target = Target::new(Some(popup.subject.clone()), mtm);
     let menu = NSMenu::new(mtm);
     menu.setAutoenablesItems(false);
     for item in &popup.items {
@@ -195,6 +202,16 @@ pub(super) fn pop(popup: &Popup, view: &NSView, mtm: MainThreadMarker) {
     // The content view's origin is at its bottom left.
     let at = NSPoint::new(popup.at.x, view.frame().size.height - popup.at.y);
     menu.popUpMenuPositioningItem_atLocation_inView(None, at, Some(view));
+}
+
+impl Target {
+    /// A target for the bar's command items (no subject) or a context
+    /// menu's (its popup's subject).
+    fn new(subject: Option<Subject>, mtm: MainThreadMarker) -> Retained<Self> {
+        let this = Self::alloc(mtm).set_ivars(subject);
+        // SAFETY: `NSObject`'s `init` on a fresh allocation.
+        unsafe { msg_send![super(this), init] }
+    }
 }
 
 /// Whether `command`'s item in `menus` is on; an item not there is.

@@ -7,7 +7,7 @@ use std::ffi::c_void;
 use objc2::MainThreadMarker;
 
 use super::dispatch;
-use crate::commands::context::Popup;
+use crate::commands::context::{Popup, Subject};
 use crate::commands::{Chord, Command};
 use crate::layout::{Point, Size};
 use crate::scene::Scene;
@@ -102,6 +102,10 @@ pub enum Event {
     Dropped(Point, Vec<std::path::PathBuf>),
     /// A menu item was chosen with the pointer: its command.
     Command(Command),
+    /// A context menu's item was chosen: its command, and the subject the
+    /// menu was for ([`Popup::subject`]), which a sidebar row's or a
+    /// divider's command acts on rather than on what is current.
+    Picked(Command, Subject),
     /// Cut, copy or paste (the Edit menu or its keys) with no text field
     /// taking it; a paste holds what the clipboard does. Flick's dictation
     /// comes this way, as a paste.
@@ -125,7 +129,7 @@ pub enum Step {
     /// Put this on the clipboard, and draw.
     Copy(Clip, Box<Scene>),
     /// Draw, then pop this context menu at its point; a pick comes back as
-    /// the [`Event::Command`] (or the edit) its item runs.
+    /// the [`Event::Picked`] (or the edit) its item runs.
     Menu(Popup, Box<Scene>),
     /// The reply cannot go on, and why.
     Refuse(String),

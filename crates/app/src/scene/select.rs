@@ -45,6 +45,7 @@ mod scale;
 pub use carry::Landing;
 use carry::{Arriving, Target};
 pub use keys::{Keyed, into_view};
+pub use pick::{REACH, topmost};
 
 use std::borrow::Cow;
 use std::collections::HashSet;

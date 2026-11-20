@@ -11,6 +11,21 @@ use crate::scene::taps::{Tap, Target};
 use crate::scene::{Label, glyphs, status, style};
 
 impl Sidebar {
+    /// The index of the workspace whose rows are under `at` in `window`,
+    /// laid as the targets are ([`Sidebar::targets`]): its name, its ✕,
+    /// its agent's lines, and the shown one's command line. `None`
+    /// elsewhere, and when collapsed.
+    pub fn row_at(&self, theme: &Theme, window: Rect, at: Point) -> Option<usize> {
+        let targets = self.laid(theme, window).1;
+        let (_, tap) = targets.into_iter().find(|(frame, _)| frame.contains(at))?;
+        match tap {
+            Tap::Workspace(i) | Tap::Close(i) => Some(i),
+            // Only the shown workspace has a command line.
+            Tap::Run(Command::StartAgent | Command::CloseWorkspace) => self.at(),
+            _ => None,
+        }
+    }
+
     /// The rows and the workspaces' targets.
     pub(super) fn laid(&self, theme: &Theme, window: Rect) -> (Vec<Row>, Vec<Target>) {
         if !self.open {

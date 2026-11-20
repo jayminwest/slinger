@@ -48,6 +48,7 @@ use slinger_control::{self as control, PaneKind::Canvas};
 use crate::backend::{Launcher, Settings, Wake, Watch};
 use crate::canvases::Canvases;
 use crate::commands::Command;
+use crate::commands::context::{self, Subject};
 use crate::config::Shown;
 use crate::platform::{Event, Pick, Step};
 use crate::route::{Routed, route, taken};
@@ -346,7 +347,10 @@ fn asked(
         Ask::Run(
             c
             @ (Command::ShowCanvasFile | Command::ShowWorkspaceFolder | Command::ShowFeedbackFile),
-        ) => window::finder(c, shared, canvases, sidebar),
+        ) => window::finder(c, shared, canvases, sidebar.shown_dir()),
+        Ask::On(c @ Command::ShowWorkspaceFolder, Subject::Workspace { dir }) => {
+            window::finder(c, shared, canvases, Some(dir))
+        }
         Ask::Run(Command::OpenWorkspace) => {
             return platform::choose(Pick::Workspace, tools.flash())
                 .map_or(Ask::Draw(None), Ask::Open);
@@ -377,6 +381,9 @@ fn asked(
 enum Ask {
     /// Run a command, as its key does.
     Run(Command),
+    /// Run a command picked from a context menu on its subject, which the
+    /// pick carries ([`context::carried`]).
+    On(Command, Subject),
     /// A tap on a button that does more than run a command.
     Tap(Target),
     /// Open this folder as a workspace and show it.
@@ -393,7 +400,8 @@ enum Ask {
 
 /// What `event` asks: a menu item chosen with the pointer runs its command,
 /// and closes what is open over `shared` first (undo and redo pass on to
-/// an open entry's field); the palette takes
+/// an open entry's field); a context menu's pick does the same, on the
+/// subject it carries where that is not current; the palette takes
 /// every key and press, and runs a command as its key would (a row on the
 /// lift, as the key overlay's); then a key goes to what takes keys first
 /// ([`taken`]), to the canvases (a text being typed), and to the keymap. A
@@ -415,7 +423,7 @@ fn ask(
             tools.moved(pen.at);
             shared.lift(pen.at)
         }
-        Event::Command(command) => shared.chosen(command),
+        Event::Command(command) | Event::Picked(command, _) => shared.chosen(command),
         _ => return Ask::Not,
     };
     match (palette, event) {
@@ -432,9 +440,11 @@ fn ask(
         (Took::No, &Event::Command(Command::Undo | Command::Redo)) if canvases.typing() => {
             Ask::Pass
         }
-        (Took::Tap((_, Tap::Run(command))), _) | (Took::No, &Event::Command(command)) => {
-            Ask::Run(command)
+        (Took::No, Event::Picked(command, subject)) if context::carried(*command, subject) => {
+            Ask::On(*command, subject.clone())
         }
+        (Took::Tap((_, Tap::Run(command))), _)
+        | (Took::No, &(Event::Command(command) | Event::Picked(command, _))) => Ask::Run(command),
         (Took::Tap(target), _) => Ask::Tap(target),
         (Took::Yes, _) => Ask::Draw(None),
         (Took::No, &Event::Key(c)) if taken(c, shared, canvases, tools, settings) => {

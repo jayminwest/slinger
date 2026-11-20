@@ -11,6 +11,22 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a right click on a workspace in the sidebar offers Close
+  workspace, Show workspace folder in Finder, Start agent, Stop agent and
+  Restart agent for that workspace, without switching to it; the items grey
+  by that workspace's agent. A right click on the line between two panes
+  offers Grow pane and Shrink pane for that line, and one on the rest of the
+  sidebar Open workspace… and Show or hide sidebar.
+
+- **App:** a right click on a canvas item opens a menu for that item: Sling
+  selection, Cut, Copy, Duplicate, Delete selection and Pick a colour, plus
+  text sizes on a text, Fold, Step into box and Step into box beside on a
+  box, and Crop PDF and Show canvas file in Finder on a PDF snippet. As in
+  the Finder, a right click on an item outside the selection selects it
+  alone first, and one on the selection keeps it and opens the selection's
+  menu (with Select nothing). A right click on a text you are typing offers
+  Cut, Copy and Paste and leaves the text open.
+
 - **App:** a right click (or a ctrl+click, or a two-finger click) opens a
   menu where it lands: on the empty canvas Paste, New text, Select all,
   Sling now, Zoom to 100%, Dotted grid, New page and Step out of box; on a

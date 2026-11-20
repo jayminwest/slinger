@@ -365,8 +365,8 @@ mod tests {
         use crate::commands::context::{Subject, items};
         let facts = Facts { panes: 1, canvas: true, pages: 1, ..Facts::default() };
         let items =
-            items(Subject::Pane { ui: false }, &Keymap::default(), Command::ToolPen, &facts);
-        let popup = Popup { at: Point { x: 10.0, y: 20.0 }, items };
+            items(&Subject::Pane { ui: false }, &Keymap::default(), Command::ToolPen, &facts);
+        let popup = Popup { at: Point { x: 10.0, y: 20.0 }, items, subject: Subject::Canvas };
         let said = menu(&popup);
         assert_eq!(said.lines().next(), Some("menu 10,20"));
         assert!(said.contains("  \"Split right\" ⌘D\n"), "{said}");

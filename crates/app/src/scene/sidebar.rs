@@ -275,6 +275,11 @@ impl Sidebar {
         Some((gone, was))
     }
 
+    /// The open workspace in the folder `dir`, as last heard.
+    pub fn workspace(&self, dir: &Path) -> Option<&Workspace> {
+        self.workspaces.as_ref()?.iter().find(|w| w.dir == dir)
+    }
+
     /// The directory of the workspace the window shows: what its agent's
     /// commands go to, whatever its file holds. `None` when none shows.
     pub fn shown_dir(&self) -> Option<PathBuf> {

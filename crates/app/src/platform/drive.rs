@@ -127,14 +127,16 @@ fn answer(ask: Ask, mtm: MainThreadMarker) -> Result<String, String> {
             })
             .ok_or_else(|| "no scene yet".to_string()),
         Ask::Pick(title) => {
-            let action = drive::pick(MENU.take().as_ref(), &title)?;
-            let event = match action {
-                Action::Run(command) => Event::Command(command),
-                Action::Native(Native::Paste) => {
+            let popup = MENU.take();
+            let action = drive::pick(popup.as_ref(), &title)?;
+            let event = match (action, popup) {
+                (Action::Run(command), Some(popup)) => Event::Picked(command, popup.subject),
+                (Action::Run(command), None) => Event::Command(command),
+                (Action::Native(Native::Paste), _) => {
                     Event::Edit(Edit::Paste(CLIP.with_borrow(Clone::clone)))
                 }
-                Action::Native(Native::Copy) => Event::Edit(Edit::Copy),
-                Action::Native(Native::Cut) => Event::Edit(Edit::Cut),
+                (Action::Native(Native::Copy), _) => Event::Edit(Edit::Copy),
+                (Action::Native(Native::Cut), _) => Event::Edit(Edit::Cut),
                 _ => {
                     return Err(format!("{title:?} is macOS's own: a driven window cannot run it"));
                 }

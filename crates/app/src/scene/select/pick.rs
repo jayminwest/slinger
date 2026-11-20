@@ -108,7 +108,7 @@ impl Select {
 
 /// The topmost of the server's items of `items` on `canvas` a press at
 /// `at` with a reach of `radius` picks, of those it may take ([`takes`]).
-fn topmost(canvas: &str, items: &[Cow<'_, Item>], at: Point, radius: f64) -> Option<ItemId> {
+pub fn topmost(canvas: &str, items: &[Cow<'_, Item>], at: Point, radius: f64) -> Option<ItemId> {
     let mut ours = items.iter().rev().filter(|i| on_server(i.id) && takes(canvas, i));
     ours.find(|i| hit::picks(&i.shape, at, radius)).map(|i| i.id)
 }

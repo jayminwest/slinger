@@ -449,10 +449,26 @@ main.rs      wires the modules below. The only caller of platform. With
              slop routes on as the Event::Scroll it makes; a right click
              moves the pointer there and focuses the pane under it, then
              answers Step::Menu with the menu for what it was on
-             (window/context.rs `subject_at`, `clicked`): the empty canvas
-             or a footer; nothing off the panes or under the overlay, the
-             palette, the page menu or a pop-up. A pick comes back as the
-             Event::Command its menu bar item sends. A press on
+             (window/context.rs `subject_at`, `clicked`), in this order: a
+             workspace's rows in the sidebar (its ✕ too; Subject::Workspace,
+             by folder) or the rest of the sidebar, a divider
+             (Subject::Divider: the pane before it, by its stable id, and
+             its share), then in the pane a footer, the text being typed,
+             an item or the selection (`Canvases::context_at`, which
+             selects first by Finder's rule), or the empty canvas; nothing
+             on an agent UI's page or under the overlay, the palette, the
+             page menu or a pop-up. A row's menu greys by that row's
+             workspace and agent, not the shown one's. The command path: a
+             menu bar item chosen with the pointer is Event::Command; a
+             context menu's pick is Event::Picked(command, subject). main's
+             `ask` treats both alike (it closes what is open first) unless
+             `context::carried` says the command acts on the subject (a
+             row's close, show folder, start, stop and restart; a
+             divider's grow and shrink): then Ask::On, which the route
+             runs there (a close through `window::close_workspace` with
+             the row's folder, the rest through `window::context::on`).
+             The app keeps no memory of the last popup: a menu closed with
+             no pick leaves nothing a later command could act on. A press on
              a footer's or the sidebar's button goes no further; the lift
              on it runs it.
 window.rs    reads the window's Facts for `able::can` (window/facts.rs)
@@ -719,6 +735,13 @@ canvases/slung.rs  the one-tap sling and what follows it: `sling-now` (the
              The pill's progress from the Slinger, a tap on the pill, and
              the sling's marks: the buttons beside the selection, the pill
              and the answer's panel.
+canvases/context.rs  what a context click on a canvas pane is on
+             (`context_at`): the text being typed, the selection a press
+             there would grab (kept), else the item the select tool's own
+             hit test (`select::topmost`) picks, selected alone (Finder's
+             rule), on what the pane shows (inside the box it is stepped
+             into, folded boxes' contents hidden); a click off the text
+             being typed ends it first, as a press does.
 canvases/clip.rs  cut, copy and paste on the canvas panes: copy takes the
              selection the focused pane shows (cut then removes it, one
              step); paste puts text into the text being typed or a page
@@ -834,7 +857,8 @@ commands.rs  key commands: the closed list of commands, the chord parser
              only flash why not; the menu bar and the context menus grey
              by it. `context` is the context menus (plan pl-9880f1): a
              Subject (the empty canvas, a pane's footer, an agent UI pane's
-             footer) and `items(subject, keys, checked, facts)`, each item
+             footer, an item by its Kind, a selection of several, a text
+             being typed) and `items(subject, keys, checked, facts)`, each item
              made by `menu::item`, the one constructor the bar uses too; no
              menu starts or ends with a separator. A Popup is the items and
              the point to pop them at. Pure.
@@ -1396,7 +1420,10 @@ platform/menu.rs  makes the menu bar a scene's menus say, again when they
              the menu's own loop there, and a pick dispatches from inside
              it. Its items are made by the same `made`, auto-enabling off,
              each on or grey as the popup says (a native one always on);
-             a command item sends `pick:`, always Event::Command.
+             a command item sends `pick:` to the popup's own Target, whose
+             ivar is the popup's Subject: always Event::Picked with it.
+             The target goes with the menu; the bar's Target has no
+             subject.
 platform/keys.rs  a key press as a chord and the text it types (none with
              cmd held), and the clipboard as a Clip: its plain text and a
              canvas's items under the app's own type
@@ -1695,6 +1722,7 @@ Each boundary has something that fails when it is broken:
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
 | With the pen tool a mouse press selects and a tablet press draws; space held turns a drag into a pan with no tool, and types in a text being typed | `crates/app/src/scene/tools/tests.rs`, `crates/app/src/scene/hand.rs`, and `crates/app/src/tests/pointer.rs` against a real daemon |
 | A context click pops the menu for what it was on (the empty canvas, a footer, an agent UI pane's footer; never its page, nor under the palette), at its point, items grey by `able::can`; a pick then acts on the clicked pane and point; a driven window says the menu and picks by title | `crates/app/src/commands/context/tests.rs`, `crates/app/src/drive.rs` tests, and `crates/app/src/tests/context.rs` against a real daemon |
+| A context click on an item selects it alone unless it is on the selection, which it keeps; the menu is the item's kind's or the selection's, and its pick acts on the selection; in a stepped-in pane it hits what the pane shows; on a text being typed it offers cut, copy and paste and the text stays typed | `crates/app/src/commands/context/tests.rs` and `crates/app/src/tests/context_items.rs` against a real daemon |
 | A right or middle drag past the slop pans as the same scroll does; a right click pans nothing and focuses the pane under it; the middle button never clicks; a right press on an open entry goes on to its field | `crates/app/src/scene/secondary/tests.rs`, and `crates/app/src/tests/secondary.rs` against a real daemon |
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |
