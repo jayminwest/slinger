@@ -111,18 +111,18 @@ impl Views {
         self.shown.retain(|(id, _)| panes.contains(id));
     }
 
-    /// Turns pane `pane` to `page` of `canvas`, a page it asked for:
+    /// Turns pane `pane` to page `to` of `canvas`, a page it asked for:
     /// shown or parked, wherever its view is for that canvas; a pane with
     /// no view yet takes it shown.
-    pub(super) fn turn(&mut self, pane: PaneId, canvas: String, page: String) {
+    pub(super) fn turn(&mut self, pane: PaneId, canvas: String, to: String) {
         let unseen = !self.shown.iter().any(|(p, _)| *p == pane);
         let mine = |(p, v): &&mut (PaneId, View)| *p == pane && v.for_canvas(&canvas);
         let parked = self.parked.iter_mut().flat_map(|(_, shown)| shown.iter_mut());
         let found = self.shown.iter_mut().find(mine).or_else(|| parked.into_iter().find(mine));
         match found {
-            Some((_, view)) => view.page = Some((canvas, page)),
+            Some((_, view)) => view.page = Some((canvas, to)),
             None if unseen => {
-                self.get(pane).page = Some((canvas, page));
+                self.get(pane).page = Some((canvas, to));
             }
             None => {}
         }

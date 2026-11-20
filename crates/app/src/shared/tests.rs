@@ -109,7 +109,7 @@ fn a_menu_choice_closes_the_open_layer_and_then_runs() {
 }
 
 /// Workspace `workspace`'s layout: canvas panes with the ids `ids`, side by side.
-fn laid(workspace: &str, ids: &[u32]) -> Result<PaneLayout, Problem> {
+fn laid(workspace: &str, ids: &[u32]) -> PaneLayout {
     let leaf = |(at, &id): (usize, &u32)| {
         let pane = u32::try_from(at + 1).unwrap();
         PaneTree::Pane(Shown { pane, id, kind: PaneKind::Canvas, target: workspace.into() })
@@ -122,25 +122,25 @@ fn laid(workspace: &str, ids: &[u32]) -> Result<PaneLayout, Problem> {
         first: first.into(),
         second: second.into(),
     });
-    Ok(PaneLayout { workspace: workspace.into(), layout, pane: None, event: None })
+    PaneLayout { workspace: workspace.into(), layout, pane: None, event: None }
 }
 
 #[test]
 fn focus_stays_on_its_pane_in_a_workspace_and_comes_back_to_it_from_another() {
     let mut shared = Shared::default();
-    shared.follow(laid("a", &[1, 2, 3]));
+    shared.follow(Ok(laid("a", &[1, 2, 3])));
     assert_eq!(shared.panes.workspace(), Some("a"));
     assert!(shared.panes.focus_on(layout::PaneId::numbered(3)));
-    shared.follow(laid("a", &[2, 3]));
+    shared.follow(Ok(laid("a", &[2, 3])));
     assert_eq!(shared.panes.focus().number(), 3, "the same pane, now number 2");
-    shared.follow(laid("a", &[2, 4]));
+    shared.follow(Ok(laid("a", &[2, 4])));
     assert_eq!(shared.panes.number(), 2, "it closed: the pane at its number");
     let anchor = Rect { x: 150.0, y: 572.0, width: 100.0, height: 28.0 };
     shared.menu.open(shared.panes.focus(), anchor, (vec!["a".into()], 0));
-    shared.follow(laid("b", &[2, 4]));
+    shared.follow(Ok(laid("b", &[2, 4])));
     assert_eq!(shared.panes.focus().number(), 2, "b has not been shown: its first pane");
     assert!(!shared.modal(), "the page menu was a's");
-    shared.follow(laid("a", &[2, 4]));
+    shared.follow(Ok(laid("a", &[2, 4])));
     assert_eq!(shared.panes.focus().number(), 4, "a's focus comes back");
     shared.follow(Err(Problem { message: "gone".into(), hint: None }));
     assert_eq!(shared.panes.workspace(), Some("a"), "a problem keeps the panes");

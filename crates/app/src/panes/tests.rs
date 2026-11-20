@@ -128,12 +128,23 @@ fn ids(panes: &Panes) -> Vec<u32> {
 #[test]
 fn each_pane_has_the_servers_id_so_a_close_moves_no_other() {
     let keyed = |first, second| {
-        let a = PaneTree::Pane(Shown { pane: 1, id: first, kind: PaneKind::Canvas, target: "a".into() });
-        let b = PaneTree::Pane(Shown { pane: 2, id: second, kind: PaneKind::Canvas, target: "b".into() });
+        let a = PaneTree::Pane(Shown {
+            pane: 1,
+            id: first,
+            kind: PaneKind::Canvas,
+            target: "a".into(),
+        });
+        let b = PaneTree::Pane(Shown {
+            pane: 2,
+            id: second,
+            kind: PaneKind::Canvas,
+            target: "b".into(),
+        });
         split(PaneSplit::Row, 0.5, a, b)
     };
     assert_eq!(ids(&Panes::follow(&keyed(4, 7), 1)), [4, 7]);
-    let closed = PaneTree::Pane(Shown { pane: 1, id: 7, kind: PaneKind::Canvas, target: "b".into() });
+    let closed =
+        PaneTree::Pane(Shown { pane: 1, id: 7, kind: PaneKind::Canvas, target: "b".into() });
     assert_eq!(ids(&Panes::follow(&closed, 1)), [7], "b keeps its id as it becomes pane 1");
     assert_eq!(ids(&Panes::follow(&keyed(0, 0), 1)), [0, 1], "an older daemon: by build order");
     assert_eq!(ids(&Panes::follow(&keyed(3, 3), 1)), [0, 1], "one id twice: by build order");

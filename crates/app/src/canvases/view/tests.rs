@@ -78,10 +78,10 @@ mod shown {
     use crate::backend::testing::wait_until;
     use crate::backend::tests::{open_notes, with_store};
     use crate::canvases::Canvases;
-    use crate::scene::CanvasPane;
     use crate::config::Config;
     use crate::layout::{Viewport, WINDOW};
     use crate::panes::Panes;
+    use crate::scene::CanvasPane;
 
     /// `workspace`'s canvas panes, side by side, as the server sends them:
     /// each an id and a canvas.
