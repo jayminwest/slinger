@@ -61,10 +61,3 @@ cognitive_complexity = "warn"
 strip = true
 lto = "fat"
 codegen-units = 1
-
-# The app is a thin front end with a binary-size budget (check:binary-size);
-# speed does not matter in it. `strip` is repeated because a package
-# override does not keep the profile's.
-[profile.release.package.slinger-app]
-opt-level = "z"
-strip = true

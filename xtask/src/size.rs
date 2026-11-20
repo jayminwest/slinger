@@ -42,12 +42,12 @@ pub fn evaluate(
         match budgets.get(file) {
             Some(budget) if lines > budget => {
                 errors.push(format!(
-                    "{file} has {lines} lines, over its budget of {budget}; split it"
+                    "{file} has {lines} lines, over its budget of {budget}; split it by concept (a module that owns its state), not by line count"
                 ));
             }
             None if *lines > limit => {
                 errors.push(format!(
-                    "{file} has {lines} lines, over the {limit}-line limit; split it"
+                    "{file} has {lines} lines, over the {limit}-line limit; split it by concept (a module that owns its state), not by line count"
                 ));
             }
             _ => {}

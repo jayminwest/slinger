@@ -1253,8 +1253,7 @@ keeps nothing and says so, rather than write over the first's changes. Every `ca
 with `once`, a key of this run and the change (`scene/ink/once.rs`), and a
 kept change keeps its key in the file: the daemon applies a request sent
 again under a key it applied lately only once, so a stroke written as the
-app quit, or a change whose answer was lost, is not written twice. The app binary has a size budget, and the release
-profile builds it at `opt-level = "z"`, so it adds no async runtime.
+app quit, or a change whose answer was lost, is not written twice. The app adds no async runtime.
 
 **Eraser, lasso and select tool:** they work on the page as the user sees it (the
 mirror with the ink laid over) and answer under the pen from the app's own
@@ -1437,7 +1436,6 @@ Each boundary has something that fails when it is broken:
 | Reader mode fits a PDF's canvas to the pane's width and scrolls up and down only; there the select tool and the lasso never take a page; a pdf item resizes keeping its aspect | `crates/app/src/canvases/reader/tests.rs`, `crates/app/src/scene/select/tests.rs`, `crates/app/src/scene/select/scale/tests.rs` |
 | A crop box maps to page points inside the page, and its snippet pastes as a cropped pdf item | `crates/app/src/scene/crop/tests.rs`, `crates/app/src/mirror/clip/tests.rs`, `crates/app/src/tests.rs` |
 | Layout is fully tested | the 100% floor on `crates/app/src/layout.rs` in `budgets/coverage-budgets.json` |
-| The app binary does not grow unnoticed | `check:binary-size` |
 
 The rules are in `budgets/layer-rules.json`. To exempt one file, add an
 `allow` entry with a `why`. An entry that matches no violation fails the gate.

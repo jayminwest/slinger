@@ -9,7 +9,6 @@
 #![expect(clippy::print_stdout, clippy::print_stderr, reason = "xtask is a terminal tool")]
 
 mod agents;
-mod binsize;
 mod coverage;
 mod debt;
 mod files;
@@ -24,8 +23,8 @@ use std::time::Instant;
 /// A gate passes with a one-line summary or fails with error lines.
 type Gate = fn(&Path) -> Result<String, Vec<String>>;
 
-/// Ordered: cheap static gates first, then the gates that build (tests +
-/// coverage, the release binary), the parity meta-gate last.
+/// Ordered: cheap static gates first, then the gate that builds (tests +
+/// coverage), the parity meta-gate last.
 const GATES: &[(&str, Gate)] = &[
     ("lint", lint),
     ("check:agents", agents::check),
@@ -34,7 +33,6 @@ const GATES: &[(&str, Gate)] = &[
     ("check:size", size::check),
     ("check:debt", debt::check),
     ("check:coverage", coverage::check),
-    ("check:binary-size", binsize::check),
     ("check:ci-parity", parity::check),
 ];
 

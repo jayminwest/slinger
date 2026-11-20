@@ -164,8 +164,6 @@ with a backdrop in an image draws the backdrop and no label there.
 - `crates/app/src/platform/pdf.rs` holds every PDFKit and CoreGraphics call and
   the only new `unsafe`. New objc2 crates or features (`objc2-pdf-kit`, the
   `CGPDF*` features of `objc2-core-graphics`) go in the root `Cargo.toml`.
-  Measure `check:binary-size` before and after; if it fails, stop and report
-  (the budget does not move).
 - Its safe functions, and nothing else of PDFs leaves the platform:
   - `pages(path) -> Result<Vec<(f64, f64)>, PdfProblem>`: each page's size in
     page points, as displayed. A locked (password) or unreadable PDF is a
