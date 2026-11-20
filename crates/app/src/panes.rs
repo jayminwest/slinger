@@ -257,7 +257,15 @@ impl Panes {
             | Command::RestartAgent
             | Command::ExportUi
             | Command::ShowFeedbackFile
-            | Command::ShowAllFeedback => {}
+            | Command::ShowAllFeedback
+            | Command::SelectAll
+            | Command::NextItem
+            | Command::PreviousItem
+            | Command::NudgeLeft
+            | Command::NudgeRight
+            | Command::NudgeUp
+            | Command::NudgeDown
+            | Command::Duplicate => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),
