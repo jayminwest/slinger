@@ -641,6 +641,13 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** the key overlay (cmd+/) no longer cuts titles and keys short in
+  a window of the default width ("Close workspace", "Focus pane left",
+  "Remove page", "Restart agent in a new conversation", "Select a word, a
+  row"). Each column is as wide as its longest row needs; a narrower
+  window shows fewer columns instead.
+- **App:** dictation reaches Flick at a `$FLICK_SOCKET` path of any
+  length; one over 103 bytes no longer fails to connect.
 - **CLI, daemon:** `slingerd --socket` and `slinger --socket` take a path
   of any length. A path over 103 bytes (a deep scratch folder, say) no
   longer fails with "path must be shorter than SUN_LEN"; the app reaches
@@ -649,6 +656,9 @@ bullet with the area in bold.
   home and end) while a page name or another entry holds the keyboard now
   deletes or moves the caret in the field, as the key does, instead of
   typing a control character into it.
+- **App:** a second tap on "➤ Sling" beside a selection no longer deletes
+  it. While a sling is out, "➤ Sling" and "+ prompt" stay where they were,
+  greyed, and a tap on them does nothing; "Delete" never moves.
 - **App:** a workspace whose file is broken no longer pushes the
   workspaces under it out of the sidebar. Its error takes at most two
   lines, cut short with "…"; the hint shows only while you show that

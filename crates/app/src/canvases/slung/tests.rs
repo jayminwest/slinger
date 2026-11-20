@@ -93,7 +93,12 @@ fn one_tap_slings_the_selection_with_the_config_s_words_and_the_pill_follows_the
         let message = delivered(home.path(), PROMPT);
         assert!(message.contains("selected=c1"), "{message}");
         let working = until_marked(&mut canvases, &panes, "● scout working");
-        assert_eq!(working[1..], [buttons::DELETE], "one sling at a time: {working:?}");
+        assert_eq!(working[1..], beside, "each button in its place: {working:?}");
+        let taps: Vec<Tap> = canvases.sling_marks(&panes, WINDOW.rect(), &theme).targets[..3]
+            .iter()
+            .map(|t| t.1)
+            .collect();
+        assert_eq!(taps, [Tap::Idle, Tap::Idle, runs[2]], "one sling at a time");
         assert_eq!(canvases.said().as_deref(), Some("Slung to scout"));
 
         daemon.canvas_put("notes", "scout", "c1", Put::Text("a reply".into())).unwrap();

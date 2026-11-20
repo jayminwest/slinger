@@ -263,27 +263,24 @@ pub(crate) mod tests {
         });
     }
 
-    /// A fresh, empty directory for one test's config files.
-    fn config_dir() -> PathBuf {
-        static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-        let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!("slinger-app-{}-{n}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        dir
+    /// A fresh, empty directory for one test's config files, removed on drop
+    /// even when the test fails (a named one was never removed, slinger-ca6e2f).
+    fn config_dir() -> tempfile::TempDir {
+        tempfile::TempDir::new().unwrap()
     }
 
     const TEXT_1: &str = "[theme]\ntext = \"#111111\"\n";
 
     #[test]
     fn no_files_is_every_default() {
-        let settings = Settings::load(ConfigFiles::at(config_dir().join("config.toml")));
+        let settings = Settings::load(ConfigFiles::at(config_dir().path().join("config.toml")));
         assert_eq!((settings.config, settings.problem), (Config::default(), None));
     }
 
     #[test]
     fn the_overlay_is_merged_over_the_shared_file() {
         let dir = config_dir();
+        let dir = dir.path();
         fs::write(dir.join("config.toml"), "[theme]\ntext = \"#111111\"\nmuted = \"#222222\"\n")
             .unwrap();
         fs::write(dir.join("config.local.toml"), "[theme]\nmuted = \"#333333\"\n").unwrap();
@@ -296,6 +293,7 @@ pub(crate) mod tests {
     #[test]
     fn an_edit_is_picked_up_and_a_bad_edit_keeps_the_last_good_config() {
         let dir = config_dir();
+        let dir = dir.path();
         let file = dir.join("config.toml");
         fs::write(&file, TEXT_1).unwrap();
         let mut settings = Settings::load(ConfigFiles::at(file.clone()));
@@ -319,6 +317,7 @@ pub(crate) mod tests {
     #[test]
     fn an_overlay_that_appears_or_goes_away_is_picked_up() {
         let dir = config_dir();
+        let dir = dir.path();
         fs::write(dir.join("config.toml"), TEXT_1).unwrap();
         let mut settings = Settings::load(ConfigFiles::at(dir.join("config.toml")));
         fs::write(dir.join("config.local.toml"), "[daemon]\nsocket = \"/x.sock\"\n").unwrap();
@@ -332,6 +331,7 @@ pub(crate) mod tests {
     #[test]
     fn a_file_that_cannot_be_read_is_a_problem_at_start() {
         let dir = config_dir();
+        let dir = dir.path();
         fs::create_dir(dir.join("config.toml")).unwrap();
         let settings = Settings::load(ConfigFiles::at(dir.join("config.toml")));
         assert_eq!(settings.config, Config::default());

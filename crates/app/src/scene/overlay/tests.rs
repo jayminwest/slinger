@@ -1,5 +1,9 @@
+use super::place::{Place, split};
 use super::*;
+use crate::commands::Group;
 use crate::layout;
+
+mod fit;
 
 const T: Theme = Theme {
     background: Rgb { r: 0, g: 0, b: 0 },
@@ -16,20 +20,29 @@ fn key(text: &str) -> Chord {
     Chord::parse(text).unwrap()
 }
 
+/// The overlay, open and drawn once with the default keys, as the window
+/// draws it before a press can reach it.
 fn open() -> KeyOverlay {
     let mut overlay = KeyOverlay::default();
     overlay.toggle();
+    overlay.shown(&Keymap::default(), &T, TALL);
     overlay
 }
 
+/// Where the parts sit in a window of `size`, scrolled by `scroll`, with
+/// the default keys.
+fn place(size: Size, scroll: f64) -> Place {
+    place::place(size, scroll, &place::widths(&Keymap::default()))
+}
+
 /// The text of each line of `overlay` with `keys`.
-fn texts_of(overlay: &KeyOverlay, keys: &Keymap, size: Size) -> Vec<String> {
+fn texts_of(overlay: &mut KeyOverlay, keys: &Keymap, size: Size) -> Vec<String> {
     let shown = overlay.shown(keys, &T, size).unwrap();
     shown.lines.into_iter().map(|l| l.label.text).collect()
 }
 
 fn texts(keys: &Keymap, size: Size) -> Vec<String> {
-    texts_of(&open(), keys, size)
+    texts_of(&mut open(), keys, size)
 }
 
 /// The chip beside `command`'s row: the line after its title.
@@ -198,7 +211,7 @@ fn a_press_outside_the_panel_or_on_its_close_target_closes_it() {
     assert_eq!(overlay.press(Point { x: 1.0, y: 1.0 }, size), Taken::Yes);
     assert!(!overlay.is_open());
 
-    overlay.toggle();
+    let mut overlay = open();
     let close = place(size, 0.0).close;
     assert!(close.width >= style::TAP && close.height >= style::TAP, "big enough for the pen");
     let on = Point { x: close.x + close.width / 2.0, y: close.y + close.height / 2.0 };
@@ -234,17 +247,17 @@ fn a_tap_on_a_row_closes_it_and_runs_the_command() {
 fn the_row_under_the_pen_lights_up() {
     let size = TALL;
     let mut overlay = open();
-    let lit = |overlay: &KeyOverlay| {
+    let lit = |overlay: &mut KeyOverlay| {
         let shown = overlay.shown(&Keymap::default(), &T, size).unwrap();
         shown.lines.iter().filter(|l| l.label.fill == Some(style::hover(&T))).count()
     };
-    assert_eq!(lit(&overlay), 0);
+    assert_eq!(lit(&mut overlay), 0);
     assert!(overlay.hover(on(Command::Undo, size, 0.0), size));
-    assert_eq!(lit(&overlay), 1);
+    assert_eq!(lit(&mut overlay), 1);
     let near = on(Command::Undo, size, 0.0);
     assert!(!overlay.hover(Point { x: near.x + 3.0, ..near }, size), "the same row");
     assert!(overlay.hover(Point { x: 1.0, y: 1.0 }, size));
-    assert_eq!(lit(&overlay), 0);
+    assert_eq!(lit(&mut overlay), 0);
     assert!(!KeyOverlay::default().hover(near, size), "closed, nothing lights");
 }
 
@@ -254,7 +267,7 @@ fn rows_that_do_not_fit_scroll_by_drag_scroll_or_arrow_and_a_drag_runs_nothing()
     let keys = Keymap::default();
     let last = place(size, 0.0).fixed.last().unwrap().0.title.to_string();
     let mut overlay = open();
-    assert!(!texts_of(&overlay, &keys, size).contains(&last), "below");
+    assert!(!texts_of(&mut overlay, &keys, size).contains(&last), "below");
     let most = place(size, f64::MAX).scroll;
     assert!(most > 0.0);
 
@@ -264,7 +277,7 @@ fn rows_that_do_not_fit_scroll_by_drag_scroll_or_arrow_and_a_drag_runs_nothing()
     assert!(overlay.drag(up, size));
     assert_eq!(overlay.lift(up, size), Taken::Yes, "a drag scrolls and runs nothing");
     assert!(overlay.is_open());
-    assert!(texts_of(&overlay, &keys, size).contains(&last), "scrolled in");
+    assert!(texts_of(&mut overlay, &keys, size).contains(&last), "scrolled in");
     assert!((overlay.scroll - most).abs() < 1e-9, "no further than the last row");
 
     assert!(overlay.scroll(most * 2.0, size));

@@ -2,6 +2,7 @@
 //! exit code out. Each run talks to a real daemon on its own socket.
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use serde_json::Value;
 use tempfile::TempDir;
@@ -82,6 +83,24 @@ fn with_daemon_on<T>(claude: &Path, f: impl FnOnce(&Path) -> T) -> T {
     stopper.stop();
     serving.join().unwrap().unwrap();
     result
+}
+
+/// The whole lines of the file at `path` once it has `n` of them, or fails
+/// after 10 s. The stand-in for Claude Code (`cat`) writes what it is sent
+/// as it reads it, after the CLI call that sent it has returned, and a long
+/// line in pieces: a line counts once its newline is in (slinger-37d97e).
+fn wait_lines(path: &Path, n: usize) -> Vec<String> {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let text = std::fs::read_to_string(path).unwrap_or_default();
+        let whole = text.rfind('\n').map_or("", |end| &text[..end]);
+        let lines: Vec<String> = whole.lines().map(str::to_string).collect();
+        if lines.len() >= n {
+            return lines;
+        }
+        assert!(Instant::now() < deadline, "timed out waiting for {n} lines in {path:?}: {text:?}");
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 fn cli_on(socket: &Path, args: &[&str]) -> Run {
