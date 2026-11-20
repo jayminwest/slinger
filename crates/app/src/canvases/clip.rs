@@ -19,7 +19,7 @@
 
 use super::{Canvases, canvas_of, find, wanted};
 use crate::config::Rgb;
-use crate::layout::{Point, Rect, Viewport};
+use crate::layout::{PaneId, Point, Rect, Viewport};
 use crate::mirror::{Mirror, clip};
 use crate::panes::Panes;
 use crate::scene::ink::Change;
@@ -95,14 +95,16 @@ impl Canvases {
         let viewport = view.map_or_else(Viewport::start, |(_, v)| v.viewport);
         let centre = viewport.to_canvas(Point { x: frame.width / 2.0, y: frame.height / 2.0 });
         let page = mirror.page().to_string();
-        self.place((canvas.to_string(), page), &items, centre)
+        self.place(focus, (canvas.to_string(), page), &items, centre)
     }
 
-    /// Adds a clip's `items` to `page` of `canvas`, centred on `centre`, in
-    /// one step: they are the selection once there. False when there is
-    /// nothing to add.
+    /// Adds a clip's `items` to `page` of `canvas`, as pane `to` shows it,
+    /// centred on `centre`, in one step: they are the selection once there,
+    /// and join the folded box the pane is inside, if any. False when there
+    /// is nothing to add.
     pub(super) fn place(
         &mut self,
+        to: PaneId,
         (canvas, page): (String, String),
         items: &str,
         centre: Point,
@@ -114,6 +116,7 @@ impl Canvases {
         let change =
             Change::Carry { canvas: canvas.clone(), page: page.clone(), items, gone: vec![] };
         let key = self.ink.push_keyed(change);
+        self.added_in(key, to, (&canvas, &page));
         self.select.pasted(key, &canvas, &page);
         self.send();
         true

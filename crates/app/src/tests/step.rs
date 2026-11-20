@@ -128,3 +128,30 @@ fn step_in_beside_splits_the_pane_and_steps_the_new_one_in() {
         assert!(ids(1).contains(&ROOM) && !ids(1).contains(&1), "the new one, the box");
     });
 }
+
+#[test]
+fn a_paste_in_a_pane_inside_a_folded_box_joins_it() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        page(daemon);
+        let fold = control::CanvasFold {
+            canvas: "notes".into(),
+            item: "i1".into(),
+            by: "user".into(),
+            once: None,
+        };
+        daemon.canvas_fold(&control::FoldAsk::CanvasFold(fold)).unwrap();
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        w.until(|_| held(daemon) == serde_json::json!(["i2"]));
+        select_all(&mut w, 2);
+        assert!(w.send(Event::Key(STEP_IN)));
+        settle(&mut w, |d| d.contains(&2) && !d.contains(&3));
+
+        let clip = crate::scene::paste::Clip::new(Some("pasted".into()), None);
+        assert!(w.send(Event::Edit(Edit::Paste(clip))));
+        w.until(|_| held(daemon).as_array().is_some_and(|h| h.len() == 2));
+        assert_eq!(count(daemon, "text"), 1, "on the page, held by the box");
+        settle(&mut w, |d| d.contains(&4) && d.contains(&2));
+    });
+}

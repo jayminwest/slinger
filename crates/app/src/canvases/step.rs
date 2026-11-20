@@ -9,8 +9,9 @@
 //! folded or unfolded elsewhere steps the pane out of it ([`Mirror::step`]).
 //!
 //! What is written in a pane inside a folded box joins it: the pen's
-//! strokes, boxes and arrows from the press to the lift, and a text from
-//! its start to its end, each sent with `in` ([`Ink::join`]).
+//! strokes, boxes and arrows from the press to the lift, a text from its
+//! start to its end, and what is pasted, duplicated or carried into the
+//! pane, each sent with `in` ([`Ink::join`]).
 
 use std::borrow::Cow;
 
@@ -224,7 +225,7 @@ impl Canvases {
 
     /// The folded box what is written in `pane` on `page` of `canvas`
     /// joins, if any: the innermost folded box of its trail.
-    fn joins_in(&self, pane: PaneId, here: (&str, &str)) -> Option<ItemId> {
+    pub(super) fn joins_in(&self, pane: PaneId, here: (&str, &str)) -> Option<ItemId> {
         let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v)?;
         let mirror = find(&self.open, here.0, Some(here.1))?.mirror.as_ref()?;
         mirror.step(&view.trail.on(here)).0?.joins()
@@ -323,6 +324,16 @@ impl Canvases {
         let mark = self.ink.mark();
         let joining = |inside| Joining { mark, canvas, page: on, inside };
         self.steps.typing = inside.map(|inside| (joining(inside), at));
+    }
+
+    /// What was queued from key `mark` on `here`, a page of a canvas (a
+    /// paste, a duplicate, a carry), joins the folded box `pane` is inside
+    /// there, if any.
+    pub(super) fn added_in(&mut self, mark: u64, pane: PaneId, here: (&str, &str)) {
+        if let Some(inside) = self.joins_in(pane, here) {
+            let carry = |c: &Change| matches!(c, Change::Carry { .. });
+            self.ink.join(mark, here, inside, carry);
+        }
     }
 
     /// The text that joins a box ended: its `add` joins it.

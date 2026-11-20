@@ -54,6 +54,7 @@ impl Canvases {
         let at = to_canvas(self.view(pane).viewport, frame, pen.at);
         let landing = self.landing(panes, under, pen.at);
         self.select.keep_ratio(pen.shift);
+        let mark = self.ink.mark();
         let ended = self.ink.up(Some(at)) || {
             let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
             self.shapes.up(Some(at), &items, &mut self.ink) || self.crop.up(Some(at), &items) || {
@@ -73,6 +74,9 @@ impl Canvases {
         };
         let edits = self.shapes.tapped(at);
         self.pen_joined();
+        if let (Some((to, _)), Some((canvas, page, _))) = (under, &landing) {
+            self.added_in(mark, to, (canvas, page));
+        }
         self.unshown = None;
         self.send();
         ended || edits

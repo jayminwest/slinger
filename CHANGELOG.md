@@ -69,7 +69,8 @@ bullet with the area in bold.
   into box), or tap a folded box's miniature twice: the pane shows only
   what the box holds, from its top left, inside a dashed frame, and the
   footer adds the box's name to the page ("ideas · 2/3 › Plans"). What you
-  draw or type inside a folded box goes into it. Escape with nothing
+  draw, type, paste or drag in from another pane inside a folded box goes
+  into it. Escape with nothing
   selected, opt+cmd+O or the footer's ⤴ steps back out to the view you
   had. opt+shift+cmd+I opens the box in a new pane beside, so two boxes
   show at once; each pane keeps its own trail.

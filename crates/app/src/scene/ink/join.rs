@@ -12,8 +12,9 @@ impl Ink {
         self.next_key
     }
 
-    /// Each add on `page` of `canvas` queued from key `from` on that
-    /// `which` takes joins folded box `inside` once sent. One already
+    /// Each add (a carry's or a paste's too) on `page` of `canvas` queued
+    /// from key `from` on that `which` takes joins folded box `inside` once
+    /// sent. One already
     /// sending stays as it went.
     pub fn join(
         &mut self,
@@ -25,7 +26,7 @@ impl Ink {
         let joins = |p: &&super::Pending| {
             let c = &p.change;
             let here = c.canvas() == canvas && c.page() == Some(page);
-            let adds = matches!(c, Change::Add(_) | Change::Put { .. });
+            let adds = matches!(c, Change::Add(_) | Change::Put { .. } | Change::Carry { .. });
             p.key >= from && p.state == super::State::Waiting && here && adds && which(c)
         };
         let keys: Vec<u64> = self.pending.iter().filter(joins).map(|p| p.key).collect();
