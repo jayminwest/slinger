@@ -49,7 +49,7 @@ Choices an agent made and shipped that the owner has not confirmed. An agent tha
 - [ ] blobs of a folder canvas go to `<dir>/.slinger/blobs/sha256-<hex>` (hidden; written through, the record becomes a cache); UI code stays in the record by D19, only shown versions are copied (slinger-7c18bc)
 - [ ] writer guard is flock on the canvas file plus a stat check before each append; an outside change saves the daemon's copy beside the file as `<id> (slinger <machine> <time>).canvas` and refuses the change; no lock file in the folder (slinger-7c18bc)
 - [ ] migration: an explicit `slinger canvas move <ID>` / `--back` first, automatic moves on start only after the owner has moved one canvas and back; originals are kept in `canvases/moved/` and never removed by slinger (slinger-7c18bc)
-- [ ] a folder that already holds `<canvas>.canvas` is adopted; a header-only twin in the data dir goes to `moved/`, a twin with content stays and is reported (slinger-7c18bc)
+- [ ] a folder that already holds `<id>.canvas` for a canvas its toml names (its `canvas` and its layout's `canvas:` panes, so a PDF canvas reopened by its bytes finds it; re-check of 2026-11-20) is adopted; a header-only twin in the data dir goes to `moved/`, a twin with content stays and is reported (slinger-7c18bc)
 - [ ] canvases stay out of network file systems (smbfs, nfs, afpfs, webdav); loose and rootless canvases stay in the data directory, not `~/Documents/Slinger`; ids stay global and the header's id wins over a Finder rename (slinger-7c18bc)
 
 ## Switching and views (plan pl-85bfa0)
