@@ -29,6 +29,7 @@ impl Daemon {
             .arg(&socket)
             .arg("--data-dir")
             .arg(data.path())
+            .arg("--scratch")
             .args(args)
             .stdout(Stdio::null())
             .stderr(Stdio::null())

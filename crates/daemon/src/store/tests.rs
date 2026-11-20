@@ -227,7 +227,7 @@ fn a_second_slingerd_on_a_held_data_dir_exits_4_and_leaves_the_record_alone() {
     store.append(event("agent_done", None)).unwrap();
     // Its own socket, so only the data directory is shared.
     let socket = dir.path().join("other.sock");
-    let args = ["slingerd", "--socket", socket.to_str().unwrap(), "--data-dir"];
+    let args = ["slingerd", "--socket", socket.to_str().unwrap(), "--scratch", "--data-dir"];
     let args = args.into_iter().chain([dir.path().to_str().unwrap()]);
     let (mut out, mut err) = (Vec::new(), Vec::new());
     assert_eq!(crate::run(args, &mut out, &mut err), 4);

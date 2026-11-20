@@ -18,6 +18,7 @@ fn sigterm_stops_the_daemon_cleanly() {
         .arg(&socket)
         .arg("--data-dir")
         .arg(data.path())
+        .arg("--scratch")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()

@@ -16,7 +16,7 @@ slinger --help
 Start the daemon, then use the CLI. The protocol is in [docs/service.md](docs/service.md).
 
 ```bash
-cargo run --release --bin slingerd &
+cargo run --release --bin slingerd &   # the record goes in the default data directory
 cargo run --release --bin slinger -- canvas create main
 ```
 
@@ -33,9 +33,12 @@ Build and open the macOS app (it shows the daemon's answer):
 
 ```bash
 scripts/bundle.sh && open target/slinger.app
+scripts/bundle.sh --install   # the app to /Applications, slingerd and slinger to ~/.local/bin
 ```
 
 Run the bundle, not the bare `slinger-app` binary (from `cargo run`, a shell or ssh), whenever the app reads your files: opening a workspace, a PDF or a drawing, or exporting a UI. macOS gives folder access (Desktop, Documents, Downloads) to the bundle, which says why it asks. A bare binary gets none of its own, so its open panel can show those folders empty or refuse them.
+
+The app does not start the daemon: run `slingerd` first, or at login from a service manager ([docs/service.md](docs/service.md), "Running it as a system service"). The daemon refuses a data directory in a temporary directory unless it is given `--scratch`, because the system empties those.
 
 ## Development
 

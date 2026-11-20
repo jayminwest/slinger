@@ -75,7 +75,7 @@ chmod +x "$tmp/claude"
 mkdir "$tmp/ws"
 printf 'version = 1\nname = "e2e"\n[agent]\nname = "e2e"\n' >"$tmp/ws/slinger-workspace.toml"
 
-"$bin/slingerd" --socket "$sock" --data-dir "$tmp/data" --claude "$tmp/claude" --slinger "$bin/slinger" \
+"$bin/slingerd" --socket "$sock" --data-dir "$tmp/data" --scratch --claude "$tmp/claude" --slinger "$bin/slinger" \
   2>"$tmp/slingerd.log" &
 daemon=$!
 for _ in $(seq 50); do [ -S "$sock" ] && break; sleep 0.1; done

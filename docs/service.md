@@ -6,8 +6,8 @@ and agents rely on this contract. Breaking it is a breaking change.
 ## The daemon
 
 ```
-slingerd [--socket <PATH>] [--data-dir <PATH>] [--claude <PATH>] [--slinger <PATH>]
-         [--feedback <PATH>]
+slingerd [--socket <PATH>] [--data-dir <PATH>] [--scratch] [--claude <PATH>]
+         [--slinger <PATH>] [--feedback <PATH>]
 ```
 
 - It says nothing on success and runs until SIGTERM or SIGINT.
@@ -36,7 +36,7 @@ slingerd [--socket <PATH>] [--data-dir <PATH>] [--claude <PATH>] [--slinger <PAT
 |---|---|---|
 | 0 | ok | Stopped by a signal |
 | 1 | error | Unexpected failure, such as a socket path or data directory that cannot be created |
-| 2 | usage | Bad arguments |
+| 2 | usage | Bad arguments, or a data directory in a temporary directory without `--scratch` |
 | 4 | conflict | Another daemon serves the socket or the data directory, or the record was laid out by a newer slingerd |
 
 ## Data directory
@@ -48,6 +48,13 @@ writer; other programs reach the record through the socket.
 - Default: `$XDG_DATA_HOME/slinger`. When `XDG_DATA_HOME` is not set:
   `~/Library/Application Support/slinger` on macOS and
   `~/.local/share/slinger` elsewhere. `--data-dir <PATH>` overrides it.
+- **Not in a temporary directory.** The system empties `/tmp`, `/var/tmp`,
+  `/var/folders`, `/dev/shm`, `/run` and `$TMPDIR` at a restart or after
+  some days, and every canvas goes with them. A data directory in one of
+  them (as written, or through a link) stops the daemon before it makes
+  anything: exit 2 with `✗ data directory <path> is in <root>, which the
+  system empties` and a hint. `--scratch` allows it, for a daemon whose
+  record may be lost: a test, or the checks below.
 - The daemon creates the directory (mode `0700`) and the file at startup,
   after it takes the socket. A directory it cannot create stops it with
   exit 1 and a hint.
@@ -811,7 +818,7 @@ conversation lands in Claude Code's own session store like any other.
 ```bash
 tmp=$(mktemp -d) && mkdir "$tmp/ws"
 printf 'version = 1\nname = "check"\n[agent]\nname = "checker"\n' > "$tmp/ws/slinger-workspace.toml"
-slingerd --socket "$tmp/s.sock" --data-dir "$tmp/data" & daemon=$!
+slingerd --socket "$tmp/s.sock" --data-dir "$tmp/data" --scratch & daemon=$!
 s="slinger --socket $tmp/s.sock"
 $s workspace open "$tmp/ws" && $s session start check
 $s session send check 'Remember the word plum. Reply with only: ok'
@@ -1157,8 +1164,11 @@ not open, and an agent with no session.
 
 ## Running it as a system service
 
-The template ships no launchd or systemd unit. To add one, run
-`slingerd --socket <PATH> --data-dir <PATH>` as the user who owns the data, restart it on
+The repo ships no launchd or systemd unit. On macOS `scripts/bundle.sh
+--install` puts the app in `/Applications` and `slingerd` and `slinger` in
+`~/.local/bin`, for a unit to run. To add one, run `slingerd` (the default
+socket and data directory, or a `--socket <PATH>` and a `--data-dir <PATH>`
+that lasts) as the user who owns the data, restart it on
 failure, and stop it with SIGTERM. The daemon does not fork and does not
 write a pid file, so use the service manager's simple (foreground) type. Do
 not use socket activation: the daemon creates and locks its own socket.

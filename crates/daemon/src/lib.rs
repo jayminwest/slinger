@@ -12,6 +12,7 @@ mod feedback;
 mod listeners;
 mod lock;
 mod processes;
+mod scratch;
 mod server;
 mod sessions;
 mod store;
@@ -70,6 +71,9 @@ struct Args {
     socket: Option<PathBuf>,
     #[arg(long, value_name = "PATH", help = DATA_DIR_HELP)]
     data_dir: Option<PathBuf>,
+    /// Let the data directory be in a temporary directory: the record may be lost
+    #[arg(long)]
+    scratch: bool,
     /// The program each agent's process runs: Claude Code
     #[arg(long, value_name = "PATH", default_value = CLAUDE)]
     claude: PathBuf,
@@ -111,7 +115,9 @@ fn report(
             let socket = args.socket.unwrap_or_else(control::default_socket);
             let slinger = args.slinger.unwrap_or_else(beside_me);
             let programs = (args.claude, slinger);
-            match serve(&socket, args.data_dir, programs, args.feedback, err) {
+            let served = data_dir(args.data_dir, args.scratch)
+                .and_then(|dir| serve(&socket, &dir, programs, args.feedback, err));
+            match served {
                 Ok(()) => return Ok(exit::OK),
                 Err(failure) => failure,
             }
@@ -154,6 +160,29 @@ fn beside_me() -> PathBuf {
     beside.filter(|p| p.is_file()).unwrap_or_else(|| SLINGER.into())
 }
 
+/// The directory the record goes in: `given`, else the default. Absolute,
+/// so the paths the daemon gives out (`canvas_show`) are. One in a temporary
+/// directory is refused unless `scratch`: the system empties it, and every
+/// canvas with it (slinger-491a02).
+fn data_dir(given: Option<PathBuf>, scratch: bool) -> Result<PathBuf, Failure> {
+    let dir = given
+        .map_or_else(default_data_dir, Ok)
+        .map_err(|e| (exit::ERROR, e.to_string(), e.hint()))?;
+    let dir = std::path::absolute(&dir).unwrap_or(dir);
+    match scratch::temporary_root(&dir).filter(|_| !scratch) {
+        Some(root) => Err((
+            exit::USAGE,
+            format!(
+                "data directory {} is in {}, which the system empties",
+                dir.display(),
+                root.display()
+            ),
+            Some("pass a --data-dir that lasts, or --scratch if the record may be lost".into()),
+        )),
+        None => Ok(dir),
+    }
+}
+
 /// Serves the record in `data_dir` on `socket`, with the agents' `claude`
 /// and `slinger` programs, writing feedback to `feedback` (by default
 /// [`feedback::default_file`]). Names each open workspace whose file it
@@ -161,7 +190,7 @@ fn beside_me() -> PathBuf {
 /// directory while it serves, so clients find it on any path.
 fn serve(
     socket: &Path,
-    data_dir: Option<PathBuf>,
+    dir: &Path,
     (claude, slinger): (PathBuf, PathBuf),
     feedback: Option<PathBuf>,
     err: &mut dyn Write,
@@ -172,19 +201,16 @@ fn serve(
     // Opened after the socket is ours, so a second daemon on the same socket
     // never touches the record. Held until the daemon stops.
     let stored = |e: StoreError| (code(e.code()), e.to_string(), e.hint());
-    let dir = data_dir.map_or_else(default_data_dir, Ok).map_err(stored)?;
-    // Absolute, so the paths the daemon gives out (`canvas_show`) are.
-    let dir = std::path::absolute(&dir).unwrap_or(dir);
     // A relative --feedback is from where slingerd started.
     let feedback = feedback.map(|f| std::path::absolute(&f).unwrap_or(f));
-    let store = Store::open(&dir, machine_name())
+    let store = Store::open(dir, machine_name())
         .map_err(stored)?
         .with_claude(claude)
         .with_slinger(slinger)
-        .with_feedback(feedback.unwrap_or_else(|| feedback::default_file(&dir)));
+        .with_feedback(feedback.unwrap_or_else(|| feedback::default_file(dir)));
     warn_broken(store.workspaces(), err).map_err(internal)?;
     // The record's lock is ours: so is the name of its socket (docs/service.md).
-    control::name_socket(&dir, socket).map_err(internal)?;
+    control::name_socket(dir, socket).map_err(internal)?;
     let stopper = server.stopper();
     let mut signals = Signals::new([SIGTERM, SIGINT]).map_err(internal)?;
     std::thread::spawn(move || {
@@ -193,6 +219,6 @@ fn serve(
         }
     });
     let result = server.serve(&store).map_err(internal);
-    control::unname_socket(&dir).map_err(internal)?;
+    control::unname_socket(dir).map_err(internal)?;
     result
 }

@@ -23,6 +23,9 @@ bullet with the area in bold.
   (`show-feedback-file`, Help menu and the command palette; no default
   key) shows the file your notes go to, as `slinger feedback path` names
   it; before the first note it says where notes will go.
+- **Install:** `scripts/bundle.sh --install` puts the app in `/Applications`
+  and `slingerd` and `slinger` in `~/.local/bin`, so the app opens like any
+  other and a login service can run the daemon.
 - **App:** save an agent UI to a file. Export agent UI… (`export-ui`, File
   menu and the command palette; no default key) writes the version the
   focused pane shows to a folder you pick, as `<name>.v<version>.html`
@@ -319,6 +322,12 @@ bullet with the area in bold.
 - **App:** the app opens on the workspace it showed when you last quit it,
   while that workspace is still open, instead of the first one by name. A
   `workspace` set in the config still wins.
+- **Daemon:** `slingerd` refuses a data directory in a temporary directory
+  (`/tmp`, `/var/folders`, `$TMPDIR` and the like): the system empties those
+  at a restart, and every canvas went with it. It exits 2 and says so.
+  `--scratch` allows it for a daemon whose record may be lost, such as a
+  test's. Scripts that pass `--data-dir` a temporary path must add
+  `--scratch`.
 - **Agents:** a workspace's agent now has every Claude Code tool (subagents,
   to-do lists, skills, web search and the rest) and the MCP servers its
   settings name, as a session you start by hand does. What it may do without
