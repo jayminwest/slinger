@@ -172,3 +172,25 @@ fn the_caret_and_the_selection_are_drawn_in_the_rows() {
     let empty = Laid::new("a\n\nb", Point { x: 0.0, y: 0.0 }, SIZE, SEVEN);
     assert_eq!(empty.selection(0, 4, 2.0)[1], rect(0.0, 10.0, 2.0), "an empty line shows");
 }
+
+#[test]
+fn the_caret_moves_and_deletes_by_whole_grapheme_clusters() {
+    // A family joined by ZWJ, an e with a combining acute, a flag.
+    let (family, e_acute, flag) = ("👩\u{200d}👩\u{200d}👧", "e\u{301}", "🇯🇵");
+    let mut e = at(&format!("a{family}{e_acute}{flag}|"));
+    assert_eq!(pressed(&mut e, &["left"]), format!("a{family}{e_acute}|{flag}"));
+    assert_eq!(pressed(&mut e, &["left"]), format!("a{family}|{e_acute}{flag}"));
+    assert_eq!(pressed(&mut e, &["left"]), format!("a|{family}{e_acute}{flag}"));
+    assert_eq!(pressed(&mut e, &["shift+right"]), format!("a[{family}]{e_acute}{flag}"));
+    assert_eq!(pressed(&mut e, &["right", "forward-delete"]), format!("a{family}|{flag}"));
+    assert_eq!(pressed(&mut e, &["delete"]), format!("a|{flag}"));
+    e.typed("\u{7f}");
+    assert_eq!(shown(&e), format!("|{flag}"), "a typed delete too");
+    let mut e = at(&format!("caf{e_acute}| x"));
+    assert_eq!(pressed(&mut e, &["alt+left", "alt+right"]), format!("caf{e_acute}| x"), "a word");
+    let text = format!("{family}b");
+    let laid = Laid::new(&text, Point { x: 0.0, y: 0.0 }, SIZE, 1e7);
+    // The stand-in measure gives the family's five scalars 50 points.
+    assert_eq!(laid.index_at(Point { x: 20.0, y: 0.0 }), 0, "a press snaps out of a cluster");
+    assert_eq!(laid.index_at(Point { x: 30.0, y: 0.0 }), family.len());
+}

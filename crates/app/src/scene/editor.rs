@@ -5,13 +5,17 @@
 //! caret bar and the selection's boxes this module gives, from
 //! [`glyphs::Laid`], the rows every hit test and the core use.
 //!
-//! The caret and the anchor are byte offsets on `char` boundaries: the caret
-//! moves by Unicode scalar, not by grapheme cluster (slinger-459ce9). A
-//! word is a run of alphanumeric characters or `_`.
+//! The caret and the anchor are byte offsets on grapheme cluster boundaries:
+//! the caret moves, and delete deletes, by what reads as one character (an
+//! emoji joined by ZWJ, a letter with its combining marks, a flag), not by
+//! Unicode scalar. A word is a run of clusters that start with an
+//! alphanumeric character or `_`.
 //!
 //! The keys ([`Editor::key`]) are fixed text keys, not commands: while a
 //! text is typed they come before the keymap, so alt+arrows move by words
 //! instead of panning, and cmd+A selects the text's characters.
+
+use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 
 use crate::commands::{
     ALT, CMD, Chord, DELETE, DOWN, END, FORWARD_DELETE, HOME, LEFT, RIGHT, SHIFT, UP,
@@ -118,11 +122,7 @@ impl Editor {
     pub fn typed(&mut self, text: &str) {
         for c in text.chars() {
             match c {
-                '\u{7f}' | '\u{8}' => {
-                    let to =
-                        self.text[..self.caret].char_indices().next_back().map_or(0, |(i, _)| i);
-                    self.delete(to);
-                }
+                '\u{7f}' | '\u{8}' => self.delete(before(&self.text, self.caret)),
                 '\r' | '\n' => self.insert("\n"),
                 // The arrow and function keys are in this private range.
                 c if c.is_control() || ('\u{f700}'..='\u{f8ff}').contains(&c) => {}
@@ -188,14 +188,13 @@ impl Editor {
 
     /// Where the caret goes back to by `unit`.
     fn back(&self, unit: Unit, laid: &Laid<'_>) -> usize {
-        let before = &self.text[..self.caret];
-        let char_back = || before.char_indices().next_back().map_or(0, |(i, _)| i);
         match unit {
-            Unit::Char => char_back(),
+            Unit::Char => before(&self.text, self.caret),
             Unit::Word => {
-                let mut chars = before.char_indices().rev().skip_while(|&(_, c)| !word(c));
-                let mut start = chars.next().map_or(0, |(i, _)| i);
-                for (i, _) in chars.take_while(|&(_, c)| word(c)) {
+                let clusters = self.text[..self.caret].grapheme_indices(true).rev();
+                let mut clusters = clusters.skip_while(|&(_, g)| !word(g));
+                let mut start = clusters.next().map_or(0, |(i, _)| i);
+                for (i, _) in clusters.take_while(|&(_, g)| word(g)) {
                     start = i;
                 }
                 start
@@ -203,19 +202,19 @@ impl Editor {
             Unit::Row => {
                 let row = laid.rows()[laid.row_of(self.caret)].start;
                 // At a row's start, back over the line end before it.
-                if row == self.caret { char_back() } else { row }
+                if row == self.caret { before(&self.text, self.caret) } else { row }
             }
         }
     }
 
     /// Where the caret goes forward to by `unit`.
     fn forward(&self, unit: Unit, laid: &Laid<'_>) -> usize {
-        let after = &self.text[self.caret..];
         match unit {
-            Unit::Char => self.caret + after.chars().next().map_or(0, char::len_utf8),
+            Unit::Char => after(&self.text, self.caret),
             Unit::Word => {
-                let mut chars = after.char_indices().skip_while(|&(_, c)| !word(c));
-                let end = chars.find(|&(_, c)| !word(c)).map_or(after.len(), |(i, _)| i);
+                let rest = &self.text[self.caret..];
+                let mut clusters = rest.grapheme_indices(true).skip_while(|&(_, g)| !word(g));
+                let end = clusters.find(|&(_, g)| !word(g)).map_or(rest.len(), |(i, _)| i);
                 self.caret + end
             }
             Unit::Row => laid.rows()[laid.row_of(self.caret)].end,
@@ -247,9 +246,21 @@ impl Editor {
     }
 }
 
-/// A character of a word: alphanumeric or `_`.
-fn word(c: char) -> bool {
-    c.is_alphanumeric() || c == '_'
+/// A cluster of a word: one that starts with an alphanumeric character or `_`.
+fn word(cluster: &str) -> bool {
+    cluster.chars().next().is_some_and(|c| c.is_alphanumeric() || c == '_')
+}
+
+/// The grapheme cluster boundary before `index` in `text`, or its start.
+fn before(text: &str, index: usize) -> usize {
+    let mut cursor = GraphemeCursor::new(index, text.len(), true);
+    cursor.prev_boundary(text, 0).ok().flatten().unwrap_or(0)
+}
+
+/// The grapheme cluster boundary after `index` in `text`, or its end.
+fn after(text: &str, index: usize) -> usize {
+    let mut cursor = GraphemeCursor::new(index, text.len(), true);
+    cursor.next_boundary(text, 0).ok().flatten().unwrap_or(text.len())
 }
 
 /// A canvas text being typed: where it is, how it is set, the item it

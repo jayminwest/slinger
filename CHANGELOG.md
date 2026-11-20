@@ -460,6 +460,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** the caret in a canvas text moves, and delete deletes, by what
+  reads as one character: an emoji joined from several (a family, a skin
+  tone), a letter with its accents, a flag. It no longer stops inside one.
 - **App:** a paste that has nowhere to go says why in a flash instead of
   only beeping: nothing on the clipboard the app can paste, no text for the
   text you are typing, or nothing focused that takes a paste.
