@@ -617,6 +617,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a workspace whose file is broken no longer pushes the
+  workspaces under it out of the sidebar. Its error takes at most two
+  lines, cut short with "…"; the hint shows only while you show that
+  workspace, in at most three lines; the panes show both, wider.
 - **App:** once the slingerd that slinger.app started answers, the sidebar
   lists the workspaces at once; before, it could take up to a second more.
 - **Workspaces:** closing a workspace ends its agent's running process.
