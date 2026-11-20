@@ -104,9 +104,50 @@ fn an_opened_pdf_is_a_canvas_of_its_pages_stacked_in_a_pane_beside_the_focused_o
         let panes = layout.panes();
         assert!(panes.iter().any(|p| p.target == "paper--v2-.pdf"), "{panes:?}");
 
+        fs::write(&file, b"%PDF-1.7 another").unwrap();
         assert_eq!(open(d, letters, &ask, &scratch).unwrap(), "paper--v2--2.pdf", "id taken");
         let alone = Opening { workspace: None, beside: None, ..ask };
+        fs::write(&file, b"%PDF-1.7 a third").unwrap();
         assert_eq!(open(d, letters, &alone, &scratch).unwrap(), "paper--v2--3.pdf");
+    });
+}
+
+/// slinger-d21286: the canvas holds the PDF's blob, so the same bytes
+/// opened (or dropped) again are its canvas, with what was written on it.
+#[test]
+fn the_same_pdf_opened_again_is_the_canvas_it_made_shown_once() {
+    with_daemon(|d| {
+        let _notes = open_notes(d);
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("t.pdf");
+        fs::write(&file, b"%PDF-1.7 one").unwrap();
+        let ask = Opening { file: file.clone(), workspace: Some("notes".into()), beside: Some(1) };
+        let scratch = dir.path().join("cache");
+        assert_eq!(open(d, letters, &ask, &scratch).unwrap(), "t.pdf");
+        fs::write(&file, b"%PDF-1.7 two").unwrap();
+        assert_eq!(open(d, letters, &ask, &scratch).unwrap(), "t-2.pdf", "other bytes, same name");
+
+        let shows = |id: &str| {
+            let layout = d.pane_list("notes").unwrap().layout;
+            layout.panes().iter().filter(|p| p.target == id).count()
+        };
+        fs::write(&file, b"%PDF-1.7 one").unwrap();
+        assert_eq!(open(d, letters, &ask, &scratch).unwrap(), "t.pdf", "the first one's bytes");
+        assert_eq!(shows("t.pdf"), 1, "already in a pane: no second one");
+        let copy = dir.path().join("elsewhere");
+        fs::create_dir(&copy).unwrap();
+        fs::write(copy.join("t.pdf"), b"%PDF-1.7 two").unwrap();
+        let moved = Opening { file: copy.join("t.pdf"), ..ask.clone() };
+        assert_eq!(open(d, letters, &moved, &scratch).unwrap(), "t-2.pdf", "by bytes, not path");
+        assert_eq!(shows("t-2.pdf"), 1);
+
+        let closed = d.pane_list("notes").unwrap().layout;
+        let pane = closed.panes().iter().find(|p| p.target == "t.pdf").unwrap().pane;
+        d.pane_close("notes", pane).unwrap();
+        assert_eq!(open(d, letters, &ask, &scratch).unwrap(), "t.pdf");
+        assert_eq!(shows("t.pdf"), 1, "its pane closed: shown again");
+        let made = d.canvas_list().unwrap();
+        assert_eq!(made.iter().filter(|c| c.starts_with('t')).count(), 2, "{made:?}");
     });
 }
 
@@ -156,7 +197,7 @@ fn an_open_that_fails_partway_makes_no_canvas() {
 }
 
 /// slinger-8d8e97: a tldraw file imported again is a canvas of its own,
-/// named as a second open of a PDF is.
+/// named as a second PDF with a taken name is.
 #[test]
 fn a_tldraw_file_imported_twice_gets_the_next_id() {
     with_daemon(|d| {

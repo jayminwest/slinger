@@ -215,7 +215,10 @@ with no PDF is refused (the drag slides back).
 - **Canvas id.** The file's stem, lowercased, each character outside
   `a-z 0-9 - _` made `-`, cut to 56 characters, then `.pdf`: `Paper (v2).pdf`
   is `paper--v2-.pdf`, and a stem left empty is `pdf`. When `canvas_create` says `conflict`, try `-2`, `-3`,
-  … before `.pdf`. **A canvas whose id ends in `.pdf` is a PDF's canvas**:
+  … before `.pdf`; an id taken by the canvas made from the same bytes (a
+  `pdf` item on its first page names the same blob) is that canvas, opened
+  again with what was written on it, and gets no second pane where one shows
+  it (slinger-d21286). **A canvas whose id ends in `.pdf` is a PDF's canvas**:
   reader mode keys on this and nothing else (below).
 - **Stacking.** All on the canvas's first page, `p1`. One scale for the whole
   document: `k = PAGE_WIDTH / (the widest page's width in points)`, with

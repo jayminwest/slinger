@@ -10,9 +10,12 @@ use slinger_control::{Client, PaneKind, PaneLayout, PaneTree};
 
 use super::Problem;
 use crate::panes::{Kind, Pane};
+use crate::scene::sidebar::broken;
 
 /// The server's panes for `wanted` (the config's workspace, or the one
-/// tapped or opened), else for `last` (the workspace the window showed when
+/// tapped or opened; when none has that name, a broken file that names
+/// none in a folder of that name, as the sidebar shows it:
+/// [`broken::by_folder`]), else for `last` (the workspace the window showed when
 /// the app last quit) while it is open and usable, else for the first open
 /// workspace that is usable.
 ///
@@ -36,7 +39,14 @@ pub fn layout(
         })?;
         first.name.clone()
     };
-    Ok(daemon.pane_list(&workspace)?)
+    let asked = daemon.pane_list(&workspace);
+    if asked.is_err() && wanted.is_some() {
+        let open = daemon.workspace_list()?;
+        if let Some(file) = open.iter().find(|w| broken::by_folder(&w.name, &w.dir, &workspace)) {
+            return Ok(daemon.pane_list(&file.dir.to_string_lossy())?);
+        }
+    }
+    Ok(asked?)
 }
 
 /// Opens a pane on `workspace` that shows `pane`, beside pane number
@@ -160,6 +170,10 @@ mod tests {
             // What a tap on its sidebar row asks for (slinger-7e27ff).
             let by_dir = layout(d, dir.to_str(), None).unwrap_err().message;
             assert!(by_dir.contains("extra `=`"), "its file's error: {by_dir}");
+            // What a config that named it by its folder asks for (slinger-6bab5c).
+            let folder = dir.file_name().and_then(|f| f.to_str());
+            let by_folder = layout(d, folder, None).unwrap_err().message;
+            assert!(by_folder.contains("extra `=`"), "its file's error: {by_folder}");
         });
     }
 

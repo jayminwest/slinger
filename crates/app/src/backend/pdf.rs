@@ -86,8 +86,10 @@ pub struct Opening {
 }
 
 /// Makes the PDF `ask.file` a new canvas, and opens a pane on it beside
-/// `ask.beside` in `ask.workspace`. Either way the canvas is named
-/// [`canvas_id`], the next id when one is taken. A tldraw file
+/// `ask.beside` in `ask.workspace` unless a pane there shows it already.
+/// Either way the canvas is named [`canvas_id`], the next id when one is
+/// taken; a PDF's id taken by the canvas made from the same bytes
+/// ([`made_from`]) is that canvas, opened again, not made anew. A tldraw file
 /// ([`is_tldraw`]) the daemon imports (`canvas_import`). A PDF: reads its
 /// page sizes with `sizes`, stores it as a blob, and makes the canvas
 /// holding one `pdf` item per page on its first page,
@@ -112,7 +114,11 @@ pub fn open(
         pdf_canvas(daemon, sizes, &ask.file, scratch)?
     };
     if let Some(workspace) = &ask.workspace {
-        daemon.pane_open(workspace, PaneKind::Canvas, &canvas, ask.beside, false)?;
+        let layout = daemon.pane_list(workspace)?.layout;
+        let shown = layout.panes().iter().any(|p| p.kind == PaneKind::Canvas && p.target == canvas);
+        if !shown {
+            daemon.pane_open(workspace, PaneKind::Canvas, &canvas, ask.beside, false)?;
+        }
     }
     Ok(canvas)
 }
@@ -136,10 +142,21 @@ fn pdf_canvas(
     let written = fs::create_dir_all(scratch)
         .and_then(|()| fs::write(&ops, Value::Array(adds).to_string()))
         .map_err(|e| unwritable(&ops, &e));
-    let create = &mut |id: &str| daemon.canvas_create_with(id, &ops, None);
+    let create = &mut |id: &str| match daemon.canvas_create_with(id, &ops, None) {
+        Err(e) if e.code() == "conflict" && made_from(daemon, id, &hash) => Ok(()),
+        made => made,
+    };
     let canvas = written.and_then(|()| first_free(file, ".pdf", create));
     let _ = fs::remove_file(&ops);
     canvas
+}
+
+/// Whether canvas `id` was made from the PDF that is blob `hash`: a `pdf`
+/// item on its first page names it. The canvas holds the blob, not the
+/// path, so the same bytes are the same PDF wherever they are (slinger-d21286).
+fn made_from(daemon: &Client, id: &str, hash: &str) -> bool {
+    let shown = daemon.canvas_show(id, None);
+    shown.is_ok_and(|page| page.items.iter().any(|i| i["kind"] == "pdf" && i["hash"] == hash))
 }
 
 /// Makes the canvas for `file` with `make`, under the first of its ids
