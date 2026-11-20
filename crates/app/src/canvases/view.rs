@@ -63,6 +63,14 @@ impl View {
         }
     }
 
+    /// The view of a pane split off this one: the same canvas, page, place
+    /// and boxes, placed, with nothing drawn yet (its frame differs).
+    fn copied(&self) -> Self {
+        let (canvas, page, trail) = (self.canvas.clone(), self.page.clone(), self.trail.clone());
+        let (viewport, reader) = (self.viewport, self.reader);
+        Self { canvas, viewport, page, last: None, reader, trail, placed: true }
+    }
+
     /// Whether it may be the view of `canvas`: it is, or it has not learnt
     /// its canvas yet.
     fn for_canvas(&self, canvas: &str) -> bool {
@@ -121,6 +129,15 @@ impl Views {
         &mut self.shown[at].1
     }
 
+    /// Gives pane `to` a copy of pane `from`'s view ([`View::copied`]); one
+    /// with no view yet keeps its own.
+    pub(super) fn copy(&mut self, from: PaneId, to: PaneId) {
+        let copied = self.shown.iter().find(|(p, _)| *p == from).map(|(_, v)| v.copied());
+        if let Some(view) = copied.filter(|_| from != to) {
+            *self.get(to) = view;
+        }
+    }
+
     /// Forgets the views of the panes not in `panes`.
     pub(super) fn keep(&mut self, panes: &[PaneId]) {
         self.shown.retain(|(id, _)| panes.contains(id));
@@ -141,6 +158,15 @@ impl Views {
             }
             None => {}
         }
+    }
+}
+
+impl super::Canvases {
+    /// Pane `to`, split off pane `from`, shows what `from` shows, where it
+    /// looks: the same page, pan, zoom and boxes. After that each moves on
+    /// its own.
+    pub fn split_view(&mut self, from: PaneId, to: PaneId) {
+        self.views.copy(from, to);
     }
 }
 

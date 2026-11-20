@@ -22,6 +22,7 @@ mod launch;
 mod pointer;
 mod size;
 mod sling_box;
+mod split;
 mod start;
 mod step;
 mod undo;

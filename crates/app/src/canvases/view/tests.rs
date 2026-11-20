@@ -147,3 +147,18 @@ mod shown {
         });
     }
 }
+
+#[test]
+fn a_copy_takes_the_page_and_the_place_and_none_from_a_pane_with_no_view() {
+    let mut views = Views::default();
+    panned(&mut views, 1, "main", 40.0);
+    views.get(pane(1)).page = Some(("main".into(), "p3".into()));
+    views.copy(pane(1), pane(2));
+    assert_eq!(origin(&mut views, 2), origin(&mut views, 1));
+    let copy = views.get(pane(2));
+    assert!(copy.placed && copy.last.is_none(), "placed, nothing drawn yet");
+    assert_eq!(copy.page, Some(("main".into(), "p3".into())));
+    views.copy(pane(9), pane(2));
+    views.copy(pane(2), pane(2));
+    assert_eq!(views.get(pane(2)).page, Some(("main".into(), "p3".into())), "kept");
+}

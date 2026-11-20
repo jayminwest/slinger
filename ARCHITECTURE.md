@@ -626,6 +626,10 @@ canvases/view.rs  each canvas pane's view: page, viewport, trail, reader
              and draws nothing until its page comes. Another workspace's
              views are parked and come back as left; a switch ends what was
              under way in a pane (the pen, a page question, a first tap).
+             A new view is unplaced (`placed`) until its page first comes,
+             when it opens with `Viewport::opening`, or the user pans or
+             zooms; a split copies the source's view, placed
+             (`Canvases::split_view`).
 canvases/live.rs  the live items' pages: each showing a pane draws fetched
              once on a thread of its own, put over its item; a press on an
              item whose page shows goes to the page unless it grabs the
@@ -1085,7 +1089,9 @@ window/items.rs  who holds the keyboard (`keyboard`), and so whether the
              item commands and delete-selection act on the focused pane's
              items: only while the window has it and no text of the app
              takes typing; else the key goes on (select all to a field or a
-             page as `selectAll:`, delete to a live item's page).
+             page as `selectAll:`, delete to a live item's page). Also
+             `split`, the one path of split-right and split-down, which
+             copies the source pane's view into the new one.
 scene/select/carry.rs  a drag of the selection goes by the canvas pane
              under the pen, read through that pane's own view, at every pen
              event and at the lift: over a pane on the same page the items

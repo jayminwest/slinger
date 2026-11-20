@@ -26,9 +26,10 @@ pub enum Command {
     PickTool,
     /// Open the width pop-up (`[pen] widths`) at the pen.
     PickWidth,
-    /// Split the focused pane; the new pane, on the right, shows the same.
+    /// Split the focused pane; the new pane, on the right, shows the same,
+    /// at the same place (page, pan, zoom, box).
     SplitRight,
-    /// Split the focused pane; the new pane, below, shows the same.
+    /// Split the focused pane; the new pane, below, shows the same place.
     SplitDown,
     /// Close the focused pane. The last pane stays.
     ClosePane,

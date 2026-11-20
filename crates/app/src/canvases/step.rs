@@ -29,7 +29,7 @@ use crate::scene::shapes::DOUBLE_TAP;
 const ROOM: ItemId = ItemId((1 << 60) - 2);
 
 /// The boxes a pane is inside, outermost first, on one page.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(super) struct Trail {
     here: Option<(String, String)>,
     steps: Vec<Step>,

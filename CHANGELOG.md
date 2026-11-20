@@ -482,6 +482,9 @@ bullet with the area in bold.
 
 ### Changed
 
+- **App:** a split pane starts where the pane it came from looks: the same
+  page, pan, zoom and box, instead of the first page at 100%. Step into box
+  beside, then escape, shows that place too.
 - **Install:** one way in on a Mac: `scripts/bundle.sh --install`, then
   open slinger. The app starts slingerd, which writes its log to
   `slingerd.log` in the data directory; to update, install again, reopen
