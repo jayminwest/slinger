@@ -23,16 +23,8 @@ impl Shapes {
         self.end(ink);
         let size = self.size();
         let half = glyphs::rows_frame(at, "", size, glyphs::UNWRAPPED).height / 2.0;
-        self.editing = Some(Editing {
-            canvas: canvas.to_string(),
-            page: page.to_string(),
-            at: snap(Point { x: at.x, y: at.y - half }),
-            editor: Editor::default(),
-            colour,
-            size,
-            column: glyphs::UNWRAPPED,
-            item: None,
-        });
+        let at = snap(Point { x: at.x, y: at.y - half });
+        self.editing = Some(Editing::new(canvas, page, at, colour, size));
     }
 
     /// As [`Shapes::start`], except that a text of `items` within `reach`
@@ -90,6 +82,7 @@ impl Shapes {
 /// at its end; `None` when it is not a text.
 pub(super) fn edit((canvas, page): (&str, &str), item: &Item) -> Option<Editing> {
     let Shape::Text { frame, text, size, column } = &item.shape else { return None };
+    let column = column.unwrap_or(glyphs::UNWRAPPED);
     Some(Editing {
         canvas: canvas.to_string(),
         page: page.to_string(),
@@ -97,8 +90,8 @@ pub(super) fn edit((canvas, page): (&str, &str), item: &Item) -> Option<Editing>
         editor: Editor::new(text.clone()),
         colour: item.colour,
         size: *size,
-        column: column.unwrap_or(glyphs::UNWRAPPED),
-        item: Some((item.id, text.clone(), *size)),
+        column,
+        item: Some((item.id, text.clone(), *size, column)),
     })
 }
 

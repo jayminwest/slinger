@@ -136,6 +136,7 @@ pub fn build(log: &[Op], ask: &Ask<'_>) -> Result<Packet> {
     let header = Header {
         canvas: ask.canvas.to_string(),
         page: page_name,
+        inside: ask.inside.map(|b| format!("b{}", b.get())),
         from: delta.from.0 + 1,
         to: delta.to.0,
         scale: render::SCALE,

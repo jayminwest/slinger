@@ -60,6 +60,7 @@ impl Change {
                 bound(shape, &to);
                 to(*id).map(|named| *id = named).is_some()
             }
+            Change::Fold { id, .. } => to(*id).map(|named| *id = named).is_some(),
             Change::Reshape { items, .. } => {
                 items.retain_mut(item);
                 !items.is_empty()

@@ -197,7 +197,8 @@ sling), an index of what is new, and an outline of the rest of the page.
 The images are in the directory the header's `at=` names: `--out`, or
 slingerd's own. `--select c42,t12` keeps only those items in the outline.
 A folded box is one line, `b4 box … folded=7 "its first text"`; `--in b4`
-reads what a box holds, open or folded, as if it were the page.
+reads what a box holds, open or folded, as if it were the page, and its
+header says so (`in=b4`).
 A read changes nothing. The packet is stored as a blob (`packet` in
 `--json`), and so is each image (`images`), for `blob get`. A canvas or
 page that is not there exits 3 (`not_found`), an id that is not one exits

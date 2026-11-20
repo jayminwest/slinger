@@ -1,8 +1,10 @@
 //! An agent's wrapped text keeps its rows on the daemon when it is resized
-//! or edited (slinger-08633c), and a text typed here stays unwrapped.
+//! or edited (slinger-08633c), and a text typed here keeps its column
+//! (slinger-d96bfb).
 
 use super::*;
 use crate::scene::canvas::Shape;
+use crate::scene::cursor::Cursor;
 use crate::scene::glyphs;
 
 /// What the daemon holds of its one text: its text, size and rows.
@@ -77,7 +79,7 @@ fn a_wrapped_text_resized_then_edited_reads_back_from_the_daemon_in_its_rows() {
 }
 
 #[test]
-fn a_text_typed_here_stays_unwrapped_when_edited_after_a_reload() {
+fn a_text_typed_here_keeps_its_column_when_edited_after_a_reload() {
     with_store(None, |daemon| {
         let _home = open_notes(daemon);
         let panes = notes();
@@ -94,9 +96,42 @@ fn a_text_typed_here_stays_unwrapped_when_edited_after_a_reload() {
         let mid = (b.x + 5.0, b.y + b.height / 2.0);
         assert!(canvases.pen_down(&panes, pane, pen(mid.0, mid.1, 5.0), (Tool::Text, GREY)));
         canvases.pen_up(&panes, pen(mid.0, mid.1, 5.1), Some(pane));
-        assert!(canvases.typed(" and a much longer line") && canvases.typed("\u{1b}"));
-        until(&mut canvases, &panes, daemon, |d| stored(d).0.ends_with("line"));
-        let (text, _, rows) = stored(daemon);
-        assert_eq!(rows, text, "one row");
+        let more = " and a much longer line that runs past its column";
+        assert!(canvases.typed(more) && canvases.typed("\u{1b}"));
+        until(&mut canvases, &panes, daemon, |d| stored(d).0.ends_with("column"));
+        let (_, _, rows) = stored(daemon);
+        let first = "word and a much longer line that runs past its";
+        assert_eq!(rows, format!("{first}\ncolumn"), "48 cells a row");
+    });
+}
+
+/// slinger-d96bfb: the pointer over the right edge of the text being typed
+/// shows the resize cursor, with the text tool too, and a drag from there
+/// sets the column it wraps in.
+#[test]
+fn a_drag_of_the_typed_text_s_edge_sets_its_column() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let panes = notes();
+        let mut canvases = Canvases::new(daemon.clone());
+        wait_until(|| shown(&mut canvases, &panes) == 1);
+        type_word(&mut canvases, &panes, (300.0, 300.0), 1.0);
+        assert!(canvases.typed(" two three"));
+        let pane = (panes.focus(), WINDOW.rect());
+        let y = 300.0;
+        let edge = (300..1200).map(f64::from).find(|&x| {
+            canvases.hover_handle(&panes, Some(pane), Point { x, y }, Tool::Text);
+            canvases.handle_cursor(pane.0) == Some(Cursor::ResizeLeftRight)
+        });
+        let x = edge.expect("the edge of the text's column");
+        assert!(x > 300.0 + 400.0, "out at its column, not its glyphs: {x}");
+        assert!(canvases.pen_down(&panes, pane, pen(x, y, 2.0), (Tool::Text, GREY)));
+        assert!(canvases.pen_drag(&panes, pen(x - 500.0, y, 2.1), Some(pane)));
+        canvases.pen_up(&panes, pen(x - 500.0, y, 2.2), Some(pane));
+        assert!(canvases.editing(), "the drag keeps the text typed");
+        assert!(canvases.typed("\u{1b}"));
+        until(&mut canvases, &panes, daemon, |d| count(d, "text") == 1);
+        let (_, _, rows) = stored(daemon);
+        assert_eq!(rows.lines().count(), 3, "{rows:?}");
     });
 }
