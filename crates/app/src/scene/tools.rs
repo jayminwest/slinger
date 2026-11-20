@@ -325,6 +325,11 @@ impl Tools {
         self.pen = Some(at);
     }
 
+    /// Where the pen or pointer last was in the window, if it has been.
+    pub fn pointer(&self) -> Option<Point> {
+        self.pen
+    }
+
     /// Opens the `kind` pop-up where the pen last was, or at the centre of
     /// `within` (the focused pane, in the window's points) before it has
     /// been in the window, inside `within`, with the current choice lit.

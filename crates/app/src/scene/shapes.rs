@@ -19,6 +19,7 @@
 //!   when the pen lifts where it went down ([`Shapes::tapped`]). The edit
 //!   is one change when it ends: an `add`, a `set`, or a `remove` when it
 //!   was emptied.
+//!   A text also starts from the keyboard ([`Shapes::start`], [`start`]).
 //! - Box: a drag from corner to corner.
 //! - Arrow: a drag from start to end. An end that lands on an item binds to
 //!   it ([`target`]), and when that item moves the end follows ([`follow`]),
@@ -101,11 +102,13 @@ struct Drag {
 /// pen, down inside it, is selecting its characters), the last press,
 /// the edit a double tap with the select tool or the lasso asks for
 /// once the pen lifts where it went down, within the reach there, and the
-/// size a new text starts at ([`TEXT_SIZE`] until one is set).
+/// size a new text starts at ([`TEXT_SIZE`] until one is set), and where
+/// the last text ended ([`start`]).
 #[derive(Debug, Default)]
 pub struct Shapes {
     drag: Option<(String, String, Drag)>,
     editing: Option<Editing>,
+    ended: Option<(String, String, Rect)>,
     selecting: bool,
     last: Option<(String, String, Press)>,
     waiting: Option<(Editing, Point, f64)>,
@@ -184,19 +187,7 @@ impl Shapes {
         }
         let arrow = match tool {
             Tool::Text => {
-                // The tap is at the middle of the first line's left end.
-                let size = self.size.unwrap_or(TEXT_SIZE);
-                let half = glyphs::rows_frame(press.at, "", size, glyphs::UNWRAPPED).height / 2.0;
-                self.editing = Some(Editing {
-                    canvas: canvas.to_string(),
-                    page: page.to_string(),
-                    at: snap(Point { x: press.at.x, y: press.at.y - half }),
-                    editor: Editor::default(),
-                    colour,
-                    size,
-                    column: glyphs::UNWRAPPED,
-                    item: None,
-                });
+                self.start((canvas, page), press.at, colour, ink);
                 return true;
             }
             Tool::Box => false,
@@ -326,6 +317,7 @@ impl Shapes {
         let (frame, size, column) = (editing.frame(), editing.size, Some(editing.column));
         let shape = Shape::Text { frame, text: editing.editor.text().to_string(), size, column };
         let (canvas, page) = (editing.canvas, editing.page);
+        self.ended = Some((canvas.clone(), page.clone(), frame));
         match editing.item {
             None if blank => {}
             None => ink.push(Change::Put { canvas, page, colour: editing.colour, shape }),
@@ -477,5 +469,6 @@ fn snap(p: Point) -> Point {
     Point { x: tenth(p.x), y: tenth(p.y) }
 }
 
+mod start;
 #[cfg(test)]
 mod tests;

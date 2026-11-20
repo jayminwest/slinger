@@ -30,6 +30,7 @@ mod paging;
 mod pdf;
 mod reader;
 mod seek;
+mod start;
 
 use std::rc::Rc;
 

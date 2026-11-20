@@ -100,6 +100,7 @@ const BAR: [(&str, &[Action]); 8] = [
             N(Native::Cut),
             N(Native::Copy),
             N(Native::Paste),
+            R(Command::NewText),
             R(Command::SelectAll),
             R(Command::DeleteSelection),
             R(Command::ClearSelection),

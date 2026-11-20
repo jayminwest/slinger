@@ -126,6 +126,7 @@ impl Command {
             Command::Duplicate => "Duplicate",
             Command::Find => "Find text…",
             Command::FindNext => "Find next",
+            Command::NewText => "New text",
         }
     }
 
@@ -178,7 +179,8 @@ impl Command {
             | Command::Save
             | Command::ShowCanvasFile
             | Command::Find
-            | Command::FindNext => Group::Canvas,
+            | Command::FindNext
+            | Command::NewText => Group::Canvas,
             Command::OpenPdf
             | Command::OpenWorkspace
             | Command::CloseWorkspace
