@@ -587,6 +587,10 @@ canvases/paging.rs  the canvas commands on a pane: pan, zoom (in, out, to
 canvases/seek.rs  `find` (cmd+f) and `find-next` (cmd+g): the entry for the
              words, `canvas_find` on the daemon (the search is the core's),
              and the jump: the pane turns to the text's page and centres it.
+canvases/start.rs  `new-text` (ctrl+return): a text started without a
+             tap, chained half a line under the one being typed (which
+             ends), else at the pointer over the pane, under the last text
+             ended on its page, or at its centre (scene/shapes/start.rs).
 canvases/sling.rs  the sling from the window: opens the entry at the
              focused pane's selection, sends it once the ink of its canvas
              is written (`Ink::settled`), takes the answer. `sling_now` is
@@ -1363,6 +1367,7 @@ Each boundary has something that fails when it is broken:
 | The select tool picks the topmost item under a press, a drawn box selects what it touches, shift adds or takes out, a drag moves the selection | `crates/app/src/scene/select/pick/tests.rs` |
 | A drag of a corner handle scales the selection about the opposite corner in one change, a text's size scales evenly within its range, bound arrows follow, no side turns over, shift keeps the shape | `crates/app/src/scene/select/scale/tests.rs` |
 | Select all, next and previous item in reading order, a nudge of the selection as one move with bound arrows following, and where a duplicate lands | `crates/app/src/scene/select/keys/tests.rs` |
+| `new-text` chains a text under the one being typed and else starts one at the pointer | `crates/app/src/scene/shapes/start/tests.rs`, and `crates/app/src/tests/start.rs` against a real daemon |
 | The item keys act on the focused page through the window's routing (cmd+A, tab, shift+tab, an arrow, cmd+J reach the daemon); a text being typed or an open entry keeps them | `crates/app/src/tests/items.rs`, against a real daemon |
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
 | With the pen tool a mouse press selects and a tablet press draws; space held turns a drag into a pan with no tool, and types in a text being typed | `crates/app/src/scene/tools/tests.rs`, `crates/app/src/scene/hand.rs`, and `crates/app/src/tests/pointer.rs` against a real daemon |

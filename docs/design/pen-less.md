@@ -205,10 +205,14 @@ a wrapped line's rows are separate rows):
 | cmd+v, dictation (Flick pastes) | replaces the selection, else goes in at the caret |
 | typing, return | replaces the selection, else goes in at the caret; return starts a line |
 | escape, a press outside | ends the text, as today |
+| double tap inside | selects the word there (or the run of spaces or punctuation); a drag after it keeps the word (slinger-ed74af) |
+| triple tap inside | selects the row there |
+| ctrl+B / F / P / N, ctrl+A / E, ctrl+H / D, ctrl+K / Y, ctrl+T, ctrl+O | a Mac's emacs keys: a character back / forward, a row up / down, the line's start / end (a wrapped line's rows are one line), delete back / forward, cut to the line's end / put it back (in this text, not the clipboard), swap the characters at the caret, start a line after the caret; shift extends the moves (slinger-ed3fbc, `scene/editor/emacs.rs`) |
 
-- A **word** is a run of alphanumeric characters or `_`. The caret moves by
-  `char` (Unicode scalar); grapheme clusters (ZWJ emoji, combining marks)
-  are a follow-up.
+- A **word** is a run of alphanumeric characters or `_`. The caret, delete
+  and a press inside the text move by grapheme cluster (a ZWJ emoji, a
+  letter with its combining marks, a flag), with `unicode-segmentation`
+  (slinger-459ce9).
 - A tap that **opens** an edit leaves the caret at the end, as today: a pen
   tap still appends. A **press inside the text being typed** (today it does
   nothing) puts the caret at the nearest character boundary; a drag from

@@ -7,7 +7,8 @@
 //!   at its caret ([`crate::scene::editor`]), which a tap that opens it
 //!   leaves at its end; a paste goes in at the caret ([`Shapes::pasted`]);
 //!   the caret keys move it ([`Shapes::key`]), and a press inside puts it
-//!   there, a drag or a shift-press selecting; escape or a press
+//!   there, a drag or a shift-press selecting (a double tap selects a
+//!   word, a triple tap a row); escape or a press
 //!   outside ends it. While it is typed it shows its caret and selection,
 //!   a dashed frame around it, and under that how
 //!   to end it. A press outside with any other tool
@@ -19,6 +20,7 @@
 //!   when the pen lifts where it went down ([`Shapes::tapped`]). The edit
 //!   is one change when it ends: an `add`, a `set`, or a `remove` when it
 //!   was emptied.
+//!   A text also starts from the keyboard ([`Shapes::start`], [`start`]).
 //! - Box: a drag from corner to corner.
 //! - Arrow: a drag from start to end. An end that lands on an item binds to
 //!   it ([`target`]), and when that item moves the end follows ([`follow`]),
@@ -101,12 +103,16 @@ struct Drag {
 /// pen, down inside it, is selecting its characters), the last press,
 /// the edit a double tap with the select tool or the lasso asks for
 /// once the pen lifts where it went down, within the reach there, and the
-/// size a new text starts at ([`TEXT_SIZE`] until one is set).
+/// size a new text starts at ([`TEXT_SIZE`] until one is set), and where
+/// the last text ended ([`start`]).
 #[derive(Debug, Default)]
 pub struct Shapes {
     drag: Option<(String, String, Drag)>,
     editing: Option<Editing>,
+    ended: Option<(String, String, Rect)>,
     selecting: bool,
+    /// How many quick presses in a row landed inside the text being typed.
+    taps: u8,
     last: Option<(String, String, Press)>,
     waiting: Option<(Editing, Point, f64)>,
     size: Option<f64>,
@@ -150,6 +156,7 @@ impl Shapes {
         let reach = REACH / press.zoom;
         self.waiting = None;
         let last = self.last.replace((canvas.to_string(), page.to_string(), press));
+        let taps = std::mem::take(&mut self.taps);
         let double = last.is_some_and(|(c, p, last)| {
             c == canvas
                 && p == page
@@ -159,7 +166,8 @@ impl Shapes {
         if let Some(editing) = &mut self.editing {
             let here = editing.canvas == canvas && editing.page == page;
             if here && editing.frame().outset(reach).contains(press.at) {
-                editing.place(press.at, press.shift);
+                self.taps = if double { taps.saturating_add(1) } else { 1 };
+                editing.tap(press.at, press.shift, self.taps);
                 self.selecting = true;
                 return true;
             }
@@ -192,19 +200,7 @@ impl Shapes {
         }
         let arrow = match tool {
             Tool::Text => {
-                // The tap is at the middle of the first line's left end.
-                let size = self.size.unwrap_or(TEXT_SIZE);
-                let half = glyphs::rows_frame(press.at, "", size, glyphs::UNWRAPPED).height / 2.0;
-                self.editing = Some(Editing {
-                    canvas: canvas.to_string(),
-                    page: page.to_string(),
-                    at: snap(Point { x: press.at.x, y: press.at.y - half }),
-                    editor: Editor::default(),
-                    colour,
-                    size,
-                    column: glyphs::UNWRAPPED,
-                    item: None,
-                });
+                self.start((canvas, page), press.at, colour, ink);
                 return true;
             }
             Tool::Box => false,
@@ -231,11 +227,14 @@ impl Shapes {
     }
 
     /// The pen moved to `at` while down: a box or an arrow goes with it, or,
-    /// after a press inside the text being typed, the selection runs to it.
-    /// Returns false when none of them is under it.
+    /// after a press inside the text being typed, the selection runs to it
+    /// (after a double or triple tap it keeps the word or row). Returns
+    /// false when none of them is under it.
     pub fn drag(&mut self, at: Point) -> bool {
         if let Some(editing) = self.editing.as_mut().filter(|_| self.selecting) {
-            editing.place(at, true);
+            if self.taps < 2 {
+                editing.place(at, true);
+            }
             return true;
         }
         let Some((_, _, drag)) = &mut self.drag else { return false };
@@ -334,6 +333,7 @@ impl Shapes {
         let (frame, size, column) = (editing.frame(), editing.size, Some(editing.column));
         let shape = Shape::Text { frame, text: editing.editor.text().to_string(), size, column };
         let (canvas, page) = (editing.canvas, editing.page);
+        self.ended = Some((canvas.clone(), page.clone(), frame));
         match editing.item {
             None if blank => {}
             None => ink.push(Change::Put { canvas, page, colour: editing.colour, shape }),
@@ -486,5 +486,6 @@ fn snap(p: Point) -> Point {
     Point { x: tenth(p.x), y: tenth(p.y) }
 }
 
+mod start;
 #[cfg(test)]
 mod tests;

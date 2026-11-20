@@ -5,16 +5,20 @@
 //! caret bar and the selection's boxes this module gives, from
 //! [`glyphs::Laid`], the rows every hit test and the core use.
 //!
-//! The caret and the anchor are byte offsets on `char` boundaries: the caret
-//! moves by Unicode scalar, not by grapheme cluster (slinger-459ce9). A
-//! word is a run of alphanumeric characters or `_`.
+//! The caret and the anchor are byte offsets on grapheme cluster boundaries:
+//! the caret moves, and delete deletes, by what reads as one character (an
+//! emoji joined by ZWJ, a letter with its combining marks, a flag), not by
+//! Unicode scalar. A word is a run of clusters that start with an
+//! alphanumeric character or `_`.
 //!
 //! The keys ([`Editor::key`]) are fixed text keys, not commands: while a
 //! text is typed they come before the keymap, so alt+arrows move by words
 //! instead of panning, and cmd+A selects the text's characters.
 
+use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
+
 use crate::commands::{
-    ALT, CMD, Chord, DELETE, DOWN, END, FORWARD_DELETE, HOME, LEFT, RIGHT, SHIFT, UP,
+    ALT, CMD, CTRL, Chord, DELETE, DOWN, END, FORWARD_DELETE, HOME, LEFT, RIGHT, SHIFT, UP,
 };
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
@@ -31,15 +35,19 @@ pub struct Editor {
     anchor: Option<usize>,
     /// The x, from the text's left edge, up and down keep to.
     goal: Option<f64>,
+    /// What ctrl+K last took out, for ctrl+Y ([`emacs`]).
+    killed: String,
 }
 
-/// How far a key moves or deletes: by a character, a word, or to the row's
-/// end (cmd).
+/// How far a key moves or deletes: by a character, a word, to the row's
+/// end (cmd), or to the line's end (ctrl+A, ctrl+E: a wrapped line's rows
+/// are one line).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Unit {
     Char,
     Word,
     Row,
+    Line,
 }
 
 /// What a key does: moves the caret (keeping an x for up and down), deletes
@@ -53,7 +61,7 @@ enum Act {
 impl Editor {
     /// `text`, with the caret after its last character.
     pub fn new(text: String) -> Self {
-        Editor { caret: text.len(), text, anchor: None, goal: None }
+        Editor { caret: text.len(), text, ..Editor::default() }
     }
 
     pub fn text(&self) -> &str {
@@ -106,6 +114,41 @@ impl Editor {
         self.goal = None;
     }
 
+    /// Selects from `a` to `b`, the caret at `b`.
+    fn select(&mut self, a: usize, b: usize) {
+        self.place(a, false);
+        self.place(b, true);
+    }
+
+    /// Selects the word at `index` (a double tap): the run of word
+    /// clusters, or of other clusters on its line, it is in or beside; a
+    /// word beside it wins over a space.
+    fn select_word(&mut self, index: usize) {
+        let class = |g: &str| {
+            if g == "\n" {
+                0
+            } else if word(g) {
+                1
+            } else {
+                2
+            }
+        };
+        let ahead = self.text[index..].graphemes(true).next();
+        let behind = self.text[..index].graphemes(true).next_back();
+        let of = match (behind, ahead) {
+            (Some(b), a) if word(b) && !a.is_some_and(word) => Some(class(b)),
+            (_, Some(a)) if a != "\n" => Some(class(a)),
+            (b, _) => b.filter(|&b| b != "\n").map(class),
+        };
+        // An empty line has no word: the caret only goes there.
+        let Some(of) = of else { return self.place(index, false) };
+        let back = self.text[..index].grapheme_indices(true).rev();
+        let start = back.take_while(|&(_, g)| class(g) == of).last().map_or(index, |(i, _)| i);
+        let rest = &self.text[index..];
+        let end = rest.grapheme_indices(true).find(|&(_, g)| class(g) != of);
+        self.select(start, index + end.map_or(rest.len(), |(i, _)| i));
+    }
+
     /// Deletes the selection, else from the caret to `to`.
     fn delete(&mut self, to: usize) {
         let (a, b) = self.selection().unwrap_or((to.min(self.caret), to.max(self.caret)));
@@ -118,11 +161,7 @@ impl Editor {
     pub fn typed(&mut self, text: &str) {
         for c in text.chars() {
             match c {
-                '\u{7f}' | '\u{8}' => {
-                    let to =
-                        self.text[..self.caret].char_indices().next_back().map_or(0, |(i, _)| i);
-                    self.delete(to);
-                }
+                '\u{7f}' | '\u{8}' => self.delete(before(&self.text, self.caret)),
                 '\r' | '\n' => self.insert("\n"),
                 // The arrow and function keys are in this private range.
                 c if c.is_control() || ('\u{f700}'..='\u{f8ff}').contains(&c) => {}
@@ -134,17 +173,25 @@ impl Editor {
     /// A key of the text's (docs/design/pen-less.md's table), for the text
     /// laid `size` high in `column`: the arrows, home and end move the
     /// caret (with shift, the selection's end); delete and forward delete
-    /// delete; cmd+A selects all. Returns false for any other key, which
-    /// goes on to the keymap.
+    /// delete; cmd+A selects all; ctrl and a letter is a Mac's emacs key
+    /// ([`emacs`]). Returns false for any other key, which goes on to the
+    /// keymap.
     pub fn key(&mut self, chord: Chord, size: f64, column: f64) -> bool {
         let extend = chord.mods() & SHIFT != 0;
         let unit = match chord.mods() & !SHIFT {
             0 => Unit::Char,
             ALT => Unit::Word,
             CMD => Unit::Row,
+            CTRL => return self.emacs(chord.key(), extend, size, column),
             _ => return false,
         };
-        let Some(act) = self.act(chord.key(), unit, extend, size, column) else { return false };
+        self.apply(chord.key(), unit, extend, size, column)
+    }
+
+    /// Does what `key` with `unit` held does ([`Editor::act`]); false when
+    /// the key is not the text's.
+    fn apply(&mut self, key: char, unit: Unit, extend: bool, size: f64, column: f64) -> bool {
+        let Some(act) = self.act(key, unit, extend, size, column) else { return false };
         match act {
             Act::Move(to, goal) => {
                 self.place(to, extend);
@@ -188,14 +235,13 @@ impl Editor {
 
     /// Where the caret goes back to by `unit`.
     fn back(&self, unit: Unit, laid: &Laid<'_>) -> usize {
-        let before = &self.text[..self.caret];
-        let char_back = || before.char_indices().next_back().map_or(0, |(i, _)| i);
         match unit {
-            Unit::Char => char_back(),
+            Unit::Char => before(&self.text, self.caret),
             Unit::Word => {
-                let mut chars = before.char_indices().rev().skip_while(|&(_, c)| !word(c));
-                let mut start = chars.next().map_or(0, |(i, _)| i);
-                for (i, _) in chars.take_while(|&(_, c)| word(c)) {
+                let clusters = self.text[..self.caret].grapheme_indices(true).rev();
+                let mut clusters = clusters.skip_while(|&(_, g)| !word(g));
+                let mut start = clusters.next().map_or(0, |(i, _)| i);
+                for (i, _) in clusters.take_while(|&(_, g)| word(g)) {
                     start = i;
                 }
                 start
@@ -203,22 +249,24 @@ impl Editor {
             Unit::Row => {
                 let row = laid.rows()[laid.row_of(self.caret)].start;
                 // At a row's start, back over the line end before it.
-                if row == self.caret { char_back() } else { row }
+                if row == self.caret { before(&self.text, self.caret) } else { row }
             }
+            Unit::Line => line_start(&self.text, self.caret),
         }
     }
 
     /// Where the caret goes forward to by `unit`.
     fn forward(&self, unit: Unit, laid: &Laid<'_>) -> usize {
-        let after = &self.text[self.caret..];
         match unit {
-            Unit::Char => self.caret + after.chars().next().map_or(0, char::len_utf8),
+            Unit::Char => after(&self.text, self.caret),
             Unit::Word => {
-                let mut chars = after.char_indices().skip_while(|&(_, c)| !word(c));
-                let end = chars.find(|&(_, c)| !word(c)).map_or(after.len(), |(i, _)| i);
+                let rest = &self.text[self.caret..];
+                let mut clusters = rest.grapheme_indices(true).skip_while(|&(_, g)| !word(g));
+                let end = clusters.find(|&(_, g)| !word(g)).map_or(rest.len(), |(i, _)| i);
                 self.caret + end
             }
             Unit::Row => laid.rows()[laid.row_of(self.caret)].end,
+            Unit::Line => line_end(&self.text, self.caret),
         }
     }
 
@@ -247,9 +295,31 @@ impl Editor {
     }
 }
 
-/// A character of a word: alphanumeric or `_`.
-fn word(c: char) -> bool {
-    c.is_alphanumeric() || c == '_'
+/// A cluster of a word: one that starts with an alphanumeric character or `_`.
+fn word(cluster: &str) -> bool {
+    cluster.chars().next().is_some_and(|c| c.is_alphanumeric() || c == '_')
+}
+
+/// The start of the line `index` is in: after the line end before it.
+fn line_start(text: &str, index: usize) -> usize {
+    text[..index].rfind('\n').map_or(0, |i| i + 1)
+}
+
+/// The end of the line `index` is in: its line end, or the text's end.
+fn line_end(text: &str, index: usize) -> usize {
+    text[index..].find('\n').map_or(text.len(), |i| index + i)
+}
+
+/// The grapheme cluster boundary before `index` in `text`, or its start.
+fn before(text: &str, index: usize) -> usize {
+    let mut cursor = GraphemeCursor::new(index, text.len(), true);
+    cursor.prev_boundary(text, 0).ok().flatten().unwrap_or(0)
+}
+
+/// The grapheme cluster boundary after `index` in `text`, or its end.
+fn after(text: &str, index: usize) -> usize {
+    let mut cursor = GraphemeCursor::new(index, text.len(), true);
+    cursor.next_boundary(text, 0).ok().flatten().unwrap_or(text.len())
 }
 
 /// A canvas text being typed: where it is, how it is set, the item it
@@ -299,6 +369,21 @@ impl Editing {
         self.editor.place(index, extend);
     }
 
+    /// The `taps`th quick press in a row inside the text, at the canvas
+    /// point `at`: the first places the caret ([`Editing::place`], `shift`
+    /// extending), the second selects the word there, a third or more the
+    /// row.
+    pub fn tap(&mut self, at: Point, shift: bool, taps: u8) {
+        let laid = self.laid();
+        let index = laid.index_at(at);
+        let row = laid.rows()[laid.row_of(index)];
+        match taps {
+            0 | 1 => self.editor.place(index, shift),
+            2 => self.editor.select_word(index),
+            _ => self.editor.select(row.start, row.end),
+        }
+    }
+
     /// The caret, `width` canvas units wide, and the boxes the selection
     /// fills, in canvas units.
     pub fn marks(&self, width: f64) -> (Rect, Vec<Rect>) {
@@ -309,5 +394,6 @@ impl Editing {
     }
 }
 
+mod emacs;
 #[cfg(test)]
 mod tests;
