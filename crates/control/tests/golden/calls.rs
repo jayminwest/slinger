@@ -111,7 +111,8 @@ pub const CALLS: &[Call] = &[
     |c| c.canvas_redo(step()).map(drop),
     |c| c.canvas_import(Path::new("/tmp/b.tldr"), Some("board")).map(drop),
     |c| c.canvas_import(Path::new("/tmp/b.tldr"), None).map(drop),
-    |c| c.canvas_import_id(Path::new("/tmp/b.tldr"), Some("board")).map(drop),
+    // The app reads only the new canvas's id (it once had a method of its own).
+    |c| c.canvas_import(Path::new("/tmp/b.tldr"), Some("board")).map(|made| drop(made.canvas)),
     |c| c.canvas_changes("main", 6, Duration::from_millis(100)).map(drop),
     |c| c.workspace_open(Some(Path::new("/p/w")), Some("w")).map(drop),
     |c| c.workspace_open(None, Some("w")).map(drop),

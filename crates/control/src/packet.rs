@@ -1,26 +1,12 @@
 //! `canvas_read`: what an agent reads from a canvas page (docs/service.md,
 //! docs/design/packet.md), and its client method.
-//!
-//! A client writes the verb with [`Read`], not [`crate::Request`]:
-//! [`crate::Request`] reads it but does not serialize it, so a binary that
-//! never sends it (the app, whose size budget is nearly full) carries no
-//! code for it.
 
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
 use crate::client::absolute;
-use crate::{Client, RemoteError};
-
-/// `canvas_read` as a client writes it: the same line as
-/// [`crate::Request::CanvasRead`] (a test holds the two together).
-#[derive(Debug, Serialize)]
-#[serde(tag = "op", rename = "canvas_read")]
-struct Read<'a> {
-    #[serde(flatten)]
-    ask: &'a PacketAsk,
-}
+use crate::{Client, RemoteError, Request};
 
 /// The arguments of [`Request::CanvasRead`](crate::Request::CanvasRead).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -77,7 +63,7 @@ impl Client {
     /// write, and `unavailable` when the daemon does not answer.
     pub fn canvas_read(&self, mut ask: PacketAsk) -> Result<CanvasPacket, RemoteError> {
         ask.out = ask.out.as_deref().map(absolute).transpose()?;
-        self.call(&Read { ask: &ask })
+        self.call(&Request::CanvasRead(ask))
     }
 }
 
@@ -88,7 +74,7 @@ mod tests {
     use crate::wire::request_line;
 
     #[test]
-    fn a_canvas_read_reads_back_as_the_request_it_asks() {
+    fn a_canvas_read_reads_back_as_itself() {
         let full = PacketAsk {
             canvas: "idea".into(),
             page: Some("p2".into()),
@@ -99,12 +85,13 @@ mod tests {
         };
         let bare = PacketAsk { canvas: "idea".into(), ..PacketAsk::default() };
         for ask in [full, bare] {
-            let line = request_line(&Read { ask: &ask }).unwrap();
+            let request = Request::CanvasRead(ask);
+            let line = request_line(&request).unwrap();
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
-            assert_eq!(read, Some(Request::CanvasRead(ask)), "{line}");
+            assert_eq!(read, Some(request), "{line}");
         }
-        let line =
-            request_line(&Read { ask: &PacketAsk { canvas: "x".into(), ..PacketAsk::default() } });
+        let bare = Request::CanvasRead(PacketAsk { canvas: "x".into(), ..PacketAsk::default() });
+        let line = request_line(&bare);
         assert_eq!(line.unwrap(), "{\"v\":1,\"op\":\"canvas_read\",\"canvas\":\"x\"}\n");
     }
 }

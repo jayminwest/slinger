@@ -172,3 +172,39 @@ fn the_guide_names_only_colours_a_page_is_given() {
         assert!(given.contains(&format!("{name}:#")), "the guide names {name}");
     }
 }
+
+/// The whole script, byte for byte, for three themes: the colours as six
+/// lower-case hex digits each, whatever writes them (slinger-28ed59).
+#[test]
+fn the_script_is_the_same_bytes_for_each_theme() {
+    let theme = |c: [u8; 15]| Theme {
+        background: Rgb { r: c[0], g: c[1], b: c[2] },
+        text: Rgb { r: c[3], g: c[4], b: c[5] },
+        muted: Rgb { r: c[6], g: c[7], b: c[8] },
+        focus: Rgb { r: c[9], g: c[10], b: c[11] },
+        error: Rgb { r: c[12], g: c[13], b: c[14] },
+        ..Theme::default()
+    };
+    let head = "(()=>{const d=document,i=\"slinger-look\",s=d.getElementById(i)||d.createElement(\"style\");s.id=i;s.textContent=`:root{";
+    let tail = "`;s.isConnected||d.documentElement.prepend(s)})();";
+    for (theme, colours) in [
+        (
+            Theme::default(),
+            "--slinger-paper:#1e1e1e;--slinger-ink:#e6e6e6;--slinger-muted:#8c8c8c;--slinger-accent:#4c9aff;--slinger-error:#ff6b6b;color-scheme:dark}",
+        ),
+        (
+            theme([
+                0xfa, 0xfa, 0xf7, 0, 0, 0, 0x0f, 0xf0, 0x01, 0x10, 0xab, 0xcd, 0xff, 0xfe, 0x09,
+            ]),
+            "--slinger-paper:#fafaf7;--slinger-ink:#000000;--slinger-muted:#0ff001;--slinger-accent:#10abcd;--slinger-error:#fffe09;color-scheme:light}",
+        ),
+        (
+            theme([
+                0x80, 0x80, 0x80, 0xff, 0xff, 0xff, 1, 2, 3, 0xa0, 0x0a, 0x99, 0x7f, 0x80, 0x81,
+            ]),
+            "--slinger-paper:#808080;--slinger-ink:#ffffff;--slinger-muted:#010203;--slinger-accent:#a00a99;--slinger-error:#7f8081;color-scheme:light}",
+        ),
+    ] {
+        assert_eq!(script(&theme, SHIM), format!("{SHIM}{head}{colours}{LOOK}{tail}"));
+    }
+}

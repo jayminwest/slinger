@@ -1296,8 +1296,7 @@ won because:
   images, UI code) run to megabytes. Base64 would need a far larger limit for
   every verb, a limit that guards the daemon against a client that never
   stops writing, and it adds a third to every blob.
-- **Small clients.** The control crate needs no encoder, and the app binary
-  that links it has a size budget.
+- **Small clients.** The control crate needs no encoder.
 - **It costs nothing.** The socket is local and only its owner can connect
   (mode `0600`), so the client and the daemon are the same user on the same
   machine and see the same files with the same rights.
@@ -1344,27 +1343,21 @@ not open, and an agent with no session.
 
 1. Add the capability to `crates/core` with tests. A verb about the
    daemon's own process (`daemon_info`, `daemon_stop`) has no core half.
-2. In `crates/control/src/lib.rs`, add a `Request` variant, a reply type and
-   its `Reply` variant. Add a typed method to `Client` in
-   `crates/control/src/client.rs`. Every variant `Request` serializes adds
-   code to the app, which links the client: a verb the app never sends can
-   be `#[serde(skip_serializing)]` there and written by a small type of its
-   own, as `crates/control/src/workspace.rs` does, with a test that the two
-   write the same line. `canvas_read` does the same in
-   `crates/control/src/packet.rs`. A group of such verbs shares one
-   variant: `#[serde(untagged, skip_serializing)]` over an enum of their
-   own, tagged by `op`, as `crates/control/src/session.rs` and
-   `crates/control/src/agent.rs` do (`sling_send` and `sling_backdrops`
-   are session verbs). The app sends
-   `workspace_list` and the pane verbs, each written with such a type of its
-   own (`crates/control/src/pane.rs`), as are the showing verbs it sends
-   (`crates/control/src/ui.rs`) and the session verbs (`session_list`,
-   `sling_backdrops`, `sling_send`, as `SessionAsk`), so the app builds no `Request` at all;
-   keep it that way.
+2. In `crates/control`, add the request: a `Request` variant in
+   `src/lib.rs`, or a variant of a group's own enum, tagged by `op`, that
+   `Request` carries as one `#[serde(untagged)]` variant (`SessionAsk` in
+   `src/session.rs`, `AgentAsk` in `src/agent.rs`, `PaneAsk` in
+   `src/pane.rs`, ...; `sling_send` and `sling_backdrops` are session
+   verbs). Add its reply type and its `Reply` variant, and a typed method
+   to `Client` that sends the `Request`. Add the verb's request and reply
+   lines to the golden fixtures (`crates/control/tests/golden`): its test
+   fails until they are there and the verb has its row in the table
+   above.
 3. Add one arm to `answer` in `crates/daemon/src/server.rs`. It calls the
    core and nothing else.
 4. Add tests to `crates/daemon/src/tests.rs`. They go through a real socket.
-5. Add the verb to the table above, then expose it from each client that
+5. Add the verb to the table above (the golden test checks the table
+   against the verbs both ways), then expose it from each client that
    needs it.
 
 ## Running it

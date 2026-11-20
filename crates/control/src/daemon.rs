@@ -3,16 +3,15 @@
 //! answers, so a client can tell which build serves it and stop it without
 //! its pid.
 //!
-//! [`crate::Request`] reads them as one variant, [`DaemonAsk`], and does not
-//! write them: a client writes [`DaemonAsk`] itself, and a binary that never
-//! sends one carries no code for them. A daemon older than these verbs
+//! [`crate::Request`] carries them as one variant, [`DaemonAsk`]. A daemon
+//! older than these verbs
 //! answers `bad_request`, which a client reads as "an older build".
 
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Client, RemoteError};
+use crate::{Client, RemoteError, Request};
 
 /// The file in `data_dir` that says its daemon was stopped on purpose
 /// (`daemon_stop`). The daemon writes it as it stops that way and removes it
@@ -74,7 +73,7 @@ impl Client {
     /// `bad_request` from a daemon older than the verb, and `unavailable`
     /// when the daemon does not answer.
     pub fn daemon_info(&self) -> Result<DaemonInfo, RemoteError> {
-        self.call(&DaemonAsk::DaemonInfo)
+        self.call(&Request::Daemon(DaemonAsk::DaemonInfo))
     }
 
     /// Stops the daemon. It replies first; replies already owed still go out.
@@ -85,7 +84,7 @@ impl Client {
     /// cannot leave its mark (it then keeps serving), and `unavailable` when
     /// the daemon does not answer.
     pub fn daemon_stop(&self) -> Result<DaemonStopped, RemoteError> {
-        self.call(&DaemonAsk::DaemonStop)
+        self.call(&Request::Daemon(DaemonAsk::DaemonStop))
     }
 }
 
@@ -101,7 +100,7 @@ mod tests {
             (DaemonAsk::DaemonInfo, r#"{"v":1,"op":"daemon_info"}"#),
             (DaemonAsk::DaemonStop, r#"{"v":1,"op":"daemon_stop"}"#),
         ] {
-            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&Request::Daemon(ask)).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
             assert_eq!(read, Some(Request::Daemon(ask)), "{line}");
         }

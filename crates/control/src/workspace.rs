@@ -1,36 +1,12 @@
 //! The workspace verbs' replies and their client methods (docs/service.md,
 //! "Workspaces").
-//!
-//! A client writes these verbs with [`Ask`], not [`crate::Request`]: [`crate::Request`]
-//! reads them but does not serialize them, so a binary that never sends one
-//! (the app, whose size budget is nearly full) carries no code for them.
 
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::client::absolute;
-use crate::{Client, RemoteError};
-
-/// The workspace requests as a client writes them: the same lines as the
-/// workspace variants of [`crate::Request`] (a test holds the two together).
-#[derive(Debug, Serialize)]
-#[serde(tag = "op")]
-enum Ask<'a> {
-    #[serde(rename = "workspace_open")]
-    Open {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        dir: Option<PathBuf>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        name: Option<&'a str>,
-    },
-    #[serde(rename = "workspace_list")]
-    List,
-    #[serde(rename = "workspace_show")]
-    Show { workspace: &'a str },
-    #[serde(rename = "workspace_close")]
-    Close { workspace: &'a str },
-}
+use crate::{Client, RemoteError, Request};
 
 /// One open workspace, as the daemon read it from its definition file. A
 /// workspace whose file the daemon cannot use has an `error`, its `dir`,
@@ -138,7 +114,7 @@ impl Client {
         name: Option<&str>,
     ) -> Result<WorkspaceOpened, RemoteError> {
         let dir = dir.map(absolute).transpose()?;
-        self.call(&Ask::Open { dir, name })
+        self.call(&Request::WorkspaceOpen { dir, name: name.map(str::to_string) })
     }
 
     /// The open workspaces, by name; one whose file the daemon cannot use
@@ -148,7 +124,7 @@ impl Client {
     ///
     /// `unavailable` when the daemon does not answer.
     pub fn workspace_list(&self) -> Result<Vec<Workspace>, RemoteError> {
-        let reply: Workspaces = self.call(&Ask::List)?;
+        let reply: Workspaces = self.call(&Request::WorkspaceList)?;
         Ok(reply.workspaces)
     }
 
@@ -160,7 +136,8 @@ impl Client {
     /// the daemon cannot use it, and `unavailable` when the daemon does not
     /// answer.
     pub fn workspace_show(&self, workspace: &str) -> Result<Workspace, RemoteError> {
-        let reply: WorkspaceInfo = self.call(&Ask::Show { workspace })?;
+        let reply: WorkspaceInfo =
+            self.call(&Request::WorkspaceShow { workspace: workspace.into() })?;
         Ok(reply.workspace)
     }
 
@@ -171,34 +148,31 @@ impl Client {
     ///
     /// As [`Client::workspace_show`].
     pub fn workspace_close(&self, workspace: &str) -> Result<PathBuf, RemoteError> {
-        let reply: WorkspaceClosed = self.call(&Ask::Close { workspace })?;
+        let reply: WorkspaceClosed =
+            self.call(&Request::WorkspaceClose { workspace: workspace.into() })?;
         Ok(reply.dir)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::Request;
     use crate::wire::request_line;
 
     #[test]
-    fn a_workspace_request_reads_back_as_the_request_it_asks() {
-        for (ask, request) in [
-            (
-                Ask::Open { dir: Some("/a".into()), name: Some("n") },
-                Request::WorkspaceOpen { dir: Some("/a".into()), name: Some("n".into()) },
-            ),
-            (Ask::Open { dir: None, name: None }, Request::WorkspaceOpen { dir: None, name: None }),
-            (Ask::List, Request::WorkspaceList),
-            (Ask::Show { workspace: "w" }, Request::WorkspaceShow { workspace: "w".into() }),
-            (Ask::Close { workspace: "/d" }, Request::WorkspaceClose { workspace: "/d".into() }),
+    fn a_workspace_request_reads_back_as_itself() {
+        for request in [
+            Request::WorkspaceOpen { dir: Some("/a".into()), name: Some("n".into()) },
+            Request::WorkspaceOpen { dir: None, name: None },
+            Request::WorkspaceList,
+            Request::WorkspaceShow { workspace: "w".into() },
+            Request::WorkspaceClose { workspace: "/d".into() },
         ] {
-            let line = request_line(&ask).unwrap();
+            let line = request_line(&request).unwrap();
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
             assert_eq!(read, Some(request), "{line}");
         }
-        let line = request_line(&Ask::Open { dir: None, name: Some("n") }).unwrap();
-        assert_eq!(line, "{\"v\":1,\"op\":\"workspace_open\",\"name\":\"n\"}\n");
+        let line = request_line(&Request::WorkspaceOpen { dir: None, name: Some("n".into()) });
+        assert_eq!(line.unwrap(), "{\"v\":1,\"op\":\"workspace_open\",\"name\":\"n\"}\n");
     }
 }

@@ -263,11 +263,7 @@ impl Chord {
             out.push_str(glyph);
         } else if let Some(n) = function_key(self.key) {
             out.push('F');
-            // By hand, as `key_named` parses it: formatting costs the size budget.
-            if n >= 10 {
-                out.push(char::from(b'0' + n / 10));
-            }
-            out.push(char::from(b'0' + n % 10));
+            out.push_str(&n.to_string());
         } else {
             out.push(self.key.to_ascii_uppercase());
         }

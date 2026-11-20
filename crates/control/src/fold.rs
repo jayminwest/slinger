@@ -2,13 +2,12 @@
 //! "Folding a box"; docs/design/fold.md). A folded box shows as its
 //! miniature and keeps what lay inside it; an unfold opens it in its old room.
 //!
-//! [`crate::Request`] reads them as one variant, [`FoldAsk`], and does not
-//! write them: a client writes [`FoldAsk`] itself. The reply is a
+//! [`crate::Request`] carries them as one variant, [`FoldAsk`]. The reply is a
 //! [`CanvasEdited`]: the box and the frame it has now.
 
 use serde::{Deserialize, Serialize};
 
-use crate::{CanvasChange, CanvasEdited, Client, RemoteError};
+use crate::{CanvasChange, CanvasEdited, Client, RemoteError, Request};
 
 /// A fold request, as a client writes it and the daemon reads it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -47,7 +46,7 @@ impl Client {
     /// (the message names what is in the way; nothing is written), and
     /// `unavailable` when the daemon does not answer.
     pub fn canvas_fold(&self, ask: &FoldAsk) -> Result<CanvasEdited, RemoteError> {
-        self.call(ask)
+        self.call(&Request::Fold(ask.clone()))
     }
 
     /// [`Client::canvas_fold`], read as the step it wrote: for a client that
@@ -57,7 +56,7 @@ impl Client {
     ///
     /// As [`Client::canvas_fold`]'s.
     pub fn canvas_fold_step(&self, ask: &FoldAsk) -> Result<CanvasChange, RemoteError> {
-        self.call(ask)
+        self.call(&Request::Fold(ask.clone()))
     }
 }
 
@@ -84,7 +83,7 @@ mod tests {
                 r#"{"v":1,"op":"canvas_unfold","canvas":"main","item":"b4","by":"agent:scout","once":"k1"}"#,
             ),
         ] {
-            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&Request::Fold(ask.clone())).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
             assert_eq!(read, Some(Request::Fold(ask)), "{line}");
         }

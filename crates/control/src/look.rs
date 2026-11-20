@@ -1,10 +1,5 @@
 //! `canvas_crop` and `canvas_strokes`: what an agent asks a canvas for when
 //! the packet is not enough (docs/service.md, "Crops and strokes").
-//!
-//! A client writes these verbs with [`Ask`], not [`crate::Request`]:
-//! [`crate::Request`] reads them but does not serialize them, so a binary that
-//! never sends one (the app, whose size budget is nearly full) carries no
-//! code for them.
 
 use std::path::{Path, PathBuf};
 
@@ -12,19 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::client::absolute;
-use crate::{Client, RemoteError};
-
-/// The requests as a client writes them: the same lines as
-/// [`crate::Request::CanvasCrop`] and [`crate::Request::CanvasStrokes`] (a
-/// test holds the two together).
-#[derive(Debug, Serialize)]
-#[serde(tag = "op")]
-enum Ask<'a> {
-    #[serde(rename = "canvas_crop")]
-    Crop { canvas: &'a str, of: &'a str, path: PathBuf },
-    #[serde(rename = "canvas_strokes")]
-    Strokes { canvas: &'a str, item: &'a str },
-}
+use crate::{Client, RemoteError, Request};
 
 /// One image a crop wrote.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -69,7 +52,11 @@ impl Client {
         of: &str,
         file: &Path,
     ) -> Result<Vec<CanvasImage>, RemoteError> {
-        let reply: CanvasImages = self.call(&Ask::Crop { canvas, of, path: absolute(file)? })?;
+        let reply: CanvasImages = self.call(&Request::CanvasCrop {
+            canvas: canvas.into(),
+            of: of.into(),
+            path: absolute(file)?,
+        })?;
         Ok(reply.images)
     }
 
@@ -81,39 +68,36 @@ impl Client {
     /// id that is not one or an item that is not ink, and `unavailable` when
     /// the daemon does not answer.
     pub fn canvas_strokes(&self, canvas: &str, item: &str) -> Result<Vec<Value>, RemoteError> {
-        let reply: CanvasStrokes = self.call(&Ask::Strokes { canvas, item })?;
+        let reply: CanvasStrokes =
+            self.call(&Request::CanvasStrokes { canvas: canvas.into(), item: item.into() })?;
         Ok(reply.strokes)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::Request;
     use crate::wire::request_line;
 
     #[test]
-    fn a_crop_and_a_strokes_read_back_as_the_requests_they_ask() {
+    fn a_crop_and_a_strokes_read_back_as_themselves() {
         let cases = [
-            (
-                Ask::Crop { canvas: "main", of: "p1:0,0,40,20", path: "/tmp/c.png".into() },
-                Request::CanvasCrop {
-                    canvas: "main".into(),
-                    of: "p1:0,0,40,20".into(),
-                    path: "/tmp/c.png".into(),
-                },
-            ),
-            (
-                Ask::Strokes { canvas: "main", item: "c4" },
-                Request::CanvasStrokes { canvas: "main".into(), item: "c4".into() },
-            ),
+            Request::CanvasCrop {
+                canvas: "main".into(),
+                of: "p1:0,0,40,20".into(),
+                path: "/tmp/c.png".into(),
+            },
+            Request::CanvasStrokes { canvas: "main".into(), item: "c4".into() },
         ];
-        for (ask, request) in cases {
-            let line = request_line(&ask).unwrap();
+        for request in cases {
+            let line = request_line(&request).unwrap();
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
             assert_eq!(read, Some(request), "{line}");
         }
-        let line = request_line(&Ask::Strokes { canvas: "x", item: "i1" }).unwrap();
-        assert_eq!(line, "{\"v\":1,\"op\":\"canvas_strokes\",\"canvas\":\"x\",\"item\":\"i1\"}\n");
+        let line = request_line(&Request::CanvasStrokes { canvas: "x".into(), item: "i1".into() });
+        assert_eq!(
+            line.unwrap(),
+            "{\"v\":1,\"op\":\"canvas_strokes\",\"canvas\":\"x\",\"item\":\"i1\"}\n"
+        );
     }
 }
