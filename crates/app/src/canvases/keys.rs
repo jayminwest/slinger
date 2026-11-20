@@ -2,22 +2,39 @@
 //! page command's question or the text being typed, the caret keys to the
 //! text being typed, and delete and escape
 //! act on the selection from any pane that shows its page; a colour picked
-//! recolours it. Select all, next and previous item, nudge and duplicate
+//! recolours it, and a size command resizes the text being typed or the
+//! selected texts ([`Canvases::resize`]). Select all, next and previous item, nudge and duplicate
 //! act on the focused pane's page ([`Keyed`]).
 
 use super::{Canvases, canvas_of, find, pane_shown, wanted};
-use crate::commands::{CMD, Chord};
+use crate::commands::{CMD, Chord, Command, Keymap};
 use crate::config::Rgb;
 use crate::layout::{PaneId, Point, Rect, Size};
 use crate::mirror::Mirror;
 use crate::panes::Panes;
 use crate::scene::select::{Keyed, Selection, into_view};
+use crate::scene::sling::edits;
+use crate::scene::tools::Resize;
 
 impl Canvases {
     /// Whether a text is being typed, or a page command asks: the keys
     /// that type go to it.
     pub fn editing(&self) -> bool {
         self.shapes.editing() || self.asks.asking()
+    }
+
+    /// Whether a key no command took is a text's: while the entry is open,
+    /// every key a text field uses ([`edits`]) and every key `keys` binds
+    /// to nothing, but its `dictate` chord; and a key that types while a
+    /// text is being typed, but `size-up`'s and `size-down`'s, which resize
+    /// a canvas text being typed (alt+shift+] would type a ’). So cmd+Q
+    /// still quits with the entry open.
+    pub fn takes(&self, chord: Chord, keys: &Keymap) -> bool {
+        let bound = keys.command(chord);
+        let field = bound.is_none() || bound != Some(Command::Dictate) && edits(chord);
+        let sizes = matches!(bound, Some(Command::SizeUp | Command::SizeDown));
+        let types = chord.types() && !(sizes && self.shapes.editing());
+        self.typing() && field || self.editing() && types
     }
 
     /// Typed `text` answers a page command's question, or goes into the
@@ -102,6 +119,24 @@ impl Canvases {
             self.send();
             true
         }
+    }
+
+    /// A size command (`size-up`, `size-down`, a size picked) resizes the
+    /// text being typed, else the selected texts, in one step each
+    /// ([`Resize`]). False when there is neither: it sets a new text's size.
+    pub fn resize(&mut self, resize: Resize) -> bool {
+        if self.shapes.resize(resize) {
+            return true;
+        }
+        let Some(s) = self.select.selection() else { return false };
+        let open = find(&self.open, &s.canvas, Some(&s.page)).and_then(|o| o.mirror.as_ref());
+        let Some(mirror) = open else { return false };
+        let items = self.ink.shown(&s.canvas, &s.page, mirror.items());
+        let resized = self.select.resize(resize, &items, &mut self.ink);
+        if resized {
+            self.send();
+        }
+        resized
     }
 
     /// Clears the selection when `pane` of `panes` shows its page.

@@ -79,6 +79,9 @@ pub enum Canvas {
         /// The page, by id (p1) or name [default: the first page]
         #[arg(long)]
         page: Option<String>,
+        /// Read what this box holds, open or folded, as if it were the page: an id such as b4
+        #[arg(long = "in", value_name = "BOX")]
+        inside: Option<String>,
         /// Operations numbered above this are new [default: the canvas's last sling]
         #[arg(long, value_name = "NUMBER")]
         after: Option<u64>,
@@ -200,10 +203,11 @@ pub fn execute(
             let imported = daemon.canvas_import(file, name.as_deref())?;
             Ok(Output::new(serde_json::to_value(&imported)?, imported_lines(&imported)))
         }
-        Canvas::Read { canvas, page, after, select, out } => {
+        Canvas::Read { canvas, page, inside, after, select, out } => {
             let ask = control::PacketAsk {
                 canvas: canvas.clone(),
                 page: page.clone(),
+                inside: inside.clone(),
                 after: *after,
                 select: select.clone(),
                 out: out.clone(),

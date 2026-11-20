@@ -132,6 +132,7 @@ fn out_page_and_select_shape_the_read() {
     let ask = PacketAsk {
         canvas: "idea".into(),
         page: Some("p1".into()),
+        inside: None,
         after: Some(2),
         select: vec!["c2".into()],
         out: Some(out.path().join("here")),
@@ -140,6 +141,27 @@ fn out_page_and_select_shape_the_read() {
     assert_eq!(packet.dir, out.path().join("here"));
     assert_eq!(section(&packet.text, "page"), ["c2"]);
     assert!(packet.dir.join("packet.txt").exists());
+    daemon.stop();
+}
+
+#[test]
+fn a_read_in_a_box_holds_only_what_the_box_holds() {
+    let daemon = Daemon::start();
+    let client = daemon.client();
+    client.canvas_create("idea").unwrap();
+    let frame = json!({ "op": "add", "item": { "page": "p1", "kind": "box",
+        "x": -200, "y": -1000, "w": 1000, "h": 2000 } });
+    let ops = CanvasOps { canvas: "idea".into(), by: "user".into(), ops: frame, once: None };
+    client.canvas_apply(ops).unwrap();
+    draw(&client, 0);
+    draw(&client, 30_000);
+    let inside = PacketAsk { inside: Some("b1".into()), after: Some(0), ..PacketAsk::default() };
+    let packet = client.canvas_read(PacketAsk { canvas: "idea".into(), ..inside }).unwrap();
+    assert_eq!(section(&packet.text, "new"), ["c2"]);
+    assert_eq!(section(&packet.text, "page"), Vec::<String>::new());
+    let stroke =
+        PacketAsk { canvas: "idea".into(), inside: Some("c2".into()), ..PacketAsk::default() };
+    assert_eq!(client.canvas_read(stroke).unwrap_err().code(), "invalid");
     daemon.stop();
 }
 

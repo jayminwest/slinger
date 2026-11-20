@@ -11,6 +11,21 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** the key overlay (cmd+/) also lists the keys that are not
+  commands: under "Typing a text", the caret keys of a text you are typing
+  (arrows, word and row jumps, selection, deletes, the emacs keys, double
+  and triple tap), and under "Pointer", the pans by space-drag and the
+  middle or right button and the zoom at the pointer. The README has a
+  "Without a pen" section, and config.example.toml names these fixed keys.
+- **Agents:** a folded box is one line in what an agent reads,
+  `b4 box … folded=7 "its first text"`, and what it holds makes no lines;
+  new ink in it puts the box's line under the new things with `new=`.
+  `slinger canvas read <ID> --in b4` reads what a box holds, open or folded,
+  and `slinger canvas crop <ID> --item b4` of a folded box shows it open.
+- **Agents:** `slinger canvas find` finds texts inside folded boxes too,
+  and names the folded box that hides each (`i7 in i4`).
+- **Agents:** an `add` in `slinger canvas apply` may name a folded box with
+  `in`: the new item joins it, and the box's open size grows to hold it.
 - **App:** start a text without a tap. New text (`new-text`, ctrl+return,
   Edit menu and the command palette) ends the text you are typing and
   starts the next half a line under it, so notes follow one another from
@@ -64,8 +79,10 @@ bullet with the area in bold.
   (`pick-size`, cmd+shift+a) opens a pop-up at the pen with 12, 16, 24, 36,
   48 and 72 points; Bigger text (`size-up`, alt+shift+]) and Smaller text
   (`size-down`, alt+shift+[) step through them, and a new size flashes. The
-  text tool's next text starts at that size (24 until you pick another); a
-  text you are typing or editing keeps its own. While the text tool is
+  text tool's next text starts at that size (24 until you pick another).
+  While you type a text, the same commands resize it (its own size steps
+  to the next on the list; those two keys resize rather than type); with
+  texts selected they resize those, in one undo step. While the text tool is
   chosen, the footer shows the size ("Size 24") where the width bars sit;
   a tap there picks a size.
 

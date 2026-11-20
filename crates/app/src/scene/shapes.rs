@@ -41,7 +41,7 @@ use crate::scene::canvas::{Fill, Item, ItemId, Shape};
 use crate::scene::editor::Editing;
 use crate::scene::ink::{Change, Ink, on_server};
 use crate::scene::paste;
-use crate::scene::tools::Tool;
+use crate::scene::tools::{Resize, Tool};
 
 /// Two presses this close in time, in seconds, are a double tap...
 pub const DOUBLE_TAP: f64 = 0.4;
@@ -129,6 +129,14 @@ impl Shapes {
     /// The size, in canvas units, the next text the text tool places starts at.
     pub fn size(&self) -> f64 {
         self.size.unwrap_or(TEXT_SIZE)
+    }
+
+    /// The text being typed takes the size `resize` makes of its own.
+    /// False when none is.
+    pub fn resize(&mut self, resize: Resize) -> bool {
+        let Some(editing) = &mut self.editing else { return false };
+        editing.size = resize.of(editing.size);
+        true
     }
 
     /// The pen went down on `page` of `canvas`, over `items`, with `tool`
@@ -320,9 +328,10 @@ impl Shapes {
         match editing.item {
             None if blank => {}
             None => ink.push(Change::Put { canvas, page, colour: editing.colour, shape }),
-            Some((id, _)) if blank => ink.push(Change::Remove { canvas, page, ids: vec![id] }),
-            Some((_, before)) if matches!(&shape, Shape::Text { text, .. } if *text == before) => {}
-            Some((id, _)) => ink.push(Change::Set { canvas, page, id, shape }),
+            Some((id, ..)) if blank => ink.push(Change::Remove { canvas, page, ids: vec![id] }),
+            Some((_, before, was))
+                if editing.editor.text() == before && size.total_cmp(&was).is_eq() => {}
+            Some((id, ..)) => ink.push(Change::Set { canvas, page, id, shape }),
         }
         true
     }
@@ -348,7 +357,7 @@ impl Shapes {
             items.push(Cow::Owned(Item { id: PREVIEW, colour: drag.colour, shape }));
         }
         if let Some(editing) = self.editing.as_ref().filter(|e| here(&e.canvas, &e.page)) {
-            if let Some((id, _)) = &editing.item {
+            if let Some((id, ..)) = &editing.item {
                 items.retain(|i| i.id != *id);
             }
             let (frame, text, size) = (editing.frame(), editing.editor.text(), editing.size);

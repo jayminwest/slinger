@@ -69,7 +69,10 @@
 # and moves items, as the select tool does, so a mouse draws no stray line; "tool" draws
 # with the pen. A tablet pen always does what the chosen tool does, and every other tool
 # (text, box, arrow, lasso, eraser, crop) works with the mouse as chosen. Hold space and
-# drag, or drag with the middle button, to pan the pane under the pointer.
+# drag, or drag with the middle or right button, to pan the pane under the pointer; space
+# types a space while a text is typed or an entry is open. A two-finger scroll pans too,
+# and with cmd or ctrl held it zooms about the pointer. These are fixed, not [keys]: the
+# key overlay (show-keys) lists them under "Pointer".
 #press = "select"
 
 # --- canvas: the paper under the ink.
@@ -104,6 +107,20 @@
 # A tablet button is a key: bind it to a chord in the tablet's own software. show-keys
 # lists every command with its key; show-commands finds one by name. The final keys are
 # not decided yet.
+#
+# Some keys are fixed, not commands, so they are not here and cannot be bound. While a
+# canvas text is typed, the text takes these before any binding: the arrows (alt by words,
+# cmd to the row's ends, cmd+up and cmd+down to the text's ends; shift selects), delete
+# and forward-delete (alt by words, cmd to the row's start), cmd+a (the whole text),
+# cmd+c, cmd+x and cmd+v (the selected characters), a Mac's emacs keys (ctrl+a, ctrl+e,
+# ctrl+b, ctrl+f, ctrl+p, ctrl+n, ctrl+h, ctrl+d, ctrl+k, ctrl+y, ctrl+t, ctrl+o), and
+# escape, which ends the text. A double tap in the text selects a word, a triple tap a
+# row. The key overlay lists them under "Typing a text". The pans held, not pressed, are
+# in [pointer].
+#
+# Without a pen: new-text starts a text, the arrows and tab act on the selected items,
+# find finds a typed text, pick-size sets a new text's size, and a mouse press with the
+# pen tool selects ([pointer] press).
 [keys]
 # Quit the app.
 #quit = "cmd+q"
@@ -143,6 +160,7 @@
 # status moves on.
 #dismiss-notice = "cmd+."
 # Move the focused pane's canvas a step: the view goes that way. The trackpad pans too.
+# While a text is typed, alt+left and alt+right move its caret by words instead.
 #pan-left = "alt+left"
 #pan-right = "alt+right"
 #pan-up = "alt+up"
@@ -265,10 +283,12 @@
 # the Help menu run it.
 #show-all-feedback = ""
 # The size a new text starts at (the text tool's next tap): 12, 16, 24, 36, 48 or 72
-# points, each shown as its number; 24 when the app starts. A text being typed, or one you
-# edit, keeps its own size: resize it with the select tool. A new size flashes.
+# points, each shown as its number; 24 when the app starts. A new size flashes. While a
+# text is typed, these three resize it instead, and with texts selected, those (one undo
+# step); a size picked is a new text's too.
 #pick-size = "cmd+shift+a"
-# The next text size, or the one before; at either end it stays.
+# The next text size, or the one before; at either end it stays. A text typed or selected
+# steps from its own size, and these keys resize the text being typed rather than type.
 #size-up = "alt+shift+}"
 #size-down = "alt+shift+{"
 # Act on the focused pane's items from the keyboard. These act only while no text takes the

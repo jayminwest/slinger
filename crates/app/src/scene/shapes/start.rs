@@ -98,7 +98,7 @@ pub(super) fn edit((canvas, page): (&str, &str), item: &Item) -> Option<Editing>
         colour: item.colour,
         size: *size,
         column: column.unwrap_or(glyphs::UNWRAPPED),
-        item: Some((item.id, text.clone())),
+        item: Some((item.id, text.clone(), *size)),
     })
 }
 

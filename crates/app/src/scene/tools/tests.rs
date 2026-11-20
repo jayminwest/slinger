@@ -405,10 +405,14 @@ fn a_colour_picked_is_taken_once_even_the_pen_s_own() {
     assert_eq!(tools.picked(), None);
     tools.open(Kind::Colour, WITHIN);
     assert!(tools.key(key("1")));
-    assert_eq!((tools.picked(), tools.picked()), (Some(RED), None), "red again, taken once");
+    assert_eq!(
+        (tools.picked(), tools.picked()),
+        (Some(Picked::Colour(RED)), None),
+        "red again, taken once"
+    );
     tools.open(Kind::Colour, WITHIN);
     assert!(tools.press(cell(&tools, 2)));
-    assert_eq!(tools.picked(), Some(BLUE));
+    assert_eq!(tools.picked(), Some(Picked::Colour(BLUE)));
     tools.open(Kind::Tool, WITHIN);
     assert!(tools.press(cell(&tools, 2)));
     tools.open(Kind::Colour, WITHIN);
@@ -479,6 +483,7 @@ fn a_new_text_s_size_starts_at_24_and_steps_picks_and_flashes() {
     assert_eq!(tools.size(), 72, "the last stays");
     tools.open(Kind::Size, WITHIN);
     assert!(tools.key(key("1")));
+    assert_eq!(tools.picked(), Some(Picked::Size(12)), "it resizes the texts at hand too");
     assert!(tools.command(Command::SizeDown));
     assert_eq!(tools.size(), 12, "the first stays");
     assert_eq!((tools.tool(), tools.width().text()), (Tool::Pen, "2".into()), "a size keeps both");
