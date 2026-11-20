@@ -54,8 +54,8 @@ pub fn ops(change: &Change) -> Value {
             }
             PageOp::Remove { page } => serde_json::json!({"op": "page.remove", "page": page}),
         },
-        // An undo or a redo is a verb of its own, with no operations.
-        Change::Step { .. } => Value::Array(Vec::new()),
+        // An undo, a redo, a fold or an unfold is a verb of its own, with no operations.
+        Change::Step { .. } | Change::Fold { .. } => Value::Array(Vec::new()),
     }
 }
 

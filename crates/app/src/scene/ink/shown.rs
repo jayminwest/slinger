@@ -73,7 +73,8 @@ impl Ink {
                         }
                     }
                 }
-                Change::Page { .. } | Change::Step { .. } => {}
+                // A fold shows once the feed brings it.
+                Change::Page { .. } | Change::Step { .. } | Change::Fold { .. } => {}
             }
         }
         let drawing = self.drawing.iter().filter(|(_, s)| here(&s.canvas, &s.page));
