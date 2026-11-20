@@ -58,6 +58,14 @@ fn settle(w: &mut World, met: impl Fn(&[Draw]) -> bool) -> Vec<Draw> {
     last
 }
 
+/// Whether box `i1` draws as its miniature (`Some(true)`) or open, with
+/// its fold mark. Every box draws a mark, open or folded: a wait on the mark
+/// alone stops before the pane draws what the daemon holds now.
+fn box_small(draws: &[Draw]) -> Option<bool> {
+    let small = draws.iter().find(|d| d.id == ItemId(1)).map(|b| b.bounds.width < 110.0);
+    small.filter(|_| has(draws, MARK + 1))
+}
+
 /// Whether the pane shows a peek: its paper, just below the marks' ids.
 fn peeking(w: &mut World) -> bool {
     drawn(w, MARK - 1).is_some()
@@ -86,12 +94,10 @@ fn select_all(w: &mut World, n: usize) {
 fn folds(w: &mut World, daemon: &control::Client, open: Rect) {
     assert!(w.send(Event::Key(FOLD)), "the box is selected: fold acts");
     w.until(|_| fold(daemon)["items"] == serde_json::json!(["i2"]));
-    settle(w, |d| has(d, MARK + 1));
+    settle(w, |d| box_small(d) == Some(true));
     let mini = drawn(w, 2).expect("the stroke draws in the miniature");
     assert!(mini.bounds.width < open.width / 2.0, "{mini:?} is smaller than {open:?}");
     assert!(mini.bounds.x < open.x && mini.bounds.y < open.y, "toward the box's top left");
-    let boxed = drawn(w, 1).unwrap().bounds;
-    assert!(boxed.width < 110.0, "the box is its miniature, {boxed:?}");
 }
 
 /// With a stroke in the old room, `fold` peeks, writing nothing, with the
@@ -159,8 +165,11 @@ fn a_press_on_a_box_s_fold_mark_folds_it_and_one_on_the_miniature_s_unfolds_it()
         w.key(Chord::new(CMD, '1'), "1");
         let strokes = count(daemon, "stroke");
         for (folded, when) in [(true, 10.0), (false, 20.0)] {
-            let mark =
-                settle(&mut w, |d| has(d, MARK + 1)).into_iter().find(|d| d.id == ItemId(MARK + 1));
+            // The box as the daemon has it now, or the press lands on the
+            // mark of the state before.
+            let mark = settle(&mut w, |d| box_small(d) == Some(!folded))
+                .into_iter()
+                .find(|d| d.id == ItemId(MARK + 1));
             let mark = mark.unwrap().bounds;
             let (x, y) = (mark.x + mark.width / 2.0, mark.y + mark.height / 2.0);
             assert!(w.send(Event::Press(at(x, y, when))), "the mark takes the pen");

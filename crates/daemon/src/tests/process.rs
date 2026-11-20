@@ -53,10 +53,13 @@ fn until(mut met: impl FnMut() -> bool) {
     }
 }
 
-/// The lines of the file at `path`; none while it is not there.
+/// The whole lines of the file at `path`; none while it is not there. The
+/// stand-in's shell writes a line over 1024 bytes (its arguments, a sling
+/// with an image) in pieces: a line counts once its newline is in.
 fn lines(path: &Path) -> Vec<String> {
     let text = std::fs::read_to_string(path).unwrap_or_default();
-    text.lines().map(str::to_string).collect()
+    let whole = text.rfind('\n').map_or("", |end| &text[..end]);
+    whole.lines().map(str::to_string).collect()
 }
 
 /// Whether a process with this id still exists.
