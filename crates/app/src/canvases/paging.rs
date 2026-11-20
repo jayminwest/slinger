@@ -17,6 +17,7 @@ use crate::scene::Label;
 use crate::scene::ink::Change;
 use crate::scene::pages::{self, Page, PageOp};
 use crate::scene::status;
+use crate::scene::tools::Resize;
 
 /// How far a pan command moves the canvas, in screen points.
 const PAN_STEP: f64 = 80.0;
@@ -27,8 +28,9 @@ const NO_CANVAS: &str = "No canvas in this pane to zoom";
 
 impl Canvases {
     /// Runs a canvas command on `pane` of `panes`, laid at `frame`; false
-    /// for a command that is not about canvases. A page command on a pane
-    /// whose page has not arrived does nothing.
+    /// for a command that is not about canvases, and for a size command
+    /// with no text to resize ([`Canvases::resize`]). A page command on a
+    /// pane whose page has not arrived does nothing.
     pub fn command(
         &mut self,
         panes: &Panes,
@@ -58,6 +60,8 @@ impl Canvases {
             Command::Find => self.ask_find(panes, (pane, frame)),
             Command::FindNext => self.find_next(panes, (pane, frame)),
             Command::Undo | Command::Redo => self.step(panes, pane, command == Command::Redo),
+            Command::SizeUp => return self.resize(Resize::Up),
+            Command::SizeDown => return self.resize(Resize::Down),
             Command::ToggleGrid => self.zoomed = Some(self.paper.toggle().to_string()),
             Command::Save => {
                 self.zoomed = Some(self.saved(panes, pane, std::env::home_dir().as_deref()));
