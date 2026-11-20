@@ -113,11 +113,11 @@ the app hears for real input, with points in the window's points from its
 top left. Every op takes a point, and a scroll its distance, as `X,Y` or
 as `X Y` (`press 10,20` and `press 10 20` are the same; a stroke's points
 likewise); anything else exits 2 (`usage`). A socket path of any length
-works, on both sides, though a socket's address holds only 103 bytes: a
-longer one goes through a short path in the temporary directory. A key the app passes on types its `--text` (by default its own
+works, on both sides, as for `--socket` (`docs/service.md`, "Any length"). A key the app passes on types its `--text` (by default its own
 character, and nothing with cmd or ctrl held); while an entry (Find, the
 sling's prompt, Feedback) holds the keyboard, that text goes into its
-field. `drive space` holds the space bar down, as for a pan with the
+field; delete, forward-delete, the arrows, home and end edit the field as
+the key does, and another key that types no character does nothing there. `drive space` holds the space bar down, as for a pan with the
 pointer, until `drive space --up`. `drive run` takes a
 command's name as the config file has it. `drive paste` with no text
 pastes what the driven window last cut or copied, which never touches the

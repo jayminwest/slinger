@@ -192,7 +192,7 @@ real app on a daemon of your own; it is never shown on a screen, and it does
 not start unless its config names that daemon's socket:
 
 ```bash
-cd "$(mktemp -d)" && mkdir ws           # d.sock stays relative: slingerd takes 103 bytes at most
+cd "$(mktemp -d)" && mkdir ws
 slingerd --socket d.sock --data-dir data --scratch & sleep 1
 slinger --socket d.sock workspace open ws
 printf '[daemon]\nsocket = "d.sock"\n[workspace]\nname = "ws"\n' > config.toml

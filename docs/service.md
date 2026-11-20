@@ -142,6 +142,13 @@ write at a time, so any thread may write to it while the daemon serves.
 - Default path: `$XDG_RUNTIME_DIR/slinger.sock`. When `XDG_RUNTIME_DIR` is
   not set: `slinger.sock` in the temporary directory (`$TMPDIR`, per user on
   macOS). The daemon and every client take `--socket <PATH>`.
+- **Any length.** A socket's address holds at most 103 bytes of path on
+  macOS. A longer path works on both sides: the daemon binds through a
+  short symbolic link to the socket's folder in the temporary directory,
+  and a client connects through one to the socket; each link goes once
+  used, and the socket is made where the path says, on any volume. Only a
+  socket file name too long by itself fails: the daemon exits 2
+  (`invalid`) with the hint `pass a --socket path with a shorter file name`.
 - **The daemon names its socket.** While it serves, the daemon writes the
   absolute path of its socket, one line, to `socket` in its data
   directory, and removes the file as it stops. A client given no socket

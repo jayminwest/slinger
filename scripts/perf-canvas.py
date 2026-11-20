@@ -103,7 +103,7 @@ def main():
     target = os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "target"))
     bins = os.path.join(target, "release")
 
-    # Short relative socket names: a socket path over 104 bytes fails.
+    # Short relative socket names keep the commands short.
     tmp = tempfile.mkdtemp(prefix="slperf.", dir=args.dir)
     os.chdir(tmp)
     started = []

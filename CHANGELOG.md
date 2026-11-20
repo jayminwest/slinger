@@ -627,6 +627,14 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **CLI, daemon:** `slingerd --socket` and `slinger --socket` take a path
+  of any length. A path over 103 bytes (a deep scratch folder, say) no
+  longer fails with "path must be shorter than SUN_LEN"; the app reaches
+  such a daemon too.
+- **Drive:** `slinger drive key delete` (and forward-delete, the arrows,
+  home and end) while a page name or another entry holds the keyboard now
+  deletes or moves the caret in the field, as the key does, instead of
+  typing a control character into it.
 - **App:** a workspace whose file is broken no longer pushes the
   workspaces under it out of the sidebar. Its error takes at most two
   lines, cut short with "…"; the hint shows only while you show that

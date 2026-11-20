@@ -1,10 +1,10 @@
 //! Unix sockets at paths of any length. A socket's address holds at most
 //! 103 bytes of path on macOS (104 with its NUL; 107 on Linux), and a
 //! scratch directory is often deeper than that. A path that is too long
-//! goes through a short one in the temporary directory: a connect through
-//! a symbolic link to it, a bind at the short path and a rename to the long
-//! one, the socket still listening there. Only a longer path takes the
-//! detour.
+//! goes through a short symbolic link in the temporary directory: a connect
+//! through a link to the socket, a bind through a link to the socket's
+//! directory, so the socket is made where it belongs, on any volume. Only
+//! a longer path takes the detour, and the link goes once it is used.
 
 use std::io;
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -24,7 +24,7 @@ fn too_long(e: &io::Error) -> bool {
 pub fn connect_socket(path: &Path) -> io::Result<UnixStream> {
     match UnixStream::connect(path) {
         Err(e) if too_long(&e) => {
-            let link = Short::new()?;
+            let link = Short::new(0)?;
             std::os::unix::fs::symlink(std::path::absolute(path)?, &link.0)?;
             UnixStream::connect(&link.0)
         }
@@ -36,15 +36,22 @@ pub fn connect_socket(path: &Path) -> io::Result<UnixStream> {
 ///
 /// # Errors
 ///
-/// The socket cannot be made there: its directory is missing, or (for a
-/// long path) on another volume than the temporary directory.
+/// The socket cannot be made there: its directory is missing, or its file
+/// name alone is too long for a socket's address (`InvalidInput`).
 pub fn bind_socket(path: &Path) -> io::Result<UnixListener> {
     match UnixListener::bind(path) {
         Err(e) if too_long(&e) => {
-            let short = Short::new()?;
-            let listener = UnixListener::bind(&short.0)?;
-            std::fs::rename(&short.0, path)?;
-            Ok(listener)
+            let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else { return Err(e) };
+            let link = Short::new(name.len() + 1)?;
+            std::os::unix::fs::symlink(std::path::absolute(dir)?, &link.0)?;
+            UnixListener::bind(link.0.join(name)).map_err(|e| {
+                if too_long(&e) {
+                    let name = name.to_string_lossy();
+                    io::Error::new(e.kind(), format!("socket file name {name:?} is too long"))
+                } else {
+                    e
+                }
+            })
         }
         bound => bound,
     }
@@ -55,14 +62,18 @@ pub fn bind_socket(path: &Path) -> io::Result<UnixListener> {
 struct Short(PathBuf);
 
 impl Short {
-    fn new() -> io::Result<Self> {
+    /// One with room for `more` bytes after it.
+    fn new(more: usize) -> io::Result<Self> {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         let name =
-            format!("slinger-{}-{}.sock", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed));
+            format!("slinger-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed));
         let tmp = std::env::temp_dir();
         // A temporary directory deep enough to be too long itself: /tmp.
-        let dir =
-            if tmp.as_os_str().len() + name.len() < 100 { tmp } else { PathBuf::from("/tmp") };
+        let dir = if tmp.as_os_str().len() + name.len() + more < 100 {
+            tmp
+        } else {
+            PathBuf::from("/tmp")
+        };
         let path = dir.join(name);
         // Left by an earlier process of the same id.
         match std::fs::remove_file(&path) {
@@ -75,7 +86,7 @@ impl Short {
 
 impl Drop for Short {
     fn drop(&mut self) {
-        // Gone already when a bind's socket moved to its long path.
+        // A link: the socket or the directory it names stays.
         let _ = std::fs::remove_file(&self.0);
     }
 }
@@ -108,6 +119,15 @@ mod tests {
             e.file_name().to_string_lossy().starts_with(&format!("slinger-{}-", std::process::id()))
         });
         assert!(!left, "a short path is left behind");
+    }
+
+    #[test]
+    fn a_long_path_whose_file_name_alone_is_too_long_says_so() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(format!("{}.sock", "n".repeat(110)));
+        let e = bind_socket(&path).unwrap_err();
+        assert!(too_long(&e), "{e}");
+        assert!(e.to_string().contains("file name"), "{e}");
     }
 
     #[test]

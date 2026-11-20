@@ -8,7 +8,6 @@
 
 use std::fs;
 use std::io;
-use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 
 const SOCKET_FILE: &str = "slinger.sock";
@@ -43,7 +42,7 @@ pub fn running_socket() -> Option<PathBuf> {
 /// daemon reads as no request and answers nothing.
 #[must_use]
 pub fn live_socket(data_dir: &Path) -> Option<PathBuf> {
-    named_socket(data_dir).filter(|named| UnixStream::connect(named).is_ok())
+    named_socket(data_dir).filter(|named| crate::connect_socket(named).is_ok())
 }
 
 /// Where the record lives when no data directory is given:
