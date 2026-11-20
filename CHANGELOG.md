@@ -617,6 +617,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a workspace no longer opens at another workspace's zoom and
+  scroll, or shows its ink while its own page comes. Going back to a
+  workspace finds each pane, and the focus, where you left them. Closing
+  or opening a pane no longer moves the other panes' views.
 - **App:** once the slingerd that slinger.app started answers, the sidebar
   lists the workspaces at once; before, it could take up to a second more.
 - **Fold:** a box drawn around short typed texts folds them. Before, it

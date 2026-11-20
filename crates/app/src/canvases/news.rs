@@ -64,7 +64,7 @@ impl Canvases {
             if let Some(at) = self.turning.iter().position(|(k, ..)| *k == key) {
                 if let Answer::NewPage { page, .. } = &answer {
                     let (_, pane, canvas) = self.turning.remove(at);
-                    self.view(pane).page = Some((canvas, page.clone()));
+                    self.views.turn(pane, canvas, page.clone());
                 } else if matches!(answer, Answer::Refused(_)) {
                     self.turning.remove(at);
                 }
