@@ -456,7 +456,7 @@ pub fn view(
         tools.flash().say(text, now);
     }
     scene.flash = tools.flash().pill(focused(&shared.panes, area), theme, now).map(Box::new);
-    let file = canvases.file(&shared.panes, shared.panes.focus());
+    let file = canvases.file(&shared.panes, shared.panes.focus()).filter(|_| !sidebar.none_open());
     scene.title = title::window(file, std::env::home_dir().as_deref());
     let facts = facts(shared, canvases, tools, sidebar, area);
     scene.menus = commands::menu::bar(keys, status::command(tools.chosen()), &facts);

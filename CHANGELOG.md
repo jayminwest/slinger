@@ -697,6 +697,8 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** with no workspace open (the last one closed, or none at launch)
+  the window's title says "slinger" instead of naming the last canvas.
 - **App:** sling-now (alt+return, or Sling) on a PDF opened beside the
   workspace's canvas now says "A PDF cannot be slung: sling a crop of it"
   (crop it, paste the crop on the workspace's canvas and sling that)
