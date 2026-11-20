@@ -14,6 +14,8 @@
 //!   `move`, with the arrows bound to it following, as a drag's lift does.
 //! - Duplicate: a copy of the selection lands [`DUPLICATE`] screen points
 //!   down and right of it, as a paste lands, and is the selection once there.
+//! - One item: a find's jump selects the text it went to alone
+//!   ([`Select::only`]), as next-item does, so the keys above act from it.
 
 use std::borrow::Cow;
 
@@ -97,10 +99,19 @@ impl Select {
             (None, false) => n.checked_sub(1)?,
         };
         let (frame, id) = *order.get(next)?;
-        self.arriving = None;
-        self.selection =
-            Some(Selection { canvas: canvas.into(), page: page.into(), ids: vec![id] });
-        Some(frame)
+        self.only((canvas, page), id).then_some(frame)
+    }
+
+    /// Selects `id` alone on `page` of `canvas`, as next-item does. False,
+    /// and nothing changes, while the pen is down.
+    pub fn only(&mut self, (canvas, page): (&str, &str), id: ItemId) -> bool {
+        let took = self.gesture.is_none();
+        if took {
+            self.arriving = None;
+            self.selection =
+                Some(Selection { canvas: canvas.into(), page: page.into(), ids: vec![id] });
+        }
+        took
     }
 
     /// Moves the selection by `by` canvas units (to the tenth, as the file

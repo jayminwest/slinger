@@ -16,6 +16,8 @@ bullet with the area in bold.
   text on its canvas that holds them, on its page or a later one, centred;
   Find next (`find-next`, cmd+G) goes on to the next. Case and line breaks
   do not matter. The flash says which of how many, and on which page.
+  The text found is selected, so the arrows nudge it, cmd+J duplicates it,
+  delete removes it and tab goes on to the next item from it.
 - **CLI:** `slinger canvas find <CANVAS> <TEXT>` prints the page, id and
   text of each text item that holds the words, on every page.
 - **App:** act on a canvas's items from the keyboard. Select all
