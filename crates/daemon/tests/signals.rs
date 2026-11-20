@@ -158,3 +158,29 @@ fn with_a_log_its_and_its_agents_stderr_go_there_and_sighup_does_not_stop_it() {
     assert!(pid_lines[1].ends_with(": stopped") && pid_lines[3].ends_with(": stopped"), "{text}");
     assert!(text.contains("slingerd: workspace not loaded: "), "{text}");
 }
+
+#[test]
+fn daemon_stop_ends_it_cleanly_and_its_mark_lasts_until_the_next_start() {
+    let socket_dir = tempfile::tempdir().unwrap();
+    let socket = socket_dir.path().join("t.sock");
+    let data = tempfile::tempdir().unwrap();
+    let log = data.path().join("slingerd.log");
+    let daemon = start_logged(&socket, data.path(), &log);
+    let client = Client::new(&socket);
+    let info = client.daemon_info().unwrap();
+    assert_eq!((info.pid, info.log), (daemon.id(), Some(log.display().to_string())));
+    let exe = Path::new(env!("CARGO_BIN_EXE_slingerd")).canonicalize().unwrap();
+    assert_eq!(Path::new(&info.exe).canonicalize().unwrap(), exe);
+
+    assert_eq!(client.daemon_stop().unwrap().pid, daemon.id());
+    let output = daemon.wait_with_output().unwrap();
+    assert!(output.status.success(), "{:?}", output.status);
+    assert!(!socket.exists());
+    assert_eq!(slinger_control::named_socket(data.path()), None, "the name goes with the socket");
+    let mark = slinger_control::stop_mark(data.path());
+    assert!(mark.exists(), "a deliberate stop is marked");
+    assert!(std::fs::read_to_string(&log).unwrap().ends_with(": stopped\n"));
+
+    stop_logged(start_logged(&socket, data.path(), &log));
+    assert!(!mark.exists(), "the next start takes the mark away");
+}

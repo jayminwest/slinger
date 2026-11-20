@@ -9,6 +9,7 @@
 mod agent;
 mod build;
 mod client;
+mod daemon;
 mod feed;
 mod feedback;
 mod find;
@@ -36,6 +37,7 @@ pub use agent::{
 };
 pub use build::{PACKAGE, stamp};
 pub use client::Client;
+pub use daemon::{DaemonAsk, DaemonInfo, DaemonStopped, stop_mark};
 pub use feed::{CanvasFeed, MAX_WAIT_MS};
 pub use feedback::{
     FeedbackAdded, FeedbackAsk, FeedbackEntries, FeedbackEntry, FeedbackFile, FeedbackNote,
@@ -197,6 +199,10 @@ pub enum Request {
     /// `op`s and written by clients with `FoldAsk` itself.
     #[serde(untagged, skip_serializing)]
     Fold(FoldAsk),
+    /// The daemon's own verbs (`daemon_info`, `daemon_stop`), read by their
+    /// own `op`s and written by clients with `DaemonAsk` itself.
+    #[serde(untagged, skip_serializing)]
+    Daemon(DaemonAsk),
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -250,6 +256,8 @@ pub enum Reply {
     FeedbackPath(FeedbackFile),
     Profiles(Profiles),
     Fold(CanvasEdited),
+    DaemonInfo(DaemonInfo),
+    DaemonStopped(DaemonStopped),
 }
 
 /// An event to append. The daemon sets its number, time and machine tag,

@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **CLI:** `slinger daemon info` shows which slingerd answers: its version
+  and build (the commit it was built from), pid, executable, socket, data
+  directory, the Claude Code it would run and its log file.
+  `slinger daemon stop` stops it as SIGTERM does, without its pid, and it
+  stays stopped until it is started again.
 - **Daemon:** a daemon you did not start from a terminal finds Claude Code
   and gives its agents your tools. Without `--claude`, slingerd looks for
   `claude` at each session start on your login shell's `PATH` and in the

@@ -16,6 +16,7 @@ use serde_json::{Value, json};
 use slinger_control as control;
 
 use crate::canvas::Canvas;
+use crate::daemon::Daemon;
 use crate::drive::Drive;
 use crate::env::Env;
 use crate::feedback::Feedback;
@@ -115,6 +116,9 @@ enum Command {
     /// Leave, list and resolve notes about slinger itself
     #[command(subcommand)]
     Feedback(Feedback),
+    /// Show which slingerd answers, or stop it
+    #[command(subcommand)]
+    Daemon(Daemon),
     /// Send input to a driven app (slinger-app --drive) and read what its window shows
     Drive(Drive),
     /// Print the guide for agents: the ideas, the common tasks and every command
@@ -203,6 +207,7 @@ impl Command {
             Self::Sling(sling) => sling.name(),
             Self::File(file) => file.name(),
             Self::Feedback(feedback) => feedback.name(),
+            Self::Daemon(d) => d.name(),
             Self::Drive(drive) => drive.name(),
             Self::Guide => "guide",
             Self::Skill(skill) => skill.name(),
@@ -286,6 +291,7 @@ fn execute(
         Command::Sling(sling) => crate::sling::execute(sling, daemon, input),
         Command::File(file) => crate::session::touched(file, daemon, input, env),
         Command::Feedback(feedback) => feedback.execute(daemon),
+        Command::Daemon(d) => d.execute(daemon),
         Command::Drive(drive) => drive.execute(env),
         Command::Guide => Ok(crate::guide::guide(&command_tree())),
         Command::Skill(skill) => skill.execute(),

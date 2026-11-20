@@ -17,6 +17,7 @@
 //! Beside the log, the file keeps the slings that wait for a listener
 //! ([`Waiting`]), so a restart loses none.
 
+mod process;
 mod schema;
 #[cfg(test)]
 mod tests;
@@ -152,6 +153,9 @@ pub struct Store {
     packets: PathBuf,
     sessions: Sessions,
     feedback: Feedback,
+    /// The data directory it opened, and the daemon's `--log` file if any.
+    dir: PathBuf,
+    log: Option<PathBuf>,
     /// Held for the store's life: two stores never share one directory.
     _lock: Lock,
 }
@@ -189,7 +193,19 @@ impl Store {
         let listeners = Listeners::kept(Waiting::new(Arc::clone(&db)))?;
         let sessions = Sessions::new(CLAUDE.into(), dir.join(SESSION_IDS), listeners);
         let feedback = Feedback::new(dir.join(slinger_core::feedback::FILE));
-        Ok(Self { db, machine, canvases, workspaces, packets, sessions, feedback, _lock: lock })
+        let (dir, log) = (dir.to_owned(), None);
+        Ok(Self {
+            db,
+            machine,
+            canvases,
+            workspaces,
+            packets,
+            sessions,
+            feedback,
+            dir,
+            log,
+            _lock: lock,
+        })
     }
 
     /// Appends `event` to the log and returns it as stored: with the next

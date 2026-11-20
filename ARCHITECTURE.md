@@ -367,6 +367,13 @@ feedback.rs  the feedback file (`--feedback`, default `feedback.jsonl` in
              without git, so the stamp is `dev`. It names a commit, not the
              bytes: two dirty builds of one commit carry the same stamp.
 server/feedback.rs  the four feedback verbs on the wire.
+server/daemon.rs  `daemon_info` and `daemon_stop`: the process's own facts,
+             with no core half. `serve` hands every connection a `Here`
+             (the socket, when it began to serve, the `Stopper`); the
+             store keeps its data directory and the `--log` path. A stop
+             writes `stopped` in the data directory (`control::stop_mark`),
+             then stops as SIGTERM does; `lib.rs` `serve` removes the mark
+             as the next daemon starts.
 server/session.rs  the session verbs on the wire, each session with its process
              and its listener. `session_listen` is a long poll; a reply that
              cannot be written puts its sling back (`unheard`).
@@ -1411,6 +1418,7 @@ Each boundary has something that fails when it is broken:
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
 | The canvas file format is readable by older readers | `crates/core/tests/canvas_file.rs`, with a stored v1 fixture |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |
+| `daemon_info` names the process that answers (pid, build, socket, data directory, the Claude Code it would run now, log); `daemon_stop` replies, answers what came before it, ends the daemon as SIGTERM does with exit 0 and leaves the `stopped` mark that the next start removes (docs/service.md) | `crates/daemon/src/tests/daemon.rs`, `crates/daemon/tests/signals.rs`, `crates/cli/src/tests/stop.rs` |
 | A daemon names its socket in its data directory while it serves and takes the name back as it stops; `slinger` given no socket finds it there, on any path, and so does the app with no `[daemon] socket`; both pass over a name nothing listens on (`control::live_socket`), and an explicit socket is kept (docs/service.md) | `crates/control/src/place.rs` tests, `crates/daemon/tests/signals.rs`, `crates/cli/tests/agent_env.rs`, `crates/app/src/backend/place.rs` tests |
 | The client takes a reply slower than 5 s (the daemon under disk load) as an answer, not `unavailable`; it waits 30 s at most, and no reply in that time hints to retry or restart, not to start the daemon (docs/service.md) | `crates/control/src/client.rs` tests, with a fake daemon |
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |

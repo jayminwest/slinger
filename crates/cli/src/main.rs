@@ -3,6 +3,7 @@
 //! contract in docs/cli.md. It does not link the core.
 mod canvas;
 mod cli;
+mod daemon;
 mod drive;
 mod edit;
 mod env;

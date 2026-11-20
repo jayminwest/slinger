@@ -86,6 +86,7 @@ a rough size. Known ones name their seed.
 | Pick the size of a new text, or resize a text's characters | `canvas_put`/`canvas_edit` `size` (agent side); the app's own text tool | design | slinger-34a2ae |
 | Read the thinking record (what was slung, answered, touched) | `record_list` | design | slinger-895bde |
 | Browse a UI's versions (`ui list NAME`, `ui show`), or export one that no pane shows | `ui_list`, `ui_show`, `ui_export` | ui | slinger-401aa5 |
+| See which slingerd build serves the window, stop it or restart it (`daemon info`, `daemon stop`) | `daemon_info`, `daemon_stop` | design | slinger-866657 (the app's restart offer, launcher step 7) |
 
 Notes on the new rows:
 
