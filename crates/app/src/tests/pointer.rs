@@ -11,6 +11,11 @@ fn mouse(x: f64, y: f64, when: f64) -> Pen {
     Pen { tablet: false, ..at(x, y, when) }
 }
 
+/// A trackpad event at `x`, `y`: `AppKit` says a touch made it.
+fn trackpad(x: f64, y: f64, when: f64) -> Pen {
+    Pen { touch: true, ..mouse(x, y, when) }
+}
+
 /// A press, a drag and a lift by `pen` from `x`, each used.
 fn stroke(w: &mut World, pen: fn(f64, f64, f64) -> Pen, x: f64, when: f64) {
     assert!(w.send(Event::Press(pen(x, 300.0, when))));
@@ -43,6 +48,25 @@ fn with_the_pen_tool_a_mouse_drag_draws_no_line_and_a_tablet_drag_draws() {
         assert_eq!(w.tools.tool(), Tool::Select);
         assert!(w.send(Event::Proximity { near: true, eraser: false }), "it came back");
         assert_eq!(w.tools.tool(), Tool::Pen);
+    });
+}
+
+#[test]
+fn a_trackpad_press_is_a_mouse_press_and_a_palm_only_while_the_pen_is_near() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        assert!(w.send(Event::Command(Command::ToolBox)));
+        stroke(&mut w, trackpad, 300.0, 1.0);
+        w.until(|_| count(daemon, "box") == 1);
+        assert!(w.send(Event::Proximity { near: true, eraser: false }), "the pen came near");
+        assert!(!w.send(Event::Press(trackpad(500.0, 300.0, 2.0))), "a palm: nothing starts");
+        w.send(Event::Drag(trackpad(580.0, 340.0, 2.1)));
+        w.send(Event::Lift(trackpad(580.0, 340.0, 2.2)));
+        stroke(&mut w, at, 300.0, 3.0);
+        w.until(|_| count(daemon, "box") == 2);
+        assert_eq!(count(daemon, "box"), 2, "the palm drew none between them");
     });
 }
 

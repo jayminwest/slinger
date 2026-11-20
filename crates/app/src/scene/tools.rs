@@ -248,6 +248,13 @@ impl Tools {
         std::mem::replace(&mut self.tablet, tablet) != tablet
     }
 
+    /// `pen` as the app takes it: a touch is a palm only while a tablet pen
+    /// is the device last seen. A trackpad's press is a touch to `AppKit`
+    /// too, so with no pen near it is a mouse's (slinger-f98344).
+    pub fn hears(&self, pen: super::ink::Pen) -> super::ink::Pen {
+        super::ink::Pen { touch: pen.touch && self.tablet, ..pen }
+    }
+
     /// Runs a tool command (`tool-pen` to `tool-select`, `crop-pdf`): the tool it names
     /// is what the pen does now. An open tool or shape pop-up closes, since
     /// its lit cell no longer matches. `width-up` and `width-down` step the

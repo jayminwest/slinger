@@ -545,6 +545,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a trackpad works on a canvas. Its presses and drags did nothing
+  there: the Mac marks them as touches, and slinger took every touch for a
+  palm on a tablet display. A touch is now a palm only while a tablet pen
+  is near; with none near, a trackpad press does what a mouse press does.
 - **App:** a wrapped text resized with the select tool's handles or the
   size keys keeps wrapping; before, a resize could leave its column exactly
   as wide as its longest line, and it then ran on one line as you typed.

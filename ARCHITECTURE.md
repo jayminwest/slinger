@@ -1234,7 +1234,9 @@ mirror holds it. So it never blinks out between the reply and the echo.
 The daemon's reply to an add says the ids it made, and the ink shows the
 item under that id from then on (and not at all once the mirror holds
 it), so it never draws twice. Touch (a palm on a
-tablet display) never draws. Each stroke's pen-to-paint delays go to
+tablet display) never draws while a tablet pen is the device last seen;
+with none near, a touch is a trackpad's press and counts as a mouse's
+(`Tools::hears`, in `route`). Each stroke's pen-to-paint delays go to
 stderr as one `ink:` line (SPEC O2). Changes not yet written (strokes,
 erases, moves, puts, edits, resizes, carries and page changes; not an undo
 or a redo, which has no `once`) are kept in `unsent-ink.json` beside the

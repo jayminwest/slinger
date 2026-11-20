@@ -41,6 +41,7 @@ pub fn route(
     sidebar: &mut Sidebar,
 ) -> Routed {
     let area = sidebar.panes(shared.size.rect());
+    let event = heard(event, tools);
     if let Event::Press(pen) = event
         && !pen.touch
     {
@@ -129,6 +130,17 @@ pub fn route(
         shared.keyboard = on;
     }
     Routed::Answer(step)
+}
+
+/// `event` with its pen as `tools` hears it ([`Tools::hears`]): a
+/// trackpad's touch is a mouse's while no tablet pen is near.
+fn heard(event: Event, tools: &Tools) -> Event {
+    match event {
+        Event::Press(pen) => Event::Press(tools.hears(pen)),
+        Event::Drag(pen) => Event::Drag(tools.hears(pen)),
+        Event::Lift(pen) => Event::Lift(tools.hears(pen)),
+        event => event,
+    }
 }
 
 /// Hands `event` to the hand of `shared` (docs/design/pen-less.md): space

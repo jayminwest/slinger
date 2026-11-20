@@ -154,8 +154,10 @@ additive over `Shapes::typed`).
 Behaviour:
 
 1. A press is a **tablet press** when its `NSEvent` subtype is
-   `TabletPoint` or `TabletProximity`, else a **mouse press**. Touch is as
-   now (never draws, never selects).
+   `TabletPoint` or `TabletProximity`, else a **mouse press**. A touch
+   (subtype `Touch`) is a palm, which never draws or selects, only while
+   the device last seen is the tablet: a trackpad's press carries that
+   subtype too, so with no pen near it is a mouse press (slinger-f98344).
 2. The tool a press uses: the eraser if the tablet's eraser end is in use
    (as now); else the select tool if the chosen tool is the pen and the
    press is a mouse press; else the chosen tool.

@@ -74,7 +74,9 @@ pub struct Pen {
     /// When, in seconds since the machine started.
     pub when: f64,
     /// Whether a finger made it (a touch the system turned into a mouse
-    /// event): a palm on a tablet display. Touch never draws.
+    /// event): a palm on a tablet display, or a trackpad's press. A palm
+    /// never draws; with no tablet pen near it is a mouse's press
+    /// ([`crate::scene::tools::Tools::hears`]).
     pub touch: bool,
     /// Whether a tablet pen's eraser end made it: it erases with any tool
     /// ([`crate::scene::tools::Tools::set_eraser_end`]).
