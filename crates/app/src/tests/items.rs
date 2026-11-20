@@ -20,6 +20,14 @@ fn selected(w: &World) -> usize {
     w.canvases.selection().map_or(0, |s| s.ids.len())
 }
 
+/// How far each box moved (in tenths) once `chord` was pressed.
+fn nudged(w: &mut World, daemon: &control::Client, chord: Chord) -> Vec<f64> {
+    let before = boxes(daemon);
+    assert!(w.send(Event::Key(chord)), "{chord:?} nudges");
+    w.until(|_| boxes(daemon) != before);
+    boxes(daemon).iter().zip(&before).map(|(a, b)| a - b).collect()
+}
+
 #[test]
 fn select_all_next_nudge_and_duplicate_act_on_the_focused_page() {
     with_store(None, |daemon| {
@@ -46,12 +54,11 @@ fn select_all_next_nudge_and_duplicate_act_on_the_focused_page() {
         assert!(w.send(Event::Key(Chord::new(SHIFT, '\u{19}'))));
         assert_eq!(w.canvases.selection().unwrap().ids, [first], "two items: back to the first");
 
-        let before = boxes(daemon);
-        assert!(w.send(Event::Key(Chord::new(0, RIGHT))));
-        w.until(|_| boxes(daemon) != before);
-        let moved: Vec<f64> = boxes(daemon).iter().zip(&before).map(|(a, b)| a - b).collect();
+        let moved = nudged(&mut w, daemon, Chord::new(0, RIGHT));
         let ten = moved.contains(&100.0) && moved.contains(&0.0);
         assert!(ten, "one box 10 points right, in the file's tenths: {moved:?}");
+        let moved = nudged(&mut w, daemon, Chord::new(SHIFT, RIGHT));
+        assert!(moved.contains(&10.0), "the fine nudge: one box a point right: {moved:?}");
 
         assert!(w.send(Event::Key(Chord::new(CMD, 'j'))));
         let copied = |w: &World| w.canvases.selection().is_some_and(|s| s.ids != [first]);
@@ -74,6 +81,8 @@ fn a_text_being_typed_or_an_open_entry_keeps_the_keys() {
         assert!(w.send(Event::Command(Command::SelectAll)), "chosen from the menu too");
         assert_eq!(selected(&w), 0);
         assert!(!w.send(Event::Key(Chord::new(0, '\t'))), "tab types");
+        assert!(w.send(Event::Key(Chord::new(SHIFT, RIGHT))), "the caret's selection takes it");
+        assert_eq!(selected(&w), 0);
         assert_eq!(selected(&w), 0);
         w.key(Chord::new(0, '\u{1b}'), "\u{1b}");
         w.until(|_| count(daemon, "text") == 1);

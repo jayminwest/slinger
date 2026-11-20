@@ -622,9 +622,9 @@ config.rs    the config file's format: text in, a typed config or an error
              `[sling] prompt`, the words a sling with nothing typed sends,
              `config/pointer.rs` `[pointer] press`, what a mouse press does
              with the pen tool (select, or the tool). Pure.
-commands.rs  key commands: the closed list of commands, the chord parser and
-             the keymap from a chord to a command (and a command to its
-             live chord). `registry` gives each command a title and a
+commands.rs  key commands: the closed list of commands, the chord parser
+             (`chord`: key names and `Chord::parse`) and the keymap from a
+             chord to a command (and a command to its live chord). `registry` gives each command a title and a
              group and prints a chord in macOS glyphs: the key overlay,
              the palette and the menu bar read it (SPEC D21). `menu` lays
              the menu bar out: each menu's items, the key each shows and
@@ -911,13 +911,15 @@ scene/select/keys.rs  the selection from the keyboard: select all takes
              every item the select tool may; next and previous step in
              reading order (box top, then left), wrapping, and bring the
              item into view (`into_view`); a nudge moves the selection 10
-             screen points as one `move` with bound arrows following; a
+             screen points (a fine nudge 1) as one `move` with bound arrows
+             following; a
              duplicate lands 20 screen points down and right, as a paste
              (one step), selected once there. Pure.
 window/items.rs  who holds the keyboard (`keyboard`), and so whether the
-             item commands act on the focused pane's items: only while the
-             window has it and no text of the app takes typing; else the
-             key goes on (select all to a field or a page as `selectAll:`).
+             item commands and delete-selection act on the focused pane's
+             items: only while the window has it and no text of the app
+             takes typing; else the key goes on (select all to a field or a
+             page as `selectAll:`, delete to a live item's page).
 scene/select/carry.rs  a drag of the selection goes by the canvas pane
              under the pen, read through that pane's own view, at every pen
              event and at the lift: over a pane on the same page the items

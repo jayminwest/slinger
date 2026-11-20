@@ -58,6 +58,10 @@ bullet with the area in bold.
   delete removes it and tab goes on to the next item from it.
 - **CLI:** `slinger canvas find <CANVAS> <TEXT>` prints the page, id and
   text of each text item that holds the words, on every page.
+- **App:** nudge the selection by one point: shift and an arrow
+  (`nudge-left-fine`, `nudge-right-fine`, `nudge-up-fine`,
+  `nudge-down-fine`, also in the Edit menu and the command palette). While
+  you type a canvas text, shift and an arrow still select characters.
 - **App:** act on a canvas's items from the keyboard. Select all
   (`select-all`, cmd+A) selects every item on the focused page; tab and
   shift+tab (`next-item`, `previous-item`) select the next or previous item

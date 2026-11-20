@@ -287,6 +287,11 @@
 #nudge-right = "right"
 #nudge-up = "up"
 #nudge-down = "down"
+# The same by one point, for fine placing. While a text is typed, shift and an arrow select.
+#nudge-left-fine = "shift+left"
+#nudge-right-fine = "shift+right"
+#nudge-up-fine = "shift+up"
+#nudge-down-fine = "shift+down"
 # Copy the selection a little down and right of itself, in one undo step; the copy is
 # selected. (cmd+d is split-right.)
 #duplicate = "cmd+j"
