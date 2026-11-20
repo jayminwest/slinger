@@ -63,3 +63,20 @@ fn a_command_draws_its_scene_at_once() {
         }
     });
 }
+
+#[test]
+fn the_outline_says_the_text_typed_in_an_entry_that_drew_nothing() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        w.key(Chord::new(CMD, 'f'), "");
+        let mut scene = view(&w.settings, &mut w.shared, &w.tools, &w.sidebar, &mut w.canvases);
+        assert!(scene.entry.is_some(), "find opens its entry");
+        let step = routed(&mut w, Event::Typed("abc".into()));
+        assert!(!matches!(step, Step::Draw(_)), "the field shows its own typing");
+        crate::drive::shown(&mut scene, Some("abc".into()), &step);
+        let said = crate::drive::outline(&scene);
+        assert!(said.contains("entry ") && said.contains("\"abc\""), "{said}");
+    });
+}

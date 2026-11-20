@@ -16,11 +16,12 @@ use std::time::Instant;
 use serde_json::{Value, json};
 
 pub use self::outline::outline;
-use crate::Event;
 use crate::commands::{Chord, Command, SHIFT};
 use crate::layout::{Point, Size};
+use crate::scene::Scene;
 use crate::scene::ink::Pen;
 use crate::scene::paste::{Clip, Edit};
+use crate::{Event, Step};
 
 /// What a request asks of the window.
 #[derive(Debug, PartialEq)]
@@ -40,6 +41,23 @@ pub enum Ask {
     Paste,
     /// The text the driven window last cut or copied.
     Clip,
+}
+
+/// Keeps `last`, the scene a driven window shows, up to date with `step`,
+/// the answer to an event: a scene drawn replaces it. An entry's field
+/// shows its own typing with no draw, so the text typed into it (`typed`,
+/// an [`Event::Typed`]'s) goes into `last`'s entry (slinger-16d634).
+pub fn shown(last: &mut Scene, typed: Option<String>, step: &Step) {
+    match step {
+        Step::Draw(scene) | Step::Through(scene) | Step::Copy(_, scene) => {
+            last.clone_from(scene);
+        }
+        _ => {
+            if let (Some(text), Some(entry)) = (typed, last.entry.as_mut()) {
+                entry.text = text;
+            }
+        }
+    }
 }
 
 /// Seconds between the points of a `stroke`.

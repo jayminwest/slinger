@@ -737,7 +737,9 @@ drive.rs     a driven window's requests (`slinger-app --drive SOCKET`, which
              scroll, a pinch, a command, a paste, a drop, a tick), or an ask
              for the scene, a PNG, a resize or the window's own clipboard; a
              thread reads and writes the socket and hands each ask to the
-             main thread (platform/drive.rs). Pure but for the socket.
+             main thread (platform/drive.rs). Pure but for the socket;
+             `shown` keeps the scene to say up to date, an entry's typing
+             included (its field shows it with no draw).
 drive/outline.rs  the scene as text: one line for each thing the window
              shows, with its place, colour and text. Says, never decides.
 config.rs    the config file's format: text in, a typed config or an error
@@ -1231,7 +1233,7 @@ platform/window.rs  makes the window (its style, smallest size and
 platform/drive.rs  the driven window on the main thread: runs each ask from
              the driver's thread there (the main dispatch queue), hands its
              events to the same `dispatch` real input goes through, keeps the
-             last scene drawn to say as text, draws the content view into a
+             scene shown to say as text (drive::shown), draws the content view into a
              PNG (a window never shown draws too, agent UIs included), and
              keeps a cut or a copy in place of the clipboard, which stays
              the user's.
