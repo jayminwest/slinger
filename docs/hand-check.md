@@ -58,3 +58,4 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 - [ ] quit the real app while it shows a non-first workspace, relaunch: that workspace is shown (fa2e551; saved in the app's user defaults via an unsafe NSUserDefaults call never run for real) (slinger-d00b38)
 - [ ] IME input (Japanese/Chinese composition, dead-key accents) in the sling entry (slinger-368f56)
 - [ ] open the app once with no saved window frame (a copy of the binary under another name, or delete the 'NSWindow Frame slinger window' default) and confirm it opens 960 wide; 70d6d7 was closed as not reproducible (slinger-f7bb8d)
+- [ ] (bundle) the ✕ on a sidebar row closes that workspace without switching, with the pen and with the mouse; the ✕ does not crowd a long name; closing the shown one shows another; opt+cmd+W still closes the shown one (driven window checked: other row, shown row, broken row, running stand-in agent ended) (slinger-9cd9d6)

@@ -139,6 +139,11 @@ impl Views {
         true
     }
 
+    /// Forgets the views parked under `workspace`, closed.
+    pub(super) fn forget(&mut self, workspace: &str) {
+        self.parked.retain(|(w, _)| w.as_deref() != Some(workspace));
+    }
+
     /// Pane `pane`'s view, a new one if it has none.
     pub(super) fn get(&mut self, pane: PaneId) -> &mut View {
         let at = self.shown.iter().position(|(p, _)| *p == pane).unwrap_or_else(|| {
@@ -186,6 +191,12 @@ impl super::Canvases {
     /// its own.
     pub fn split_view(&mut self, from: PaneId, to: PaneId) {
         self.views.copy(from, to);
+    }
+
+    /// Forgets the panes' views of `workspace`, closed while not shown:
+    /// open again, it shows them as the daemon kept them.
+    pub fn forget(&mut self, workspace: &str) {
+        self.views.forget(workspace);
     }
 }
 

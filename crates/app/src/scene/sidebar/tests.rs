@@ -1,6 +1,9 @@
 use super::*;
+use crate::commands::Command;
+use crate::scene::status;
 use crate::scene::taps::Tap;
 
+mod close;
 mod shown;
 mod unusable;
 
@@ -14,6 +17,20 @@ const T: Theme = Theme {
 };
 
 const WINDOW: Rect = Rect { x: 0.0, y: 0.0, width: 960.0, height: 600.0 };
+
+/// Closes the workspace `sidebar` shows, as `close-workspace` does once the
+/// daemon closed it: its folder.
+fn close_shown(sidebar: &mut Sidebar) -> Option<PathBuf> {
+    let dir = sidebar.shown_dir()?;
+    assert_eq!(sidebar.closed(&dir).map(|(w, shown)| (w.dir, shown)), Some((dir.clone(), true)));
+    Some(dir)
+}
+
+/// The sidebar's targets in the window, but for the rows' ✕s.
+fn rows_only(sidebar: &Sidebar) -> Vec<Target> {
+    let targets = sidebar.targets(&T, WINDOW).into_iter();
+    targets.filter(|t| !matches!(t.1, Tap::Close(_))).collect()
+}
 
 /// A workspace named for its agent, `<agent>-ws`, in `/w/<agent>`.
 fn ws(agent: &str, status: Option<Status>) -> Workspace {
@@ -45,9 +62,10 @@ fn notice(sidebar: &Sidebar) -> Option<String> {
     sidebar.notice(&T, WINDOW).first().map(|l| l.text.clone())
 }
 
-/// Each row's text and colour, less the shown workspace's background.
+/// Each row's text and colour, less the shown workspace's background and
+/// the rows' ✕s (`tests/close.rs`).
 fn shown(rows: &[Row]) -> Vec<(&str, Rgb)> {
-    let texts = rows.iter().filter(|r| r.label.fill.is_none());
+    let texts = rows.iter().filter(|r| r.label.fill.is_none() && r.label.text != notice::CLOSE);
     texts.map(|r| (r.label.text.as_str(), r.label.colour)).collect()
 }
 
@@ -263,7 +281,7 @@ fn each_workspace_s_lines_are_a_target_a_tap_shows_its_panes() {
     let mut blocked = noted("bo", Status::Blocked, "which key?");
     blocked.name = "bo-ws".into();
     let mut sidebar = heard(vec![ws("ada", None), blocked]);
-    let targets = sidebar.targets(&T, WINDOW);
+    let targets = rows_only(&sidebar);
     assert_eq!(
         targets.iter().map(|t| t.1).collect::<Vec<_>>(),
         [Tap::Workspace(0), Tap::Workspace(1)]
