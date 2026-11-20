@@ -1,6 +1,6 @@
 //! Whether a command can act now ([`can`]): the one enabled predicate. The
-//! menu bar greys an item it says no to, and the context menus (plan
-//! pl-9880f1) will too. Pure: [`Facts`] holds what the rules read, and
+//! menu bar greys an item it says no to, and so do the context menus
+//! (plan pl-9880f1). Pure: [`Facts`] holds what the rules read, and
 //! `window::facts` reads them from the window, from the same queries the
 //! commands' own gates ask (`window::items`, `Canvases::shows_selection`,
 //! `Canvases::step_target`, the sling's target, `unslingable`).

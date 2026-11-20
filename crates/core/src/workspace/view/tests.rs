@@ -1,3 +1,7 @@
+//! Kept pane views: `set` refuses a number that is not finite or a zoom of 0
+//! or less, `keep` drops gone panes, `copy`, a view only for the canvas the
+//! pane shows, and the views file's text read back.
+
 use super::*;
 
 fn view(canvas: &str, x: f64, zoom: f64) -> PaneView {

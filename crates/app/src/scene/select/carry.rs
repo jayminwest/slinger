@@ -11,7 +11,8 @@
 //!   gone from their own page; the lift carries them, kept where they were
 //!   under the pen. On the same canvas that is one `add` and `remove`, so
 //!   one undo step; onto another canvas, an `add` there and then a
-//!   `remove` here, one step on each ([`Ink::carry`]). Once the carried
+//!   `remove` here, one step on each ([`Ink::carry`]), a refused add
+//!   taking the remove with it. Once the carried
 //!   items are on their new page they are the selection there;
 //! - outside every canvas pane (the sidebar, a footer, an agent UI, a
 //!   divider): they show where they were, and the lift moves nothing.

@@ -9,6 +9,8 @@
 //! listening and transcribing). Closing the entry cancels a dictation still
 //! going. A refusal, or a Flick that is not running, shows once under the
 //! entry, with what to do; the entry stays and typing works as before.
+//! One request goes to Flick at a time, and an answer overtaken by the
+//! entry closing is ignored. Slinger has no speech code of its own.
 
 use crate::backend::Problem;
 use crate::config::{Rgb, Theme};

@@ -1,7 +1,9 @@
 //! The locks that say who owns a place: the socket's `.lock`, which says
 //! which daemon serves the path, and the data directory's `record.lock`,
 //! which says which store owns the record. A lock, not the file it guards,
-//! since a process that died leaves its files but no lock.
+//! since a process that died leaves its files but no lock. Dropping one
+//! unlocks it, so a spawned process's copy of the file, open from its fork
+//! to its exec, cannot hold the place a moment past its owner's stop.
 
 use std::fs::{File, TryLockError};
 use std::io;

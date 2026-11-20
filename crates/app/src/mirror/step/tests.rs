@@ -1,3 +1,5 @@
+//! A pane stepped into a box shows only what the box holds.
+
 use serde_json::{Value, json};
 use slinger_control::CanvasPage;
 

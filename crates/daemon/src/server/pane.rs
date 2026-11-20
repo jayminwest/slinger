@@ -2,7 +2,10 @@
 //! workspace's panes as they cross the socket. The core changes the layout;
 //! each change appends its `pane_moved` to the record, tagged with the
 //! workspace. Every reply carries each pane's kept view and the focus
-//! ([`crate::views`]); a change drops the views of the panes it closed.
+//! ([`crate::views`]); a change drops the views of the panes it closed, and
+//! an open beside a pane on the same canvas copies that pane's view.
+//! `pane_view` keeps views and the focus and appends nothing. `open` is
+//! shared with `ui_open`.
 
 use slinger_control::{
     self as control, PaneCloseAsk, PaneKind, PaneListAsk, PaneOpenAsk, PaneResizeAsk, PaneViewAsk,

@@ -1,3 +1,6 @@
+//! A pane's page, pan and zoom and the focus go to the daemon: one request
+//! per burst, only what changed, at once on a switch, bounded at quit.
+
 use std::time::Instant;
 
 use slinger_control::PaneView;

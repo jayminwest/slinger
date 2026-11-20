@@ -1,5 +1,9 @@
 //! Strokes drawn and changes made while the daemon is down survive the app
 //! quitting.
+//!
+//! They are sent first after the next start, in order, still naming the kept
+//! strokes they name; a refused one leaves the file; one written as the app
+//! quit is not written twice; two apps keep a file each.
 
 use slinger_control::Client;
 

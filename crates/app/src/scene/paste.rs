@@ -6,6 +6,11 @@
 //! canvas text, the palette's search) takes it as its own characters, not
 //! as keys, so a pasted delete or escape is not a key press. A canvas's
 //! items go as their file's objects ([`crate::mirror::clip`]).
+//!
+//! Made fit to type: line ends become `\n` (a space where the text takes
+//! one line), tabs spaces, and every other control or function-key
+//! character goes. Also who holds the keyboard ([`Keyboard`]) and why a
+//! paste went nowhere ([`unpasted`]).
 
 /// What the clipboard holds for the app, or what a copy puts there: plain
 /// text, and a canvas's items (as [`crate::mirror::clip`] writes them).

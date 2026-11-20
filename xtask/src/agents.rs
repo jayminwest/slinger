@@ -1,5 +1,6 @@
-//! check:agents: every repo path that AGENTS.md names in backticks exists, so the
-//! agent instructions never point at something that is gone. Paths under
+//! check:agents: every repo path that AGENTS.md or ARCHITECTURE.md names in
+//! backticks exists, so the agent instructions and the map never point at
+//! something that is gone. Paths are from the repository root. Paths under
 //! `target/` are build outputs: a fresh checkout has none, so they are not
 //! checked for existence (they are still counted and listed by `referenced_paths`).
 
@@ -7,24 +8,26 @@ use std::path::Path;
 
 use crate::files;
 
-const DOC: &str = "AGENTS.md";
+const DOCS: [&str; 2] = ["AGENTS.md", "ARCHITECTURE.md"];
 const EXTENSIONS: &[&str] = &[".md", ".json", ".yml", ".yaml", ".toml", ".rs", ".sh", ".lock"];
 
 pub fn check(root: &Path) -> Result<String, Vec<String>> {
-    let doc = files::read(root, DOC)?;
-    let paths = referenced_paths(&doc);
-    let built = paths.iter().filter(|p| is_build_output(p)).count();
-    let errors: Vec<String> = missing(&paths, |p| root.join(p).exists())
-        .map(|p| format!("{DOC}: path `{p}` does not exist"))
-        .collect();
-    if errors.is_empty() {
-        Ok(format!(
-            "check:agents: {} paths ok, {built} build outputs under target/ not checked",
-            paths.len() - built
-        ))
-    } else {
-        Err(errors)
+    let mut errors = Vec::new();
+    let mut said = Vec::new();
+    for doc_name in DOCS {
+        let doc = files::read(root, doc_name)?;
+        let paths = referenced_paths(&doc);
+        let built = paths.iter().filter(|p| is_build_output(p)).count();
+        errors.extend(
+            missing(&paths, |p| root.join(p).exists())
+                .map(|p| format!("{doc_name}: path `{p}` does not exist")),
+        );
+        said.push(format!("{doc_name} {} paths ok", paths.len() - built));
+        if built > 0 {
+            said.push(format!("{built} build outputs under target/ not checked"));
+        }
     }
+    if errors.is_empty() { Ok(format!("check:agents: {}", said.join(", "))) } else { Err(errors) }
 }
 
 /// The source paths among `paths` that do not exist. A build output is never

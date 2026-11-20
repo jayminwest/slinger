@@ -1,5 +1,11 @@
 //! `canvas_read`: a canvas page's packet, stored as blobs (R7) and written
 //! into a directory for an agent to read.
+//!
+//! The marker is the `to` of the packet the canvas's last `sling_sent`
+//! names (0 before one), so it lives in the record and survives a restart.
+//! The stored text has no `at`. `restore` writes a listener's sling's
+//! packet again from its `sling_sent` blobs when a file is missing;
+//! `session_listen` calls it on each sling it hands out.
 
 use std::fs;
 use std::path::Path;

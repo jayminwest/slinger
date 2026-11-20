@@ -1,3 +1,7 @@
+//! A selection dragged into a pane on another canvas is added there and
+//! removed here, one step each, the removal only after the add; one dropped
+//! outside every pane moves nothing.
+
 use super::*;
 use crate::config::Rgb;
 use crate::layout::Rect;

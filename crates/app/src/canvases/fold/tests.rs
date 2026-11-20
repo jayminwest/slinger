@@ -1,3 +1,6 @@
+//! `fold` and the fold mark fold and unfold through the daemon; an unfold
+//! into a taken room peeks, writing nothing.
+
 use serde_json::json;
 use slinger_control::CanvasPage;
 

@@ -4,6 +4,17 @@
 //! [`Viewport`] maps the endless canvas onto the screen: pan, zoom about a
 //! point, and the canvas box that is visible. [`Tree`] tiles the window with
 //! panes (`tree`).
+//!
+//! The canvas has no edge. A viewport zooms about a point or to a level,
+//! within [`MIN_ZOOM`] and [`MAX_ZOOM`], says its level as people read it
+//! ([`Viewport::zoom_label`]) and how far a scroll zooms ([`scroll_zoom`]).
+//! A pane's view starts with the origin in by [`CANVAS_MARGIN`];
+//! [`Viewport::fitting`] shows a box of the canvas at 100% or less;
+//! [`Viewport::opening`] is where a view with no place first opens (the
+//! start when that shows all the content, else fitted); and
+//! [`Viewport::reading`] is reader mode's fit to a column's width,
+//! scrolled no further than its ends. A pop-up opens at the pen, kept
+//! inside the window, each cell at least 28 pt high ([`popup`]).
 
 pub mod tree;
 

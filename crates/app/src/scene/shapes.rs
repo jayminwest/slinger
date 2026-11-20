@@ -26,7 +26,8 @@
 //! - Box: a drag from corner to corner.
 //! - Arrow: a drag from start to end. An end that lands on an item binds to
 //!   it ([`target`]), and when that item moves the end follows ([`follow`]),
-//!   in the same change as the move.
+//!   in the same change as the move; after a resize the end keeps its
+//!   place on the item's box ([`follow_by`], [`follow_frames`]).
 //!
 //! No snapping and no rotation (D6). A drag shorter than [`MIN_DRAG`] is a
 //! tap and makes nothing.

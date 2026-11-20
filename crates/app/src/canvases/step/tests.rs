@@ -1,3 +1,6 @@
+//! Stepping a pane into a box and out again, and `step-in-beside`, which
+//! splits the pane and steps the new one in.
+
 use super::*;
 
 fn trail(steps: &[(u64, bool)]) -> (Trail, Vec<Viewport>) {

@@ -1,6 +1,9 @@
 //! Workspaces through the real socket: a directory opened with its file and
 //! its canvas, one with no root, a restart, the rules over the open ones, a
 //! close that keeps the file, and the workspace tag on new events.
+//!
+//! A broken file is listed with its error, fails every verb on it and
+//! leaves the others served. A workspace's new canvas starts empty.
 
 use std::path::{Path, PathBuf};
 

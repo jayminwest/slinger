@@ -1,3 +1,9 @@
+//! Ink shows from the pen until the feed brings it; strokes go one at a time
+//! in the order drawn, a failed one again first. Ink not yet written is
+//! selected, moved and erased at once, and each change goes by the ids the
+//! daemon made, one undo step each. A stroke drawn inside a folded box joins
+//! it.
+
 use super::*;
 use std::borrow::Cow;
 

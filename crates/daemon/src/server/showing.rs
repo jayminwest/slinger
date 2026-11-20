@@ -2,6 +2,12 @@
 //! cross the socket. The core decides what a showing is and what a reply
 //! sends; a showing lives in the record as its `ui_opened` event, and its
 //! pane or live item names it by id.
+//!
+//! An open checks everything before it appends `ui_opened` and opens the
+//! pane, or, on a canvas, appends it under the canvas's lock once the put
+//! will go (`Canvases::put_when`). A reply counts the showing's replies
+//! inside the store's write, appends `ui_reply`, then hands the core's line
+//! to the agent's process.
 
 use serde_json::Value;
 use slinger_control::{self as control, RemoteError, UiOpen, UiReplyAsk, UiShownAsk};

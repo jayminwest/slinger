@@ -1,3 +1,8 @@
+//! The `Launcher` with a stand-in `slingerd`: it starts one daemon at a time
+//! only when none answers and none was stopped; `restart-daemon` stops a
+//! daemon of another build and the bundled one answers in its place; one
+//! that lacks `daemon_info` reads as old and is not stopped from the app.
+
 use std::fs;
 use std::thread::{self, JoinHandle};
 

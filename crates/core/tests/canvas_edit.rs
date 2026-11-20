@@ -1,5 +1,8 @@
 //! How an agent changes or takes back what it put (`Log::edit`,
 //! `Log::remove`): only its own items, each change one undo step.
+//!
+//! An agent's move or resize (edit or apply) takes its bound arrows' ends
+//! along in the same step, never another author's.
 #![cfg(test)]
 
 use slinger_core::canvas::file::{Edit, Log, Placed, Put};

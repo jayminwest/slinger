@@ -1,7 +1,8 @@
 # Measured: slinger on a synthetic 5 MB+ canvas
 
 slinger-6c0f10, measured 2026-11-20; the switch and lasso rows were taken
-again later that day, after slinger-2c5d60 and slinger-a1035a (below). These are inputs for the storage design
+again later that day, after slinger-2c5d60 and slinger-a1035a, and the pen
+rows that evening (slinger-4f355e; below). These are inputs for the storage design
 (slinger-7c18bc). Every number below was taken with the commands in "How to
 measure again". A number that could not be taken is listed under "Not taken",
 with the reason.
@@ -107,7 +108,9 @@ turn.
 
 ### App (driven window, `slinger-app --drive`)
 
-The window is 1440x900. A pen sample is one `drag` request with
+The window is 1440x900. Each workspace's pane opens on a view the script
+keeps for it first (100%, the canvas origin at the top left), so the rows
+do not depend on how the app fits a first open. A pen sample is one `drag` request with
 `tablet: true` and the pen tool chosen. Its time is the event's dispatch on
 the main thread, which includes the scene rebuild. It does not include
 AppKit painting the frame, which happens later in the run loop and is not
@@ -120,16 +123,32 @@ timed here.
 | switch: tap a sidebar row, until the final outline | 35.0 / 60.2 | 63.2 / 88.9 | 234.4 / 280.6 |
 | switch: the new title until the final outline (the canvas's part) | 0.0 / 0.0 | 46.4 / 65.9 | 200.5 / 262.5 |
 | the same, before slinger-2c5d60 | 10.6 / 22.2 | 41.6 / 57.1 | 197.9 / 228.0 |
-| pen sample, zoom as opened (marks in view: 20 / 36 / 58) | 0.1 | 0.4 / 0.4 | 1.7 / 2.4 |
-| pen sample, samples 1900-2000 of one 2000-sample stroke | 0.1 | 0.4 / 0.5 | 1.6 / 10.4 |
-| pen sample, zoomed out to 17% (marks in view: 27 / 104 / 460) | 0.1 | 0.6 / 0.6 | 2.6 / 3.3 |
+| pen sample, 100% at the origin (marks in view: 20 / 36 / 60) | 0.1 | 0.7 / 0.8 | 3.0 / 3.7 |
+| the same, first runs (before the retake below) | 0.1 | 0.4 / 0.4 | 1.7 / 2.4 |
+| pen sample, samples 1900-2000 of one 2000-sample stroke | 0.1 | 0.7 / 2.2 | 3.0 / 13.3 |
+| pen sample, zoomed out to 17% (marks in view: 27 / 105 / 467) | 0.2 | 0.8 / 0.9 | 3.7 / 4.2 |
+| the same, first runs | 0.1 | 0.6 / 0.6 | 2.6 / 3.3 |
+| pen sample, fitted to the content (`zoom-to-fit`; marks in view: 57 / 618 / 1) | 0.2 | 1.5 / 2.0 | 2.8 / 3.3 |
 
 The switch rows above are timed from outside, by polling: each round is a
 tick and then a scene, about 1-40 ms apart. So they are an upper bound, by
 up to one round. Switch runs: 10 at scale 1 and 4 at scale 5, for each direction. Pen: 100
-samples a row. The `small` column is from the scale-1 run. The pen rows are
-from the first runs; the later runs agree (0.4 / 0.4 / 0.6 ms at scale 1,
-2.0 / 1.7 / 2.4 ms at scale 5). Since slinger-2c5d60 the small canvas's
+samples a row. The `small` column is from the scale-1 run.
+
+The pen rows were taken again late on 2026-11-20 (slinger-4f355e), after
+the cleanup plan (pl-abcb34), at load 1.5 then 1.3 (both scales, no
+`rustc`). Since slinger-ff9dbe a canvas whose content does not fit at 100%
+first opens fitted, so a window opened on `big` showed 715 marks at scale 1
+and the old "zoom as opened" row no longer measured the view it named. The
+script now keeps a view for each workspace's pane (`pane_view`: 100%, the
+origin at the top left) before the window opens, which is the view the
+first runs opened on: the marks in view match them (20 and 36; 105 against
+104 zoomed out). On that same view a pen sample now costs about 1.4-1.8x
+the first runs (0.4 to 0.7 ms at scale 1, 1.7 to 3.0 ms at scale 5) at a
+lower load. That is a real slowdown of the scene rebuild somewhere between
+the first runs and the retake; it was not looked into here. The fitted row
+is what a first open with no kept view shows; at scale 5 the fit is held at
+the smallest zoom and lands on almost nothing (1 mark). Since slinger-2c5d60 the small canvas's
 outline comes with its title, so its "canvas's part" is 0 by this polling;
 the trace below puts it at about 12 ms. Before slinger-2c5d60, the tap to
 the title depended on where the `Watch` poll was when the tap came.
@@ -185,7 +204,7 @@ trace.
 | `canvas_read` big, 2 lines new | 507.7 / 592.5 / 563.3 | 2383.3 / 2533.5 |
 | `sling_send` big, one new stroke | 511.8 / 585.1 / 541.3 | 2545.6 / 2607.3 |
 | switch to big, title to final outline | 41.6 / 42.9 / 40.7 | 197.9 / 197.1 |
-| pen sample on big, zoom as opened, first 100 | 0.4 / 0.4 / 0.6 | 1.7 / 1.8 |
+| pen sample on big, 100% at the origin (then "zoom as opened"), first 100 | 0.4 / 0.4 / 0.6 | 1.7 / 1.8 |
 
 Most rows move by 10-20% with the load. `canvas_apply` moves by 3x at load
 6.4 (run B): it waits on `fsync`, which the other lanes' builds share.
@@ -229,13 +248,14 @@ Most rows move by 10-20% with the load. `canvas_apply` moves by 3x at load
   trace and 234 ms to the final outline by polling, nearly all of it the
   warm `canvas_show` of the page: that is storage.
 - **A pen sample's scene rebuild** grows mostly with the page's items, less
-  with the marks in view: 0.1 ms (129 items), 0.4 ms (2 197), 1.6-1.7 ms
-  (10 212). Zooming out to 460 marks in view gives 2.3-2.6 ms. Within one
+  with the marks in view: 0.1 ms (129 items), 0.7 ms (2 197), 3.0 ms
+  (10 212) in the retake (0.4 and 1.6-1.7 ms in the first runs). Zooming
+  out to 467 marks in view gives 3.7 ms (2.3-2.6 ms first). Within one
   stroke (a zigzag, 2 points between samples), samples 1900-2000 cost the
   same as samples 0-100. So the seed's "smoothing from point 0" cost did not
   show at this level. At 120 Hz (8.3 ms a frame), the rebuild
-  takes 20-30% of the frame at scale 5, before the paint, which was not
-  timed.
+  takes 35-45% of the frame at scale 5 in the retake (20-30% in the first
+  runs), before the paint, which was not timed.
 
 ## Not taken
 
@@ -265,7 +285,7 @@ scripts/perf-canvas.py --keep --dir DIR          # keep the scratch directory an
 The script builds the release binaries. It writes both canvases into a fresh
 scratch data directory, starts a scratch `slingerd` (its own `--socket`,
 `--data-dir`, `--scratch`, and the stand-in `--claude`) and a driven
-`slinger-app`. It times the rows above, stops both by pid, and prints the
+`slinger-app`, with a kept view at 100% for each workspace's pane. It times the rows above, stops both by pid, and prints the
 table. It never touches the user's daemon, data directory or config. To
 write the fixture alone:
 

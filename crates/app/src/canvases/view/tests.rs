@@ -1,3 +1,6 @@
+//! A pane's view: a kept view opens the pane there with no fit, a kept view
+//! of another canvas is ignored, and a view in memory wins.
+
 use super::*;
 use crate::layout::Point;
 

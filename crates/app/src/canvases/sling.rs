@@ -3,6 +3,11 @@
 //! waits for, and the `sling` and `dictate` commands. The sling itself, the
 //! thread that sends it and the dictation are [`super::flow`]'s; this
 //! hands it the pages and the ink. Runs on the main thread and never waits.
+//! A sling waits until every change of its canvas made before it is written
+//! (`Editing::settled`); `sling_now` is the one way in for a sling with no typing.
+//!
+//! The ink's problem (a daemon that cannot be reached) does not hold a
+//! sling back (`SlingFlow::poll`).
 
 use super::Canvases;
 use crate::backend::Render;

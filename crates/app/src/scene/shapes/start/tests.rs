@@ -1,3 +1,6 @@
+//! `new-text` chains a text under the one being typed, else starts one at
+//! the pointer.
+
 use super::*;
 use crate::mirror::TEXT_SIZE;
 use crate::scene::canvas::Shape;

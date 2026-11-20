@@ -5,6 +5,11 @@
 //! hands in for real input, so it enters where a key or the pen does; the
 //! scene comes back as text and the window as a PNG. `parse` decides; the
 //! thread only reads and writes.
+//!
+//! A driven window is never shown, keeps nothing and takes nothing the app
+//! kept (the saved frame, sidebar and workspace, the unsent ink), and
+//! `main.rs` refuses to start one unless the config names the daemon's
+//! socket, so it never falls back to the user's daemon.
 
 mod outline;
 

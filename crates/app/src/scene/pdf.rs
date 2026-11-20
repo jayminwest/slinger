@@ -6,6 +6,12 @@
 //! ([`reader`]) and the column of pages a pane fits to its width
 //! ([`column`], [`crate::layout::Viewport::reading`]). Pure: only
 //! `platform` reads a PDF.
+//!
+//! The pages stand on one column [`PAGE_WIDTH`] wide by one scale,
+//! [`PAGE_GAP`] apart. A `pdf` item is the paper: it draws first
+//! ([`crate::scene::ink::Ink::shown`]), under every other item, and on a
+//! PDF's canvas the select tool and the lasso never take one
+//! ([`crate::scene::select`]).
 
 use std::path::Path;
 

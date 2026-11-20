@@ -5,7 +5,8 @@
 //! key ("Width 4 ⇧⌘W", "Text size 36 ⇧⌘A"); so does a command with no
 //! other visible effect (`reload-config`), a saved feedback note ("Feedback saved"), and a page
 //! command says what it did ("Page 2 · 2/3", "Renamed: plan"; the words are
-//! `scene::pages`'s). It shows for [`SHOWN`], then goes.
+//! `scene::pages`'s), and a zoom its level ("Zoom 150%"). It shows for
+//! [`SHOWN`], then goes.
 //!
 //! Pure: `main` hands in the time and reads back the [`Pill`] to draw. The
 //! pill carries when it goes, so the platform sets one timer for then and

@@ -3,7 +3,9 @@
 //! none there, the topmost one the box touches), as a new `pdf` item for
 //! the clipboard ([`crate::mirror::clip::snippet`]): the same PDF, page and
 //! name, `crop` the box mapped to page points, its frame the box's size.
-//! The canvas does not change. A box that touches no `pdf` item, or a drag
+//! The canvas does not change; the lift puts the snippet on the clipboard
+//! (`route` answers [`crate::platform::Step::Copy`]), and paste is the
+//! usual paste. A box that touches no `pdf` item, or a drag
 //! shorter than [`MIN_DRAG`], does nothing. Works on any canvas, a PDF's in
 //! reader mode too: select and lasso skip its pages, this tool does not.
 //!

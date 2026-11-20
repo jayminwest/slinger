@@ -1,6 +1,8 @@
 //! `ui_put`, `ui_list`, `ui_show` and `ui_export`: the catalog of agent UIs
 //! as it crosses the socket. The core decides the versions; the record
-//! holds them as `ui_put` events and the code as blobs.
+//! holds them as `ui_put` events and the code as blobs. `ui_put` decides
+//! its version inside the store's write (`Store::append_if`), so two puts
+//! cannot take one number.
 
 use std::fs;
 

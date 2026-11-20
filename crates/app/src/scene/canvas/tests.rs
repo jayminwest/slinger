@@ -1,3 +1,5 @@
+//! A canvas scene draws only what is visible and repaints only what changed.
+
 use super::*;
 
 const SCREEN: Size = Size { width: 800.0, height: 600.0 };

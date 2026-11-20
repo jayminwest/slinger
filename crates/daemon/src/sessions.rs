@@ -7,7 +7,9 @@
 //! agent with none here gets its last `agent_blocked` or `agent_done` from
 //! the record, so `blocked` and `done` survive a restart. It reaches each
 //! agent through the process [`Processes`] holds for it, or through the
-//! session that listens for it ([`Listeners`]).
+//! session that listens for it ([`Listeners`]). A stop, or a start that
+//! released a listener's claim or replaced a running process, drops the
+//! agent's `working`: nothing it ended says `done`.
 
 use std::collections::HashMap;
 use std::io;

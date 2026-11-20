@@ -1,3 +1,9 @@
+//! Who starts a daemon: a bare `slinger-app`, a driven window and an app
+//! whose config names a socket never do; a bundled app starts its own
+//! `slingerd` only when none answers and none was stopped on purpose, one at
+//! a time; one stopped on purpose stays stopped until asked; a restart
+//! starts the bundled daemon once the old one is gone.
+
 use super::*;
 
 const DOWN: Seen = Seen { answers: false, stopped: false };

@@ -1,7 +1,9 @@
 //! The window's side of the launcher ([`Launcher`]): what it heard goes to
 //! the sidebar (the launch line, the offer) and the flash, and
 //! `start-slingerd` and `restart-daemon` go to it, or flash why not
-//! ([`daemon::launching`]).
+//! ([`daemon::launching`]). A daemon it started coming to answer pokes
+//! the [`crate::backend::Watch`] (`Watch::poke`), so the sidebar's list
+//! comes at once.
 
 use std::time::Instant;
 

@@ -1,5 +1,12 @@
 //! The pane tree: panes that tile a rectangle, split by ratios. Pure, and
 //! every branch is unit-tested.
+//!
+//! Binary splits with ratios give each pane a rectangle, never a negative
+//! or oversized one at any size. A split takes a given id
+//! ([`Tree::split_as`]) or one of the window's own, above the highest; a
+//! close gives the space to the sibling; and [`Tree::grow`],
+//! [`Tree::next`] and [`Tree::toward`] (the pane beside one in a
+//! direction).
 
 use super::Rect;
 

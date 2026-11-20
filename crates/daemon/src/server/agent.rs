@@ -1,6 +1,7 @@
 //! The agent's canvas verbs as they cross the socket: `canvas_put`, the
 //! `reply_landed` a put appends when it answers a sling, `canvas_edit` and
-//! `canvas_remove`.
+//! `canvas_remove`. The put's sling is looked up under the sling lock, so a
+//! fast reply finds its sling.
 
 use slinger_control::{self as control, CanvasEdited, CanvasPlaced, CanvasRemoved, RemoteError};
 use slinger_core::canvas::file::{Edit, How, Placed, Put};

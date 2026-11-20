@@ -3,7 +3,15 @@
 //! workspace. A view is for one canvas: a pane that shows another starts
 //! again. The views of a workspace not shown are parked, and come back as
 //! they were left when it is shown again; a pane that closed meanwhile
-//! loses its view then.
+//! loses its view then. A switch ends what was under way in a pane (the
+//! pen, a page question, a first tap).
+//!
+//! A new view is unplaced until its page first comes, when it opens with
+//! `Viewport::opening`, or the user pans or zooms; a split copies the
+//! source's view, placed. A pane with no view in memory takes the view the
+//! daemon kept for it (`View::learn`) when it is of the pane's canvas, placed,
+//! so no fit runs; a view in memory always wins. The box trail is not kept
+//! by the daemon.
 
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;

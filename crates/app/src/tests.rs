@@ -1,6 +1,8 @@
 //! The window's routing, event by event as `platform` hands them in: a text
 //! ended with escape, then a tool switch by its key, then a box drag
 //! (slinger-a77a12).
+//!
+//! A crop's snippet pastes as a cropped `pdf` item.
 
 use super::*;
 use crate::backend::ConfigFiles;

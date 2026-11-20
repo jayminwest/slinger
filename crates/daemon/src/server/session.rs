@@ -1,6 +1,7 @@
 //! `session_list`, `session_show`, `status_set`, `session_start`,
 //! `session_stop`, `session_send`, `session_listen` and `file_touched`: the
-//! sessions as they cross the socket.
+//! sessions as they cross the socket. `session_listen` is a long poll; a
+//! reply that cannot be written puts its sling back (`unheard`).
 
 use std::time::Duration;
 

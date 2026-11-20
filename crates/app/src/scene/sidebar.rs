@@ -15,6 +15,17 @@
 //! became blocked or done ([`notice`]). The first list the app hears, after
 //! it starts or after the daemon comes back, is where it starts counting:
 //! no notice for what was already so.
+//!
+//! An agent's line is `<agent> · <status>` (`<agent> (<profile>) ·
+//! <status>` while it runs under a profile) or `no agent`; its mark is
+//! round for working, round green for done, square red for blocked, and
+//! hollow and muted for `not running` (its process exited or was stopped).
+//! Each workspace's name line ends in a muted ✕, a 28 pt target listed
+//! before its row's (`Tap::Close`). [`Sidebar::dir`] is a row's folder,
+//! what closes it; [`Sidebar::closed`] takes a row out once the daemon
+//! closed it (then the first usable one shows, if it was the shown one);
+//! `shown_dir` is the folder that `close-workspace`, the agent commands
+//! and `show-workspace-folder` go to. The layout is [`rows`]'.
 
 use std::path::{Path, PathBuf};
 

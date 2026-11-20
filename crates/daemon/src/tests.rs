@@ -1,5 +1,9 @@
 //! The daemon through its real socket: typed clients, raw malformed and
 //! oversized lines, startup conflicts and a stop in the middle of a request.
+//!
+//! One daemon per socket, and a stop loses no reply. A blob of megabytes
+//! comes back byte for byte and a put twice gives one id. Every UI version
+//! stays, the same bytes add none, and an export is the bytes put.
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::Shutdown;

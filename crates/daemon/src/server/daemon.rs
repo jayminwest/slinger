@@ -1,6 +1,9 @@
 //! The daemon's own verbs as they cross the socket: `daemon_info` and
 //! `daemon_stop`. They describe and end this process, which the core cannot
-//! know, so they have no core half.
+//! know, so they have no core half. `serve` hands every connection a `Here`
+//! (the socket, when it began to serve, the `Stopper`). A stop writes
+//! `stopped` in the data directory (`control::stop_mark`), then stops as
+//! SIGTERM does; the next daemon's `serve` removes the mark as it starts.
 
 use std::fs;
 use std::path::{Path, PathBuf};

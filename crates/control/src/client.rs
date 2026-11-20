@@ -1,4 +1,9 @@
 //! The socket client: one connection per request, one typed method per verb.
+//!
+//! A reply slower than 5 s (a daemon under disk load) is still an answer;
+//! the client waits 30 s at most, and no reply in that time is `unavailable`
+//! with a hint to retry or restart, not to start the daemon (the tests, with a
+//! fake daemon).
 
 use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::path::{Path, PathBuf};

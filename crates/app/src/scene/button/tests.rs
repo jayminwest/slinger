@@ -1,3 +1,6 @@
+//! The button's mark and colour follow its agent's status (none, working,
+//! blocked, done), scale with the canvas and repaint on a change.
+
 use super::*;
 use crate::layout::Size;
 use crate::scene::canvas::{self, Draw, ItemId, Scene};

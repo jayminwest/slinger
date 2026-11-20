@@ -4,7 +4,8 @@
 //! This module owns the storage layout. Nothing else knows the file's name,
 //! its tables or its SQL. An event is stored as the line
 //! [`record::encode`] writes, byte for byte, so fields this daemon does not
-//! know survive; the other columns only index it.
+//! know survive; the other columns only index it. The store locks the data
+//! directory (`record.lock`), so one store owns the record.
 //!
 //! The log is append-only: the store assigns each event its number and time
 //! and stamps its machine, and the file refuses updates and deletes.

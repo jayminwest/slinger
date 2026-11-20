@@ -1,3 +1,7 @@
+//! The unsent-changes file beside the daemon's record: changes come back in
+//! order, none left removes the file, a bad file is a problem, and one app
+//! at a time keeps it through its lock.
+
 use super::*;
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};

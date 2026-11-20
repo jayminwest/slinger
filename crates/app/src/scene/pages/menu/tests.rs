@@ -1,3 +1,6 @@
+//! The open page menu takes every press, lists the pages with the shown one
+//! marked and turns the pane to the one tapped.
+
 use super::*;
 use crate::config::Rgb;
 use crate::layout::Tree;

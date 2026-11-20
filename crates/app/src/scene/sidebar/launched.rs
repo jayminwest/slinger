@@ -2,7 +2,8 @@
 //! place of the list ([`Daemon`]), and the offer to restart a daemon of
 //! another build ([`Offer`]). The offer is a bar of the notice, above the
 //! agents' bar: what the daemon and the app are, and "Restart slingerd"
-//! with the count of the agents' processes a restart ends. It stays until
+//! with the count of the agents' processes a restart ends (a daemon too
+//! old to stop from the app: how to stop it, and no button). It stays until
 //! the user taps its ✕ or `dismiss-notice`, and is not shown again for
 //! that daemon's pid. Pure.
 
