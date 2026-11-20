@@ -262,3 +262,27 @@
 # The next text size, or the one before; at either end it stays.
 #size-up = "alt+shift+}"
 #size-down = "alt+shift+{"
+# Act on the focused pane's items from the keyboard. These act only while no text takes the
+# keys: while a canvas text is being typed, an arrow or tab types there, and in an entry or
+# an agent UI's page select-all selects its text instead. With nothing to act on, the key
+# goes on as usual. Select every item on the page.
+#select-all = "cmd+a"
+# Select the next item on the page in reading order (top to bottom, then left to right),
+# or the one before, alone; after the last comes the first. It comes into view.
+#next-item = "tab"
+#previous-item = "shift+tab"
+# Move the selection 10 points that way at any zoom, in one undo step per press.
+#nudge-left = "left"
+#nudge-right = "right"
+#nudge-up = "up"
+#nudge-down = "down"
+# Copy the selection a little down and right of itself, in one undo step; the copy is
+# selected. (cmd+d is split-right.)
+#duplicate = "cmd+j"
+# Find typed text on any page of the focused pane's canvas: an entry asks for the words
+# (case and spacing do not matter); return turns the pane to the first text that holds
+# them, on its page or a later one, and centres it. The flash says which of how many.
+#find = "cmd+f"
+# Go to the next text that holds the last find's words, after the last back to the first;
+# with no find yet, as find.
+#find-next = "cmd+g"

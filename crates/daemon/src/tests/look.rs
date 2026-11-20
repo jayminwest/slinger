@@ -1,5 +1,6 @@
-//! Crops and strokes through the real socket: an item, a box and an id that
-//! is not there, with the images written as files.
+//! Crops, strokes and finds through the real socket: an item, a box and an
+//! id that is not there, with the images written as files; a phrase found
+//! on every page.
 
 use serde_json::{Value, json};
 use slinger_control::CanvasOps;
@@ -80,5 +81,23 @@ fn an_unknown_item_or_canvas_is_not_found_and_a_bad_request_invalid() {
         "invalid"
     );
     assert!(!file.exists());
+    daemon.stop();
+}
+
+#[test]
+fn a_find_gives_each_text_that_holds_the_phrase_with_its_page() {
+    let daemon = Daemon::start();
+    let client = daemon.client();
+    client.canvas_create("main").unwrap();
+    let text = |page: &str, y: i64, words: &str| json!({ "op": "add", "item": { "page": page, "kind": "text", "x": 0, "y": y, "text": words } });
+    let ops = json!([{ "op": "page.add", "name": "Two" }, text("p2", 0, "Plan B"), text("p1", 900, "the plan"), text("p1", 0, "other")]);
+    let request = CanvasOps { canvas: "main".into(), by: "user".into(), ops, once: None };
+    client.canvas_apply(request).unwrap();
+    let found = client.canvas_find("main", "PLAN").unwrap();
+    let at: Vec<_> = found.iter().map(|f| (f["page"].as_str(), f["id"].as_str())).collect();
+    assert_eq!(at, [(Some("p1"), Some("i2")), (Some("p2"), Some("i1"))]);
+    assert_eq!(found[0]["y"], Value::from(900));
+    assert_eq!(client.canvas_find("main", "  ").unwrap(), [] as [Value; 0]);
+    assert_eq!(client.canvas_find("nope", "plan").unwrap_err().code(), "not_found");
     daemon.stop();
 }

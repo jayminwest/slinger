@@ -11,12 +11,30 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** find typed text. Find text… (`find`, cmd+F, Edit menu and the
+  command palette) asks for words and takes the focused pane to the first
+  text on its canvas that holds them, on its page or a later one, centred;
+  Find next (`find-next`, cmd+G) goes on to the next. Case and line breaks
+  do not matter. The flash says which of how many, and on which page.
+- **CLI:** `slinger canvas find <CANVAS> <TEXT>` prints the page, id and
+  text of each text item that holds the words, on every page.
+- **App:** act on a canvas's items from the keyboard. Select all
+  (`select-all`, cmd+A) selects every item on the focused page; tab and
+  shift+tab (`next-item`, `previous-item`) select the next or previous item
+  in reading order and bring it into view; the arrows (`nudge-left`,
+  `nudge-right`, `nudge-up`, `nudge-down`) move the selection 10 points;
+  Duplicate (`duplicate`, cmd+J) copies the selection beside itself. Each
+  is in the Edit menu and the command palette. While you type a canvas text
+  or an entry, those keys stay theirs, and cmd+A in an entry or an agent
+  UI still selects its text.
 - **App:** pick the size a new text starts at. Pick a text size
   (`pick-size`, cmd+shift+a) opens a pop-up at the pen with 12, 16, 24, 36,
   48 and 72 points; Bigger text (`size-up`, alt+shift+]) and Smaller text
   (`size-down`, alt+shift+[) step through them, and a new size flashes. The
   text tool's next text starts at that size (24 until you pick another); a
-  text you are typing or editing keeps its own.
+  text you are typing or editing keeps its own. While the text tool is
+  chosen, the footer shows the size ("Size 24") where the width bars sit;
+  a tap there picks a size.
 
 - **App:** run outside its `.app` (a bare `slinger-app` from a shell), the
   app says once, when you cancel a file panel, to run slinger.app to reach

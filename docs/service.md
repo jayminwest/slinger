@@ -193,6 +193,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_read` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `after`: number (optional, default the last sling's), `select`: list of item ids (optional), `out`: absolute path of a directory (optional) | `packet`: blob id of the text, `dir`: the directory written, `text`: the packet with `at`, `images`: list of `{name, id}` |
 | `canvas_crop` | `canvas`: canvas id, `of`: an item id or a box, `path`: absolute path of a PNG file | `images`: list of `{path, x, y, width, height}` |
 | `canvas_strokes` | `canvas`: canvas id, `item`: an item id | `strokes`: list of stroke items with `points` |
+| `canvas_find` | `canvas`: canvas id, `text`: string | `found`: list of text items that hold it, page by page in reading order |
 | `session_list` | none | `sessions`: list of sessions, sorted by agent |
 | `session_show` | `agent`: string | `session` |
 | `status_set` | `agent`: string, `status`: `working`, `blocked` or `done`, `note`: string (optional) | `agent`, `status`, `note` (absent when none), `event`: the number of the event appended (absent for `working`) |
@@ -632,6 +633,20 @@ pairs in tenths) replaces the file's `pts`. An item that is not ink is
 A client writes both verbs with its own type (`crates/control/src/look.rs`,
 "Adding a verb" below), so the app, which never sends them, carries no code
 for them.
+
+**`canvas_find`** gives the text items whose words hold `text`, on every
+page, each as `canvas_show` gives an item (with its `page`): page by page in
+the canvas's order, and on a page top to bottom, then left to right. A match
+ignores case, and a run of spaces or line breaks in either counts as one
+space, so it finds words a text wraps. Ink and a PDF's words are not
+searched. A `text` of no words finds nothing (an empty list, not an error).
+The app's `find` and `find-next` ask it; a client writes it with its own
+type (`crates/control/src/find.rs`).
+
+```json
+{ "v": 1, "op": "canvas_find", "canvas": "main", "text": "the plan" }
+{ "ok": true, "found": [{ "id": "i7", "page": "p2", "by": "user", "t": "…", "kind": "text", "color": "#000000", "x": 0, "y": 900, "w": 960, "h": 240, "text": "The plan" }] }
+```
 
 #### Sessions
 

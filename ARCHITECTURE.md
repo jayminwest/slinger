@@ -87,7 +87,9 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              and `lines` reads them back whole, for the change feed.
              look.rs: what an agent asks beyond the packet (R5, R6): crop (an
              item, a cluster c<n> or a box, as render images, at most MAX_CROP
-             units a side) and strokes (a stroke's or a cluster's points).
+             units a side), strokes (a stroke's or a cluster's points) and
+             find (the text items that hold a phrase, every page, in reading
+             order: Canvas::find in canvas/find.rs, case and spacing ignored).
              put.rs: an agent's answer (SPEC section 7): text, a box, ink, an
              arrow or a live item (an agent UI's showing, kind `live`) beside
              an item, placed by free_beside or at the agent's `How::at`, in
@@ -558,7 +560,8 @@ canvases/clip.rs  cut, copy and paste on the canvas panes: copy takes the
 canvases/keys.rs  what the keys do on the canvas panes: typed and pasted
              text answer a page command's question or go into the text being
              typed; delete and escape act on the selection from any pane
-             that shows its page.
+             that shows its page; select all, next and previous item, nudge
+             and duplicate act on the focused pane's page (`keyed`).
 canvases/find.rs  which page, canvas and items each pane shows; a window
              point in canvas points.
 canvases/drag.rs  the pen's drag and lift on the canvas panes: a drag of the
@@ -576,6 +579,9 @@ canvases/paging.rs  the canvas commands on a pane: pan, zoom (in, out, to
              through the ink's queue; each pane's page line; `save`, which
              flashes where the pane's canvas is saved (canvases/status.rs
              knows each pane's canvas file, from `canvas_show`'s `path`).
+canvases/seek.rs  `find` (cmd+f) and `find-next` (cmd+g): the entry for the
+             words, `canvas_find` on the daemon (the search is the core's),
+             and the jump: the pane turns to the text's page and centres it.
 canvases/sling.rs  the sling from the window: opens the entry at the
              focused pane's selection, sends it once the ink of its canvas
              is written (`Ink::settled`), takes the answer. `sling_now` is
@@ -824,13 +830,16 @@ scene/ink.rs  the pen's ink: the stroke under the pen and the finished changes
              redos in the same queue; the pen-to-paint delay log (O2). Pure.
 scene/pages.rs  pages (SPEC D6): the next and previous page, a new page's
              name, where a pane goes when its page is removed, the page
-             line, and the two questions a page command asks (a rename's
-             typed or pasted name, in an entry like the sling's centred in
+             line, and the questions a page command asks (a rename's
+             typed or pasted name, or the words `find` looks for, in an
+             entry like the sling's centred in
              its pane with the pen's buttons beside it; a removal of a page with items, asked once in the
              footer); what each page command did, said once for the flash
              (`Page 2 · 2/3`, `New page: Page 3 · 3/3`, `Renamed: plan`,
              `Removed: ideas · Undo brings it back`, `The last page
-             stays`). Pure.
+             stays`). Pure. scene/pages/find.rs: which found text `find`
+             goes to (from the shown page on) and `find-next` after it,
+             round, and its flash (`“plan” 2/5 · ideas`).
 scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
              hides the strokes, text, boxes and arrows it touches at once and
              removes them on the lift (one change, one undo step); a loop
@@ -875,6 +884,17 @@ scene/select/pick.rs  the select tool: a press picks the topmost item (a
              touches (or the innermost box it lies inside, so a box in a box
              can be picked); shift adds or takes out. The lasso's selection, so
              delete, sling, escape and moves act on it alike. Pure.
+scene/select/keys.rs  the selection from the keyboard: select all takes
+             every item the select tool may; next and previous step in
+             reading order (box top, then left), wrapping, and bring the
+             item into view (`into_view`); a nudge moves the selection 10
+             screen points as one `move` with bound arrows following; a
+             duplicate lands 20 screen points down and right, as a paste
+             (one step), selected once there. Pure.
+window/items.rs  who holds the keyboard (`keyboard`), and so whether the
+             item commands act on the focused pane's items: only while the
+             window has it and no text of the app takes typing; else the
+             key goes on (select all to a field or a page as `selectAll:`).
 scene/select/carry.rs  a drag of the selection goes by the canvas pane
              under the pen, read through that pane's own view, at every pen
              event and at the lift: over a pane on the same page the items
@@ -1309,10 +1329,13 @@ Each boundary has something that fails when it is broken:
 | An erase, a move and a delete are one change each and show at once; a lasso selects what it holds whole; the selection clears | `crates/app/src/scene/select/tests.rs` |
 | The select tool picks the topmost item under a press, a drawn box selects what it touches, shift adds or takes out, a drag moves the selection | `crates/app/src/scene/select/pick/tests.rs` |
 | A drag of a corner handle scales the selection about the opposite corner in one change, a text's size scales evenly within its range, bound arrows follow, no side turns over, shift keeps the shape | `crates/app/src/scene/select/scale/tests.rs` |
+| Select all, next and previous item in reading order, a nudge of the selection as one move with bound arrows following, and where a duplicate lands | `crates/app/src/scene/select/keys/tests.rs` |
+| The item keys act on the focused page through the window's routing (cmd+A, tab, shift+tab, an arrow, cmd+J reach the daemon); a text being typed or an open entry keeps them | `crates/app/src/tests/items.rs`, against a real daemon |
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |
 | Page commands turn, name and remove pages; removing a page with items asks once | `crates/app/src/scene/pages/tests.rs` |
+| Find takes a pane to each text that holds the words, ignoring case and spacing, page by page from the shown one, centred; find-next goes round | `crates/core/tests/canvas_look.rs`, `crates/app/src/scene/pages/find/tests.rs`, `crates/app/src/canvases/seek/tests.rs` against a real daemon |
 | Every footer button is at least 28 pt square and none overlap; a narrow footer drops whole groups, the lowest rank first; the sidebar button sits in the same spot open or collapsed | `crates/app/src/scene/status/tests.rs` |
 | A press on a button goes no further and only the lift on the same button taps it; the open page menu takes every press, lists the pages with the shown one marked and turns the pane to the one tapped | `crates/app/src/scene/taps/tests.rs`, `crates/app/src/scene/pages/menu/tests.rs`, `crates/app/src/shared/tests.rs`, and `crates/app/src/canvases/tests.rs` against a real daemon |
 | A `pdf` item is one `add` line that reads back; its blob id, page, page size and crop are checked; it draws under every other kind and the eraser never takes it; the packet names a page only under new ink or selected, and a crop draws it as a grey frame | `crates/core/tests/canvas_pdf.rs` |

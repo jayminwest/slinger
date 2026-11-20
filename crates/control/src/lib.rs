@@ -10,6 +10,7 @@ mod agent;
 mod client;
 mod feed;
 mod feedback;
+mod find;
 mod imported;
 mod look;
 mod packet;
@@ -37,6 +38,7 @@ pub use feedback::{
     FeedbackAdded, FeedbackAsk, FeedbackEntries, FeedbackEntry, FeedbackFile, FeedbackNote,
     FeedbackResolution, FeedbackResolved,
 };
+pub use find::CanvasFound;
 pub use imported::CanvasImported;
 pub use look::{CanvasImage, CanvasImages, CanvasStrokes};
 pub use packet::{CanvasPacket, PacketAsk, PacketImage};
@@ -154,6 +156,10 @@ pub enum Request {
     /// The raw points of a stroke, or of every stroke of a cluster.
     #[serde(skip_serializing)]
     CanvasStrokes { canvas: String, item: String },
+    /// The text items whose words hold `text`, on every page. A client
+    /// writes it with `find::Ask`.
+    #[serde(skip_serializing)]
+    CanvasFind { canvas: String, text: String },
     /// The session verbs (`session_list`, `session_show`, `status_set`,
     /// `session_start`, `session_stop`, `session_send`, `sling_send`, `sling_backdrops`,
     /// `session_listen`, `file_touched`), read by their own `op`s. One variant for them all,
@@ -212,6 +218,7 @@ pub enum Reply {
     CanvasChanges(CanvasFeed),
     CanvasCrop(CanvasImages),
     CanvasStrokes(CanvasStrokes),
+    CanvasFind(CanvasFound),
     SessionList(Sessions),
     SessionShow(SessionInfo),
     SessionStart(SessionInfo),

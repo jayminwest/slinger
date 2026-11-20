@@ -116,6 +116,16 @@ impl Command {
             Command::PickSize => "Pick a text size",
             Command::SizeUp => "Bigger text",
             Command::SizeDown => "Smaller text",
+            Command::SelectAll => "Select all",
+            Command::NextItem => "Select next item",
+            Command::PreviousItem => "Select previous item",
+            Command::NudgeLeft => "Nudge left",
+            Command::NudgeRight => "Nudge right",
+            Command::NudgeUp => "Nudge up",
+            Command::NudgeDown => "Nudge down",
+            Command::Duplicate => "Duplicate",
+            Command::Find => "Find text…",
+            Command::FindNext => "Find next",
         }
     }
 
@@ -154,11 +164,21 @@ impl Command {
             | Command::ZoomReset
             | Command::DeleteSelection
             | Command::ClearSelection
+            | Command::SelectAll
+            | Command::NextItem
+            | Command::PreviousItem
+            | Command::NudgeLeft
+            | Command::NudgeRight
+            | Command::NudgeUp
+            | Command::NudgeDown
+            | Command::Duplicate
             | Command::Undo
             | Command::Redo
             | Command::ToggleGrid
             | Command::Save
-            | Command::ShowCanvasFile => Group::Canvas,
+            | Command::ShowCanvasFile
+            | Command::Find
+            | Command::FindNext => Group::Canvas,
             Command::OpenPdf
             | Command::OpenWorkspace
             | Command::CloseWorkspace

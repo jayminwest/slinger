@@ -256,7 +256,7 @@ fn rows_that_do_not_fit_scroll_by_drag_scroll_or_arrow_and_a_drag_runs_nothing()
 
     let from = on(Command::ToolPen, size, 0.0);
     overlay.press(from, size);
-    let up = Point { y: from.y - 2000.0, ..from };
+    let up = Point { y: from.y - 4000.0, ..from };
     assert!(overlay.drag(up, size));
     assert_eq!(overlay.lift(up, size), Taken::Yes, "a drag scrolls and runs nothing");
     assert!(overlay.is_open());

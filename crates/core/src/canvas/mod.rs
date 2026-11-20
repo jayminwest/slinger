@@ -2,7 +2,7 @@
 //!
 //! The interface is three things: build a canvas ([`Canvas::new`]), change it
 //! with [`Canvas::apply`], and query it ([`Canvas::pages`], [`Canvas::items`],
-//! [`Canvas::item`]). An operation is plain data ([`Op`]), so a log of them can
+//! [`Canvas::item`], [`Canvas::find`]). An operation is plain data ([`Op`]), so a log of them can
 //! be stored, sent and replayed: the same operations in the same order build
 //! the same canvas, ids included. How the canvas stores its items is hidden.
 //!
@@ -14,6 +14,7 @@
 
 mod delta;
 pub mod file;
+mod find;
 mod fold;
 mod geometry;
 mod history;

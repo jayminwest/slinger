@@ -1,13 +1,15 @@
 //! Pages (SPEC D6): which page a page command turns a pane to, the name a
 //! new page gets, where a pane goes when its page is removed, the line
-//! that names a pane's page in its footer, and the two questions a page command
-//! asks: a rename's new name, in an entry like the sling's (with the pen's
+//! that names a pane's page in its footer, and the questions a page command
+//! asks: a rename's new name, or the words to find on the pages ([`find`]),
+//! in an entry like the sling's (with the pen's
 //! buttons beside it: [`crate::scene::sling::pen`]), and whether to remove a page
 //! that has items, asked once; and what a page command did, for the flash
 //! (SPEC P6: the footer's line alone is easy to miss). Pure: `canvases` hands in the canvas's pages and the
 //! typed keys, and sends the [`PageOp`] that comes out through the ink's
 //! queue, in turn with the pen's changes.
 
+pub mod find;
 pub mod menu;
 
 use crate::config::{Rgb, Theme};
@@ -15,6 +17,7 @@ use crate::layout::{PaneId, Point, Rect};
 use crate::scene::paste;
 use crate::scene::sling::pen::beside;
 use crate::scene::sling::{Entry, SEND, under};
+use find::Sought;
 
 /// A canvas page as the app knows it: its id and its name.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,6 +100,9 @@ enum Ask {
     Rename { pane: PaneId, canvas: String, page: String, text: String, frame: Rect },
     /// Whether to remove `page`, which has `items` items.
     Remove { pane: PaneId, canvas: String, page: Page, items: usize },
+    /// The words to find on `canvas`'s pages, as typed so far, in its
+    /// entry's box `frame`, asked in `pane` laid at `within`.
+    Find { pane: PaneId, within: Rect, canvas: String, text: String, frame: Rect },
 }
 
 /// The question open, if any, and what the last page command did, until
@@ -105,6 +111,8 @@ enum Ask {
 pub struct Pages {
     ask: Option<Ask>,
     said: Option<String>,
+    /// The words a find's entry was answered with, until taken.
+    sought: Option<Sought>,
 }
 
 impl Pages {
@@ -117,50 +125,85 @@ impl Pages {
         self.said = Some(format!("Rename “{}”", shown.name));
     }
 
-    /// Closes the new name's entry, the old name kept. False when none is
-    /// asked.
-    pub fn cancel_rename(&mut self) -> bool {
-        let renaming = self.renaming();
-        if renaming {
+    /// Asks for the words to find on `canvas`'s pages, in `pane`, whose
+    /// frame is `within`: an entry ([`Pages::entry`]) starts from `last`,
+    /// the words of the last find; return finds them ([`Pages::sought`]),
+    /// escape finds nothing.
+    pub fn find(&mut self, (pane, within): (PaneId, Rect), canvas: &str, last: &str) {
+        let (canvas, text, frame) = (canvas.to_string(), last.to_string(), beside(within));
+        self.ask = Some(Ask::Find { pane, within, canvas, text, frame });
+    }
+
+    /// The words a find's entry was answered with, once.
+    pub fn sought(&mut self) -> Option<Sought> {
+        self.sought.take()
+    }
+
+    /// Says what a find came to: [`find::said`].
+    pub fn found(&mut self, said: String) {
+        self.said = Some(said);
+    }
+
+    /// Closes the open entry (a new name's, the old name kept, or a
+    /// find's). False when none is open.
+    pub fn cancel_entry(&mut self) -> bool {
+        let entering = self.entering();
+        if entering {
             self.ask = None;
         }
-        renaming
+        entering
     }
 
-    /// Whether a new name is being typed: its entry has the keys.
-    pub fn renaming(&self) -> bool {
-        matches!(self.ask, Some(Ask::Rename { .. }))
+    /// Whether a new name, or words to find, are being typed: the entry
+    /// has the keys.
+    pub fn entering(&self) -> bool {
+        self.typing().is_some()
     }
 
-    /// The new name's entry is now `text`. Ignored when none is asked.
+    /// The text of the open entry and its box, if one is open.
+    fn typing(&self) -> Option<(&String, Rect)> {
+        match &self.ask {
+            Some(Ask::Rename { text, frame, .. } | Ask::Find { text, frame, .. }) => {
+                Some((text, *frame))
+            }
+            _ => None,
+        }
+    }
+
+    /// The open entry's text is now `text`. Ignored when none is open.
     pub fn named(&mut self, text: &str) {
-        if let Some(Ask::Rename { text: name, .. }) = &mut self.ask {
+        if let Some(Ask::Rename { text: name, .. } | Ask::Find { text: name, .. }) = &mut self.ask {
             *name = text.to_string();
         }
     }
 
-    /// The new name's entry, while it is asked, in `theme`'s colours: the
+    /// The open entry, a new name's or a find's, in `theme`'s colours: the
     /// look of every entry ([`Entry::framed`]).
     pub fn entry(&self, theme: &Theme) -> Option<Entry> {
-        let Some(Ask::Rename { text, frame, .. }) = &self.ask else { return None };
-        let keys = format!("{} renames · esc cancels", SEND.glyphs());
-        let mut entry = Entry::framed(*frame, theme, "Rename page".into(), keys);
+        let (text, frame) = self.typing()?;
+        let finding = matches!(self.ask, Some(Ask::Find { .. }));
+        let (title, does, placeholder, done) = if finding {
+            ("Find text", "finds", "words on any page", "Find")
+        } else {
+            ("Rename page", "renames", "a name for the page", "Rename")
+        };
+        let keys = format!("{} {does} · esc cancels", SEND.glyphs());
+        let mut entry = Entry::framed(frame, theme, title.into(), keys);
         entry.text.clone_from(text);
-        entry.placeholder = "a name for the page".into();
-        entry.done = Some("Rename");
+        entry.placeholder = placeholder.into();
+        entry.done = Some(done);
         Some(entry)
     }
 
-    /// `lines` (text and colour) under the new name's entry: what
-    /// dictation says.
+    /// `lines` (text and colour) under the open entry: what dictation says.
     pub fn under(&self, theme: &Theme, lines: Vec<(String, Rgb)>) -> Vec<crate::scene::Label> {
-        let Some(Ask::Rename { frame, .. }) = &self.ask else { return Vec::new() };
-        under(*frame, 0, theme, lines)
+        let Some((_, frame)) = self.typing() else { return Vec::new() };
+        under(frame, 0, theme, lines)
     }
 
-    /// Whether `at`, a point in the window, is on the new name's entry.
+    /// Whether `at`, a point in the window, is on the open entry.
     pub fn covers(&self, at: Point) -> bool {
-        matches!(&self.ask, Some(Ask::Rename { frame, .. }) if frame.contains(at))
+        self.typing().is_some_and(|(_, frame)| frame.contains(at))
     }
 
     /// The remove-page command on page `shown` of `canvas`, in `pane`, with
@@ -190,7 +233,9 @@ impl Pages {
     /// no question is open.
     pub fn pasted(&mut self, text: &str) -> bool {
         match &mut self.ask {
-            Some(Ask::Rename { text: name, .. }) => name.push_str(&paste::one_line(text)),
+            Some(Ask::Rename { text: name, .. } | Ask::Find { text: name, .. }) => {
+                name.push_str(&paste::one_line(text));
+            }
             Some(Ask::Remove { .. }) => {}
             None => return false,
         }
@@ -234,22 +279,23 @@ impl Pages {
         self.ask = None;
     }
 
-    /// Typed `text` answers the question: a rename takes each character
-    /// (delete takes one back), a removal waits for return; return ends
-    /// either, escape closes either with no change. The change to send, if
-    /// the answer makes one (a rename to a new, not blank, name).
+    /// Typed `text` answers the question: a rename or a find takes each
+    /// character (delete takes one back), a removal waits for return;
+    /// return ends any, escape closes any with no change. The change to
+    /// send, if the answer makes one (a rename to a new, not blank, name);
+    /// a find's words wait in [`Pages::sought`].
     pub fn typed(&mut self, text: &str) -> Option<(String, PageOp)> {
         for c in text.chars() {
             let Some(ask) = &mut self.ask else { return None };
             match (c, ask) {
                 ('\u{1b}', _) => self.ask = None,
                 ('\r' | '\n', _) => return self.answer(),
-                ('\u{7f}' | '\u{8}', Ask::Rename { text, .. }) => {
+                ('\u{7f}' | '\u{8}', Ask::Rename { text, .. } | Ask::Find { text, .. }) => {
                     text.pop();
                 }
                 // The arrow and function keys are in this private range.
                 (c, _) if c.is_control() || ('\u{f700}'..='\u{f8ff}').contains(&c) => {}
-                (c, Ask::Rename { text, .. }) => text.push(c),
+                (c, Ask::Rename { text, .. } | Ask::Find { text, .. }) => text.push(c),
                 (_, Ask::Remove { .. }) => {}
             }
         }
@@ -264,6 +310,10 @@ impl Pages {
                 (!name.is_empty()).then_some((canvas, PageOp::Rename { page, name }))
             }
             Ask::Remove { canvas, page, .. } => Some((canvas, PageOp::Remove { page: page.id })),
+            Ask::Find { pane, within, canvas, text, .. } => {
+                self.sought = Some(Sought { pane: (pane, within), canvas, text });
+                None
+            }
         }
     }
 
