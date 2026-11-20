@@ -110,7 +110,7 @@ pub fn tap(
         Tap::Cancel => _ = canvases.sling_key(CANCEL),
         Tap::Resolve(index) => _ = canvases.resolve_feedback(index),
         Tap::Waive => sidebar.waive(),
-        Tap::Run(_) | Tap::Close(_) | Tap::Idle => {}
+        Tap::Run(_) | Tap::Close(_) => {}
     }
     None
 }

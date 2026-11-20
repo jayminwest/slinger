@@ -314,8 +314,7 @@ impl PageMenu {
                 | Tap::Send
                 | Tap::Cancel
                 | Tap::Resolve(_)
-                | Tap::Waive
-                | Tap::Idle => {}
+                | Tap::Waive => {}
             }
         }
         lines.extend(place.rule.map(|rule| Line::fill(style::edge(theme), rule, 0.0)));

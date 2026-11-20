@@ -648,6 +648,12 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** sling-now (alt+return, or Sling) on a PDF opened beside the
+  workspace's canvas now says "A PDF cannot be slung: sling a crop of it"
+  (crop it, paste the crop on the workspace's canvas and sling that)
+  instead of "No agent in this workspace": a sling goes to the agent of
+  its canvas's workspace, and a PDF's canvas belongs to none. Any other
+  canvas no open workspace has says so too.
 - **App:** the key overlay (cmd+/) no longer cuts titles and keys short in
   a window of the default width ("Close workspace", "Focus pane left",
   "Remove page", "Restart agent in a new conversation", "Select a word, a
@@ -664,8 +670,10 @@ bullet with the area in bold.
   deletes or moves the caret in the field, as the key does, instead of
   typing a control character into it.
 - **App:** a second tap on "➤ Sling" beside a selection no longer deletes
-  it. While a sling is out, "➤ Sling" and "+ prompt" stay where they were,
-  greyed, and a tap on them does nothing; "Delete" never moves.
+  it: the selection's buttons never move. While a sling is out, "➤ Sling"
+  and "+ prompt" still work, as sling-now (alt+return), sling (cmd+return)
+  and the footer's Sling do: the agent takes the new sling as it works,
+  and the pill follows the newest.
 - **App:** a workspace whose file is broken no longer pushes the
   workspaces under it out of the sidebar. Its error takes at most two
   lines, cut short with "…"; the hint shows only while you show that

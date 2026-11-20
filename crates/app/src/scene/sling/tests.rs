@@ -284,7 +284,7 @@ fn a_text_field_keeps_its_edits_and_the_keymap_gets_the_rest() {
 fn the_selection_s_buttons_sling_prompt_and_delete_in_a_row_inside_the_pane() {
     use crate::commands::Command;
     use crate::scene::taps::Tap;
-    let (labels, targets) = buttons::buttons(BOX, PANE, &T, false);
+    let (labels, targets) = buttons::buttons(BOX, PANE, &T);
     let texts: Vec<&str> = labels.iter().map(|l| l.text.as_str()).collect();
     assert_eq!(texts, [buttons::SLING, buttons::PROMPT, buttons::DELETE]);
     let taps: Vec<Tap> = targets.iter().map(|t| t.1).collect();
@@ -297,29 +297,9 @@ fn the_selection_s_buttons_sling_prompt_and_delete_in_a_row_inside_the_pane() {
     assert!(frames[0].x > BOX.x + BOX.width, "right of the selection: {frames:?}");
 
     let corner = Rect { x: PANE.x + PANE.width - 20.0, ..BOX };
-    let (_, targets) = buttons::buttons(corner, PANE, &T, false);
+    let (_, targets) = buttons::buttons(corner, PANE, &T);
     let last = targets.last().unwrap().0;
     assert!(last.x + last.width <= PANE.x + PANE.width, "kept in the pane: {last:?}");
-}
-
-/// slinger-a36783: a tap on "➤ Sling" sends it out; a second tap at the
-/// same place must not land on "Delete".
-#[test]
-fn while_a_sling_is_out_no_button_moves_and_the_sling_s_two_are_idle() {
-    use crate::commands::Command;
-    use crate::scene::taps::Tap;
-    let (idle, idle_targets) = buttons::buttons(BOX, PANE, &T, false);
-    let (out, out_targets) = buttons::buttons(BOX, PANE, &T, true);
-    let texts: Vec<&str> = out.iter().map(|l| l.text.as_str()).collect();
-    assert_eq!(texts, [buttons::SLING, buttons::PROMPT, buttons::DELETE], "all three still shown");
-    let frames = |t: &[(Rect, Tap)]| t.iter().map(|t| t.0).collect::<Vec<_>>();
-    assert_eq!(frames(&out_targets), frames(&idle_targets), "each in its place");
-    let labels = |l: &[crate::scene::Label]| l.iter().map(|l| l.frame).collect::<Vec<_>>();
-    assert_eq!(labels(&out), labels(&idle));
-    let taps: Vec<Tap> = out_targets.iter().map(|t| t.1).collect();
-    assert_eq!(taps, [Tap::Idle, Tap::Idle, Tap::Run(Command::DeleteSelection)]);
-    assert!(out[..2].iter().all(|l| l.colour == T.muted), "the sling's two greyed");
-    assert_eq!(out[2].colour, idle[2].colour, "Delete as before");
 }
 
 #[test]
