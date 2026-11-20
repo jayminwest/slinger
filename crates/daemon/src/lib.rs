@@ -215,7 +215,8 @@ fn data_dir(given: Option<PathBuf>, scratch: bool) -> Result<PathBuf, Failure> {
 /// and `slinger` programs, writing feedback to `feedback` (by default
 /// [`feedback::default_file`]). Names each open workspace whose file it
 /// cannot use on `err`, once, before it serves. Names its socket in the data
-/// directory while it serves, so clients find it on any path. With a `log`,
+/// directory while it serves, so clients find it on any path, and removes
+/// the mark of a `daemon_stop` there. With a `log`,
 /// once the socket and the record are its own (a second daemon never moves
 /// the first one's log), it opens the file, hands it to the redirect and
 /// says it serves.
@@ -241,11 +242,17 @@ fn serve(
         // for and the PATH every agent gets.
         .with_search(claude, Search::login())
         .with_slinger(slinger)
-        .with_feedback(feedback.unwrap_or_else(|| feedback::default_file(dir)));
+        .with_feedback(feedback.unwrap_or_else(|| feedback::default_file(dir)))
+        .with_log(log.as_ref().map(|(path, _)| path.clone()));
     let log = log.map(|(path, redirect)| logging(&path, redirect, socket, dir)).transpose()?;
     warn_broken(store.workspaces(), err).map_err(internal)?;
     // The record's lock is ours: so is the name of its socket (docs/service.md).
     control::name_socket(dir, socket).map_err(internal)?;
+    // A daemon that serves is no longer stopped on purpose (`daemon_stop`).
+    match std::fs::remove_file(control::stop_mark(dir)) {
+        Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(internal(e)),
+        _ => {}
+    }
     let stopper = server.stopper();
     // SIGHUP is caught and ignored: a closed terminal does not end the daemon.
     let mut signals = Signals::new([SIGTERM, SIGINT, SIGHUP]).map_err(internal)?;

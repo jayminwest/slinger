@@ -2,6 +2,7 @@
 //! stop that lets every accepted request finish.
 
 mod agent;
+mod daemon;
 mod feedback;
 mod fold;
 mod import;
@@ -147,8 +148,9 @@ impl Server {
     /// The error that ended the accept loop, or the socket file's removal.
     pub fn serve(self, store: &Store) -> io::Result<()> {
         store.sessions().processes().serve_on(&self.socket);
+        let here = daemon::Here::now(self.stopper(), &self.socket);
         let accepted = std::thread::scope(|scope| {
-            let accepted = self.accept(scope, store);
+            let accepted = self.accept(scope, store, &here);
             // A request waiting on a canvas feed or a sling answers now, so the scope ends.
             store.stop_waits();
             accepted
@@ -160,13 +162,18 @@ impl Server {
     }
 
     /// Serves each connection on a thread of `scope` until a stop.
-    fn accept<'s>(&'s self, scope: &'s Scope<'s, '_>, store: &'s Store) -> io::Result<()> {
+    fn accept<'s>(
+        &'s self,
+        scope: &'s Scope<'s, '_>,
+        store: &'s Store,
+        here: &'s daemon::Here,
+    ) -> io::Result<()> {
         for stream in self.listener.incoming() {
             // The first connection accepted after a stop is the last one
             // served, so every connection queued before the stop is served.
             let last = self.stopping.load(Ordering::SeqCst);
             let stream = stream?;
-            scope.spawn(move || converse(&stream, store));
+            scope.spawn(move || converse(&stream, store, here));
             if last {
                 break;
             }
@@ -177,12 +184,12 @@ impl Server {
 
 /// One connection: one request, one reply. A failure here is the client's to
 /// notice (it gets no reply); the daemon has no one else to tell.
-fn converse(stream: &UnixStream, store: &Store) -> io::Result<()> {
+fn converse(stream: &UnixStream, store: &Store, here: &daemon::Here) -> io::Result<()> {
     stream.set_read_timeout(Some(IO_TIMEOUT))?;
     stream.set_write_timeout(Some(IO_TIMEOUT))?;
     let reply = match control::read_request(&mut BufReader::new(stream)) {
         Ok(None) => return Ok(()),
-        Ok(Some(request)) => answer(request, store),
+        Ok(Some(request)) => answer(request, store, here),
         Err(error) => Err(error),
     };
     let written = control::write_reply(&mut &*stream, &reply);
@@ -190,7 +197,7 @@ fn converse(stream: &UnixStream, store: &Store) -> io::Result<()> {
 }
 
 /// Request in, core call, reply out. One arm per verb, and no logic of its own.
-fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
+fn answer(request: Request, store: &Store, here: &daemon::Here) -> Result<Reply, RemoteError> {
     match request {
         Request::RecordAppend(new) => {
             let event =
@@ -287,6 +294,7 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
         Request::Feedback(ask) => feedback::answer(store, ask),
         Request::Profile(ask) => profile::answer(store, ask),
         Request::Fold(ask) => fold::answer(store, ask),
+        Request::Daemon(ask) => daemon::answer(store, here, ask),
     }
 }
 

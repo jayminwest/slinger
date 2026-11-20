@@ -15,6 +15,7 @@ use crate::{Server, StartError, Stopper, Store, run};
 
 mod canvas;
 mod close;
+mod daemon;
 mod edit;
 mod feed;
 mod feedback;
