@@ -4,8 +4,9 @@
 //! the labels to draw. A canvas pane reads [`Tools::tool`], [`Tools::colour`]
 //! and [`Tools::width`] to know what the pen does. The width is the pen's
 //! line alone: boxes and arrows keep their one line width. The text size
-//! ([`Tools::size`], one of [`SIZES`]) is a new text's alone: a text being
-//! typed or edited keeps its own.
+//! ([`Tools::size`], one of [`SIZES`]) is a new text's; a size command
+//! with a text being typed, or texts selected, resizes those instead
+//! ([`Resize`]).
 //!
 //! A tablet pen's eraser end erases whatever tool is chosen: while it is
 //! the end in use ([`Tools::set_eraser_end`]), [`Tools::tool`] is the eraser
@@ -95,6 +96,13 @@ impl Kind {
     }
 }
 
+/// What a pick from the colour or the size pop-up hands on ([`Tools::picked`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Picked {
+    Colour(Rgb),
+    Size(u16),
+}
+
 const SHAPES: [Tool; 2] = [Tool::Box, Tool::Arrow];
 const TOOLS: [Tool; 5] = [Tool::Pen, Tool::Eraser, Tool::Lasso, Tool::Text, Tool::Select];
 
@@ -126,8 +134,8 @@ pub struct Tools {
     /// What a mouse press does with the pen tool.
     press: Press,
     colour: Rgb,
-    /// A colour picked from the pop-up and not yet taken ([`Tools::picked`]).
-    picked: Option<Rgb>,
+    /// A colour or size picked from the pop-up and not yet taken ([`Tools::picked`]).
+    picked: Option<Picked>,
     palette: Palette,
     width: Width,
     widths: Widths,
@@ -291,9 +299,11 @@ impl Tools {
         self.colour
     }
 
-    /// The colour picked from the pop-up since the last call, if any (the
-    /// pen's colour, picked again too): it recolours the selection.
-    pub fn picked(&mut self) -> Option<Rgb> {
+    /// The colour or size picked from the pop-up since the last call, if
+    /// any (the pen's colour or a new text's size, picked again too): it
+    /// recolours the selection, or resizes the text being typed or the
+    /// selected texts.
+    pub fn picked(&mut self) -> Option<Picked> {
         self.picked.take()
     }
 
@@ -415,12 +425,15 @@ impl Tools {
         match popup.kind {
             Kind::Colour => {
                 self.colour = self.palette.colours()[i];
-                self.picked = Some(self.colour);
+                self.picked = Some(Picked::Colour(self.colour));
             }
             Kind::Shape => self.tool = SHAPES[i],
             Kind::Tool => self.tool = TOOLS[i],
             Kind::Width => self.width = self.widths.widths()[i],
-            Kind::Size => self.size = i,
+            Kind::Size => {
+                self.size = i;
+                self.picked = Some(Picked::Size(SIZES[i]));
+            }
         }
     }
 }
@@ -445,6 +458,8 @@ const DIGITS: [Chord; Palette::MAX] = [
 ];
 
 mod labels;
+mod resize;
+pub use resize::Resize;
 
 #[cfg(test)]
 mod tests;

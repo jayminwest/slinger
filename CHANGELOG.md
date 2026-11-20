@@ -71,8 +71,10 @@ bullet with the area in bold.
   (`pick-size`, cmd+shift+a) opens a pop-up at the pen with 12, 16, 24, 36,
   48 and 72 points; Bigger text (`size-up`, alt+shift+]) and Smaller text
   (`size-down`, alt+shift+[) step through them, and a new size flashes. The
-  text tool's next text starts at that size (24 until you pick another); a
-  text you are typing or editing keeps its own. While the text tool is
+  text tool's next text starts at that size (24 until you pick another).
+  While you type a text, the same commands resize it (its own size steps
+  to the next on the list; those two keys resize rather than type); with
+  texts selected they resize those, in one undo step. While the text tool is
   chosen, the footer shows the size ("Size 24") where the width bars sit;
   a tap there picks a size.
 
