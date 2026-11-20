@@ -3,7 +3,8 @@
 //! to the daemon; and the keys left to a text being typed or an entry.
 
 use super::*;
-use crate::commands::SHIFT;
+use crate::commands::{DELETE, SHIFT};
+use crate::scene::paste::Keyboard;
 
 /// The right arrow, as macOS sends it.
 const RIGHT: char = '\u{f703}';
@@ -17,6 +18,14 @@ fn boxes(daemon: &control::Client) -> Vec<f64> {
 
 fn selected(w: &World) -> usize {
     w.canvases.selection().map_or(0, |s| s.ids.len())
+}
+
+/// How far each box moved (in tenths) once `chord` was pressed.
+fn nudged(w: &mut World, daemon: &control::Client, chord: Chord) -> Vec<f64> {
+    let before = boxes(daemon);
+    assert!(w.send(Event::Key(chord)), "{chord:?} nudges");
+    w.until(|_| boxes(daemon) != before);
+    boxes(daemon).iter().zip(&before).map(|(a, b)| a - b).collect()
 }
 
 #[test]
@@ -45,12 +54,11 @@ fn select_all_next_nudge_and_duplicate_act_on_the_focused_page() {
         assert!(w.send(Event::Key(Chord::new(SHIFT, '\u{19}'))));
         assert_eq!(w.canvases.selection().unwrap().ids, [first], "two items: back to the first");
 
-        let before = boxes(daemon);
-        assert!(w.send(Event::Key(Chord::new(0, RIGHT))));
-        w.until(|_| boxes(daemon) != before);
-        let moved: Vec<f64> = boxes(daemon).iter().zip(&before).map(|(a, b)| a - b).collect();
+        let moved = nudged(&mut w, daemon, Chord::new(0, RIGHT));
         let ten = moved.contains(&100.0) && moved.contains(&0.0);
         assert!(ten, "one box 10 points right, in the file's tenths: {moved:?}");
+        let moved = nudged(&mut w, daemon, Chord::new(SHIFT, RIGHT));
+        assert!(moved.contains(&10.0), "the fine nudge: one box a point right: {moved:?}");
 
         assert!(w.send(Event::Key(Chord::new(CMD, 'j'))));
         let copied = |w: &World| w.canvases.selection().is_some_and(|s| s.ids != [first]);
@@ -73,6 +81,8 @@ fn a_text_being_typed_or_an_open_entry_keeps_the_keys() {
         assert!(w.send(Event::Command(Command::SelectAll)), "chosen from the menu too");
         assert_eq!(selected(&w), 0);
         assert!(!w.send(Event::Key(Chord::new(0, '\t'))), "tab types");
+        assert!(w.send(Event::Key(Chord::new(SHIFT, RIGHT))), "the caret's selection takes it");
+        assert_eq!(selected(&w), 0);
         assert_eq!(selected(&w), 0);
         w.key(Chord::new(0, '\u{1b}'), "\u{1b}");
         w.until(|_| count(daemon, "text") == 1);
@@ -84,5 +94,33 @@ fn a_text_being_typed_or_an_open_entry_keeps_the_keys() {
         w.key(Chord::new(0, '\u{1b}'), "\u{1b}");
         assert!(w.send(Event::Command(Command::SelectAll)));
         assert_eq!(selected(&w), 2, "the box and the text");
+    });
+}
+
+/// A press that went on to a page (a live item's on the canvas) leaves it
+/// the keyboard: delete-selection's key goes on to it and the selected
+/// items stay (slinger-479dea), until a press the app takes gives the
+/// window the keyboard back.
+#[test]
+fn a_page_holding_the_keyboard_keeps_delete() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        w.drag_box(400.0, 10.0);
+        w.until(|_| boxes(daemon).len() == 1);
+        wait_until(|| {
+            w.send(Event::Tick);
+            w.send(Event::Key(Chord::new(CMD, 'a')));
+            selected(&w) == 1
+        });
+        let delete = || Event::Key(Chord::new(0, DELETE));
+        w.shared.keyboard = Keyboard::Pressed;
+        assert!(!w.send(delete()), "the key goes on to the page");
+        assert!(!w.send(Event::Command(Command::DeleteSelection)), "chosen from the menu too");
+        assert_eq!(selected(&w), 1);
+        w.shared.keyboard = Keyboard::Window;
+        assert!(w.send(delete()));
+        w.until(|_| boxes(daemon).is_empty());
     });
 }

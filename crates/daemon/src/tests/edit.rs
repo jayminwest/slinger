@@ -62,6 +62,7 @@ fn a_text_size_in_tenths_puts_and_edits_and_one_out_of_range_is_invalid() {
         color: None,
         at: None,
         text_size: Some(480),
+        inside: None,
     };
     let placed = client.canvas_put_as(put.clone()).unwrap();
     assert_eq!([placed.w, placed.h], [480, 480], "the frame fits the words at the size");

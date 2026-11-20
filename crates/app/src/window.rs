@@ -239,7 +239,7 @@ pub fn selection(
             canvases.open_feedback(panes, at, workspace, tools.tool());
             true
         }
-        Command::DeleteSelection => canvases.delete_selection(panes, panes.focus()),
+        Command::DeleteSelection => items::delete(shared, canvases),
         Command::ClearSelection => canvases.clear_selection(panes, panes.focus()),
         Command::Sling | Command::Dictate => canvases.sling_command(command, panes, area),
         Command::SlingNow => canvases.sling_now_command(panes, area, Profile::Running),
@@ -400,6 +400,7 @@ pub fn view(
     canvases.agents(sidebar.agents());
     canvases.follow_paper(settings.config.canvas);
     canvases.set_prompt(&settings.config.prompt);
+    canvases.follow_keys(&settings.config.keys);
     let drawn = canvases.show(&shared.panes, area, theme);
     let mut problems: Vec<&Problem> = Vec::new();
     for problem in shared.trouble.iter().chain(canvases.problems()).chain(&settings.problem) {

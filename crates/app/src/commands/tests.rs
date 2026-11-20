@@ -1,3 +1,4 @@
+use super::chord::key_named;
 use super::*;
 
 fn chord(text: &str) -> Chord {

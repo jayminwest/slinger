@@ -201,9 +201,14 @@ impl Canvases {
     }
 
     /// Undoes the user's last step on the canvas `pane` shows, or redoes
-    /// the last undone, after every change made before it. A text being
-    /// typed ends first, so it is a step too.
+    /// the last undone, after every change made before it. While a text
+    /// is typed its own edits come first (slinger-304496); with none left,
+    /// it ends, so it is a step too.
     fn step(&mut self, panes: &Panes, pane: PaneId, redo: bool) {
+        if self.shapes.undo(redo) {
+            self.send();
+            return;
+        }
         let Some(canvas) = canvas_of(panes, pane) else { return };
         let canvas = canvas.to_string();
         self.shapes.end(&mut self.ink);

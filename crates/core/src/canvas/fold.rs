@@ -9,8 +9,9 @@
 
 use std::collections::HashMap;
 
+use super::geometry::{GAP, grown};
 use super::item::invalid;
-use super::{Canvas, Item, ItemId, PageId, Rect, Shape};
+use super::{Author, Canvas, Item, ItemId, PageId, Rect, Shape};
 use crate::Result;
 
 /// What a folded box keeps: its open size, in canvas units, and the ids of
@@ -138,6 +139,69 @@ impl Canvas {
         let blocks =
             |i: &&Item| i.id != of && holders.get(&i.id) == place && touch(i.bounds(), room);
         self.items(item.page).filter(blocks).map(Item::id).collect()
+    }
+
+    /// Where an item `w` by `h` goes in the box `of` (an answer to a sling
+    /// of the box, docs/design/fold.md "Sling a box"): a place in its room
+    /// (the open frame, open or folded) that comes within half a [`GAP`]
+    /// of none of its [`Canvas::contents`]. Beside `near` first (right,
+    /// below, left, above, as [`Canvas::free_beside`]), else the first such
+    /// place in reading order, [`GAP`] in from the room's top left or past
+    /// a content item. When none fits, a folded box takes it below all it
+    /// holds (its open size grows to hold it on the add); an open box has
+    /// no place: `None`. `None` too for an item that is not a box.
+    #[must_use]
+    pub fn free_in(&self, of: ItemId, near: Option<Rect>, w: f64, h: f64) -> Option<Rect> {
+        let Shape::Box { frame, fold, .. } = &self.item(of)?.shape else { return None };
+        let room = match fold {
+            Some(f) => Rect::new(frame.x, frame.y, f.open.0, f.open.1),
+            None => *frame,
+        };
+        let size = |v: f64| if v.is_finite() { v.max(0.0) } else { 0.0 };
+        let (w, h) = (size(w), size(h));
+        let taken: Vec<Rect> =
+            self.contents(of).into_iter().filter_map(|i| self.item(i)).map(Item::bounds).collect();
+        let free = |r: &Rect| {
+            let near = grown(*r, GAP / 2.0);
+            inside(*r, room) && !taken.iter().any(|t| touch(near, *t))
+        };
+        let sides = near.into_iter().flat_map(|n| {
+            [
+                Rect::new(n.x + n.w + GAP, n.y, w, h),
+                Rect::new(n.x, n.y + n.h + GAP, w, h),
+                Rect::new(n.x - GAP - w, n.y, w, h),
+                Rect::new(n.x, n.y - GAP - h, w, h),
+            ]
+        });
+        let xs = std::iter::once(room.x + GAP).chain(taken.iter().map(|t| t.x + t.w + GAP));
+        let ys: Vec<f64> =
+            std::iter::once(room.y + GAP).chain(taken.iter().map(|t| t.y + t.h + GAP)).collect();
+        let mut scan: Vec<Rect> =
+            xs.flat_map(|x| ys.iter().map(move |&y| Rect::new(x, y, w, h))).collect();
+        scan.sort_by(|a, b| a.y.total_cmp(&b.y).then(a.x.total_cmp(&b.x)));
+        if let Some(place) = sides.chain(scan).find(free) {
+            return Some(place);
+        }
+        let foot = taken.iter().map(|t| t.y + t.h).fold(room.y, f64::max);
+        fold.is_some().then(|| Rect::new(room.x + GAP, foot + GAP, w, h))
+    }
+
+    /// Whether `by` may set the box `item` to `shape` as a join (an add in
+    /// a folded box, or the undo of one) though it may not change the box:
+    /// the box is folded before and after, with the same frame and colour,
+    /// and every item its list gains or loses is gone or one `by` may
+    /// change. Its open size may change. An agent answers in the user's
+    /// box this way (docs/design/fold.md, "Sling a box").
+    pub(super) fn joins(&self, item: ItemId, shape: &Shape, by: &Author) -> bool {
+        let Some(Shape::Box { frame, colour, fold: Some(old) }) = self.item(item).map(Item::shape)
+        else {
+            return false;
+        };
+        let Shape::Box { frame: f, colour: c, fold: Some(new) } = shape else { return false };
+        let mine = |id: &ItemId| self.item(*id).is_none_or(|i| by.may_change(i.author()));
+        let gained = new.items.iter().filter(|i| !old.items.contains(i));
+        let lost = old.items.iter().filter(|i| !new.items.contains(i));
+        f == frame && c == colour && gained.chain(lost).all(mine)
     }
 
     /// Each item on `page` a folded box holds, with the box that holds it

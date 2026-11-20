@@ -19,6 +19,11 @@ pub struct SlingAsk {
     /// The page's id or name; the first page without one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub page: Option<String>,
+    /// A box (`b4` or `i4`): the sling is of the box, on its page. Its
+    /// packet holds only what the box holds, and the note asks for the
+    /// answer in it (`canvas_put` with `in`). Absent: the page.
+    #[serde(default, rename = "in", skip_serializing_if = "Option::is_none")]
+    pub inside: Option<String>,
     /// The selected items: ids as the canvas file (`i12`) or a packet
     /// (`c12`, `t12`) writes them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

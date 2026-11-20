@@ -97,6 +97,14 @@ slinger canvas remove <CANVAS> --item i14 --agent claude
 slinger canvas fold <CANVAS> b14 --agent claude     # fold your box to a miniature; unfold opens it
 ```
 
+A sling of a box names it on its first line (`in=b4`) and its packet holds
+only what the box holds. Answer in the box: add `--in b4` to each put
+(`--beside` may be the box itself):
+
+```bash
+slinger canvas put <CANVAS> --beside c12 --in b4 --text "The answer" --agent claude
+```
+
 Keep each text short: a few lines. Use more puts, each beside its subject,
 in place of one long text. Leave out `--color` and `--size`: a put matches
 the colour and size of the user's writing it goes beside, so it shows on

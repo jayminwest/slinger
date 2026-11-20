@@ -450,10 +450,9 @@ fn an_add_in_an_open_box_adds_plainly_and_a_bad_in_fails() {
     assert_eq!(code(&mut log, "b99"), "not_found");
     assert_eq!(code(&mut log, "zz"), "invalid");
     log.fold(&Author::User, AT, &b, None).unwrap();
-    // An agent may not change the user's folded box, so it may not add into it.
-    assert_eq!(code_by(&mut log, &scout(), &stroke(&b)), "invalid");
-}
-
-fn code_by(log: &mut Log, by: &Author, op: &Value) -> &'static str {
-    log.apply(by, AT, op).unwrap_err().code()
+    // An agent adds into the user's folded box (an answer to a sling of it):
+    // the box's list gains only the agent's own item.
+    let w = log.apply(&scout(), AT, &stroke(&b)).unwrap();
+    let fold = log.canvas().item(id(&b)).unwrap().shape().fold().unwrap().clone();
+    assert_eq!(fold.items.last(), Some(&id(&w.made[0])));
 }

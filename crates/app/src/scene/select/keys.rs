@@ -10,12 +10,15 @@
 //!   selected, one along, after the last back to the first; with nothing
 //!   selected on the page, the first (or, going back, the last). The item
 //!   comes into view ([`into_view`]).
-//! - Nudge: the selection moves [`NUDGE`] screen points at any zoom, as one
-//!   `move`, with the arrows bound to it following, as a drag's lift does.
+//! - Nudge: the selection moves [`NUDGE`] screen points at any zoom ([`FINE`]
+//!   for the fine nudges, shift and an arrow), as one `move`, with the
+//!   arrows bound to it following, as a drag's lift does.
 //! - Duplicate: a copy of the selection lands [`DUPLICATE`] screen points
 //!   down and right of it, as a paste lands, and is the selection once there.
 //! - Resize: a size command with texts selected (and none being typed)
-//!   gives each its size ([`Resize`]), as one `set`, top left kept.
+//!   gives each its size ([`Resize`]), as one `set`, top left kept, its
+//!   column about as wide, on half a cell of the new size; an arrow bound
+//!   to one follows its new frame ([`shapes::follow_frames`]).
 //! - One item: a find's jump selects the text it went to alone
 //!   ([`Select::only`]), as next-item does, so the keys above act from it.
 
@@ -32,6 +35,8 @@ use crate::scene::tools::Resize;
 
 /// How far a nudge moves the selection, in screen points.
 pub const NUDGE: f64 = 10.0;
+/// How far a fine nudge (shift and an arrow) moves it, in screen points.
+pub const FINE: f64 = 1.0;
 /// How far down and right of the selection its duplicate lands, in screen points.
 pub const DUPLICATE: f64 = 20.0;
 
@@ -59,6 +64,10 @@ impl Keyed {
             Command::NudgeRight => Keyed::Nudge(NUDGE, 0.0),
             Command::NudgeUp => Keyed::Nudge(0.0, -NUDGE),
             Command::NudgeDown => Keyed::Nudge(0.0, NUDGE),
+            Command::NudgeLeftFine => Keyed::Nudge(-FINE, 0.0),
+            Command::NudgeRightFine => Keyed::Nudge(FINE, 0.0),
+            Command::NudgeUpFine => Keyed::Nudge(0.0, -FINE),
+            Command::NudgeDownFine => Keyed::Nudge(0.0, FINE),
             Command::Duplicate => Keyed::Duplicate,
             Command::Fold => Keyed::Fold,
             _ => return None,
@@ -142,24 +151,28 @@ impl Select {
 
     /// Gives each selected text of `items` (its page as shown) the size
     /// `resize` makes of its own, laid out again from its top left in its
-    /// column, as one change to `ink`. False when the selection holds no
-    /// text, or the pen is down: the command sets a new text's size.
+    /// column, with the arrows bound to them following, as one change to
+    /// `ink`. False when the selection holds no text, or the pen is down:
+    /// the command sets a new text's size.
     pub fn resize(&self, resize: Resize, items: &[Cow<'_, Item>], ink: &mut Ink) -> bool {
         let Some(Selection { canvas, page, ids }) = self.selection.as_ref() else { return false };
         let texts = items.iter().filter(|i| ids.contains(&i.id) && self.gesture.is_none());
         let mut held = false;
-        let mut changed = Vec::new();
+        let (mut changed, mut framed) = (Vec::new(), Vec::new());
         for item in texts {
             let Shape::Text { frame, text, size, column } = &item.shape else { continue };
             held = true;
             let to = resize.of(*size);
             if to.total_cmp(size).is_ne() {
                 let at = Point { x: frame.x, y: frame.y };
-                let frame = glyphs::rows_frame(at, text, to, column.unwrap_or(glyphs::UNWRAPPED));
-                let shape = Shape::Text { frame, text: text.clone(), size: to, column: *column };
+                let column = column.map(|c| glyphs::rewrapped(c, to));
+                let after = glyphs::rows_frame(at, text, to, column.unwrap_or(glyphs::UNWRAPPED));
+                framed.push((item.id, *frame, after));
+                let shape = Shape::Text { frame: after, text: text.clone(), size: to, column };
                 changed.push(Item { shape, ..item.as_ref().clone() });
             }
         }
+        changed.extend(shapes::follow_frames(items, &framed));
         if !changed.is_empty() {
             let (canvas, page) = (canvas.clone(), page.clone());
             ink.push(Change::Reshape { canvas, page, items: changed });
