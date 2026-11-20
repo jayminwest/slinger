@@ -56,6 +56,12 @@ fn a_key_event_keeps_only_the_four_modifiers() {
 }
 
 #[test]
+fn shift_tab_as_macos_sends_it_is_shift_and_tab() {
+    assert_eq!(Chord::new(SHIFT, '\u{19}'), chord("shift+tab"));
+    assert_eq!(Keymap::default().command(chord("shift+tab")), Some(Command::PreviousItem));
+}
+
+#[test]
 fn rejects_what_is_not_a_chord() {
     for text in [
         "",
@@ -98,7 +104,7 @@ fn a_chord_with_no_command_runs_nothing() {
     let keys = Keymap::default();
     assert_eq!(keys.command(chord("q")), None);
     assert_eq!(keys.command(chord("cmd+shift+q")), None);
-    assert_eq!(keys.command(Chord::new(CMD, 'j')), None);
+    assert_eq!(keys.command(Chord::new(CMD, 'g')), None);
 }
 
 #[test]

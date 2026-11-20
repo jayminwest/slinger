@@ -466,3 +466,17 @@ fn a_text_being_typed_shows_its_caret_frame_and_hint_sized_for_the_screen() {
     shapes.typed("\u{1b}", &mut ink);
     assert!(shapes.shown(HERE, Vec::new(), 2.0, &THEME).is_empty(), "ending takes it all off");
 }
+
+#[test]
+fn a_new_text_starts_at_the_size_set_and_keeps_it_while_typed() {
+    let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
+    shapes.set_size(48.0);
+    assert!(down(&mut shapes, &mut ink, Tool::Text, (10.0, 212.0), 0.0, &[]));
+    shapes.set_size(12.0);
+    assert!(shapes.typed("Hi\u{1b}", &mut ink));
+    let half = glyphs::rows_frame(pt(0.0, 0.0), "", 48.0, glyphs::UNWRAPPED).height / 2.0;
+    let frame = glyphs::rows_frame(snap(pt(10.0, 212.0 - half)), "Hi", 48.0, glyphs::UNWRAPPED);
+    let text =
+        Shape::Text { frame, text: "Hi".into(), size: 48.0, column: Some(glyphs::UNWRAPPED) };
+    assert_eq!(changes(&mut ink), vec![put(text)], "the tap is the middle of its first line");
+}

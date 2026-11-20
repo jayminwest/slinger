@@ -95,11 +95,22 @@ impl Canvases {
         let viewport = view.map_or_else(Viewport::start, |(_, v)| v.viewport);
         let centre = viewport.to_canvas(Point { x: frame.width / 2.0, y: frame.height / 2.0 });
         let page = mirror.page().to_string();
-        let items = clip::pasted(&items, &page, centre);
+        self.place((canvas.to_string(), page), &items, centre)
+    }
+
+    /// Adds a clip's `items` to `page` of `canvas`, centred on `centre`, in
+    /// one step: they are the selection once there. False when there is
+    /// nothing to add.
+    pub(super) fn place(
+        &mut self,
+        (canvas, page): (String, String),
+        items: &str,
+        centre: Point,
+    ) -> bool {
+        let items = clip::pasted(items, &page, centre);
         if items.is_empty() {
             return false;
         }
-        let canvas = canvas.to_string();
         let change =
             Change::Carry { canvas: canvas.clone(), page: page.clone(), items, gone: vec![] };
         let key = self.ink.push_keyed(change);

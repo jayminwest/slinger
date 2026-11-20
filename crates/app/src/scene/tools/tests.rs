@@ -412,3 +412,31 @@ fn a_colour_picked_is_taken_once_even_the_pen_s_own() {
     assert!(tools.key(key("escape")));
     assert_eq!(tools.picked(), None, "a tool, or a closed pop-up, picks no colour");
 }
+
+#[test]
+fn a_new_text_s_size_starts_at_24_and_steps_picks_and_flashes() {
+    let mut tools = tools();
+    assert_eq!(tools.size(), 24, "the size every text started at");
+    let keys = Keymap::default();
+    let now = Instant::now();
+    tools.follow(&keys, now);
+    assert_eq!(tools.flash().pill(WITHIN, &T, now), None, "the start does not flash");
+    tools.open(Kind::Size, WITHIN);
+    assert_eq!(lit(&tools), 2, "the current size is lit");
+    let words: Vec<String> = tools.labels(&T).into_iter().skip(2).map(|l| l.text).collect();
+    assert_eq!(words, ["12", "16", "24", "36", "48", "72"], "each size as its number");
+    assert!(tools.command(Command::SizeUp));
+    assert_eq!((tools.size(), tools.open_kind()), (36, None), "a size pop-up closes");
+    tools.follow(&keys, now);
+    let pill = tools.flash().pill(WITHIN, &T, now).unwrap();
+    assert_eq!(pill.label.text, "Text size 36 ⇧⌘A");
+    for _ in 0..5 {
+        tools.command(Command::SizeUp);
+    }
+    assert_eq!(tools.size(), 72, "the last stays");
+    tools.open(Kind::Size, WITHIN);
+    assert!(tools.key(key("1")));
+    assert!(tools.command(Command::SizeDown));
+    assert_eq!(tools.size(), 12, "the first stays");
+    assert_eq!((tools.tool(), tools.width().text()), (Tool::Pen, "2".into()), "a size keeps both");
+}

@@ -547,7 +547,8 @@ canvases/clip.rs  cut, copy and paste on the canvas panes: copy takes the
 canvases/keys.rs  what the keys do on the canvas panes: typed and pasted
              text answer a page command's question or go into the text being
              typed; delete and escape act on the selection from any pane
-             that shows its page.
+             that shows its page; select all, next and previous item, nudge
+             and duplicate act on the focused pane's page (`keyed`).
 canvases/find.rs  which page, canvas and items each pane shows; a window
              point in canvas points.
 canvases/drag.rs  the pen's drag and lift on the canvas panes: a drag of the
@@ -670,7 +671,8 @@ scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
              opens it over the agent with a row per profile (the running
              one ✓) and no commands. Pure.
 scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
-             `<Tool> <key>` (a new width: `Width <n> <pick-width key>`),
+             `<Tool> <key>` (a new width: `Width <n> <pick-width key>`;
+             a new text size: `Text size <n> <pick-size key>`),
              reload-config its title and key, a saved note "Feedback saved",
              a page command what it did (scene/pages.rs's words) and a
              zoom its level,
@@ -876,6 +878,17 @@ scene/select/pick.rs  the select tool: a press picks the topmost item (a
              touches (or the innermost box it lies inside, so a box in a box
              can be picked); shift adds or takes out. The lasso's selection, so
              delete, sling, escape and moves act on it alike. Pure.
+scene/select/keys.rs  the selection from the keyboard: select all takes
+             every item the select tool may; next and previous step in
+             reading order (box top, then left), wrapping, and bring the
+             item into view (`into_view`); a nudge moves the selection 10
+             screen points as one `move` with bound arrows following; a
+             duplicate lands 20 screen points down and right, as a paste
+             (one step), selected once there. Pure.
+window/items.rs  who holds the keyboard (`keyboard`), and so whether the
+             item commands act on the focused pane's items: only while the
+             window has it and no text of the app takes typing; else the
+             key goes on (select all to a field or a page as `selectAll:`).
 scene/select/carry.rs  a drag of the selection goes by the canvas pane
              under the pen, read through that pane's own view, at every pen
              event and at the lift: over a pane on the same page the items
@@ -961,13 +974,16 @@ scene/dictation.rs  the dictation into the open entry: start, then stop, one
              failed (Flick not running, or its refusal) and what to do, under
              the entry; an answer overtaken by the entry closing is ignored.
              Pure.
-scene/tools.rs  the pen's tool, colour and width, and the pop-up at the pen (colour,
-             shape, tool, width) that changes them: opens (at the focused
+scene/tools.rs  the pen's tool, colour and width, a new text's size, and the
+             pop-up at the pen (colour, shape, tool, width, size) that changes them: opens (at the focused
              pane's centre until the pen or pointer has been in the window),
              picks by pen or key, closes. The tool commands pick a tool without it, and
-             `width-up`/`width-down` step the width. The width is the pen's
-             line alone: boxes and arrows keep one line width. Canvases
-             hold it for new strokes (`set_pen_width`). While a tablet pen's
+             `width-up`/`width-down` step the width, `size-up`/`size-down`
+             the size (one of `SIZES`, 24 at the start). The width is the pen's
+             line alone: boxes and arrows keep one line width. The size is
+             a new text's alone: a text being typed or edited keeps its own.
+             Canvases hold both (`set_pen`): the width for new strokes, the
+             size for the text tool's next text (`Shapes::set_size`). While a tablet pen's
              eraser end is in use the tool is the eraser (footer, cursor,
              gesture); the chosen tool (menu check, flash, pop-up) comes
              back with the tip. Pure.
@@ -1307,6 +1323,8 @@ Each boundary has something that fails when it is broken:
 | An erase, a move and a delete are one change each and show at once; a lasso selects what it holds whole; the selection clears | `crates/app/src/scene/select/tests.rs` |
 | The select tool picks the topmost item under a press, a drawn box selects what it touches, shift adds or takes out, a drag moves the selection | `crates/app/src/scene/select/pick/tests.rs` |
 | A drag of a corner handle scales the selection about the opposite corner in one change, a text's size scales evenly within its range, bound arrows follow, no side turns over, shift keeps the shape | `crates/app/src/scene/select/scale/tests.rs` |
+| Select all, next and previous item in reading order, a nudge of the selection as one move with bound arrows following, and where a duplicate lands | `crates/app/src/scene/select/keys/tests.rs` |
+| The item keys act on the focused page through the window's routing (cmd+A, tab, shift+tab, an arrow, cmd+J reach the daemon); a text being typed or an open entry keeps them | `crates/app/src/tests/items.rs`, against a real daemon |
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |

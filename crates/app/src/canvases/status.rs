@@ -14,13 +14,16 @@ use crate::panes::{Kind, Panes};
 use crate::scene::pages;
 use crate::scene::status::{self, Footer, Pen, Shows, State};
 use crate::scene::title;
-use crate::scene::tools::Tool;
+use crate::scene::tools::{Tool, Tools};
 
 impl Canvases {
-    /// The pen's line width, in canvas units: new strokes take it, and the
-    /// footers show it.
-    pub fn set_pen_width(&mut self, width: f64) {
-        self.ink.set_width(width);
+    /// The pen's line width, in canvas units, and a new text's size, from
+    /// `tools`: new strokes take the width, and the footers show it; a text
+    /// the text tool places starts at the size, which the footers show
+    /// while the text tool is chosen.
+    pub fn set_pen(&mut self, tools: &Tools) {
+        self.ink.set_width(tools.width().points());
+        self.shapes.set_size(f64::from(tools.size()));
     }
 
     /// The footer of each pane of `panes` laid in `area`, in `theme`'s
@@ -75,7 +78,13 @@ impl Canvases {
             let agent = self.agent_of(&pane.name);
             let (label, profiles) = agent.map(|a| (a.label(), !a.profiles.is_empty())).unzip();
             let shows = Shows {
-                pen: Some(Pen { tool, colour, width: self.ink.width(), state }),
+                pen: Some(Pen {
+                    tool,
+                    colour,
+                    width: self.ink.width(),
+                    size: self.shapes.size(),
+                    state,
+                }),
                 centre: &centre,
                 pages: !centre.is_empty(),
                 zoom: Some(zoom.unwrap_or_else(crate::layout::Viewport::start).percent()),

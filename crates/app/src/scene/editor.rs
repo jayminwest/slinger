@@ -261,7 +261,8 @@ pub struct Editing {
     /// The text's top left, in canvas units.
     pub at: Point,
     pub colour: Rgb,
-    /// The text's size: an edited text's own, a new one's `TEXT_SIZE`.
+    /// The text's size: an edited text's own, a new one's the size set
+    /// for new texts (`crate::scene::shapes::Shapes::set_size`).
     pub size: f64,
     /// The column it wraps in: an edited text's own, so an agent's
     /// paragraph keeps its rows; [`glyphs::UNWRAPPED`] for a new one.

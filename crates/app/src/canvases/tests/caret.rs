@@ -39,7 +39,10 @@ fn the_caret_keys_come_before_the_keymap_and_copy_takes_the_selected_characters(
         let copied = canvases.copy(&panes, false).unwrap();
         assert_eq!((copied.text.as_deref(), copied.items), (Some("word"), None));
         assert!(!key(&mut canvases, "cmd+z"), "a chord the text does not use goes on");
+        assert!(canvases.select_text(), "select all from the menu");
+        assert_eq!(canvases.copy(&panes, false).unwrap().text.as_deref(), Some("a word"));
         assert!(key(&mut canvases, "right") && canvases.typed("s\u{1b}"));
+        assert!(!canvases.select_text(), "no text typed");
         until(&mut canvases, &panes, daemon, |d| texts(d) == ["a words"]);
     });
 }
