@@ -9,7 +9,8 @@ crates/core   slinger-core: domain logic, typed errors. No terminal, process or 
 crates/cli    slinger: argv -> control-socket requests -> output contract (docs/cli.md).
               Does not link the core.
 crates/control  slinger-control: the control protocol (docs/service.md): requests, replies,
-              the wire format and the socket client. Does not link the core.
+              the wire format and the socket client, and the build stamp every binary
+              carries (its build.rs, `control::stamp`). Does not link the core.
 crates/daemon slingerd: owns the IO the core leaves out (socket, signals, startup, the
               record's SQLite file) and serves the core. A thin main over its library.
               No domain logic.
@@ -358,10 +359,13 @@ feedback.rs  the feedback file (`--feedback`, default `feedback.jsonl` in
              the checkout it was built from, else the data directory): one
              lock, each note and resolution appended as one line, the
              file read back for a list or a resolve; the time from `date
-             +%z` and the build from `SLINGER_BUILD_SHA` at build time.
-build.rs     stamps that build: `SLINGER_BUILD_SHA` and `SLINGER_BUILD_DIRTY`
-             from git (`HEAD`, tracked changes), unless the environment
-             sets them; neither without git, so notes say `dev`.
+             +%z` and the build from `control::stamp`.
+             The build stamp lives in slinger-control, so the daemon, the
+             CLI and the app name a build the same way: its build.rs sets
+             `SLINGER_BUILD_SHA` and `SLINGER_BUILD_DIRTY` from git (`HEAD`,
+             tracked changes), unless the environment sets them; neither
+             without git, so the stamp is `dev`. It names a commit, not the
+             bytes: two dirty builds of one commit carry the same stamp.
 server/feedback.rs  the four feedback verbs on the wire.
 server/session.rs  the session verbs on the wire, each session with its process
              and its listener. `session_listen` is a long poll; a reply that

@@ -62,7 +62,7 @@ impl Feedback {
     /// Notes go to `path`, made with its folder on the first note.
     #[must_use]
     pub fn new(path: PathBuf) -> Self {
-        Self { path, build: crate::log::build(), lock: Mutex::new(()) }
+        Self { path, build: slinger_control::stamp(), lock: Mutex::new(()) }
     }
 
     /// The file the notes go to.

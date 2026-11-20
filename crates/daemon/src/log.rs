@@ -14,13 +14,6 @@ use slinger_core::feedback;
 /// A log over this many bytes at start is moved aside to `<file>.1`.
 pub const LIMIT: u64 = 1 << 20;
 
-/// The build this slingerd was made from: a commit (`-dirty` if changed),
-/// else `dev`.
-#[must_use]
-pub fn build() -> String {
-    feedback::build(option_env!("SLINGER_BUILD_SHA"), option_env!("SLINGER_BUILD_DIRTY"))
-}
-
 /// Whether a log of `len` bytes is moved aside before the daemon writes to it.
 #[must_use]
 pub fn rotates(len: u64) -> bool {
@@ -70,7 +63,7 @@ pub fn open(path: &Path) -> io::Result<File> {
 pub fn say(mut log: &File, what: &str) -> io::Result<()> {
     let (unix_ms, offset) = crate::feedback::clock();
     let at = feedback::timestamp(unix_ms, offset);
-    log.write_all(line(&at, &build(), std::process::id(), what).as_bytes())
+    log.write_all(line(&at, &slinger_control::stamp(), std::process::id(), what).as_bytes())
 }
 
 #[cfg(test)]

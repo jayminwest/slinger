@@ -7,6 +7,7 @@
 //! daemon.
 
 mod agent;
+mod build;
 mod client;
 mod feed;
 mod feedback;
@@ -33,6 +34,7 @@ use serde_json::Value;
 pub use agent::{
     AgentAsk, CanvasEdit, CanvasEdited, CanvasPlaced, CanvasPut, CanvasRemove, CanvasRemoved, Put,
 };
+pub use build::{PACKAGE, stamp};
 pub use client::Client;
 pub use feed::{CanvasFeed, MAX_WAIT_MS};
 pub use feedback::{
