@@ -24,8 +24,9 @@ bullet with the area in bold.
   the app, and the app starts it again if it dies. One you stopped with
   `slinger daemon stop` stays stopped until you open the app again or run
   Start slingerd (Window menu, palette or the sidebar). If it cannot start,
-  the window says why and where its log is. An app whose config names a
-  `[daemon] socket` never starts one.
+  the window says why and where its log is. A PDF it cannot read, or
+  unsent ink it cannot keep, still shows while it starts. An app whose
+  config names a `[daemon] socket` never starts one.
 - **App:** slinger.app holds `slingerd` and `slinger` beside the app, and
   `scripts/bundle.sh --install` links `~/.local/bin/slingerd` and
   `~/.local/bin/slinger` to them instead of copying a second set (it

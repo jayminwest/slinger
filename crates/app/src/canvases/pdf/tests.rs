@@ -44,7 +44,7 @@ fn an_opened_pdf_shows_grey_then_its_pages_once_its_file_has_come() {
         canvases.pdfs = Pdfs::start(daemon.clone(), cache.path().to_owned(), &Wake::none());
         canvases.open_pdf(&notes, Some("notes"), file.clone(), two_pages);
         wait_until(|| canvases.poll() && canvases.pdfs.opened.is_none());
-        assert_eq!(canvases.problems().next(), None);
+        assert_eq!(canvases.own_problems().next(), None);
         assert!(daemon.canvas_list().unwrap().contains(&"paper.pdf".to_string()));
 
         let paper = Panes::new(Pane { kind: Kind::Canvas, name: "paper.pdf".into() });
@@ -69,10 +69,10 @@ fn a_pdf_that_cannot_be_opened_is_a_problem_until_the_next() {
         let file = PathBuf::from("/nonexistent/paper.pdf");
         canvases.open_pdf(&notes, None, file.clone(), unreadable);
         wait_until(|| canvases.poll());
-        let problem = canvases.problems().next().cloned().unwrap();
+        let problem = canvases.own_problems().next().cloned().unwrap();
         assert_eq!(problem.message, "paper.pdf is not a PDF this Mac can read");
         canvases.open_pdf(&notes, None, file, two_pages);
-        assert_eq!(canvases.problems().next(), None, "a new open clears it");
+        assert_eq!(canvases.own_problems().next(), None, "a new open clears it");
     });
 }
 
@@ -90,7 +90,7 @@ fn a_tldraw_file_opens_as_an_imported_canvas_in_a_pane() {
         let board = manifest.join("../core/tests/fixtures/idea.tldraw");
         canvases.open_pdf(&notes, Some("notes"), board, unreadable);
         wait_until(|| canvases.poll() && canvases.pdfs.opened.is_none());
-        assert_eq!(canvases.problems().next(), None, "not read as a PDF");
+        assert_eq!(canvases.own_problems().next(), None, "not read as a PDF");
         assert!(daemon.canvas_list().unwrap().contains(&"idea".to_string()));
         let layout = daemon.pane_list("notes").unwrap().layout;
         assert!(serde_json::to_string(&layout).unwrap().contains("\"idea\""), "{layout:?}");

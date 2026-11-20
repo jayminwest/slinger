@@ -109,16 +109,17 @@ impl Daemon {
 }
 
 /// The lines the focused pane shows: `daemon`'s launch line in place of
-/// the problems `asking` the daemon gave, else those; then the config's
-/// `problem`; each once, each problem with its hint under it.
+/// the problems `asking` the daemon gave, else those; then the app's `own`
+/// (the kept ink's file, a PDF, the config), which no launch line hides;
+/// each once, each problem with its hint under it.
 pub fn said<'a>(
     daemon: Option<&Daemon>,
     asking: impl Iterator<Item = &'a Problem>,
-    problem: Option<&'a Problem>,
+    own: impl IntoIterator<Item = &'a Problem>,
     theme: &Theme,
 ) -> Vec<(String, Rgb)> {
     let mut problems: Vec<&Problem> = Vec::new();
-    for p in asking.filter(|_| daemon.is_none()).chain(problem) {
+    for p in asking.filter(|_| daemon.is_none()).chain(own) {
         if !problems.contains(&p) {
             problems.push(p);
         }
@@ -178,6 +179,22 @@ mod tests {
             [("Starting slingerd…", T.muted), ("✗ config.toml: line 2: x", T.error)]
         );
         assert!(lines.iter().all(|(t, _)| !t.contains("--socket")));
+    }
+
+    #[test]
+    fn a_launch_line_hides_the_daemon_s_problems_but_not_the_app_s_own() {
+        let lost = problem("slingerd does not answer on /s", Some("start it with 'slingerd'"));
+        let kept = problem("/d/unsent-ink.json: cannot write", None);
+        let pdf = problem("paper.pdf is not a PDF this Mac can read", None);
+        let lines = said(Some(&Daemon::Starting), [&lost].into_iter(), [&kept, &pdf], &T);
+        assert_eq!(
+            texts(&lines),
+            [
+                ("Starting slingerd…", T.muted),
+                ("✗ /d/unsent-ink.json: cannot write", T.error),
+                ("✗ paper.pdf is not a PDF this Mac can read", T.error),
+            ]
+        );
     }
 
     #[test]
