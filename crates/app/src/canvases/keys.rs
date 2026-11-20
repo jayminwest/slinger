@@ -193,7 +193,7 @@ impl Canvases {
                 let Some(items) = open.and_then(|m| m.copied(ink, &ids)?.items) else {
                     return false;
                 };
-                self.place((canvas.to_string(), on_page), &items, at)
+                self.place(pane, (canvas.to_string(), on_page), &items, at)
             }
             Keyed::Fold => {
                 drop(items);

@@ -36,7 +36,7 @@ fn no_session() -> Problem {
 /// An open entry with `text` typed into it.
 fn typed(text: &str) -> Sling {
     let mut sling = Sling::default();
-    assert!(sling.open(&selection(), BOX, PANE));
+    assert!(sling.open((&selection(), None), BOX, PANE));
     sling.typed(text);
     sling
 }
@@ -111,7 +111,7 @@ fn the_entry_stays_inside_its_pane() {
 fn return_and_escape_are_the_entry_s_every_other_key_types() {
     let mut sling = Sling::default();
     assert_eq!(sling.key(Chord::new(0, '\r')), None, "closed: the keymap's");
-    sling.open(&selection(), BOX, PANE);
+    sling.open((&selection(), None), BOX, PANE);
     assert_eq!(sling.key(Chord::new(0, '\r')), Some(Key::Send));
     assert_eq!(sling.key(Chord::new(0, '\u{1b}')), Some(Key::Cancel));
     assert_eq!(sling.key(Chord::new(0, '\u{7f}')), Some(Key::Type), "delete edits the text");
@@ -135,12 +135,13 @@ fn typing_sets_the_prompt_and_send_waits_for_the_ink_then_goes() {
             canvas: "notes".into(),
             page: "p1".into(),
             ids: vec![ItemId(1), ItemId(4)],
+            inside: None,
             prompt: "what is missing?".into(),
             profile: Profile::Running,
         }
     );
     assert_eq!(sling.ready(|_| true), None, "it goes once");
-    assert!(!sling.open(&selection(), BOX, PANE), "one sling at a time");
+    assert!(!sling.open((&selection(), None), BOX, PANE), "one sling at a time");
     assert_eq!(sling.answered(Ok(())), Answered::Closed);
     assert_eq!((entry(&sling), texts(&sling)), (None, vec![]), "it went: nothing more shows");
     assert_eq!(sling.canvas(), None);
@@ -164,7 +165,7 @@ fn escape_cancels_and_nothing_goes() {
     assert_eq!((entry(&sling), texts(&sling)), (None, vec![]));
     assert_eq!(sling.ready(|_| true), None);
     assert!(!sling.cancel() && !sling.send(), "closed: nothing to cancel or send");
-    assert!(sling.open(&selection(), BOX, PANE));
+    assert!(sling.open((&selection(), None), BOX, PANE));
     assert_eq!(entry(&sling).unwrap().text, "", "a new sling starts empty");
 }
 
@@ -172,10 +173,26 @@ fn escape_cancels_and_nothing_goes() {
 fn opening_again_moves_the_entry_and_keeps_the_text() {
     let mut sling = typed("half a thought");
     let one = Selection { ids: vec![ItemId(9)], ..selection() };
-    assert!(sling.open(&one, Rect { x: 300.0, ..BOX }, PANE));
+    assert!(sling.open((&one, None), Rect { x: 300.0, ..BOX }, PANE));
     let entry = entry(&sling).unwrap();
     assert_eq!((entry.text.as_str(), entry.frame.x), ("half a thought", 300.0));
     assert_eq!(entry.placeholder, "what to ask about 1 item (or nothing)");
+}
+
+#[test]
+fn a_box_alone_selected_is_a_sling_of_the_box_and_a_selection_inside_one_keeps_its_items() {
+    let mut sling = Sling::default();
+    let one = Selection { ids: vec![ItemId(9)], ..selection() };
+    assert!(sling.open((&one, Some(ItemId(9))), BOX, PANE));
+    assert_eq!(entry(&sling).unwrap().placeholder, "what to ask about the box (or nothing)");
+    sling.send();
+    let ask = sling.ready(|_| true).unwrap();
+    assert_eq!((ask.ids, ask.inside), (vec![], Some(ItemId(9))), "all the box holds");
+    sling.answered(Ok(()));
+    assert!(sling.open((&selection(), Some(ItemId(9))), BOX, PANE));
+    sling.send();
+    let ask = sling.ready(|_| true).unwrap();
+    assert_eq!((ask.ids, ask.inside), (selection().ids, Some(ItemId(9))), "stepped into it");
 }
 
 #[test]
@@ -212,9 +229,12 @@ fn a_failure_shows_its_message_and_hint_under_the_entry_and_return_tries_again()
 #[test]
 fn send_now_skips_the_entry() {
     let mut sling = Sling::default();
-    assert!(sling.send_now(&selection(), ("from a button", Profile::Running), BOX, PANE));
+    assert!(sling.send_now((&selection(), None), ("from a button", Profile::Running), BOX, PANE));
     assert!(!sling.is_typing());
-    assert!(!sling.send_now(&selection(), ("again", Profile::Running), BOX, PANE), "one at a time");
+    assert!(
+        !sling.send_now((&selection(), None), ("again", Profile::Running), BOX, PANE),
+        "one at a time"
+    );
     assert_eq!(sling.ready(|_| true).unwrap().prompt, "from a button");
     assert_eq!(sling.answered(Err(no_session())), Answered::Closed);
     assert_eq!((entry(&sling), texts(&sling)), (None, vec![]), "no entry for the pen to escape");

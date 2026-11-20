@@ -18,6 +18,7 @@ mod items;
 mod keyboard;
 mod pointer;
 mod size;
+mod sling_box;
 mod start;
 mod step;
 mod undo;

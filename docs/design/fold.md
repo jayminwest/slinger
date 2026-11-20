@@ -201,6 +201,10 @@ lie wholly inside the box's frame, edges included.
   or escape. Escape takes, in order: the key overlay, the page menu, the
   sling entry, the text being typed, a peek, a pop-up, the selection, and
   only then steps out one box. `step-in-beside` (opt+shift+cmd+I) splits.
+- What a paste or a duplicate adds in a pane inside a folded box, and a
+  selection carried (dragged) into such a pane from another page, joins the
+  box as a stroke drawn there does (slinger-cd04ab). A drag within one page
+  is a move, not an add: it does not take items into a box.
 
 ### The packet line
 
@@ -377,6 +381,15 @@ in or out. An open box never grows for an answer.
 
 The app (slinger-1350e7, slinger-b1ccf1) sends `sling_send` with `in`: the
 box selected for "sling a box", or the box a pane is stepped into.
+Picked overnight (slinger-9923a6, owner to confirm), with no new command:
+the existing sling (the `sling` key's entry, and sling-now) is of a box
+when exactly one item is selected and it is a box (open or folded; the
+sling sends no `select`, so the packet is all the box holds), else, from a
+pane stepped into a box, of the innermost box of its trail (open or
+folded), with the selection inside it as `select`. A pane stepped in with
+nothing selected slings the whole box, its entry at the pane's top left.
+The same `in` goes to `sling_backdrops`. A tap on a send-to-agent button
+still slings what is new on its page.
 
 ### Tests that hold acceptance 5 (step 2)
 

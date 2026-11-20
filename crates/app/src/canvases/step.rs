@@ -9,8 +9,9 @@
 //! folded or unfolded elsewhere steps the pane out of it ([`Mirror::step`]).
 //!
 //! What is written in a pane inside a folded box joins it: the pen's
-//! strokes, boxes and arrows from the press to the lift, and a text from
-//! its start to its end, each sent with `in` ([`Ink::join`]).
+//! strokes, boxes and arrows from the press to the lift, a text from its
+//! start to its end, and what is pasted, duplicated or carried into the
+//! pane, each sent with `in` ([`Ink::join`]).
 
 use std::borrow::Cow;
 
@@ -20,6 +21,7 @@ use crate::mirror::{Inside, LINE_WIDTH, Mirror};
 use crate::panes::Panes;
 use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::ink::{Change, Ink};
+use crate::scene::select::Selection;
 use crate::scene::shapes::DOUBLE_TAP;
 
 /// The draw id of the dashed frame round the room a pane is inside: below
@@ -223,10 +225,26 @@ impl Canvases {
 
     /// The folded box what is written in `pane` on `page` of `canvas`
     /// joins, if any: the innermost folded box of its trail.
-    fn joins_in(&self, pane: PaneId, here: (&str, &str)) -> Option<ItemId> {
+    pub(super) fn joins_in(&self, pane: PaneId, here: (&str, &str)) -> Option<ItemId> {
         let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v)?;
         let mirror = find(&self.open, here.0, Some(here.1))?.mirror.as_ref()?;
         mirror.step(&view.trail.on(here)).0?.joins()
+    }
+
+    /// The box a sling of `selection` from `pane` is of (docs/design/fold.md,
+    /// "Sling a box"): a box selected alone, else the innermost box the
+    /// pane is stepped into on the selection's page, if any.
+    pub(super) fn sling_box(&self, pane: PaneId, selection: &Selection) -> Option<ItemId> {
+        let here = (selection.canvas.as_str(), selection.page.as_str());
+        let mirror = find(&self.open, here.0, Some(here.1))?.mirror.as_ref()?;
+        let boxed = |id| mirror.item(id).is_some_and(|i| matches!(i.shape, Shape::Box { .. }));
+        if let [id] = selection.ids[..]
+            && boxed(id)
+        {
+            return Some(id);
+        }
+        let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v)?;
+        mirror.step(&view.trail.on(here)).0?.innermost()
     }
 
     /// The folded box whose miniature a press at `at` on `items` (`page`
@@ -306,6 +324,16 @@ impl Canvases {
         let mark = self.ink.mark();
         let joining = |inside| Joining { mark, canvas, page: on, inside };
         self.steps.typing = inside.map(|inside| (joining(inside), at));
+    }
+
+    /// What was queued from key `mark` on `here`, a page of a canvas (a
+    /// paste, a duplicate, a carry), joins the folded box `pane` is inside
+    /// there, if any.
+    pub(super) fn added_in(&mut self, mark: u64, pane: PaneId, here: (&str, &str)) {
+        if let Some(inside) = self.joins_in(pane, here) {
+            let carry = |c: &Change| matches!(c, Change::Carry { .. });
+            self.ink.join(mark, here, inside, carry);
+        }
     }
 
     /// The text that joins a box ended: its `add` joins it.

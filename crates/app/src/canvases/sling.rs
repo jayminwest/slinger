@@ -10,6 +10,7 @@ use crate::config::Theme;
 use crate::layout::{Point, Rect, Viewport};
 use crate::panes::Panes;
 use crate::scene::Scene;
+use crate::scene::canvas::ItemId;
 use crate::scene::select::Selection;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::sling::{Key, Profile};
@@ -38,29 +39,31 @@ impl Canvases {
         }
         self.asks.cancel_entry();
         let selected = self.selection_in(panes, area).map(|(s, a, w)| (s.clone(), a, w));
-        let Some((selection, around, within)) = selected.or_else(|| self.button_in(panes, area))
-        else {
+        let target = selected.or_else(|| self.button_in(panes, area));
+        let Some((selection, around, within)) = target.or_else(|| self.room_in(panes, area)) else {
             return false;
         };
-        let opened = self.sling.open(&selection, around, within);
+        let inside = self.sling_box(panes.focus(), &selection);
+        let opened = self.sling.open((&selection, inside), around, within);
         if opened && self.shapes.end(&mut self.ink) {
             self.send();
         }
         opened
     }
 
-    /// Slings `selection` (no ids: what is new on its page) with `prompt`
+    /// Slings `selection` (no ids: what is new on its page), of the box
+    /// given if any, with `prompt`
     /// under `profile`, without the entry; its line, and a failure's entry, stand under
     /// `around` inside `within`, in the window. For a sling that needs no
     /// typing: a tap on a button. False while a sling is on its way.
     pub(super) fn sling_now(
         &mut self,
-        selection: &Selection,
+        of: (&Selection, Option<ItemId>),
         prompt: (&str, Profile),
         around: Rect,
         within: Rect,
     ) -> bool {
-        let sent = self.sling.send_now(selection, prompt, around, within);
+        let sent = self.sling.send_now(of, prompt, around, within);
         self.poll_sling();
         sent
     }
@@ -363,14 +366,14 @@ mod tests {
             let selection = canvases.selection().unwrap().clone();
             let around = Rect { x: 50.0, y: 50.0, width: 10.0, height: 10.0 };
             assert!(canvases.sling_now(
-                &selection,
+                (&selection, None),
                 ("and now?", Profile::Running),
                 around,
                 WINDOW.rect()
             ));
             assert!(
                 !canvases.sling_now(
-                    &selection,
+                    (&selection, None),
                     ("again?", Profile::Running),
                     around,
                     WINDOW.rect()

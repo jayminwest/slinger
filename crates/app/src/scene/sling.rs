@@ -64,12 +64,15 @@ pub const SEND: Chord = Chord::new(0, '\r');
 pub const CANCEL: Chord = Chord::new(0, '\u{1b}');
 
 /// What a sling sends: a page's selected items, by the server's ids, the
-/// prompt, and the profile it goes under.
+/// box it is of (docs/design/fold.md, "Sling a box": the packet holds only
+/// what the box holds, and the answer goes in it), the prompt, and the
+/// profile it goes under.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ask {
     pub canvas: String,
     pub page: String,
     pub ids: Vec<ItemId>,
+    pub inside: Option<ItemId>,
     pub prompt: String,
     pub profile: Profile,
 }
@@ -161,22 +164,23 @@ impl Sling {
     /// window, inside `within` (its pane). A sling already open starts
     /// again on the new selection, with its text; one on its way is left
     /// alone (false).
-    pub fn open(&mut self, selection: &Selection, around: Rect, within: Rect) -> bool {
+    pub fn open(&mut self, of: (&Selection, Option<ItemId>), around: Rect, within: Rect) -> bool {
         if matches!(self.open, Some((_, _, Stage::Waiting { .. } | Stage::Sending { .. }))) {
             return false;
         }
         let prompt = self.open.take().map(|(ask, ..)| ask.prompt).unwrap_or_default();
-        let ask = ask(selection, prompt);
+        let ask = ask(of, prompt);
         self.open = Some((ask, place(around, within), Stage::Typing(None)));
         true
     }
 
-    /// Sends `selection` with `prompt` under `profile` at once, with no
-    /// entry; its line, and a failure's entry, stand under `around` inside
-    /// `within`. False, and nothing goes, while another sling is on its way.
+    /// Sends `selection` (of the box given, if any) with `prompt` under
+    /// `profile` at once, with no entry; its line, and a failure's entry,
+    /// stand under `around` inside `within`. False, and nothing goes, while
+    /// another sling is on its way.
     pub fn send_now(
         &mut self,
-        selection: &Selection,
+        of: (&Selection, Option<ItemId>),
         (prompt, profile): (&str, Profile),
         around: Rect,
         within: Rect,
@@ -184,7 +188,7 @@ impl Sling {
         if matches!(self.open, Some((_, _, Stage::Waiting { .. } | Stage::Sending { .. }))) {
             return false;
         }
-        let ask = Ask { profile, ..ask(selection, prompt.to_string()) };
+        let ask = Ask { profile, ..ask(of, prompt.to_string()) };
         self.open = Some((ask, place(around, within), Stage::Waiting { typed: false }));
         true
     }
@@ -432,15 +436,21 @@ pub fn under(frame: Rect, after: usize, theme: &Theme, lines: Vec<(String, Rgb)>
     placed.map(|((text, colour), n)| line(frame, f64::from(n), text, colour, theme)).collect()
 }
 
-/// What a sling of `selection` with `prompt` sends.
-fn ask(selection: &Selection, prompt: String) -> Ask {
-    let Selection { canvas, page, ids } = selection.clone();
-    Ask { canvas, page, ids, prompt, profile: Profile::Running }
+/// What a sling of `selection` in box `inside` with `prompt` sends: the
+/// box alone selected is a sling of the box, all it holds.
+fn ask((selection, inside): (&Selection, Option<ItemId>), prompt: String) -> Ask {
+    let Selection { canvas, page, mut ids } = selection.clone();
+    if inside.is_some() && ids == inside.into_iter().collect::<Vec<_>>() {
+        ids.clear();
+    }
+    Ask { canvas, page, ids, inside, prompt, profile: Profile::Running }
 }
 
-/// "1 item", "3 items"; "what is new" for none (a button's sling).
+/// "1 item", "3 items"; "the box" or "what is new" for none (a box's
+/// sling, a button's).
 fn count(ask: &Ask) -> String {
     match ask.ids.len() {
+        0 if ask.inside.is_some() => "the box".to_string(),
         0 => "what is new".to_string(),
         1 => "1 item".to_string(),
         n => format!("{n} items"),

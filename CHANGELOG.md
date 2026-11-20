@@ -69,10 +69,17 @@ bullet with the area in bold.
   into box), or tap a folded box's miniature twice: the pane shows only
   what the box holds, from its top left, inside a dashed frame, and the
   footer adds the box's name to the page ("ideas · 2/3 › Plans"). What you
-  draw or type inside a folded box goes into it. Escape with nothing
+  draw, type, paste or drag in from another pane inside a folded box goes
+  into it. Escape with nothing
   selected, opt+cmd+O or the footer's ⤴ steps back out to the view you
   had. opt+shift+cmd+I opens the box in a new pane beside, so two boxes
   show at once; each pane keeps its own trail.
+- **App:** sling a box. Select a box alone and sling it (the sling key,
+  or the profile menu's sling now): the agent reads only what the box
+  holds and is asked to answer in it, so its answer lands inside the box
+  (a folded box's miniature shows it). In a pane stepped into a box, every
+  sling is of that box: the selection inside it, or, with nothing
+  selected, the whole box.
 - **App:** find sees into folded boxes. A text a folded box hides takes a
   find to that box, centred and selected, and the flash says the text is
   in a folded box.

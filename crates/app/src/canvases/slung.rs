@@ -72,7 +72,16 @@ impl Canvases {
             self.zoomed = Some(NO_AGENT.to_string());
             return true;
         }
-        self.sling_now(&selection, ("", profile), around, within)
+        let inside = self.sling_box(panes.focus(), &selection);
+        self.sling_now((&selection, inside), ("", profile), around, within)
+    }
+
+    /// The page the focused pane of `panes` laid in `area` shows, as
+    /// [`Canvases::page_in`] gives it, while that pane is stepped into a
+    /// box there: a sling of the box.
+    pub(super) fn room_in(&self, panes: &Panes, area: Rect) -> Option<(Selection, Rect, Rect)> {
+        let target = self.page_in(panes, area)?;
+        self.sling_box(panes.focus(), &target.0).is_some().then_some(target)
     }
 
     /// The page the focused pane of `panes` laid in `area` shows, as a
