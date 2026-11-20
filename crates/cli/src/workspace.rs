@@ -27,7 +27,7 @@ pub enum Workspace {
         /// Its name, or the directory of its file
         workspace: String,
     },
-    /// Close a workspace; its file, canvas and agent stay
+    /// Close a workspace and end its agent's process; its file and canvas stay
     Close {
         /// Its name, or the directory of its file
         workspace: String,

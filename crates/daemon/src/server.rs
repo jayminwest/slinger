@@ -274,7 +274,7 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
             Ok(Reply::WorkspaceShow(control::WorkspaceInfo { workspace: wire_ws(opened) }))
         }
         Request::WorkspaceClose { workspace } => {
-            let dir = store.workspaces().close(&workspace).map_err(|e| kept(&e))?;
+            let dir = store.sessions().close(store, &workspace).map_err(|e| session::remote(&e))?;
             Ok(Reply::WorkspaceClose(control::WorkspaceClosed { dir }))
         }
         Request::CanvasCrop { canvas, of, path } => look::crop(store, &canvas, &of, &path),

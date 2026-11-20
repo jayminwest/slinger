@@ -19,6 +19,8 @@ use slinger_core::record::{BlobId, Body, Event, FileTouched, Tags};
 use slinger_core::session::listen::Heard;
 use slinger_core::session::{self, Delivery, Report, Session, Status, hooks, stream};
 
+mod close;
+
 use crate::listeners::Listeners;
 use crate::processes::{ProcessError, Processes};
 use crate::store::{Query, Store, StoreError};

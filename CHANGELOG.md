@@ -552,6 +552,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Workspaces:** closing a workspace ends its agent's running process.
+  Before, the process ran on with no way to reach, stop or list it. An
+  agent another open workspace still names keeps running; reopening the
+  workspace and slinging again resumes the agent's conversation.
 - **App:** a trackpad works on a canvas. Its presses and drags did nothing
   there: the Mac marks them as touches, and slinger took every touch for a
   palm on a tablet display. A touch is now a palm only while a tablet pen
