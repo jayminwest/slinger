@@ -137,6 +137,14 @@ pub fn text_size(text: &str, columns: usize, size: f64) -> (f64, f64) {
     (cells(longest) * size * CELL, cells(rows.len()) * size)
 }
 
+/// The width, in canvas units, that `text` drawn at `size` in a frame `w`
+/// wide fills: its longest row's cells. No more than `w` when `w` holds a
+/// character; a frame narrower draws the text unwrapped.
+#[must_use]
+pub(crate) fn text_drawn_width(text: &str, w: f64, size: f64) -> f64 {
+    text_size(text, raster::columns(w, size), size).0
+}
+
 /// The frame size, in canvas units, that text drawn at `size` in a frame
 /// `w` by `h` has. A frame at least a character wide and with a height is kept as it
 /// is. One with no height keeps its width and gets the height of the text

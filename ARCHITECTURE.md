@@ -613,13 +613,19 @@ mirror/clip.rs  the selection's items on the clipboard: their file objects
              arrow still bound to the items pasted before it; plain text
              alone reads as one text item (`text_items`). Pure.
 canvases.rs  the canvas panes: one follower and mirror per page shown, each
-             pane's page, viewport and last scene (kept on screen until a
-             page turned to arrives); the pen's ink, the eraser's and
+             pane's view (canvases/view.rs); the pen's ink, the eraser's and
              lasso's work and the text, box and arrow tools' over each page,
              and the outbox they share. A selection no pane shows clears.
              A press on a canvas closes the open entry (the sling's, the
              feedback's, a page's new name's), but one on a button sends
              the sling's.
+canvases/view.rs  each canvas pane's view: page, viewport, trail, reader
+             column and last scene (kept on screen until a page of the same
+             canvas turned to arrives), by pane id and per workspace. A
+             view is for one canvas: a pane that shows another starts again
+             and draws nothing until its page comes. Another workspace's
+             views are parked and come back as left; a switch ends what was
+             under way in a pane (the pen, a page question, a first tap).
 canvases/live.rs  the live items' pages: each showing a pane draws fetched
              once on a thread of its own, put over its item; a press on an
              item whose page shows goes to the page unless it grabs the
@@ -761,7 +767,10 @@ commands.rs  key commands: the closed list of commands, the chord parser
 panes.rs     the window's panes: what each shows (a canvas or an agent UI, by
              name), how they tile (a layout::Tree), the one focused pane and
              the pane commands. `follow` builds them from the server's pane
-             tree, focus kept by number; the pane commands' one dispatch
+             tree, each pane's PaneId the server's id (build order for a
+             daemon with no ids), and knows the workspace (`of`). Focus
+             is per workspace (shared.rs `follow`): on the same pane, else
+             the pane at its number; back in a workspace, where it was; the pane commands' one dispatch
              (`command`); `focus_at` focuses the pane under a press. Always one pane at least. Pure.
 scene.rs     decides what the window shows: each pane's placeholder, an
              agent UI pane's page (a Web) or its name and why it cannot
@@ -1198,7 +1207,8 @@ layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
              opens (at the pen, kept inside the window; each cell at least
              28 pt high, what a pen taps). Pure. 100% coverage floor.
 layout/tree.rs  the pane tree: binary splits with ratios to rectangles (no
-             negative or oversized one at any size), split, close (the sibling
+             negative or oversized one at any size), split (with a given id,
+             `split_as`; its own ids above the highest), close (the sibling
              takes the space), grow, next, and the pane beside one in a
              direction. Pure.
 layout/tree/divider.rs  the dividers between panes: each named by the pane
@@ -1374,8 +1384,10 @@ so what the user did while the daemon is down survives a quit. Each keeps
 the ink's key it had, so a kept change naming an item a kept stroke adds
 (by an id of the ink's own) is renamed to that stroke's id in the new run
 (`Ink::resume`). A pane waiting for the page a kept page add makes is
-kept with it (`turning`, by `PaneId::number`, which the same layout gives
-the same pane again) and turns to the page once it is added. One app at a
+kept with it (`turning`, by `PaneId::number`, the server's pane id, which
+stays while the pane is open; a file from an older build may name a pane
+by its place, and at worst that pane does not turn) and turns to the page
+once it is added. One app at a
 time keeps the file: it holds a lock on
 `unsent-ink.json.lock` while it runs, and a second app started beside it
 keeps nothing and says so, rather than write over the first's changes. Every `canvas_apply` goes

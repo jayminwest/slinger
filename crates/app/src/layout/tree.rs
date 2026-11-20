@@ -30,9 +30,10 @@ pub enum Direction {
 pub struct PaneId(u32);
 
 impl PaneId {
-    /// The pane's id as a number, to keep on disk (slinger-857848): a tree
-    /// built the same way (the same layout followed) gives each of its panes
-    /// the same number, so [`PaneId::numbered`] names the same pane again.
+    /// The pane's id as a number, to keep on disk (slinger-857848). A pane
+    /// the server keeps has the server's id ([`Tree::split_as`]), which
+    /// stays while the pane is open, so [`PaneId::numbered`] names the same
+    /// pane again after a restart.
     pub fn number(self) -> u32 {
         self.0
     }
@@ -68,11 +69,16 @@ enum Node {
 impl Default for Tree {
     /// One pane.
     fn default() -> Self {
-        Self { root: Node::Pane(PaneId(0)), next: 1 }
+        Self::single(PaneId(0))
     }
 }
 
 impl Tree {
+    /// One pane, `id`; panes split from it get ids above it.
+    pub fn single(id: PaneId) -> Self {
+        Self { root: Node::Pane(id), next: id.0.saturating_add(1) }
+    }
+
     /// Every pane, in order: depth first, the first side of a split before
     /// the second (left before right, top before bottom).
     pub fn panes(&self) -> Vec<PaneId> {
@@ -103,15 +109,22 @@ impl Tree {
     /// [`Tree::split`], with `ratio` of the space to `at`, held in the
     /// ratio's limits.
     pub fn split_by(&mut self, at: PaneId, axis: Axis, ratio: f64) -> Option<PaneId> {
-        if self.panes().len() >= MAX_PANES {
+        self.split_as(at, axis, ratio, PaneId(self.next))
+    }
+
+    /// [`Tree::split_by`], giving the new pane the id `new` (the server's).
+    /// Later splits give ids above the highest given. `None` also when a
+    /// pane in the tree has that id already.
+    pub fn split_as(&mut self, at: PaneId, axis: Axis, ratio: f64, new: PaneId) -> Option<PaneId> {
+        let panes = self.panes();
+        if panes.len() >= MAX_PANES || panes.contains(&new) {
             return None;
         }
-        let new = PaneId(self.next);
         let leaf = self.root.leaf_mut(at)?;
         let (first, second) = (Box::new(Node::Pane(at)), Box::new(Node::Pane(new)));
         let ratio = if ratio.is_finite() { ratio.clamp(MIN_RATIO, 1.0 - MIN_RATIO) } else { 0.5 };
         *leaf = Node::Split { axis, ratio, first, second };
-        self.next += 1;
+        self.next = self.next.max(new.0.saturating_add(1));
         Some(new)
     }
 

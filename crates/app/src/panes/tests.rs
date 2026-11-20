@@ -117,10 +117,52 @@ fn follows_the_servers_tree_with_focus_on_a_number() {
     assert_eq!(rects[3], Rect { x: 520.0, y: 300.0, width: 280.0, height: 300.0 });
     assert_eq!(Panes::follow(&tree, 0).number(), 1);
     assert_eq!(Panes::follow(&tree, 99).number(), 4);
-    assert_eq!(
-        Panes::follow(&leaf(1, PaneKind::Ui, "x"), 1),
-        Panes::new(Pane { kind: Kind::Ui, name: "x".into() })
-    );
+    let one = Panes::follow(&leaf(1, PaneKind::Ui, "x"), 1);
+    assert_eq!(shown(&one), shown(&Panes::new(Pane { kind: Kind::Ui, name: "x".into() })));
+}
+
+fn ids(panes: &Panes) -> Vec<u32> {
+    panes.place(AREA).iter().map(|(id, ..)| id.number()).collect()
+}
+
+#[test]
+fn each_pane_has_the_servers_id_so_a_close_moves_no_other() {
+    let keyed = |first, second| {
+        let a = PaneTree::Pane(Shown {
+            pane: 1,
+            id: first,
+            kind: PaneKind::Canvas,
+            target: "a".into(),
+        });
+        let b = PaneTree::Pane(Shown {
+            pane: 2,
+            id: second,
+            kind: PaneKind::Canvas,
+            target: "b".into(),
+        });
+        split(PaneSplit::Row, 0.5, a, b)
+    };
+    assert_eq!(ids(&Panes::follow(&keyed(4, 7), 1)), [4, 7]);
+    let closed =
+        PaneTree::Pane(Shown { pane: 1, id: 7, kind: PaneKind::Canvas, target: "b".into() });
+    assert_eq!(ids(&Panes::follow(&closed, 1)), [7], "b keeps its id as it becomes pane 1");
+    assert_eq!(ids(&Panes::follow(&keyed(0, 0), 1)), [0, 1], "an older daemon: by build order");
+    assert_eq!(ids(&Panes::follow(&keyed(3, 3), 1)), [0, 1], "one id twice: by build order");
+    let mut panes = Panes::follow(&keyed(4, 7), 1);
+    panes.split(Axis::Row);
+    assert_eq!(ids(&panes), [4, 8, 7], "the window's own split takes an id above the server's");
+}
+
+#[test]
+fn panes_know_their_workspace_and_focus_goes_to_an_id_they_hold() {
+    let mut panes = Panes::follow(&three(), 1);
+    assert_eq!(panes.workspace(), None);
+    let two = panes.place(AREA)[1].0;
+    assert!(panes.focus_on(two));
+    assert_eq!(panes.number(), 2);
+    assert!(!panes.focus_on(PaneId::numbered(99)), "no such pane: focus stays");
+    assert_eq!(panes.focus(), two);
+    assert_eq!(panes.of("w").workspace(), Some("w"));
 }
 
 #[test]

@@ -35,6 +35,7 @@ mod reader;
 mod seek;
 mod start;
 mod step;
+mod view;
 
 use std::borrow::Cow;
 use std::rc::Rc;
@@ -43,7 +44,7 @@ use slinger_control::Client;
 
 use crate::backend::{Flick, Follower, Outbox, Problem, Slinger, Wake, run};
 use crate::config::{Rgb, Theme};
-use crate::layout::{PaneId, Point, Rect, Size, Viewport};
+use crate::layout::{PaneId, Point, Rect, Size};
 use crate::mirror::Mirror;
 use crate::panes::{Kind, Panes};
 use crate::scene::crop::Crop;
@@ -60,6 +61,7 @@ use crate::scene::tools::Tool;
 use crate::scene::{CanvasPane, canvas};
 use crate::trace::Paged;
 use find::{canvas_of, find, matches, pane_shown, to_canvas, wanted};
+use view::{View, Views};
 
 mod dictation;
 mod feedback;
@@ -72,7 +74,7 @@ mod status;
 pub struct Canvases {
     daemon: Client,
     open: Vec<Open>,
-    views: Vec<(PaneId, View)>,
+    views: Views,
     ink: Ink,
     select: Select,
     shapes: Shapes,
@@ -137,26 +139,6 @@ struct Open {
     paged: Option<Paged>,
 }
 
-/// One canvas pane: where it looks, the page it shows (by canvas and page
-/// id; the first page without one), and what it last drew.
-struct View {
-    viewport: Viewport,
-    page: Option<(String, String)>,
-    last: Option<Rc<canvas::Scene>>,
-    /// In reader mode, the column fitted and the screen it was fitted to.
-    reader: Option<(Rect, Size)>,
-    /// The boxes it is inside ([`step`]).
-    trail: step::Trail,
-}
-
-impl Default for View {
-    /// A new pane's view: at the start, on the first page, nothing drawn.
-    fn default() -> Self {
-        let trail = step::Trail::default();
-        Self { viewport: Viewport::start(), page: None, last: None, reader: None, trail }
-    }
-}
-
 impl Canvases {
     /// None followed yet, and news waits for the timer: a test's.
     #[cfg(test)]
@@ -171,7 +153,7 @@ impl Canvases {
         let (outbox, slinger) =
             (Outbox::start(daemon.clone(), &wake), Slinger::start(daemon.clone(), None, &wake));
         let (ink, select, sling) = (Ink::named(run()), Select::default(), Sling::default());
-        let (open, views) = (Vec::new(), Vec::new());
+        let (open, views) = (Vec::new(), Views::default());
         let (shapes, asks, turning) = (Shapes::default(), Pages::default(), Vec::new());
         let (pen, unshown, lives) = (None, None, live::Lives::start(daemon.clone(), &wake));
         let pdfs = pdf::Pdfs::start(daemon.clone(), crate::backend::pdf::cache(), &wake);
@@ -317,25 +299,40 @@ impl Canvases {
     }
 
     fn view(&mut self, pane: PaneId) -> &mut View {
-        let at = self.views.iter().position(|(p, _)| *p == pane).unwrap_or_else(|| {
-            self.views.push((pane, View::default()));
-            self.views.len() - 1
-        });
-        &mut self.views[at].1
+        self.views.get(pane)
+    }
+
+    /// The panes now are another workspace's: what was under way in a pane
+    /// of the one left ends. A stroke is kept; the rest is let go.
+    fn switched(&mut self) {
+        if self.pen.take().is_some() {
+            self.ink.up(None);
+            self.unshown = None;
+        }
+        self.handle = None;
+        self.asks.cancel();
+        self.steps.switched();
     }
 
     /// The scene of each canvas pane of `panes` laid in `area` whose page
-    /// has arrived; a pane turned to a page still on its way keeps what it
-    /// drew. Starts following each page a pane shows, stops following the
-    /// others, forgets the views of panes that closed, and clears a
-    /// selection no pane shows. Each pane's pointer is the arrow: the
-    /// window decides it from the pen.
+    /// has arrived; a pane turned to a page of its canvas still on its way
+    /// keeps what it drew, and one whose canvas or workspace changed draws
+    /// nothing until its page comes ([`view`]). Starts following each page
+    /// a pane shows, stops following the others, forgets the views of
+    /// panes that closed, and clears a selection no pane shows. Each pane's
+    /// pointer is the arrow: the window decides it from the pen.
     pub fn show(&mut self, panes: &Panes, area: Rect, theme: &Theme) -> Vec<CanvasPane> {
+        if self.views.within(panes.workspace()) {
+            self.switched();
+        }
         // A canvas pane's canvas is what its footer leaves of it.
         let placed: Vec<_> = (panes.place(area).into_iter())
             .filter(|(_, p, _)| p.kind == Kind::Canvas)
             .map(|(id, p, frame)| (id, p, crate::scene::status::content(frame)))
             .collect();
+        for (id, pane, _) in &placed {
+            self.views.get(*id).on(&pane.name);
+        }
         let shown: Vec<(&str, Option<String>)> = placed
             .iter()
             .map(|(id, p, _)| {
@@ -366,7 +363,7 @@ impl Canvases {
                 });
             }
         }
-        self.views.retain(|(id, _)| placed.iter().any(|(p, _, _)| p == id));
+        self.views.keep(&placed.iter().map(|(id, ..)| *id).collect::<Vec<_>>());
         self.clear_hidden_selection(&shown);
         // A selection may hold hidden items on a page a pane is inside a box of.
         let inside: Vec<(String, String)> =
@@ -377,12 +374,7 @@ impl Canvases {
             let mirror = open.and_then(|o| o.mirror.as_ref());
             let marks = mirror.and_then(|m| self.peek_in(id, (&*pane.name, m.page())));
             let screen = Size { width: frame.width, height: frame.height };
-            let at = self.views.iter().position(|(p, _)| *p == id);
-            let at = at.unwrap_or_else(|| {
-                self.views.push((id, View::default()));
-                self.views.len() - 1
-            });
-            let view = &mut self.views[at].1;
+            let view = self.views.get(id);
             view.read(&pane.name, mirror.map(Mirror::items), screen);
             let Some(mirror) = mirror else {
                 if let Some(last) = &view.last {
