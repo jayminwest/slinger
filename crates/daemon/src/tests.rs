@@ -17,6 +17,7 @@ mod canvas;
 mod edit;
 mod feed;
 mod feedback;
+mod fold;
 mod import;
 mod listen;
 mod live;
