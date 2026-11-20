@@ -2,7 +2,7 @@
 
 use serde_json::Value;
 
-use super::{Run, cli_on, cli_raw, json, with_daemon_running};
+use super::{Run, cli_on, cli_raw, json, wait_lines, with_daemon_running};
 use crate::output::exit;
 
 #[test]
@@ -16,7 +16,7 @@ fn a_sling_goes_to_a_listener_that_is_there_or_to_the_running_agent_quietly() {
     let stroke =
         r#"{"op":"add","item":{"page":"p1","kind":"stroke","width":20,"pts":[0,0,100,50]}}"#;
     let path = dir.to_str().unwrap();
-    let runs = with_daemon_running(|socket| {
+    let (runs, sent) = with_daemon_running(|socket| {
         let mut runs = vec![
             cli_on(socket, &["workspace", "open", path]),
             cli_on(socket, &["canvas", "apply", "notes", stroke]),
@@ -33,7 +33,7 @@ fn a_sling_goes_to_a_listener_that_is_there_or_to_the_running_agent_quietly() {
         runs.push(cli_raw(socket, &args, b"what is this?", &mut Vec::new()));
         runs.push(cli_on(socket, &["sling", "send", "notes", "--json"]));
         runs.push(cli_on(socket, &["sling", "send", "nowhere"]));
-        runs
+        (runs, wait_lines(&dir.join("in.txt"), 1))
     });
     let codes: Vec<u8> = runs.iter().map(|r| r.code).collect();
     assert_eq!(codes, [0, 0, 0, 0, 0, 0, 0, exit::NOT_FOUND, 0, 0, 0, 0, exit::NOT_FOUND]);
@@ -43,8 +43,7 @@ fn a_sling_goes_to_a_listener_that_is_there_or_to_the_running_agent_quietly() {
     let slung = json(&runs[11]);
     assert_eq!((&slung["command"], &slung["strokes"]), (&"sling send".into(), &0.into()));
     assert_eq!((&slung["agent"], &slung["deliver"]), (&"scout".into(), &"process".into()));
-    let sent = std::fs::read_to_string(dir.join("in.txt")).unwrap();
-    let first: Value = serde_json::from_str(sent.lines().next().unwrap()).unwrap();
+    let first: Value = serde_json::from_str(&sent[0]).unwrap();
     let blocks = first["message"]["content"].as_array().unwrap();
     let text = blocks.iter().filter_map(|b| b["text"].as_str()).collect::<String>();
     assert!(text.starts_with("slinger-sling 1 canvas=notes selected=c1\n"), "{text}");

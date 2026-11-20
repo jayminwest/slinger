@@ -89,8 +89,9 @@ impl Shared {
     /// Takes the server's newest layout, or the problem asking for it: the
     /// panes follow it. In the same workspace focus stays on the same pane,
     /// or, when it closed, goes to the pane now at its number; in another,
-    /// it goes to the pane that had it there last, else the first, and the
-    /// page menu closes.
+    /// it goes to the pane that had it there last in this run, else the one
+    /// the daemon kept it on (`focus`), else the first, and the page menu
+    /// closes.
     pub fn follow(&mut self, news: Result<PaneLayout, Problem>) {
         let layout = match news {
             Ok(layout) => layout,
@@ -99,14 +100,22 @@ impl Shared {
         let name = layout.workspace.as_str();
         let left = self.panes.workspace().filter(|w| *w != name).map(str::to_string);
         let (number, focus) = (self.panes.number(), self.panes.focus());
+        let first =
+            self.panes.workspace().is_none() && !self.focused.iter().any(|(w, _)| w == name);
         let mut panes = if let Some(left) = left {
             self.focused.retain(|(w, _)| *w != left);
             self.focused.push((left, focus));
             self.menu = PageMenu::default();
             let mut panes = Panes::follow(&layout.layout, 1);
-            if let Some(&(_, was)) = self.focused.iter().find(|(w, _)| w == name) {
+            let was = self.focused.iter().find(|(w, _)| w == name).map(|&(_, was)| was);
+            if let Some(was) = was.or(layout.focus.map(layout::PaneId::numbered)) {
                 panes.focus_on(was);
             }
+            panes
+        } else if let Some(kept) = layout.focus.filter(|_| first) {
+            // The first layout of this run: focus where the daemon kept it.
+            let mut panes = Panes::follow(&layout.layout, number);
+            panes.focus_on(layout::PaneId::numbered(kept));
             panes
         } else {
             Panes::follow(&layout.layout, number)

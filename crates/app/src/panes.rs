@@ -9,7 +9,7 @@
 //! keeps per pane (its view) stays with it when others open or close. Focus
 //! is the window's own.
 
-use slinger_control::{PaneKind, PaneSplit, PaneTree};
+use slinger_control::{PaneKind, PaneSplit, PaneTree, PaneView};
 
 use crate::commands::Command;
 use crate::layout::{Axis, Direction, Divider, PaneId, Point, Rect, Tree};
@@ -44,6 +44,8 @@ pub struct Panes {
     /// The workspace the server keeps these panes for; `None` for the
     /// window's own.
     workspace: Option<String>,
+    /// Where the server kept each pane looking, for those it kept a view of.
+    kept: Vec<(PaneId, PaneView)>,
 }
 
 impl Panes {
@@ -51,7 +53,7 @@ impl Panes {
     pub fn new(pane: Pane) -> Self {
         let tree = Tree::default();
         let focus = tree.panes()[0];
-        Self { tree, shows: vec![(focus, pane)], focus, workspace: None }
+        Self { tree, shows: vec![(focus, pane)], focus, workspace: None, kept: Vec::new() }
     }
 
     /// The panes the server keeps, each with the server's id, with focus on
@@ -63,7 +65,8 @@ impl Panes {
         let keyed = ids.iter().enumerate().all(|(at, &id)| id > 0 && !ids[..at].contains(&id));
         let tree = if keyed { Tree::single(PaneId::numbered(ids[0])) } else { Tree::default() };
         let root = tree.panes()[0];
-        let mut panes = Self { tree, shows: Vec::new(), focus: root, workspace: None };
+        let (shows, kept) = (Vec::new(), Vec::new());
+        let mut panes = Self { tree, shows, focus: root, workspace: None, kept };
         panes.build(root, layout, keyed);
         let order = panes.tree.panes();
         let at = (focus.max(1) as usize).min(order.len());
@@ -81,6 +84,7 @@ impl Panes {
                     PaneKind::Ui => Kind::Ui,
                 };
                 self.shows.push((at, Pane { kind, name: pane.target.clone() }));
+                self.kept.extend(pane.view.clone().filter(|_| keyed).map(|view| (at, view)));
             }
             PaneTree::Split { split, ratio, first, second } => {
                 let axis = match split {
@@ -104,6 +108,11 @@ impl Panes {
     /// These panes, as the server keeps them for `workspace`.
     pub fn of(self, workspace: &str) -> Self {
         Self { workspace: Some(workspace.to_string()), ..self }
+    }
+
+    /// Where the server kept pane `id` looking, if it kept that.
+    pub fn kept(&self, id: PaneId) -> Option<&PaneView> {
+        self.kept.iter().find(|(p, _)| *p == id).map(|(_, view)| view)
     }
 
     /// The workspace the server keeps these panes for; `None` for the

@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** each pane opens on the page, pan and zoom you left it at, and
+  the focus comes back to the pane that had it: after a workspace switch,
+  a relaunch of the app or a restart of slingerd. The app saves where you
+  look a moment after you stop moving, on a switch and at quit; an older
+  slingerd simply keeps nothing.
+
 - **App:** Zoom to fit (cmd+9, the palette or the Canvas menu) zooms and
   pans the focused pane so its whole page shows, at 100% or less; inside a
   box it fits the box. A canvas a pane has not shown before opens the same
@@ -23,8 +29,7 @@ bullet with the area in bold.
   verb. Every pane reply carries them, so they survive a restart and a
   workspace closed and opened again; a pane opened beside another on the
   same canvas starts where that one looks. The workspace file is not
-  written. `slinger pane list --json` shows them. The app uses them in a
-  coming step.
+  written. `slinger pane list --json` shows them.
 - **App:** after an update, slinger.app notices a slingerd of another
   build and offers to restart it: a notice names both builds and how many
   running agents a restart would end, and "Restart slingerd" (the notice,
@@ -642,6 +647,13 @@ bullet with the area in bold.
   instead of "No agent in this workspace": a sling goes to the agent of
   its canvas's workspace, and a PDF's canvas belongs to none. Any other
   canvas no open workspace has says so too.
+- **App:** the key overlay (cmd+/) no longer cuts titles and keys short in
+  a window of the default width ("Close workspace", "Focus pane left",
+  "Remove page", "Restart agent in a new conversation", "Select a word, a
+  row"). Each column is as wide as its longest row needs; a narrower
+  window shows fewer columns instead.
+- **App:** dictation reaches Flick at a `$FLICK_SOCKET` path of any
+  length; one over 103 bytes no longer fails to connect.
 - **CLI, daemon:** `slingerd --socket` and `slinger --socket` take a path
   of any length. A path over 103 bytes (a deep scratch folder, say) no
   longer fails with "path must be shorter than SUN_LEN"; the app reaches

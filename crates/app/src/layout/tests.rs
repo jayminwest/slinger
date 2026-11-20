@@ -389,3 +389,16 @@ fn a_view_opens_at_the_start_when_that_shows_all_the_content_else_it_fits() {
     let above = rect(0.0, -40.0, 10.0, 10.0);
     assert_eq!(Viewport::opening(Some(above), SCREEN), Viewport::fitting(above, SCREEN));
 }
+
+#[test]
+fn a_kept_view_comes_back_with_its_zoom_held_and_bad_numbers_start_again() {
+    let origin = Point { x: 120.0, y: -40.0 };
+    let kept = Viewport::kept(origin, 1.5);
+    assert_eq!((kept.origin(), kept.zoom()), (origin, 1.5));
+    assert_eq!(Viewport::kept(origin, 99.0).zoom(), MAX_ZOOM);
+    assert_eq!(Viewport::kept(origin, 0.001).zoom(), MIN_ZOOM);
+    for (x, zoom) in [(f64::NAN, 1.0), (0.0, f64::INFINITY), (0.0, 0.0), (0.0, -2.0)] {
+        assert_eq!(Viewport::kept(Point { x, y: 0.0 }, zoom), Viewport::start());
+    }
+    assert_eq!(Viewport::kept(Point { x: 0.0, y: f64::NAN }, 1.0), Viewport::start());
+}

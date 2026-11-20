@@ -15,7 +15,7 @@
 //! ([`fixed`]): the caret keys of a typed text and the pans, rows with no
 //! target.
 
-use crate::commands::{Chord, Command, Group, Keymap};
+use crate::commands::{Chord, Command, Keymap};
 use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect, Size};
 use crate::scene::Label;
@@ -23,7 +23,8 @@ use crate::scene::palette::Taken;
 use crate::scene::style;
 
 pub mod fixed;
-use fixed::Fixed;
+mod place;
+use place::{NOTE, SPACE, Section, TITLE, place, wide};
 
 /// A panel over the dimmed window, drawn over everything else.
 #[derive(Debug, Clone, PartialEq)]
@@ -79,10 +80,14 @@ impl Line {
     }
 }
 
-/// How wide a chip for `text` is: room for its glyphs and its padding.
+/// How wide a chip for `text` is: room for its glyphs, as the system font
+/// sets them, and its padding.
 pub fn chip_width(text: &str) -> f64 {
-    f64::from(u32::try_from(text.chars().count()).unwrap_or(u32::MAX)) * 9.0 + 14.0
+    wide(text, style::CHIP_TEXT) + CHIP_PAD
 }
+
+/// A chip's padding past its label, across.
+const CHIP_PAD: f64 = 8.0;
 
 /// A chip's height.
 pub const CHIP_HIGH: f64 = 20.0;
@@ -91,8 +96,9 @@ pub const CHIP_HIGH: f64 = 20.0;
 const OPACITY: f64 = 0.75;
 /// The least space between the panel and the window's edge.
 const MARGIN: f64 = 16.0;
-/// The panel's widest.
-const MAX_WIDTH: f64 = 840.0;
+/// The panel's width when its columns need no more (or the window's, less
+/// its margin, when narrower).
+const WIDTH: f64 = 840.0;
 /// The space inside the panel's edge: across (less in a narrow panel), and
 /// above and below.
 const PAD: f64 = 28.0;
@@ -118,153 +124,16 @@ const BAR: f64 = 3.0;
 /// What a row's chip says when the command has no key.
 const NO_KEY: &str = "no key";
 const CLOSE: &str = "✕";
-/// The most columns, and the least width of one: room for the longest
-/// title and its chip.
+/// The panel's title.
+const KEYS: &str = "Keys";
+/// The most columns, and the least width of one (each is as wide as its
+/// widest row needs, [`place::widths`]).
 const COLUMNS: u32 = 3;
 const MIN_COLUMN: f64 = 220.0;
 
 const ESCAPE: Chord = Chord::new(0, '\u{1b}');
 const UP: Chord = Chord::new(0, '\u{f700}');
 const DOWN: Chord = Chord::new(0, '\u{f701}');
-
-/// The commands of `group`, in the registry's order.
-fn commands(group: Group) -> impl Iterator<Item = Command> {
-    Command::ALL.into_iter().map(|(c, _)| c).filter(move |c| c.group() == group)
-}
-
-/// A heading and its rows: a group's commands, or fixed keys.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Section {
-    Commands(Group),
-    Fixed(&'static Fixed),
-}
-
-impl Section {
-    /// Every section, in order: the groups, then the fixed keys.
-    fn all() -> Vec<Section> {
-        let groups = Group::ALL.into_iter().map(Section::Commands);
-        groups.chain(fixed::ALL.into_iter().map(Section::Fixed)).collect()
-    }
-
-    fn title(self) -> &'static str {
-        match self {
-            Section::Commands(group) => group.title(),
-            Section::Fixed(fixed) => fixed.title,
-        }
-    }
-
-    fn rows(self) -> usize {
-        match self {
-            Section::Commands(group) => commands(group).count(),
-            Section::Fixed(fixed) => fixed.rows.len(),
-        }
-    }
-}
-
-/// How tall a section is: its heading and its rows.
-fn tall(section: Section) -> f64 {
-    HEADING + ROW * f64::from(u32::try_from(section.rows()).unwrap_or(u32::MAX))
-}
-
-/// How many columns fit across `width` with `gap` between two: the most,
-/// up to [`COLUMNS`], that keeps each at least [`MIN_COLUMN`] wide, and
-/// never fewer than one.
-fn columns(width: f64, gap: f64) -> u32 {
-    let wide = |n: u32| f64::from(n) * MIN_COLUMN + f64::from(n - 1) * gap;
-    (1..=COLUMNS).rev().find(|&n| wide(n) <= width).unwrap_or(1)
-}
-
-/// `groups`, in order, cut into at most `n` runs, a column each, so the
-/// tallest column is as short as it can be (the earliest cut on a tie):
-/// the tallest's height, and the columns.
-fn split(groups: &[Section], n: u32) -> (f64, Vec<Vec<Section>>) {
-    let high = |run: &[Section]| run.iter().map(|&g| tall(g) + GROUP_GAP).sum::<f64>() - GROUP_GAP;
-    let whole = (high(groups), vec![groups.to_vec()]);
-    if n <= 1 {
-        return whole;
-    }
-    (1..groups.len()).fold(whole, |best, cut| {
-        let (first, rest) = groups.split_at(cut);
-        let (tallest, mut runs) = split(rest, n - 1);
-        runs.insert(0, first.to_vec());
-        let next = (high(first).max(tallest), runs);
-        if next.0 < best.0 { next } else { best }
-    })
-}
-
-/// Where the overlay's parts sit in a window, scrolled.
-struct Place {
-    panel: Rect,
-    /// The ✕ that closes it, at the header's right.
-    close: Rect,
-    /// Where the rows show; a row not wholly in it is not shown.
-    body: Rect,
-    /// How far the rows are scrolled, and the most they can be.
-    scroll: f64,
-    most: f64,
-    /// Each section's heading, each command's row and each fixed row,
-    /// where they are now.
-    headings: Vec<(Section, Rect)>,
-    rows: Vec<(Command, Rect)>,
-    fixed: Vec<(&'static fixed::Row, Rect)>,
-}
-
-/// The panel in a window of `size`, centred, as tall as its rows or the
-/// window allows, with its rows scrolled by `scroll` (kept in range). Its
-/// groups fill as many columns as fit, left to right.
-fn place(size: Size, scroll: f64) -> Place {
-    let width = (size.width - 2.0 * MARGIN).clamp(0.0, MAX_WIDTH);
-    let (pad, gap) = if width < 600.0 { (NARROW_PAD, NARROW_GAP) } else { (PAD, GAP) };
-    let across = (width - 2.0 * pad).max(0.0);
-    let n = columns(across, gap);
-    let (content, runs) = split(&Section::all(), n);
-    let room = (size.height - 2.0 * MARGIN).max(0.0);
-    let height = (2.0 * PAD_Y + HEADER + UNDER_HEADER + content).min(room);
-    let (x, y) = ((size.width - width) / 2.0, (size.height - height) / 2.0);
-    let panel = Rect { x, y, width, height };
-    let close = Rect { x: x + width - pad / 2.0 - ROW, y: y + PAD_Y, width: ROW, height: HEADER };
-    let top = y + PAD_Y + HEADER + UNDER_HEADER;
-    let body_high = (y + height - PAD_Y - top).max(0.0);
-    let body = Rect { x: x + pad, y: top, width: across, height: body_high };
-    let most = (content - body.height).max(0.0);
-    let scroll = scroll.clamp(0.0, most);
-    let column = ((body.width - gap * f64::from(n - 1)) / f64::from(n)).max(0.0);
-    let (mut headings, mut rows, mut fixed) = (Vec::new(), Vec::new(), Vec::new());
-    for (x, sections) in (0_u32..).map(|i| body.x + f64::from(i) * (column + gap)).zip(runs) {
-        let mut y = body.y - scroll;
-        for section in sections {
-            headings.push((section, Rect { x, y, width: column, height: HEADING }));
-            y += HEADING;
-            let mut next = || {
-                y += ROW;
-                Rect { x, y: y - ROW, width: column, height: ROW }
-            };
-            match section {
-                Section::Commands(group) => rows.extend(commands(group).map(|c| (c, next()))),
-                Section::Fixed(keys) => fixed.extend(keys.rows.iter().map(|r| (r, next()))),
-            }
-            y += GROUP_GAP;
-        }
-    }
-    Place { panel, close, body, scroll, most, headings, rows, fixed }
-}
-
-impl Place {
-    /// Whether `frame` is wholly in the body: it shows.
-    fn shows(&self, frame: Rect) -> bool {
-        let end = self.body.y + self.body.height + 0.5;
-        frame.y >= self.body.y - 0.5 && frame.y + frame.height <= end
-    }
-
-    /// The row, shown, whose target holds `at`: the row, reaching past
-    /// its text on either side.
-    fn row_at(&self, at: Point) -> Option<Command> {
-        let target =
-            |frame: Rect| Rect { x: frame.x - REACH, width: frame.width + 2.0 * REACH, ..frame };
-        let mut shown = self.rows.iter().filter(|(_, frame)| self.shows(*frame));
-        shown.find(|(_, frame)| target(*frame).contains(at)).map(|&(command, _)| command)
-    }
-}
 
 /// A press on the panel, until the pen lifts: where it went down, where it
 /// is now, and whether it has moved far enough to scroll.
@@ -276,13 +145,15 @@ struct Held {
 }
 
 /// The key overlay: whether it is open, how far its rows are scrolled,
-/// where the pen is over it, and the press on it, if any.
+/// where the pen is over it, the press on it, if any, and how wide each
+/// section's rows are with the keys it last showed.
 #[derive(Debug, Default)]
 pub struct KeyOverlay {
     open: bool,
     scroll: f64,
     pointer: Option<Point>,
     held: Option<Held>,
+    widths: Vec<f64>,
 }
 
 impl KeyOverlay {
@@ -292,7 +163,11 @@ impl KeyOverlay {
 
     /// The `show-keys` command: opens the overlay at its top, or closes it.
     pub fn toggle(&mut self) {
-        *self = KeyOverlay { open: !self.open, ..KeyOverlay::default() };
+        *self = KeyOverlay {
+            open: !self.open,
+            widths: std::mem::take(&mut self.widths),
+            ..KeyOverlay::default()
+        };
     }
 
     /// A key press while open: escape or the key `keys` gives `show-keys`
@@ -328,7 +203,7 @@ impl KeyOverlay {
         if !self.open {
             return Taken::No;
         }
-        let place = place(size, self.scroll);
+        let place = place(size, self.scroll, &self.widths);
         if !place.panel.contains(at) || place.close.contains(at) {
             self.toggle();
         } else {
@@ -346,7 +221,7 @@ impl KeyOverlay {
             let far = (at.x - held.from.x).hypot(at.y - held.from.y) > SLOP;
             held.dragged |= far;
             if held.dragged {
-                self.scroll = place(size, self.scroll + held.last.y - at.y).scroll;
+                self.scroll = place(size, self.scroll + held.last.y - at.y, &self.widths).scroll;
             }
             held.last = at;
         }
@@ -363,7 +238,7 @@ impl KeyOverlay {
             return Taken::No;
         }
         let Some(held) = self.held.take() else { return Taken::Yes };
-        let place = place(size, self.scroll);
+        let place = place(size, self.scroll, &self.widths);
         match place.row_at(held.from) {
             Some(command) if !held.dragged && place.row_at(at) == Some(command) => {
                 self.toggle();
@@ -379,7 +254,7 @@ impl KeyOverlay {
         if !self.open {
             return false;
         }
-        let place = place(size, self.scroll);
+        let place = place(size, self.scroll, &self.widths);
         let before = self.pointer.and_then(|p| place.row_at(p));
         self.pointer = Some(at);
         before != place.row_at(at)
@@ -389,14 +264,18 @@ impl KeyOverlay {
     /// rows follow it. True while open.
     pub fn scroll(&mut self, dy: f64, size: Size) -> bool {
         if self.open {
-            self.scroll = place(size, self.scroll - dy).scroll;
+            self.scroll = place(size, self.scroll - dy, &self.widths).scroll;
         }
         self.open
     }
 
     /// The open overlay in a window of `size`, in `theme`'s colours, with
-    /// the keys of `keys`; none when it is closed.
-    pub fn shown(&self, keys: &Keymap, theme: &Theme, size: Size) -> Option<Overlay> {
+    /// the keys of `keys`; none when it is closed. Its columns are as wide
+    /// as those keys need from now on, so a press finds the row it shows.
+    pub fn shown(&mut self, keys: &Keymap, theme: &Theme, size: Size) -> Option<Overlay> {
+        if self.open {
+            self.widths = place::widths(keys);
+        }
         self.open.then(|| self.overlay(keys, theme, size))
     }
 
@@ -405,17 +284,17 @@ impl KeyOverlay {
     /// shown row with the command's title and its key's chip; and, when the
     /// rows do not all fit, where the shown ones are among them.
     fn overlay(&self, keys: &Keymap, theme: &Theme, size: Size) -> Overlay {
-        let place = place(size, self.scroll);
+        let place = place(size, self.scroll, &self.widths);
         let panel = Line {
             edge: Some(style::edge(theme)),
             ..Line::fill(style::panel(theme), place.panel, style::PANEL_RADIUS)
         };
         let mut lines = vec![panel];
         let (x, y) = (place.body.x, place.panel.y + PAD_Y);
-        let title = Rect { x, y, width: place.body.width / 2.0, height: HEADER };
+        let title = Rect { x, y, width: wide(KEYS, 16.0) + SPACE, height: HEADER };
         lines.push(Line {
             bold: true,
-            ..Line::text("Keys".into(), theme.text, title, 16.0, Align::Left)
+            ..Line::text(KEYS.into(), theme.text, title, 16.0, Align::Left)
         });
         let mut note = String::from("from config.toml · esc");
         if let Some(chord) = keys.chord(Command::ShowKeys) {
@@ -456,12 +335,7 @@ impl KeyOverlay {
                 lines.extend(row(command, keys, theme, frame));
             }
         }
-        if place.most > 0.0 {
-            let body = place.body;
-            let high = body.height * body.height / (body.height + place.most);
-            let y = body.y + (body.height - high) * place.scroll / place.most;
-            let x = place.panel.x + place.panel.width - (body.x - place.panel.x) / 2.0 - BAR / 2.0;
-            let bar = Rect { x, y, width: BAR, height: high };
+        if let Some(bar) = place.bar() {
             lines.push(Line::fill(style::chip(theme), bar, BAR / 2.0));
         }
         Overlay { frame: size.rect(), dim: theme.background, opacity: OPACITY, lines }
@@ -474,16 +348,17 @@ fn row(command: Command, keys: &Keymap, theme: &Theme, frame: Rect) -> Vec<Line>
     labels(command.title(), keys.chord(command).map(Chord::glyphs), theme, frame)
 }
 
-/// A row in `frame`: `title`, then `key`'s chip at the right, or "no key".
+/// A row in `frame`: `title`, then `key`'s chip at the right, or "no key",
+/// as wide as it needs; the title has the rest.
 fn labels(title: &str, key: Option<String>, theme: &Theme, frame: Rect) -> Vec<Line> {
-    let wide = key.as_deref().map_or(chip_width(NO_KEY), chip_width).min(frame.width / 2.0);
-    let name = Rect { width: (frame.width - wide - 8.0).max(0.0), ..frame };
-    let mut lines = vec![Line::text(title.into(), theme.text, name, 13.0, Align::Left)];
+    let wide = place::key_wide(key.as_deref()).min(frame.width);
+    let name = Rect { width: (frame.width - wide - SPACE).max(0.0), ..frame };
+    let mut lines = vec![Line::text(title.into(), theme.text, name, TITLE, Align::Left)];
     let y = frame.y + (frame.height - CHIP_HIGH) / 2.0;
     let chip = Rect { x: frame.x + frame.width - wide, y, width: wide, height: CHIP_HIGH };
     lines.push(match key {
         Some(glyphs) => Line::chip(glyphs, theme, style::chip(theme), chip),
-        None => Line::text(NO_KEY.into(), theme.muted, chip, 12.0, Align::Right),
+        None => Line::text(NO_KEY.into(), theme.muted, chip, NOTE, Align::Right),
     });
     lines
 }
