@@ -186,13 +186,17 @@ workspace.rs workspaces (SPEC section 10): the definition file's format
 workspace/rules.rs  the rules: one workspace's (`Workspace::read` refuses
              with a `Rejected` that names the field) and a set's (`check`).
 workspace/panes.rs  a workspace's panes (SPEC section 7): the tree of panes
-             (a canvas or a UI each) and splits, numbered in order; open
-             beside a pane or the window, close (the sibling takes the
+             (a canvas or a UI each) and splits, numbered in order, each
+             pane with a stable id (`Pane::id`, never given again in the
+             layout; `Layout::next`); open beside a pane or the window
+             (the new pane takes the next id), close (the sibling takes the
              space; a pane already gone or the last one changes nothing),
              resize (the divider after a pane; none after the last), each
-             with the `pane_moved` it records, and the `[layout]` text
-             (version 1, `panes`). Workspace::panes reads it (one pane on the
-             canvas when unset or unreadable), set_panes stores it.
+             with the `pane_moved` it records. panes/text.rs owns the
+             `[layout]` text (version 2: `panes` with `@<id>` words and
+             `next`; version 1, no ids, still read with ids 1..n; ids are
+             repaired, never refused). Workspace::panes reads it (one pane on
+             the canvas when unset or unreadable), set_panes stores version 2.
 workspace/profile.rs  an agent's profiles (`[[agent.profile]]`): a name,
              a working directory and permission rules, each rule checked
              against the tools it knows (an unknown one is refused, never
@@ -288,7 +292,8 @@ server/profile.rs  `profile_list`, `profile_set`, `profile_remove`: the core
              resolved), and `Workspaces::edit` writes the file.
 server/pane.rs  `pane_list`, `pane_open`, `pane_close`, `pane_resize`: the canvas or UI a
              pane shows must exist; the core changes the layout; each change
-             appends its `pane_moved`, tagged with the workspace. `open` is
+             appends its `pane_moved`, tagged with the workspace. The reply
+             gives each pane its number and its core id. `open` is
              shared with `ui_open`.
 server/showing.rs  `ui_open`, `ui_shown`, `ui_reply`: an open checks all
              before it appends `ui_opened` and opens the pane, or, on a

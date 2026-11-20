@@ -38,7 +38,7 @@ machine = "server"
 path = "/srv/slinger-data"
 
 [layout]
-version = 1
+version = 2
 ```
 
 ## Fields
@@ -69,21 +69,38 @@ version = 1
 The server keeps the panes here and changes them with the pane verbs
 (`pane open`, `pane close`; docs/service.md, "Panes"), which the app uses
 too. The core module `crates/core/src/workspace/panes.rs` owns this text.
-Version 1 is `version = 1` and one string, `panes`: the pane tree in prefix
-order, words joined by one space. A pane is `canvas:<id>` or `ui:<name>`; a
-split is `row` (side by side) or `column` (stacked), the first side's share
-(0.1 to 0.9; a share past that is held in it), then its first side and its
-second. At most 64 panes. Focus is not kept: it is the window's own.
+Version 2 is `version = 2`, a string `panes` and an integer `next`. `panes`
+is the pane tree in prefix order, words joined by one space. A pane is
+`canvas:<id>@<pane id>` or `ui:<name>@<pane id>`; a split is `row` (side by
+side) or `column` (stacked), the first side's share (0.1 to 0.9; a share past
+that is held in it), then its first side and its second. At most 64 panes.
+Focus is not kept: it is the window's own.
+
+A pane's id is a number of 1 or more, unique in the layout. It stays while
+the pane is open, whatever opens, closes or moves around it, and is never
+given again in that layout: `next` is the id the next pane opened gets. An
+id that is missing, 0 or used by a pane before it gets a fresh one, and a
+missing or too small `next` becomes the highest id + 1, so a hand edit never
+makes the layout unreadable.
 
 ```toml
 [layout]
-version = 1
-panes = "row 0.6 canvas:main column 0.5 ui:board canvas:notes"
+version = 2
+next = 4
+panes = "row 0.6 canvas:main@1 column 0.5 ui:board@2 canvas:notes@3"
 ```
+
+Version 1 is the same text with no ids and no `next`. It is still read: its
+panes get ids 1, 2, 3 and on in order. The file is not written for that; the
+first change to the panes writes it as version 2, keeping the `[layout]`'s
+other fields.
 
 A layout that cannot be read (another version, or text that is not a tree)
 is one pane on the workspace's canvas. The first change to it replaces it
-with version 1. Other fields in a version 1 `[layout]` are kept.
+with version 2. An older slingerd, which reads only version 1, does the same
+with a version 2 layout: it shows one pane and replaces the layout at its
+next pane change. Upgrade every machine that shares a workspace file
+together.
 
 ## The agent's limits
 

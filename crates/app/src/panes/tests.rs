@@ -22,7 +22,7 @@ fn shown(panes: &Panes) -> (Vec<String>, usize) {
 
 /// A pane as the server sends it.
 fn leaf(pane: u32, kind: PaneKind, target: &str) -> PaneTree {
-    PaneTree::Pane(Shown { pane, kind, target: target.into() })
+    PaneTree::Pane(Shown { pane, id: pane, kind, target: target.into() })
 }
 
 fn split(split: PaneSplit, ratio: f64, first: PaneTree, second: PaneTree) -> PaneTree {
