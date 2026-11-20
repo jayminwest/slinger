@@ -1,7 +1,7 @@
 //! `slinger profile ...`, `session start --profile` and `sling send
 //! --profile` against a real daemon.
 
-use super::{cli_on, json, with_daemon_running};
+use super::{cli_on, json, wait_lines, with_daemon_running};
 use crate::output::exit;
 
 #[test]
@@ -15,9 +15,9 @@ fn profiles_are_set_listed_and_removed_and_a_session_starts_under_one() {
     let file = "version = 1\nname = \"notes\"\n[agent]\nname = \"scout\"\n";
     std::fs::write(dir.join("slinger-workspace.toml"), file).unwrap();
     let (path, src_path) = (dir.to_str().unwrap(), src.to_str().unwrap());
-    let runs = with_daemon_running(|socket| {
+    let (runs, sent) = with_daemon_running(|socket| {
         let run = |args: &[&str]| cli_on(socket, args);
-        vec![
+        let runs = vec![
             run(&["workspace", "open", path]),
             run(&["profile", "list", "notes"]),
             run(&[
@@ -42,7 +42,8 @@ fn profiles_are_set_listed_and_removed_and_a_session_starts_under_one() {
             run(&["session", "send", "notes", "hi"]),
             run(&["session", "show", "scout"]),
             run(&["sling", "send", "main", "--profile", "look"]),
-        ]
+        ];
+        (runs, wait_lines(&src.join("in.txt"), 1))
     });
     let codes: Vec<u8> = runs.iter().map(|r| r.code).collect();
     assert_eq!(
@@ -72,6 +73,5 @@ fn profiles_are_set_listed_and_removed_and_a_session_starts_under_one() {
     assert_eq!(removed["profiles"][0]["tools"][1], "Bash(git *)");
     assert!(runs[6].err.contains("Bash, Edit"), "{}", runs[6].err);
     assert!(runs[11].out.contains("\nprofile\tdev\n"), "{}", runs[11].out);
-    let sent = std::fs::read_to_string(src.join("in.txt")).unwrap();
-    assert!(sent.contains("\"hi\""), "the session runs in the profile's directory: {sent}");
+    assert!(sent[0].contains("\"hi\""), "the session runs in the profile's directory: {sent:?}");
 }
