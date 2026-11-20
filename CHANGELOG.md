@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** the key overlay (cmd+/) also lists the keys that are not
+  commands: under "Typing a text", the caret keys of a text you are typing
+  (arrows, word and row jumps, selection, deletes, the emacs keys, double
+  and triple tap), and under "Pointer", the pans by space-drag and the
+  middle or right button and the zoom at the pointer. The README has a
+  "Without a pen" section, and config.example.toml names these fixed keys.
 - **App:** start a text without a tap. New text (`new-text`, ctrl+return,
   Edit menu and the command palette) ends the text you are typing and
   starts the next half a line under it, so notes follow one another from
