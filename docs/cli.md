@@ -41,7 +41,7 @@ a "did you mean" suggestion.
 | `workspace list` | One line per open workspace, by name: name, canvas and directory, separated by tabs. A workspace whose file is broken has `-` for what its file does not say and a fourth field, `✗` and the error. `--json`: `workspaces` (a broken one with `error`: `code`, `message`, `hint`, `file`, `field`) |
 | `workspace show <WORKSPACE>` | One field per line, the name and the value separated by a tab: `name`, `tag`, `canvas`, `dir`, then `agent` (if any) and one `root` line per root, `machine:path`. `--json`: `workspace` |
 | `workspace close <WORKSPACE>` | Nothing. `--json`: `dir` |
-| `pane list <WORKSPACE>` | One line per pane, in order (left to right, top to bottom): number, kind (`canvas` or `ui`) and target, separated by tabs. `--json`: `workspace`, `layout`, `panes` |
+| `pane list <WORKSPACE>` | One line per pane, in order (left to right, top to bottom): number, kind (`canvas` or `ui`) and target, separated by tabs. `--json`: `workspace`, `layout`, `panes`; each pane in both has `pane` (its number), `id` (stays while it is open), `kind` and `target` |
 | `pane open <WORKSPACE> --type <canvas\|ui> --target <ID> [--beside PANE] [--below]` | The new pane's number. `--json`: `workspace`, `layout`, `panes`, `pane`, `event` |
 | `pane close <WORKSPACE> <PANE>` | Nothing. `--json`: `workspace`, `layout`, `panes`, `event` (absent when nothing changed) |
 | `pane resize <WORKSPACE> <PANE> <RATIO>` | Nothing. `--json`: `workspace`, `layout`, `panes`, `event` (absent when nothing changed) |
@@ -69,7 +69,7 @@ a "did you mean" suggestion.
 | `feedback path` | The feedback file's path. `--json`: `path` |
 | `daemon info` | One field per line, the name and the value separated by a tab: `version`, `build`, `protocol`, `pid`, `started_ms`, `exe`, `socket`, `data_dir`, `claude`, `slinger`, `log` (`-` for a path it has none of). `--json`: those fields (`claude`, `log` null when none) |
 | `daemon stop` | Nothing. `--json`: `pid` |
-| `drive [--app PATH] key <CHORD> [--text TEXT]`, `drive type <TEXT>...`, `drive press\|drag\|lift <X> <Y> [--tablet] [--shift] [--touch] [--eraser]`, `drive stroke <X,Y>... [--tablet] [--shift] [--touch] [--eraser]`, `drive move <X> <Y>`, `drive scroll <X> <Y> <DX> <DY>`, `drive zoom <X> <Y> <FACTOR>`, `drive run <NAME>`, `drive copy`, `drive cut`, `drive paste [TEXT]...`, `drive drop <X> <Y> <FILE>`, `drive tick` | `taken` or `passed` for each event, separated by spaces. `--json`: `said` |
+| `drive [--app PATH] key <CHORD> [--text TEXT]`, `drive type <TEXT>...`, `drive press\|drag\|lift <X> <Y> [--tablet] [--shift] [--touch] [--eraser]`, `drive stroke <X,Y>... [--tablet] [--shift] [--touch] [--eraser]`, `drive move <X> <Y>`, `drive scroll <X> <Y> <DX> <DY>`, `drive zoom <X> <Y> <FACTOR>`, `drive space [--up]`, `drive run <NAME>`, `drive copy`, `drive cut`, `drive paste [TEXT]...`, `drive drop <X> <Y> <FILE>`, `drive tick` | `taken` or `passed` for each event, separated by spaces. `--json`: `said` |
 | `drive [--app PATH] scene [--debug]` | What the driven window shows, one line per thing: its kind, its place `x,y wxh`, its colour and its text. `--json`: `said` |
 | `drive [--app PATH] shot <FILE>`, `drive clip`, `drive resize <W> <H>` | The PNG's path; the text last cut or copied; nothing. `--json`: `said` |
 | `guide` | The guide for agents: the ideas and the common tasks, then every command with its arguments and what it does. Needs no daemon. `--json`: `guide`, `commands` (`name`, `usage`, `about`) |
@@ -111,7 +111,10 @@ request, one line of JSON, and prints what the window said
 (`crates/app/src/drive.rs` reads the line). A request becomes the events
 the app hears for real input, with points in the window's points from its
 top left. A key the app passes on types its `--text` (by default its own
-character, and nothing with cmd or ctrl held). `drive run` takes a
+character, and nothing with cmd or ctrl held); while an entry (Find, the
+sling's prompt, Feedback) holds the keyboard, that text goes into its
+field. `drive space` holds the space bar down, as for a pan with the
+pointer, until `drive space --up`. `drive run` takes a
 command's name as the config file has it. `drive paste` with no text
 pastes what the driven window last cut or copied, which never touches the
 user's clipboard. No app on the socket exits 6 (`unavailable`); a request

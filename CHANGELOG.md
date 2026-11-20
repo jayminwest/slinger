@@ -11,6 +11,16 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** slinger.app holds `slingerd` and `slinger` beside the app, and
+  `scripts/bundle.sh --install` links `~/.local/bin/slingerd` and
+  `~/.local/bin/slinger` to them instead of copying a second set (it
+  replaces copies left by an older install). The bundle's build number
+  (About slinger) now counts commits.
+- **App:** slinger.app has an icon in the Dock, Finder and Spotlight (a
+  placeholder: a stroke slung to the top right).
+- **Daemon:** a `slingerd` started through a link finds the `slinger`
+  beside the program the link points to, for its agents' hooks.
+
 - **CLI:** `slinger daemon info` shows which slingerd answers: its version
   and build (the commit it was built from), pid, executable, socket, data
   directory, the Claude Code it would run and its log file.
@@ -30,8 +40,9 @@ bullet with the area in bold.
   SIGHUP: closing the terminal you started it from no longer stops it.
 - **Agents:** an agent can check the app itself. `slinger-app --drive
   <SOCKET>` starts the real app as a window that is never shown, on a
-  daemon of the agent's own, and `slinger drive` sends it keys, typing, pen
-  and mouse events, scrolls and commands, then reads back what the window
+  daemon of the agent's own, and `slinger drive` sends it keys, typing (into
+  a canvas text or an entry such as Find or Feedback), pen and mouse
+  events, scrolls, the space bar held for a pan, and commands, then reads back what the window
   shows as text (`drive scene`) or as a PNG (`drive shot`). It never
   touches your clipboard, your saved window or your own daemon. See
   `slinger guide`.
@@ -451,6 +462,15 @@ bullet with the area in bold.
 
 - **Canvas:** moving or erasing a selection on a large canvas is faster: a
   lasso move of 8 strokes on a 29 MB canvas takes about 13 ms, from 24 ms.
+- **Workspaces:** each pane now has an id that stays while it is open,
+  whatever opens, closes or resizes around it, and across a daemon restart:
+  `slinger pane list --json` and every pane reply carry it as `id`. Panes are
+  still named by their number. The workspace file stores the panes as
+  `[layout]` version 2 (`canvas:main@1`, and `next`); a version 1 layout
+  still opens as it was and is written as version 2 at its first pane
+  change. An older slingerd shows one pane for a version 2 layout and
+  replaces it at its next pane change, so upgrade every machine that shares
+  a workspace file together.
 - **App:** a tap on a workspace shows it at once (about 20 ms, from one
   to two seconds), and what an agent draws or a page that comes shows at
   once too: the window no longer waits for its timer or a one-second round

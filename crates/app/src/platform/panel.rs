@@ -203,14 +203,10 @@ mod tests {
     }
 
     #[test]
-    fn the_bundle_names_its_identifier_and_takes_its_version_from_the_workspace() {
+    fn the_bundle_names_its_identifier() {
+        // Its version and build are in crates/app/src/tests/bundle.rs.
         assert!(
             PLIST.contains("<key>CFBundleIdentifier</key><string>com.github.jayminwest.slinger")
-        );
-        assert_eq!(
-            PLIST.matches("@VERSION@").count(),
-            2,
-            "CFBundleShortVersionString and CFBundleVersion"
         );
     }
 }

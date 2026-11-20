@@ -3,18 +3,20 @@
 //! `[layout]` (docs/workspace.md). The pane verbs change them here, so the
 //! server, the app and agents share one arrangement.
 //!
-//! This module owns the layout's text: `version = `[`VERSION`] and
-//! `panes = "<text>"`, the tree in prefix order. A pane is `canvas:<id>` or
-//! `ui:<name>`; a split is `row` (side by side) or `column` (stacked), the
-//! first side's share, its first side and its second. A pane is named by its
-//! number: 1 for the first in order (depth first, the first side of a split
-//! before the second), which is left to right and top to bottom.
+//! This module owns the layout's text (`text.rs`): `version = `[`VERSION`],
+//! `panes = "<text>"`, the tree in prefix order, and `next = <id>`. A pane
+//! is `canvas:<id>@<pane id>` or `ui:<name>@<pane id>`; a split is `row`
+//! (side by side) or `column` (stacked), the first side's share, its first
+//! side and its second. A pane is named by its number: 1 for the first in
+//! order (depth first, the first side of a split before the second), which
+//! is left to right and top to bottom. Its number moves as panes open and
+//! close; its id does not: an id is given once in a layout and never again.
 
 use crate::record::PaneMoved;
 use crate::{Error, Result};
 
 /// The version of the layout text this module reads and writes.
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 
 /// The most panes a layout holds. It also bounds how deep a split nests.
 pub const MAX_PANES: usize = 64;
@@ -43,15 +45,19 @@ impl Kind {
     }
 }
 
-/// One pane's content: a kind and its target, a canvas id or a UI name.
+/// One pane: its id, a kind and its target, a canvas id or a UI name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pane {
+    /// The pane's id in its layout: 1 or more, unique in the layout and
+    /// kept while the pane is open. 0 for a pane no layout holds yet: the
+    /// layout gives it one.
+    pub id: u32,
     pub kind: Kind,
     pub target: String,
 }
 
 impl Pane {
-    /// A pane that shows `target`.
+    /// A pane that shows `target`, with no id yet.
     ///
     /// # Errors
     ///
@@ -64,23 +70,14 @@ impl Pane {
                 hint: Some("name a canvas id or a UI name, with no spaces".into()),
             });
         }
-        Ok(Self { kind, target: target.to_string() })
+        Ok(Self { id: 0, kind, target: target.to_string() })
     }
 
-    /// The pane's word in the layout text: `canvas:main`.
+    /// What the pane shows, as the record names it: `canvas:main`. The
+    /// layout text adds the id (`canvas:main@3`).
     #[must_use]
     pub fn word(&self) -> String {
         format!("{}:{}", self.kind.name(), self.target)
-    }
-
-    fn from_word(word: &str) -> Option<Self> {
-        let (kind, target) = word.split_once(':')?;
-        let kind = match kind {
-            "canvas" => Kind::Canvas,
-            "ui" => Kind::Ui,
-            _ => return None,
-        };
-        Self::new(kind, target).ok()
     }
 }
 
@@ -117,17 +114,26 @@ pub struct Frame {
 }
 
 /// The panes of a workspace: 1 to [`MAX_PANES`] of them. Closing the last
-/// one, or one that is not there, changes nothing.
+/// one, or one that is not there, changes nothing. Each pane has its own
+/// id; `next` is the id the next pane opened gets.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Layout {
     root: Node,
+    next: u32,
 }
 
 impl Layout {
-    /// One pane, showing `pane`.
+    /// One pane, showing `pane`, with id 1.
     #[must_use]
     pub fn new(pane: Pane) -> Self {
-        Self { root: Node::Pane(pane) }
+        Self { root: Node::Pane(Pane { id: 1, ..pane }), next: 2 }
+    }
+
+    /// The id the next pane opened gets: more than every id the layout has
+    /// given.
+    #[must_use]
+    pub fn next(&self) -> u32 {
+        self.next
     }
 
     /// The tree, to walk.
@@ -147,8 +153,9 @@ impl Layout {
     /// Opens `pane` beside pane number `beside`: that pane keeps the first
     /// half of its space and the new pane takes the second, to its right
     /// for [`Axis::Row`] or below it for [`Axis::Column`]. With no `beside`,
-    /// the new pane takes that half of the whole window. Returns the new
-    /// pane's number and the `pane_moved` the change records.
+    /// the new pane takes that half of the whole window. The new pane gets
+    /// the next id, whatever id `pane` had. Returns the new pane's number
+    /// and the `pane_moved` the change records.
     ///
     /// # Errors
     ///
@@ -168,6 +175,8 @@ impl Layout {
             });
         }
         let word = pane.word();
+        let (id, next) = self.fresh();
+        let pane = Pane { id, ..pane };
         let (at, number) = match beside {
             None => (&mut self.root, count + 1),
             Some(n) => match self.root.leaf_mut(n) {
@@ -183,6 +192,7 @@ impl Layout {
         let old = std::mem::replace(at, Node::Pane(pane.clone()));
         let (first, second) = (Box::new(old), Box::new(Node::Pane(pane)));
         *at = Node::Split { axis, ratio: 0.5, first, second };
+        self.next = next;
         Ok((number, self.moved(number, word)))
     }
 
@@ -222,23 +232,16 @@ impl Layout {
         out
     }
 
-    /// The layout text (see the module's comment).
-    #[must_use]
-    pub fn encode(&self) -> String {
-        let mut words = Vec::new();
-        self.root.write(&mut words);
-        words.join(" ")
-    }
-
-    /// The layout [`encode`](Self::encode) wrote. `None` for text that is
-    /// not exactly one tree, a share that is not a finite number, a pane that
-    /// is not `canvas:<id>` or `ui:<name>`, or more than [`MAX_PANES`] panes.
-    #[must_use]
-    pub fn decode(text: &str) -> Option<Self> {
-        let mut words = text.split_ascii_whitespace();
-        let mut count = 0;
-        let root = Node::read(&mut words, 0, &mut count)?;
-        words.next().is_none().then_some(Self { root })
+    /// An id no pane has, and the next id after it is given. Past the last
+    /// u32, which no real layout reaches, the least id no pane has now.
+    fn fresh(&self) -> (u32, u32) {
+        if let Some(after) = self.next.checked_add(1) {
+            return (self.next, after);
+        }
+        let taken: Vec<u32> = self.panes().iter().map(|p| p.id).collect();
+        // At most MAX_PANES ids are taken, so one of the first past that is free.
+        let free = (1..).take(MAX_PANES + 1).find(|id| !taken.contains(id));
+        (free.unwrap_or(1), self.next)
     }
 
     fn moved(&self, number: usize, pane: String) -> PaneMoved {
@@ -290,7 +293,7 @@ impl Node {
         } else {
             return second.remove(n - before);
         };
-        let gone = Self::Pane(Pane { kind: Kind::Canvas, target: String::new() });
+        let gone = Self::Pane(Pane { id: 0, kind: Kind::Canvas, target: String::new() });
         *self = std::mem::replace(&mut **keep, gone);
         true
     }
@@ -327,55 +330,9 @@ impl Node {
             }
         }
     }
-
-    fn write(&self, words: &mut Vec<String>) {
-        match self {
-            Self::Pane(pane) => words.push(pane.word()),
-            Self::Split { axis, ratio, first, second } => {
-                let name = match axis {
-                    Axis::Row => "row",
-                    Axis::Column => "column",
-                };
-                words.push(name.to_string());
-                words.push(ratio.to_string());
-                first.write(words);
-                second.write(words);
-            }
-        }
-    }
-
-    /// One node from `words`, `depth` splits down. `count` counts the panes
-    /// read so far. A tree of at most `MAX_PANES` panes nests fewer splits
-    /// than that, so deeper text is refused before it can use up the stack.
-    fn read<'a>(
-        words: &mut impl Iterator<Item = &'a str>,
-        depth: usize,
-        count: &mut usize,
-    ) -> Option<Self> {
-        let word = words.next()?;
-        let axis = match word {
-            "row" => Axis::Row,
-            "column" => Axis::Column,
-            _ => {
-                *count += 1;
-                if *count > MAX_PANES {
-                    return None;
-                }
-                return Pane::from_word(word).map(Self::Pane);
-            }
-        };
-        if depth + 1 >= MAX_PANES {
-            return None;
-        }
-        let ratio: f64 = words.next()?.parse().ok()?;
-        if !ratio.is_finite() {
-            return None;
-        }
-        let first = Box::new(Self::read(words, depth + 1, count)?);
-        let second = Box::new(Self::read(words, depth + 1, count)?);
-        Some(Self::Split { axis, ratio: ratio.clamp(MIN_RATIO, 1.0 - MIN_RATIO), first, second })
-    }
 }
+
+mod text;
 
 #[cfg(test)]
 mod tests;

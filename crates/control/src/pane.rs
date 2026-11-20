@@ -53,11 +53,16 @@ pub enum PaneSplit {
     Column,
 }
 
-/// One pane: its number (1 for the first, left to right and top to bottom)
-/// and what it shows.
+/// One pane: its number (1 for the first, left to right and top to bottom),
+/// its id and what it shows. The number moves as panes open and close and
+/// names the pane in the verbs; the id stays while the pane is open and is
+/// never given again in its workspace.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pane {
     pub pane: u32,
+    /// 1 or more. 0 in a reply from a daemon that has no pane ids.
+    #[serde(default)]
+    pub id: u32,
     pub kind: PaneKind,
     pub target: String,
 }
@@ -226,16 +231,27 @@ mod tests {
     #[test]
     fn a_layout_reads_back_as_a_tree_of_numbered_panes() {
         let text = r#"{"workspace":"w","layout":{"split":"row","ratio":0.6,
-            "first":{"pane":1,"kind":"canvas","target":"main"},
-            "second":{"pane":2,"kind":"ui","target":"board"}},"pane":2}"#;
+            "first":{"pane":1,"id":4,"kind":"canvas","target":"main"},
+            "second":{"pane":2,"id":2,"kind":"ui","target":"board"}},"pane":2}"#;
         let reply: PaneLayout = serde_json::from_str(text).unwrap();
         let PaneTree::Split { split, ratio, .. } = &reply.layout else { panic!("{reply:?}") };
         assert_eq!((*split, *ratio, reply.pane, reply.event), (PaneSplit::Row, 0.6, Some(2), None));
-        let panes: Vec<_> =
-            reply.layout.panes().iter().map(|p| (p.pane, p.kind, p.target.as_str())).collect();
-        assert_eq!(panes, [(1, PaneKind::Canvas, "main"), (2, PaneKind::Ui, "board")]);
+        let panes: Vec<_> = reply.layout.panes().iter().map(|p| (p.pane, p.id, p.kind)).collect();
+        assert_eq!(panes, [(1, 4, PaneKind::Canvas), (2, 2, PaneKind::Ui)]);
         let again: PaneLayout =
             serde_json::from_value(serde_json::to_value(&reply).unwrap()).unwrap();
         assert_eq!(again, reply);
+    }
+
+    #[test]
+    fn a_pane_from_a_daemon_with_no_ids_reads_as_id_0_and_writes_its_id() {
+        let old: Pane =
+            serde_json::from_str(r#"{"pane":1,"kind":"canvas","target":"main"}"#).unwrap();
+        assert_eq!((old.pane, old.id), (1, 0));
+        let new = Pane { id: 7, ..old };
+        assert_eq!(
+            serde_json::to_string(&new).unwrap(),
+            r#"{"pane":1,"id":7,"kind":"canvas","target":"main"}"#
+        );
     }
 }

@@ -13,6 +13,7 @@ use tempfile::TempDir;
 
 use crate::{Server, StartError, Stopper, Store, run};
 
+mod beside;
 mod canvas;
 mod close;
 mod daemon;

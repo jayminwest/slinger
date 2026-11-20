@@ -8,7 +8,8 @@ const AREA: Rect = Rect { x: 0.0, y: 0.0, width: 800.0, height: 600.0 };
 
 /// Two canvas panes side by side, focus on the first, as the server sends them.
 fn two() -> Shared {
-    let leaf = |pane| PaneTree::Pane(Shown { pane, kind: PaneKind::Canvas, target: "c".into() });
+    let leaf =
+        |pane| PaneTree::Pane(Shown { pane, id: pane, kind: PaneKind::Canvas, target: "c".into() });
     let tree = PaneTree::Split {
         split: PaneSplit::Row,
         ratio: 0.5,

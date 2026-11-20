@@ -105,8 +105,9 @@ pub struct Root {
 
 /// The pane layout as the file stores it: a version and its fields. The
 /// default is "unset": version 0 and nothing in it. Version
-/// [`panes::VERSION`] holds the panes' text in `panes`; any other field, and
-/// any other version, is kept and written back unread.
+/// [`panes::VERSION`] holds the panes' text in `panes` and the next pane id
+/// in `next`; version 1 holds the text with no ids. Any other field, and any
+/// other version, is kept and written back unread.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct PaneLayout {
     version: u32,
@@ -265,28 +266,34 @@ impl Workspace {
     }
 
     /// The workspace's panes: the layout's, or one pane on its canvas when
-    /// the layout is unset or not one this version reads (another version,
-    /// or text that is not a layout).
+    /// the layout is unset or not one this version reads (a version other
+    /// than 1 and [`panes::VERSION`], or text that is not a layout). A
+    /// version 1 layout's panes get ids 1 to n in order.
     #[must_use]
     pub fn panes(&self) -> panes::Layout {
-        let text = self.layout.value.get("panes").and_then(toml::Value::as_str);
-        let read = text.filter(|_| self.layout.version == panes::VERSION);
-        read.and_then(panes::Layout::decode).unwrap_or_else(|| {
-            panes::Layout::new(panes::Pane {
-                kind: panes::Kind::Canvas,
-                target: self.canvas.clone(),
-            })
+        let field = |key: &str| self.layout.value.get(key);
+        let next = field("next").and_then(toml::Value::as_integer);
+        let next = next.and_then(|n| u32::try_from(n).ok());
+        let text = field("panes").and_then(toml::Value::as_str);
+        let read = text.and_then(|text| panes::Layout::read(self.layout.version, text, next));
+        read.unwrap_or_else(|| {
+            let canvas =
+                panes::Pane { id: 1, kind: panes::Kind::Canvas, target: self.canvas.clone() };
+            panes::Layout::new(canvas)
         })
     }
 
-    /// Stores `layout` as the workspace's panes. The layout's other fields
-    /// stay when it is the version this module writes; a layout of another
-    /// version is replaced whole.
+    /// Stores `layout` as the workspace's panes, as layout version
+    /// [`panes::VERSION`] with its next id. The layout's other fields stay
+    /// when its version is one this module reads (a version 1 layout is
+    /// upgraded); a layout of another version is replaced whole.
     pub fn set_panes(&mut self, layout: &panes::Layout) {
-        if self.layout.version != panes::VERSION {
-            self.layout = PaneLayout { version: panes::VERSION, value: toml::Table::new() };
+        if ![1, panes::VERSION].contains(&self.layout.version) {
+            self.layout.value = toml::Table::new();
         }
+        self.layout.version = panes::VERSION;
         self.layout.value.insert("panes".into(), layout.encode().into());
+        self.layout.value.insert("next".into(), i64::from(layout.next()).into());
     }
 
     /// The primary root, if the workspace has one.

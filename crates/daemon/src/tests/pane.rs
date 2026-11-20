@@ -1,6 +1,6 @@
 //! The pane verbs through the real socket: open, close, resize and list, the
-//! `pane_moved` each change appends, a close of a pane already gone, and
-//! the layout after a restart.
+//! `pane_moved` each change appends, a close of a pane already gone, the
+//! layout and its pane ids after a restart, and a version 1 layout file.
 
 use serde_json::json;
 use slinger_control::{Client, EventFilter, PaneKind, PaneLayout};
@@ -8,10 +8,10 @@ use tempfile::TempDir;
 
 use super::Daemon;
 
-/// The panes as `number kind:target` words.
+/// The panes as `number kind:target@id` words.
 fn words(layout: &PaneLayout) -> Vec<String> {
     let panes = layout.layout.panes();
-    panes.iter().map(|p| format!("{} {:?}:{}", p.pane, p.kind, p.target)).collect()
+    panes.iter().map(|p| format!("{} {:?}:{}@{}", p.pane, p.kind, p.target, p.id)).collect()
 }
 
 fn moved(client: &Client) -> Vec<serde_json::Value> {
@@ -27,7 +27,7 @@ fn panes_open_close_and_list_and_survive_a_restart() {
     client.workspace_open(None, Some("Notes")).unwrap();
     let first = client.pane_list("Notes").unwrap();
     assert_eq!((first.workspace.as_str(), first.pane, first.event), ("Notes", None, None));
-    assert_eq!(words(&first), ["1 Canvas:notes"]);
+    assert_eq!(words(&first), ["1 Canvas:notes@1"]);
 
     open_two(&client);
     let closed = close_twice(&client);
@@ -35,7 +35,8 @@ fn panes_open_close_and_list_and_survive_a_restart() {
 
     let dir = client.workspace_show("Notes").unwrap().dir;
     let file = std::fs::read_to_string(dir.join("slinger-workspace.toml")).unwrap();
-    assert!(file.contains("panes = \"row 0.5 canvas:notes canvas:board\""), "{file}");
+    assert!(file.contains("panes = \"row 0.5 canvas:notes@1 canvas:board@2\""), "{file}");
+    assert!(file.contains("version = 2\nnext = 4\n"), "{file}");
     daemon.stop();
 
     let daemon = Daemon::start_in(data.path());
@@ -47,7 +48,7 @@ fn panes_open_close_and_list_and_survive_a_restart() {
 fn close_twice(client: &Client) -> PaneLayout {
     let closed = client.pane_close("Notes", 2).unwrap();
     assert!(closed.event.is_some());
-    assert_eq!(words(&closed), ["1 Canvas:notes", "2 Canvas:board"]);
+    assert_eq!(words(&closed), ["1 Canvas:notes@1", "2 Canvas:board@2"]);
     let again = client.pane_close("Notes", 3).unwrap();
     assert_eq!((again.event, words(&again)), (None, words(&closed)), "already gone");
     closed
@@ -58,14 +59,14 @@ fn open_two(client: &Client) {
     client.canvas_create("board").unwrap();
     let opened = client.pane_open("Notes", PaneKind::Canvas, "board", Some(1), false).unwrap();
     assert_eq!(opened.pane, Some(2));
-    assert_eq!(words(&opened), ["1 Canvas:notes", "2 Canvas:board"]);
+    assert_eq!(words(&opened), ["1 Canvas:notes@1", "2 Canvas:board@2"]);
     let below = client.pane_open("Notes", PaneKind::Canvas, "notes", Some(1), true).unwrap();
     assert_eq!(below.pane, Some(2));
-    assert_eq!(words(&below), ["1 Canvas:notes", "2 Canvas:notes", "3 Canvas:board"]);
+    assert_eq!(words(&below), ["1 Canvas:notes@1", "2 Canvas:notes@3", "3 Canvas:board@2"]);
     let shape = serde_json::to_value(&below.layout).unwrap();
     assert_eq!(shape["split"], "row");
     assert_eq!(shape["first"]["split"], "column");
-    assert_eq!(shape["second"], json!({ "pane": 3, "kind": "canvas", "target": "board" }));
+    assert_eq!(shape["second"], json!({ "pane": 3, "id": 2, "kind": "canvas", "target": "board" }));
 }
 
 /// The three changes' `pane_moved`, tagged with the workspace.
@@ -99,9 +100,9 @@ fn a_pane_shows_only_what_is_there() {
     std::fs::write(&file, "<p>hi</p>").unwrap();
     client.ui_put("board", &file, "scout").unwrap();
     let opened = client.pane_open("w", PaneKind::Ui, "board", None, false).unwrap();
-    assert_eq!(words(&opened), ["1 Canvas:w", "2 Ui:board"]);
+    assert_eq!(words(&opened), ["1 Canvas:w@1", "2 Ui:board@2"]);
     let last = client.pane_close("w", 1).unwrap();
-    assert_eq!(words(&last), ["1 Ui:board"]);
+    assert_eq!(words(&last), ["1 Ui:board@2"]);
     let kept = client.pane_close("w", 1).unwrap();
     assert_eq!((kept.event, words(&kept)), (None, words(&last)), "the last pane stays");
     assert_eq!(moved(&client).len(), 2);
@@ -137,5 +138,34 @@ fn a_resize_moves_a_border_records_it_and_survives_a_restart() {
 
     let daemon = Daemon::start_in(data.path());
     assert_eq!(daemon.client().pane_list("w").unwrap().layout, resized.layout);
+    daemon.stop();
+}
+
+#[test]
+fn a_version_one_layout_is_served_with_ids_and_written_as_version_two_at_its_first_change() {
+    let data = TempDir::new().unwrap();
+    let daemon = Daemon::start_in(data.path());
+    let client = daemon.client();
+    client.workspace_open(None, Some("Notes")).unwrap();
+    let dir = client.workspace_show("Notes").unwrap().dir;
+    daemon.stop();
+    let file = dir.join("slinger-workspace.toml");
+    let old = std::fs::read_to_string(&file).unwrap();
+    assert!(!old.contains("[layout]"), "{old}");
+    let v1 = "[layout]\nversion = 1\npanes = \"row 0.6 canvas:notes column 0.5 ui:board canvas:sketch\"\n";
+    std::fs::write(&file, format!("{old}\n{v1}")).unwrap();
+
+    let daemon = Daemon::start_in(data.path());
+    let client = daemon.client();
+    let listed = client.pane_list("Notes").unwrap();
+    assert_eq!(words(&listed), ["1 Canvas:notes@1", "2 Ui:board@2", "3 Canvas:sketch@3"]);
+    assert!(std::fs::read_to_string(&file).unwrap().ends_with(v1), "a list writes nothing");
+    let closed = client.pane_close("Notes", 2).unwrap();
+    assert_eq!(words(&closed), ["1 Canvas:notes@1", "2 Canvas:sketch@3"]);
+    let text = std::fs::read_to_string(&file).unwrap();
+    let v2 = "version = 2\nnext = 4\npanes = \"row 0.6 canvas:notes@1 canvas:sketch@3\"";
+    assert!(text.contains(v2), "{text}");
+    let opened = client.pane_open("Notes", PaneKind::Canvas, "notes", None, false).unwrap();
+    assert_eq!(opened.layout.panes()[2].id, 4, "id 2 is not given again");
     daemon.stop();
 }

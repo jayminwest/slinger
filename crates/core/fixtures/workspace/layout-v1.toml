@@ -1,0 +1,9 @@
+# A workspace file as slingerd 0.x wrote it before pane ids: layout version 1.
+version = 1
+name = "Notes"
+canvas = "notes"
+
+[layout]
+version = 1
+panes = "row 0.6 canvas:notes column 0.5 ui:board canvas:sketch"
+gutter = 4

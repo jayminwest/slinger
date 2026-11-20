@@ -65,7 +65,7 @@ fn an_open_entry_keeps_the_keyboard_through_a_press_on_a_page() {
 fn beside(daemon: &control::Client, config: &Path) -> (World, f64, f64) {
     let mut w = world(daemon, config);
     let leaf = |pane, kind, target: &str| {
-        PaneTree::Pane(control::Pane { pane, kind, target: target.into() })
+        PaneTree::Pane(control::Pane { pane, id: pane, kind, target: target.into() })
     };
     let (canvas, ui) = (leaf(1, ControlKind::Canvas, "notes"), leaf(2, ControlKind::Ui, "b"));
     let (first, second) = (canvas.into(), ui.into());

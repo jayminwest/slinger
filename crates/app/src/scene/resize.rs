@@ -80,7 +80,7 @@ mod tests {
     }
 
     fn leaf(pane: u32) -> PaneTree {
-        PaneTree::Pane(Shown { pane, kind: PaneKind::Canvas, target: "main".into() })
+        PaneTree::Pane(Shown { pane, id: pane, kind: PaneKind::Canvas, target: "main".into() })
     }
 
     /// `1 | (2 / 3)`, as the server sends it.

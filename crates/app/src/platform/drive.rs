@@ -9,9 +9,10 @@ use std::ffi::c_void;
 use std::path::Path;
 use std::sync::mpsc;
 
-use objc2::MainThreadMarker;
+use objc2::runtime::AnyClass;
+use objc2::{MainThreadMarker, msg_send};
 use objc2_app_kit::{NSBitmapImageFileType, NSWindow};
-use objc2_foundation::{NSDictionary, NSSize};
+use objc2_foundation::{NSDictionary, NSSize, NSString};
 
 use super::event::{_dispatch_main_q, dispatch_async_f};
 use super::{Event, STATE, Step, dispatch};
@@ -85,7 +86,8 @@ fn answer(ask: Ask, mtm: MainThreadMarker) -> Result<String, String> {
             for (event, text) in events {
                 let mut took = dispatch(event, mtm);
                 if let Some(text) = text.filter(|_| !took) {
-                    took = dispatch(Event::Text(text), mtm);
+                    took = dispatch(Event::Text(text.clone()), mtm)
+                        || into_field(&state.window, &text);
                 }
                 said.push(if took { "taken" } else { "passed" });
             }
@@ -108,6 +110,21 @@ fn answer(ask: Ask, mtm: MainThreadMarker) -> Result<String, String> {
         }
         Ask::Shot(path) => shot(&state.window, &path),
     }
+}
+
+/// Types `text` into the entry's field when it holds `window`'s keyboard,
+/// as a key press does through the field editor: the app passes typing on
+/// to it, and a driven window gets no key events from the system.
+fn into_field(window: &NSWindow, text: &str) -> bool {
+    let Some(class) = AnyClass::get(c"NSTextView") else { return false };
+    let Some(editor) = window.firstResponder() else { return false };
+    // SAFETY: `isKindOfClass:` takes any class.
+    let editing: bool = unsafe { msg_send![&*editor, isKindOfClass: class] };
+    if editing {
+        // SAFETY: an `NSTextView` (the field editor) answers `insertText:` with a string.
+        let () = unsafe { msg_send![&*editor, insertText: &*NSString::from_str(text)] };
+    }
+    editing
 }
 
 /// Draws the content of `window` into a PNG at `path`.

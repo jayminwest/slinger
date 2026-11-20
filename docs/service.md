@@ -566,9 +566,13 @@ the app sends its own changes with these verbs and follows the changes others
 make. A pane shows a canvas or an agent UI. A pane is named by its number: 1
 for the first in order, depth first, which is left to right and top to
 bottom. Numbers move as panes open and close; list them again before naming
-one.
+one. Each pane also has an `id` (1 or more) that does not move: it stays
+while the pane is open, whatever opens, closes or resizes around it, and
+across a daemon restart, and is never given again in that workspace. A
+client keys what it keeps per pane by the id. The verbs still name a pane
+by its number. A reply from a daemon older than ids has no `id`; read it as 0.
 
-`layout` is a tree: a pane, `{pane, kind, target}`, or a split,
+`layout` is a tree: a pane, `{pane, id, kind, target}`, or a split,
 `{split, ratio, first, second}`, where `split` is `row` (side by side) or
 `column` (stacked) and `ratio` (0.1 to 0.9) is the first side's share. A
 workspace whose layout is unset, or one this daemon cannot read, has one
@@ -598,7 +602,7 @@ left.
 
 ```json
 { "v": 1, "op": "pane_open", "workspace": "notes", "kind": "canvas", "target": "board", "beside": 1 }
-{ "ok": true, "workspace": "notes", "layout": { "split": "row", "ratio": 0.5, "first": { "pane": 1, "kind": "canvas", "target": "notes" }, "second": { "pane": 2, "kind": "canvas", "target": "board" } }, "pane": 2, "event": 7 }
+{ "ok": true, "workspace": "notes", "layout": { "split": "row", "ratio": 0.5, "first": { "pane": 1, "id": 1, "kind": "canvas", "target": "notes" }, "second": { "pane": 2, "id": 2, "kind": "canvas", "target": "board" } }, "pane": 2, "event": 7 }
 ```
 
 #### The change feed
@@ -1309,8 +1313,9 @@ not open, and an agent with no session.
 ## Running it as a system service
 
 The repo ships no launchd or systemd unit. On macOS `scripts/bundle.sh
---install` puts the app in `/Applications` and `slingerd` and `slinger` in
-`~/.local/bin`, for a unit to run. To add one, run `slingerd` (the default
+--install` puts the app in `/Applications`, with `slingerd` and `slinger`
+inside it (`slinger.app/Contents/MacOS`), and links `~/.local/bin/slingerd`
+and `~/.local/bin/slinger` to those, for a unit to run. To add one, run `slingerd` (the default
 socket and data directory, or a `--socket <PATH>` and a `--data-dir <PATH>`
 that lasts) as the user who owns the data, restart it on
 failure, and stop it with SIGTERM. The daemon does not fork and does not
