@@ -42,12 +42,14 @@ struct Asked {
 }
 
 /// The socket and the workspace wanted; whether they changed since the
-/// thread last looked; and whether the watch is gone.
+/// thread last looked; whether the agent UIs' code is asked for again; and
+/// whether the watch is gone.
 #[derive(Debug, Default)]
 struct Asks {
     socket: PathBuf,
     wanted: Option<String>,
     poked: bool,
+    refetch: bool,
     gone: bool,
 }
 
@@ -64,16 +66,17 @@ impl Asked {
         self.bell.notify_all();
     }
 
-    /// Waits up to `every` for a poke; then what is asked, or `None` once
-    /// the watch is gone.
-    fn next(&self, every: Duration) -> Option<(PathBuf, Option<String>)> {
+    /// Waits up to `every` for a poke; then what is asked (and whether to
+    /// fetch the UIs again), or `None` once the watch is gone.
+    fn next(&self, every: Duration) -> Option<(PathBuf, Option<String>, bool)> {
         let asks = self.lock();
         let (mut asks, _) = self
             .bell
             .wait_timeout_while(asks, every, |a| !a.poked && !a.gone)
             .unwrap_or_else(PoisonError::into_inner);
         asks.poked = false;
-        (!asks.gone).then(|| (asks.socket.clone(), asks.wanted.clone()))
+        let refetch = std::mem::take(&mut asks.refetch);
+        (!asks.gone).then(|| (asks.socket.clone(), asks.wanted.clone(), refetch))
     }
 }
 
@@ -122,17 +125,19 @@ fn arrangement(layout: &PaneLayout) -> PaneLayout {
 }
 
 /// What a round remembers: the last layout told, as arranged, and the last
-/// agents told.
+/// agents told; and whether the window asked for the UIs' code again.
 #[derive(Default)]
 struct Last {
     drawn: Option<Result<PaneLayout, Problem>>,
     heard: Option<Result<Vec<Workspace>, Problem>>,
+    refetch: bool,
 }
 
 /// One round through `daemon`, the wanted name read at `watch`: the panes
-/// of `wanted` (else of `last`); when they changed, the code of their agent
-/// UIs, then the layout; then the agents, when they changed. Each goes to
-/// `tell`; false once it says nobody listens.
+/// of `wanted` (else of `last`); when they changed, or the window asked
+/// again (`reload-ui`), the code of their agent UIs; when they changed,
+/// the layout; then the agents, when they changed. Each goes to `tell`;
+/// false once it says nobody listens.
 fn round(
     daemon: &Client,
     (wanted, last): (Option<&str>, Option<&str>),
@@ -142,12 +147,15 @@ fn round(
 ) -> bool {
     let layout = panes::layout(daemon, wanted, last);
     let arranged = layout.as_ref().map(arrangement).map_err(Clone::clone);
-    if told.drawn.as_ref() != Some(&arranged) {
-        if let Ok(now) = &layout
-            && !tell(Told::Uis(load(daemon, now)))
-        {
-            return false;
-        }
+    let (changed, asked) = (told.drawn.as_ref() != Some(&arranged), told.refetch);
+    told.refetch = false;
+    if (changed || asked)
+        && let Ok(now) = &layout
+        && !tell(Told::Uis(load(daemon, now)))
+    {
+        return false;
+    }
+    if changed {
         told.drawn = Some(arranged);
         if !tell(Told::Layout(layout, Stamps { watch, layout: Instant::now() })) {
             return false;
@@ -193,7 +201,8 @@ impl Watch {
                 Told::Layout(layout, stamps) => panes.send((layout, stamps)).is_ok(),
                 Told::Agents(now) => agents.send(now).is_ok(),
             };
-            while let Some((socket, wanted)) = theirs.next(every) {
+            while let Some((socket, wanted, refetch)) = theirs.next(every) {
+                told.refetch |= refetch;
                 let wanted = (wanted.as_deref(), last.as_deref());
                 let watch = Instant::now();
                 if !round(&Client::new(socket), wanted, watch, &mut told, &mut tell) {
@@ -219,6 +228,12 @@ impl Watch {
     /// layout's UIs come before the layout. Never blocks.
     pub fn uis(&self) -> Vec<(String, Result<Shown, Problem>)> {
         self.codes.try_iter().flatten().collect()
+    }
+
+    /// Fetches the code of the agent UIs the panes show again, at once,
+    /// though the layout has not changed (`reload-ui`).
+    pub fn refetch(&self) {
+        self.asked.poke(|a| a.refetch = true);
     }
 
     /// Asks again, at once: a daemon came to answer.
@@ -392,7 +407,10 @@ mod tests {
             let wanted = (Some("notes"), None);
             assert!(round(d, wanted, Instant::now(), &mut told, &mut tell));
             assert!(round(d, wanted, Instant::now(), &mut told, &mut tell), "nothing new");
-            assert_eq!(order, ["uis", "layout", "agents"]);
+            told.refetch = true;
+            assert!(round(d, wanted, Instant::now(), &mut told, &mut tell), "asked again");
+            assert!(round(d, wanted, Instant::now(), &mut told, &mut tell), "once");
+            assert_eq!(order, ["uis", "layout", "agents", "uis"]);
         });
     }
 

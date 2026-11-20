@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** Reload agent UI (in the File menu, the palette and an agent UI
+  pane's right-click menu) fetches the pane's agent UI again and starts its
+  page over: a new version or new data shows, and one that could not show
+  tries again. It has no key by default; bind `reload-ui` to give it one.
+
 - **App:** a right click on a workspace in the sidebar offers Close
   workspace, Show workspace folder in Finder, Start agent, Stop agent and
   Restart agent for that workspace, without switching to it; the items grey
@@ -692,6 +697,13 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a workspace closed while the window showed it comes back, when
+  opened again, as slingerd kept it (where each pane looked and which pane
+  had focus when it closed), not as the window last held it in memory.
+  Closing the last open workspace takes the window back to its empty start
+  instead of leaving the closed canvas on screen.
+- **App:** with no workspace open (the last one closed, or none at launch)
+  the window's title says "slinger" instead of naming the last canvas.
 - **App:** sling-now (alt+return, or Sling) on a PDF opened beside the
   workspace's canvas now says "A PDF cannot be slung: sling a crop of it"
   (crop it, paste the crop on the workspace's canvas and sling that)

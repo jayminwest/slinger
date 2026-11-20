@@ -44,6 +44,7 @@ const NONE: Facts = Facts {
     canvas: false,
     pages: 0,
     ui: false,
+    ui_pane: false,
     items: false,
     selected: false,
     boxed: false,
@@ -149,6 +150,8 @@ fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
             Facts { agent: Some(true), ..PAGE },
         ),
         (&[C::ExportUi], Facts { ui: true, ..NONE }, Facts { canvas: true, ..NONE }),
+        (&[C::ExportUi], Facts { ui: true, ..NONE }, Facts { ui_pane: true, ..NONE }),
+        (&[C::ReloadUi], Facts { ui_pane: true, ..NONE }, Facts { canvas: true, ..NONE }),
         (&[C::StartSlingerd, C::RestartDaemon], Facts { managed: true, ..NONE }, NONE),
         (&[C::StartSlingerd], Facts { managed: true, old: true, ..NONE }, NONE),
         (

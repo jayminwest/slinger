@@ -172,6 +172,11 @@ fn collapsed_it_shows_nothing_and_the_panes_take_the_window() {
 #[test]
 fn before_the_first_list_it_is_empty_and_with_none_it_says_so() {
     assert_eq!(Sidebar::new(true).rows(&T, WINDOW), []);
+    assert!(!Sidebar::new(true).none_open(), "no list yet: not known");
+    assert!(heard(vec![]).none_open() && !heard(vec![ws("ada", None)]).none_open());
+    let mut lost = heard(vec![]);
+    lost.update(Err(crate::backend::Problem { message: "gone".into(), hint: None }));
+    assert!(!lost.none_open(), "a lost daemon: not known");
     assert_eq!(
         shown(&heard(vec![]).rows(&T, WINDOW)),
         [("WORKSPACES", T.muted), ("no open workspaces", T.muted)]

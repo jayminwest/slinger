@@ -37,9 +37,10 @@ pub fn open_workspace(
 /// Closes the workspace in the folder `dir` through the daemon on `socket`
 /// (which ends its agent's process, unless another open workspace names
 /// that agent), then takes it out of `sidebar` and flashes "Closed <name>"
-/// in `tools`, with the agent it ended. Its parked views and the pane it
-/// left focused in `canvases` and `shared` go: open again, it comes back as
-/// the daemon kept it. On a failure the row stays and the flash says why.
+/// in `tools`, with the agent it ended. Its views and the pane it left
+/// focused in `canvases` and `shared` go (the shown one's once the window
+/// has left it): open again, it comes back as the daemon kept it. On a
+/// failure the row stays and the flash says why.
 /// Whether the window showed it: the watch then follows the first usable.
 pub fn close_workspace(
     dir: &Path,
@@ -49,6 +50,10 @@ pub fn close_workspace(
     (shared, canvases): (&mut Shared, &mut Canvases),
 ) -> bool {
     let now = Instant::now();
+    if sidebar.shown_dir().as_deref() == Some(dir) {
+        // Its last looks reach the daemon first: open again, it comes back there.
+        canvases.quitting(&shared.panes);
+    }
     if let Err(problem) = backend::close_workspace(&slinger_control::Client::new(socket), dir) {
         tools.flash().say(problem.message, now);
         return false;
@@ -63,13 +68,11 @@ pub fn close_workspace(
         None => format!("Closed {}", gone.title()),
     };
     tools.flash().say(said, now);
-    if !shown {
-        let name = match gone.name.as_str() {
-            "" => gone.dir.to_string_lossy().into_owned(),
-            name => name.to_string(),
-        };
-        canvases.forget(&name);
-        shared.focused.retain(|(w, _)| *w != name);
-    }
+    let name = match gone.name.as_str() {
+        "" => gone.dir.to_string_lossy().into_owned(),
+        name => name.to_string(),
+    };
+    canvases.forget(&name);
+    shared.forget(&name, shown);
     shown
 }

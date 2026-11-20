@@ -280,6 +280,10 @@
 # Save the agent UI the focused pane shows (the version it shows) as a file in a folder you
 # pick, and show it in the Finder. No key by default: the palette and the File menu run it.
 #export-ui = ""
+# Load the agent UI the focused pane shows again, fetched afresh: its page starts over. One
+# that could not show tries again. No key by default: the palette, the File menu and the
+# pane footer's context menu run it.
+#reload-ui = ""
 # Show slingerd's feedback file, where leave-feedback saves notes, in the Finder; before
 # the first note it flashes where notes will go. No key by default: the palette and the
 # Help menu run it.

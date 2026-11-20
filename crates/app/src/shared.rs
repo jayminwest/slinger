@@ -60,6 +60,9 @@ pub struct Shared {
     pub secondary: Secondary,
     /// The pane each workspace left had focus on, in this run.
     pub focused: Vec<(String, layout::PaneId)>,
+    /// The shown workspace, closed: the window keeps no focus for it when
+    /// it leaves it ([`Shared::forget`]).
+    pub closed: Option<String>,
 }
 
 impl Default for Shared {
@@ -87,6 +90,7 @@ impl Default for Shared {
             hand: Hand::default(),
             secondary: Secondary::default(),
             focused: Vec::new(),
+            closed: None,
         }
     }
 }
@@ -97,11 +101,17 @@ impl Shared {
     /// or, when it closed, goes to the pane now at its number; in another,
     /// it goes to the pane that had it there last in this run, else the one
     /// the daemon kept it on (`focus`), else the first, and the page menu
-    /// closes.
+    /// closes. A problem keeps the panes, but for a closed workspace's: the
+    /// window goes back to its own, as at the start.
     pub fn follow(&mut self, news: Result<PaneLayout, Problem>) {
         let layout = match news {
             Ok(layout) => layout,
-            Err(problem) => return (self.workspace, self.trouble) = (None, Some(problem)),
+            Err(problem) => {
+                if self.closed.is_some() && self.panes.workspace() == self.closed.as_deref() {
+                    (self.panes, self.closed) = (Self::default().panes, None);
+                }
+                return (self.workspace, self.trouble) = (None, Some(problem));
+            }
         };
         let name = layout.workspace.as_str();
         let left = self.panes.workspace().filter(|w| *w != name).map(str::to_string);
@@ -110,7 +120,9 @@ impl Shared {
             self.panes.workspace().is_none() && !self.focused.iter().any(|(w, _)| w == name);
         let mut panes = if let Some(left) = left {
             self.focused.retain(|(w, _)| *w != left);
-            self.focused.push((left, focus));
+            if self.closed.take().as_ref() != Some(&left) {
+                self.focused.push((left, focus));
+            }
             self.menu = PageMenu::default();
             let mut panes = Panes::follow(&layout.layout, 1);
             let was = self.focused.iter().find(|(w, _)| w == name).map(|&(_, was)| was);
@@ -133,6 +145,16 @@ impl Shared {
         (self.workspace, self.trouble) = (Some(layout.workspace), None);
     }
 
+    /// Forgets the pane `workspace`, closed, had focus on; when it is the
+    /// `shown` one, also the pane it has focus on once the window leaves it
+    /// ([`Shared::follow`]): open again, focus goes where the daemon kept it.
+    pub fn forget(&mut self, workspace: &str, shown: bool) {
+        self.focused.retain(|(w, _)| w != workspace);
+        if shown {
+            self.closed = Some(workspace.to_string());
+        }
+    }
+
     /// Takes the agent UIs' code the watch fetched, each as a page for a
     /// pane or why it cannot show; whether there was any.
     pub fn fetched(&mut self, codes: Vec<(String, Result<ui::Shown, Problem>)>) -> bool {
@@ -145,6 +167,19 @@ impl Shared {
             self.uis.insert(name, page);
         }
         any
+    }
+
+    /// `reload-ui`: forgets the agent UI the focused pane shows, so its
+    /// view closes, until the watch fetches its showing again
+    /// (`Watch::refetch`) and a new view loads it; one
+    /// that could not show tries again. False when the pane shows no UI.
+    pub fn reload_ui(&mut self) -> bool {
+        let pane = self.panes.focused();
+        let ui = pane.kind == panes::Kind::Ui;
+        if ui {
+            self.uis.remove(&pane.name);
+        }
+        ui
     }
 
     /// A press at `at`, a point in the window: the open palette's, else

@@ -157,6 +157,7 @@ fn panes(subject: &Subject) -> &'static [Action] {
             R(Command::StepOut),
         ],
         Subject::Pane { ui: true } => &[
+            R(Command::ReloadUi),
             R(Command::ExportUi),
             S,
             R(Command::SplitRight),

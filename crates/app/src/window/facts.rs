@@ -32,6 +32,7 @@ pub fn facts(
         canvas,
         pages: canvases.page_names(panes, pane).map_or(0, |(names, _)| names.len()),
         ui: shown_ui(shared).is_some(),
+        ui_pane: panes.focused().kind == Kind::Ui,
         items: items::holds(shared, canvases),
         selected: canvases.shows_selection(panes, pane),
         boxed: canvases.step_target(panes, pane).is_some(),

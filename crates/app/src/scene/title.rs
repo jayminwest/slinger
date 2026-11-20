@@ -31,7 +31,9 @@ pub const NO_CANVAS: &str = "No canvas in this pane";
 
 /// The title bar for the focused pane's `canvas` and its file's `path`
 /// (`None` until the daemon has said, or from one too old to say), with
-/// `home` as `~`. A pane that shows no canvas leaves "slinger".
+/// `home` as `~`. A pane that shows no canvas leaves "slinger", and so
+/// does a window with no workspace open (the window passes no canvas), as
+/// the window says before any layout comes.
 pub fn window(canvas: Option<(&str, Option<&str>)>, home: Option<&Path>) -> Title {
     let Some((canvas, path)) = canvas else { return Title::plain("slinger") };
     let subtitle = path.map(|p| tilde(p, home)).unwrap_or_default();

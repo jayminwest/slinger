@@ -196,6 +196,9 @@ pub enum Command {
     /// Zoom and pan the focused pane's canvas so all its page shows (the
     /// room, inside a box), at 100% or less.
     ZoomToFit,
+    /// Load the agent UI the focused pane shows again, from a fresh fetch
+    /// of its showing: its page starts over, as a new one does.
+    ReloadUi,
 }
 
 /// How many commands there are.
@@ -203,7 +206,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 88] = [
+    pub const ALL: [(Command, &str); 89] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -292,6 +295,7 @@ impl Command {
         (Command::StartSlingerd, "start-slingerd"),
         (Command::RestartDaemon, "restart-daemon"),
         (Command::ZoomToFit, "zoom-to-fit"),
+        (Command::ReloadUi, "reload-ui"),
     ];
 
     /// The command called `name` in the config file.
@@ -434,6 +438,7 @@ impl Default for Keymap {
             None,
             None,
             on(CMD, '9'),
+            None,
         ])
     }
 }

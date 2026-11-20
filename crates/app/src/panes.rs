@@ -302,6 +302,7 @@ impl Panes {
             | Command::StopAgent
             | Command::RestartAgent
             | Command::ExportUi
+            | Command::ReloadUi
             | Command::ShowFeedbackFile
             | Command::ShowAllFeedback
             | Command::SelectAll

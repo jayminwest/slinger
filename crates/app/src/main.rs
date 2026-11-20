@@ -194,6 +194,10 @@ fn window(mut settings: Settings, drive: Option<&Path>) -> ExitCode {
                 watch.want(name);
                 return step;
             }
+            Routed::Refetch => {
+                watch.refetch();
+                return Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases));
+            }
             Routed::News(force) => force,
             Routed::Launch(command) => {
                 window::launched::run(command, launcher.as_ref(), sidebar, &mut tools);

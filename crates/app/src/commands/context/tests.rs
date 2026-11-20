@@ -7,6 +7,7 @@ const ABLE: Facts = Facts {
     canvas: true,
     pages: 2,
     ui: true,
+    ui_pane: true,
     items: true,
     selected: true,
     boxed: true,
@@ -67,7 +68,8 @@ fn each_subject_s_items_in_order() {
         "Step out of box",
     ];
     assert_eq!(titles(&of(&Subject::Canvas)), canvas);
-    let ui = ["Export agent UI…", "-", "Split right", "Split down", "Close pane"];
+    let ui =
+        ["Reload agent UI", "Export agent UI…", "-", "Split right", "Split down", "Close pane"];
     assert_eq!(titles(&of(&Subject::Pane { ui: true })), ui);
     assert_eq!(
         titles(&of(&Subject::Pane { ui: false })),

@@ -25,6 +25,8 @@ pub struct Facts {
     pub pages: usize,
     /// The focused pane shows an agent UI that has arrived.
     pub ui: bool,
+    /// The focused pane is an agent UI's, arrived or not.
+    pub ui_pane: bool,
     /// The items hold the keyboard: the window has it and no text of the
     /// app takes typing (`window::items`).
     pub items: bool,
@@ -146,6 +148,8 @@ pub fn can(command: Command, facts: &Facts) -> bool {
         Command::StopAgent => f.workspace && f.agent == Some(true),
         Command::RestartAgent => f.workspace && f.agent.is_some(),
         Command::ExportUi => f.ui,
+        // One that could not show tries again.
+        Command::ReloadUi => f.ui_pane,
         Command::StartSlingerd | Command::RestartDaemon => {
             launching(command, f.managed, f.old).is_ok()
         }
