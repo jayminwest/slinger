@@ -69,7 +69,7 @@ a "did you mean" suggestion.
 | `feedback path` | The feedback file's path. `--json`: `path` |
 | `daemon info` | One field per line, the name and the value separated by a tab: `version`, `build`, `protocol`, `pid`, `started_ms`, `exe`, `socket`, `data_dir`, `claude`, `slinger`, `log` (`-` for a path it has none of). `--json`: those fields (`claude`, `log` null when none) |
 | `daemon stop` | Nothing. `--json`: `pid` |
-| `drive [--app PATH] key <CHORD> [--text TEXT]`, `drive type <TEXT>...`, `drive press\|drag\|lift <X> <Y> [--tablet] [--shift] [--touch] [--eraser]`, `drive stroke <X,Y>... [--tablet] [--shift] [--touch] [--eraser]`, `drive move <X> <Y>`, `drive scroll <X> <Y> <DX> <DY>`, `drive zoom <X> <Y> <FACTOR>`, `drive space [--up]`, `drive run <NAME>`, `drive copy`, `drive cut`, `drive paste [TEXT]...`, `drive drop <X> <Y> <FILE>`, `drive tick` | `taken` or `passed` for each event, separated by spaces. `--json`: `said` |
+| `drive [--app PATH] key <CHORD> [--text TEXT]`, `drive type <TEXT>...`, `drive press\|drag\|lift <X,Y> [--tablet] [--shift] [--touch] [--eraser]`, `drive stroke <X,Y>... [--tablet] [--shift] [--touch] [--eraser]`, `drive move <X,Y>`, `drive scroll <X,Y> <DX,DY>`, `drive zoom <X,Y> <FACTOR>`, `drive space [--up]`, `drive run <NAME>`, `drive copy`, `drive cut`, `drive paste [TEXT]...`, `drive drop <X,Y> <FILE>`, `drive tick` | `taken` or `passed` for each event, separated by spaces. `--json`: `said` |
 | `drive [--app PATH] scene [--debug]` | What the driven window shows, one line per thing: its kind, its place `x,y wxh`, its colour and its text. `--json`: `said` |
 | `drive [--app PATH] shot <FILE>`, `drive clip`, `drive resize <W> <H>` | The PNG's path; the text last cut or copied; nothing. `--json`: `said` |
 | `guide` | The guide for agents: the ideas and the common tasks, then every command with its arguments and what it does. Needs no daemon. `--json`: `guide`, `commands` (`name`, `usage`, `about`) |
@@ -110,7 +110,11 @@ driven window (`slinger-app --drive <PATH>`), on the socket in `--app`, else
 request, one line of JSON, and prints what the window said
 (`crates/app/src/drive.rs` reads the line). A request becomes the events
 the app hears for real input, with points in the window's points from its
-top left. A key the app passes on types its `--text` (by default its own
+top left. Every op takes a point, and a scroll its distance, as `X,Y` or
+as `X Y` (`press 10,20` and `press 10 20` are the same; a stroke's points
+likewise); anything else exits 2 (`usage`). A socket path of any length
+works, on both sides, though a socket's address holds only 103 bytes: a
+longer one goes through a short path in the temporary directory. A key the app passes on types its `--text` (by default its own
 character, and nothing with cmd or ctrl held); while an entry (Find, the
 sling's prompt, Feedback) holds the keyboard, that text goes into its
 field. `drive space` holds the space bar down, as for a pan with the

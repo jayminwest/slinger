@@ -743,7 +743,9 @@ drive.rs     a driven window's requests (`slinger-app --drive SOCKET`, which
              scroll, a pinch, a command, a paste, a drop, a tick), or an ask
              for the scene, a PNG, a resize or the window's own clipboard; a
              thread reads and writes the socket and hands each ask to the
-             main thread (platform/drive.rs). Pure but for the socket.
+             main thread (platform/drive.rs). Pure but for the socket;
+             `shown` keeps the scene to say up to date, an entry's typing
+             included (its field shows it with no draw).
 drive/outline.rs  the scene as text: one line for each thing the window
              shows, with its place, colour and text. Says, never decides.
 config.rs    the config file's format: text in, a typed config or an error
@@ -1241,7 +1243,7 @@ platform/window.rs  makes the window (its style, smallest size and
 platform/drive.rs  the driven window on the main thread: runs each ask from
              the driver's thread there (the main dispatch queue), hands its
              events to the same `dispatch` real input goes through, keeps the
-             last scene drawn to say as text, draws the content view into a
+             scene shown to say as text (drive::shown), draws the content view into a
              PNG (a window never shown draws too, agent UIs included), and
              keeps a cut or a copy in place of the clipboard, which stays
              the user's.
@@ -1504,6 +1506,7 @@ Each boundary has something that fails when it is broken:
 | A daemon names its socket in its data directory while it serves and takes the name back as it stops; `slinger` given no socket finds it there, on any path, and so does the app with no `[daemon] socket`; both pass over a name nothing listens on (`control::live_socket`), and an explicit socket is kept (docs/service.md) | `crates/control/src/place.rs` tests, `crates/daemon/tests/signals.rs`, `crates/cli/tests/agent_env.rs`, `crates/app/src/backend/place.rs` tests |
 | A bare `slinger-app`, a driven window and an app whose config names a socket never start a daemon; a bundled one starts its own slingerd only when none answers and none was stopped on purpose, one at a time | `crates/app/src/launch/tests.rs`, `crates/app/src/backend/daemon/tests.rs` |
 | A slingerd of another build is offered for a restart, never restarted unasked; `restart-daemon` stops it and the bundled one answers in its place; one that lacks `daemon_info` reads as old and is not stopped from the app | `crates/app/src/launch/skew.rs`, `crates/app/src/backend/daemon/tests.rs`, `crates/app/src/scene/sidebar/launched/tests.rs` |
+| `slinger drive` and `slinger-app --drive` take a socket path of any length (`control::{bind_socket, connect_socket}`, a short path in the temporary directory for a long one), and every drive op takes a point as `X,Y` or `X Y` | `crates/control/src/unix.rs` tests, `crates/cli/src/tests/drive.rs` |
 | The client takes a reply slower than 5 s (the daemon under disk load) as an answer, not `unavailable`; it waits 30 s at most, and no reply in that time hints to retry or restart, not to start the daemon (docs/service.md) | `crates/control/src/client.rs` tests, with a fake daemon |
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
 | The packet's image rules: scale, margin, tiles, same bytes for the same input | `crates/core/tests/render.rs`, with golden images |

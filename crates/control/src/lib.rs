@@ -23,6 +23,7 @@ mod profile;
 mod session;
 mod sling;
 mod ui;
+mod unix;
 mod wire;
 mod workspace;
 
@@ -59,6 +60,7 @@ pub use session::{
 };
 pub use sling::{Backdrop, BackdropArea, Backdrops, SlingAsk, Slung};
 pub use ui::{LIVE_SIZE, LiveItem, UiAsk, UiOpen, UiOpened, UiReplied, UiShown};
+pub use unix::{bind_socket, connect_socket};
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
 pub use workspace::{
     Workspace, WorkspaceAgent, WorkspaceClosed, WorkspaceFileError, WorkspaceInfo, WorkspaceOpened,
