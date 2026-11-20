@@ -140,3 +140,52 @@ fn a_carry_into_a_pane_inside_a_folded_box_joins_it() {
         assert!(left_on_p1.is_empty(), "carried, not copied: {left_on_p1:?}");
     });
 }
+
+/// Zoom-to-fit in a pane inside a box fits the box's room, not what it
+/// holds (slinger-ff9dbe).
+#[test]
+fn zoom_to_fit_inside_a_box_fits_its_room() {
+    use crate::backend::testing::wait_until;
+    use crate::backend::tests::{open_notes, with_store};
+    use crate::commands::Command;
+    use crate::config::Config;
+    use crate::layout::{Size, WINDOW};
+    use crate::panes::{Kind, Pane, Panes};
+
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let add = |x: i64, y: i64, w: i64, h: i64| {
+            let item = serde_json::json!({"page": "p1", "kind": "box", "color": "#000000",
+                "x": x, "y": y, "w": w, "h": h});
+            let ops = serde_json::json!({"op": "add", "item": item});
+            let (canvas, by) = ("notes".to_string(), "user".to_string());
+            let ask = slinger_control::CanvasOps { canvas, by, ops, once: None };
+            daemon.canvas_apply(ask).unwrap().made.remove(0)
+        };
+        // Tenths of a point: a 4000 by 3000 point box holding a small one.
+        let big = crate::mirror::item_id(&add(0, 0, 40_000, 30_000)).unwrap();
+        add(1000, 1000, 100, 100);
+        let panes = Panes::new(Pane { kind: Kind::Canvas, name: "notes".into() });
+        let mut canvases = Canvases::new(daemon.clone());
+        let mut scenes = Vec::new();
+        wait_until(|| {
+            canvases.poll();
+            scenes = canvases.show(&panes, WINDOW.rect(), &Config::default().theme);
+            let open = find(&canvases.open, "notes", Some("p1")).and_then(|o| o.mirror.as_ref());
+            open.is_some_and(|m| m.items().len() == 2)
+        });
+        let pane = panes.focus();
+        assert!(canvases.view(pane).viewport.zoom() < 0.25, "the page opened fitted");
+        assert!(canvases.command(&panes, (pane, WINDOW.rect()), Command::ZoomReset));
+        let boxed = Boxed { canvas: "notes".into(), page: "p1".into(), id: big, folded: false };
+        canvases.step_into(pane, boxed);
+        assert_eq!(canvases.view(pane).viewport.zoom(), 1.0, "a step in keeps the zoom");
+        assert!(canvases.command(&panes, (pane, WINDOW.rect()), Command::ZoomToFit));
+        let scene = canvases.show(&panes, WINDOW.rect(), &Config::default().theme).remove(0);
+        let size = Size { width: scene.frame.width, height: scene.frame.height };
+        let seen = scene.scene.viewport.visible(size);
+        assert!(scene.scene.viewport.zoom() < 0.25, "the room, not the small box");
+        assert!(seen.contains(Point { x: 0.0, y: 0.0 }));
+        assert!(seen.contains(Point { x: 4000.0, y: 3000.0 }));
+    });
+}

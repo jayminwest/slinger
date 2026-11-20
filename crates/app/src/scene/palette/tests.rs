@@ -314,3 +314,13 @@ fn the_selected_row_reads_on_its_fill_and_the_panel_is_rounded_with_a_hairline()
     let middle = |f: Rect| f.y + f.height / 2.0;
     assert!((middle(chip.label.frame) - middle(title.label.frame)).abs() < 1e-9, "centred");
 }
+
+#[test]
+fn zoom_to_fit_has_a_row_with_its_key() {
+    let mut palette = open();
+    type_in(&mut palette, "zoom to fit");
+    assert_eq!(palette.matches()[0], Command::ZoomToFit);
+    let lines = texts(&palette, layout::WINDOW);
+    let row = lines.iter().position(|l| l == "Zoom to fit").expect("a row");
+    assert_eq!(lines[row + 1..row + 3], ["Canvas", "⌘9"]);
+}

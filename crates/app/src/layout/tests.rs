@@ -333,3 +333,59 @@ fn a_column_of_no_width_or_not_finite_changes_nothing() {
     assert_eq!(view.reading(rect(f64::NAN, 0.0, 10.0, 100.0), READER), view);
     assert_eq!(view.reading(COLUMN, Size { width: f64::INFINITY, height: 1.0 }), view);
 }
+
+#[test]
+fn small_content_fits_at_100_percent_with_its_corner_in_by_the_margin() {
+    let view = Viewport::fitting(rect(500.0, 300.0, 100.0, 50.0), SCREEN);
+    assert_eq!(view.zoom(), 1.0);
+    assert_eq!(view.to_screen(pt(500.0, 300.0)), pt(CANVAS_MARGIN, CANVAS_MARGIN));
+}
+
+#[test]
+fn wide_and_tall_content_zoom_out_until_it_fits_with_the_margin() {
+    let wide = Viewport::fitting(rect(-1000.0, 0.0, 1536.0, 100.0), SCREEN);
+    assert_eq!(wide.zoom(), 0.5, "(800 - 32) / 1536");
+    assert_eq!(wide.to_screen(pt(-1000.0, 0.0)), pt(CANVAS_MARGIN, CANVAS_MARGIN));
+    let far = wide.to_screen(pt(536.0, 100.0));
+    assert_eq!(far.x, SCREEN.width - CANVAS_MARGIN, "the right edge is a margin in");
+    let tall = Viewport::fitting(rect(0.0, 0.0, 100.0, 2272.0), SCREEN);
+    assert_eq!(tall.zoom(), 0.25, "(600 - 32) / 2272");
+    let line = Viewport::fitting(rect(0.0, 0.0, 0.0, 2272.0), SCREEN);
+    assert_eq!(line.zoom(), 0.25, "no width fits by its height");
+}
+
+#[test]
+fn huge_content_holds_at_the_least_zoom() {
+    let view = Viewport::fitting(rect(0.0, 0.0, 100_000.0, 10.0), SCREEN);
+    assert_eq!(view.zoom(), MIN_ZOOM);
+    let cramped = Size { width: 20.0, height: 20.0 };
+    assert_eq!(Viewport::fitting(rect(0.0, 0.0, 10.0, 10.0), cramped).zoom(), MIN_ZOOM);
+}
+
+#[test]
+fn content_or_a_screen_with_no_size_or_not_finite_fits_to_the_start() {
+    let start = Viewport::start();
+    let fit = Viewport::fitting;
+    assert_eq!(fit(rect(50.0, 50.0, 0.0, 0.0), SCREEN), start, "a point");
+    assert_eq!(fit(rect(50.0, 50.0, -10.0, 10.0), SCREEN), start, "a negative width");
+    assert_eq!(fit(rect(50.0, 50.0, 10.0, -10.0), SCREEN), start, "a negative height");
+    assert_eq!(fit(rect(f64::NAN, 0.0, 10.0, 10.0), SCREEN), start);
+    assert_eq!(fit(rect(0.0, 0.0, f64::INFINITY, 10.0), SCREEN), start);
+    let screen = |width, height| Size { width, height };
+    assert_eq!(fit(rect(0.0, 0.0, 10.0, 10.0), screen(f64::NAN, 600.0)), start);
+    assert_eq!(fit(rect(0.0, 0.0, 10.0, 10.0), screen(800.0, 0.0)), start);
+    assert_eq!(fit(rect(0.0, 0.0, 10.0, 10.0), screen(0.0, 600.0)), start);
+}
+
+#[test]
+fn a_view_opens_at_the_start_when_that_shows_all_the_content_else_it_fits() {
+    let near = rect(0.0, 0.0, 700.0, 500.0);
+    assert_eq!(Viewport::opening(Some(near), SCREEN), Viewport::start());
+    assert_eq!(Viewport::opening(None, SCREEN), Viewport::start(), "an empty page");
+    let far = rect(5000.0, 4000.0, 100.0, 100.0);
+    assert_eq!(Viewport::opening(Some(far), SCREEN), Viewport::fitting(far, SCREEN));
+    let wide = rect(0.0, 0.0, 2000.0, 100.0);
+    assert_eq!(Viewport::opening(Some(wide), SCREEN), Viewport::fitting(wide, SCREEN));
+    let above = rect(0.0, -40.0, 10.0, 10.0);
+    assert_eq!(Viewport::opening(Some(above), SCREEN), Viewport::fitting(above, SCREEN));
+}

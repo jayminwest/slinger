@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** Zoom to fit (cmd+9, the palette or the Canvas menu) zooms and
+  pans the focused pane so its whole page shows, at 100% or less; inside a
+  box it fits the box. A canvas a pane has not shown before opens the same
+  way when its ink lies out of the first view, instead of at the empty
+  origin.
+
 - **App:** after an update, slinger.app notices a slingerd of another
   build and offers to restart it: a notice names both builds and how many
   running agents a restart would end, and "Restart slingerd" (the notice,

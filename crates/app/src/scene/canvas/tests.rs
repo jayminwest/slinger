@@ -303,3 +303,13 @@ fn a_canvas_text_draws_in_the_core_s_rows_a_size_apart() {
     assert_eq!((text.as_str(), line), ("ab\ncd", 24.0), "two cells a row");
     assert_eq!((width, size), (glyphs::UNWRAPPED, 24.0 * glyphs::FONT), "its own breaks only");
 }
+
+#[test]
+fn a_page_s_extent_is_the_union_of_its_items_bounds_and_none_when_empty() {
+    let frame = rect(100.0, 50.0, 40.0, 20.0);
+    let text = Shape::Text { frame, text: "a".into(), size: 16.0, column: None };
+    // The stroke's ink is 1 point past its points each way.
+    let items = [stroke(1, &[(-10.0, 0.0), (10.0, 30.0)]), item(2, text)];
+    assert_eq!(extent(&items), Some(rect(-11.0, -1.0, 151.0, 71.0)));
+    assert_eq!(extent(&[]), None);
+}

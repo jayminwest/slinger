@@ -2,6 +2,10 @@
 
 Choices an agent made and shipped that the owner has not confirmed. An agent that makes such a pick adds one line here, with the commit. It does not file a seed. The owner confirms a pick by deleting its line, or reverses it with a seed. Each line keeps the id of the seed it came from; `sd show <id>` gives its history.
 
+## Switching and views (plan pl-85bfa0)
+
+- [ ] first open (zoom to fit): a new view keeps the start (origin 16 pt in, 100%) when that already shows all the page, and fits only when it does not, so ink near the origin opens where it was drawn (the seed said always fit); the fitted content sits top left, not centred; zoom-to-fit on cmd+9, on an empty page it goes to the start; a pan or zoom before the page comes counts as placing it (slinger-ff9dbe)
+
 ## Fold and boxes (plan pl-f130a2)
 
 - [ ] sling-a-box trigger (a1ea155): no new command; a box selected alone is a box sling; any sling from a stepped-in pane is of the innermost box (open boxes too), the whole box when nothing is selected; run scripts/e2e-sling.sh by hand (the app sling path now sends 'in') (slinger-1949fb)

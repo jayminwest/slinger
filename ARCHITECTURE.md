@@ -682,7 +682,7 @@ canvases/drag.rs  the pen's drag and lift on the canvas panes: a drag of the
              cursor. The selection is of a page, so every pane on its page
              shows it.
 canvases/paging.rs  the canvas commands on a pane: pan, zoom (in, out, to
-             100%; a pinch and a cmd- or ctrl-scroll come here too, and each
+             100%, to fit the page or the room of the box it is inside; a pinch and a cmd- or ctrl-scroll come here too, and each
              zoom flashes its level, "Zoom 150%"), `toggle-grid` (the
              dotted grid on every canvas pane, flashing "Dotted grid
              on/off"; the config's `[canvas]` is its start), the page
@@ -1200,7 +1200,10 @@ scene/hand.rs  space held for a pan: taken only while nothing takes typed
 layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
              about a point or to a level, limits, the level as people read it,
              how far a scroll zooms; the canvas has no edge; a pane's view
-             starts with the origin in by a margin; reader mode's fit to
+             starts with the origin in by a margin; `fitting`, the view
+             that shows a box of the canvas at 100% or less; `opening`, where
+             a view with no place first opens: the start when that shows all
+             the content, else fitted; reader mode's fit to
              a column's width, scrolled no further than its ends) and where a pop-up
              opens (at the pen, kept inside the window; each cell at least
              28 pt high, what a pen taps). Pure. 100% coverage floor.

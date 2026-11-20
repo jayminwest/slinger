@@ -391,6 +391,7 @@ impl Canvases {
             let trail = view.trail.on(here);
             let (items, within, holds) = step::shown_in(mirror, &self.ink, here.0, &trail);
             view.keep_steps(here, holds);
+            view.place(step::content(&items, within.as_ref()), screen);
             if inside.iter().any(|(c, p)| (c.as_str(), p.as_str()) == here) {
                 self.select.keep(here, &step::present(mirror, &self.ink, here.0));
             } else {

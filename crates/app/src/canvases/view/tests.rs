@@ -71,6 +71,8 @@ fn a_turn_finds_the_panes_view_of_that_canvas_shown_or_parked() {
     assert_eq!(views.get(pane(1)).page, Some(("main".into(), "p2".into())), "a's, parked");
 }
 
+mod fit;
+
 mod shown {
     use slinger_control::{Pane as Shown, PaneKind, PaneSplit, PaneTree};
 

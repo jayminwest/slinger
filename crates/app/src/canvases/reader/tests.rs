@@ -50,6 +50,9 @@ fn a_pdfs_canvas_fits_its_pages_to_the_width_and_scrolls_up_and_down_only() {
         assert_eq!(viewport(&mut canvases, &paper), at, "the top stops it");
         canvases.zoom(pane, Point { x: 10.0, y: 10.0 }, 2.0);
         assert_eq!(viewport(&mut canvases, &paper), at, "a pinch zooms nothing");
+        let fit = crate::commands::Command::ZoomToFit;
+        assert!(canvases.command(&paper, (pane, WINDOW.rect()), fit));
+        assert_eq!(viewport(&mut canvases, &paper), at, "nor does zoom-to-fit");
         assert_eq!(canvases.said(), None, "and flashes nothing");
         canvases.pan(pane, 0.0, -1.0e6);
         let down = viewport(&mut canvases, &paper);

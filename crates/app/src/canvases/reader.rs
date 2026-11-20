@@ -28,8 +28,10 @@ impl View {
     }
 
     /// Drags the canvas by `dx`, `dy` screen points: up and down only, and
-    /// no further than the column's ends, in reader mode.
+    /// no further than the column's ends, in reader mode. A view with no
+    /// place yet is placed where it starts.
     pub(super) fn pan(&mut self, dx: f64, dy: f64) {
+        self.placed = true;
         self.viewport = match self.reader {
             Some((column, size)) => self.viewport.pan(0.0, dy).reading(column, size),
             None => self.viewport.pan(dx, dy),

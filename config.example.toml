@@ -171,6 +171,9 @@
 #zoom-in = "cmd+="
 #zoom-out = "cmd+-"
 #zoom-reset = "cmd+0"
+# Zoom and pan the focused pane so all its page shows (inside a box, the box), at 100%
+# or less. A canvas first shown in a pane opens this way.
+#zoom-to-fit = "cmd+9"
 # Pages: each pane shows its own page of its canvas, named at its foot. Turn the
 # focused pane to the next page (after the last, the first) or the one before.
 #next-page = "cmd+]"
