@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a typed text wraps. A new text wraps at 48 characters, and
+  while you type it its dashed frame shows that column; drag the frame's
+  right edge (the pointer shows a left-right arrow) to make the column
+  narrower or wider, for a new text or one you edit. Texts typed before
+  keep running on one line until you drag their edge. Agents see the
+  same rows.
 - **App:** the key overlay (cmd+/) also lists the keys that are not
   commands: under "Typing a text", the caret keys of a text you are typing
   (arrows, word and row jumps, selection, deletes, the emacs keys, double

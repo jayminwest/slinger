@@ -723,8 +723,12 @@ scene/editor.rs  the canvas text being typed (docs/design/pen-less.md 2A):
              the key before the keymap while a text is typed. A press
              inside places the caret, a drag or shift-press selects; copy
              and cut take the selected characters. `Editing`: where the
-             text is and how it is set; its caret bar and selection boxes
-             are scene items (`Shape::Caret` is a plain bar). Pure.
+             text is and how it is set, and the column it wraps in (a new
+             text's holds 48 characters, glyphs::NEW_COLUMN; a drag of its
+             frame's right edge sets it, `widen`, on half a cell so it never
+             reads back as unwrapped, glyphs::column); its caret bar and
+             selection boxes are scene items (`Shape::Caret` is a plain
+             bar). Pure.
 scene/paste.rs  the clipboard as the app sees it (`Clip`: plain text, a
              canvas's items) and the edits no text field takes (`Edit`:
              cut, copy, paste); pasted text made fit to type: line ends as
@@ -878,14 +882,16 @@ scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
              text and typed keys (and a paste, at its end) go into it until
              escape or a press outside
              (while typed it shows a focus-colour caret, a dashed muted frame
-             and a hint under it: `label`, chrome's 11 pt line),
+             out to its column, whose right edge a drag moves (`on_edge`;
+             canvases/drag.rs shows the left-right cursor over it), and a
+             hint under it: `label`, chrome's 11 pt line),
              which with any tool but the text tool also starts that tool's
              gesture (the text tool on a text, or a double tap with any tool but
              the pen, edits it; with the lasso or the select tool the edit
              waits for a lift where the pen went down, as the second press
              may drag the selection); a drag makes a box or an arrow, whose ends
              bind to the items they land on. An arrow bound to a moved item
-             follows it (`follow`): the move's change carries the arrow's
+             follows it (`follow`, shapes/bind.rs): the move's change carries the arrow's
              new ends, so it is still one `canvas_apply`. Each text, shape
              or edit is one change. Pure.
 scene/select/hit.rs  which items an eraser's path touches, which items a
