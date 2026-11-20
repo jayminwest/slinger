@@ -55,13 +55,13 @@ fn selected(w: &World) -> Vec<u64> {
     w.canvases.selection().map(|s| s.ids.iter().map(|i| i.0).collect()).unwrap_or_default()
 }
 
-fn offered(w: &World, subject: Subject) -> Vec<&'static str> {
+fn offered(w: &World, subject: &Subject) -> Vec<&'static str> {
     let items = w.offers(subject);
     let shown = items.iter().filter(|i| i.action != crate::commands::menu::Action::Separator);
     shown.map(|i| i.title).collect()
 }
 
-fn is(w: &World, subject: Subject, menu: &[&'static str]) {
+fn is(w: &World, subject: &Subject, menu: &[&'static str]) {
     assert_eq!(menu, offered(w, subject), "{subject:?}");
 }
 
@@ -77,29 +77,29 @@ fn a_context_click_selects_by_finder_s_rule_and_its_pick_acts_on_the_selection()
 
         let menu = click(&mut w, open, true);
         assert_eq!(selected(&w), [1], "the box alone");
-        is(&w, Subject::Item { kind: Kind::Box }, &menu);
-        assert!(w.offers(Subject::Item { kind: Kind::Box }).iter().all(|i| i.enabled));
+        is(&w, &Subject::Item { kind: Kind::Box }, &menu);
+        assert!(w.offers(&Subject::Item { kind: Kind::Box }).iter().all(|i| i.enabled));
         let menu = click(&mut w, folded, true);
         assert_eq!(selected(&w), [2]);
-        is(&w, Subject::Item { kind: Kind::Box }, &menu);
+        is(&w, &Subject::Item { kind: Kind::Box }, &menu);
 
         super::step::select_all(&mut w, 4);
         let menu = click(&mut w, text, false);
         assert_eq!(selected(&w).len(), 4, "a click on a selected item keeps the selection");
-        is(&w, Subject::Selection { boxed: true }, &menu);
+        is(&w, &Subject::Selection { boxed: true }, &menu);
 
         w.key(Chord::new(0, '\u{1b}'), "\u{1b}");
         click(&mut w, open, true);
         assert_eq!(selected(&w), [1]);
         let menu = click(&mut w, arrow, false);
         assert_eq!(selected(&w), [4], "the clicked item, not the one selected before");
-        is(&w, Subject::Item { kind: Kind::Arrow }, &menu);
+        is(&w, &Subject::Item { kind: Kind::Arrow }, &menu);
         assert!(w.send(Event::Command(Command::DeleteSelection)), "the pick");
         w.until(|_| count(daemon, "arrow") == 0);
         assert_eq!((count(daemon, "box"), count(daemon, "text")), (2, 1), "only the arrow");
 
         let menu = click(&mut w, text, false);
-        is(&w, Subject::Item { kind: Kind::Text }, &menu);
+        is(&w, &Subject::Item { kind: Kind::Text }, &menu);
         click(&mut w, open, true);
         assert!(w.send(Event::Command(Command::Fold)), "the pick");
         let fold = |d: &control::Client| {
@@ -123,9 +123,9 @@ fn in_a_pane_stepped_into_a_box_a_click_hits_what_the_pane_shows() {
         let inside = bounds(&mut w, 2);
         let menu = click(&mut w, inside, false);
         assert_eq!(selected(&w), [2], "the stroke the box holds");
-        is(&w, Subject::Item { kind: Kind::Stroke }, &menu);
+        is(&w, &Subject::Item { kind: Kind::Stroke }, &menu);
         let menu = click(&mut w, Rect { x: inside.x + 120.0, ..inside }, false);
-        is(&w, Subject::Canvas, &menu);
+        is(&w, &Subject::Canvas, &menu);
         // The box itself is not shown inside it: its edge is empty canvas.
         assert_eq!(selected(&w), [2], "the empty canvas keeps the selection");
     });

@@ -43,7 +43,7 @@ fn titles(items: &[Item]) -> Vec<&'static str> {
     items.iter().map(|i| if i.action == Action::Separator { "-" } else { i.title }).collect()
 }
 
-fn of(subject: Subject) -> Vec<Item> {
+fn of(subject: &Subject) -> Vec<Item> {
     items(subject, &Keymap::default(), Command::ToolPen, &ABLE)
 }
 
@@ -66,11 +66,11 @@ fn each_subject_s_items_in_order() {
         "New page",
         "Step out of box",
     ];
-    assert_eq!(titles(&of(Subject::Canvas)), canvas);
+    assert_eq!(titles(&of(&Subject::Canvas)), canvas);
     let ui = ["Export agent UI…", "-", "Split right", "Split down", "Close pane"];
-    assert_eq!(titles(&of(Subject::Pane { ui: true })), ui);
+    assert_eq!(titles(&of(&Subject::Pane { ui: true })), ui);
     assert_eq!(
-        titles(&of(Subject::Pane { ui: false })),
+        titles(&of(&Subject::Pane { ui: false })),
         ["Split right", "Split down", "Close pane"]
     );
 }
@@ -81,10 +81,10 @@ fn a_rebound_key_shows_on_its_item_and_a_key_that_types_does_not() {
     let chord = |text| Chord::parse(text).unwrap();
     keys.bind(Command::SplitRight, Some(chord("cmd+shift+e")));
     keys.bind(Command::ClosePane, Some(chord("x")));
-    let pane = items(Subject::Pane { ui: false }, &keys, Command::ToolPen, &ABLE);
+    let pane = items(&Subject::Pane { ui: false }, &keys, Command::ToolPen, &ABLE);
     assert_eq!(find(&pane, Command::SplitRight).key, Some(chord("cmd+shift+e")));
     assert_eq!(find(&pane, Command::ClosePane).key, None, "a key that types stays off");
-    let canvas = of(Subject::Canvas);
+    let canvas = of(&Subject::Canvas);
     assert_eq!(find(&canvas, Command::ZoomReset).key, Some(chord("cmd+0")));
     let paste = canvas.iter().find(|i| i.action == Action::Native(Native::Paste)).unwrap();
     assert_eq!((paste.key, paste.enabled), (Some(chord("cmd+v")), true), "native: always on");
@@ -93,14 +93,14 @@ fn a_rebound_key_shows_on_its_item_and_a_key_that_types_does_not() {
 #[test]
 fn an_item_is_grey_where_its_command_cannot_act() {
     let alone = Facts { panes: 1, inside: false, ..ABLE };
-    let pane = items(Subject::Pane { ui: false }, &Keymap::default(), Command::ToolPen, &alone);
+    let pane = items(&Subject::Pane { ui: false }, &Keymap::default(), Command::ToolPen, &alone);
     assert!(!find(&pane, Command::ClosePane).enabled, "one pane: close is grey");
     assert!(find(&pane, Command::SplitRight).enabled);
-    let canvas = items(Subject::Canvas, &Keymap::default(), Command::ToolPen, &alone);
+    let canvas = items(&Subject::Canvas, &Keymap::default(), Command::ToolPen, &alone);
     assert!(!find(&canvas, Command::StepOut).enabled, "not stepped in");
-    assert!(find(&of(Subject::Canvas), Command::StepOut).enabled, "stepped in");
+    assert!(find(&of(&Subject::Canvas), Command::StepOut).enabled, "stepped in");
     for subject in SUBJECTS {
-        for item in of(subject) {
+        for item in of(&subject) {
             if let Action::Run(command) = item.action {
                 assert_eq!(item.enabled, crate::commands::able::can(command, &ABLE));
             }
@@ -111,7 +111,7 @@ fn an_item_is_grey_where_its_command_cannot_act() {
 #[test]
 fn no_menu_has_a_stray_separator_or_a_command_twice() {
     for subject in SUBJECTS {
-        let items = of(subject);
+        let items = of(&subject);
         let lines: Vec<bool> = items.iter().map(|i| i.action == Action::Separator).collect();
         assert!(!lines.first().unwrap() && !lines.last().unwrap(), "{subject:?}");
         assert!(!lines.windows(2).any(|w| w[0] && w[1]), "{subject:?}");
@@ -131,9 +131,9 @@ fn no_menu_has_a_stray_separator_or_a_command_twice() {
 fn export_agent_ui_only_for_an_agent_ui_pane() {
     let export =
         |items: Vec<Item>| items.iter().any(|i| i.action == Action::Run(Command::ExportUi));
-    assert!(export(of(Subject::Pane { ui: true })));
-    assert!(!export(of(Subject::Pane { ui: false })));
-    assert!(!export(of(Subject::Canvas)));
+    assert!(export(of(&Subject::Pane { ui: true })));
+    assert!(!export(of(&Subject::Pane { ui: false })));
+    assert!(!export(of(&Subject::Canvas)));
 }
 
 #[test]
@@ -154,7 +154,7 @@ fn with_any(extra: &[&'static str]) -> Vec<&'static str> {
 
 #[test]
 fn each_kind_of_item_s_items_in_order() {
-    let item = |kind| titles(&of(Subject::Item { kind }));
+    let item = |kind| titles(&of(&Subject::Item { kind }));
     assert_eq!(item(Kind::Stroke), with_any(&[]));
     assert_eq!(item(Kind::Arrow), with_any(&[]));
     assert_eq!(item(Kind::Text), with_any(&["Pick a text size", "Bigger text", "Smaller text"]));
@@ -167,13 +167,13 @@ fn each_kind_of_item_s_items_in_order() {
 #[test]
 fn a_selection_offers_fold_only_with_a_box_and_typing_only_the_clipboard() {
     let tail = ["Pick a colour", "Select nothing"];
-    let plain = titles(&of(Subject::Selection { boxed: false }));
+    let plain = titles(&of(&Subject::Selection { boxed: false }));
     assert_eq!(plain, ANY_ITEM[..7].iter().chain(&tail).copied().collect::<Vec<_>>());
-    let boxed = titles(&of(Subject::Selection { boxed: true }));
+    let boxed = titles(&of(&Subject::Selection { boxed: true }));
     let fold = ANY_ITEM[..7].iter().chain(&["Fold or unfold box"]).chain(&tail);
     assert_eq!(boxed, fold.copied().collect::<Vec<_>>());
-    assert_eq!(titles(&of(Subject::Typing)), ["Cut", "Copy", "Paste"]);
-    let fold = |s| of(s).iter().any(|i| i.action == Action::Run(Command::Fold));
+    assert_eq!(titles(&of(&Subject::Typing)), ["Cut", "Copy", "Paste"]);
+    let fold = |s| of(&s).iter().any(|i| i.action == Action::Run(Command::Fold));
     for kind in KINDS {
         assert_eq!(fold(Subject::Item { kind }), kind == Kind::Box, "{kind:?}");
     }
@@ -183,9 +183,53 @@ fn a_selection_offers_fold_only_with_a_box_and_typing_only_the_clipboard() {
 fn an_item_s_commands_grey_where_the_items_do_not_have_the_keys() {
     let typing = Facts { items: false, ..ABLE };
     let menu =
-        items(Subject::Item { kind: Kind::Box }, &Keymap::default(), Command::ToolPen, &typing);
+        items(&Subject::Item { kind: Kind::Box }, &Keymap::default(), Command::ToolPen, &typing);
     for command in [Command::DeleteSelection, Command::Duplicate, Command::Fold] {
         assert!(!find(&menu, command).enabled, "{command:?}");
     }
     assert!(find(&menu, Command::StepIn).enabled, "step-in reads the selection only");
+}
+
+fn workspace() -> Subject {
+    Subject::Workspace { dir: "/work/notes".into() }
+}
+
+#[test]
+fn a_row_a_divider_and_the_sidebar_offer_their_own_items() {
+    let row = ["Close workspace", "Show workspace folder in Finder", "-", "Start agent"];
+    let row = row.iter().chain(&["Stop agent", "Restart agent in a new conversation"]);
+    assert_eq!(titles(&of(&workspace())), row.copied().collect::<Vec<_>>());
+    let divider = Subject::Divider { before: crate::layout::PaneId::numbered(1), ratio: 0.5 };
+    assert_eq!(titles(&of(&divider)), ["Grow pane", "Shrink pane"]);
+    assert_eq!(titles(&of(&Subject::Sidebar)), ["Open workspace…", "Show or hide sidebar"]);
+}
+
+#[test]
+fn a_row_s_agent_items_grey_by_that_row_s_agent() {
+    let menu = |agent| {
+        let facts = Facts { agent, ..ABLE };
+        items(&workspace(), &Keymap::default(), Command::ToolPen, &facts)
+    };
+    let on = |items: &[Item], c| find(items, c).enabled;
+    let runs = menu(Some(true));
+    assert!(!on(&runs, Command::StartAgent) && on(&runs, Command::StopAgent));
+    let stopped = menu(Some(false));
+    assert!(on(&stopped, Command::StartAgent) && !on(&stopped, Command::StopAgent));
+    let none = menu(None);
+    assert!(!on(&none, Command::StartAgent) && !on(&none, Command::RestartAgent));
+    assert!(on(&none, Command::CloseWorkspace), "a row with no agent still closes");
+}
+
+#[test]
+fn only_a_row_s_and_a_divider_s_own_commands_carry_their_subject() {
+    let divider = Subject::Divider { before: crate::layout::PaneId::numbered(1), ratio: 0.5 };
+    assert!(carried(Command::CloseWorkspace, &workspace()));
+    assert!(carried(Command::RestartAgent, &workspace()));
+    assert!(!carried(Command::OpenWorkspace, &workspace()));
+    assert!(carried(Command::GrowPane, &divider) && carried(Command::ShrinkPane, &divider));
+    assert!(!carried(Command::ClosePane, &divider));
+    for subject in SUBJECTS {
+        assert!(!carried(Command::CloseWorkspace, &subject), "{subject:?}");
+        assert!(!carried(Command::GrowPane, &subject), "{subject:?}");
+    }
 }

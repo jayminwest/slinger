@@ -11,6 +11,13 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a right click on a workspace in the sidebar offers Close
+  workspace, Show workspace folder in Finder, Start agent, Stop agent and
+  Restart agent for that workspace, without switching to it; the items grey
+  by that workspace's agent. A right click on the line between two panes
+  offers Grow pane and Shrink pane for that line, and one on the rest of the
+  sidebar Open workspace… and Show or hide sidebar.
+
 - **App:** a right click on a canvas item opens a menu for that item: Sling
   selection, Cut, Copy, Duplicate, Delete selection and Pick a colour, plus
   text sizes on a text, Fold, Step into box and Step into box beside on a

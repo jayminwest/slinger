@@ -449,12 +449,26 @@ main.rs      wires the modules below. The only caller of platform. With
              slop routes on as the Event::Scroll it makes; a right click
              moves the pointer there and focuses the pane under it, then
              answers Step::Menu with the menu for what it was on
-             (window/context.rs `subject_at`, `clicked`): a footer, the
-             text being typed, an item or the selection
-             (`Canvases::context_at`, which selects first by Finder's
-             rule), or the empty canvas; nothing off the panes or under the
-             overlay, the palette, the page menu or a pop-up. A pick comes back as the
-             Event::Command its menu bar item sends. A press on
+             (window/context.rs `subject_at`, `clicked`), in this order: a
+             workspace's rows in the sidebar (its ✕ too; Subject::Workspace,
+             by folder) or the rest of the sidebar, a divider
+             (Subject::Divider: the pane before it, by its stable id, and
+             its share), then in the pane a footer, the text being typed,
+             an item or the selection (`Canvases::context_at`, which
+             selects first by Finder's rule), or the empty canvas; nothing
+             on an agent UI's page or under the overlay, the palette, the
+             page menu or a pop-up. A row's menu greys by that row's
+             workspace and agent, not the shown one's. The command path: a
+             menu bar item chosen with the pointer is Event::Command; a
+             context menu's pick is Event::Picked(command, subject). main's
+             `ask` treats both alike (it closes what is open first) unless
+             `context::carried` says the command acts on the subject (a
+             row's close, show folder, start, stop and restart; a
+             divider's grow and shrink): then Ask::On, which the route
+             runs there (a close through `window::close_workspace` with
+             the row's folder, the rest through `window::context::on`).
+             The app keeps no memory of the last popup: a menu closed with
+             no pick leaves nothing a later command could act on. A press on
              a footer's or the sidebar's button goes no further; the lift
              on it runs it.
 window.rs    reads the window's Facts for `able::can` (window/facts.rs)
@@ -1406,7 +1420,10 @@ platform/menu.rs  makes the menu bar a scene's menus say, again when they
              the menu's own loop there, and a pick dispatches from inside
              it. Its items are made by the same `made`, auto-enabling off,
              each on or grey as the popup says (a native one always on);
-             a command item sends `pick:`, always Event::Command.
+             a command item sends `pick:` to the popup's own Target, whose
+             ivar is the popup's Subject: always Event::Picked with it.
+             The target goes with the menu; the bar's Target has no
+             subject.
 platform/keys.rs  a key press as a chord and the text it types (none with
              cmd held), and the clipboard as a Clip: its plain text and a
              canvas's items under the app's own type

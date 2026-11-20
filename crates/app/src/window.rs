@@ -65,7 +65,7 @@ pub fn run(
             items::split(command, canvases, shared, area, socket);
         }
         Command::StartAgent | Command::StopAgent | Command::RestartAgent => {
-            agent(command, socket, sidebar, tools);
+            agent(command, socket, sidebar.shown_dir().as_deref(), tools);
         }
         c if canvases.command(&shared.panes, focus(&shared.panes, area), c) || tools.command(c) => {
         }
@@ -120,15 +120,16 @@ pub fn tap(
 }
 
 /// Runs `start-agent`, `stop-agent` or `restart-agent` on the agent of
-/// the workspace `sidebar` shows,
+/// the workspace in the folder `dir` (the shown one's for a key or the
+/// menu bar, a row's for its context menu; none: nothing),
 /// through the daemon on `socket`: the flash in `tools` names the agent,
 /// or says why it cannot.
-pub fn agent(command: Command, socket: &Path, sidebar: &Sidebar, tools: &mut Tools) {
-    let Some(dir) = sidebar.shown_dir() else { return };
+pub fn agent(command: Command, socket: &Path, dir: Option<&Path>, tools: &mut Tools) {
+    let Some(dir) = dir else { return };
     let daemon = slinger_control::Client::new(socket);
     let done = match command {
-        Command::StopAgent => backend::stop_agent(&daemon, &dir),
-        c => backend::start_agent(&daemon, &dir, c == Command::RestartAgent),
+        Command::StopAgent => backend::stop_agent(&daemon, dir),
+        c => backend::start_agent(&daemon, dir, c == Command::RestartAgent),
     };
     let said = match done {
         Ok(agent) => format!("{} · {agent}", command.title()),
@@ -139,16 +140,16 @@ pub fn agent(command: Command, socket: &Path, sidebar: &Sidebar, tools: &mut Too
 
 /// What `show-canvas-file`, `show-workspace-folder` or
 /// `show-feedback-file` (`command`) shows in the Finder: the focused pane's
-/// canvas file, the folder of the workspace `sidebar` shows, or the
-/// daemon's feedback file; else what the flash says.
+/// canvas file, the workspace folder `dir` (the shown one's, or a row's),
+/// or the daemon's feedback file; else what the flash says.
 pub fn finder(
     command: Command,
     shared: &Shared,
     canvases: &Canvases,
-    sidebar: &Sidebar,
+    dir: Option<PathBuf>,
 ) -> Result<String, String> {
     if command == Command::ShowWorkspaceFolder {
-        let dir = sidebar.shown_dir().ok_or("No workspace is open")?;
+        let dir = dir.ok_or("No workspace is open")?;
         return Ok(dir.to_string_lossy().into_owned());
     }
     if command == Command::ShowFeedbackFile {

@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::canvases::Canvases;
+use crate::commands::context::Subject;
 use crate::commands::menu::Native;
 use crate::commands::{Chord, Command};
 use crate::layout::Rect;
@@ -23,6 +24,9 @@ use crate::shared::Shared;
 use crate::window::button::Pressed;
 use crate::window::{grabs, pane_at, run, tap, view};
 use crate::{Ask, Event, Settings, Step, asked, window};
+
+/// `close-workspace`: of the shown workspace, or a row's picked from its menu.
+const CLOSE: Command = Command::CloseWorkspace;
 
 /// What the window does with an event once [`route`] has taken it.
 pub enum Routed {
@@ -41,7 +45,7 @@ pub enum Routed {
 /// The workspace a tap, an open or a close leaves shown, for the watch to
 /// follow: one named, the first (`None`), or none to follow. A close names
 /// its workspace by folder: a row's ✕ its row's, `close-workspace` the
-/// shown one's.
+/// shown one's, a row's context menu its row's.
 #[expect(clippy::option_option, reason = "what Routed::Watch takes, or no watch")]
 fn shows(
     asked: Ask,
@@ -54,6 +58,7 @@ fn shows(
         Ask::Open(dir) => return window::open_workspace(&dir, socket, sidebar, tools).map(Some),
         Ask::Tap((_, Tap::Close(i))) => sidebar.dir(i),
         Ask::Tap(target) => return tap(target, canvases, shared, sidebar).map(Some),
+        Ask::On(_, Subject::Workspace { dir }) => Some(dir),
         _ => sidebar.shown_dir(),
     };
     let closed =
@@ -127,13 +132,17 @@ pub fn route(
             Ok(true) => Step::Draw(view(settings, shared, tools, sidebar, canvases)),
             Err(why) => Step::Refuse(why),
         },
-        (asked @ (Ask::Tap(_) | Ask::Open(_) | Ask::Run(Command::CloseWorkspace)), _) => {
+        (asked @ (Ask::Tap(_) | Ask::Open(_) | Ask::Run(CLOSE) | Ask::On(CLOSE, _)), _) => {
             let shown = shows(asked, socket, sidebar, tools, (shared, canvases));
             let step = Step::Draw(view(settings, shared, tools, sidebar, canvases));
             return match shown {
                 Some(name) => Routed::Watch(name, step),
                 None => Routed::Answer(step),
             };
+        }
+        (Ask::On(command, subject), _) => {
+            window::context::on(command, &subject, socket, shared, tools);
+            Step::Draw(view(settings, shared, tools, sidebar, canvases))
         }
         (Ask::Run(Command::Quit), _) => Step::Quit,
         (Ask::Run(c @ (Command::StartSlingerd | Command::RestartDaemon)), _) => {
