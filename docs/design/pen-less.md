@@ -207,6 +207,7 @@ a wrapped line's rows are separate rows):
 | escape, a press outside | ends the text, as today |
 | double tap inside | selects the word there (or the run of spaces or punctuation); a drag after it keeps the word (slinger-ed74af) |
 | triple tap inside | selects the row there |
+| ctrl+B / F / P / N, ctrl+A / E, ctrl+H / D, ctrl+K / Y, ctrl+T, ctrl+O | a Mac's emacs keys: a character back / forward, a row up / down, the line's start / end (a wrapped line's rows are one line), delete back / forward, cut to the line's end / put it back (in this text, not the clipboard), swap the characters at the caret, start a line after the caret; shift extends the moves (slinger-ed3fbc, `scene/editor/emacs.rs`) |
 
 - A **word** is a run of alphanumeric characters or `_`. The caret, delete
   and a press inside the text move by grapheme cluster (a ZWJ emoji, a

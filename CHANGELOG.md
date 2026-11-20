@@ -21,6 +21,10 @@ bullet with the area in bold.
   are its own, before your key bindings.
 - **App:** in a canvas text being typed, a double tap (or double click)
   selects the word under it, and a triple tap the row.
+- **App:** a canvas text being typed takes a Mac's emacs keys: ctrl+A and
+  ctrl+E go to the line's start and end, ctrl+B, F, P and N move, ctrl+H
+  and D delete, ctrl+K cuts to the line's end and ctrl+Y puts it back,
+  ctrl+T swaps two characters and ctrl+O starts a line after the caret.
 - **App:** pan without a right button. Hold space and drag (mouse,
   trackpad or pen) to pan the pane under the press; the pointer is a hand.
   A middle-button drag pans as a right-button drag does. While you type a

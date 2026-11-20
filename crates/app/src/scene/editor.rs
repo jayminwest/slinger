@@ -18,7 +18,7 @@
 use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 
 use crate::commands::{
-    ALT, CMD, Chord, DELETE, DOWN, END, FORWARD_DELETE, HOME, LEFT, RIGHT, SHIFT, UP,
+    ALT, CMD, CTRL, Chord, DELETE, DOWN, END, FORWARD_DELETE, HOME, LEFT, RIGHT, SHIFT, UP,
 };
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
@@ -35,15 +35,19 @@ pub struct Editor {
     anchor: Option<usize>,
     /// The x, from the text's left edge, up and down keep to.
     goal: Option<f64>,
+    /// What ctrl+K last took out, for ctrl+Y ([`emacs`]).
+    killed: String,
 }
 
-/// How far a key moves or deletes: by a character, a word, or to the row's
-/// end (cmd).
+/// How far a key moves or deletes: by a character, a word, to the row's
+/// end (cmd), or to the line's end (ctrl+A, ctrl+E: a wrapped line's rows
+/// are one line).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Unit {
     Char,
     Word,
     Row,
+    Line,
 }
 
 /// What a key does: moves the caret (keeping an x for up and down), deletes
@@ -57,7 +61,7 @@ enum Act {
 impl Editor {
     /// `text`, with the caret after its last character.
     pub fn new(text: String) -> Self {
-        Editor { caret: text.len(), text, anchor: None, goal: None }
+        Editor { caret: text.len(), text, ..Editor::default() }
     }
 
     pub fn text(&self) -> &str {
@@ -169,17 +173,25 @@ impl Editor {
     /// A key of the text's (docs/design/pen-less.md's table), for the text
     /// laid `size` high in `column`: the arrows, home and end move the
     /// caret (with shift, the selection's end); delete and forward delete
-    /// delete; cmd+A selects all. Returns false for any other key, which
-    /// goes on to the keymap.
+    /// delete; cmd+A selects all; ctrl and a letter is a Mac's emacs key
+    /// ([`emacs`]). Returns false for any other key, which goes on to the
+    /// keymap.
     pub fn key(&mut self, chord: Chord, size: f64, column: f64) -> bool {
         let extend = chord.mods() & SHIFT != 0;
         let unit = match chord.mods() & !SHIFT {
             0 => Unit::Char,
             ALT => Unit::Word,
             CMD => Unit::Row,
+            CTRL => return self.emacs(chord.key(), extend, size, column),
             _ => return false,
         };
-        let Some(act) = self.act(chord.key(), unit, extend, size, column) else { return false };
+        self.apply(chord.key(), unit, extend, size, column)
+    }
+
+    /// Does what `key` with `unit` held does ([`Editor::act`]); false when
+    /// the key is not the text's.
+    fn apply(&mut self, key: char, unit: Unit, extend: bool, size: f64, column: f64) -> bool {
+        let Some(act) = self.act(key, unit, extend, size, column) else { return false };
         match act {
             Act::Move(to, goal) => {
                 self.place(to, extend);
@@ -239,6 +251,7 @@ impl Editor {
                 // At a row's start, back over the line end before it.
                 if row == self.caret { before(&self.text, self.caret) } else { row }
             }
+            Unit::Line => line_start(&self.text, self.caret),
         }
     }
 
@@ -253,6 +266,7 @@ impl Editor {
                 self.caret + end
             }
             Unit::Row => laid.rows()[laid.row_of(self.caret)].end,
+            Unit::Line => line_end(&self.text, self.caret),
         }
     }
 
@@ -284,6 +298,16 @@ impl Editor {
 /// A cluster of a word: one that starts with an alphanumeric character or `_`.
 fn word(cluster: &str) -> bool {
     cluster.chars().next().is_some_and(|c| c.is_alphanumeric() || c == '_')
+}
+
+/// The start of the line `index` is in: after the line end before it.
+fn line_start(text: &str, index: usize) -> usize {
+    text[..index].rfind('\n').map_or(0, |i| i + 1)
+}
+
+/// The end of the line `index` is in: its line end, or the text's end.
+fn line_end(text: &str, index: usize) -> usize {
+    text[index..].find('\n').map_or(text.len(), |i| index + i)
 }
 
 /// The grapheme cluster boundary before `index` in `text`, or its start.
@@ -368,5 +392,6 @@ impl Editing {
     }
 }
 
+mod emacs;
 #[cfg(test)]
 mod tests;

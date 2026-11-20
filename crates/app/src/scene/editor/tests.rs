@@ -17,7 +17,7 @@ fn fixed(text: &str, _size: f64) -> Size {
 fn at(text: &str) -> Editor {
     glyphs::set_measure(fixed);
     let caret = text.find('|').unwrap();
-    Editor { text: text.replace('|', ""), caret, anchor: None, goal: None }
+    Editor { text: text.replace('|', ""), caret, ..Editor::default() }
 }
 
 /// The text with `|` at the caret and `[`, `]` around the selection.
@@ -138,7 +138,10 @@ fn other_keys_go_on_to_the_keymap() {
     for key in ["cmd+z", "ctrl+left", "a", "cmd+alt+left", "alt+up", "f5", "escape", "return"] {
         assert!(!e.key(Chord::parse(key).unwrap(), SIZE, SEVEN), "{key}");
     }
-    assert!(!e.key(Chord::new(CTRL, 'a'), SIZE, SEVEN));
+    assert!(
+        !e.key(Chord::new(CTRL, 'z'), SIZE, SEVEN),
+        "ctrl and a letter that is not an emacs key"
+    );
     assert_eq!(shown(&e), "ab|");
 }
 
@@ -227,4 +230,30 @@ fn a_double_tap_selects_a_word_and_a_triple_tap_a_row() {
     assert_eq!(tap(&mut e, 12.0, 2.0, 4), "[one, two]\n\nthree", "and on");
     let mut e = typing("one two three", SEVEN);
     assert_eq!(tap(&mut e, 12.0, 12.0, 3), "one two [three]", "a wrapped row, not the line");
+}
+
+#[test]
+fn the_emacs_keys_move_and_delete() {
+    let mut e = at("one two th|ree\nfour");
+    assert_eq!(pressed(&mut e, &["ctrl+a"]), "|one two three\nfour", "the line, not its row");
+    assert_eq!(pressed(&mut e, &["ctrl+e"]), "one two three|\nfour");
+    assert_eq!(pressed(&mut e, &["ctrl+b", "ctrl+b"]), "one two thr|ee\nfour");
+    assert_eq!(pressed(&mut e, &["ctrl+f"]), "one two thre|e\nfour");
+    assert_eq!(pressed(&mut e, &["ctrl+n"]), "one two three\nfour|");
+    assert_eq!(pressed(&mut e, &["ctrl+p", "ctrl+a"]), "|one two three\nfour");
+    assert_eq!(pressed(&mut e, &["shift+ctrl+e"]), "[one two three]\nfour", "shift selects");
+    assert_eq!(pressed(&mut e, &["ctrl+f", "ctrl+h", "ctrl+d"]), "one two thre|four");
+}
+
+#[test]
+fn the_emacs_keys_kill_yank_open_and_transpose() {
+    let mut e = at("one |two\nthree");
+    assert_eq!(pressed(&mut e, &["ctrl+k"]), "one |\nthree");
+    assert_eq!(pressed(&mut e, &["ctrl+k"]), "one |three", "at the line's end: the line end");
+    assert_eq!(pressed(&mut e, &["ctrl+e", "ctrl+y"]), "one three\n|", "what was cut last");
+    assert_eq!(pressed(&mut e, &["ctrl+o"]), "one three\n|\n");
+    let mut e = at("ab|c\nde");
+    assert_eq!(pressed(&mut e, &["ctrl+t"]), "acb|\nde");
+    assert_eq!(pressed(&mut e, &["ctrl+t"]), "abc|\nde", "at the line's end, the two before");
+    assert_eq!(pressed(&mut e, &["ctrl+f", "ctrl+t"]), "abc\n|de", "not across lines");
 }
