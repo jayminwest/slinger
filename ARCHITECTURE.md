@@ -15,7 +15,8 @@ crates/daemon slingerd: owns the IO the core leaves out (socket, signals, startu
               record's SQLite file) and serves the core. A thin main over its library.
               No domain logic.
 crates/app    slinger-app: the macOS app. Control-socket requests -> a scene -> one window.
-              Does not link the core.
+              Does not link the core. The bundled app starts the slingerd beside it
+              when none answers, and stays a client of its socket.
 xtask         quality gates. Not shipped.
 ```
 
@@ -878,7 +879,10 @@ ui.rs        agent UIs (docs/design/live-items.md): a UI's page (served from
 scene/daemon.rs  what the window says of the daemon, pure: the launch line
              (starting, did not start with its exit and log, stopped with
              the sidebar's Start slingerd line) in place of every problem
-             from asking the daemon (`said`), and why a save waits;
+             from asking the daemon (`said`; `Canvases::daemon_problems`
+             in canvases/problems.rs), never in place of the app's own
+             (`own_problems`: the kept ink's file, a PDF; the config), and
+             why a save waits;
              `launching` decides what `start-slingerd` and `restart-daemon`
              do (ask, restart, or the flash of why not: not managed, not
              started by this app, too old to stop). window/launched.rs

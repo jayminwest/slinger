@@ -24,8 +24,9 @@ bullet with the area in bold.
   the app, and the app starts it again if it dies. One you stopped with
   `slinger daemon stop` stays stopped until you open the app again or run
   Start slingerd (Window menu, palette or the sidebar). If it cannot start,
-  the window says why and where its log is. An app whose config names a
-  `[daemon] socket` never starts one.
+  the window says why and where its log is. A PDF it cannot read, or
+  unsent ink it cannot keep, still shows while it starts. An app whose
+  config names a `[daemon] socket` never starts one.
 - **App:** slinger.app holds `slingerd` and `slinger` beside the app, and
   `scripts/bundle.sh --install` links `~/.local/bin/slingerd` and
   `~/.local/bin/slinger` to them instead of copying a second set (it
@@ -475,6 +476,12 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Install:** one way in on a Mac: `scripts/bundle.sh --install`, then
+  open slinger. The app starts slingerd, which writes its log to
+  `slingerd.log` in the data directory; to update, install again, reopen
+  the app and accept "Restart slingerd". The README's quick start and
+  `docs/service.md` ("Running it", which keeps the service-manager notes
+  for a host with no app) now say so.
 - **Canvas:** moving or erasing a selection on a large canvas is faster: a
   lasso move of 8 strokes on a 29 MB canvas takes about 13 ms, from 24 ms.
 - **Workspaces:** each pane now has an id that stays while it is open,

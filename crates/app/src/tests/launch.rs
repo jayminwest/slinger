@@ -22,7 +22,7 @@ fn lost(config: &Path) -> World {
     };
     let problem = backend::Problem { message: "slingerd does not answer".into(), hint: None };
     w.sidebar.update(Err(problem));
-    w.until(|w| w.canvases.problems().next().is_some());
+    w.until(|w| w.canvases.daemon_problems().next().is_some());
     w
 }
 
@@ -77,4 +77,21 @@ fn a_failed_start_shows_why_and_the_log_and_a_stopped_daemon_offers_to_start() {
     let theme = w.settings.config.theme;
     assert!(w.sidebar.targets(&theme, w.shared.size.rect()).iter().any(|t| t.1 == start));
     assert!(w.send(Event::Command(Command::StartSlingerd)), "the window starts it");
+}
+
+/// slinger-724433: the launch line hides only the daemon's problems; the
+/// kept ink's file that cannot be read still shows.
+#[test]
+fn starting_still_shows_a_problem_of_the_app_s_own() {
+    let config = tempfile::tempdir().unwrap();
+    let mut w = lost(config.path());
+    let path = config.path().join("unsent-ink.json");
+    std::fs::write(&path, "{nope").unwrap();
+    let keeping = crate::backend::Unsent::at(path.clone());
+    w.canvases = Canvases::new(control::Client::new(&w.socket)).keeping(keeping);
+    w.sidebar.set_daemon(Some(Daemon::Starting));
+    let (pane, _) = w.said();
+    let shown = |t: &String| t.starts_with(&format!("✗ {}", path.display()));
+    assert!(pane.iter().any(|(t, _)| shown(t)), "{pane:?}");
+    assert!(!pane.iter().any(|(t, _)| t.contains("does not answer")), "{pane:?}");
 }

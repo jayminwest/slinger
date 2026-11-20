@@ -51,6 +51,6 @@ Rules:
   still counts you as listening: a sling sent then waits for the next
   listener. A sling sent later starts the agent's process, resuming its
   conversation, and goes to it.
-- Exit code 6 means the daemon is not running. Tell the user; do not start
-  it unless the user asks.
+- Exit code 6 means the daemon is not running. Tell the user (on a Mac,
+  opening slinger.app starts it); do not start it unless the user asks.
 - Change only the items you made. Never change the user's ink.
