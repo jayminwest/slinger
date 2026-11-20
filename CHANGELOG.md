@@ -15,6 +15,13 @@ bullet with the area in bold.
   trackpad or pen) to pan the pane under the press; the pointer is a hand.
   A middle-button drag pans as a right-button drag does. While you type a
   text or an entry is open, space types a space as before.
+- **App:** find typed text. Find text… (`find`, cmd+F, Edit menu and the
+  command palette) asks for words and takes the focused pane to the first
+  text on its canvas that holds them, on its page or a later one, centred;
+  Find next (`find-next`, cmd+G) goes on to the next. Case and line breaks
+  do not matter. The flash says which of how many, and on which page.
+- **CLI:** `slinger canvas find <CANVAS> <TEXT>` prints the page, id and
+  text of each text item that holds the words, on every page.
 - **App:** act on a canvas's items from the keyboard. Select all
   (`select-all`, cmd+A) selects every item on the focused page; tab and
   shift+tab (`next-item`, `previous-item`) select the next or previous item

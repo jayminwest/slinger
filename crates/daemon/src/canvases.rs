@@ -246,6 +246,16 @@ impl Canvases {
         self.with(id, |log| Ok(log.strokes(item)?))
     }
 
+    /// The text items on a canvas that hold `phrase` (see [`Log::find`]).
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a canvas that is not there, and the errors of
+    /// reading the file.
+    pub fn find(&self, id: &str, phrase: &str) -> Result<Vec<Value>> {
+        self.with(id, |log| Ok(log.find(phrase)))
+    }
+
     /// Applies `ops` as `by` (`user` or `agent:<name>`) and returns what it
     /// wrote, after the lines are on disk. Under `once`, a key it applied
     /// under lately applies nothing again ([`Log::apply_once`]).

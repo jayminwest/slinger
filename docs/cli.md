@@ -48,6 +48,7 @@ a "did you mean" suggestion.
 | `canvas changes <ID> [--after NUMBER] [--wait MS]` | One line per operation numbered above `--after` (default 0: all), lowest first, as the canvas file's JSON line. `--json`: `next`, `ops` |
 | `canvas crop <ID> (--item ITEM \| --box X,Y,W,H [--page PAGE]) [--out FILE]` | The path of each image written, one per line, tiles in reading order. `--json`: `images` (`path`, `x`, `y`, `width`, `height`) |
 | `canvas strokes <ID> --item ITEM` | One stroke per line, as JSON with absolute `points` in tenths. `--json`: `strokes` |
+| `canvas find <ID> <TEXT>` | One line per text item that holds the words, page by page and on a page top to bottom: page id, item id and the text (its line breaks as `\n`), separated by tabs. Nothing when none does. `--json`: `found` (each item as `canvas show` gives it) |
 | `session list` | One line per session, by agent: agent, status (`-` for none) and home, then the note if there is one, separated by tabs. `--json`: `sessions` |
 | `session show <AGENT>` | One field per line, the name and the value separated by a tab: `agent`, `home`, `deliver`, `status`, then those it has of `listening`, `note`, `process`, `pid`, `profile`, `pending`, `context`, `session_id` and `answer` (its line breaks as `\n`). `--json`: `session` |
 | `session start <WORKSPACE> [--fresh] [--profile NAME]`, `session stop <WORKSPACE>` | Nothing. `--json`: `session` |
@@ -226,6 +227,10 @@ their ink, as in a packet; a box's tiles whole). Both or neither of `--item` and
 only the app can draw a PDF's page. `canvas strokes` prints the raw points of a stroke or of every
 stroke of a cluster; an item that is not ink exits 5. An item that is not
 there exits 3 (`not_found`).
+
+`canvas find` matches the words of text items on every page, ignoring case
+and spacing (a line break counts as a space), not ink or a PDF's words. A
+`TEXT` of no words finds nothing.
 
 `status set` is an agent verb: it acts as the calling agent, named by
 `--agent <NAME>` or else by the `SLINGER_AGENT` environment variable, so a

@@ -1,7 +1,7 @@
 //! The canvas commands on a pane (SPEC D6): pan and zoom, and the dotted
 //! grid every canvas pane shows (`toggle-grid`); the next and
 //! previous page, a new page, a rename and a removal, which turn only that
-//! pane; and undo and redo, the user's own steps on its canvas. Changes go
+//! pane; a find and the next find of typed text ([`super::seek`]); and undo and redo, the user's own steps on its canvas. Changes go
 //! through the ink's queue, in turn with the pen's, so an undo pressed
 //! right after a stroke undoes that stroke; and `save`, which says where
 //! the pane's canvas is saved. The decisions are
@@ -55,6 +55,8 @@ impl Canvases {
             Command::NewPage => self.new_page(panes, pane),
             Command::RenamePage => self.rename_page(panes, (pane, frame)),
             Command::RemovePage => self.remove_page(panes, pane),
+            Command::Find => self.ask_find(panes, (pane, frame)),
+            Command::FindNext => self.find_next(panes, (pane, frame)),
             Command::Undo | Command::Redo => self.step(panes, pane, command == Command::Redo),
             Command::ToggleGrid => self.zoomed = Some(self.paper.toggle().to_string()),
             Command::Save => {

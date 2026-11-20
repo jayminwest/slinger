@@ -104,7 +104,7 @@ fn a_chord_with_no_command_runs_nothing() {
     let keys = Keymap::default();
     assert_eq!(keys.command(chord("q")), None);
     assert_eq!(keys.command(chord("cmd+shift+q")), None);
-    assert_eq!(keys.command(Chord::new(CMD, 'g')), None);
+    assert_eq!(keys.command(Chord::new(CMD | SHIFT, 'g')), None);
 }
 
 #[test]

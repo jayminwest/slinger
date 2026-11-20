@@ -80,7 +80,9 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              and `lines` reads them back whole, for the change feed.
              look.rs: what an agent asks beyond the packet (R5, R6): crop (an
              item, a cluster c<n> or a box, as render images, at most MAX_CROP
-             units a side) and strokes (a stroke's or a cluster's points).
+             units a side), strokes (a stroke's or a cluster's points) and
+             find (the text items that hold a phrase, every page, in reading
+             order: Canvas::find in canvas/find.rs, case and spacing ignored).
              put.rs: an agent's answer (SPEC section 7): text, a box, ink, an
              arrow or a live item (an agent UI's showing, kind `live`) beside
              an item, placed by free_beside or at the agent's `How::at`, in
@@ -566,6 +568,9 @@ canvases/paging.rs  the canvas commands on a pane: pan, zoom (in, out, to
              through the ink's queue; each pane's page line; `save`, which
              flashes where the pane's canvas is saved (canvases/status.rs
              knows each pane's canvas file, from `canvas_show`'s `path`).
+canvases/seek.rs  `find` (cmd+f) and `find-next` (cmd+g): the entry for the
+             words, `canvas_find` on the daemon (the search is the core's),
+             and the jump: the pane turns to the text's page and centres it.
 canvases/sling.rs  the sling from the window: opens the entry at the
              focused pane's selection, sends it once the ink of its canvas
              is written (`Ink::settled`), takes the answer. `sling_now` is
@@ -815,13 +820,16 @@ scene/ink.rs  the pen's ink: the stroke under the pen and the finished changes
              redos in the same queue; the pen-to-paint delay log (O2). Pure.
 scene/pages.rs  pages (SPEC D6): the next and previous page, a new page's
              name, where a pane goes when its page is removed, the page
-             line, and the two questions a page command asks (a rename's
-             typed or pasted name, in an entry like the sling's centred in
+             line, and the questions a page command asks (a rename's
+             typed or pasted name, or the words `find` looks for, in an
+             entry like the sling's centred in
              its pane with the pen's buttons beside it; a removal of a page with items, asked once in the
              footer); what each page command did, said once for the flash
              (`Page 2 · 2/3`, `New page: Page 3 · 3/3`, `Renamed: plan`,
              `Removed: ideas · Undo brings it back`, `The last page
-             stays`). Pure.
+             stays`). Pure. scene/pages/find.rs: which found text `find`
+             goes to (from the shown page on) and `find-next` after it,
+             round, and its flash (`“plan” 2/5 · ideas`).
 scene/select.rs  the eraser, the lasso and the selection (SPEC D6): an erase
              hides the strokes, text, boxes and arrows it touches at once and
              removes them on the lift (one change, one undo step); a loop
@@ -1331,6 +1339,7 @@ Each boundary has something that fails when it is broken:
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |
 | Page commands turn, name and remove pages; removing a page with items asks once | `crates/app/src/scene/pages/tests.rs` |
+| Find takes a pane to each text that holds the words, ignoring case and spacing, page by page from the shown one, centred; find-next goes round | `crates/core/tests/canvas_look.rs`, `crates/app/src/scene/pages/find/tests.rs`, `crates/app/src/canvases/seek/tests.rs` against a real daemon |
 | Every footer button is at least 28 pt square and none overlap; a narrow footer drops whole groups, the lowest rank first; the sidebar button sits in the same spot open or collapsed | `crates/app/src/scene/status/tests.rs` |
 | A press on a button goes no further and only the lift on the same button taps it; the open page menu takes every press, lists the pages with the shown one marked and turns the pane to the one tapped | `crates/app/src/scene/taps/tests.rs`, `crates/app/src/scene/pages/menu/tests.rs`, `crates/app/src/shared/tests.rs`, and `crates/app/src/canvases/tests.rs` against a real daemon |
 | A `pdf` item is one `add` line that reads back; its blob id, page, page size and crop are checked; it draws under every other kind and the eraser never takes it; the packet names a page only under new ink or selected, and a crop draws it as a grey frame | `crates/core/tests/canvas_pdf.rs` |
