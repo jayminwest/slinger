@@ -258,6 +258,14 @@ impl Panes {
             | Command::ExportUi
             | Command::ShowFeedbackFile
             | Command::ShowAllFeedback
+            | Command::SelectAll
+            | Command::NextItem
+            | Command::PreviousItem
+            | Command::NudgeLeft
+            | Command::NudgeRight
+            | Command::NudgeUp
+            | Command::NudgeDown
+            | Command::Duplicate
             | Command::Find
             | Command::FindNext => {}
             Command::SplitRight => self.split(Axis::Row),

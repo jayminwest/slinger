@@ -3,10 +3,10 @@
 //! answer: chosen by its key, as that key press, so the keymap runs it once;
 //! chosen with the pointer, as [`Event::Command`]. A native item goes to the
 //! window or the text field with the focus (cut, copy, paste). The menu
-//! takes its keys before any field: an undo or a redo, by its key or the
-//! pointer, that the app passes on (an entry has the keys) goes to the
-//! field as `undo:` or `redo:` along the responder chain, so it undoes the
-//! typing there.
+//! takes its keys before any field: an undo, a redo or a select all, by its
+//! key or the pointer, that the app passes on (an entry or a page has the
+//! keys) goes to the field as `undo:`, `redo:` or `selectAll:` along the
+//! responder chain, so it acts on the typing there.
 
 use std::cell::RefCell;
 
@@ -117,12 +117,13 @@ fn made(item: &Item, target: &Target, mtm: MainThreadMarker) -> Retained<NSMenuI
     made
 }
 
-/// What `command`'s key does in a text field that has it: undo and redo
-/// its typing.
+/// What `command`'s key does in a text field (or a page) that has it: undo
+/// and redo its typing, select all its text.
 fn in_field(command: Command) -> Option<Sel> {
     match command {
         Command::Undo => Some(sel!(undo:)),
         Command::Redo => Some(sel!(redo:)),
+        Command::SelectAll => Some(sel!(selectAll:)),
         _ => None,
     }
 }
@@ -134,7 +135,6 @@ fn selector(native: Native) -> Sel {
         Native::Cut => sel!(cut:),
         Native::Copy => sel!(copy:),
         Native::Paste => sel!(paste:),
-        Native::SelectAll => sel!(selectAll:),
         Native::Minimise => sel!(performMiniaturize:),
     }
 }
