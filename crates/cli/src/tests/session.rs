@@ -5,7 +5,7 @@
 
 use serde_json::Value;
 
-use super::{cli_each, cli_on, cli_raw, json, with_daemon, with_daemon_running};
+use super::{cli_each, cli_on, cli_raw, json, wait_lines, with_daemon, with_daemon_running};
 use crate::output::exit;
 
 #[test]
@@ -77,7 +77,7 @@ fn a_session_starts_takes_messages_and_stops_quietly() {
     let file = "version = 1\nname = \"notes\"\n[agent]\nname = \"scout\"\n";
     std::fs::write(dir.join("slinger-workspace.toml"), file).unwrap();
     let path = dir.to_str().unwrap();
-    let runs = with_daemon_running(|socket| {
+    let (runs, sent) = with_daemon_running(|socket| {
         let mut runs = vec![
             cli_on(socket, &["session", "send", "notes", "early"]),
             cli_on(socket, &["workspace", "open", path]),
@@ -86,10 +86,12 @@ fn a_session_starts_takes_messages_and_stops_quietly() {
             cli_on(socket, &["session", "send", "notes", "one"]),
         ];
         runs.push(cli_raw(socket, &["session", "send", "notes", "-"], b"two\n", &mut Vec::new()));
+        // Before the stop, which ends the process that writes them.
+        let sent = wait_lines(&dir.join("in.txt"), 2);
         runs.push(cli_on(socket, &["session", "show", "scout", "--json"]));
         runs.push(cli_on(socket, &["session", "stop", "notes"]));
         runs.push(cli_on(socket, &["session", "start", "notes", "--fresh"]));
-        runs
+        (runs, sent)
     });
     let codes: Vec<u8> = runs.iter().map(|r| r.code).collect();
     assert_eq!(codes, [exit::NOT_FOUND, exit::OK, exit::UNAVAILABLE, 0, 0, 0, 0, 0, 0]);
@@ -101,8 +103,7 @@ fn a_session_starts_takes_messages_and_stops_quietly() {
     let shown = json(&runs[6]);
     assert_eq!(shown["session"]["process"], "running");
     assert_eq!(runs[7].out, "");
-    let sent = std::fs::read_to_string(dir.join("in.txt")).unwrap();
-    let texts: Vec<Value> = sent.lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    let texts: Vec<Value> = sent.iter().map(|l| serde_json::from_str(l).unwrap()).collect();
     let texts: Vec<&str> =
         texts.iter().map(|t| t["message"]["content"].as_str().unwrap()).collect();
     assert_eq!(texts, ["one", "two\n"]);
