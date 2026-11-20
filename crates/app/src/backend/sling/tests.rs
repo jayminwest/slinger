@@ -317,6 +317,7 @@ fn the_sidebar_s_status_follows_the_daemon_s_count_of_pending_messages() {
         let ask = SlingAsk {
             canvas: "notes".into(),
             page: None,
+            inside: None,
             select: vec![],
             prompt: "hi".into(),
             profile: None,

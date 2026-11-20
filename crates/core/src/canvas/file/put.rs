@@ -64,6 +64,15 @@ pub struct How {
     /// user's writing near the item (`near`), else [`TEXT_SIZE`]. Only
     /// for text: its frame fits the words at this size.
     pub text_size: Option<i64>,
+    /// The box it goes in (`b4` or `i4`), on the page of the item it goes
+    /// beside, which may be the box itself: the answer to a sling of that
+    /// box. The free space is among the box's contents, in its room
+    /// ([`Canvas::free_in`]), and an item put in a folded box joins it
+    /// ([`Log::join`]). An open box with no room for it is a `conflict`, and
+    /// a place outside it `invalid`.
+    ///
+    /// [`Canvas::free_in`]: crate::canvas::Canvas::free_in
+    pub inside: Option<String>,
 }
 
 /// What a put made.
@@ -109,7 +118,8 @@ impl Log {
         how: &How,
     ) -> Result<Placed> {
         let (colour, size) = self.check_put_how(beside, what, how)?;
-        let (_, near, page) = self.named(beside)?;
+        let (named, near, page) = self.named(beside)?;
+        let inside = how.inside.as_deref().map(|b| self.named(b)).transpose()?;
         let (colour, size) = match (colour, size) {
             (Some(c), Some(s)) => (c, s),
             (colour, size) => {
@@ -146,14 +156,44 @@ impl Log {
         };
         let shape = match (what, how.at) {
             (Put::Arrow { .. }, _) => shape,
-            (_, Some([x, y])) => placed(&shape, Point::new(json::units(x), json::units(y))),
+            (_, Some([x, y])) => {
+                let shape = placed(&shape, Point::new(json::units(x), json::units(y)));
+                let open =
+                    |b: ItemId| self.canvas().item(b).is_some_and(|i| i.shape().fold().is_none());
+                match inside {
+                    Some((b, frame, _)) if open(b) && !within(shape.bounds(), frame) => {
+                        let hint = "give --at inside the box, or leave it out";
+                        return Err(invalid("the place is outside the box it goes in", hint));
+                    }
+                    _ => shape,
+                }
+            }
             (_, None) => {
                 let b = shape.bounds();
-                let free = self.canvas().free_beside(page, near, b.w, b.h);
+                let free = match inside {
+                    None => self.canvas().free_beside(page, near, b.w, b.h),
+                    Some((boxed, _, _)) => {
+                        let near = (named != boxed).then_some(near);
+                        self.canvas().free_in(boxed, near, b.w, b.h).ok_or_else(|| {
+                            Error::Conflict {
+                                message: "the box it goes in has no room for it".into(),
+                                hint: Some(
+                                    "give --at inside the box, or put it beside the box without \
+                                     --in"
+                                        .into(),
+                                ),
+                            }
+                        })?
+                    }
+                };
                 placed(&shape, Point::new(free.x, free.y))
             }
         };
-        let written = self.step(by, at, vec![Action::Add { page, shape }])?;
+        let mut actions = vec![Action::Add { page, shape }];
+        if let Some(boxed) = &how.inside {
+            self.join_box(boxed, &mut actions)?;
+        }
+        let written = self.step(by, at, actions)?;
         let item = written.made.first().cloned().unwrap_or_default();
         let made = json::parse_item(&item).ok().and_then(|id| self.canvas().item(id));
         let frame = made.map(Item::bounds).unwrap_or_default();
@@ -181,7 +221,17 @@ impl Log {
         what: &Put,
         how: &How,
     ) -> Result<(Option<Colour>, Option<f64>)> {
-        self.named(beside)?;
+        let (_, _, page) = self.named(beside)?;
+        if let Some(boxed) = &how.inside {
+            let (item, _, on) = self.named(boxed)?;
+            let hint = "pass --in the id of a box on the page of the item it goes beside (b4)";
+            if !matches!(self.canvas().item(item).map(Item::shape), Some(Shape::Box { .. })) {
+                return Err(invalid(&format!("{boxed} is not a box"), hint));
+            }
+            if on != page {
+                return Err(invalid(&format!("{boxed} is on another page"), hint));
+            }
+        }
         match what {
             Put::Text(text) if text.trim().is_empty() => {
                 return Err(invalid("the text is blank", "pass the words to put"));
@@ -271,6 +321,14 @@ fn points(pts: &[i64]) -> Vec<Point> {
             Point::new(json::units(x), json::units(y))
         })
         .collect()
+}
+
+/// Whether `r` lies wholly inside `frame`, edges included.
+fn within(r: Rect, frame: Rect) -> bool {
+    r.x >= frame.x
+        && r.y >= frame.y
+        && r.x + r.w <= frame.x + frame.w
+        && r.y + r.h <= frame.y + frame.h
 }
 
 fn centre(r: Rect) -> Point {

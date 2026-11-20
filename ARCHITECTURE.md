@@ -95,7 +95,11 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              an item, placed by free_beside or at the agent's `How::at`, in
              `How::colour`, text at `How::text_size` (tenths, checked against
              TEXT_SIZES by put::text_size), as one undo step; check_put says
-             first whether a put would go.
+             first whether a put would go. With `How::inside` (the answer
+             to a sling of a box) it goes in the box: Canvas::free_in
+             (canvas/fold.rs) places it among the box's contents, and
+             Log::join_box joins a folded box; Canvas::joins lets an
+             agent change a user's folded box by its own items only.
              edit.rs: the agent changes (text, text size, size, place) or removes what it
              put; a move or resize (here or by canvas_apply, Log::followed)
              refits the bound ends of the arrows `by` may change, in the

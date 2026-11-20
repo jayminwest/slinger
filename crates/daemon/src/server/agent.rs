@@ -19,7 +19,8 @@ pub(super) fn answer(store: &Store, ask: AgentAsk) -> Result<Reply, RemoteError>
                 control::Put::Ink(pts) => Put::Ink(pts),
                 control::Put::Arrow([from, to]) => Put::Arrow { from, to },
             };
-            let how = How { colour: put.color, at: put.at, text_size: put.text_size };
+            let how =
+                How { colour: put.color, at: put.at, text_size: put.text_size, inside: put.inside };
             canvas_put(store, &put.canvas, &put.agent, &put.beside, (&what, &how))
         }
         AgentAsk::CanvasEdit(ask) => {

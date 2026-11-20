@@ -56,10 +56,10 @@ a "did you mean" suggestion.
 | `profile set <WORKSPACE> <NAME> [--dir DIR] [--tool RULE]...`, `profile remove <WORKSPACE> <NAME>` | Nothing. `--json`: `workspace`, `profiles` |
 | `session send <WORKSPACE> <TEXT\|->` | Nothing. `--json`: `session` |
 | `session listen <WORKSPACE> [--wait SECONDS] [--pid PID]` | The next sling to the workspace's agent, as text: line 1 `slinger-sling 1 … agent=<NAME>`, the packet (its `at=` names the directory of its images), the note and the prompt. Nothing when `--wait` passes with none. `--json`: `agent`, and `sling` (`event`, `canvas`, `dir`, `text`) when one came |
-| `sling send <ID> [--page PAGE] [--select IDS] [--prompt TEXT\|-] [--profile NAME]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id` (empty when a listener takes it), `deliver` (`process` or `listen`), `tokens` |
+| `sling send <ID> [--page PAGE] [--in BOX] [--select IDS] [--prompt TEXT\|-] [--profile NAME]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id` (empty when a listener takes it), `deliver` (`process` or `listen`), `tokens` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
 | `file touched (<PATH> \| --hook) [--agent NAME]` | Nothing. `--json`: `agent`, `path`, `hash`, `event` |
-| `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --ink PTS \| --arrow FROM TO) [--color COLOR] [--at X,Y] [--size TENTHS] [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
+| `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --ink PTS \| --arrow FROM TO) [--color COLOR] [--at X,Y] [--size TENTHS] [--in BOX] [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
 | `canvas edit <ID> --item ITEM [--text TEXT] [--size TENTHS] [--box W,H] [--move X,Y] [--agent NAME]` | The item's id and its box `x,y,w,h` in tenths now, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq` |
 | `canvas remove <ID> --item ITEM [--agent NAME]` | Nothing. `--json`: `seq` |
 | `canvas fold <ID> <ITEM> [--agent NAME]`, `canvas unfold <ID> <ITEM> [--agent NAME]` | Nothing. `--json`: `item`, `page`, `x`, `y`, `w`, `h` (the box's frame now), `seq` |
@@ -264,7 +264,11 @@ cluster), where it covers nothing (`docs/service.md`, "Agent canvas verbs").
 puts the top-left corner of its box there instead, in tenths, on the page of
 `--beside`; an arrow takes no `--at`. `--size` sizes a text's characters,
 in tenths of a unit like `--at` and `--box` (40 to 4000); the frame fits the
-words at that size. Without `--color` or `--size`, the put matches the
+words at that size. `--in BOX` puts it in that box, among what it holds,
+where page items outside the box do not count (`--beside` may be the box
+itself): the answer to a sling of the box. In a folded box it joins the
+box; an open box with no room for it exits 4 (`conflict`). Without
+`--color` or `--size`, the put matches the
 user's writing it goes beside (the default rule in `docs/service.md`, "Agent
 canvas verbs"): its colour, and the height of its lines of writing. After a sling to that agent on that
 canvas, the put also appends `reply_landed` to the record. An item that is
@@ -313,7 +317,9 @@ gets `SLINGER_AGENT` and `SLINGER_SOCKET`, so its `slinger` calls act as its
 agent on the daemon that started it (see "The process" in
 `docs/service.md`).
 
-`sling send` sends what changed on a canvas page since its last sling, the
+`sling send` sends what changed on a canvas page since its last sling (with
+`--in BOX`, only what that box holds: a sling of the box, whose note asks
+for the answer in it with `canvas put --in BOX`), the
 selection (`--select c42,t12`, ids as `canvas read` takes them) and the
 prompt (`-` reads it from stdin; none is valid: the selection is the
 question) to the agent of the canvas's open workspace, and returns once it

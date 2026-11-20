@@ -47,6 +47,11 @@ pub struct CanvasPut {
     /// for text.
     #[serde(default, rename = "size", skip_serializing_if = "Option::is_none")]
     pub text_size: Option<i64>,
+    /// The box it goes in (`b4`), which may be `beside` itself: an answer
+    /// to a sling of that box. It lands among the box's contents, and joins
+    /// a folded box. Absent: on the page.
+    #[serde(default, rename = "in", skip_serializing_if = "Option::is_none")]
+    pub inside: Option<String>,
 }
 
 /// A put as the line holds it: exactly one of `text`, `box`, `ink` and `arrow`.
@@ -63,6 +68,8 @@ struct PutLine {
     color: Option<String>,
     at: Option<[i64; 2]>,
     size: Option<i64>,
+    #[serde(rename = "in")]
+    inside: Option<String>,
 }
 
 impl TryFrom<PutLine> for CanvasPut {
@@ -76,9 +83,9 @@ impl TryFrom<PutLine> for CanvasPut {
             (None, None, None, Some(ends)) => Put::Arrow(ends),
             _ => return Err("a put takes exactly one of `text`, `box`, `ink` and `arrow`"),
         };
-        let (color, at, text_size) = (line.color, line.at, line.size);
+        let (color, at, text_size, inside) = (line.color, line.at, line.size, line.inside);
         let (canvas, agent, beside) = (line.canvas, line.agent, line.beside);
-        Ok(Self { canvas, agent, beside, what, color, at, text_size })
+        Ok(Self { canvas, agent, beside, what, color, at, text_size, inside })
     }
 }
 
@@ -186,8 +193,8 @@ impl Client {
         what: Put,
     ) -> Result<CanvasPlaced, RemoteError> {
         let (canvas, agent, beside) = (canvas.into(), agent.into(), beside.into());
-        let (color, at, text_size) = (None, None, None);
-        self.canvas_put_as(CanvasPut { canvas, agent, beside, what, color, at, text_size })
+        let (color, at, text_size, inside) = (None, None, None, None);
+        self.canvas_put_as(CanvasPut { canvas, agent, beside, what, color, at, text_size, inside })
     }
 
     /// Puts what `put` asks for.
@@ -248,6 +255,7 @@ mod tests {
             color: None,
             at: None,
             text_size: None,
+            inside: None,
         })
     }
 
@@ -278,6 +286,16 @@ mod tests {
                     AgentAsk::CanvasPut(ask)
                 },
                 r#""text":"hi","size":480}"#,
+            ),
+            (
+                {
+                    let AgentAsk::CanvasPut(mut ask) = put(Put::Text("hi".into())) else {
+                        unreachable!()
+                    };
+                    ask.inside = Some("b4".into());
+                    AgentAsk::CanvasPut(ask)
+                },
+                r#""text":"hi","in":"b4"}"#,
             ),
         ] {
             let line = format!("{head},{tail}");
