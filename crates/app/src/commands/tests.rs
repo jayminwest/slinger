@@ -280,3 +280,5 @@ fn the_zoom_keys_are_on_command_and_the_pane_keys_on_option() {
     assert_eq!(keys.command(Chord::new(ALT, '-')), Some(Command::ShrinkPane));
     assert_eq!(keys.command(Chord::new(ALT, '≠')), None, "never the typed character");
 }
+
+mod golden;

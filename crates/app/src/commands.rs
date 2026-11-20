@@ -2,7 +2,8 @@
 //! named [`Command`], bound to a [`Chord`] in the config file. A tablet button
 //! is a key, set in the tablet's own software. Pure: `platform` turns a key
 //! event into a chord, and a [`Keymap`] turns the chord into a command.
-//! `registry` gives each command a title and a group for the surfaces that
+//! `table` gives each command its name, title, group and default chord in
+//! one row; `registry` the groups and a chord's glyphs for the surfaces that
 //! list them; `menu` lays them out as the menu bar.
 
 pub mod able;
@@ -10,12 +11,15 @@ mod chord;
 pub mod context;
 pub mod menu;
 mod registry;
+mod table;
 
 use chord::F1;
 pub use chord::{DELETE, DOWN, END, FORWARD_DELETE, HOME, LEFT, RIGHT, UP};
 pub use registry::Group;
+use table::TABLE;
 
-/// Every action a key can run. Later seeds add to [`Command::ALL`].
+/// Every action a key can run. Each has its row in the command table
+/// (`table.rs`): its name, title, group and default chord.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
     Quit,
@@ -202,105 +206,33 @@ pub enum Command {
 }
 
 /// How many commands there are.
-const COUNT: usize = Command::ALL.len();
+const COUNT: usize = TABLE.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 89] = [
-        (Command::Quit, "quit"),
-        (Command::ReloadConfig, "reload-config"),
-        (Command::PickColour, "pick-colour"),
-        (Command::PickShape, "pick-shape"),
-        (Command::PickTool, "pick-tool"),
-        (Command::PickWidth, "pick-width"),
-        (Command::SplitRight, "split-right"),
-        (Command::SplitDown, "split-down"),
-        (Command::ClosePane, "close-pane"),
-        (Command::FocusNext, "focus-next"),
-        (Command::FocusLeft, "focus-left"),
-        (Command::FocusRight, "focus-right"),
-        (Command::FocusUp, "focus-up"),
-        (Command::FocusDown, "focus-down"),
-        (Command::GrowPane, "grow-pane"),
-        (Command::ShrinkPane, "shrink-pane"),
-        (Command::ToggleSidebar, "toggle-sidebar"),
-        (Command::DismissNotice, "dismiss-notice"),
-        (Command::PanLeft, "pan-left"),
-        (Command::PanRight, "pan-right"),
-        (Command::PanUp, "pan-up"),
-        (Command::PanDown, "pan-down"),
-        (Command::ZoomIn, "zoom-in"),
-        (Command::ZoomOut, "zoom-out"),
-        (Command::ZoomReset, "zoom-reset"),
-        (Command::NextPage, "next-page"),
-        (Command::DeleteSelection, "delete-selection"),
-        (Command::ClearSelection, "clear-selection"),
-        (Command::ToolPen, "tool-pen"),
-        (Command::ToolEraser, "tool-eraser"),
-        (Command::ToolLasso, "tool-lasso"),
-        (Command::ToolText, "tool-text"),
-        (Command::ToolBox, "tool-box"),
-        (Command::ToolArrow, "tool-arrow"),
-        (Command::ToolSelect, "tool-select"),
-        (Command::WidthUp, "width-up"),
-        (Command::WidthDown, "width-down"),
-        (Command::Sling, "sling"),
-        (Command::PreviousPage, "previous-page"),
-        (Command::NewPage, "new-page"),
-        (Command::RenamePage, "rename-page"),
-        (Command::RemovePage, "remove-page"),
-        (Command::Undo, "undo"),
-        (Command::Redo, "redo"),
-        (Command::Dictate, "dictate"),
-        (Command::ShowKeys, "show-keys"),
-        (Command::ShowCommands, "show-commands"),
-        (Command::LeaveFeedback, "leave-feedback"),
-        (Command::ToggleGrid, "toggle-grid"),
-        (Command::SlingNow, "sling-now"),
-        (Command::Save, "save"),
-        (Command::ShowCanvasFile, "show-canvas-file"),
-        (Command::OpenPdf, "open-pdf"),
-        (Command::CropPdf, "crop-pdf"),
-        (Command::OpenWorkspace, "open-workspace"),
-        (Command::CloseWorkspace, "close-workspace"),
-        (Command::ShowWorkspaceFolder, "show-workspace-folder"),
-        (Command::StartAgent, "start-agent"),
-        (Command::StopAgent, "stop-agent"),
-        (Command::RestartAgent, "restart-agent"),
-        (Command::ExportUi, "export-ui"),
-        (Command::ShowFeedbackFile, "show-feedback-file"),
-        (Command::ShowAllFeedback, "show-all-feedback"),
-        (Command::PickSize, "pick-size"),
-        (Command::SizeUp, "size-up"),
-        (Command::SizeDown, "size-down"),
-        (Command::SelectAll, "select-all"),
-        (Command::NextItem, "next-item"),
-        (Command::PreviousItem, "previous-item"),
-        (Command::NudgeLeft, "nudge-left"),
-        (Command::NudgeRight, "nudge-right"),
-        (Command::NudgeUp, "nudge-up"),
-        (Command::NudgeDown, "nudge-down"),
-        (Command::Duplicate, "duplicate"),
-        (Command::Find, "find"),
-        (Command::FindNext, "find-next"),
-        (Command::NewText, "new-text"),
-        (Command::Fold, "fold"),
-        (Command::NudgeLeftFine, "nudge-left-fine"),
-        (Command::NudgeRightFine, "nudge-right-fine"),
-        (Command::NudgeUpFine, "nudge-up-fine"),
-        (Command::NudgeDownFine, "nudge-down-fine"),
-        (Command::StepIn, "step-in"),
-        (Command::StepInBeside, "step-in-beside"),
-        (Command::StepOut, "step-out"),
-        (Command::StartSlingerd, "start-slingerd"),
-        (Command::RestartDaemon, "restart-daemon"),
-        (Command::ZoomToFit, "zoom-to-fit"),
-        (Command::ReloadUi, "reload-ui"),
-    ];
+    pub const ALL: [(Command, &str); COUNT] = {
+        let mut all = [(Command::Quit, ""); COUNT];
+        let mut i = 0;
+        while i < COUNT {
+            all[i] = (TABLE[i].command, TABLE[i].name);
+            i += 1;
+        }
+        all
+    };
 
     /// The command called `name` in the config file.
     pub fn named(name: &str) -> Option<Command> {
-        Self::ALL.iter().find(|(_, n)| *n == name).map(|&(c, _)| c)
+        TABLE.iter().find(|row| row.name == name).map(|row| row.command)
+    }
+
+    /// The command's name for people: "Split right".
+    pub const fn title(self) -> &'static str {
+        TABLE[self as usize].title
+    }
+
+    /// The group the command shows under.
+    pub const fn group(self) -> Group {
+        TABLE[self as usize].group
     }
 }
 
@@ -344,102 +276,10 @@ impl Chord {
 pub struct Keymap([Option<Chord>; COUNT]);
 
 impl Default for Keymap {
-    /// The few defaults; `config.example.toml` lists them. A command with
-    /// none runs from the palette and the menu bar until the user binds
-    /// one. The final keys wait for a canvas to use them on (SPEC O4).
+    /// The few defaults, from the command table; `config.example.toml`
+    /// lists them. The final keys wait for a canvas to use them on (SPEC O4).
     fn default() -> Self {
-        let on = |mods, key| Some(Chord { mods, key });
-        Keymap([
-            on(CMD, 'q'),
-            on(CMD, 'r'),
-            on(CMD | SHIFT, 'c'),
-            on(CMD | SHIFT, 's'),
-            on(CMD | SHIFT, 't'),
-            on(CMD | SHIFT, 'w'),
-            on(CMD, 'd'),
-            on(CMD | SHIFT, 'd'),
-            on(CMD, 'w'),
-            on(CTRL, '\t'),
-            on(CMD | ALT, LEFT),
-            on(CMD | ALT, RIGHT),
-            on(CMD | ALT, UP),
-            on(CMD | ALT, DOWN),
-            on(ALT, '='),
-            on(ALT, '-'),
-            on(CMD, 'b'),
-            on(CMD, '.'),
-            on(ALT, LEFT),
-            on(ALT, RIGHT),
-            on(ALT, UP),
-            on(ALT, DOWN),
-            on(CMD, '='),
-            on(CMD, '-'),
-            on(CMD, '0'),
-            on(CMD, ']'),
-            on(0, '\u{7f}'),
-            on(0, '\u{1b}'),
-            on(CMD, '1'),
-            on(CMD, '2'),
-            on(CMD, '3'),
-            on(CMD, '4'),
-            on(CMD, '5'),
-            on(CMD, '6'),
-            on(CMD, '7'),
-            on(ALT, ']'),
-            on(ALT, '['),
-            on(CMD, '\r'),
-            on(CMD, '['),
-            on(CMD, 'n'),
-            on(CMD | SHIFT, 'r'),
-            on(CMD | SHIFT, '\u{7f}'),
-            on(CMD, 'z'),
-            on(CMD | SHIFT, 'z'),
-            on(CMD | SHIFT, '\r'),
-            on(CMD, '/'),
-            on(CMD, 'k'),
-            on(CMD | SHIFT, 'f'),
-            on(CMD, '\''),
-            on(ALT, '\r'),
-            on(CMD, 's'),
-            on(CMD | ALT, 'r'),
-            on(CMD, 'o'),
-            on(CMD, '8'),
-            on(CMD | SHIFT, 'o'),
-            on(CMD | ALT, 'w'),
-            None,
-            on(CMD | ALT, 'a'),
-            on(CMD | ALT, '.'),
-            on(CMD | ALT | SHIFT, 'a'),
-            None,
-            None,
-            None,
-            on(CMD | SHIFT, 'a'),
-            on(ALT | SHIFT, '}'),
-            on(ALT | SHIFT, '{'),
-            on(CMD, 'a'),
-            on(0, '\t'),
-            on(SHIFT, '\t'),
-            on(0, LEFT),
-            on(0, RIGHT),
-            on(0, UP),
-            on(0, DOWN),
-            on(CMD, 'j'),
-            on(CMD, 'f'),
-            on(CMD, 'g'),
-            on(CTRL, '\r'),
-            on(CMD | ALT, 'f'),
-            on(SHIFT, LEFT),
-            on(SHIFT, RIGHT),
-            on(SHIFT, UP),
-            on(SHIFT, DOWN),
-            on(CMD | ALT, 'i'),
-            on(CMD | ALT | SHIFT, 'i'),
-            on(CMD | ALT, 'o'),
-            None,
-            None,
-            on(CMD, '9'),
-            None,
-        ])
+        Keymap(std::array::from_fn(|i| TABLE[i].key))
     }
 }
 
