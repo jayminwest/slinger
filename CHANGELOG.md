@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** menu bar items grey out when their command cannot act now:
+  Delete, Duplicate and the nudges with nothing selected, Close pane and
+  the focus commands with one pane, Next page with one page, Step out
+  outside a box, Stop agent when it does not run, Export UI away from an
+  agent UI, and so on. Their keys still work as before.
+
 - **App:** every workspace in the sidebar has a ✕ that closes it, shown or
   not, without switching to it first. Closing the shown one shows another;
   closing any other leaves the window as it is. The flash names the

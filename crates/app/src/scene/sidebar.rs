@@ -281,6 +281,11 @@ impl Sidebar {
         Some(self.workspaces.as_ref()?.get(self.at()?)?.dir.clone())
     }
 
+    /// The agent of the workspace the window shows, as last heard.
+    pub fn shown_agent(&self) -> Option<&Agent> {
+        self.workspaces.as_ref()?.get(self.at()?)?.agent.as_ref()
+    }
+
     /// The name of the workspace the window shows, to show it again at the
     /// next launch. `None` when none shows, and for a broken file that names
     /// none.

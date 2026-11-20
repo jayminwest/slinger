@@ -68,9 +68,7 @@ impl Canvases {
             self.poll_sling();
             return true;
         }
-        let selected = self.selection_in(panes, area).map(|(s, a, w)| (s.clone(), a, w));
-        let target = selected.or_else(|| self.button_in(panes, area));
-        let Some((selection, around, within)) = target.or_else(|| self.page_in(panes, area)) else {
+        let Some((selection, around, within)) = self.sling_target(panes, area, true) else {
             return false;
         };
         if let Some(why) = unslingable(self.agents.as_deref(), &selection.canvas) {
@@ -81,10 +79,40 @@ impl Canvases {
         self.sling_now((&selection, inside), ("", profile), around, within)
     }
 
+    /// What a sling from the focused pane of `panes` laid in `area` takes,
+    /// where it is said to be made and the frame it stands in: the
+    /// selection there, else the first button on its page, else its page
+    /// when `whole` (`sling-now`), or the box it is stepped into (`sling`).
+    pub(super) fn sling_target(
+        &self,
+        panes: &Panes,
+        area: Rect,
+        whole: bool,
+    ) -> Option<(Selection, Rect, Rect)> {
+        let selected = self.selection_in(panes, area).map(|(s, a, w)| (s.clone(), a, w));
+        let target = selected.or_else(|| self.button_in(panes, area));
+        let rest = || if whole { self.page_in(panes, area) } else { self.room_in(panes, area) };
+        target.or_else(rest)
+    }
+
+    /// Whether `sling` would open its entry on the focused pane of `panes`
+    /// laid in `area` ([`Canvases::open_sling`]).
+    pub fn can_sling(&self, panes: &Panes, area: Rect) -> bool {
+        !self.notes.is_typing() && self.sling_target(panes, area, false).is_some()
+    }
+
+    /// Whether `sling-now` would send ([`Canvases::sling_now_command`]):
+    /// the open entry, or a target with an agent to sling to.
+    pub fn can_sling_now(&self, panes: &Panes, area: Rect) -> bool {
+        let agent = |s: &Selection| unslingable(self.agents.as_deref(), &s.canvas).is_none();
+        self.sling.is_typing()
+            || self.sling_target(panes, area, true).is_some_and(|(s, ..)| agent(&s))
+    }
+
     /// The page the focused pane of `panes` laid in `area` shows, as
     /// [`Canvases::page_in`] gives it, while that pane is stepped into a
     /// box there: a sling of the box.
-    pub(super) fn room_in(&self, panes: &Panes, area: Rect) -> Option<(Selection, Rect, Rect)> {
+    fn room_in(&self, panes: &Panes, area: Rect) -> Option<(Selection, Rect, Rect)> {
         let target = self.page_in(panes, area)?;
         self.sling_box(panes.focus(), &target.0).is_some().then_some(target)
     }

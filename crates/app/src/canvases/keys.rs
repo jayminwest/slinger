@@ -89,7 +89,7 @@ impl Canvases {
     }
 
     /// Whether `pane` of `panes` shows the selection's page.
-    pub(super) fn shows_selection(&self, panes: &Panes, pane: PaneId) -> bool {
+    pub fn shows_selection(&self, panes: &Panes, pane: PaneId) -> bool {
         let Some(s) = self.selection() else { return false };
         let asked = wanted(&self.views, pane, &s.canvas);
         let open = find(&self.open, &s.canvas, asked).and_then(|o| o.mirror.as_ref());

@@ -7,7 +7,16 @@
 //! menu would take it from a text field first. An edit item (cut, copy,
 //! paste) goes to the text field with the focus, and keeps its usual key only
 //! while the keymap does not bind that chord.
+//!
+//! A command's item is grey when [`able::can`] says the command cannot act
+//! now. That never changes what its key does: `AppKit` does not fire a
+//! disabled item for its key, so the key reaches the keymap as any key
+//! does, and the command answers as before (a flash that says why). An
+//! edit item is always on here: the window greys cut, copy and paste
+//! itself (`Event::Can`). A bar that differs from the last only in which
+//! items are grey ([`same_layout`]) is not made again.
 
+use super::able::{self, Facts};
 use super::{CMD, Chord, Command, Keymap};
 use Action::{Native as N, Run as R};
 
@@ -27,6 +36,8 @@ pub struct Item {
     pub key: Option<Chord>,
     /// A check mark: the tool the pen has.
     pub checked: bool,
+    /// Not grey: its command can act now.
+    pub enabled: bool,
 }
 
 /// What an item does.
@@ -203,25 +214,40 @@ const BAR: [(&str, &[Action]); 8] = [
 ];
 
 /// The menu bar for the keys in `keys`, with a check mark on `checked` (the
-/// command of the pen's tool).
-pub fn bar(keys: &Keymap, checked: Command) -> Vec<Menu> {
+/// command of the pen's tool), each command's item grey where `facts` say
+/// it cannot act.
+pub fn bar(keys: &Keymap, checked: Command, facts: &Facts) -> Vec<Menu> {
     let item = |action| match action {
         Action::Run(command) => Item {
             title: command.title(),
             action,
             key: keys.chord(command).filter(|c| !c.types()),
             checked: command == checked,
+            enabled: able::can(command, facts),
         },
         Action::Native(native) => Item {
             title: native.title(),
             action,
             key: native.key().filter(|&c| keys.command(c).is_none()),
             checked: false,
+            enabled: true,
         },
     };
     BAR.iter()
         .map(|&(title, actions)| Menu { title, items: actions.iter().copied().map(item).collect() })
         .collect()
+}
+
+/// Whether the bars `a` and `b` differ at most in which items are grey:
+/// the same menus, items, titles, keys and check marks, in the same order.
+pub fn same_layout(a: &[Menu], b: &[Menu]) -> bool {
+    let item = |i: &Item| Item { enabled: true, ..*i };
+    let menu = |(a, b): (&Menu, &Menu)| {
+        a.title == b.title
+            && a.items.len() == b.items.len()
+            && a.items.iter().zip(&b.items).all(|(x, y)| item(x) == item(y))
+    };
+    a.len() == b.len() && a.iter().zip(b).all(menu)
 }
 
 impl Chord {

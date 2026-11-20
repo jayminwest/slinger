@@ -28,9 +28,11 @@ use crate::scene::tools::{Kind, Tools};
 use crate::scene::{self, Label, Scene, cursor, status, title};
 use crate::shared::Shared;
 
+mod facts;
 mod items;
 pub mod launched;
 mod workspace;
+pub use facts::facts;
 pub use items::keyboard;
 pub use workspace::{close_workspace, open_workspace};
 
@@ -162,13 +164,19 @@ pub fn finder(
 /// (`<name>.v<version>.html`), from the bytes the pane already has: the file
 /// written, for the Finder to show; else what the flash says.
 pub fn export_ui(shared: &Shared, dir: &Path) -> Result<String, String> {
-    let pane = shared.panes.focused();
-    let Some(Ok(ui)) = shared.uis.get(&pane.name).filter(|_| pane.kind == panes::Kind::Ui) else {
+    let Some(ui) = shown_ui(shared) else {
         return Err("The focused pane shows no agent UI".into());
     };
     let file = dir.join(format!("{}.v{}.html", ui.code.name, ui.code.version));
     std::fs::write(&file, &ui.code.html).map_err(|e| e.to_string())?;
     Ok(file.to_string_lossy().into_owned())
+}
+
+/// The agent UI the focused pane of `shared` shows, once it has arrived.
+pub fn shown_ui(shared: &Shared) -> Option<&crate::ui::Page> {
+    let pane = shared.panes.focused();
+    let ui = shared.uis.get(&pane.name).filter(|_| pane.kind == panes::Kind::Ui);
+    ui.and_then(|ui| ui.as_deref().ok())
 }
 
 /// Opens the PDF or tldraw `file` as a canvas beside the focused pane of
@@ -447,7 +455,8 @@ pub fn view(
     scene.flash = tools.flash().pill(focused(&shared.panes, area), theme, now).map(Box::new);
     let file = canvases.file(&shared.panes, shared.panes.focus());
     scene.title = title::window(file, std::env::home_dir().as_deref());
-    scene.menus = commands::menu::bar(keys, status::command(tools.chosen()));
+    let facts = facts(shared, canvases, tools, sidebar, area);
+    scene.menus = commands::menu::bar(keys, status::command(tools.chosen()), &facts);
     Box::new(scene)
 }
 

@@ -160,6 +160,7 @@ fn window(mut settings: Settings, drive: Option<&Path>) -> ExitCode {
     let mut shown = settings.config.sidebar;
     let open = Shown::starts_open(shown, platform::remembered_sidebar().filter(|_| own));
     let mut sidebar = Sidebar::new(open).preferring(last);
+    sidebar.set_managed(launcher.is_some());
     sidebar.show(settings.config.workspace.clone());
     let mut tools = Tools::configured(&settings.config);
     let mut shared = Shared::default();

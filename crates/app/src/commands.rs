@@ -5,6 +5,7 @@
 //! `registry` gives each command a title and a group for the surfaces that
 //! list them; `menu` lays them out as the menu bar.
 
+pub mod able;
 mod chord;
 pub mod menu;
 mod registry;

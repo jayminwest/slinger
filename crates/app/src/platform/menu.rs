@@ -7,6 +7,12 @@
 //! key or the pointer, that the app passes on (an entry or a page has the
 //! keys) goes to the field as `undo:`, `redo:` or `selectAll:` along the
 //! responder chain, so it acts on the typing there.
+//!
+//! A command item is grey where the newest model says (`Item::enabled`):
+//! `AppKit` asks the target (`validateMenuItem:`) as a menu opens and
+//! before an item's key fires it. A model that changes only in that
+//! ([`same_layout`]) keeps the made menus, so an open menu is not made
+//! again under the pointer.
 
 use std::cell::RefCell;
 
@@ -21,7 +27,7 @@ use objc2_foundation::{NSObject, NSString};
 use super::keys::chord;
 use super::{Event, dispatch};
 use crate::commands::Command;
-use crate::commands::menu::{Action, Item, Menu, Native};
+use crate::commands::menu::{Action, Item, Menu, Native, same_layout};
 
 define_class!(
     // SAFETY: `NSObject` has no subclassing requirements, and `Target` has
@@ -52,6 +58,16 @@ define_class!(
                 unsafe { app.sendAction_to_from(action, None, Some(item)) };
             }
         }
+
+        /// A command item is on while the newest model says its command
+        /// can act.
+        #[unsafe(method(validateMenuItem:))]
+        fn validate_menu_item(&self, item: &NSMenuItem) -> bool {
+            let command = usize::try_from(item.tag()).ok().and_then(|i| Command::ALL.get(i));
+            command.is_none_or(|&(command, _)| {
+                MADE.with_borrow(|made| enabled(made.as_ref().map(|(menus, _)| menus), command))
+            })
+        }
     }
 );
 
@@ -64,7 +80,19 @@ thread_local! {
 /// Makes the app's menu bar show `menus`, unless it does already. No menus
 /// leave the bar as it is.
 pub(super) fn show(menus: &[Menu], mtm: MainThreadMarker) {
-    if menus.is_empty() || MADE.with_borrow(|made| made.as_ref().is_some_and(|(m, _)| m == menus)) {
+    if menus.is_empty() {
+        return;
+    }
+    let kept = MADE.with_borrow_mut(|made| match made {
+        Some((m, _)) if same_layout(m, menus) => {
+            if m != menus {
+                menus.clone_into(m);
+            }
+            true
+        }
+        _ => false,
+    });
+    if kept {
         return;
     }
     // SAFETY: `NSObject`'s `init` on a fresh allocation.
@@ -83,6 +111,12 @@ pub(super) fn show(menus: &[Menu], mtm: MainThreadMarker) {
     }
     NSApplication::sharedApplication(mtm).setMainMenu(Some(&bar));
     MADE.set(Some((menus.to_vec(), target)));
+}
+
+/// Whether `command`'s item in `menus` is on; an item not there is.
+fn enabled(menus: Option<&Vec<Menu>>, command: Command) -> bool {
+    let mut items = menus.into_iter().flatten().flat_map(|m| &m.items);
+    items.find(|i| i.action == Action::Run(command)).is_none_or(|i| i.enabled)
 }
 
 /// The menu item for `item`: a command's goes to `target`, a native one

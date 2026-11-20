@@ -36,6 +36,11 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 - [ ] a workspace under ~/Documents opened through the app-started daemon: which macOS prompt appears and for whom (slinger.app or slingerd); does the grant survive a reinstall (the bundle is signed ad hoc) (slinger-5e8b60)
 - [ ] from a slingerd that the bundled app started, start an agent and sling once: Claude Code is found, its hooks report, its Bash tool finds git/cargo/sd, its MCP servers load (slinger-be3082)
 
+## Command targets (plan pl-9880f1)
+
+- [ ] (bundle) the ✕ on a sidebar row closes that workspace without switching, with the pen and with the mouse; the ✕ does not crowd a long name; closing the shown one shows another; opt+cmd+W still closes the shown one (driven window checked: other row, shown row, broken row, running stand-in agent ended) (slinger-9cd9d6)
+- [ ] (bundle) open each menu with and without a selection, on an agent UI pane, with one pane and one page: the right items are grey and none is grey that would work; a greyed item's key still does what it did (delete with nothing selected goes on, cmd+W with one pane keeps it); Cut, Copy and Paste still grey as before; an item's state is right the moment the menu opens, and a menu held open while the selection changes stays open (`commands::able` tests and route-level tests in tests/able.rs passed; a driven window has no menu bar) (slinger-8f04db)
+
 ## Agent sessions, workspaces and the rest
 
 - [ ] the file panels in the BUNDLED app after 01bd66f (scripts/bundle.sh && open target/slinger.app, never a bare binary or ssh): cmd+O reaches Downloads (allow the macOS prompt) and opens a PDF; shift+cmd+D / shift+cmd+O / cmd+V in Go-to-folder work in the panel; the app menu bar returns after; Open Workspace and Export UI show their message and button (rest of 03cad2) (slinger-4e7b98)
@@ -58,4 +63,3 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 - [ ] quit the real app while it shows a non-first workspace, relaunch: that workspace is shown (fa2e551; saved in the app's user defaults via an unsafe NSUserDefaults call never run for real) (slinger-d00b38)
 - [ ] IME input (Japanese/Chinese composition, dead-key accents) in the sling entry (slinger-368f56)
 - [ ] open the app once with no saved window frame (a copy of the binary under another name, or delete the 'NSWindow Frame slinger window' default) and confirm it opens 960 wide; 70d6d7 was closed as not reproducible (slinger-f7bb8d)
-- [ ] (bundle) the ✕ on a sidebar row closes that workspace without switching, with the pen and with the mouse; the ✕ does not crowd a long name; closing the shown one shows another; opt+cmd+W still closes the shown one (driven window checked: other row, shown row, broken row, running stand-in agent ended) (slinger-9cd9d6)

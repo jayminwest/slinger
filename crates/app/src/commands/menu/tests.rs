@@ -1,5 +1,31 @@
 use super::*;
 
+/// A window where every command but `start-agent` (its agent runs) can act.
+const ABLE: Facts = Facts {
+    panes: 2,
+    canvas: true,
+    pages: 2,
+    ui: true,
+    items: true,
+    selected: true,
+    boxed: true,
+    inside: true,
+    sling: true,
+    entry: false,
+    sling_now: true,
+    new_text: true,
+    workspace: true,
+    agent: Some(true),
+    notice: true,
+    managed: true,
+    old: false,
+};
+
+/// The bar for a window where (nearly) everything can act.
+fn bar(keys: &Keymap, checked: Command) -> Vec<Menu> {
+    super::bar(keys, checked, &ABLE)
+}
+
 fn chord(text: &str) -> Chord {
     Chord::parse(text).unwrap_or_else(|| panic!("{text} is a chord"))
 }
@@ -83,4 +109,49 @@ fn no_two_items_answer_to_one_key() {
 fn a_chord_gives_back_its_modifiers_and_key() {
     let c = chord("cmd+shift+k");
     assert_eq!((c.mods(), c.key()), (CMD | super::super::SHIFT, 'k'));
+}
+
+#[test]
+fn an_item_is_grey_where_its_command_cannot_act_and_an_edit_item_never() {
+    let none = Facts::default();
+    let menus = super::bar(&Keymap::default(), Command::ToolPen, &none);
+    for item in items(&menus) {
+        let want = match item.action {
+            Action::Run(command) => able::can(command, &none),
+            Action::Native(_) => true,
+        };
+        assert_eq!(item.enabled, want, "{:?}", item.action);
+    }
+    assert!(!find(&menus, Action::Run(Command::DeleteSelection)).enabled);
+    assert!(!find(&menus, Action::Run(Command::ClosePane)).enabled);
+    assert!(find(&menus, Action::Run(Command::SplitRight)).enabled);
+    assert!(find(&menus, Action::Native(Native::Paste)).enabled);
+    let able = bar(&Keymap::default(), Command::ToolPen);
+    let grey: Vec<Action> = items(&able).filter(|i| !i.enabled).map(|i| i.action).collect();
+    assert_eq!(grey, [Action::Run(Command::StartAgent)], "an agent that runs cannot start");
+}
+
+#[test]
+fn the_same_layout_is_a_change_only_in_what_is_grey() {
+    let keys = Keymap::default();
+    let able = bar(&keys, Command::ToolPen);
+    let none = super::bar(&keys, Command::ToolPen, &Facts::default());
+    assert_ne!(able, none);
+    assert!(same_layout(&able, &none));
+    assert!(same_layout(&able, &able));
+    let checked = bar(&keys, Command::ToolLasso);
+    assert!(!same_layout(&able, &checked), "a check mark moved");
+    let mut rekeyed = keys;
+    rekeyed.bind(Command::SplitRight, Some(chord("cmd+shift+e")));
+    assert!(!same_layout(&able, &bar(&rekeyed, Command::ToolPen)), "a key changed");
+    let mut retitled = able.clone();
+    retitled[1].items[0].title = "Open";
+    assert!(!same_layout(&able, &retitled), "a title changed");
+    let mut reordered = able.clone();
+    reordered[1].items.swap(0, 1);
+    assert!(!same_layout(&able, &reordered), "two items swapped");
+    let mut shorter = able.clone();
+    shorter[1].items.pop();
+    assert!(!same_layout(&able, &shorter), "an item went");
+    assert!(!same_layout(&able, &able[1..]), "a menu went");
 }
