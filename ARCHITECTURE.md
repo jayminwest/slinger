@@ -436,6 +436,13 @@ shared.rs    the window's panes as the server keeps them for its workspace,
              them: it routes a press and its lift to the first of those
              that takes it, follows the server's layout and sends the pane
              commands.
+trace.rs     a workspace switch's timing line (SLINGER_TRACE=switch, read
+             once by main.rs, which writes the line to stderr): from a pick
+             (a sidebar tap, open-workspace, close-workspace, the config's
+             workspace changing) to the first scene with every canvas
+             pane's page. Phases: watch and layout (stamped by the Watch),
+             taken, shown (stamped by the Follower), heard (canvases/news.rs)
+             and drawn. Pure.
 backend.rs   the app's IO: the one module that talks to the daemon, and the
              one that reads and watches the config files and the daemon's
              name for its socket (backend/place.rs: the config's socket,
@@ -456,6 +463,9 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
              an undo or a redo as `canvas_undo` or `canvas_redo`) on a
              thread of its own, in the order handed in, and hands back each
              answer (a new page's id with it).
+backend/watch.rs  the Watch: its thread, its round every second, and the
+             layout sent with the time it read the wanted name and the time
+             it sent it (trace.rs).
 backend/sling.rs  the Slinger: each sling as one `sling_send` (canvas, page,
              the selected ids, the prompt) on a thread of its own, and the
              daemon's answer back (`Heard`). The daemon picks the agent.
