@@ -336,15 +336,51 @@ pub struct Editing {
     /// size command resizes it (`crate::scene::shapes::Shapes::resize`).
     pub size: f64,
     /// The column it wraps in: an edited text's own, so an agent's
-    /// paragraph keeps its rows; [`glyphs::UNWRAPPED`] for a new one.
+    /// paragraph keeps its rows ([`glyphs::UNWRAPPED`] for one typed
+    /// before texts wrapped); a new one's holds [`glyphs::NEW_COLUMN`]
+    /// characters. A drag of its frame's edge sets it ([`Editing::widen`]).
     pub column: f64,
-    /// The text item edited, and its text and size before; `None` for a
-    /// new text.
-    pub item: Option<(ItemId, String, f64)>,
+    /// The text item edited, and its text, size and column before; `None`
+    /// for a new text.
+    pub item: Option<(ItemId, String, f64, f64)>,
     pub editor: Editor,
 }
 
 impl Editing {
+    /// A new, empty text on `page` of `canvas` from `at`, its top left, in
+    /// `colour` at `size`, in a column of [`glyphs::NEW_COLUMN`] characters.
+    pub fn new(canvas: &str, page: &str, at: Point, colour: Rgb, size: f64) -> Self {
+        let column = glyphs::column(glyphs::NEW_COLUMN * size * glyphs::CELL, size);
+        let (canvas, page) = (canvas.to_string(), page.to_string());
+        Editing { canvas, page, at, colour, size, column, item: None, editor: Editor::default() }
+    }
+
+    /// The frame it is shown in while typed: its glyphs' ([`Editing::frame`]),
+    /// out to its column's right edge when it wraps, so the frame shows
+    /// where its rows break.
+    pub fn bounds(&self) -> Rect {
+        let frame = self.frame();
+        let column = if self.column < glyphs::UNWRAPPED { self.column } else { 0.0 };
+        Rect { width: frame.width.max(column), ..frame }
+    }
+
+    /// The right edge of its shown frame ([`Editing::bounds`]) moves to
+    /// about `right`, a canvas x: the column it wraps in becomes that wide
+    /// ([`glyphs::column`]), at least a character.
+    pub fn widen(&mut self, right: f64) {
+        self.column = glyphs::column(right - self.at.x, self.size);
+    }
+
+    /// Whether ending it changes its item: a new text, or an edit of its
+    /// text, its size or its column.
+    pub fn changed(&self) -> bool {
+        self.item.as_ref().is_none_or(|(_, text, size, column)| {
+            text != self.editor.text()
+                || size.total_cmp(&self.size).is_ne()
+                || column.total_cmp(&self.column).is_ne()
+        })
+    }
+
     /// The box its glyphs fill in its column, in the core's rows: the caret,
     /// the dashed frame and a press inside follow the glyphs. The file
     /// stores its own frame.

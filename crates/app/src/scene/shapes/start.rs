@@ -5,7 +5,7 @@
 use super::{Shapes, snap};
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
-use crate::scene::editor::{Editing, Editor};
+use crate::scene::editor::Editing;
 use crate::scene::glyphs;
 use crate::scene::ink::Ink;
 
@@ -18,16 +18,8 @@ impl Shapes {
         self.end(ink);
         let size = self.size();
         let half = glyphs::rows_frame(at, "", size, glyphs::UNWRAPPED).height / 2.0;
-        self.editing = Some(Editing {
-            canvas: canvas.to_string(),
-            page: page.to_string(),
-            at: snap(Point { x: at.x, y: at.y - half }),
-            editor: Editor::default(),
-            colour,
-            size,
-            column: glyphs::UNWRAPPED,
-            item: None,
-        });
+        let at = snap(Point { x: at.x, y: at.y - half });
+        self.editing = Some(Editing::new(canvas, page, at, colour, size));
     }
 
     /// Where the next text chains on, as [`Shapes::start`] takes it, with

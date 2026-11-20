@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use slinger_control::{CanvasOps, CanvasStep, Client};
+use slinger_control::{CanvasFold, CanvasOps, CanvasStep, Client, FoldAsk};
 
 use crate::mirror;
 use crate::scene::ink::{Answer, Change};
@@ -79,15 +79,25 @@ impl Outbox {
 
 /// Applies `change` to its canvas as the user, in one `canvas_apply`: one
 /// undo step, once under `once`. An undo or a redo takes back or puts back
-/// the user's last step instead.
+/// the user's last step instead, and a fold or an unfold goes as
+/// `canvas_fold` or `canvas_unfold`: an unfold whose room is taken peeks.
 fn apply(daemon: &Client, once: String, change: &Change) -> Answer {
     let canvas = change.canvas().to_string();
-    let written = if let Change::Step { redo, .. } = change {
-        let step = CanvasStep { canvas, by: "user".into() };
-        if *redo { daemon.canvas_redo(step) } else { daemon.canvas_undo(step) }
-    } else {
-        let ops = mirror::ops(change);
-        daemon.canvas_apply(CanvasOps { canvas, by: "user".into(), ops, once: Some(once) })
+    let written = match change {
+        Change::Step { redo, .. } => {
+            let step = CanvasStep { canvas, by: "user".into() };
+            if *redo { daemon.canvas_redo(step) } else { daemon.canvas_undo(step) }
+        }
+        Change::Fold { id, open, .. } => {
+            let (item, once) = (mirror::item_ref(*id), Some(once));
+            let ask = CanvasFold { canvas, item, by: "user".into(), once };
+            let ask = if *open { FoldAsk::CanvasUnfold(ask) } else { FoldAsk::CanvasFold(ask) };
+            daemon.canvas_fold_step(&ask)
+        }
+        _ => {
+            let ops = mirror::ops(change);
+            daemon.canvas_apply(CanvasOps { canvas, by: "user".into(), ops, once: Some(once) })
+        }
     };
     match written {
         Ok(written) => {
@@ -106,6 +116,9 @@ fn apply(daemon: &Client, once: String, change: &Change) -> Answer {
                 }
                 _ => Answer::Applied(seq),
             }
+        }
+        Err(e) if e.code() == "conflict" && matches!(change, Change::Fold { open: true, .. }) => {
+            Answer::Peek
         }
         Err(e) if e.code() == "unavailable" => {
             thread::sleep(RETRY);

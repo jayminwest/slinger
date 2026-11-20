@@ -130,6 +130,7 @@ fn every_change_comes_back_as_kept_and_a_file_of_strokes_alone_reads() {
             items: vec![carried],
             gone: vec![ItemId(5)],
         },
+        Change::Fold { canvas: canvas.clone(), page: page.clone(), id: ItemId(4), open: true },
         Change::Page { canvas: canvas.clone(), op: PageOp::Add { name: "two".into() } },
         Change::Page {
             canvas: canvas.clone(),

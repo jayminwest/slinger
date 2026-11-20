@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a typed text wraps. A new text wraps at 48 characters, and
+  while you type it its dashed frame shows that column; drag the frame's
+  right edge (the pointer shows a left-right arrow) to make the column
+  narrower or wider, for a new text or one you edit. Texts typed before
+  keep running on one line until you drag their edge. Agents see the
+  same rows.
 - **App:** the key overlay (cmd+/) also lists the keys that are not
   commands: under "Typing a text", the caret keys of a text you are typing
   (arrows, word and row jumps, selection, deletes, the emacs keys, double
@@ -42,6 +48,14 @@ bullet with the area in bold.
   its old room, each as one undo step. When something now lies in that
   room, unfold changes nothing and exits 4, naming what is in the way. An
   agent folds only the boxes it made.
+- **App:** fold a box. Select it and press opt+cmd+F (or Edit > Fold or
+  unfold box), or tap its fold mark, the top right corner turned down,
+  which shows on a box selected alone. The box shrinks to a miniature
+  that still shows what it holds and gives up its room; the same key or a
+  tap on the miniature's mark opens it again in place. When something now
+  lies in its old room, it opens as a peek over the page instead: escape
+  or a tap outside closes it, and nothing is moved. Each fold and unfold
+  is one undo step.
 
 - **App:** a canvas text being typed has a real caret. The arrow keys move
   it (alt by words, cmd to a row's ends or the text's start and end), shift

@@ -57,6 +57,9 @@ pub(super) fn write(kept: &Kept) -> Value {
         },
         // Never kept (`Ink::unsent`): an undo has no fields.
         Change::Step { redo, .. } => json!({"change": "step", "redo": redo}),
+        Change::Fold { page, id, open, .. } => {
+            json!({"change": "fold", "page": page, "id": item_ref(*id), "open": open})
+        }
     };
     if let Some(o) = o.as_object_mut() {
         o.insert("canvas".into(), kept.change.canvas().into());
@@ -106,6 +109,10 @@ fn change(o: &Value) -> Option<Change> {
         }
         "reshape" => Change::Reshape { canvas, page, items: items("items")? },
         "carry" => Change::Carry { canvas, page, items: carried(o)?, gone: ids("gone")? },
+        "fold" => {
+            let (id, open) = (item_id(&text("id")?)?, o.get("open")?.as_bool()?);
+            Change::Fold { canvas, page, id, open }
+        }
         _ => return None,
     })
 }

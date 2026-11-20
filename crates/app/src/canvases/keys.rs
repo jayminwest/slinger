@@ -3,8 +3,8 @@
 //! text being typed, and delete and escape
 //! act on the selection from any pane that shows its page; a colour picked
 //! recolours it, and a size command resizes the text being typed or the
-//! selected texts ([`Canvases::resize`]). Select all, next and previous item, nudge and duplicate
-//! act on the focused pane's page ([`Keyed`]).
+//! selected texts ([`Canvases::resize`]). Select all, next and previous
+//! item, nudge, duplicate and fold act on the focused pane's page ([`Keyed`]).
 
 use super::{Canvases, canvas_of, find, pane_shown, wanted};
 use crate::commands::{CMD, Chord, Command, Keymap};
@@ -194,6 +194,10 @@ impl Canvases {
                     return false;
                 };
                 self.place((canvas.to_string(), on_page), &items, at)
+            }
+            Keyed::Fold => {
+                drop(items);
+                shown && self.fold_selection(pane, (canvas, &on_page))
             }
         }
     }
