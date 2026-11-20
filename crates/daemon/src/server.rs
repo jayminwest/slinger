@@ -55,6 +55,9 @@ pub enum StartError {
     Taken(PathBuf),
     #[error("cannot open socket {}: {source}", path.display())]
     Io { path: PathBuf, source: io::Error },
+    /// The socket's file name alone is too long for a socket's address.
+    #[error("cannot open socket {}: {source}", path.display())]
+    TooLong { path: PathBuf, source: io::Error },
 }
 
 impl StartError {
@@ -64,6 +67,7 @@ impl StartError {
         match self {
             Self::Taken(_) => "conflict",
             Self::Io { .. } => "internal",
+            Self::TooLong { .. } => "invalid",
         }
     }
 
@@ -73,6 +77,7 @@ impl StartError {
         match self {
             Self::Taken(_) => Some("stop that daemon, or pass another --socket path".into()),
             Self::Io { .. } => None,
+            Self::TooLong { .. } => Some("pass a --socket path with a shorter file name".into()),
         }
     }
 }
@@ -100,7 +105,7 @@ impl Stopper {
     pub fn stop(&self) {
         self.stopping.store(true, Ordering::SeqCst);
         // Wake the accept loop. If this fails the server is already gone.
-        let _ = UnixStream::connect(&self.socket);
+        let _ = control::connect_socket(&self.socket);
     }
 }
 
@@ -124,7 +129,12 @@ impl Server {
             Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(io(e)),
             _ => {}
         }
-        let listener = UnixListener::bind(socket).map_err(io)?;
+        let listener = control::bind_socket(socket).map_err(|e| match e.kind() {
+            io::ErrorKind::InvalidInput => {
+                StartError::TooLong { path: socket.to_owned(), source: e }
+            }
+            _ => io(e),
+        })?;
         fs::set_permissions(socket, Permissions::from_mode(0o600)).map_err(io)?;
         Ok(Self {
             listener,

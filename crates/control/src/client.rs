@@ -1,7 +1,6 @@
 //! The socket client: one connection per request, one typed method per verb.
 
 use std::io::{BufRead, BufReader, ErrorKind, Write};
-use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -279,7 +278,7 @@ impl Client {
 
     /// Sends the request line and returns the reply line.
     fn exchange(&self, line: &str, timeout: Duration) -> std::io::Result<String> {
-        let mut stream = UnixStream::connect(&self.socket)?;
+        let mut stream = crate::connect_socket(&self.socket)?;
         stream.set_read_timeout(Some(timeout))?;
         stream.set_write_timeout(Some(TIMEOUT))?;
         stream.write_all(line.as_bytes())?;

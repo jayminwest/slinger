@@ -243,7 +243,12 @@ fn serve(
 ) -> Result<(), Failure> {
     let internal = |e: io::Error| (exit::ERROR, e.to_string(), None);
     let code = |code: &str| if code == "conflict" { exit::CONFLICT } else { exit::ERROR };
-    let server = Server::bind(socket).map_err(|e| (code(e.code()), e.to_string(), e.hint()))?;
+    // A socket path it cannot take is a bad argument.
+    let bound = |e: StartError| {
+        let exit = if e.code() == "invalid" { exit::USAGE } else { code(e.code()) };
+        (exit, e.to_string(), e.hint())
+    };
+    let server = Server::bind(socket).map_err(bound)?;
     // Opened after the socket is ours, so a second daemon on the same socket
     // never touches the record. Held until the daemon stops.
     let stored = |e: StoreError| (code(e.code()), e.to_string(), e.hint());

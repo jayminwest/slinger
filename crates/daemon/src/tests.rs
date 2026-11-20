@@ -24,6 +24,7 @@ mod fold;
 mod import;
 mod listen;
 mod live;
+mod long_socket;
 mod look;
 mod pane;
 mod pane_view;

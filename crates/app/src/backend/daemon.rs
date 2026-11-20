@@ -15,7 +15,6 @@
 //! directory) comes back on a pipe and shows as why it did not start.
 
 use std::io::{self, ErrorKind, Read};
-use std::os::unix::net::UnixStream;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -93,7 +92,7 @@ impl Started for Child {
 /// (slinger-2f9883).
 fn look(data_dir: &Path, socket: &Path) -> (Seen, PathBuf) {
     let socket = control::live_socket(data_dir).unwrap_or_else(|| socket.to_path_buf());
-    let answers = match UnixStream::connect(&socket) {
+    let answers = match control::connect_socket(&socket) {
         Ok(_) => true,
         Err(e) => !matches!(e.kind(), ErrorKind::NotFound | ErrorKind::ConnectionRefused),
     };
