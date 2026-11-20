@@ -31,7 +31,7 @@ instead. Nothing large is committed: the same settings give the same bytes.
 | scale 5 | 28 888 568 | 64 655 | 37 802 | 2 734 161 | 24 / 1 234 / 1 499 | 17 769 | 2 663 | 3 718 | 310 | 10 212 |
 | `small` (6 sittings, seed 2) | 268 623 | 625 | 294 | 22 999 | 24 / 1 341 / 1 496 | 190 | 19 | 82 | 4 | 129 |
 
-The counts come from `jq` over the files the script wrote; the page 1 item
+The counts come from `jq` over files the example wrote with the same settings; the page 1 item
 counts come from the first `canvas_show`, before the script adds anything. Writing
 the file takes 0.7 s at scale 1 and 12.7 s at scale 5 (release); the second
 is long because a lasso move costs more as the canvas grows (below). A move
