@@ -104,11 +104,11 @@ fn the_groups_fill_three_columns_left_to_right() {
     let names = |run: &Vec<Section>| run.iter().map(|g| g.title()).collect::<Vec<_>>().join(" ");
     let runs: Vec<String> = runs.iter().map(names).collect();
     let last = "Panes Window Typing a text Pointer";
-    assert_eq!(runs, ["Tools Pop-ups Sling", "File Canvas Pages", last], "fixed keys last");
+    assert_eq!(runs, ["Tools Pop-ups Sling File", "Canvas Pages", last], "fixed keys last");
     for size in [layout::WINDOW, TALL] {
         let x = lefts(size);
-        assert!(x[0] < x[3] && x[3] < x[6], "{size:?}");
-        assert_eq!((x[0], x[3]), (x[2], x[5]), "tools to sling share a column, file to pages");
+        assert!(x[0] < x[4] && x[4] < x[6], "{size:?}");
+        assert_eq!((x[0], x[4]), (x[3], x[5]), "tools to file share a column, canvas and pages");
     }
 }
 

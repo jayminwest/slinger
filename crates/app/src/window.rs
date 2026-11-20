@@ -53,6 +53,7 @@ pub fn run(
         c if !selection(canvases, shared, tools, area, c) => return false,
         Command::ToggleSidebar => sidebar.set_open(!sidebar.is_open()),
         Command::DismissNotice => sidebar.dismiss(),
+        Command::StepInBeside => return items::beside(canvases, shared, area, socket),
         Command::StartAgent | Command::StopAgent | Command::RestartAgent => {
             agent(command, socket, sidebar, tools);
         }
@@ -240,7 +241,10 @@ pub fn selection(
             true
         }
         Command::DeleteSelection => canvases.delete_selection(panes, panes.focus()),
-        Command::ClearSelection => canvases.clear_selection(panes, panes.focus()),
+        Command::ClearSelection => {
+            canvases.clear_selection(panes, panes.focus())
+                || canvases.step_out(panes, panes.focus())
+        }
         Command::Sling | Command::Dictate => canvases.sling_command(command, panes, area),
         Command::SlingNow => canvases.sling_now_command(panes, area, Profile::Running),
         Command::NewText => {

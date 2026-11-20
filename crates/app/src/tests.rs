@@ -19,6 +19,7 @@ mod keyboard;
 mod pointer;
 mod size;
 mod start;
+mod step;
 
 /// The window's state, as `window` keeps it, with no watch.
 struct World {

@@ -42,6 +42,7 @@ use crate::scene::pages::PageOp;
 
 mod delay;
 mod ids;
+mod join;
 mod once;
 mod shown;
 
@@ -268,6 +269,8 @@ pub struct Ink {
     made: HashMap<ItemId, ItemId>,
     /// What this run's keys for applying once start with ([`once`]).
     run: String,
+    /// Each add's key, and the folded box its items join ([`join`]).
+    joins: HashMap<u64, ItemId>,
 }
 
 impl Ink {

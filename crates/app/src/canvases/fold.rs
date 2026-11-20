@@ -211,8 +211,7 @@ pub(super) fn drawn<'a>(
             }
             continue;
         };
-        let stored = mirror.items().binary_search_by_key(&id, |i| i.id).ok();
-        let moved = stored.is_none_or(|at| mirror.items()[at].shape != item.shape);
+        let moved = mirror.item(id).is_none_or(|stored| stored.shape != item.shape);
         out.push(item);
         if peek != Some(id) {
             if moved {
@@ -225,7 +224,7 @@ pub(super) fn drawn<'a>(
     }
     let room = peek.and_then(|id| Some((id, mirror.room(id)?)));
     if let Some((id, room)) = room {
-        let colour = mirror.items().iter().find(|i| i.id == id).map_or(theme.text, |i| i.colour);
+        let colour = mirror.item(id).map_or(theme.text, |i| i.colour);
         let fill = Some(Fill { colour: theme.background, alpha: 1.0 });
         let paper = Shape::Panel { frame: room, fill, width: LINE_WIDTH, dashed: false };
         out.push(Cow::Owned(Item { id: PEEK, colour, shape: paper }));

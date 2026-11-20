@@ -155,12 +155,13 @@ impl Mirror {
         self.minis = self.miniatures();
     }
 
-    /// Whether item `id` is a box the page shows, and if so whether it is
-    /// folded; `None` for any other item, or one a folded box hides.
+    /// Whether item `id` is a box, shown or hidden, and if so whether it
+    /// is folded; `None` for any other item.
     pub fn box_folded(&self, id: ItemId) -> Option<bool> {
-        let at = self.items.binary_search_by_key(&id, |i| i.id).ok()?;
-        matches!(self.items[at].shape, Shape::Box { .. })
-            .then(|| folded(&self.objects[at]).is_some())
+        let (held, at) = self.at(id)?;
+        let (items, objects) =
+            if held { (&self.held, &self.held_objects) } else { (&self.items, &self.objects) };
+        matches!(items[at].shape, Shape::Box { .. }).then(|| folded(&objects[at]).is_some())
     }
 
     /// The old room of folded box `id`: its top left, its open size.
@@ -169,8 +170,8 @@ impl Mirror {
         Some(Rect { x: frame.x, y: frame.y, width: fold.open.0, height: fold.open.1 })
     }
 
-    /// What folded box `id` (shown on the page) holds, drawn in its
-    /// miniature as the server has it; `None` for any other item.
+    /// What folded box `id` (shown, or hidden in another) holds, drawn in
+    /// its miniature as the server has it; `None` for any other item.
     pub fn miniature(&self, id: ItemId) -> Option<&[Item]> {
         self.minis.get(&id).map(Vec::as_slice)
     }
@@ -188,7 +189,7 @@ impl Mirror {
 
     /// Each folded box's miniature, for [`Mirror::miniature`].
     fn miniatures(&self) -> HashMap<ItemId, Vec<Item>> {
-        let boxes = self.items.iter().filter_map(|i| match i.shape {
+        let boxes = self.items.iter().chain(&self.held).filter_map(|i| match i.shape {
             Shape::Box { frame, .. } if self.fold_of(i.id).is_some() => Some((i.id, frame)),
             _ => None,
         });
@@ -196,7 +197,7 @@ impl Mirror {
     }
 
     /// The frame and the fold of folded box `id`, shown or hidden.
-    fn fold_of(&self, id: ItemId) -> Option<(Rect, Folded)> {
+    pub(super) fn fold_of(&self, id: ItemId) -> Option<(Rect, Folded)> {
         let (held, at) = self.at(id)?;
         let (items, objects) =
             if held { (&self.held, &self.held_objects) } else { (&self.items, &self.objects) };

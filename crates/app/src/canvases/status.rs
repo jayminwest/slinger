@@ -52,6 +52,7 @@ impl Canvases {
                     pen: None,
                     centre: &pane.name,
                     pages: false,
+                    out: false,
                     zoom: None,
                     sidebar,
                     close,
@@ -73,7 +74,10 @@ impl Canvases {
                 }
                 _ => State::Idle,
             };
-            let centre = page.map(|(_, list, at)| pages::line(&list, &at)).unwrap_or_default();
+            let trail = self.trail_of(panes, id);
+            let out = !trail.is_empty();
+            let centre = page.map(|(_, list, at)| pages::line(&list, &at) + &trail);
+            let centre = centre.unwrap_or_default();
             let zoom = self.views.iter().find(|(p, _)| *p == id).map(|(_, v)| v.viewport);
             let agent = self.agent_of(&pane.name);
             let (label, profiles) = agent.map(|a| (a.label(), !a.profiles.is_empty())).unzip();
@@ -87,6 +91,7 @@ impl Canvases {
                 }),
                 centre: &centre,
                 pages: !centre.is_empty(),
+                out,
                 zoom: Some(zoom.unwrap_or_else(crate::layout::Viewport::start).percent()),
                 sidebar,
                 close,

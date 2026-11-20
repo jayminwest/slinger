@@ -423,3 +423,18 @@ fn a_change_made_after_an_item_s_add_was_written_or_refused_names_what_is_there(
     ink.answered(two + 3, Answer::Applied(3));
     assert_eq!(ink.next(), None);
 }
+
+#[test]
+fn only_the_adds_on_the_page_from_the_mark_on_join_a_box() {
+    let mut ink = Ink::default();
+    let before = ink.mark();
+    draw(&mut ink, &[(1.0, 1.0), (2.0, 2.0)]);
+    let mark = ink.mark();
+    draw(&mut ink, &[(3.0, 3.0), (4.0, 4.0)]);
+    let other = ink.mark();
+    ink.down("main", "p2", RED, pt(5.0, 5.0));
+    assert!(ink.up(Some(pt(6.0, 6.0))));
+    ink.join(mark, ("main", "p1"), ItemId(9), |_| true);
+    let joins: Vec<_> = [before, mark, other].iter().map(|&k| ink.joins(k)).collect();
+    assert_eq!(joins, [None, Some(ItemId(9)), None], "before the mark, and on another page, not");
+}

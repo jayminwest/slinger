@@ -513,6 +513,12 @@ mirror/fold.rs  folded boxes (docs/design/fold.md): a box whose object has
              box inside as its own miniature, pen lines thinned) is made
              once per feed change, not per frame; `inside` draws the same
              into any frame (a dragged box, a peek at full size). Pure.
+mirror/step.rs  what a pane stepped into boxes shows: `Mirror::step` checks a
+             trail (each box there, at the level above, folded as it was)
+             and gives an `Inside`: inside a folded box its direct members
+             (from the hidden items), inside an open box what lies wholly
+             in its frame; `joins` is the folded box new ink goes into, and
+             `named` the trail's name for a box. Pure.
 mirror/clip.rs  the selection's items on the clipboard: their file objects
              as a JSON array, as a carry writes them (no id, maker, time
              or page; an end bound to an item copied with it as `$n`), and
@@ -601,6 +607,15 @@ canvases/fold.rs  `fold` (cmd+alt+f) and the pen's fold mark (a box's top
              state: escape or a press outside closes it, a press inside
              does nothing. `drawn` adds each pane's miniatures, marks and
              peek to what it draws.
+canvases/step.rs  `step-in` (cmd+alt+i, or two taps on a miniature),
+             `step-out` (cmd+alt+o, escape with nothing selected, the
+             footer's ⤴) and `step-in-beside` (window/items.rs: a split,
+             then a step): each pane's `Trail` is view state, like its page,
+             with the viewport to go back to. `shown_in` is what a pane
+             shows inside (mirror/step.rs) and the room's dashed frame; the
+             footer's trail line. What the pen or a text adds inside a
+             folded box joins it: `Ink::join` tags the queued adds
+             (scene/ink/join.rs) and the outbox sends them with `in`.
 canvases/seek.rs  `find` (cmd+f) and `find-next` (cmd+g): the entry for the
              words, `canvas_find` on the daemon (the search is the core's),
              and the jump: the pane turns to the text's page and centres it.
@@ -1377,6 +1392,7 @@ Each boundary has something that fails when it is broken:
 | An agent opens a UI with data; each reply is recorded and reaches its running session as one JSON line, in order; a reply for a stopped session stays in the record; a refused open records nothing; replies are bounded | `crates/daemon/src/tests/showing.rs`, with a stand-in for Claude Code, and `crates/core/src/ui/showing.rs` |
 | A canvas page reads every kind from the canvas file and follows each feed operation | `crates/app/src/mirror/tests.rs` |
 | A folded box hides what it holds and draws it as its miniature; `fold` and the fold mark fold and unfold through the daemon; an unfold into a taken room peeks until escape or a press outside, writing nothing | `crates/app/src/mirror/fold/tests.rs`, `crates/app/src/canvases/fold/tests.rs`, and `crates/app/src/tests/fold.rs` against a real daemon |
+| A pane steps into a box and shows only what it holds; escape steps out; a stroke drawn inside a folded box joins it on the daemon; `step-in-beside` splits and steps the new pane in | `crates/app/src/mirror/step/tests.rs`, `crates/app/src/canvases/step/tests.rs`, `crates/app/src/scene/ink/tests.rs`, and `crates/app/src/tests/step.rs` against a real daemon |
 | A live item is one `add` line an old reader skips whole; a put beside an item is one undo step; the packet says it as text | `crates/core/tests/canvas_live.rs` |
 | An agent opens a UI as a live item: a refused open records nothing; the item, the showing and its data come back; one undo step | `crates/daemon/src/tests/live.rs`, through a real socket |
 | A live item's page shows over its box, follows a pan and a zoom, and takes presses until it is selected | `crates/app/src/scene/live/tests.rs`, and `crates/app/src/canvases/live/tests.rs` against a real daemon |

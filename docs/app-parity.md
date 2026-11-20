@@ -68,6 +68,7 @@ same thing by drawing, or never needs to.
 | `feedback path` | `show-feedback-file` (Help menu, palette; no default key): the Finder shows the file, or before the first note the flash says where notes go. Its reply (`FeedbackFile`) is new to the app, slinger-c57a12 |
 | `ui export` (the version a pane shows) | `export-ui` (File menu, palette; no default key): a folder picked, the file `<name>.v<version>.html` revealed. It writes the bytes the pane already has, so it calls no verb: about 790 bytes of `__TEXT`, slinger-401aa5 |
 | `canvas fold`, `canvas unfold` | `fold` (opt+cmd+F, Edit menu, palette) on the selected boxes, and a press on a box's fold mark: a folded box draws as a miniature of what it holds; an unfold into a taken room (`conflict`) peeks. Its reply reads as `CanvasChange`, which the app already decodes, slinger-1350e7 |
+| `canvas apply` with `"in"` on an `add` | `step-in` (opt+cmd+I, two taps on a miniature), `step-out` (opt+cmd+O, escape), `step-in-beside` (opt+shift+cmd+I): what the pen or a text adds in a pane inside a folded box is sent with `in`, slinger-b1ccf1 |
 | `canvas find` | `find` (cmd+F, Edit menu, palette) and `find-next` (cmd+G): the entry for the words, then the pane turns to the text's page, centred, and selects the text (slinger-458db9). Its reply (`CanvasFound`) is a list of item objects, which the app already reads, slinger-78d1de |
 
 ## Gaps

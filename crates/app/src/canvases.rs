@@ -32,14 +32,16 @@ mod pdf;
 mod reader;
 mod seek;
 mod start;
+mod step;
 
+use std::borrow::Cow;
 use std::rc::Rc;
 
 use slinger_control::Client;
 
 use crate::backend::{Flick, Follower, News, Outbox, Problem, Slinger, run};
 use crate::config::{Rgb, Theme};
-use crate::layout::{PaneId, Rect, Size, Viewport};
+use crate::layout::{PaneId, Point, Rect, Size, Viewport};
 use crate::mirror::{Applied, Mirror};
 use crate::panes::{Kind, Panes};
 use crate::scene::crop::Crop;
@@ -109,6 +111,9 @@ pub struct Canvases {
     handle: Option<(PaneId, crate::scene::cursor::Cursor)>,
     /// The unfolds on their way, and the peek shown.
     folds: fold::Folds,
+    /// The last tap on a miniature, and what the pen and the text being
+    /// typed join ([`step`]).
+    steps: step::Steps,
 }
 
 /// One canvas page followed: the page asked for (`None`: the first), as
@@ -133,12 +138,15 @@ struct View {
     last: Option<Rc<canvas::Scene>>,
     /// In reader mode, the column fitted and the screen it was fitted to.
     reader: Option<(Rect, Size)>,
+    /// The boxes it is inside ([`step`]).
+    trail: step::Trail,
 }
 
 impl Default for View {
     /// A new pane's view: at the start, on the first page, nothing drawn.
     fn default() -> Self {
-        Self { viewport: Viewport::start(), page: None, last: None, reader: None }
+        let trail = step::Trail::default();
+        Self { viewport: Viewport::start(), page: None, last: None, reader: None, trail }
     }
 }
 
@@ -183,6 +191,7 @@ impl Canvases {
             kept: None,
             handle: None,
             folds: fold::Folds::default(),
+            steps: step::Steps::default(),
         }
     }
 
@@ -237,6 +246,9 @@ impl Canvases {
     /// their canvas now holds, and hands the next change to the outbox.
     /// Returns whether there were answers.
     fn send(&mut self) -> bool {
+        if !self.shapes.editing() {
+            self.text_joined();
+        }
         let answers = self.outbox.answers();
         let answered = !answers.is_empty();
         for (key, answer) in answers {
@@ -267,7 +279,7 @@ impl Canvases {
             self.ink.heard(canvas, upto);
         }
         if let Some((key, change)) = self.ink.next() {
-            self.outbox.send(key, self.ink.once(key), change);
+            self.outbox.send(key, self.ink.once(key), change, self.ink.joins(key));
         }
         self.keep();
         answered
@@ -321,19 +333,29 @@ impl Canvases {
             drop(items);
             return self.fold_boxes(pane, here, &[fold]);
         }
+        let taps = !matches!(tool, Tool::Pen | Tool::Eraser);
+        let mini = taps.then(|| self.miniature_under(here, at, &items)).flatten();
         let grabs = self.select.grabs(here, at, viewport.zoom(), &items);
         if let Some(button) = button::under(&items, at).filter(|_| !grabs && tool != Tool::Eraser) {
             drop(items);
             return self.tap(here, button, viewport, frame);
         }
         drop(items);
+        if self.tapped_in(pane, here, pen.when, mini) {
+            return true;
+        }
         self.close_entries();
         self.slung.pressed();
         let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
         if self.lives.under(&items, at, viewport.zoom()) && !grabs {
             return false;
-        } else if self.shapes.down((tool, colour), here, press, &items, &mut self.ink) {
+        }
+        drop(items);
+        self.pen_in(pane, here);
+        let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
+        if self.shapes.down((tool, colour), here, press, &items, &mut self.ink) {
             drop(items);
+            self.typed_in(step::Typed::In(pane));
             self.send();
         } else if self.crop.down(tool, here, press, &items) {
             // Its box shows over the page; the lift makes the snippet.
@@ -406,6 +428,9 @@ impl Canvases {
         }
         self.views.retain(|(id, _)| placed.iter().any(|(p, _, _)| p == id));
         self.clear_hidden_selection(&shown);
+        // A selection may hold hidden items on a page a pane is inside a box of.
+        let inside: Vec<(String, String)> =
+            self.views.iter().filter_map(|(_, v)| v.trail.page()).collect();
         let (mut scenes, grid) = (Vec::new(), self.paper.grid(theme));
         for (id, pane, frame) in placed {
             let open = find(&self.open, &pane.name, wanted(&self.views, id, &pane.name));
@@ -431,17 +456,27 @@ impl Canvases {
                 }
                 continue;
             };
-            let last = view.last.as_deref();
             let here = (pane.name.as_str(), mirror.page());
-            let items = self.ink.shown(here.0, here.1, mirror.items());
-            self.select.keep(here, &items);
+            let trail = view.trail.on(here);
+            let (items, within, holds) = step::shown_in(mirror, &self.ink, here.0, &trail);
+            view.keep_steps(here, holds);
+            if inside.iter().any(|(c, p)| (c.as_str(), p.as_str()) == here) {
+                self.select.keep(here, &step::present(mirror, &self.ink, here.0));
+            } else {
+                self.select.keep(here, &items);
+            }
+            if let Some(room) = within.as_ref().map(|w| w.room) {
+                view.viewport = view.viewport.held(Point { x: room.x, y: room.y });
+            }
+            let last = view.last.as_deref();
             let zoom = view.viewport.zoom();
             let items = self.select.shown(here, items, zoom, theme);
             let items = self.shapes.shown(here, items, zoom, theme);
             let items = self.crop.shown(here, items, zoom, theme);
             let status = slung::agent_in(self.agents.as_deref(), here.0).and_then(|a| a.status);
             let items = button::shown(items, status);
-            let items = fold::drawn(items, mirror, marks, theme);
+            let mut items = fold::drawn(items, mirror, marks, theme);
+            items.extend(within.map(|w| Cow::Owned(step::room(w.room, theme.muted))));
             let items = items.iter().map(AsRef::as_ref);
             let files = |hash: &str| self.pdfs.file(hash);
             let scene = canvas::build_with(items, (view.viewport, screen), theme, last, &files);

@@ -4,7 +4,7 @@
 //! when it is over the pane, under the last text ended on the pane's page,
 //! or at the pane's centre.
 
-use super::{Canvases, canvas_of, find, to_canvas, wanted};
+use super::{Canvases, canvas_of, find, step, to_canvas, wanted};
 use crate::config::Rgb;
 use crate::layout::{PaneId, Point, Rect, Size};
 use crate::panes::Panes;
@@ -34,6 +34,7 @@ impl Canvases {
         };
         let viewport = self.view(pane).viewport;
         let typed = self.shapes.editing();
+        let joined = self.typing_in();
         let aimed = pointer.filter(|p| !typed && frame.contains(*p));
         let chained = if aimed.is_none() { self.shapes.chained(&mut self.ink) } else { None };
         let centre = Point { x: frame.x + frame.width / 2.0, y: frame.y + frame.height / 2.0 };
@@ -44,8 +45,10 @@ impl Canvases {
             (None, _) => (None, to_canvas(viewport, frame, centre)),
         };
         let seen = on.as_ref().is_none_or(|(c, p)| here(c, p));
+        let typed = if on.is_some() { step::Typed::Under(joined) } else { step::Typed::In(pane) };
         let (canvas, shown) = on.unwrap_or((canvas, shown));
         self.shapes.start((&canvas, &shown), at, colour, &mut self.ink);
+        self.typed_in(typed);
         let size = Size { width: frame.width, height: frame.height };
         let into = self.shapes.typing_frame().and_then(|f| into_view(viewport, size, f));
         if let Some((dx, dy)) = into.filter(|_| seen) {

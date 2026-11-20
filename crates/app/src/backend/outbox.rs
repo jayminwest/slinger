@@ -19,6 +19,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use slinger_control::{CanvasFold, CanvasOps, CanvasStep, Client, FoldAsk};
 
 use crate::mirror;
+use crate::scene::canvas::ItemId;
 use crate::scene::ink::{Answer, Change};
 use crate::scene::pages::PageOp;
 
@@ -37,7 +38,7 @@ pub fn run() -> String {
 #[derive(Debug)]
 pub struct Outbox {
     daemon: Arc<Mutex<Client>>,
-    changes: Sender<(u64, String, Change)>,
+    changes: Sender<(u64, String, Change, Option<ItemId>)>,
     answers: Receiver<(u64, Answer)>,
 }
 
@@ -45,13 +46,13 @@ impl Outbox {
     /// Starts sending through `daemon`. Returns at once.
     pub fn start(daemon: Client) -> Self {
         let daemon = Arc::new(Mutex::new(daemon));
-        let (changes, to_send) = mpsc::channel::<(u64, String, Change)>();
+        let (changes, to_send) = mpsc::channel::<(u64, String, Change, Option<ItemId>)>();
         let (answer, answers) = mpsc::channel();
         let theirs = Arc::clone(&daemon);
         thread::spawn(move || {
-            for (key, once, change) in to_send {
+            for (key, once, change, inside) in to_send {
                 let client = theirs.lock().unwrap_or_else(PoisonError::into_inner).clone();
-                if answer.send((key, apply(&client, once, &change))).is_err() {
+                if answer.send((key, apply(&client, once, &change, inside))).is_err() {
                     return;
                 }
             }
@@ -66,9 +67,11 @@ impl Outbox {
 
     /// Hands `change` to the thread, under `key`, to be applied once under
     /// `once`. Never waits.
-    pub fn send(&self, key: u64, once: String, change: Change) {
+    /// Each item it adds joins folded box `inside` when given (`in`,
+    /// docs/design/fold.md).
+    pub fn send(&self, key: u64, once: String, change: Change, inside: Option<ItemId>) {
         // The thread lives as long as the outbox, so the send cannot fail.
-        let _ = self.changes.send((key, once, change));
+        let _ = self.changes.send((key, once, change, inside));
     }
 
     /// The answers since the last call, oldest first. Never waits.
@@ -81,7 +84,8 @@ impl Outbox {
 /// undo step, once under `once`. An undo or a redo takes back or puts back
 /// the user's last step instead, and a fold or an unfold goes as
 /// `canvas_fold` or `canvas_unfold`: an unfold whose room is taken peeks.
-fn apply(daemon: &Client, once: String, change: &Change) -> Answer {
+/// Each item added joins folded box `inside`, when given.
+fn apply(daemon: &Client, once: String, change: &Change, inside: Option<ItemId>) -> Answer {
     let canvas = change.canvas().to_string();
     let written = match change {
         Change::Step { redo, .. } => {
@@ -96,6 +100,10 @@ fn apply(daemon: &Client, once: String, change: &Change) -> Answer {
         }
         _ => {
             let ops = mirror::ops(change);
+            let ops = match inside {
+                Some(b) => mirror::joined(ops, b),
+                None => ops,
+            };
             daemon.canvas_apply(CanvasOps { canvas, by: "user".into(), ops, once: Some(once) })
         }
     };
@@ -175,7 +183,7 @@ mod tests {
     #[test]
     fn strokes_are_written_in_the_order_given_and_a_lost_daemon_is_unreachable() {
         let outbox = Outbox::start(Client::new("/nonexistent/x.sock"));
-        outbox.send(1, "t.1".into(), stroke("main", 0.0));
+        outbox.send(1, "t.1".into(), stroke("main", 0.0), None);
         let lost = wait(&outbox, 1);
         let [(1, Answer::Unreachable(problem))] = lost.as_slice() else { panic!("{lost:?}") };
         assert!(problem.hint.as_deref().unwrap().starts_with("start it with '"));
@@ -187,9 +195,10 @@ mod tests {
                     key,
                     format!("t.{key}"),
                     stroke("main", f64::from(u32::try_from(key).unwrap())),
+                    None,
                 );
             }
-            outbox.send(4, "t.4".into(), stroke("gone", 0.0));
+            outbox.send(4, "t.4".into(), stroke("gone", 0.0), None);
             let answers = wait(&outbox, 4);
             let made = |seq, id| Answer::Made { seq, ids: vec![ItemId(id)] };
             assert_eq!(answers[..3], [(1, made(1, 1)), (2, made(2, 2)), (3, made(3, 3))]);
@@ -211,6 +220,7 @@ mod tests {
                     key,
                     format!("t.{key}"),
                     stroke("main", f64::from(u32::try_from(key).unwrap())),
+                    None,
                 );
             }
             wait(&outbox, 3);
@@ -237,11 +247,13 @@ mod tests {
                     by,
                     follow: vec![],
                 },
+                None,
             );
             outbox.send(
                 6,
                 "t.6".into(),
                 Change::Remove { canvas, page, ids: vec![ItemId(2), ItemId(4)] },
+                None,
             );
             let answers = wait(&outbox, 2);
             // A line per item; the answer is the last, which the feed must pass.
@@ -263,7 +275,7 @@ mod tests {
         with_daemon(|daemon| {
             daemon.canvas_create("main").unwrap();
             let outbox = Outbox::start(daemon.clone());
-            outbox.send(1, "t.1".into(), stroke("main", 1.0));
+            outbox.send(1, "t.1".into(), stroke("main", 1.0), None);
             wait(&outbox, 1);
             let note = serde_json::json!({"op": "add", "item":
                 {"page": "p1", "kind": "text", "x": 0, "y": 0, "text": "hi"}});
@@ -273,10 +285,10 @@ mod tests {
                 .unwrap();
             let step = |redo| Change::Step { canvas: "main".into(), redo };
             // Sent right after a stroke, an undo undoes that stroke.
-            outbox.send(2, "t.2".into(), stroke("main", 2.0));
-            outbox.send(3, "t.3".into(), step(false));
-            outbox.send(4, "t.4".into(), step(false));
-            outbox.send(5, "t.5".into(), step(true));
+            outbox.send(2, "t.2".into(), stroke("main", 2.0), None);
+            outbox.send(3, "t.3".into(), step(false), None);
+            outbox.send(4, "t.4".into(), step(false), None);
+            outbox.send(5, "t.5".into(), step(true), None);
             let answers = wait(&outbox, 4);
             let written = |a: &Answer| match a {
                 Answer::Applied(n) | Answer::Made { seq: n, .. } => *n > 0,
@@ -291,16 +303,16 @@ mod tests {
                 "the second stroke is undone, the agent's text stays"
             );
             assert_eq!(shown.items[0]["pts"][0], 10, "the first stroke is back");
-            outbox.send(6, "t.6".into(), step(true));
-            outbox.send(60, "t.60".into(), step(true));
+            outbox.send(6, "t.6".into(), step(true), None);
+            outbox.send(60, "t.60".into(), step(true), None);
             let answers = wait(&outbox, 2);
             assert!(matches!(answers[0], (6, Answer::Applied(n)) if n > 0), "the second stroke");
             assert_eq!(answers[1], (60, Answer::Applied(0)), "nothing more to redo");
 
             let op = PageOp::Add { name: "Page 2".into() };
-            outbox.send(7, "t.7".into(), Change::Page { canvas: "main".into(), op });
+            outbox.send(7, "t.7".into(), Change::Page { canvas: "main".into(), op }, None);
             let rename = PageOp::Rename { page: "p2".into(), name: "spec".into() };
-            outbox.send(8, "t.8".into(), Change::Page { canvas: "main".into(), op: rename });
+            outbox.send(8, "t.8".into(), Change::Page { canvas: "main".into(), op: rename }, None);
             let answers = wait(&outbox, 2);
             assert!(matches!(&answers[0], (7, Answer::NewPage { page, .. }) if page == "p2"));
             let pages = daemon.canvas_show("main", Some("spec")).unwrap().pages;
@@ -309,6 +321,7 @@ mod tests {
                 9,
                 "t.9".into(),
                 Change::Page { canvas: "main".into(), op: PageOp::Remove { page: "p2".into() } },
+                None,
             );
             wait(&outbox, 1);
             assert_eq!(daemon.canvas_show("main", None).unwrap().pages.len(), 1);
@@ -343,7 +356,12 @@ mod tests {
             ];
             for (key, shape) in (1..).zip(shapes) {
                 let (canvas, page) = here();
-                outbox.send(key, format!("t.{key}"), Change::Put { canvas, page, colour, shape });
+                outbox.send(
+                    key,
+                    format!("t.{key}"),
+                    Change::Put { canvas, page, colour, shape },
+                    None,
+                );
             }
             let edited = Shape::Text {
                 frame: Rect { x: 50.0, ..frame },
@@ -356,6 +374,7 @@ mod tests {
                 4,
                 "t.4".into(),
                 Change::Set { canvas, page, id: ItemId(2), shape: edited },
+                None,
             );
             let arrow = Shape::Arrow {
                 from: at(6.0, 4.0),
@@ -369,6 +388,7 @@ mod tests {
                 5,
                 "t.5".into(),
                 Change::Move { canvas, page, ids: vec![ItemId(1)], by: at(1.0, -1.0), follow },
+                None,
             );
             let answers = wait(&outbox, 5);
             let made = |seq, id| Answer::Made { seq, ids: vec![ItemId(id)] };

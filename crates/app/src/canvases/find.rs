@@ -18,7 +18,8 @@ pub(super) fn to_canvas(viewport: Viewport, frame: Rect, at: Point) -> Point {
 }
 
 /// The page `pane` of `panes` shows, as the user sees it: the server's copy
-/// with the ink laid over it; empty while it has not arrived.
+/// with the ink laid over it, only what the box it is inside holds
+/// ([`super::step`]); empty while it has not arrived.
 pub(super) fn pane_shown<'a>(
     open: &'a [Open],
     views: &[(PaneId, View)],
@@ -28,7 +29,10 @@ pub(super) fn pane_shown<'a>(
 ) -> Vec<Cow<'a, Item>> {
     let Some(canvas) = canvas_of(panes, pane) else { return Vec::new() };
     let mirror = find(open, canvas, wanted(views, pane, canvas)).and_then(|o| o.mirror.as_ref());
-    mirror.map_or_else(Vec::new, |m| ink.shown(canvas, m.page(), m.items()))
+    let Some(mirror) = mirror else { return Vec::new() };
+    let view = views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v);
+    let trail = view.map(|v| v.trail.on((canvas, mirror.page()))).unwrap_or_default();
+    super::step::shown_in(mirror, ink, canvas, &trail).0
 }
 
 /// Whether `open` follows the page `page` of `canvas` names (`None`: the

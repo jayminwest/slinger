@@ -2,6 +2,9 @@
 //! (select all, next and previous item, nudge, duplicate: [`Keyed`]) act
 //! on the focused pane's items ([`run`]). The one place that decides it:
 //! a caret inside a canvas text (slinger-ea308d) takes its keys here.
+//! Also `step-in-beside` ([`beside`]): the selected box, in a new pane.
+
+use std::path::Path;
 
 use super::focus;
 use crate::canvases::Canvases;
@@ -35,4 +38,17 @@ pub fn run(command: Command, shared: &Shared, canvases: &mut Canvases, area: Rec
     let Some(keyed) = Keyed::of(command) else { return true };
     let items = keyboard(shared, canvases) == Keyboard::Window && !canvases.editing();
     items && canvases.keyed(&shared.panes, focus(&shared.panes, area), keyed)
+}
+
+/// Splits the focused pane of `shared` laid in `area` (through the daemon
+/// on `socket` for a workspace) and steps the new pane into the box
+/// selected there (docs/design/fold.md). False, and nothing splits, when
+/// the focused pane shows no selected box.
+pub fn beside(canvases: &mut Canvases, shared: &mut Shared, area: Rect, socket: &Path) -> bool {
+    let Some(target) = canvases.step_target(&shared.panes, shared.panes.focus()) else {
+        return false;
+    };
+    shared.command(Command::SplitRight, area, socket);
+    canvases.step_into(shared.panes.focus(), target);
+    true
 }

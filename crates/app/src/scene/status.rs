@@ -18,7 +18,9 @@
 //!   tool's name (bold, with its key) picks a tool; what the pane is doing (`· typing`,
 //!   `· N selected`); undo and redo.
 //! - middle, the page: the previous page, its name and where it is among
-//!   the pages (a tap opens the page menu), the next page. Centred in the
+//!   the pages (a tap opens the page menu), the next page. In a pane
+//!   inside a box, the trail follows the page ("ideas · 2/3 › Plans"), and
+//!   "⤴" before it steps out (`step-out`). Centred in the
 //!   pane when the sides leave room, else in the space between them.
 //! - right: the agent of the canvas's workspace with its status, and
 //!   "➤ Sling", which slings the selection, or the page when nothing is
@@ -102,7 +104,8 @@ pub struct Pen {
 }
 
 /// What a pane's footer shows. A canvas pane's has the `pen`, its page
-/// line as `centre` (with `pages`: the page buttons) and its `zoom` in
+/// line as `centre` (with `pages`: the page buttons; with `out`, inside a
+/// box, the step-out button before them) and its `zoom` in
 /// percent; an agent UI pane's has its UI's name. `sidebar` puts the
 /// sidebar's button first (the sidebar is collapsed); `close` adds the
 /// close button (there is another pane). `sling` adds "➤ Sling" (a canvas
@@ -114,6 +117,7 @@ pub struct Shows<'a> {
     pub pen: Option<Pen>,
     pub centre: &'a str,
     pub pages: bool,
+    pub out: bool,
     pub zoom: Option<u32>,
     pub sidebar: bool,
     pub close: bool,
@@ -199,11 +203,14 @@ pub fn footer(frame: Rect, theme: &Theme, keys: &Keymap, shows: &Shows) -> Foote
     }
     if !shows.centre.is_empty() {
         let cells = if shows.pages {
-            vec![
-                glyph("‹", Command::PreviousPage),
-                Cell::words(muted(shows.centre), Some(Tap::Pages)),
-                glyph("›", Command::NextPage),
-            ]
+            let out = shows.out.then(|| glyph("⤴", Command::StepOut));
+            out.into_iter()
+                .chain([
+                    glyph("‹", Command::PreviousPage),
+                    Cell::words(muted(shows.centre), Some(Tap::Pages)),
+                    glyph("›", Command::NextPage),
+                ])
+                .collect()
         } else {
             vec![Cell::words(muted(shows.centre), None)]
         };

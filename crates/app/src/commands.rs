@@ -6,8 +6,11 @@
 //! list them; `menu` lays them out as the menu bar.
 
 pub mod menu;
+mod parse;
 mod registry;
 
+#[cfg(test)]
+use parse::key_named;
 pub use registry::Group;
 
 /// Every action a key can run. Later seeds add to [`Command::ALL`].
@@ -168,6 +171,13 @@ pub enum Command {
     NewText,
     /// Fold each selected box to a miniature, or unfold a folded one.
     Fold,
+    /// Step the focused pane into the selected box: it shows only what the
+    /// box holds, until a step out. Per pane, like its page.
+    StepIn,
+    /// Split the focused pane and step the new pane into the selected box.
+    StepInBeside,
+    /// Step the focused pane out of the box it is in, one level.
+    StepOut,
 }
 
 /// How many commands there are.
@@ -175,7 +185,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 78] = [
+    pub const ALL: [(Command, &str); 81] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -254,6 +264,9 @@ impl Command {
         (Command::FindNext, "find-next"),
         (Command::NewText, "new-text"),
         (Command::Fold, "fold"),
+        (Command::StepIn, "step-in"),
+        (Command::StepInBeside, "step-in-beside"),
+        (Command::StepOut, "step-out"),
     ];
 
     /// The command called `name` in the config file.
@@ -274,21 +287,6 @@ pub struct Chord {
     mods: u8,
     key: char,
 }
-
-/// The names of the keys that do not type a character, and the code point
-/// macOS gives each. `f1` to `f20` are parsed apart.
-const NAMED: [(&str, char); 10] = [
-    ("space", ' '),
-    ("tab", '\t'),
-    ("return", '\r'),
-    ("escape", '\u{1b}'),
-    ("delete", DELETE),
-    ("up", UP),
-    ("down", DOWN),
-    ("left", LEFT),
-    ("right", RIGHT),
-    ("forward-delete", FORWARD_DELETE),
-];
 
 /// The code points macOS gives the keys that move a caret, and delete.
 pub const UP: char = '\u{f700}';
@@ -322,51 +320,6 @@ impl Chord {
     pub const fn types(self) -> bool {
         self.mods & (CTRL | CMD) == 0
     }
-
-    /// Parses `"cmd+q"`: lowercase modifiers (`shift`, `ctrl`, `alt`, `cmd`)
-    /// joined by `+`, then one character or a key's name (`space`, `f5`).
-    /// `"cmd++"` is the plus key. Each modifier comes at most once.
-    pub fn parse(text: &str) -> Option<Chord> {
-        let (mods, key) = match text.strip_suffix('+') {
-            Some("") => ("", "+"),
-            Some(rest) => (rest.strip_suffix('+')?, "+"),
-            None => text.rsplit_once('+').unwrap_or(("", text)),
-        };
-        let mut bits = 0;
-        for name in mods.split('+').filter(|_| !mods.is_empty()) {
-            let bit = match name {
-                "shift" => SHIFT,
-                "ctrl" => CTRL,
-                "alt" => ALT,
-                "cmd" => CMD,
-                _ => return None,
-            };
-            if bits & bit != 0 {
-                return None;
-            }
-            bits |= bit;
-        }
-        Some(Chord::new(bits, key_named(key)?))
-    }
-}
-
-/// One character, or the code point of a named key.
-fn key_named(name: &str) -> Option<char> {
-    let mut chars = name.chars();
-    if let (Some(c), None) = (chars.next(), chars.next()) {
-        return (!c.is_control() && c != ' ').then_some(c);
-    }
-    if let Some(&(_, c)) = NAMED.iter().find(|(n, _)| *n == name) {
-        return Some(c);
-    }
-    // `f1` to `f20`, by hand: `str::parse` costs the app binary its size budget.
-    let n = match name.strip_prefix('f')?.as_bytes() {
-        &[d @ b'1'..=b'9'] => d - b'0',
-        &[b'1', d @ b'0'..=b'9'] => 10 + d - b'0',
-        b"20" => 20,
-        _ => return None,
-    };
-    char::from_u32(F1 + u32::from(n) - 1)
 }
 
 /// Which chord runs each command. A command may have none; a chord runs at
@@ -459,6 +412,9 @@ impl Default for Keymap {
             on(CMD, 'g'),
             on(CTRL, '\r'),
             on(CMD | ALT, 'f'),
+            on(CMD | ALT, 'i'),
+            on(CMD | ALT | SHIFT, 'i'),
+            on(CMD | ALT, 'o'),
         ])
     }
 }
