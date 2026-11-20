@@ -3,6 +3,7 @@
 
 mod agent;
 mod feedback;
+mod fold;
 mod import;
 mod look;
 mod pane;
@@ -285,6 +286,7 @@ fn answer(request: Request, store: &Store) -> Result<Reply, RemoteError> {
         Request::Showing(ask) => showing::answer(store, ask),
         Request::Feedback(ask) => feedback::answer(store, ask),
         Request::Profile(ask) => profile::answer(store, ask),
+        Request::Fold(ask) => fold::answer(store, ask),
     }
 }
 
