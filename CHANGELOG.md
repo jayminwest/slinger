@@ -18,6 +18,8 @@ bullet with the area in bold.
   and `slinger canvas crop <ID> --item b4` of a folded box shows it open.
 - **Agents:** `slinger canvas find` finds texts inside folded boxes too,
   and names the folded box that hides each (`i7 in i4`).
+- **Agents:** an `add` in `slinger canvas apply` may name a folded box with
+  `in`: the new item joins it, and the box's open size grows to hold it.
 - **CLI:** `slinger canvas fold <ID> <ITEM>` folds a box to a miniature that
   keeps what lies inside it, and `slinger canvas unfold` opens it again in
   its old room, each as one undo step. When something now lies in that
