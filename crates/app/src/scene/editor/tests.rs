@@ -2,6 +2,8 @@ use super::*;
 use crate::commands::CTRL;
 use crate::layout::Size;
 
+mod undo;
+
 /// Size 10: a cell is 5 wide, so a column of 35 holds seven.
 const SIZE: f64 = 10.0;
 const SEVEN: f64 = 35.0;

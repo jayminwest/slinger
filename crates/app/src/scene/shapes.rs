@@ -271,8 +271,8 @@ impl Shapes {
     /// Typed `text` goes into the text being edited at its caret, in place
     /// of its selection: delete deletes back, return starts a line, escape
     /// ends the text (to `ink`). Other control and function keys do
-    /// nothing ([`Editor::typed`](crate::scene::editor::Editor::typed)). Returns false, and nothing changes,
-    /// when no text is being edited.
+    /// nothing ([`Editor::typed`](super::editor::Editor::typed)). Returns
+    /// false, and nothing changes, when no text is being edited.
     pub fn typed(&mut self, text: &str, ink: &mut Ink) -> bool {
         let Some(editing) = &mut self.editing else { return false };
         match text.split_once('\u{1b}') {
@@ -286,10 +286,16 @@ impl Shapes {
     }
 
     /// A key of the text being typed: its caret, selection and delete keys
-    /// ([`Editor::key`](crate::scene::editor::Editor::key)). Returns false when no text is being typed, or the
-    /// key is not one of them.
+    /// ([`Editor::key`](super::editor::Editor::key)). Returns false when no
+    /// text is being typed, or the key is not one of them.
     pub fn key(&mut self, chord: Chord) -> bool {
         self.editing.as_mut().is_some_and(|editing| editing.key(chord))
+    }
+
+    /// Undoes the last edit of the text being typed, or with `redo` redoes
+    /// one. False when no text is being typed or it has no such step.
+    pub fn undo(&mut self, redo: bool) -> bool {
+        self.editing.as_mut().is_some_and(|editing| editing.editor.undo(redo))
     }
 
     /// The characters selected in the text being typed, if any; with `cut`,

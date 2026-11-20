@@ -206,6 +206,7 @@ a wrapped line's rows are separate rows):
 | cmd+v, dictation (Flick pastes) | replaces the selection, else goes in at the caret |
 | typing, return | replaces the selection, else goes in at the caret; return starts a line |
 | escape, a press outside | ends the text, as today |
+| cmd+z / shift+cmd+z (the `undo` / `redo` commands) | undo / redo the text's edits, as a Mac field groups them: a run of typing (lines too), of deletes back, or of forward deletes is one step; a paste, a cut, a word or row delete and each emacs edit a step of its own; a move of the caret or the selection ends a run; undo puts back the caret and selection too. With none left to undo, undo ends the text and is the canvas's, as before (slinger-304496, `scene/editor/undo.rs`) |
 | double tap inside | selects the word there (or the run of spaces or punctuation); a drag after it keeps the word (slinger-ed74af) |
 | triple tap inside | selects the row there |
 | ctrl+B / F / P / N, ctrl+A / E, ctrl+H / D, ctrl+K / Y, ctrl+T, ctrl+O | a Mac's emacs keys: a character back / forward, a row up / down, the line's start / end (a wrapped line's rows are one line), delete back / forward, cut to the line's end / put it back (in this text, not the clipboard), swap the characters at the caret, start a line after the caret; shift extends the moves (slinger-ed3fbc, `scene/editor/emacs.rs`) |
@@ -231,8 +232,10 @@ a wrapped line's rows are separate rows):
   and cmd+a selects the text's characters. Lane work on the items
   (slinger-e96ea3: select all, nudge with the arrows) applies only when no
   text is typed.
-- Undo inside a typed text stays as today (follow-up: per-edit undo while
-  typing).
+- Undo while a text is typed is the text's (the table's row); these are
+  the registry's `undo` and `redo` commands, not fixed keys, so the menu
+  bar and the palette do the same. Once the text ends, undo is the
+  canvas's, and the text it made is one step.
 
 Who owns what:
 

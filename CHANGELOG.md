@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** undo and redo while you type a canvas text. Cmd+Z and
+  Shift+Cmd+Z (and Undo and Redo in the Edit menu) step through the text's
+  own edits, as a Mac text field does: a run of typing is one step, a run of
+  deletes another, a paste or a cut one each. Once the text ends, undo
+  takes back the whole text from the canvas, as before.
 - **App:** the key overlay (cmd+/) also lists the keys that are not
   commands: under "Typing a text", the caret keys of a text you are typing
   (arrows, word and row jumps, selection, deletes, the emacs keys, double
