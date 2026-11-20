@@ -3,7 +3,8 @@
 //! to the daemon; and the keys left to a text being typed or an entry.
 
 use super::*;
-use crate::commands::SHIFT;
+use crate::commands::{DELETE, SHIFT};
+use crate::scene::paste::Keyboard;
 
 /// The right arrow, as macOS sends it.
 const RIGHT: char = '\u{f703}';
@@ -84,5 +85,33 @@ fn a_text_being_typed_or_an_open_entry_keeps_the_keys() {
         w.key(Chord::new(0, '\u{1b}'), "\u{1b}");
         assert!(w.send(Event::Command(Command::SelectAll)));
         assert_eq!(selected(&w), 2, "the box and the text");
+    });
+}
+
+/// A press that went on to a page (a live item's on the canvas) leaves it
+/// the keyboard: delete-selection's key goes on to it and the selected
+/// items stay (slinger-479dea), until a press the app takes gives the
+/// window the keyboard back.
+#[test]
+fn a_page_holding_the_keyboard_keeps_delete() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        w.drag_box(400.0, 10.0);
+        w.until(|_| boxes(daemon).len() == 1);
+        wait_until(|| {
+            w.send(Event::Tick);
+            w.send(Event::Key(Chord::new(CMD, 'a')));
+            selected(&w) == 1
+        });
+        let delete = || Event::Key(Chord::new(0, DELETE));
+        w.shared.keyboard = Keyboard::Pressed;
+        assert!(!w.send(delete()), "the key goes on to the page");
+        assert!(!w.send(Event::Command(Command::DeleteSelection)), "chosen from the menu too");
+        assert_eq!(selected(&w), 1);
+        w.shared.keyboard = Keyboard::Window;
+        assert!(w.send(delete()));
+        w.until(|_| boxes(daemon).is_empty());
     });
 }

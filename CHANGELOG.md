@@ -488,6 +488,8 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** while a live item's page on a canvas has the keyboard, delete
+  goes to the page; it no longer deletes the selected canvas items.
 - **App:** the caret in a canvas text moves, and delete deletes, by what
   reads as one character: an emoji joined from several (a family, a skin
   tone), a letter with its accents, a flag. It no longer stops inside one.
