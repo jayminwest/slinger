@@ -181,8 +181,9 @@ Who owns what:
 | `scene/cursor.rs` + `platform/canvas.rs` `ns_cursor` | `Cursor::OpenHand`, `Cursor::ClosedHand` (`NSCursor::openHandCursor`, `closedHandCursor`). |
 | `main.rs` | route `Event::Space` to `Hand` with `free` from shared/canvases/tools; in `pen()`, a held hand takes `Press/Drag/Lift` before dividers and turns them into `canvases.pan`. main.rs is 499/500 lines: move a helper out first (for example `taken`/`picked` into `window.rs`). |
 
-No new command: space and the middle button are held, not chords. They go
-into the key overlay's text with slinger-7ada2a.
+No new command: space and the middle button are held, not chords. The key
+overlay lists them as fixed rows under "Pointer" (slinger-7ada2a,
+`scene/overlay/fixed.rs`).
 
 ### Pick 2: the caret inside a canvas text (slinger-ea308d)
 
@@ -222,7 +223,9 @@ a wrapped line's rows are separate rows):
   wide. Both come from the scene.
 - These keys are fixed text keys, not commands in the registry, as the
   native entry's are. A chord with cmd or ctrl that the editor does not use
-  goes on to the keymap, as now.
+  goes on to the keymap, as now. The key overlay lists the main ones as
+  fixed rows under "Typing a text" (`scene/overlay/fixed.rs`; a test checks
+  the editor takes each chord listed there).
 - **Precedence**: while a canvas text is typed, every key in the table is
   the text's, before the keymap. So alt+arrows move the caret by words instead of panning,
   and cmd+a selects the text's characters. Lane work on the items

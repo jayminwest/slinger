@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** the key overlay (cmd+/) also lists the keys that are not
+  commands: under "Typing a text", the caret keys of a text you are typing
+  (arrows, word and row jumps, selection, deletes, the emacs keys, double
+  and triple tap), and under "Pointer", the pans by space-drag and the
+  middle or right button and the zoom at the pointer. The README has a
+  "Without a pen" section, and config.example.toml names these fixed keys.
 - **Agents:** a folded box is one line in what an agent reads,
   `b4 box … folded=7 "its first text"`, and what it holds makes no lines;
   new ink in it puts the box's line under the new things with `new=`.

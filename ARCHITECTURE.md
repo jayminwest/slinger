@@ -953,7 +953,10 @@ scene/overlay.rs  the key overlay (`show-keys`): open or closed, its
              that do not fit. Its rounded panel lists Command::ALL by Group
              in up to three columns (as many as fit 220 pt each, the groups
              cut in order so the tallest is shortest), each row 28 pt with
-             a chip of the live key from the Keymap. Line (a label, its font, its corners and edge)
+             a chip of the live key from the Keymap. After the groups,
+             scene/overlay/fixed.rs adds the fixed keys that are not
+             commands (a typed text's caret keys, the held pans) as rows
+             with no target. Line (a label, its font, its corners and edge)
              is shared with the palette. Pure.
 scene/palette.rs  the command palette (`show-commands`): open or closed,
              what is typed and the selected row. Typing is scene-drawn: it

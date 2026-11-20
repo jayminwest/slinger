@@ -10,7 +10,7 @@ const T: Theme = Theme {
     done: Rgb { r: 5, g: 5, b: 5 },
 };
 /// A window tall enough for every row.
-const TALL: Size = Size { width: 1600.0, height: 1100.0 };
+const TALL: Size = Size { width: 1600.0, height: 1300.0 };
 
 fn key(text: &str) -> Chord {
     Chord::parse(text).unwrap()
@@ -59,7 +59,9 @@ fn every_command_shows_exactly_once_with_its_key_under_its_group() {
         assert_eq!(chip(&keys, command), key, "{command:?}");
         let at = texts.iter().position(|t| *t == heading(command.group())).unwrap();
         let row = texts.iter().position(|t| t == command.title()).unwrap();
-        let next = Group::ALL.iter().filter_map(|&g| texts.iter().position(|t| *t == heading(g)));
+        let heading = |s: Section| s.title().to_uppercase();
+        let next =
+            Section::all().into_iter().filter_map(|s| texts.iter().position(|t| *t == heading(s)));
         assert!(at < row && next.filter(|&n| n > at).all(|n| n > row), "{command:?}");
     }
     for group in Group::ALL {
@@ -85,7 +87,8 @@ fn a_rebind_changes_the_row_and_an_unbound_command_says_no_key() {
 /// The left edge of each group's heading in a window of `size`.
 fn lefts(size: Size) -> Vec<f64> {
     let place = place(size, 0.0);
-    Group::ALL.map(|g| place.headings.iter().find(|(h, _)| *h == g).unwrap().1.x).to_vec()
+    let left = |s: Section| place.headings.iter().find(|(h, _)| *h == s).unwrap().1.x;
+    Section::all().into_iter().map(left).collect()
 }
 
 /// How many columns the groups fill in a window of `size`.
@@ -97,14 +100,15 @@ fn columns_at(size: Size) -> usize {
 
 #[test]
 fn the_groups_fill_three_columns_left_to_right() {
-    let (_, runs) = split(&Group::ALL, 3);
-    let names = |run: &Vec<Group>| run.iter().map(|g| g.title()).collect::<Vec<_>>().join(" ");
+    let (_, runs) = split(&Section::all(), 3);
+    let names = |run: &Vec<Section>| run.iter().map(|g| g.title()).collect::<Vec<_>>().join(" ");
     let runs: Vec<String> = runs.iter().map(names).collect();
-    assert_eq!(runs, ["Tools Pop-ups Sling", "File Canvas", "Pages Panes Window"]);
+    let last = "Panes Window Typing a text Pointer";
+    assert_eq!(runs, ["Tools Pop-ups Sling", "File Canvas Pages", last], "fixed keys last");
     for size in [layout::WINDOW, TALL] {
         let x = lefts(size);
-        assert!(x[0] < x[3] && x[3] < x[5], "{size:?}");
-        assert_eq!((x[0], x[3]), (x[2], x[4]), "tools to sling share a column, file and canvas");
+        assert!(x[0] < x[3] && x[3] < x[6], "{size:?}");
+        assert_eq!((x[0], x[3]), (x[2], x[5]), "tools to sling share a column, file to pages");
     }
 }
 
@@ -116,16 +120,16 @@ fn a_narrow_window_takes_fewer_columns_each_wide_enough_for_its_rows() {
         assert_eq!(columns_at(size), n, "{size:?}");
         let place = place(size, 0.0);
         assert!(place.rows.iter().all(|(_, f)| f.width >= MIN_COLUMN), "{size:?}");
-        let (tallest, _) = split(&Group::ALL, u32::try_from(n).unwrap());
+        let (tallest, _) = split(&Section::all(), u32::try_from(n).unwrap());
         assert!((place.most - (tallest - place.body.height).max(0.0)).abs() < 1e-9);
     }
     let place = place(layout::SMALLEST, 0.0);
     let tops: Vec<f64> = place.headings.iter().map(|(_, f)| f.y).collect();
     assert!(tops.windows(2).all(|w| w[0] < w[1]), "one column, top to bottom");
-    assert!(place.headings.iter().map(|(g, _)| *g).eq(Group::ALL), "in registry order");
-    let (one, _) = split(&Group::ALL, 1);
-    let (two, _) = split(&Group::ALL, 2);
-    let (three, _) = split(&Group::ALL, 3);
+    assert!(place.headings.iter().map(|(g, _)| *g).eq(Section::all()), "in registry order");
+    let (one, _) = split(&Section::all(), 1);
+    let (two, _) = split(&Section::all(), 2);
+    let (three, _) = split(&Section::all(), 3);
     assert!(three < two && two < one, "each column more shortens the tallest");
 }
 
@@ -248,9 +252,9 @@ fn the_row_under_the_pen_lights_up() {
 fn rows_that_do_not_fit_scroll_by_drag_scroll_or_arrow_and_a_drag_runs_nothing() {
     let size = layout::SMALLEST;
     let keys = Keymap::default();
-    let last = place(size, 0.0).rows.last().unwrap().0;
+    let last = place(size, 0.0).fixed.last().unwrap().0.title.to_string();
     let mut overlay = open();
-    assert!(!texts_of(&overlay, &keys, size).contains(&last.title().to_string()), "below");
+    assert!(!texts_of(&overlay, &keys, size).contains(&last), "below");
     let most = place(size, f64::MAX).scroll;
     assert!(most > 0.0);
 
@@ -260,7 +264,7 @@ fn rows_that_do_not_fit_scroll_by_drag_scroll_or_arrow_and_a_drag_runs_nothing()
     assert!(overlay.drag(up, size));
     assert_eq!(overlay.lift(up, size), Taken::Yes, "a drag scrolls and runs nothing");
     assert!(overlay.is_open());
-    assert!(texts_of(&overlay, &keys, size).contains(&last.title().to_string()), "scrolled in");
+    assert!(texts_of(&overlay, &keys, size).contains(&last), "scrolled in");
     assert!((overlay.scroll - most).abs() < 1e-9, "no further than the last row");
 
     assert!(overlay.scroll(most * 2.0, size));
@@ -287,4 +291,47 @@ fn a_menu_choice_closes_it_and_runs_except_its_own_which_only_closes() {
     let mut overlay = open();
     assert_eq!(overlay.chosen(Command::ShowKeys), Taken::Yes);
     assert!(!overlay.is_open(), "show-keys from the menu does not open it again");
+}
+
+#[test]
+fn the_fixed_keys_show_after_the_groups_each_with_its_chip_and_a_tap_runs_nothing() {
+    let keys = Keymap::default();
+    let texts = texts(&keys, TALL);
+    let titles: Vec<&str> = Command::ALL.iter().map(|(c, _)| c.title()).collect();
+    let window = texts.iter().position(|t| *t == Group::Window.title().to_uppercase()).unwrap();
+    for fixed in fixed::ALL {
+        let heading = texts.iter().position(|t| *t == fixed.title.to_uppercase()).unwrap();
+        assert!(heading > window, "{}", fixed.title);
+        for row in fixed.rows {
+            assert!(!titles.contains(&row.title), "{} is a command's title", row.title);
+            assert_eq!(texts.iter().filter(|t| *t == row.title).count(), 1, "{}", row.title);
+            let at = texts.iter().position(|t| t == row.title).unwrap();
+            assert!(at > heading && !texts[at + 1].is_empty(), "{}", row.title);
+            assert_eq!(texts[at + 1], row.keys.shown());
+        }
+    }
+    assert_eq!(fixed::TYPING.rows[1].keys.shown(), "⌥← ⌥→");
+
+    let size = TALL;
+    let mut overlay = open();
+    let (_, frame) = place(size, 0.0).fixed[0];
+    let at = Point { x: frame.x + frame.width / 2.0, y: frame.y + frame.height / 2.0 };
+    assert!(!overlay.hover(at, size), "a fixed row does not light");
+    assert_eq!(overlay.press(at, size), Taken::Yes);
+    assert_eq!(overlay.lift(at, size), Taken::Yes);
+    assert!(overlay.is_open(), "a tap on a fixed row runs nothing");
+}
+
+#[test]
+fn every_chord_the_overlay_names_for_a_typed_text_is_one_the_text_takes() {
+    use crate::scene::editor::Editor;
+    use crate::scene::glyphs::UNWRAPPED;
+    for row in fixed::TYPING.rows {
+        let fixed::Keys::Text(chords) = row.keys else { continue };
+        for text in chords.split(' ') {
+            let chord = key(text);
+            let mut editor = Editor::new("one two\nthree".into());
+            assert!(editor.key(chord, 24.0, UNWRAPPED), "{text} ({})", row.title);
+        }
+    }
 }
