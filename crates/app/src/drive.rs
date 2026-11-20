@@ -6,6 +6,8 @@
 //! scene comes back as text and the window as a PNG. `parse` decides; the
 //! thread only reads and writes.
 
+mod outline;
+
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf};
@@ -13,6 +15,7 @@ use std::time::Instant;
 
 use serde_json::{Value, json};
 
+pub use self::outline::outline;
 use crate::Event;
 use crate::commands::{Chord, Command, SHIFT};
 use crate::layout::{Point, Size};
@@ -25,8 +28,9 @@ pub enum Ask {
     /// Hand these events in, in order. One with a text is a key press: the
     /// text goes in as typed when the key was passed on.
     Send(Vec<(Event, Option<String>)>),
-    /// The scene the window shows, as text.
-    Scene,
+    /// The scene the window shows, as text: its outline, or all of it as
+    /// Rust prints it (`debug`).
+    Scene { debug: bool },
     /// The window's content as a PNG in this file.
     Shot(PathBuf),
     /// Make the window's content this size.
@@ -42,7 +46,7 @@ pub fn parse(line: &str, when: f64) -> Result<Ask, String> {
     let ask: Value = serde_json::from_str(line).map_err(|e| format!("not JSON: {e}"))?;
     let op = ask["op"].as_str().ok_or("no \"op\"")?;
     match op {
-        "scene" => Ok(Ask::Scene),
+        "scene" => Ok(Ask::Scene { debug: ask["debug"].as_bool().unwrap_or(false) }),
         "shot" => Ok(Ask::Shot(PathBuf::from(text(&ask, "path")?))),
         "resize" => Ok(Ask::Resize(Size { width: num(&ask, "w")?, height: num(&ask, "h")? })),
         "key" => Ok(Ask::Send(vec![key(text(&ask, "chord")?, ask["text"].as_str())?])),
@@ -216,7 +220,7 @@ mod tests {
 
     #[test]
     fn a_request_that_is_wrong_says_how() {
-        assert_eq!(parse(r#"{"op":"scene"}"#, 0.0), Ok(Ask::Scene));
+        assert_eq!(parse(r#"{"op":"scene"}"#, 0.0), Ok(Ask::Scene { debug: false }));
         for (line, said) in [
             ("x", "not JSON"),
             ("{}", "no \"op\""),

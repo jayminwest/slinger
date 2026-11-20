@@ -89,8 +89,11 @@ fn answer(ask: Ask, mtm: MainThreadMarker) -> Result<String, String> {
             }
             Ok(said.join(" "))
         }
-        Ask::Scene => LAST
-            .with_borrow(|scene| scene.as_ref().map(|scene| format!("{scene:#?}")))
+        Ask::Scene { debug } => LAST
+            .with_borrow(|scene| {
+                let scene = scene.as_ref()?;
+                Some(if debug { format!("{scene:#?}") } else { crate::drive::outline(scene) })
+            })
             .ok_or_else(|| "no scene yet".to_string()),
         Ask::Resize(size) => {
             state.window.setContentSize(NSSize::new(size.width, size.height));

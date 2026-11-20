@@ -22,6 +22,8 @@ pub struct Env {
     /// `$SLINGER_SOCKET`, else the socket the daemon named in the default
     /// data directory while something listens on it, when either is there.
     pub socket: Option<PathBuf>,
+    /// `$SLINGER_DRIVE`: a driven app's socket, for `slinger drive`.
+    pub drive: Option<PathBuf>,
 }
 
 impl Env {
@@ -29,6 +31,7 @@ impl Env {
     pub fn of_process() -> Self {
         Self {
             agent: std::env::var(AGENT_ENV).ok(),
+            drive: std::env::var_os(crate::drive::DRIVE_ENV).map(PathBuf::from),
             socket: std::env::var_os(SOCKET_ENV)
                 .map(PathBuf::from)
                 .or_else(control::running_socket),
