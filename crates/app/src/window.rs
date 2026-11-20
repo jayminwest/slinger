@@ -420,7 +420,7 @@ pub fn view(
     scene.labels.extend(sling.labels);
     scene.pills.extend(sling.pill);
     let pen = (tools.tool(), tools.colour());
-    canvases.set_pen_width(tools.width().points());
+    canvases.set_pen(tools);
     let keys = &settings.config.keys;
     let collapsed = !sidebar.is_open();
     let mut footers = canvases.footers(&shared.panes, area, theme, pen, keys, collapsed);

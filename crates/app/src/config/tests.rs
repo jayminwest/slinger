@@ -241,6 +241,9 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
             "",
             "",
             "",
+            "cmd+shift+a",
+            "alt+shift+}",
+            "alt+shift+{",
         ]
         .map(|c| Some(Chord::parse(c))),
     };
