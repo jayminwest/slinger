@@ -69,7 +69,7 @@ fn a_page_whose_items_are_far_from_the_origin_opens_with_them_in_view_once() {
             let scene = canvases.show(&panes, WINDOW.rect(), &theme).remove(0).scene;
             assert_eq!(scene.viewport, panned.scene.viewport, "a change moves nothing");
             let c = &canvases;
-            c.follow.pane_shown(&c.ink, &panes, panes.focus()).len() == 2
+            c.follow.pane_shown(c.editing.ink(), &panes, panes.focus()).len() == 2
         });
 
         let pane = (panes.focus(), WINDOW.rect());

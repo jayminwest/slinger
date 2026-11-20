@@ -53,10 +53,9 @@ impl Canvases {
         let canvas = canvas_of(panes, pane)?;
         let open = self.follow.shown(canvas, pane)?;
         let shown = open.mirror.as_ref()?.page().to_string();
-        let items = self.follow.pane_shown(&self.ink, panes, pane);
+        let items = self.follow.pane_shown(self.editing.ink(), panes, pane);
         let button = crate::scene::button::first(&items)?;
-        let view = self.follow.views().iter().find(|(p, _)| *p == pane);
-        let viewport = view.map_or_else(Viewport::start, |(_, v)| v.viewport);
+        let viewport = self.follow.view_of(pane).map_or_else(Viewport::start, |v| v.viewport);
         let selection = Selection { canvas: canvas.into(), page: shown, ids: Vec::new() };
         Some((selection, in_window(viewport, frame, button), frame))
     }

@@ -156,8 +156,7 @@ impl Canvases {
             let canvas = canvas_of(panes, id)?;
             let open = self.follow.shown(canvas, id)?;
             let page = open.mirror.as_ref()?.page().to_string();
-            let view = self.follow.views().iter().find(|(p, _)| *p == id);
-            let viewport = view.map_or_else(Viewport::start, |(_, v)| v.viewport);
+            let viewport = self.follow.view_of(id).map_or_else(Viewport::start, |v| v.viewport);
             let focused = id == panes.focus();
             Some((id, status::content(frame), pane.name.clone(), page, viewport, focused))
         });

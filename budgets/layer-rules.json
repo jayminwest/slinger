@@ -121,6 +121,24 @@
 				"mupdf*",
 				"poppler*"
 			]
+		},
+		{
+			"name": "canvas-owners-are-not-canvases",
+			"why": "Canvases coordinates three owners (Follow, Editing, SlingFlow) that hide their state and never hold each other; a method on Canvases inside an owner's tree would reach past that, so the owners' trees hold no impl Canvases",
+			"paths": [
+				"crates/app/src/canvases/editing.rs",
+				"crates/app/src/canvases/editing",
+				"crates/app/src/canvases/follow.rs",
+				"crates/app/src/canvases/follow",
+				"crates/app/src/canvases/flow.rs",
+				"crates/app/src/canvases/flow"
+			],
+			"except": [],
+			"forbid": [
+				"impl Canvases",
+				"impl super::Canvases",
+				"impl crate::canvases::Canvases"
+			]
 		}
 	],
 	"allow": []

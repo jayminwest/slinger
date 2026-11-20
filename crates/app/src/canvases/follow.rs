@@ -103,6 +103,11 @@ impl Follow {
         &self.views
     }
 
+    /// Pane `pane`'s view, if it has one.
+    pub(super) fn view_of(&self, pane: PaneId) -> Option<&View> {
+        self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v)
+    }
+
     /// Pane `pane`'s view, a new one if it has none.
     pub(super) fn view(&mut self, pane: PaneId) -> &mut View {
         self.views.get(pane)

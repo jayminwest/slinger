@@ -684,13 +684,25 @@ mirror/clip.rs  the selection's items on the clipboard: their file objects
              back as a carry's items for a page, centred on a point, an
              arrow still bound to the items pasted before it; plain text
              alone reads as one text item (`text_items`). Pure.
-canvases.rs  the canvas panes: what each pane shows (canvases/follow.rs);
-             the pen's ink, the eraser's and
-             lasso's work and the text, box and arrow tools' over each page,
-             and the outbox they share. A selection no pane shows clears.
-             A press on a canvas closes the open entry (the sling's, the
-             feedback's, a page's new name's), but one on a button sends
-             the sling's.
+canvases.rs  the canvas panes, coordinated over three owners: what each
+             pane shows (`Follow`, canvases/follow.rs), what the pen and
+             the keys change and its way to the daemon (`Editing`,
+             canvases/editing.rs) and the sling (`SlingFlow`,
+             canvases/flow.rs); `Canvases` keeps only these, the daemon,
+             the waker, a page command's question, the last find, the flash
+             and the grid, and starts no thread itself. Owners never hold
+             each other: Editing is handed the Follow where it needs a page,
+             Follow and SlingFlow are handed the ink. A selection no pane
+             shows clears. A press on a canvas closes the open entry (the
+             sling's, the feedback's, a page's new name's), but one on a
+             button sends the sling's.
+canvases/editing.rs  `Editing`, the one owner of what the pen and the keys
+             change: the ink, the selection, the shapes, the crop, the
+             outbox (whose thread it starts), the file the unsent changes
+             are kept in (editing/kept.rs), the gesture under way
+             (editing/pen.rs) and the handle the pointer is on. Its fields
+             are private to editing/; the keys' edits are editing/keys.rs,
+             `new-text` editing/start.rs, a context click editing/context.rs.
 canvases/follow.rs  `Follow`, the one owner of what each pane shows: one
              follower and mirror per page shown (`Open`), each pane's view
              (canvases/view.rs), the panes waiting for a page they added,
@@ -753,7 +765,7 @@ canvases/slung.rs  the one-tap sling and what follows it: `sling-now` (the
              The pill's progress from the Slinger, a tap on the pill, and
              the sling's marks: the buttons beside the selection, the pill
              and the answer's panel.
-canvases/context.rs  what a context click on a canvas pane is on
+canvases/editing/context.rs  what a context click on a canvas pane is on
              (`context_at`): the text being typed, the selection a press
              there would grab (kept), else the item the select tool's own
              hit test (`select::topmost`) picks, selected alone (Finder's
@@ -775,7 +787,7 @@ canvases/keys.rs  what the keys do on the canvas panes: typed and pasted
              and duplicate act on the focused pane's page (`keyed`).
 canvases/find.rs  which page, canvas and items each pane shows; a window
              point in canvas points.
-canvases/drag.rs  the pen's drag and lift on the canvas panes: a drag of the
+canvases/drag.rs  the pen's drag and lift on the canvas panes (editing/pen.rs): a drag of the
              selection read through the pane under the pen; whether a press
              grabs the selection (it wins over a divider within reach); the
              pane whose selection handle the pointer is on, for its resize
@@ -810,7 +822,7 @@ canvases/step.rs  `step-in` (cmd+alt+i, or two taps on a miniature),
 canvases/seek.rs  `find` (cmd+f) and `find-next` (cmd+g): the entry for the
              words, `canvas_find` on the daemon (the search is the core's),
              and the jump: the pane turns to the text's page and centres it.
-canvases/start.rs  `new-text` (ctrl+return): a text started without a
+canvases/editing/start.rs  `new-text` (ctrl+return): a text started without a
              tap, chained half a line under the one being typed (which
              ends), else at the pointer over the pane, under the last text
              ended on its page, or at its centre (scene/shapes/start.rs).
@@ -1678,6 +1690,7 @@ Each boundary has something that fails when it is broken:
 | The protocol crate does not link the core | `check:layers` rule `control-is-transport-only` |
 | The CLI reaches the core only through the socket | `check:layers` rule `cli-uses-the-socket` |
 | The app reaches the core only through the socket | `check:layers` rule `app-uses-the-socket` |
+| The app's canvas owners (`Follow`, `Editing`, `SlingFlow`) hold no `impl Canvases` | `check:layers` rule `canvas-owners-are-not-canvases` |
 | `slinger drive` and a driven window write and read drive lines only as `control::{DriveAsk, DriveReply}`, never as hand-built JSON; each op's line is golden (`crates/control/tests/fixtures/drive.jsonl`) | `check:layers` rule `drive-speaks-typed`, `crates/control/src/drive.rs` tests, `crates/cli/src/tests/drive_wire.rs`, `crates/app/src/drive.rs` tests |
 | The agent guide, the skill, the plugin and the sling note (the core's stored snapshots) name only commands and flags the CLI has; the plugin has the binary's version | `crates/cli/src/tests/guide.rs` |
 | A driven window's request becomes the events real input makes, and a wrong one says how; the outline says a typed text and its caret; `slinger drive` sends the request and maps the reply to its exit code | `crates/app/src/drive.rs`, `crates/app/src/tests/drive.rs`, `crates/cli/src/tests/drive.rs` |
