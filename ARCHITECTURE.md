@@ -451,9 +451,13 @@ window.rs    runs a command on the focused pane, does a tap on a button that
              opens its profile menu and a profile slings under it, a
              workspace shows its panes), opens the folder `open-workspace`
              chose as a workspace (workspace_open: backend/agents.rs) and
-             shows it, or flashes why not, closes the shown one for
-             `close-workspace` (workspace_close by its folder) and shows the
-             first, or flashes why not, starts, stops or restarts the
+             shows it, or flashes why not, closes a workspace by its folder
+             (window/workspace.rs: the shown one for `close-workspace`, any
+             row's for its ✕; workspace_close first, then the row leaves,
+             "Closed <name>" flashes with the agent the daemon ended, and a
+             workspace not shown drops its parked views and kept focus; only
+             closing the shown one makes the watch follow the first; a
+             failure leaves the row and flashes why), starts, stops or restarts the
              shown one's agent for `start-agent`, `stop-agent` and
              `restart-agent` (`agent`: session_start, session_stop or
              session_start `fresh` by its folder, backend/agents.rs) and
@@ -545,7 +549,18 @@ backend/watch.rs  the Watch: its thread, which waits on a condvar for a poke
              (want, follow, drop) or one second; its round (`round`: UIs,
              layout, agents, told to a sink, so a test records the order);
              and the layout sent with the time it read the wanted name and
-             the time it sent it (trace.rs).
+             the time it sent it (trace.rs). A layout is news only when its
+             arrangement changed (`arrangement`: workspace, tree, ids,
+             targets, ratios; not the kept views or focus), so the app's
+             own `pane_view` saves never come back as layout news.
+backend/views.rs  the Saver: the window hands it the shown workspace's
+             looks when they change (never waits); a thread of its own
+             sends one `pane_view` with only the changed panes and focus
+             300 ms after the last looks, at once when looks of another
+             workspace come (a switch) and on `flush` (quit, waited on at
+             most 500 ms). A failed send is tried with the next looks and is
+             otherwise dropped; a daemon without the verb leaves the app as
+             it was. Built over a send function, so tests count requests.
 backend/sling.rs  the Slinger: each sling as one `sling_send` (canvas, page,
              the selected ids, the prompt) on a thread of its own, and the
              daemon's answer back (`Heard`). The daemon picks the agent.
@@ -645,7 +660,15 @@ canvases/view.rs  each canvas pane's view: page, viewport, trail, reader
              A new view is unplaced (`placed`) until its page first comes,
              when it opens with `Viewport::opening`, or the user pans or
              zooms; a split copies the source's view, placed
-             (`Canvases::split_view`).
+             (`Canvases::split_view`). A pane with no view in memory takes
+             the view the daemon kept for it (`Pane.view`, `View::learn`)
+             when it is of the pane's canvas: page, origin and zoom
+             (`Viewport::kept`), placed, so no fit runs; a view in memory
+             always wins. The box trail is not kept.
+canvases/looks.rs  where the shown workspace's panes look (`looks`: each
+             placed canvas view by pane id, its page once come, origin and
+             zoom; the focused pane's id), handed to backend/views.rs at
+             the end of every `show` and flushed on Event::Quitting.
 canvases/live.rs  the live items' pages: each showing a pane draws fetched
              once on a thread of its own, put over its item; a press on an
              item whose page shows goes to the page unless it grabs the
@@ -841,7 +864,9 @@ scene/taps.rs  the footers' and the sidebar's buttons as last drawn: the
              one under the pen lights, a press arms it and goes no further
              (no ink, no gesture), and the lift on it taps it (`Tap`: run
              a command, open the page menu, turn to a page, open the
-             profile menu, sling under a profile, show a workspace); a
+             profile menu, sling under a profile, show a workspace, close
+             a workspace by its row's ✕: `Close(index)`, resolved to its
+             folder at the tap); a
              lift off it does nothing. Pure.
 scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
              above the name, one 28 pt row per page (the shown one ✓ and
@@ -942,9 +967,15 @@ scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
              running` (hollow, muted), one slingerd never started (no
              session id) shows what its hooks said, and one with a message
              pending is working though no hook said so (`Status::of`). `agents`: each
-             workspace's agent. `close`: takes the shown workspace out of
-             the list for `close-workspace`; `shown_dir`: its folder, which
-             the agent commands and `show-workspace-folder` go to. Under the
+             workspace's agent. Each workspace's name line ends in a muted
+             ✕, a 28 pt target listed before its row's (`Tap::Close`); the
+             name's label ends before it. `dir`: a row's folder, what closes
+             it; `closed`: takes a row out once the daemon closed it, and
+             whether it was the shown one (then the first usable shows);
+             `shown_dir`: the shown one's folder, which `close-workspace`,
+             the agent commands and `show-workspace-folder` go to. The
+             layout (`laid`, `Line`, `block`) is in scene/sidebar/rows.rs.
+             Under the
              shown workspace's agent that does not run, "Start agent" (a tap
              runs `start-agent`). Pure.
 scene/sidebar/agent.rs  an agent as the sidebar shows it: its `Status`,
@@ -1173,7 +1204,8 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              opened again. Pure. `sling/buttons.rs`: the three buttons
              beside a selection's box, ➤ Sling (`sling-now`), + prompt
              (`sling`) and Delete (`delete-selection`), each a 28 pt target
-             inside the pane; while a sling is out, Delete alone.
+             inside the pane, never moving; they work while a sling is
+             out, as `sling-now` does (the agent takes it as it works).
              `sling/pen.rs`: the pen's buttons beside every entry's box
              (the prompt's, a note's, a new name's), ✓ Sling, ✓ Save or ✓
              Rename (Tap::Send, as return), Dictate (`dictate`; ● Stop while
@@ -1263,6 +1295,8 @@ platform/event.rs  what the app hears (Event) and answers (Step), and
              waker: the post any thread calls to queue Event::Wake on the
              main dispatch queue, which the run loop serves in its common
              modes (during a stroke, a drag or a live resize too).
+             Event::Quitting comes as the window closes, before the app
+             terminates (the red button, cmd+Q or Step::Quit).
 platform/window.rs  makes the window (its style, smallest size and
              delegate) and puts it at its saved frame.
 platform/drive.rs  the driven window on the main thread: runs each ask from
@@ -1584,6 +1618,7 @@ Each boundary has something that fails when it is broken:
 | a button on the page (put through the daemon); a tap slings what is new with no selection, the reply lands beside the note, a typed prompt goes with a tap, a failure shows under the button, the eraser over it slings nothing | `crates/app/src/canvases/button/tests.rs` against a real daemon and a stand-in for Claude Code |
 | A follower shows the page, hands on each change, wakes the main thread with each, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
 | Two wakes post once, a teller wakes after its news is in the channel, Event::Wake runs the news path | `crates/app/src/backend/wake.rs`, `crates/app/src/tests/wake.rs` |
+| A pane's page, pan and zoom and the focus go to the daemon (one request per burst, only what changed, at once on a switch, bounded at quit) and a new window opens each pane there with no fit; a kept view of another canvas is ignored and a view in memory wins; the app's own saves are no layout news | `crates/app/src/backend/views/tests.rs`, `crates/app/src/canvases/view/tests.rs`, `crates/app/src/shared/tests.rs`, `crates/app/src/backend/watch.rs` and `crates/app/src/tests/views.rs` against a real daemon |
 | A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |
 | Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |
 | Ink not yet written is selected, moved and erased at once; each change goes in turn by the ids the daemon made, one undo step each | `crates/app/src/scene/ink/tests.rs`, and `crates/app/src/canvases/tests.rs` against a real daemon |

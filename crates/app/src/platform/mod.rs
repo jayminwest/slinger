@@ -216,6 +216,7 @@ define_class!(
         fn close_and_quit(&self) {
             // SAFETY: `NSWindow`'s own `close`.
             let () = unsafe { msg_send![super(self), close] };
+            dispatch(Event::Quitting, self.mtm());
             NSApplication::sharedApplication(self.mtm()).terminate(None);
         }
 

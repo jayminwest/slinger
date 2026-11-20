@@ -15,6 +15,7 @@ use crate::scene::tools::Tool;
 
 mod broken;
 mod bundle;
+mod close;
 mod drive;
 mod fold;
 mod items;
@@ -27,6 +28,7 @@ mod split;
 mod start;
 mod step;
 mod undo;
+mod views;
 mod wake;
 
 /// The window's state, as `window` keeps it, with no watch.
@@ -351,14 +353,21 @@ fn a_broken_workspace_shows_why_and_close_workspace_closes_it_and_flashes_why_it
         let rows = sidebar.rows(theme, window);
         let texts: Vec<_> = rows.iter().map(|r| r.label.text.as_str()).collect();
         assert!(texts.contains(&"Close workspace"), "it shows: it can close {texts:?}");
-        assert!(window::close_workspace(socket, &mut sidebar, &mut tools));
+        let (mut shared, mut canvases) = (Shared::default(), Canvases::new(daemon.clone()));
+        let mut close = |dir: &Path, sidebar: &mut Sidebar, tools: &mut Tools| {
+            window::close_workspace(dir, socket, sidebar, tools, (&mut shared, &mut canvases))
+        };
+        let dir = sidebar.shown_dir().unwrap();
+        assert!(close(&dir, &mut sidebar, &mut tools));
         assert_eq!(daemon.workspace_list().unwrap(), [], "closed by its folder");
         assert!(file.is_file(), "its file stays");
 
         let gone =
             scene::sidebar::Workspace { dir: "/nonexistent/gone".into(), ..Default::default() };
         sidebar.update(Ok(vec![gone]));
-        assert!(!window::close_workspace(socket, &mut sidebar, &mut tools), "not open any more");
+        let gone = Path::new("/nonexistent/gone");
+        assert!(!close(gone, &mut sidebar, &mut tools), "not open any more");
+        assert_eq!(sidebar.dir(0).as_deref(), Some(gone), "the row stays");
         let pill = tools.flash().pill(window, theme, Instant::now());
         assert!(pill.is_some_and(|p| !p.label.text.is_empty()), "the flash says why");
     });

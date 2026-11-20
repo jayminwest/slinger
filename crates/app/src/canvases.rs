@@ -27,6 +27,7 @@ mod fold;
 mod kept;
 mod keys;
 mod live;
+mod looks;
 mod news;
 mod paging;
 mod pdf;
@@ -42,7 +43,7 @@ use std::rc::Rc;
 
 use slinger_control::Client;
 
-use crate::backend::{Flick, Follower, Outbox, Problem, Slinger, Wake, run};
+use crate::backend::{Flick, Follower, Outbox, Problem, Saver, Slinger, Wake, run};
 use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Point, Rect, Size};
 use crate::mirror::Mirror;
@@ -121,6 +122,8 @@ pub struct Canvases {
     steps: step::Steps,
     /// Wakes the main thread when a backend thread has news.
     wake: Wake,
+    /// Sends where the panes look to the daemon to keep ([`looks`]).
+    saver: Saver,
 }
 
 /// One canvas page followed: the page asked for (`None`: the first), as
@@ -160,7 +163,6 @@ impl Canvases {
         let voice = dictation::Voice::new(Flick::socket(), &wake);
         let notes = feedback::Notes::new(daemon.clone(), &wake);
         Self {
-            daemon,
             open,
             views,
             ink,
@@ -188,7 +190,9 @@ impl Canvases {
             handle: None,
             folds: fold::Folds::default(),
             steps: step::Steps::default(),
+            saver: Saver::start(daemon.clone()),
             wake,
+            daemon,
         }
     }
 
@@ -198,6 +202,7 @@ impl Canvases {
         self.outbox.reconnect(daemon.clone());
         self.slinger.reconnect(daemon.clone());
         self.notes.reconnect(daemon.clone());
+        self.saver.reconnect(daemon.clone());
         self.lives = live::Lives::start(daemon.clone(), &self.wake);
         self.pdfs = pdf::Pdfs::start(daemon.clone(), crate::backend::pdf::cache(), &self.wake);
         self.daemon = daemon;
@@ -331,7 +336,7 @@ impl Canvases {
             .map(|(id, p, frame)| (id, p, crate::scene::status::content(frame)))
             .collect();
         for (id, pane, _) in &placed {
-            self.views.get(*id).on(&pane.name);
+            self.views.get(*id).learn(&pane.name, panes.kept(*id));
         }
         let shown: Vec<(&str, Option<String>)> = placed
             .iter()
@@ -421,6 +426,7 @@ impl Canvases {
             scenes.push(CanvasPane { pane: id, frame, scene, cursor: Cursor::Arrow });
         }
         self.pdfs.want(&scenes);
+        self.save(panes);
         scenes
     }
 }

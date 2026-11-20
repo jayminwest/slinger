@@ -8,8 +8,10 @@
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
+use slinger_control::PaneView;
+
 use super::step::Trail;
-use crate::layout::{PaneId, Rect, Size, Viewport};
+use crate::layout::{PaneId, Point, Rect, Size, Viewport};
 use crate::scene::canvas;
 
 /// One canvas pane: the canvas it is for, where it looks, the page it
@@ -63,12 +65,29 @@ impl View {
         }
     }
 
+    /// Makes this the view of `canvas` ([`View::on`]) and, when it has no
+    /// place yet, takes `kept`, where the daemon kept the pane looking, if
+    /// that is of `canvas`: its page, origin and zoom ([`Viewport::kept`]),
+    /// placed, so the first-open fit does not run. A view with a place wins.
+    pub(super) fn learn(&mut self, canvas: &str, kept: Option<&PaneView>) {
+        self.on(canvas);
+        let Some(kept) = kept.filter(|k| !self.placed && k.canvas == canvas) else { return };
+        self.viewport = Viewport::kept(Point { x: kept.x, y: kept.y }, kept.zoom);
+        self.page = kept.page.clone().map(|page| (canvas.to_string(), page));
+        self.placed = true;
+    }
+
     /// The view of a pane split off this one: the same canvas, page, place
     /// and boxes, placed, with nothing drawn yet (its frame differs).
     fn copied(&self) -> Self {
         let (canvas, page, trail) = (self.canvas.clone(), self.page.clone(), self.trail.clone());
         let (viewport, reader) = (self.viewport, self.reader);
         Self { canvas, viewport, page, last: None, reader, trail, placed: true }
+    }
+
+    /// The canvas it is the view of, once it knows.
+    pub(super) fn canvas(&self) -> Option<&str> {
+        self.canvas.as_deref()
     }
 
     /// Whether it may be the view of `canvas`: it is, or it has not learnt
@@ -120,6 +139,11 @@ impl Views {
         true
     }
 
+    /// Forgets the views parked under `workspace`, closed.
+    pub(super) fn forget(&mut self, workspace: &str) {
+        self.parked.retain(|(w, _)| w.as_deref() != Some(workspace));
+    }
+
     /// Pane `pane`'s view, a new one if it has none.
     pub(super) fn get(&mut self, pane: PaneId) -> &mut View {
         let at = self.shown.iter().position(|(p, _)| *p == pane).unwrap_or_else(|| {
@@ -167,6 +191,12 @@ impl super::Canvases {
     /// its own.
     pub fn split_view(&mut self, from: PaneId, to: PaneId) {
         self.views.copy(from, to);
+    }
+
+    /// Forgets the panes' views of `workspace`, closed while not shown:
+    /// open again, it shows them as the daemon kept them.
+    pub fn forget(&mut self, workspace: &str) {
+        self.views.forget(workspace);
     }
 }
 

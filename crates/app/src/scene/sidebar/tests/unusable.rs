@@ -61,14 +61,18 @@ fn a_shown_broken_workspace_has_a_close_line_whose_tap_closes_it_then_its_hint()
     let whole = "fix that file, or close it: 'slinger workspace close /w/bad'";
     assert!(hint.ends_with(CUT), "three lines at most: {hint}");
     assert!(whole.starts_with(hint.trim_end_matches(CUT)), "{hint}");
-    let targets = sidebar.targets(&T, WINDOW);
+    let targets = rows_only(&sidebar);
     let taps: Vec<_> = targets.iter().map(|t| t.1).collect();
     let run = Tap::Run(Command::CloseWorkspace);
     assert_eq!(taps, [Tap::Workspace(0), run, Tap::Workspace(0), Tap::Workspace(1)]);
     assert_eq!((targets[1].0.y, targets[1].0.height), (close.y, ROW), "the close line alone");
     assert_eq!(targets[0].0.y + targets[0].0.height, close.y, "above it shows it");
     assert_eq!(targets[2].0.y, close.y + ROW, "and the hint under it");
-    assert_eq!(sidebar.close(), Some(PathBuf::from("/w/nameless")), "the shown one, by its dir");
+    assert_eq!(
+        close_shown(&mut sidebar),
+        Some(PathBuf::from("/w/nameless")),
+        "the shown one, by its dir"
+    );
     let names: Vec<_> = sidebar.agents().unwrap().into_iter().map(|(c, _)| c).collect();
     assert_eq!(names, ["ada-canvas"], "out of the list");
     assert!(shown(&sidebar.rows(&T, WINDOW)).contains(&("ada-ws", T.text)));

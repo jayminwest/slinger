@@ -11,6 +11,19 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** every workspace in the sidebar has a ✕ that closes it, shown or
+  not, without switching to it first. Closing the shown one shows another;
+  closing any other leaves the window as it is. The flash names the
+  workspace closed and the agent the close ended; if slingerd cannot close
+  it, the row stays and the flash says why. close-workspace (opt+cmd+W)
+  still closes the shown one.
+
+- **App:** each pane opens on the page, pan and zoom you left it at, and
+  the focus comes back to the pane that had it: after a workspace switch,
+  a relaunch of the app or a restart of slingerd. The app saves where you
+  look a moment after you stop moving, on a switch and at quit; an older
+  slingerd simply keeps nothing.
+
 - **App:** Zoom to fit (cmd+9, the palette or the Canvas menu) zooms and
   pans the focused pane so its whole page shows, at 100% or less; inside a
   box it fits the box. A canvas a pane has not shown before opens the same
@@ -23,8 +36,7 @@ bullet with the area in bold.
   verb. Every pane reply carries them, so they survive a restart and a
   workspace closed and opened again; a pane opened beside another on the
   same canvas starts where that one looks. The workspace file is not
-  written. `slinger pane list --json` shows them. The app uses them in a
-  coming step.
+  written. `slinger pane list --json` shows them.
 - **App:** after an update, slinger.app notices a slingerd of another
   build and offers to restart it: a notice names both builds and how many
   running agents a restart would end, and "Restart slingerd" (the notice,
@@ -636,6 +648,19 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** sling-now (alt+return, or Sling) on a PDF opened beside the
+  workspace's canvas now says "A PDF cannot be slung: sling a crop of it"
+  (crop it, paste the crop on the workspace's canvas and sling that)
+  instead of "No agent in this workspace": a sling goes to the agent of
+  its canvas's workspace, and a PDF's canvas belongs to none. Any other
+  canvas no open workspace has says so too.
+- **App:** the key overlay (cmd+/) no longer cuts titles and keys short in
+  a window of the default width ("Close workspace", "Focus pane left",
+  "Remove page", "Restart agent in a new conversation", "Select a word, a
+  row"). Each column is as wide as its longest row needs; a narrower
+  window shows fewer columns instead.
+- **App:** dictation reaches Flick at a `$FLICK_SOCKET` path of any
+  length; one over 103 bytes no longer fails to connect.
 - **CLI, daemon:** `slingerd --socket` and `slinger --socket` take a path
   of any length. A path over 103 bytes (a deep scratch folder, say) no
   longer fails with "path must be shorter than SUN_LEN"; the app reaches
@@ -645,8 +670,10 @@ bullet with the area in bold.
   deletes or moves the caret in the field, as the key does, instead of
   typing a control character into it.
 - **App:** a second tap on "➤ Sling" beside a selection no longer deletes
-  it. While a sling is out, "➤ Sling" and "+ prompt" stay where they were,
-  greyed, and a tap on them does nothing; "Delete" never moves.
+  it: the selection's buttons never move. While a sling is out, "➤ Sling"
+  and "+ prompt" still work, as sling-now (alt+return), sling (cmd+return)
+  and the footer's Sling do: the agent takes the new sling as it works,
+  and the pill follows the newest.
 - **App:** a workspace whose file is broken no longer pushes the
   workspaces under it out of the sidebar. Its error takes at most two
   lines, cut short with "…"; the hint shows only while you show that

@@ -30,7 +30,9 @@ use crate::shared::Shared;
 
 mod items;
 pub mod launched;
+mod workspace;
 pub use items::keyboard;
+pub use workspace::{close_workspace, open_workspace};
 
 /// Runs `command` (not `quit` or `reload-config`) on the focused pane of
 /// `shared`: a picker opens its pop-up there; a pane command, and an
@@ -108,42 +110,9 @@ pub fn tap(
         Tap::Cancel => _ = canvases.sling_key(CANCEL),
         Tap::Resolve(index) => _ = canvases.resolve_feedback(index),
         Tap::Waive => sidebar.waive(),
-        Tap::Run(_) | Tap::Idle => {}
+        Tap::Run(_) | Tap::Close(_) => {}
     }
     None
-}
-
-/// Opens the folder `dir` as a workspace through the daemon on `socket` and
-/// shows it in `sidebar`: its name, for the watch to follow. The flash in
-/// `tools` says why it cannot.
-pub fn open_workspace(
-    dir: &Path,
-    socket: &Path,
-    sidebar: &mut Sidebar,
-    tools: &mut Tools,
-) -> Option<String> {
-    match backend::open_workspace(&slinger_control::Client::new(socket), dir) {
-        Ok(name) => {
-            sidebar.show(Some(name.clone()));
-            Some(name)
-        }
-        Err(problem) => {
-            tools.flash().say(problem.message, Instant::now());
-            None
-        }
-    }
-}
-
-/// Closes the workspace `sidebar` shows through the daemon on `socket`,
-/// and shows the first: whether it closed, for the watch to follow the
-/// first. The flash in `tools` says why it cannot.
-pub fn close_workspace(socket: &Path, sidebar: &mut Sidebar, tools: &mut Tools) -> bool {
-    let Some(dir) = sidebar.close() else { return false };
-    let closed = backend::close_workspace(&slinger_control::Client::new(socket), &dir);
-    if let Err(problem) = &closed {
-        tools.flash().say(problem.message.clone(), Instant::now());
-    }
-    closed.is_ok()
 }
 
 /// Runs `start-agent`, `stop-agent` or `restart-agent` on the agent of

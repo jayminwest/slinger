@@ -34,6 +34,9 @@ pub enum Tap {
     Profile(usize),
     /// Shows the panes of the sidebar's workspace with this index.
     Workspace(usize),
+    /// Closes the sidebar's workspace with this index, shown or not: its
+    /// row's ✕.
+    Close(usize),
     /// The pill that says what became of the last sling, or the answer
     /// under it ([`crate::scene::slung`]).
     Slung,
@@ -46,9 +49,6 @@ pub enum Tap {
     Resolve(usize),
     /// The ✕ of the offer to restart the daemon: hides it for that daemon.
     Waive,
-    /// A button shown but not usable now: the tap is its, and does
-    /// nothing. It never lights up.
-    Idle,
 }
 
 /// A target: where it takes a tap, and what the tap does.
@@ -139,7 +139,7 @@ impl Taps {
     /// is over it, else the one under the pen. None while the pen holds a
     /// target and is off it.
     pub fn lit(&self, theme: &Theme) -> Option<(Rect, Rgb)> {
-        let under = self.pointer.and_then(|p| self.at(p)).filter(|t| t.1 != Tap::Idle);
+        let under = self.pointer.and_then(|p| self.at(p));
         match self.held {
             Some(held) => (under == Some(held)).then(|| (held.0, style::selected(theme))),
             None => under.map(|(frame, _)| (frame, style::hover(theme))),

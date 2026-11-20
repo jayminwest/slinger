@@ -4,15 +4,18 @@
 //! over Flick's control socket, as the `flick` CLI does: one line, a JSON
 //! array of strings (`["dictation","start"]`), answered by one line,
 //! `{"ok":"<text>"}` or `{"error":"<message>"}` (Flick's docs/cli.md). The
-//! socket is `$FLICK_SOCKET`, else Flick's default path. A thread of its own
-//! asks, so the main thread never waits on Flick.
+//! socket is `$FLICK_SOCKET`, else Flick's default path, of any length: the
+//! connect is slinger's own ([`control::connect_socket`]), which only takes
+//! a short link of its own to a long path and leaves Flick's socket as it
+//! is. A thread of its own asks, so the main thread never waits on Flick.
 
 use std::io::{BufRead, BufReader, ErrorKind, Write};
-use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
+
+use slinger_control as control;
 
 use crate::backend::{Problem, Wake};
 use crate::scene::dictation::Verb;
@@ -78,7 +81,7 @@ impl Flick {
 /// reply is the problem, as it says it.
 fn ask(socket: &Path, words: &[&str]) -> Result<String, Problem> {
     let not_running = |message: String| Problem::new(message, Some(NOT_RUNNING_HINT));
-    let mut stream = UnixStream::connect(socket).map_err(|e| match e.kind() {
+    let mut stream = control::connect_socket(socket).map_err(|e| match e.kind() {
         ErrorKind::NotFound | ErrorKind::ConnectionRefused => {
             not_running("Flick is not running".to_string())
         }
@@ -158,6 +161,19 @@ mod tests {
         let problem = next(&flick).1.unwrap_err();
         assert_eq!(problem.message, "Flick is not running");
         assert_eq!(problem.hint.as_deref(), Some(NOT_RUNNING_HINT));
+    }
+
+    #[test]
+    fn a_socket_path_too_long_for_a_socket_address_still_reaches_flick() {
+        let dir = tempfile::tempdir().unwrap();
+        let deep = dir.path().join("a-folder-deep-enough".repeat(5));
+        std::fs::create_dir(&deep).unwrap();
+        let (socket, heard) = fake_flick(&deep, ready);
+        assert!(socket.as_os_str().len() > 104, "{}", socket.display());
+        assert_eq!(ask(&socket, &["dictation", "start"]), Ok("dictation: recording".into()));
+        assert_eq!(*heard.lock().unwrap(), [r#"["dictation","start"]"#]);
+        let gone = ask(&deep.join("other.sock"), &["dictation", "start"]).unwrap_err();
+        assert_eq!(gone.message, "Flick is not running");
     }
 
     #[test]

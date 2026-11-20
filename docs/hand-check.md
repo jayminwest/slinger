@@ -10,6 +10,7 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 - [ ] (bundle) zoom in on workspace A, tap B: B is not zoomed and never shows A's ink, even for a frame; tap A: it is where you left it; split, pan the right pane, close the left: the right one keeps its place. A driven window passed this (scene and PNG); the bundle is for a frame of the old canvas the scene cannot show (slinger-0e5e42)
 - [ ] (bundle) Canvas menu > Zoom to fit is there beside Zoom to 100% and runs; a canvas whose ink is far from the origin opens with it in view, cmd+9 after a pan brings it back and inside a box fits the box (a driven window and tests passed these) (slinger-ff9dbe)
 - [ ] (bundle) on page 3, zoomed in, split right and split down: both halves show the same place; step in beside, then escape, shows the source's place (tests and a driven window passed this; the bundle is for the footer buttons and the menu) (slinger-64b4d4)
+- [ ] (bundle) in two workspaces set a page, a zoom and a focused pane; quit with cmd+Q, open: all as left; again with the red button; restart slingerd: all as left; a PDF pane returns to its scroll place; a pane an agent opens beside yours starts at your place. A driven window passed the relaunch (killed by pid) and a slingerd restart for two workspaces of two panes each (scenes identical), and a first open with no kept view still fit; the bundle is for cmd+Q, the red button and a PDF. Switch re-measured after this step in a driven window: drawn mean 17 ms (13-23) over 10 taps (slinger-691123)
 
 ## Pen-less use and text (plan pl-c5e2a3)
 
@@ -57,3 +58,4 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 - [ ] quit the real app while it shows a non-first workspace, relaunch: that workspace is shown (fa2e551; saved in the app's user defaults via an unsafe NSUserDefaults call never run for real) (slinger-d00b38)
 - [ ] IME input (Japanese/Chinese composition, dead-key accents) in the sling entry (slinger-368f56)
 - [ ] open the app once with no saved window frame (a copy of the binary under another name, or delete the 'NSWindow Frame slinger window' default) and confirm it opens 960 wide; 70d6d7 was closed as not reproducible (slinger-f7bb8d)
+- [ ] (bundle) the ✕ on a sidebar row closes that workspace without switching, with the pen and with the mouse; the ✕ does not crowd a long name; closing the shown one shows another; opt+cmd+W still closes the shown one (driven window checked: other row, shown row, broken row, running stand-in agent ended) (slinger-9cd9d6)
