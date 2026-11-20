@@ -16,6 +16,11 @@ bullet with the area in bold.
   new ink in it puts the box's line under the new things with `new=`.
   `slinger canvas read <ID> --in b4` reads what a box holds, open or folded,
   and `slinger canvas crop <ID> --item b4` of a folded box shows it open.
+- **CLI:** `slinger canvas fold <ID> <ITEM>` folds a box to a miniature that
+  keeps what lies inside it, and `slinger canvas unfold` opens it again in
+  its old room, each as one undo step. When something now lies in that
+  room, unfold changes nothing and exits 4, naming what is in the way. An
+  agent folds only the boxes it made.
 
 - **App:** a canvas text being typed has a real caret. The arrow keys move
   it (alt by words, cmd to a row's ends or the text's start and end), shift

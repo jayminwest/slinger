@@ -108,6 +108,11 @@ pub enum Canvas {
     Put(crate::put::Put),
     Edit(crate::edit::Edit),
     Remove(crate::edit::Remove),
+    /// Fold a box to a miniature that keeps what lies inside it, as one undo step; prints nothing
+    Fold(crate::edit::Fold),
+    /// Open a folded box in its old room, as one undo step; prints nothing. A room that is
+    /// taken is a conflict (exit 4) naming what is in the way
+    Unfold(crate::edit::Fold),
 }
 
 impl Canvas {
@@ -129,6 +134,8 @@ impl Canvas {
             Self::Put(_) => "canvas put",
             Self::Edit(_) => "canvas edit",
             Self::Remove(_) => "canvas remove",
+            Self::Fold(_) => "canvas fold",
+            Self::Unfold(_) => "canvas unfold",
         }
     }
 }
@@ -220,13 +227,15 @@ pub fn execute(
         Canvas::Put(args) => crate::put::put(args, daemon, env),
         Canvas::Edit(args) => crate::edit::edit(args, daemon, env),
         Canvas::Remove(args) => crate::edit::remove(args, daemon, env),
+        Canvas::Fold(args) => crate::edit::fold(args, false, daemon, env),
+        Canvas::Unfold(args) => crate::edit::fold(args, true, daemon, env),
     }
 }
 
 /// Who asks: the agent named by `--agent` or `$SLINGER_AGENT`, else the user,
 /// so an agent's process acts as that agent and its steps stay off the user's
 /// undo history.
-fn by(env: &Env, agent: Option<&str>) -> String {
+pub(crate) fn by(env: &Env, agent: Option<&str>) -> String {
     env.named_agent(agent).map_or_else(|| "user".into(), |name| format!("agent:{name}"))
 }
 

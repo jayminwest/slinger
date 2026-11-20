@@ -62,6 +62,7 @@ a "did you mean" suggestion.
 | `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --ink PTS \| --arrow FROM TO) [--color COLOR] [--at X,Y] [--size TENTHS] [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
 | `canvas edit <ID> --item ITEM [--text TEXT] [--size TENTHS] [--box W,H] [--move X,Y] [--agent NAME]` | The item's id and its box `x,y,w,h` in tenths now, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq` |
 | `canvas remove <ID> --item ITEM [--agent NAME]` | Nothing. `--json`: `seq` |
+| `canvas fold <ID> <ITEM> [--agent NAME]`, `canvas unfold <ID> <ITEM> [--agent NAME]` | Nothing. `--json`: `item`, `page`, `x`, `y`, `w`, `h` (the box's frame now), `seq` |
 | `feedback add <TEXT>...` | The note's `ts`. `--json`: `path`, `entry` |
 | `feedback ls [--all] [--limit N]` | One line per note, newest first: `ts`, text and, with `--all`, `resolved` and its note for a resolved one, separated by tabs. `--limit` defaults to 20. `--json`: `path`, `entries` |
 | `feedback resolve <TS> [NOTE]...` | Nothing. `--json`: `path`, `resolves`, `ts`, `note` |
@@ -280,6 +281,14 @@ edit with none of `--text`, `--size`, `--box` and `--move`, or a pair that is no
 integers, exits 2 (`usage`); a `--size` out of range or on an item that is
 not text exits 5; an item to edit that is not there exits 3
 (`not_found`).
+`canvas fold` folds a box (`i4`, or a packet's `b4`) to a small miniature
+that keeps what lies wholly inside it, hidden, as one undo step;
+`canvas unfold` opens it again in its old room (`docs/design/fold.md`). A
+box already folded, or already open, changes nothing. When something now
+lies in the box's old room, `unfold` exits 4 (`conflict`) naming it, and
+writes nothing. They act as the user, or as the agent `--agent` or
+`SLINGER_AGENT` names, who folds only a box it made; another item, or an
+item that is not a box, exits 5 (`invalid`); one that is not there exits 3.
 `session list` shows the agents of the open workspaces; with none it prints
 nothing and exits 0. `session show` of an agent with no session exits 3
 (`not_found`).

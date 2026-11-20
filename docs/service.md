@@ -194,6 +194,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_crop` | `canvas`: canvas id, `of`: an item id or a box, `path`: absolute path of a PNG file | `images`: list of `{path, x, y, width, height}` |
 | `canvas_strokes` | `canvas`: canvas id, `item`: an item id | `strokes`: list of stroke items with `points` |
 | `canvas_find` | `canvas`: canvas id, `text`: string | `found`: list of text items that hold it, page by page in reading order |
+| `canvas_fold`, `canvas_unfold` | `canvas`: canvas id, `item`: a box's id, `by`: author (default `user`), `once`: string (optional) | `item`, `page`, `x`, `y`, `w`, `h`: the box's frame now (the miniature, or the open frame), `seq`: the numbers written (empty when nothing changed) |
 | `session_list` | none | `sessions`: list of sessions, sorted by agent |
 | `session_show` | `agent`: string | `session` |
 | `status_set` | `agent`: string, `status`: `working`, `blocked` or `done`, `note`: string (optional) | `agent`, `status`, `note` (absent when none), `event`: the number of the event appended (absent for `working`) |
@@ -652,6 +653,30 @@ type (`crates/control/src/find.rs`).
 ```json
 { "v": 1, "op": "canvas_find", "canvas": "main", "text": "the plan" }
 { "ok": true, "found": [{ "id": "i7", "page": "p2", "by": "user", "t": "…", "kind": "text", "color": "#000000", "x": 0, "y": 900, "w": 960, "h": 240, "text": "The plan" }] }
+```
+
+#### Folding a box
+
+**`canvas_fold`** folds a box to its miniature (`docs/design/fold.md`), as
+one undo step: what lies wholly inside the box then is kept in its `fold`
+list, hidden from the page, and the box keeps its open size. Notes written
+later where it was never join it. A box already folded writes nothing.
+**`canvas_unfold`** opens a folded box in its old room, its top left where
+the miniature's is, as one undo step; a box that is open writes nothing. When
+an item is in that room the unfold is `conflict`, its message names the items
+in the way, and nothing is written. Both take `once` as `canvas_apply` does,
+and a packet's ids (`b4`). An agent folds only a box it made (`invalid`
+otherwise), and an item that is not a box, or a box of no area, is
+`invalid`. The reply is the box and its frame now, as `canvas_edit`'s is: a
+client that needs only what was written reads it as `canvas_apply`'s reply
+(`made` empty). A client writes them with `FoldAsk`
+(`crates/control/src/fold.rs`).
+
+```json
+{ "v": 1, "op": "canvas_fold", "canvas": "main", "item": "b4" }
+{ "ok": true, "item": "i4", "page": "p1", "x": 0, "y": 0, "w": 2500, "h": 1250, "seq": [17] }
+{ "v": 1, "op": "canvas_unfold", "canvas": "main", "item": "i4" }
+{ "ok": false, "code": "conflict", "error": "the box's room is taken by i9", "hint": "move them first, or read the box with 'slinger canvas read --in'" }
 ```
 
 #### Sessions
