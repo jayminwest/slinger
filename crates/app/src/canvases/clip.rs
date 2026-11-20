@@ -1,11 +1,13 @@
 //! Cut, copy and paste on the canvas panes, when no text field takes them
 //! ([`crate::scene::paste`]):
 //!
-//! - Copy puts the selection's items on the clipboard, as their file's
-//!   objects and the plain text of its texts ([`crate::mirror::clip`]), when
-//!   the focused pane shows its page; cut then removes them, in one step. A
-//!   text being typed has its caret at its end and no selection inside it,
-//!   so it copies nothing: Edit > Copy and Cut grey out while one is.
+//! - Copy puts the characters selected in the text being typed on the
+//!   clipboard as plain text; cut then takes them out of it. With none
+//!   selected, a text being typed copies nothing: Edit > Copy and Cut grey
+//!   out. With no text being typed, copy puts the selection's items on the
+//!   clipboard, as their file's objects and the plain text of its texts
+//!   ([`crate::mirror::clip`]), when the focused pane shows its page; cut
+//!   then removes them, in one step.
 //! - Paste puts the clipboard's text where typed text goes (a text being
 //!   typed, a page command's question); else its items on the focused
 //!   pane's page, centred in the pane, in one step, and they are the
@@ -24,11 +26,12 @@ use crate::scene::ink::Change;
 use crate::scene::paste::Clip;
 
 impl Canvases {
-    /// Whether copy and cut have something to take: a selection the
-    /// focused pane of `panes` shows, with no text being typed.
+    /// Whether copy and cut have something to take: characters selected
+    /// in the text being typed; with none being typed, a selection the
+    /// focused pane of `panes` shows.
     pub fn can_copy(&self, panes: &Panes) -> bool {
-        let shown = self.shows_selection(panes, panes.focus());
-        !self.typing() && !self.editing() && shown && self.holds_selection()
+        let shown = || self.shows_selection(panes, panes.focus()) && self.holds_selection();
+        !self.typing() && if self.editing() { self.shapes.selects() } else { shown() }
     }
 
     /// Whether the selection's page as shown holds every selected item,
@@ -48,6 +51,13 @@ impl Canvases {
     pub fn copy(&mut self, panes: &Panes, cut: bool) -> Option<Clip> {
         if !self.can_copy(panes) {
             return None;
+        }
+        if self.editing() {
+            let text = self.shapes.copy(cut);
+            if cut {
+                self.send();
+            }
+            return Some(Clip::new(text, None));
         }
         let selection = self.selection()?;
         let open = find(&self.open, &selection.canvas, Some(&selection.page));

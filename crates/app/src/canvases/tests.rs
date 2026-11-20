@@ -369,4 +369,5 @@ fn copy_paste_and_cut_the_selection_and_a_text_being_typed_takes_only_text() {
     });
 }
 
+mod caret;
 mod wrap;

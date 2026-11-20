@@ -1,10 +1,12 @@
 //! What the keys do on the canvas panes: typed and pasted text go to a
-//! page command's question or the text being typed, and delete and escape
+//! page command's question or the text being typed, the caret keys to the
+//! text being typed, and delete and escape
 //! act on the selection from any pane that shows its page; a colour picked
 //! recolours it. Select all, next and previous item, nudge and duplicate
 //! act on the focused pane's page ([`Keyed`]).
 
 use super::{Canvases, canvas_of, find, pane_shown, wanted};
+use crate::commands::{CMD, Chord};
 use crate::config::Rgb;
 use crate::layout::{PaneId, Point, Rect, Size};
 use crate::mirror::Mirror;
@@ -38,6 +40,24 @@ impl Canvases {
             self.send();
         }
         used
+    }
+
+    /// A key of the text being typed: its caret, selection and delete keys
+    /// ([`crate::scene::editor`]), which come before the keymap. False when
+    /// no canvas text is being typed (or the sling's entry, or a page
+    /// command's question, has the keys), or the key is not one of them.
+    pub fn edit_key(&mut self, chord: Chord) -> bool {
+        let used = !self.typing() && !self.asks.asking() && self.shapes.key(chord);
+        if used {
+            self.send();
+        }
+        used
+    }
+
+    /// Selects every character of the text being typed. False when none
+    /// is ([`Canvases::edit_key`]).
+    pub fn select_text(&mut self) -> bool {
+        self.edit_key(Chord::new(CMD, 'a'))
     }
 
     /// Pasted `text` goes where typed text goes, as text, not keys. False

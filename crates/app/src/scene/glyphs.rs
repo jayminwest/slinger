@@ -72,37 +72,150 @@ pub fn frame(at: Point, text: &str, size: f64) -> Rect {
 /// a line: at each line end, and at spaces to at most as many characters
 /// as whole cells ([`CELL`] of `size` wide) fit (a word longer is cut). A column narrower
 /// than a cell does not wrap. Zero-width characters take no cell.
-#[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "floored, >= 1")]
 pub fn rows(text: &str, size: f64, column: f64) -> String {
+    let rows: Vec<&str> =
+        layout(text, size, column).iter().map(|r| &text[r.start..r.end]).collect();
+    rows.join("\n")
+}
+
+/// One of the core's rows of a text: the byte range of its characters. The
+/// line end or the space a row breaks at is in neither row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Row {
+    pub start: usize,
+    pub end: usize,
+}
+
+/// `text`'s rows as [`rows`] cuts them, as byte ranges: so the rows drawn
+/// and the rows a caret moves through never differ.
+#[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "floored, >= 1")]
+pub fn layout(text: &str, size: f64, column: f64) -> Vec<Row> {
     let cell = size * CELL;
     let cells = if column >= cell { (column / cell) as usize } else { usize::MAX };
-    let mut rows = String::new();
+    let mut rows = Vec::new();
+    // Where the paragraph, then the row, then the word, starts.
+    let mut pos = 0;
     for paragraph in text.split('\n') {
         // The cells the row so far takes.
         let mut taken: usize = 0;
+        let mut start = pos;
         for (i, word) in paragraph.split(' ').enumerate() {
             if i > 0 {
                 // The space before a word that does not fit becomes the line break.
                 let wide = word.chars().filter(|&c| !zero_width(c)).count();
-                let broken = taken > 0 && taken.saturating_add(wide + 1) > cells;
-                rows.push(if broken { '\n' } else { ' ' });
-                taken = if broken { 0 } else { taken + 1 };
-            }
-            for c in word.chars() {
-                if !zero_width(c) {
-                    if taken >= cells {
-                        rows.push('\n');
-                        taken = 0;
-                    }
+                if taken > 0 && taken.saturating_add(wide + 1) > cells {
+                    rows.push(Row { start, end: pos });
+                    start = pos + 1;
+                    taken = 0;
+                } else {
                     taken += 1;
                 }
-                rows.push(c);
+                pos += 1;
             }
+            for (at, _) in word.char_indices().filter(|&(_, c)| !zero_width(c)) {
+                if taken >= cells {
+                    rows.push(Row { start, end: pos + at });
+                    start = pos + at;
+                    taken = 0;
+                }
+                taken += 1;
+            }
+            pos += word.len();
         }
-        rows.push('\n');
+        rows.push(Row { start, end: pos });
+        pos += 1;
     }
-    rows.pop();
     rows
+}
+
+/// A canvas text set from its top left `at`, `size` high in its `column`,
+/// as its rows ([`layout`]) and their glyphs in the [`FONT`]: where a caret
+/// at a byte index stands, which index a point is nearest, and the boxes a
+/// selection fills. Indices are on `char` boundaries.
+pub struct Laid<'a> {
+    text: &'a str,
+    at: Point,
+    size: f64,
+    rows: Vec<Row>,
+}
+
+impl<'a> Laid<'a> {
+    pub fn new(text: &'a str, at: Point, size: f64, column: f64) -> Self {
+        Laid { text, at, size, rows: layout(text, size, column) }
+    }
+
+    /// Its rows; never none.
+    pub fn rows(&self) -> &[Row] {
+        &self.rows
+    }
+
+    /// The row a caret at `index` is in: the last that starts at or before it.
+    pub fn row_of(&self, index: usize) -> usize {
+        self.rows.iter().rposition(|r| r.start <= index).unwrap_or(0)
+    }
+
+    /// How far right of the text's left edge a caret at `index` stands: the
+    /// measured width of its row up to it.
+    pub fn x(&self, index: usize) -> f64 {
+        self.x_in(self.rows[self.row_of(index)], index)
+    }
+
+    /// The measured width of `row` up to `index`, which is in it or past it.
+    fn x_in(&self, row: Row, index: usize) -> f64 {
+        measured(&self.text[row.start..index.min(row.end)], self.size * FONT).width
+    }
+
+    /// The index in row `row` (clamped) nearest `x` from the text's left edge.
+    pub fn index_in(&self, row: usize, x: f64) -> usize {
+        let Row { start, end } = self.rows[row.min(self.rows.len() - 1)];
+        let line = &self.text[start..end];
+        let mut stops: Vec<usize> = line.char_indices().map(|(i, _)| start + i).collect();
+        stops.push(end);
+        let width = |i: usize| self.x_in(Row { start, end }, i);
+        // The first stop at or right of `x`: widths grow along the row.
+        let after = stops.partition_point(|&i| width(i) < x);
+        match after {
+            0 => start,
+            n if n == stops.len() => end,
+            n if x - width(stops[n - 1]) < width(stops[n]) - x => stops[n - 1],
+            n => stops[n],
+        }
+    }
+
+    /// The index nearest the canvas point `p`: in the row it is level
+    /// with (the first or last when above or below the text).
+    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "clamped >= 0")]
+    pub fn index_at(&self, p: Point) -> usize {
+        let row = ((p.y - self.at.y) / self.size).floor().max(0.0) as usize;
+        self.index_in(row, p.x - self.at.x)
+    }
+
+    /// The caret at `index`, `width` wide: a size tall, at its row's top.
+    #[expect(clippy::cast_precision_loss, reason = "row counts are far below 2^52")]
+    pub fn caret(&self, index: usize, width: f64) -> Rect {
+        let y = self.at.y + self.row_of(index) as f64 * self.size;
+        Rect { x: self.at.x + self.x(index), y, width, height: self.size }
+    }
+
+    /// The boxes the characters from `from` to `to` fill, one a row they
+    /// touch: a row whose line end is selected but none of its glyphs
+    /// gets `least` wide, so a selected empty line shows.
+    #[expect(clippy::cast_precision_loss, reason = "row counts are far below 2^52")]
+    pub fn selection(&self, from: usize, to: usize, least: f64) -> Vec<Rect> {
+        let mut boxes = Vec::new();
+        for (n, row) in self.rows.iter().enumerate() {
+            let (a, b) = (from.max(row.start), to.min(row.end));
+            let past = to > row.end && from <= row.end;
+            if a > b || a == b && !past {
+                continue;
+            }
+            let (left, right) = (self.x_in(*row, a), self.x_in(*row, b));
+            let width = if past { (right - left).max(least) } else { right - left };
+            let y = self.at.y + n as f64 * self.size;
+            boxes.push(Rect { x: self.at.x + left, y, width, height: self.size });
+        }
+        boxes
+    }
 }
 
 /// The frame of canvas text `text` set `size` high from `at` in its

@@ -279,18 +279,23 @@ const NAMED: [(&str, char); 10] = [
     ("tab", '\t'),
     ("return", '\r'),
     ("escape", '\u{1b}'),
-    ("delete", '\u{7f}'),
+    ("delete", DELETE),
     ("up", UP),
     ("down", DOWN),
     ("left", LEFT),
     ("right", RIGHT),
-    ("forward-delete", '\u{f728}'),
+    ("forward-delete", FORWARD_DELETE),
 ];
 
-const UP: char = '\u{f700}';
-const DOWN: char = '\u{f701}';
-const LEFT: char = '\u{f702}';
-const RIGHT: char = '\u{f703}';
+/// The code points macOS gives the keys that move a caret, and delete.
+pub const UP: char = '\u{f700}';
+pub const DOWN: char = '\u{f701}';
+pub const LEFT: char = '\u{f702}';
+pub const RIGHT: char = '\u{f703}';
+pub const FORWARD_DELETE: char = '\u{f728}';
+pub const HOME: char = '\u{f729}';
+pub const END: char = '\u{f72b}';
+pub const DELETE: char = '\u{7f}';
 
 /// `f1`'s code point; `f2` to `f20` follow it.
 const F1: u32 = 0xf704;

@@ -30,6 +30,7 @@ pub mod canvas;
 pub mod crop;
 pub mod cursor;
 pub mod dictation;
+pub mod editor;
 pub mod feedback;
 pub mod flash;
 pub mod glyphs;

@@ -69,7 +69,7 @@ fn shown(items: &[Item]) -> Vec<Cow<'_, Item>> {
 }
 
 fn press(x: f64, y: f64, when: f64) -> Press {
-    Press { at: pt(x, y), when, zoom: 1.0 }
+    Press { at: pt(x, y), when, zoom: 1.0, shift: false }
 }
 
 /// A press with `tool` at `at`, `when`, over `items`.
@@ -441,7 +441,9 @@ fn a_text_being_typed_shows_its_caret_frame_and_hint_sized_for_the_screen() {
     let ids: Vec<ItemId> = showing.iter().map(|i| i.id).collect();
     assert_eq!(ids, [EDITING, CARET_ID, FRAME_ID, HINT_ID], "the chrome draws over the text");
     let text = glyph(10.0, 200.0, "Hi");
-    let caret = Shape::Caret { frame: text, text: "Hi".into(), size: TEXT_SIZE, width: 1.0 };
+    let after = glyphs::Laid::new("Hi", pt(10.0, 200.0), TEXT_SIZE, glyphs::UNWRAPPED).x(2);
+    let bar = frame(10.0 + after, 200.0, 1.0, TEXT_SIZE);
+    let caret = Shape::Caret { frame: bar };
     assert_eq!((showing[1].colour, &showing[1].shape), (THEME.focus, &caret), "2 points at zoom 2");
     let around = text.outset(2.0);
     let dashed = Shape::Panel { frame: around, fill: None, width: 0.5, dashed: true };
@@ -458,7 +460,7 @@ fn a_text_being_typed_shows_its_caret_frame_and_hint_sized_for_the_screen() {
     let drawn = crate::scene::canvas::build(items, view, screen, &THEME, None);
     let marks: Vec<&Mark> = drawn.draws.iter().map(|d| &d.mark).collect();
     let two = |w: f64| (w - 2.0).abs() < 1e-9;
-    assert!(marks.iter().any(|m| matches!(m, Mark::Caret { width, .. } if two(*width))));
+    assert!(marks.iter().any(|m| matches!(m, Mark::Caret { frame } if two(frame.width))));
     assert!(marks.iter().any(|m| matches!(m, Mark::Panel { dashed: true, .. })));
 
     shapes.typed("\u{1b}", &mut ink);
