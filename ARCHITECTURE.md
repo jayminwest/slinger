@@ -892,7 +892,8 @@ scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
              may drag the selection); a drag makes a box or an arrow, whose ends
              bind to the items they land on. An arrow bound to a moved item
              follows it (`follow`, shapes/bind.rs): the move's change carries the arrow's
-             new ends, so it is still one `canvas_apply`. Each text, shape
+             new ends, so it is still one `canvas_apply`; after a resize the
+             end keeps its place on the item's box (`follow_by`, `follow_frames`). Each text, shape
              or edit is one change. Pure.
 scene/select/hit.rs  which items an eraser's path touches, which items a
              lasso holds and which the select tool's box touches: the core's

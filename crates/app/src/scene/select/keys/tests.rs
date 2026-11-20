@@ -158,3 +158,35 @@ fn a_size_step_puts_a_selected_text_s_column_on_half_a_cell_of_its_new_size() {
     assert!(on_half_a_cell(column, 12.0), "{column}");
     assert!((column - 97.0 * 6.0).abs() >= 3.0, "about as wide, off the line's width: {column}");
 }
+
+#[test]
+fn an_arrow_bound_to_a_resized_text_follows_its_new_frame_in_the_same_step() {
+    let at = pt(100.0, 100.0);
+    let before = glyphs::rows_frame(at, "hello", 24.0, glyphs::UNWRAPPED);
+    let text = Shape::Text { frame: before, text: "hello".into(), size: 24.0, column: None };
+    // From the middle of the text's right side out to 400,400.
+    let start = pt(before.x + before.width, before.y + before.height / 2.0);
+    let arrow = Shape::Arrow {
+        from: start,
+        to: pt(400.0, 400.0),
+        width: 2.0,
+        bound: [Some(ItemId(1)), None],
+    };
+    let black = Rgb { r: 0, g: 0, b: 0 };
+    let page = [
+        Item { id: ItemId(1), colour: black, shape: text },
+        Item { id: ItemId(2), colour: black, shape: arrow },
+    ];
+    let (mut select, mut ink) = (Select::default(), Ink::default());
+    assert!(select.only(HERE, ItemId(1)));
+    assert!(select.resize(Resize::To(48), &shown(&page), &mut ink));
+    let Some((_, Change::Reshape { items, .. })) = ink.next() else { panic!() };
+    assert_eq!(ink.next(), None, "one step, so one undo");
+    let [text, arrow] = &items[..] else { panic!("{items:?}") };
+    let Shape::Text { frame: after, .. } = text.shape else { panic!() };
+    assert!(after.width > before.width, "the text grew");
+    let Shape::Arrow { from, to, .. } = arrow.shape else { panic!() };
+    let mid = pt(after.x + after.width, after.y + after.height / 2.0);
+    assert!((from.x - mid.x).abs() < 1e-9 && (from.y - mid.y).abs() < 1e-9, "{from:?} {mid:?}");
+    assert_eq!(to, pt(400.0, 400.0), "the free end stays");
+}
