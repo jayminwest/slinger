@@ -17,12 +17,14 @@ pub struct Sought {
 }
 
 /// One text that holds the words: its page, its id and its frame, in
-/// canvas points.
+/// canvas points, and the outermost folded box that hides it, if one does
+/// (docs/design/fold.md): a find goes to that box.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Hit {
     pub page: String,
     pub item: ItemId,
     pub frame: Rect,
+    pub folded: Option<ItemId>,
 }
 
 /// Which of `hits` a find goes to. After `last`, the text the last find of
@@ -44,14 +46,15 @@ pub fn next(hits: &[Hit], pages: &[Page], shown: &str, last: Option<ItemId>) -> 
 }
 
 /// What the flash says of a find of `text` that went to hit `at` of `hits`
-/// on a canvas with `pages`: “plan” 2/5 · its page's name; or that no text
-/// holds it.
+/// on a canvas with `pages`: “plan” 2/5 · its page's name, and that it is
+/// in a folded box when one hides it; or that no text holds it.
 pub fn said(text: &str, hits: &[Hit], at: Option<usize>, pages: &[Page]) -> String {
     let Some(hit) = at.and_then(|i| hits.get(i)) else {
         return format!("No text holds “{text}”");
     };
     let page = pages.iter().find(|p| p.id == hit.page).map_or(hit.page.as_str(), |p| &p.name);
-    format!("“{text}” {}/{} · {page}", at.unwrap_or(0) + 1, hits.len())
+    let inside = if hit.folded.is_some() { " · in a folded box" } else { "" };
+    format!("“{text}” {}/{} · {page}{inside}", at.unwrap_or(0) + 1, hits.len())
 }
 
 #[cfg(test)]
