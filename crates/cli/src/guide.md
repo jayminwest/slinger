@@ -183,6 +183,35 @@ slinger status set done --agent <NAME>        # then listen again
 `--pid` names your session's process (`$PPID` in Claude Code): if it ends
 before you set `done` or `blocked`, the sling waits for the next listener.
 
+Check the app yourself before you ask the owner to. A driven window is the
+real app on a daemon of your own; it is never shown on a screen, and it does
+not start unless its config names that daemon's socket:
+
+```bash
+cd "$(mktemp -d)" && mkdir ws           # short socket paths: a path over 104 bytes fails
+slingerd --socket d.sock --data-dir data --scratch & sleep 1
+slinger --socket d.sock workspace open ws
+printf '[daemon]\nsocket = "d.sock"\n[workspace]\nname = "ws"\n' > config.toml
+SLINGER_CONFIG=$PWD/config.toml slinger-app --drive a.sock &
+export SLINGER_DRIVE=$PWD/a.sock
+slinger drive key cmd+4                 # a key, as the keyboard sends it
+slinger drive press 300 200             # a mouse press; --tablet for the pen
+slinger drive lift 300 200
+slinger drive type "A note"
+slinger drive stroke 300,300 340,320 380,300 --tablet
+slinger drive tick                      # take the daemon's news now
+slinger drive scene                     # what the window shows, a line each
+slinger drive shot window.png           # the window as a PNG, to look at
+```
+
+Points are in the window's points from its top left, as `drive scene`
+prints them. `taken` means the app used the event, `passed` that it did
+not. A cut or a copy stays in the driven window (`drive clip` prints it).
+Stop the app and the daemon by their pids when you are done. A driven
+window cannot check what comes before the app hears an event (a real
+tablet, a key the system takes, another keyboard layout), a file panel, or
+a click inside an agent UI's page: those stay hand checks.
+
 When slinger itself gets in your way, leave a note for its maker:
 
 ```bash

@@ -11,6 +11,13 @@ bullet with the area in bold.
 
 ### Added
 
+- **Agents:** an agent can check the app itself. `slinger-app --drive
+  <SOCKET>` starts the real app as a window that is never shown, on a
+  daemon of the agent's own, and `slinger drive` sends it keys, typing, pen
+  and mouse events, scrolls and commands, then reads back what the window
+  shows as text (`drive scene`) or as a PNG (`drive shot`). It never
+  touches your clipboard, your saved window or your own daemon. See
+  `slinger guide`.
 - **App:** undo and redo while you type a canvas text. Cmd+Z and
   Shift+Cmd+Z (and Undo and Redo in the Edit menu) step through the text's
   own edits, as a Mac text field does: a run of typing is one step, a run of

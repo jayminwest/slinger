@@ -67,6 +67,9 @@ a "did you mean" suggestion.
 | `feedback ls [--all] [--limit N]` | One line per note, newest first: `ts`, text and, with `--all`, `resolved` and its note for a resolved one, separated by tabs. `--limit` defaults to 20. `--json`: `path`, `entries` |
 | `feedback resolve <TS> [NOTE]...` | Nothing. `--json`: `path`, `resolves`, `ts`, `note` |
 | `feedback path` | The feedback file's path. `--json`: `path` |
+| `drive [--app PATH] key <CHORD> [--text TEXT]`, `drive type <TEXT>...`, `drive press\|drag\|lift <X> <Y> [--tablet] [--shift] [--touch] [--eraser]`, `drive stroke <X,Y>... [--tablet] [--shift] [--touch] [--eraser]`, `drive move <X> <Y>`, `drive scroll <X> <Y> <DX> <DY>`, `drive zoom <X> <Y> <FACTOR>`, `drive run <NAME>`, `drive copy`, `drive cut`, `drive paste [TEXT]...`, `drive drop <X> <Y> <FILE>`, `drive tick` | `taken` or `passed` for each event, separated by spaces. `--json`: `said` |
+| `drive [--app PATH] scene [--debug]` | What the driven window shows, one line per thing: its kind, its place `x,y wxh`, its colour and its text. `--json`: `said` |
+| `drive [--app PATH] shot <FILE>`, `drive clip`, `drive resize <W> <H>` | The PNG's path; the text last cut or copied; nothing. `--json`: `said` |
 | `guide` | The guide for agents: the ideas and the common tasks, then every command with its arguments and what it does. Needs no daemon. `--json`: `guide`, `commands` (`name`, `usage`, `about`) |
 | `skill install [--dir DIR]` | The path of each skill file written, one per line: `<DIR>/slinger/SKILL.md`, `<DIR>/slinger-listen/SKILL.md`. Needs no daemon. `--json`: `skills`, a list of `name`, `path`, `new` |
 
@@ -98,6 +101,19 @@ false); an older one is replaced. With no `--dir` and no home directory it
 exits 2 (`usage`). The tests in `crates/cli/src/tests/guide.rs` fail when
 the guide or the skill shows a command or a flag the CLI does not have, and
 when the plugin's version is not the binary's.
+
+`drive` is the one command that talks to the app, not to `slingerd`: to a
+driven window (`slinger-app --drive <PATH>`), on the socket in `--app`, else
+`$SLINGER_DRIVE`; with neither it exits 2 (`usage`). Each run sends one
+request, one line of JSON, and prints what the window said
+(`crates/app/src/drive.rs` reads the line). A request becomes the events
+the app hears for real input, with points in the window's points from its
+top left. A key the app passes on types its `--text` (by default its own
+character, and nothing with cmd or ctrl held). `drive run` takes a
+command's name as the config file has it. `drive paste` with no text
+pastes what the driven window last cut or copied, which never touches the
+user's clipboard. No app on the socket exits 6 (`unavailable`); a request
+the app refuses (an unknown chord or command) exits 5 (`invalid`).
 
 `feedback` keeps notes about slinger itself in the daemon's feedback
 file (`docs/service.md`, "Feedback"), the same notes the app's

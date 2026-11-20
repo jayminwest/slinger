@@ -1,5 +1,5 @@
 //! `slinger drive`: send input to a driven app (`slinger-app --drive
-//! PATH`, a spike: slinger-338dfc) and read back what its window shows.
+//! PATH`, slinger-338dfc) and read back what its window shows.
 //! Argv in, one request line to the app's socket out. This is the one
 //! command that talks to the app, not to slingerd.
 
@@ -102,11 +102,14 @@ enum Op {
     Zoom { x: f64, y: f64, factor: f64 },
     /// Choose a command as its menu item does, by its name in the config file
     Run { name: String },
-    /// Paste text, as cmd+V with it on the clipboard
-    Paste {
-        #[arg(required = true, num_args = 1..)]
-        text: Vec<String>,
-    },
+    /// Copy the selection to the driven window's own clipboard, never yours
+    Copy,
+    /// Cut the selection to the driven window's own clipboard
+    Cut,
+    /// Paste the text given, else what the driven window last cut or copied
+    Paste { text: Vec<String> },
+    /// Print the text the driven window last cut or copied
+    Clip,
     /// Drop a file on the window at a point
     Drop { x: f64, y: f64, file: PathBuf },
     /// Let the window take the daemon's news now, as its timer does twice a second
@@ -136,7 +139,10 @@ impl Drive {
             Op::Scroll { .. } => "drive scroll",
             Op::Zoom { .. } => "drive zoom",
             Op::Run { .. } => "drive run",
+            Op::Copy => "drive copy",
+            Op::Cut => "drive cut",
             Op::Paste { .. } => "drive paste",
+            Op::Clip => "drive clip",
             Op::Drop { .. } => "drive drop",
             Op::Tick => "drive tick",
             Op::Scene { .. } => "drive scene",
@@ -187,7 +193,11 @@ impl Op {
                 json!({ "op": "zoom", "x": x, "y": y, "factor": factor })
             }
             Self::Run { name } => json!({ "op": "command", "name": name }),
+            Self::Copy => json!({ "op": "copy" }),
+            Self::Cut => json!({ "op": "cut" }),
+            Self::Paste { text } if text.is_empty() => json!({ "op": "paste" }),
             Self::Paste { text } => json!({ "op": "paste", "text": text.join(" ") }),
+            Self::Clip => json!({ "op": "clip" }),
             Self::Drop { x, y, file } => {
                 json!({ "op": "drop", "x": x, "y": y, "path": std::path::absolute(file)? })
             }

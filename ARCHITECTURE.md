@@ -382,7 +382,12 @@ server/fold.rs  `canvas_fold` and `canvas_unfold` (`FoldAsk`, written by
 main.rs      wires the modules below. The only caller of platform. With
              `--preview UI [--data JSON]` it shows one agent UI alone and
              writes each reply's `ui_reply` line to stdout instead; with
-             `--background` last, that window is never shown. It routes
+             `--background` last, that window is never shown. With `--drive
+             SOCKET` the window is one an agent drives (drive.rs): never
+             shown, nothing kept or taken from the app's own state (the
+             saved frame, sidebar and workspace, the unsent ink), and no
+             start unless the config names the daemon's socket, so it never
+             falls back to the user's daemon. It routes
              each event (route.rs, which the window's answer and the tests
              both call; the answer adds a tick's news): keys, the pen, the
              mouse, the trackpad. A pen or
@@ -648,6 +653,16 @@ canvases/dictation.rs  the `dictate` command: opens the sling's entry when
              entry, so it reaches it as typing does. The pen's buttons
              beside a note's or a new name's entry (scene/sling/pen.rs),
              with the selection's in sling_marks.
+drive.rs     a driven window's requests (`slinger-app --drive SOCKET`, which
+             `slinger drive` sends): one line of JSON per connection in, one
+             line out. `parse` turns a request into the events platform hands
+             in for real input (a key and the text it types, the pen, a
+             scroll, a pinch, a command, a paste, a drop, a tick), or an ask
+             for the scene, a PNG, a resize or the window's own clipboard; a
+             thread reads and writes the socket and hands each ask to the
+             main thread (platform/drive.rs). Pure but for the socket.
+drive/outline.rs  the scene as text: one line for each thing the window
+             shows, with its place, colour and text. Says, never decides.
 config.rs    the config file's format: text in, a typed config or an error
              with its line out; merges a machine's overlay over it.
              `config/widths.rs` parses `[pen] widths` by hand (tenths of a
@@ -1112,6 +1127,13 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              code. No decisions.
 platform/window.rs  makes the window (its style, smallest size and
              delegate) and puts it at its saved frame.
+platform/drive.rs  the driven window on the main thread: runs each ask from
+             the driver's thread there (the main dispatch queue), hands its
+             events to the same `dispatch` real input goes through, keeps the
+             last scene drawn to say as text, draws the content view into a
+             PNG (a window never shown draws too, agent UIs included), and
+             keeps a cut or a copy in place of the clipboard, which stays
+             the user's.
 platform/remember.rs  what the window keeps in the user defaults from one
              launch to the next: its frame, and whether the sidebar was open.
              main says whose frame a run keeps (platform::Kept): the app's
@@ -1357,6 +1379,7 @@ Each boundary has something that fails when it is broken:
 | The CLI reaches the core only through the socket | `check:layers` rule `cli-uses-the-socket` |
 | The app reaches the core only through the socket | `check:layers` rule `app-uses-the-socket` |
 | The agent guide, the skill, the plugin and the sling note (the core's stored snapshots) name only commands and flags the CLI has; the plugin has the binary's version | `crates/cli/src/tests/guide.rs` |
+| A driven window's request becomes the events real input makes, and a wrong one says how; the outline says a typed text and its caret; `slinger drive` sends the request and maps the reply to its exit code | `crates/app/src/drive.rs`, `crates/app/src/tests/drive.rs`, `crates/cli/src/tests/drive.rs` |
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |
 | The canvas file format is readable by older readers | `crates/core/tests/canvas_file.rs`, with a stored v1 fixture |
 | The wire format (docs/service.md) | the tests of `crates/control/src/wire.rs` |

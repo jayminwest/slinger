@@ -1,8 +1,8 @@
-//! The driven window's side (`slinger-app --drive`, a spike:
-//! slinger-338dfc): a request from the driver's thread runs on the main
+//! The driven window's side (`slinger-app --drive`, slinger-338dfc): a request from the driver's thread runs on the main
 //! thread, where its events go in as the window's own do ([`dispatch`]);
-//! the last scene drawn is kept to say as text; and the window's content is
-//! drawn into a PNG, on a screen or not.
+//! the last scene drawn is kept to say as text; the window's content is
+//! drawn into a PNG, on a screen or not; and a cut or a copy is kept here,
+//! never on the user's clipboard.
 
 use std::cell::RefCell;
 use std::ffi::c_void;
@@ -16,10 +16,13 @@ use objc2_foundation::{NSDictionary, NSSize};
 use super::{Event, STATE, Step, dispatch};
 use crate::drive::Ask;
 use crate::scene::Scene;
+use crate::scene::paste::{Clip, Edit};
 
 thread_local! {
     /// The last scene the driven window drew.
     static LAST: RefCell<Option<Box<Scene>>> = const { RefCell::new(None) };
+    /// What the driven window last cut or copied, in place of the clipboard.
+    static CLIP: RefCell<Clip> = RefCell::new(Clip::default());
 }
 
 unsafe extern "C" {
@@ -43,7 +46,15 @@ pub fn watching(
     LAST.set(Some(Box::new(first.clone())));
     move |event| {
         let step = answer(event);
-        if let Step::Draw(scene) | Step::Through(scene) | Step::Copy(_, scene) = &step {
+        // A cut or a copy stays in the driven window: the user's clipboard is theirs.
+        let step = match step {
+            Step::Copy(clip, scene) => {
+                CLIP.set(clip);
+                Step::Draw(scene)
+            }
+            step => step,
+        };
+        if let Step::Draw(scene) | Step::Through(scene) = &step {
             LAST.set(Some(scene.clone()));
         }
         step
@@ -95,6 +106,11 @@ fn answer(ask: Ask, mtm: MainThreadMarker) -> Result<String, String> {
                 Some(if debug { format!("{scene:#?}") } else { crate::drive::outline(scene) })
             })
             .ok_or_else(|| "no scene yet".to_string()),
+        Ask::Paste => {
+            let took = dispatch(Event::Edit(Edit::Paste(CLIP.with_borrow(Clone::clone))), mtm);
+            Ok(if took { "taken" } else { "passed" }.to_string())
+        }
+        Ask::Clip => Ok(CLIP.with_borrow(|clip| clip.text.clone().unwrap_or_default())),
         Ask::Resize(size) => {
             state.window.setContentSize(NSSize::new(size.width, size.height));
             Ok(String::new())

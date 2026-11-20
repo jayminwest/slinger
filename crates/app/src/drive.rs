@@ -1,4 +1,4 @@
-//! Lets an agent drive the window (`slinger-app --drive SOCKET`, a spike:
+//! Lets an agent drive the window (`slinger-app --drive SOCKET`,
 //! slinger-338dfc). Each connection to the socket carries one request, one
 //! line of JSON with an `op`, and gets one line back: `ok` and what the
 //! window `said`, or the `error`. A request becomes the events `platform`
@@ -35,6 +35,11 @@ pub enum Ask {
     Shot(PathBuf),
     /// Make the window's content this size.
     Resize(Size),
+    /// Paste what the driven window last cut or copied: its own clipboard,
+    /// never the user's.
+    Paste,
+    /// The text the driven window last cut or copied.
+    Clip,
 }
 
 /// Seconds between the points of a `stroke`.
@@ -51,6 +56,8 @@ pub fn parse(line: &str, when: f64) -> Result<Ask, String> {
         "resize" => Ok(Ask::Resize(Size { width: num(&ask, "w")?, height: num(&ask, "h")? })),
         "key" => Ok(Ask::Send(vec![key(text(&ask, "chord")?, ask["text"].as_str())?])),
         "type" => Ok(Ask::Send(text(&ask, "text")?.chars().map(typed).collect())),
+        "clip" => Ok(Ask::Clip),
+        "paste" if ask["text"].is_null() => Ok(Ask::Paste),
         "stroke" => stroke(&ask["points"], |at, i| pen(&ask, at, when + STEP * i)),
         _ => Ok(Ask::Send(vec![(event(op, &ask, when)?, None)])),
     }
@@ -97,6 +104,8 @@ fn event(op: &str, ask: &Value, when: f64) -> Result<Event, String> {
         "zoom" => Event::Zoom { at: at(ask)?, factor: num(ask, "factor")? },
         "space" => Event::Space(flag("down")),
         "proximity" => Event::Proximity { near: flag("near"), eraser: flag("eraser") },
+        "copy" => Event::Edit(Edit::Copy),
+        "cut" => Event::Edit(Edit::Cut),
         "paste" => Event::Edit(Edit::Paste(Clip::new(Some(text(ask, "text")?.into()), None))),
         "drop" => Event::Dropped(at(ask)?, vec![PathBuf::from(text(ask, "path")?)]),
         "command" => {
@@ -221,6 +230,11 @@ mod tests {
     #[test]
     fn a_request_that_is_wrong_says_how() {
         assert_eq!(parse(r#"{"op":"scene"}"#, 0.0), Ok(Ask::Scene { debug: false }));
+        assert_eq!(parse(r#"{"op":"paste"}"#, 0.0), Ok(Ask::Paste));
+        assert_eq!(parse(r#"{"op":"clip"}"#, 0.0), Ok(Ask::Clip));
+        let given = Edit::Paste(Clip::new(Some("a".into()), None));
+        assert_eq!(sent(r#"{"op":"paste","text":"a"}"#), [(Event::Edit(given), None)]);
+        assert_eq!(sent(r#"{"op":"cut"}"#), [(Event::Edit(Edit::Cut), None)]);
         for (line, said) in [
             ("x", "not JSON"),
             ("{}", "no \"op\""),

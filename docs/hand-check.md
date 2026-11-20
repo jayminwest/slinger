@@ -1,6 +1,6 @@
 # Hand checks
 
-Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/slinger.app`) or real hardware. An agent that ships something only a person can check adds one line here, with the commit, under the right heading. It does not file a seed. The owner ticks a line or deletes it. Each line keeps the id of the seed it came from; `sd show <id>` gives its history.
+Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/slinger.app`) or real hardware. First check what a driven window can show (`slinger drive`; `slinger guide` says how). An agent that ships something only a person can check adds one line here, with the commit, under the right heading. It does not file a seed. The owner ticks a line or deletes it. Each line keeps the id of the seed it came from; `sd show <id>` gives its history.
 
 ## Fold and boxes (plan pl-f130a2)
 
