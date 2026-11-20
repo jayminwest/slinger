@@ -625,6 +625,15 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a workspace whose file is broken no longer pushes the
+  workspaces under it out of the sidebar. Its error takes at most two
+  lines, cut short with "…"; the hint shows only while you show that
+  workspace, in at most three lines; the panes show both, wider.
+- **App:** a broken workspace's error in the sidebar no longer loses
+  its last word: each line now wraps to the room its text really has.
+- **App:** tapping a workspace whose file is broken and names no
+  workspace shows why its file is broken where the panes go, rather than
+  leaving an 'open workspace not found' notice there.
 - **App:** a workspace no longer opens at another workspace's zoom and
   scroll, or shows its ink while its own page comes. Going back to a
   workspace finds each pane, and the focus, where you left them. Closing
