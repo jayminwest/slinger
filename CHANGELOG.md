@@ -501,6 +501,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a wrapped text resized with the select tool's handles or the
+  size keys keeps wrapping; before, a resize could leave its column exactly
+  as wide as its longest line, and it then ran on one line as you typed.
 - **Agents:** a reply that leaves out its colour and size no longer takes
   them from writing hidden in a folded box; it matches what the page shows.
 - **App:** the caret in a canvas text moves, and delete deletes, by what

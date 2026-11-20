@@ -15,7 +15,8 @@
 //! - Duplicate: a copy of the selection lands [`DUPLICATE`] screen points
 //!   down and right of it, as a paste lands, and is the selection once there.
 //! - Resize: a size command with texts selected (and none being typed)
-//!   gives each its size ([`Resize`]), as one `set`, top left kept.
+//!   gives each its size ([`Resize`]), as one `set`, top left kept, its
+//!   column about as wide, on half a cell of the new size.
 //! - One item: a find's jump selects the text it went to alone
 //!   ([`Select::only`]), as next-item does, so the keys above act from it.
 
@@ -152,8 +153,9 @@ impl Select {
             let to = resize.of(*size);
             if to.total_cmp(size).is_ne() {
                 let at = Point { x: frame.x, y: frame.y };
+                let column = column.map(|c| glyphs::rewrapped(c, to));
                 let frame = glyphs::rows_frame(at, text, to, column.unwrap_or(glyphs::UNWRAPPED));
-                let shape = Shape::Text { frame, text: text.clone(), size: to, column: *column };
+                let shape = Shape::Text { frame, text: text.clone(), size: to, column };
                 changed.push(Item { shape, ..item.as_ref().clone() });
             }
         }

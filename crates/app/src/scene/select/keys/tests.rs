@@ -132,3 +132,29 @@ fn an_item_off_the_screen_comes_to_its_middle() {
     let mid = view.pan(dx, dy).to_screen(pt(inside.x + 10.0, below.y + 10.0));
     assert_eq!(mid, pt(200.0, 150.0));
 }
+
+/// Whether `column` is on half a cell of `size`, as `glyphs::column` puts it.
+fn on_half_a_cell(column: f64, size: f64) -> bool {
+    let cells = column / (size * glyphs::CELL);
+    (cells - cells.floor() - 0.5).abs() < 1e-9
+}
+
+#[test]
+fn a_size_step_puts_a_selected_text_s_column_on_half_a_cell_of_its_new_size() {
+    // A row of 97 characters in a new text's column at 24 (48.5 cells of
+    // 12): at 12 the column kept would be 97 whole cells of 6, as wide as
+    // the line, and read back as a text that does not wrap.
+    let text = "a".repeat(97);
+    let column = glyphs::column(glyphs::NEW_COLUMN * 12.0, 24.0);
+    let frame = glyphs::rows_frame(pt(0.0, 0.0), &text, 24.0, column);
+    let shape = Shape::Text { frame, text, size: 24.0, column: Some(column) };
+    let page = [Item { id: ItemId(1), colour: Rgb { r: 0, g: 0, b: 0 }, shape }];
+    let (mut select, mut ink) = (Select::default(), Ink::default());
+    assert!(select.only(HERE, ItemId(1)));
+    assert!(select.resize(Resize::To(12), &shown(&page), &mut ink));
+    let Some((_, Change::Reshape { items, .. })) = ink.next() else { panic!() };
+    let Shape::Text { size, column: Some(column), .. } = items[0].shape else { panic!() };
+    assert_eq!(size, 12.0);
+    assert!(on_half_a_cell(column, 12.0), "{column}");
+    assert!((column - 97.0 * 6.0).abs() >= 3.0, "about as wide, off the line's width: {column}");
+}

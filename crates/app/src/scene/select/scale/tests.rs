@@ -240,3 +240,27 @@ fn a_live_item_resizes_from_its_handles_as_a_box_does() {
     let Some((_, Change::Reshape { items: after, .. })) = ink.next() else { panic!() };
     assert_eq!(after, [ui(frame(10.0, 10.0, 80.0, 45.0))], "the top left stays put");
 }
+
+#[test]
+fn a_text_s_column_scales_onto_half_a_cell_of_its_new_size() {
+    // An agent's paragraph in a column of 5 whole cells of 12.
+    let shape = Shape::Text {
+        frame: frame(0.0, 0.0, 60.0, 48.0),
+        text: "hello world".into(),
+        size: 24.0,
+        column: Some(60.0),
+    };
+    let page = [item(1, shape)];
+    let (mut select, mut ink) = (Select::default(), Ink::default());
+    let items = shown(&page);
+    select.pick(HERE, pt(30.0, 20.0), 1.0, false, &items);
+    assert!(select.up(None, &items, &mut ink));
+    // The bottom right handle, 6 out from 60,48, dragged to twice the size.
+    assert!(select.down(Tool::Lasso, HERE, pt(66.0, 54.0), 1.0, &items));
+    assert!(select.up(Some(pt(126.0, 102.0)), &items, &mut ink));
+    let next = ink.next();
+    let Some((_, Change::Reshape { items: after, .. })) = next else { panic!("{next:?}") };
+    let Shape::Text { size, column, .. } = after[0].shape else { panic!() };
+    assert_eq!((size, column), (48.0, Some(5.5 * 24.0)), "5 cells and half of one");
+    assert_eq!(glyphs::rows("hello world", size, column.unwrap()), "hello\nworld", "same rows");
+}
