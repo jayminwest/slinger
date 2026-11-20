@@ -167,6 +167,9 @@ pub enum Command {
     /// Go to the next text that holds the last find's words, round to the
     /// first; with no find yet, as `find`.
     FindNext,
+    /// Start a new text without a tap: under the text being typed, which
+    /// ends; else at the pointer over the pane, or under the last text ended.
+    NewText,
 }
 
 /// How many commands there are.
@@ -174,7 +177,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 76] = [
+    pub const ALL: [(Command, &str); 77] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -251,6 +254,7 @@ impl Command {
         (Command::Duplicate, "duplicate"),
         (Command::Find, "find"),
         (Command::FindNext, "find-next"),
+        (Command::NewText, "new-text"),
     ];
 
     /// The command called `name` in the config file.
@@ -454,6 +458,7 @@ impl Default for Keymap {
             on(CMD, 'j'),
             on(CMD, 'f'),
             on(CMD, 'g'),
+            on(CTRL, '\r'),
         ])
     }
 }

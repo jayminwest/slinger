@@ -10,7 +10,7 @@ const T: Theme = Theme {
     done: Rgb { r: 5, g: 5, b: 5 },
 };
 /// A window tall enough for every row.
-const TALL: Size = Size { width: 1600.0, height: 1000.0 };
+const TALL: Size = Size { width: 1600.0, height: 1100.0 };
 
 fn key(text: &str) -> Chord {
     Chord::parse(text).unwrap()

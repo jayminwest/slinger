@@ -17,7 +17,7 @@ fn fixed(text: &str, _size: f64) -> Size {
 fn at(text: &str) -> Editor {
     glyphs::set_measure(fixed);
     let caret = text.find('|').unwrap();
-    Editor { text: text.replace('|', ""), caret, anchor: None, goal: None }
+    Editor { text: text.replace('|', ""), caret, ..Editor::default() }
 }
 
 /// The text with `|` at the caret and `[`, `]` around the selection.
@@ -138,7 +138,10 @@ fn other_keys_go_on_to_the_keymap() {
     for key in ["cmd+z", "ctrl+left", "a", "cmd+alt+left", "alt+up", "f5", "escape", "return"] {
         assert!(!e.key(Chord::parse(key).unwrap(), SIZE, SEVEN), "{key}");
     }
-    assert!(!e.key(Chord::new(CTRL, 'a'), SIZE, SEVEN));
+    assert!(
+        !e.key(Chord::new(CTRL, 'z'), SIZE, SEVEN),
+        "ctrl and a letter that is not an emacs key"
+    );
     assert_eq!(shown(&e), "ab|");
 }
 
@@ -171,4 +174,86 @@ fn the_caret_and_the_selection_are_drawn_in_the_rows() {
     assert_eq!(laid.selection(4, 10, 2.0), [rect(140.0, 50.0, 30.0), rect(100.0, 60.0, 20.0)]);
     let empty = Laid::new("a\n\nb", Point { x: 0.0, y: 0.0 }, SIZE, SEVEN);
     assert_eq!(empty.selection(0, 4, 2.0)[1], rect(0.0, 10.0, 2.0), "an empty line shows");
+}
+
+#[test]
+fn the_caret_moves_and_deletes_by_whole_grapheme_clusters() {
+    // A family joined by ZWJ, an e with a combining acute, a flag.
+    let (family, e_acute, flag) = ("👩\u{200d}👩\u{200d}👧", "e\u{301}", "🇯🇵");
+    let mut e = at(&format!("a{family}{e_acute}{flag}|"));
+    assert_eq!(pressed(&mut e, &["left"]), format!("a{family}{e_acute}|{flag}"));
+    assert_eq!(pressed(&mut e, &["left"]), format!("a{family}|{e_acute}{flag}"));
+    assert_eq!(pressed(&mut e, &["left"]), format!("a|{family}{e_acute}{flag}"));
+    assert_eq!(pressed(&mut e, &["shift+right"]), format!("a[{family}]{e_acute}{flag}"));
+    assert_eq!(pressed(&mut e, &["right", "forward-delete"]), format!("a{family}|{flag}"));
+    assert_eq!(pressed(&mut e, &["delete"]), format!("a|{flag}"));
+    e.typed("\u{7f}");
+    assert_eq!(shown(&e), format!("|{flag}"), "a typed delete too");
+    let mut e = at(&format!("caf{e_acute}| x"));
+    assert_eq!(pressed(&mut e, &["alt+left", "alt+right"]), format!("caf{e_acute}| x"), "a word");
+    let text = format!("{family}b");
+    let laid = Laid::new(&text, Point { x: 0.0, y: 0.0 }, SIZE, 1e7);
+    // The stand-in measure gives the family's five scalars 50 points.
+    assert_eq!(laid.index_at(Point { x: 20.0, y: 0.0 }), 0, "a press snaps out of a cluster");
+    assert_eq!(laid.index_at(Point { x: 30.0, y: 0.0 }), family.len());
+}
+
+/// `text` being typed at the origin, size 10, in `column`.
+fn typing(text: &str, column: f64) -> Editing {
+    glyphs::set_measure(fixed);
+    Editing {
+        canvas: "main".to_string(),
+        page: "p1".to_string(),
+        at: Point { x: 0.0, y: 0.0 },
+        colour: Rgb { r: 0, g: 0, b: 0 },
+        size: SIZE,
+        column,
+        item: None,
+        editor: Editor::new(text.to_string()),
+    }
+}
+
+#[test]
+fn a_double_tap_selects_a_word_and_a_triple_tap_a_row() {
+    let mut e = typing("one, two\n\nthree", glyphs::UNWRAPPED);
+    let tap = |e: &mut Editing, x: f64, y: f64, taps: u8| {
+        e.tap(Point { x, y }, false, taps);
+        shown(&e.editor)
+    };
+    assert_eq!(tap(&mut e, 12.0, 2.0, 1), "o|ne, two\n\nthree");
+    assert_eq!(tap(&mut e, 12.0, 2.0, 2), "[one], two\n\nthree");
+    assert_eq!(tap(&mut e, 30.0, 2.0, 2), "[one], two\n\nthree", "at a word's end, that word");
+    assert_eq!(tap(&mut e, 42.0, 2.0, 2), "one[, ]two\n\nthree", "between words, the gap");
+    assert_eq!(tap(&mut e, 999.0, 2.0, 2), "one, [two]\n\nthree", "past the row, its last word");
+    assert_eq!(tap(&mut e, 5.0, 12.0, 2), "one, two\n|\nthree", "an empty line: the caret");
+    assert_eq!(tap(&mut e, 12.0, 22.0, 3), "one, two\n\n[three]");
+    assert_eq!(tap(&mut e, 12.0, 2.0, 4), "[one, two]\n\nthree", "and on");
+    let mut e = typing("one two three", SEVEN);
+    assert_eq!(tap(&mut e, 12.0, 12.0, 3), "one two [three]", "a wrapped row, not the line");
+}
+
+#[test]
+fn the_emacs_keys_move_and_delete() {
+    let mut e = at("one two th|ree\nfour");
+    assert_eq!(pressed(&mut e, &["ctrl+a"]), "|one two three\nfour", "the line, not its row");
+    assert_eq!(pressed(&mut e, &["ctrl+e"]), "one two three|\nfour");
+    assert_eq!(pressed(&mut e, &["ctrl+b", "ctrl+b"]), "one two thr|ee\nfour");
+    assert_eq!(pressed(&mut e, &["ctrl+f"]), "one two thre|e\nfour");
+    assert_eq!(pressed(&mut e, &["ctrl+n"]), "one two three\nfour|");
+    assert_eq!(pressed(&mut e, &["ctrl+p", "ctrl+a"]), "|one two three\nfour");
+    assert_eq!(pressed(&mut e, &["shift+ctrl+e"]), "[one two three]\nfour", "shift selects");
+    assert_eq!(pressed(&mut e, &["ctrl+f", "ctrl+h", "ctrl+d"]), "one two thre|four");
+}
+
+#[test]
+fn the_emacs_keys_kill_yank_open_and_transpose() {
+    let mut e = at("one |two\nthree");
+    assert_eq!(pressed(&mut e, &["ctrl+k"]), "one |\nthree");
+    assert_eq!(pressed(&mut e, &["ctrl+k"]), "one |three", "at the line's end: the line end");
+    assert_eq!(pressed(&mut e, &["ctrl+e", "ctrl+y"]), "one three\n|", "what was cut last");
+    assert_eq!(pressed(&mut e, &["ctrl+o"]), "one three\n|\n");
+    let mut e = at("ab|c\nde");
+    assert_eq!(pressed(&mut e, &["ctrl+t"]), "acb|\nde");
+    assert_eq!(pressed(&mut e, &["ctrl+t"]), "abc|\nde", "at the line's end, the two before");
+    assert_eq!(pressed(&mut e, &["ctrl+f", "ctrl+t"]), "abc\n|de", "not across lines");
 }
