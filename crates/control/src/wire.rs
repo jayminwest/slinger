@@ -3,9 +3,10 @@
 
 use std::io::{self, BufRead, Write};
 
+use serde::Serialize;
 use serde_json::{Map, Value, json};
 
-use crate::{RemoteError, Reply, Request};
+use crate::{RemoteError, Request};
 
 /// The protocol version, `v` in every request. See "Versioning" in docs/service.md.
 pub const VERSION: u64 = 1;
@@ -85,11 +86,16 @@ fn read_line(reader: &mut impl BufRead) -> io::Result<Line> {
 }
 
 /// Writes one reply line: `{"ok":true,...}` or `{"ok":false,"code":...,"error":...}`.
+/// `T` is a verb's reply type ([`crate::Verb::Reply`]), or a [`Value`] made
+/// from one; the keys come out sorted at every level.
 ///
 /// # Errors
 ///
 /// The writer's error.
-pub fn write_reply(writer: &mut impl Write, reply: &Result<Reply, RemoteError>) -> io::Result<()> {
+pub fn write_reply<T: Serialize>(
+    writer: &mut impl Write,
+    reply: &Result<T, RemoteError>,
+) -> io::Result<()> {
     let body = match reply {
         Ok(reply) => serde_json::to_value(reply),
         Err(error) => serde_json::to_value(error),
@@ -122,7 +128,8 @@ pub(crate) fn request_line(request: &Request) -> io::Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CanvasInfo, Canvases};
+    use crate::{BlobGetAsk, BlobPutAsk, CanvasInfo, Canvases, UiExportAsk, UiPutAsk, UiShowAsk};
+    use crate::{UiListAsk, Verb};
 
     fn read(input: &[u8]) -> Result<Option<Request>, RemoteError> {
         read_request(&mut io::BufReader::with_capacity(16, input))
@@ -134,7 +141,7 @@ mod tests {
 
     #[test]
     fn reads_what_a_client_writes() {
-        let request = Request::UiShow { name: "ada".into() };
+        let request = Request::UiShow(UiShowAsk { name: "ada".into() });
         let line = request_line(&request).unwrap();
         assert_eq!(line, "{\"v\":1,\"op\":\"ui_show\",\"name\":\"ada\"}\n");
         assert_eq!(read(line.as_bytes()).unwrap(), Some(request));
@@ -143,7 +150,7 @@ mod tests {
     #[test]
     fn ignores_unknown_fields_and_a_missing_newline() {
         let line = br#"{"v":1,"op":"ui_show","name":"ada","later":true}"#;
-        assert_eq!(read(line).unwrap(), Some(Request::UiShow { name: "ada".into() }));
+        assert_eq!(read(line).unwrap(), Some(Request::UiShow(UiShowAsk { name: "ada".into() })));
     }
 
     #[test]
@@ -167,13 +174,20 @@ mod tests {
     fn ui_requests_round_trip() {
         for (request, line) in [
             (
-                Request::UiPut { name: "a".into(), path: "/tmp/a.html".into(), source: "s".into() },
+                Request::UiPut(UiPutAsk {
+                    name: "a".into(),
+                    path: "/tmp/a.html".into(),
+                    source: "s".into(),
+                }),
                 r#"{"v":1,"op":"ui_put","name":"a","path":"/tmp/a.html","source":"s"}"#,
             ),
-            (Request::UiList, r#"{"v":1,"op":"ui_list"}"#),
-            (Request::UiShow { name: "a".into() }, r#"{"v":1,"op":"ui_show","name":"a"}"#),
+            (Request::UiList(UiListAsk {}), r#"{"v":1,"op":"ui_list"}"#),
             (
-                Request::UiExport { ui: "a@2".into(), dir: "/tmp".into() },
+                Request::UiShow(UiShowAsk { name: "a".into() }),
+                r#"{"v":1,"op":"ui_show","name":"a"}"#,
+            ),
+            (
+                Request::UiExport(UiExportAsk { ui: "a@2".into(), dir: "/tmp".into() }),
                 r#"{"v":1,"op":"ui_export","ui":"a@2","dir":"/tmp"}"#,
             ),
         ] {
@@ -184,11 +198,11 @@ mod tests {
 
     #[test]
     fn blob_requests_name_a_file_not_its_bytes() {
-        let put = Request::BlobPut { path: "/tmp/a".into() };
+        let put = Request::BlobPut(BlobPutAsk { path: "/tmp/a".into() });
         let line = request_line(&put).unwrap();
         assert_eq!(line, "{\"v\":1,\"op\":\"blob_put\",\"path\":\"/tmp/a\"}\n");
         assert_eq!(read(line.as_bytes()).unwrap(), Some(put));
-        let get = Request::BlobGet { id: "sha256:00".into(), path: "/tmp/b".into() };
+        let get = Request::BlobGet(BlobGetAsk { id: "sha256:00".into(), path: "/tmp/b".into() });
         let line = request_line(&get).unwrap();
         assert_eq!(
             line,
@@ -252,8 +266,9 @@ mod tests {
     fn writes_success_and_failure_as_one_line_each() {
         let mut out = Vec::new();
         let canvases = Canvases { canvases: vec![CanvasInfo { canvas: "ada".into() }] };
-        write_reply(&mut out, &Ok(Reply::CanvasList(canvases))).unwrap();
-        write_reply(&mut out, &Err(RemoteError::new("invalid", "name is empty", None))).unwrap();
+        write_reply::<Canvases>(&mut out, &Ok(canvases)).unwrap();
+        let error = RemoteError::new("invalid", "name is empty", None);
+        write_reply::<<crate::CanvasListAsk as Verb>::Reply>(&mut out, &Err(error)).unwrap();
         assert_eq!(
             String::from_utf8(out).unwrap(),
             "{\"canvases\":[{\"canvas\":\"ada\"}],\"ok\":true}\n\

@@ -1,12 +1,40 @@
-//! The workspace verbs' replies and their client methods (docs/service.md,
-//! "Workspaces").
+//! The workspace verbs: `workspace_open`, `workspace_list`, `workspace_show`
+//! and `workspace_close` (docs/service.md, "Workspaces").
 
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::client::absolute;
-use crate::{Client, RemoteError, Request};
+use crate::{Client, RemoteError};
+
+/// `workspace_open`: open a workspace: the directory `dir`, or one with no
+/// root named `name`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceOpenAsk {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dir: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+/// `workspace_list`: the open workspaces.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceListAsk {}
+
+/// `workspace_show`: one open workspace, by name or by the directory of its
+/// file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceShowAsk {
+    pub workspace: String,
+}
+
+/// `workspace_close`: close a workspace, by name or by the directory of its
+/// file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceCloseAsk {
+    pub workspace: String,
+}
 
 /// One open workspace, as the daemon read it from its definition file. A
 /// workspace whose file the daemon cannot use has an `error`, its `dir`,
@@ -71,7 +99,7 @@ pub struct WorkspaceRoot {
     pub primary: bool,
 }
 
-/// The reply to [`Request::WorkspaceOpen`]: the workspace, and whether this
+/// The reply to `workspace_open`: the workspace, and whether this
 /// open made its definition file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceOpened {
@@ -79,19 +107,19 @@ pub struct WorkspaceOpened {
     pub new: bool,
 }
 
-/// The reply to [`Request::WorkspaceList`]: the open workspaces, by name.
+/// The reply to `workspace_list`: the open workspaces, by name.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Workspaces {
     pub workspaces: Vec<Workspace>,
 }
 
-/// The reply to [`Request::WorkspaceShow`].
+/// The reply to `workspace_show`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceInfo {
     pub workspace: Workspace,
 }
 
-/// The reply to [`Request::WorkspaceClose`]: the directory of the file of
+/// The reply to `workspace_close`: the directory of the file of
 /// the workspace closed. The file stays.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceClosed {
@@ -114,7 +142,7 @@ impl Client {
         name: Option<&str>,
     ) -> Result<WorkspaceOpened, RemoteError> {
         let dir = dir.map(absolute).transpose()?;
-        self.call(&Request::WorkspaceOpen { dir, name: name.map(str::to_string) })
+        self.call(WorkspaceOpenAsk { dir, name: name.map(str::to_string) })
     }
 
     /// The open workspaces, by name; one whose file the daemon cannot use
@@ -124,8 +152,7 @@ impl Client {
     ///
     /// `unavailable` when the daemon does not answer.
     pub fn workspace_list(&self) -> Result<Vec<Workspace>, RemoteError> {
-        let reply: Workspaces = self.call(&Request::WorkspaceList)?;
-        Ok(reply.workspaces)
+        Ok(self.call(WorkspaceListAsk {})?.workspaces)
     }
 
     /// One open workspace, by name or by the absolute directory of its file.
@@ -136,9 +163,7 @@ impl Client {
     /// the daemon cannot use it, and `unavailable` when the daemon does not
     /// answer.
     pub fn workspace_show(&self, workspace: &str) -> Result<Workspace, RemoteError> {
-        let reply: WorkspaceInfo =
-            self.call(&Request::WorkspaceShow { workspace: workspace.into() })?;
-        Ok(reply.workspace)
+        Ok(self.call(WorkspaceShowAsk { workspace: workspace.into() })?.workspace)
     }
 
     /// Closes a workspace, by name or by the absolute directory of its file,
@@ -148,31 +173,34 @@ impl Client {
     ///
     /// As [`Client::workspace_show`].
     pub fn workspace_close(&self, workspace: &str) -> Result<PathBuf, RemoteError> {
-        let reply: WorkspaceClosed =
-            self.call(&Request::WorkspaceClose { workspace: workspace.into() })?;
-        Ok(reply.dir)
+        Ok(self.call(WorkspaceCloseAsk { workspace: workspace.into() })?.dir)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::Request;
     use crate::wire::request_line;
 
     #[test]
     fn a_workspace_request_reads_back_as_itself() {
+        let open = |dir: Option<&str>, name: Option<&str>| {
+            let (dir, name) = (dir.map(Into::into), name.map(str::to_string));
+            Request::WorkspaceOpen(WorkspaceOpenAsk { dir, name })
+        };
         for request in [
-            Request::WorkspaceOpen { dir: Some("/a".into()), name: Some("n".into()) },
-            Request::WorkspaceOpen { dir: None, name: None },
-            Request::WorkspaceList,
-            Request::WorkspaceShow { workspace: "w".into() },
-            Request::WorkspaceClose { workspace: "/d".into() },
+            open(Some("/a"), Some("n")),
+            open(None, None),
+            Request::WorkspaceList(WorkspaceListAsk {}),
+            Request::WorkspaceShow(WorkspaceShowAsk { workspace: "w".into() }),
+            Request::WorkspaceClose(WorkspaceCloseAsk { workspace: "/d".into() }),
         ] {
             let line = request_line(&request).unwrap();
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
             assert_eq!(read, Some(request), "{line}");
         }
-        let line = request_line(&Request::WorkspaceOpen { dir: None, name: Some("n".into()) });
+        let line = request_line(&open(None, Some("n")));
         assert_eq!(line.unwrap(), "{\"v\":1,\"op\":\"workspace_open\",\"name\":\"n\"}\n");
     }
 }

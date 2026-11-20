@@ -4,28 +4,21 @@
 //! pane or live item names it by id.
 
 use serde_json::Value;
-use slinger_control::{self as control, RemoteError, Reply, UiAsk, UiOpen};
+use slinger_control::{self as control, RemoteError, UiOpen, UiReplyAsk, UiShownAsk};
 use slinger_core::canvas::file::{Placed, Put};
 use slinger_core::record::{Body, Event, Tags, UiOpened};
 use slinger_core::session::{self, stream};
 use slinger_core::ui::showing::{self, Showing};
 use slinger_core::workspace::panes::{Axis, Kind, Pane};
 
-use super::{catalog, drawn, kept, pane, remote, stored, wire_ui};
+use super::uis::{catalog, wire_ui};
+use super::{drawn, kept, pane, remote, stored};
 use crate::store::{Query, Store};
-
-pub fn answer(store: &Store, ask: UiAsk) -> Result<Reply, RemoteError> {
-    match ask {
-        UiAsk::UiOpen(ask) => open(store, ask),
-        UiAsk::UiShown { ui } => shown(store, &ui),
-        UiAsk::UiReply { open, value } => reply(store, &open, value),
-    }
-}
 
 /// Records the showing, then opens its pane or puts its live item.
 /// Everything that could refuse the pane is checked first, so a refused
 /// open records nothing.
-fn open(store: &Store, mut ask: UiOpen) -> Result<Reply, RemoteError> {
+pub(super) fn open(store: &Store, mut ask: UiOpen) -> Result<control::UiOpened, RemoteError> {
     session::check_agent(&ask.agent).map_err(|e| remote(&e))?;
     let version = catalog(store)?.resolve(&ask.ui).map_err(|e| remote(&e))?.clone();
     let data = std::mem::take(&mut ask.data);
@@ -51,15 +44,15 @@ fn open(store: &Store, mut ask: UiOpen) -> Result<Reply, RemoteError> {
     let event = store.append(event).map_err(|e| stored(&e))?;
     let showing = Showing::of(&event).ok_or_else(|| internal("ui_opened not numbered"))?;
     let shows = Pane::new(Kind::Ui, &showing.open).map_err(|e| remote(&e))?;
-    let (opened, _, pane, _) = pane::open(store, &ask.workspace, shows, ask.beside, ask.below)?;
-    Ok(Reply::UiOpen(control::UiOpened {
+    let (opened, _, pane, _) = pane::place(store, &ask.workspace, shows, ask.beside, ask.below)?;
+    Ok(control::UiOpened {
         open: showing.open,
         ui: wire_ui(&version),
         workspace: opened.workspace.name,
         pane: Some(pane),
         item: None,
         event: event.number.unwrap_or_default(),
-    }))
+    })
 }
 
 /// Records the showing and puts its live item beside `ask.item` on
@@ -70,7 +63,7 @@ fn live(
     ask: &UiOpen,
     version: &slinger_core::ui::Version,
     body: UiOpened,
-) -> Result<Reply, RemoteError> {
+) -> Result<control::UiOpened, RemoteError> {
     let (Some(canvas), Some(beside)) = (ask.canvas.as_deref(), ask.item.as_deref()) else {
         let hint = "name the canvas and the item it goes beside: --canvas C --beside ITEM";
         return Err(RemoteError::new(
@@ -107,19 +100,23 @@ fn live(
     };
     let seq = written.seq.first().copied().unwrap_or_default();
     let canvas = canvas.to_string();
-    Ok(Reply::UiOpen(control::UiOpened {
+    Ok(control::UiOpened {
         open: showing.open,
         ui: wire_ui(version),
         workspace: showing.workspace.unwrap_or_default(),
         pane: None,
         item: Some(control::LiveItem { canvas, item, page, x, y, w, h, seq }),
         event: event.number.unwrap_or_default(),
-    }))
+    })
 }
 
 /// What a pane's UI target shows: a showing, with its data and agent, or
 /// the version a UI reference names.
-fn shown(store: &Store, target: &str) -> Result<Reply, RemoteError> {
+pub(super) fn shown(
+    store: &Store,
+    UiShownAsk { ui: target }: UiShownAsk,
+) -> Result<control::UiShown, RemoteError> {
+    let target = target.as_str();
     let catalog = catalog(store)?;
     let (reference, showing) = match showing::number(target) {
         Some(number) => {
@@ -133,12 +130,16 @@ fn shown(store: &Store, target: &str) -> Result<Reply, RemoteError> {
         Some(s) => (Some(s.open), s.data, Some(s.agent)),
         None => (None, Value::Null, None),
     };
-    Ok(Reply::UiShown(control::UiShown { ui: wire_ui(version), open, data, agent }))
+    Ok(control::UiShown { ui: wire_ui(version), open, data, agent })
 }
 
 /// Records the reply, counted against its showing inside the record's
 /// write, then delivers its line to the agent's session if it runs.
-fn reply(store: &Store, open: &str, value: Value) -> Result<Reply, RemoteError> {
+pub(super) fn reply(
+    store: &Store,
+    UiReplyAsk { open, value }: UiReplyAsk,
+) -> Result<control::UiReplied, RemoteError> {
+    let open = open.as_str();
     let number = showing::number(open).ok_or_else(|| {
         let hint = "a showing's id is <name>#<number>, as 'slinger ui open' prints it".into();
         RemoteError::new("invalid", format!("`{open}` is not a showing's id"), Some(hint))
@@ -162,11 +163,11 @@ fn reply(store: &Store, open: &str, value: Value) -> Result<Reply, RemoteError> 
     // not run gets none of it now, and the app says so.
     let line = stream::message(&showing::line(sent)).map_err(|e| remote(&e))?;
     let delivered = store.sessions().processes().send(&showing.agent, &line, None).is_ok();
-    Ok(Reply::UiReply(control::UiReplied {
+    Ok(control::UiReplied {
         event: event.number.unwrap_or_default(),
         agent: showing.agent,
         delivered,
-    }))
+    })
 }
 
 /// The showing `open` names: event `number`, a `ui_opened` of that name.

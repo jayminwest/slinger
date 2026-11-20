@@ -1,7 +1,5 @@
 //! The session and status verbs: their requests, replies and client methods
 //! (docs/service.md, "Sessions").
-//!
-//! [`crate::Request`] carries them as one variant, [`SessionAsk`].
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -9,72 +7,80 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::client::TIMEOUT;
-use crate::{Client, MAX_WAIT_MS, RemoteError, Request, SlingAsk};
+use crate::{Client, MAX_WAIT_MS, RemoteError};
 
-/// A session request, as a client writes it and the daemon reads it.
+/// `session_list`: the sessions: the agents of the open workspaces.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "op", rename_all = "snake_case")]
-pub enum SessionAsk {
-    /// The sessions: the agents of the open workspaces.
-    SessionList,
-    /// The session of one agent.
-    SessionShow { agent: String },
-    /// Set an agent's status (`working`, `blocked` or `done`), with a note.
-    StatusSet {
-        agent: String,
-        status: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        note: Option<String>,
-    },
-    /// Start the process of a workspace's agent, or resume its session.
-    /// `fresh` starts a new session instead, ending a running process.
-    /// `profile` runs it under that profile of the agent's.
-    SessionStart {
-        workspace: String,
-        #[serde(default, skip_serializing_if = "is_false")]
-        fresh: bool,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        profile: Option<String>,
-    },
-    /// End the process of a workspace's agent.
-    SessionStop { workspace: String },
-    /// Deliver one message to the running process of a workspace's agent.
-    SessionSend { workspace: String, text: String },
-    /// Send a canvas's new ink and a prompt to the agent of its workspace.
-    SlingSend(SlingAsk),
-    /// The areas of PDF pages under the new ink a `sling_send` would draw;
-    /// with `in`, a sling of that box.
-    SlingBackdrops {
-        canvas: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        page: Option<String>,
-        #[serde(default, rename = "in", skip_serializing_if = "Option::is_none")]
-        inside: Option<String>,
-    },
-    /// Take the next sling that waits for a listener of a workspace's
-    /// agent. With `wait`, the reply waits up to that many milliseconds for
-    /// one (at most [`crate::MAX_WAIT_MS`]). With `pid`, the listener works
-    /// on the sling in that process, and is gone once it ends.
-    SessionListen {
-        workspace: String,
-        #[serde(default)]
-        wait: u64,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        pid: Option<u32>,
-    },
-    /// An agent wrote a file: the absolute `path`, or the one a Claude Code
-    /// `PostToolUse` hook's payload (`hook`) names. One of the two.
-    FileTouched {
-        agent: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        path: Option<PathBuf>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        hook: Option<String>,
-    },
+pub struct SessionListAsk {}
+
+/// `session_show`: the session of one agent.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionShowAsk {
+    pub agent: String,
 }
 
-/// What [`SessionAsk::FileTouched`] reports: a file by its path, or the
-/// payload of the hook that saw it written.
+/// `status_set`: set an agent's status (`working`, `blocked` or `done`),
+/// with a note.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StatusSetAsk {
+    pub agent: String,
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// `session_start`: start the process of a workspace's agent, or resume its
+/// session. `fresh` starts a new session instead, ending a running process.
+/// `profile` runs it under that profile of the agent's.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionStartAsk {
+    pub workspace: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub fresh: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+}
+
+/// `session_stop`: end the process of a workspace's agent.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionStopAsk {
+    pub workspace: String,
+}
+
+/// `session_send`: deliver one message to the running process of a
+/// workspace's agent.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionSendAsk {
+    pub workspace: String,
+    pub text: String,
+}
+
+/// `session_listen`: take the next sling that waits for a listener of a
+/// workspace's agent. With `wait`, the reply waits up to that many
+/// milliseconds for one (at most [`crate::MAX_WAIT_MS`]). With `pid`, the
+/// listener works on the sling in that process, and is gone once it ends.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionListenAsk {
+    pub workspace: String,
+    #[serde(default)]
+    pub wait: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pid: Option<u32>,
+}
+
+/// `file_touched`: an agent wrote a file: the absolute `path`, or the one a
+/// Claude Code `PostToolUse` hook's payload (`hook`) names. One of the two.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileTouchedAsk {
+    pub agent: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hook: Option<String>,
+}
+
+/// What `file_touched` reports: a file by its path, or the payload of the
+/// hook that saw it written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Touched<'a> {
     Path(&'a std::path::Path),
@@ -127,20 +133,20 @@ pub struct Session {
     pub context: Option<u64>,
 }
 
-/// The reply to [`SessionAsk::SessionList`]: the sessions, by agent.
+/// The reply to `session_list`: the sessions, by agent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Sessions {
     pub sessions: Vec<Session>,
 }
 
-/// The reply to [`SessionAsk::SessionShow`], and to a start, stop or send:
+/// The reply to `session_show`, and to a start, stop or send:
 /// the session after it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionInfo {
     pub session: Session,
 }
 
-/// The reply to [`SessionAsk::StatusSet`]: the status as set, and the
+/// The reply to `status_set`: the status as set, and the
 /// number of the event it appended (none for `working`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StatusSet {
@@ -152,7 +158,7 @@ pub struct StatusSet {
     pub event: Option<u64>,
 }
 
-/// The reply to [`SessionAsk::SessionListen`]: the agent listened for, and
+/// The reply to `session_listen`: the agent listened for, and
 /// the sling taken. No sling: none came within the wait.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Listened {
@@ -174,7 +180,7 @@ pub struct Taken {
     pub text: String,
 }
 
-/// The reply to [`SessionAsk::FileTouched`]: the file, its hash and the
+/// The reply to `file_touched`: the file, its hash and the
 /// number of the `file_touched` event. All absent when a hook's payload
 /// names no file: nothing was touched.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -196,8 +202,7 @@ impl Client {
     /// The error of a workspace file the daemon cannot read, and
     /// `unavailable` when the daemon does not answer.
     pub fn session_list(&self) -> Result<Vec<Session>, RemoteError> {
-        let reply: Sessions = self.call(&Request::Session(SessionAsk::SessionList))?;
-        Ok(reply.sessions)
+        Ok(self.call(SessionListAsk {})?.sessions)
     }
 
     /// The session of `agent`.
@@ -207,9 +212,7 @@ impl Client {
     /// `not_found` when no open workspace has that agent, and `unavailable`
     /// when the daemon does not answer.
     pub fn session_show(&self, agent: &str) -> Result<Session, RemoteError> {
-        let reply: SessionInfo =
-            self.call(&Request::Session(SessionAsk::SessionShow { agent: agent.into() }))?;
-        Ok(reply.session)
+        Ok(self.call(SessionShowAsk { agent: agent.into() })?.session)
     }
 
     /// Sets `agent`'s status, with a note. `blocked` and `done` append an
@@ -226,7 +229,7 @@ impl Client {
         note: Option<&str>,
     ) -> Result<StatusSet, RemoteError> {
         let (agent, status, note) = (agent.into(), status.into(), note.map(str::to_string));
-        self.call(&Request::Session(SessionAsk::StatusSet { agent, status, note }))
+        self.call(StatusSetAsk { agent, status, note })
     }
 
     /// Starts the process of `workspace`'s agent in its home, resuming the
@@ -268,8 +271,7 @@ impl Client {
         fresh: bool,
     ) -> Result<Session, RemoteError> {
         let profile = profile.map(str::to_string);
-        let ask = SessionAsk::SessionStart { workspace: workspace.into(), fresh, profile };
-        Ok(self.call::<SessionInfo>(&Request::Session(ask))?.session)
+        Ok(self.call(SessionStartAsk { workspace: workspace.into(), fresh, profile })?.session)
     }
 
     /// Ends the process of `workspace`'s agent. Stopping one that is not
@@ -279,8 +281,7 @@ impl Client {
     ///
     /// As [`Client::session_start`].
     pub fn session_stop(&self, workspace: &str) -> Result<Session, RemoteError> {
-        let ask = SessionAsk::SessionStop { workspace: workspace.into() };
-        Ok(self.call::<SessionInfo>(&Request::Session(ask))?.session)
+        Ok(self.call(SessionStopAsk { workspace: workspace.into() })?.session)
     }
 
     /// Delivers `text` to the running process of `workspace`'s agent as one
@@ -293,8 +294,8 @@ impl Client {
     /// exited) or the daemon does not answer, `invalid` for blank text, and
     /// the errors of [`Client::session_start`].
     pub fn session_send(&self, workspace: &str, text: &str) -> Result<Session, RemoteError> {
-        let ask = SessionAsk::SessionSend { workspace: workspace.into(), text: text.into() };
-        Ok(self.call::<SessionInfo>(&Request::Session(ask))?.session)
+        let ask = SessionSendAsk { workspace: workspace.into(), text: text.into() };
+        Ok(self.call(ask)?.session)
     }
 
     /// Takes the next sling that waits for a listener of `workspace`'s
@@ -325,8 +326,8 @@ impl Client {
         pid: Option<u32>,
     ) -> Result<Listened, RemoteError> {
         let wait = u64::try_from(wait.as_millis()).unwrap_or(u64::MAX).min(MAX_WAIT_MS);
-        let ask = SessionAsk::SessionListen { workspace: workspace.into(), wait, pid };
-        self.call_within(&Request::Session(ask), TIMEOUT + Duration::from_millis(wait))
+        let ask = SessionListenAsk { workspace: workspace.into(), wait, pid };
+        self.call_within(ask, TIMEOUT + Duration::from_millis(wait))
     }
 
     /// Reports that `agent` wrote a file. The daemon hashes it and appends a
@@ -342,7 +343,7 @@ impl Client {
             Touched::Path(path) => (Some(path.to_owned()), None),
             Touched::Hook(payload) => (None, Some(payload.to_string())),
         };
-        self.call(&Request::Session(SessionAsk::FileTouched { agent: agent.into(), path, hook }))
+        self.call(FileTouchedAsk { agent: agent.into(), path, hook })
     }
 }
 
@@ -357,50 +358,50 @@ fn is_false(b: &bool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Request;
     use crate::wire::request_line;
+    use crate::{Request, SlingAsk, SlingBackdropsAsk};
 
     #[test]
     fn a_session_request_reads_back_as_itself_by_its_own_op() {
-        let set = |note: Option<&str>| SessionAsk::StatusSet {
-            agent: "a".into(),
-            status: "done".into(),
-            note: note.map(str::to_string),
+        let set = |note: Option<&str>| {
+            let note = note.map(str::to_string);
+            Request::StatusSet(StatusSetAsk { agent: "a".into(), status: "done".into(), note })
+        };
+        let start = |fresh, profile: Option<&str>| {
+            let profile = profile.map(str::to_string);
+            Request::SessionStart(SessionStartAsk { workspace: "w".into(), fresh, profile })
+        };
+        let listen = |wait, pid| {
+            Request::SessionListen(SessionListenAsk { workspace: "w".into(), wait, pid })
+        };
+        let touched = |path: Option<&str>, hook: Option<&str>| {
+            let (path, hook) = (path.map(Into::into), hook.map(str::to_string));
+            Request::FileTouched(FileTouchedAsk { agent: "a".into(), path, hook })
         };
         for (ask, line) in [
-            (SessionAsk::SessionList, r#"{"v":1,"op":"session_list"}"#),
+            (Request::SessionList(SessionListAsk {}), r#"{"v":1,"op":"session_list"}"#),
             (
-                SessionAsk::SessionShow { agent: "a".into() },
+                Request::SessionShow(SessionShowAsk { agent: "a".into() }),
                 r#"{"v":1,"op":"session_show","agent":"a"}"#,
             ),
             (set(None), r#"{"v":1,"op":"status_set","agent":"a","status":"done"}"#),
             (set(Some("n")), r#"{"v":1,"op":"status_set","agent":"a","status":"done","note":"n"}"#),
+            (start(false, None), r#"{"v":1,"op":"session_start","workspace":"w"}"#),
+            (start(true, None), r#"{"v":1,"op":"session_start","workspace":"w","fresh":true}"#),
             (
-                SessionAsk::SessionStart { workspace: "w".into(), fresh: false, profile: None },
-                r#"{"v":1,"op":"session_start","workspace":"w"}"#,
-            ),
-            (
-                SessionAsk::SessionStart { workspace: "w".into(), fresh: true, profile: None },
-                r#"{"v":1,"op":"session_start","workspace":"w","fresh":true}"#,
-            ),
-            (
-                SessionAsk::SessionStart {
-                    workspace: "w".into(),
-                    fresh: false,
-                    profile: Some("dev".into()),
-                },
+                start(false, Some("dev")),
                 r#"{"v":1,"op":"session_start","workspace":"w","profile":"dev"}"#,
             ),
             (
-                SessionAsk::SessionStop { workspace: "w".into() },
+                Request::SessionStop(SessionStopAsk { workspace: "w".into() }),
                 r#"{"v":1,"op":"session_stop","workspace":"w"}"#,
             ),
             (
-                SessionAsk::SessionSend { workspace: "w".into(), text: "hi".into() },
+                Request::SessionSend(SessionSendAsk { workspace: "w".into(), text: "hi".into() }),
                 r#"{"v":1,"op":"session_send","workspace":"w","text":"hi"}"#,
             ),
             (
-                SessionAsk::SlingSend(SlingAsk {
+                Request::SlingSend(SlingAsk {
                     canvas: "c".into(),
                     page: Some("p1".into()),
                     inside: Some("b4".into()),
@@ -412,7 +413,7 @@ mod tests {
                 r#"{"v":1,"op":"sling_send","canvas":"c","page":"p1","in":"b4","select":["c4","t9"],"prompt":"why?","profile":"dev"}"#,
             ),
             (
-                SessionAsk::SlingSend(SlingAsk {
+                Request::SlingSend(SlingAsk {
                     canvas: "c".into(),
                     backdrops: vec![crate::Backdrop {
                         item: "i3".into(),
@@ -425,41 +426,36 @@ mod tests {
                 r#"{"v":1,"op":"sling_send","canvas":"c","prompt":"","backdrops":[{"item":"i3","area":[0,10,200,300],"image":"/t/1.rgb","words":"/t/1.json"}]}"#,
             ),
             (
-                SessionAsk::SlingBackdrops { canvas: "c".into(), page: None, inside: None },
+                Request::SlingBackdrops(SlingBackdropsAsk {
+                    canvas: "c".into(),
+                    page: None,
+                    inside: None,
+                }),
                 r#"{"v":1,"op":"sling_backdrops","canvas":"c"}"#,
             ),
             (
-                SessionAsk::SlingBackdrops {
+                Request::SlingBackdrops(SlingBackdropsAsk {
                     canvas: "c".into(),
                     page: None,
                     inside: Some("b4".into()),
-                },
+                }),
                 r#"{"v":1,"op":"sling_backdrops","canvas":"c","in":"b4"}"#,
             ),
             (
-                SessionAsk::SlingSend(SlingAsk { canvas: "c".into(), ..SlingAsk::default() }),
+                Request::SlingSend(SlingAsk { canvas: "c".into(), ..SlingAsk::default() }),
                 r#"{"v":1,"op":"sling_send","canvas":"c","prompt":""}"#,
             ),
+            (listen(250, None), r#"{"v":1,"op":"session_listen","workspace":"w","wait":250}"#),
             (
-                SessionAsk::SessionListen { workspace: "w".into(), wait: 250, pid: None },
-                r#"{"v":1,"op":"session_listen","workspace":"w","wait":250}"#,
-            ),
-            (
-                SessionAsk::SessionListen { workspace: "w".into(), wait: 0, pid: Some(7) },
+                listen(0, Some(7)),
                 r#"{"v":1,"op":"session_listen","workspace":"w","wait":0,"pid":7}"#,
             ),
-            (
-                SessionAsk::FileTouched { agent: "a".into(), path: Some("/f".into()), hook: None },
-                r#"{"v":1,"op":"file_touched","agent":"a","path":"/f"}"#,
-            ),
-            (
-                SessionAsk::FileTouched { agent: "a".into(), path: None, hook: Some("{}".into()) },
-                r#"{"v":1,"op":"file_touched","agent":"a","hook":"{}"}"#,
-            ),
+            (touched(Some("/f"), None), r#"{"v":1,"op":"file_touched","agent":"a","path":"/f"}"#),
+            (touched(None, Some("{}")), r#"{"v":1,"op":"file_touched","agent":"a","hook":"{}"}"#),
         ] {
-            assert_eq!(request_line(&Request::Session(ask.clone())).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
-            assert_eq!(read, Some(Request::Session(ask)), "{line}");
+            assert_eq!(read, Some(ask), "{line}");
         }
     }
 

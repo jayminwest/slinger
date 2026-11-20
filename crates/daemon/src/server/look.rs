@@ -3,9 +3,11 @@
 
 use std::fs;
 use std::io;
-use std::path::Path;
 
-use slinger_control::{CanvasFound, CanvasImage, CanvasImages, CanvasStrokes, RemoteError, Reply};
+use slinger_control::{
+    CanvasCropAsk, CanvasFindAsk, CanvasFound, CanvasImage, CanvasImages, CanvasStrokes,
+    CanvasStrokesAsk, RemoteError,
+};
 
 use super::{absolute, drawn, unusable};
 use crate::store::Store;
@@ -14,11 +16,10 @@ use crate::store::Store;
 /// it as `<stem>-<n>.png`. Bytes travel as files, as a blob's do.
 pub(super) fn crop(
     store: &Store,
-    canvas: &str,
-    of: &str,
-    path: &Path,
-) -> Result<Reply, RemoteError> {
-    let path = absolute(path)?;
+    CanvasCropAsk { canvas, of, path }: CanvasCropAsk,
+) -> Result<CanvasImages, RemoteError> {
+    let (canvas, of) = (canvas.as_str(), of.as_str());
+    let path = absolute(&path)?;
     let (Some(dir), Some(name)) = (path.parent(), path.file_stem().and_then(|s| s.to_str())) else {
         return Err(unusable(path, &io::Error::other("it names no file")));
     };
@@ -33,17 +34,23 @@ pub(super) fn crop(
             Ok(CanvasImage { path, x, y, width, height })
         })
         .collect::<Result<_, RemoteError>>()?;
-    Ok(Reply::CanvasCrop(CanvasImages { images }))
+    Ok(CanvasImages { images })
 }
 
 /// The strokes `item` names, with their points.
-pub(super) fn strokes(store: &Store, canvas: &str, item: &str) -> Result<Reply, RemoteError> {
-    let strokes = store.canvases().strokes(canvas, item).map_err(|e| drawn(&e))?;
-    Ok(Reply::CanvasStrokes(CanvasStrokes { strokes }))
+pub(super) fn strokes(
+    store: &Store,
+    CanvasStrokesAsk { canvas, item }: CanvasStrokesAsk,
+) -> Result<CanvasStrokes, RemoteError> {
+    let strokes = store.canvases().strokes(&canvas, &item).map_err(|e| drawn(&e))?;
+    Ok(CanvasStrokes { strokes })
 }
 
 /// The text items that hold `text`, on every page.
-pub(super) fn find(store: &Store, canvas: &str, text: &str) -> Result<Reply, RemoteError> {
-    let found = store.canvases().find(canvas, text).map_err(|e| drawn(&e))?;
-    Ok(Reply::CanvasFind(CanvasFound { found }))
+pub(super) fn find(
+    store: &Store,
+    CanvasFindAsk { canvas, text }: CanvasFindAsk,
+) -> Result<CanvasFound, RemoteError> {
+    let found = store.canvases().find(&canvas, &text).map_err(|e| drawn(&e))?;
+    Ok(CanvasFound { found })
 }

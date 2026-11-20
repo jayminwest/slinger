@@ -3,36 +3,44 @@
 //! note and a resolution are; the store's feedback file holds them.
 
 use slinger_control::{
-    FeedbackAdded, FeedbackAsk, FeedbackEntries, FeedbackEntry, FeedbackFile, FeedbackNote,
-    FeedbackResolution, FeedbackResolved, RemoteError, Reply,
+    FeedbackAdded, FeedbackEntries, FeedbackEntry, FeedbackFile, FeedbackListAsk, FeedbackNote,
+    FeedbackResolution, FeedbackResolveAsk, FeedbackResolved, RemoteError,
 };
 use slinger_core::feedback::{Context, Entry};
 
 use crate::feedback::FeedbackError;
 use crate::store::Store;
 
-pub fn answer(store: &Store, ask: FeedbackAsk) -> Result<Reply, RemoteError> {
+pub(super) fn add(store: &Store, note: FeedbackNote) -> Result<FeedbackAdded, RemoteError> {
     let feedback = store.feedback();
-    let path = feedback.path().to_path_buf();
-    match ask {
-        FeedbackAsk::FeedbackAdd(note) => {
-            let (text, context) = context(note);
-            let entry = wire(feedback.add(&text, context).map_err(|e| noted(&e))?);
-            Ok(Reply::FeedbackAdd(FeedbackAdded { path, entry }))
-        }
-        FeedbackAsk::FeedbackList { all, limit } => {
-            let limit = limit.map_or(usize::MAX, |n| usize::try_from(n).unwrap_or(usize::MAX));
-            let entries = feedback.list(all, limit).map_err(|e| noted(&e))?;
-            let entries = entries.into_iter().map(wire).collect();
-            Ok(Reply::FeedbackList(FeedbackEntries { path, entries }))
-        }
-        FeedbackAsk::FeedbackResolve { ts, note } => {
-            let done = feedback.resolve(&ts, note).map_err(|e| noted(&e))?;
-            let (resolves, ts, note) = (done.resolves, done.resolved.ts, done.resolved.note);
-            Ok(Reply::FeedbackResolve(FeedbackResolution { path, resolves, ts, note }))
-        }
-        FeedbackAsk::FeedbackPath => Ok(Reply::FeedbackPath(FeedbackFile { path })),
-    }
+    let (text, context) = context(note);
+    let entry = wire(feedback.add(&text, context).map_err(|e| noted(&e))?);
+    Ok(FeedbackAdded { path: feedback.path().to_path_buf(), entry })
+}
+
+pub(super) fn list(
+    store: &Store,
+    FeedbackListAsk { all, limit }: FeedbackListAsk,
+) -> Result<FeedbackEntries, RemoteError> {
+    let feedback = store.feedback();
+    let limit = limit.map_or(usize::MAX, |n| usize::try_from(n).unwrap_or(usize::MAX));
+    let entries = feedback.list(all, limit).map_err(|e| noted(&e))?;
+    let entries = entries.into_iter().map(wire).collect();
+    Ok(FeedbackEntries { path: feedback.path().to_path_buf(), entries })
+}
+
+pub(super) fn resolve(
+    store: &Store,
+    FeedbackResolveAsk { ts, note }: FeedbackResolveAsk,
+) -> Result<FeedbackResolution, RemoteError> {
+    let feedback = store.feedback();
+    let done = feedback.resolve(&ts, note).map_err(|e| noted(&e))?;
+    let (resolves, ts, note) = (done.resolves, done.resolved.ts, done.resolved.note);
+    Ok(FeedbackResolution { path: feedback.path().to_path_buf(), resolves, ts, note })
+}
+
+pub(super) fn path(store: &Store) -> FeedbackFile {
+    FeedbackFile { path: store.feedback().path().to_path_buf() }
 }
 
 fn context(note: FeedbackNote) -> (String, Context) {

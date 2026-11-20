@@ -1,26 +1,29 @@
 //! The profile verbs: a workspace agent's named limits, their requests,
 //! reply and client methods (docs/service.md, "Profiles").
-//!
-//! [`crate::Request`] carries them as one variant, [`ProfileAsk`].
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Client, RemoteError, Request};
+use crate::{Client, RemoteError};
 
-/// A profile request, as a client writes it and the daemon reads it.
+/// `profile_list`: the profiles of a workspace's agent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "op", rename_all = "snake_case")]
-pub enum ProfileAsk {
-    /// The profiles of a workspace's agent.
-    ProfileList { workspace: String },
-    /// Add a profile, or replace the one of its name whole.
-    ProfileSet {
-        workspace: String,
-        #[serde(flatten)]
-        profile: Profile,
-    },
-    /// Remove a profile.
-    ProfileRemove { workspace: String, name: String },
+pub struct ProfileListAsk {
+    pub workspace: String,
+}
+
+/// `profile_set`: add a profile, or replace the one of its name whole.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProfileSetAsk {
+    pub workspace: String,
+    #[serde(flatten)]
+    pub profile: Profile,
+}
+
+/// `profile_remove`: remove a profile.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProfileRemoveAsk {
+    pub workspace: String,
+    pub name: String,
 }
 
 /// One profile: a working directory and the permission rules a session
@@ -52,7 +55,7 @@ impl Client {
     /// `not_found` for a workspace that is not open, and `unavailable` when
     /// the daemon does not answer.
     pub fn profile_list(&self, workspace: &str) -> Result<Profiles, RemoteError> {
-        self.call(&Request::Profile(ProfileAsk::ProfileList { workspace: workspace.into() }))
+        self.call(ProfileListAsk { workspace: workspace.into() })
     }
 
     /// Adds `profile` to `workspace`'s agent, or replaces the one of its
@@ -64,10 +67,7 @@ impl Client {
     /// workspace with no agent; `not_found` for a directory or a workspace
     /// that is not there; and `unavailable` when the daemon does not answer.
     pub fn profile_set(&self, workspace: &str, profile: Profile) -> Result<Profiles, RemoteError> {
-        self.call(&Request::Profile(ProfileAsk::ProfileSet {
-            workspace: workspace.into(),
-            profile,
-        }))
+        self.call(ProfileSetAsk { workspace: workspace.into(), profile })
     }
 
     /// Removes the profile `name` from `workspace`'s agent.
@@ -77,10 +77,7 @@ impl Client {
     /// `not_found` for a profile or a workspace that is not there, and
     /// `unavailable` when the daemon does not answer.
     pub fn profile_remove(&self, workspace: &str, name: &str) -> Result<Profiles, RemoteError> {
-        self.call(&Request::Profile(ProfileAsk::ProfileRemove {
-            workspace: workspace.into(),
-            name: name.into(),
-        }))
+        self.call(ProfileRemoveAsk { workspace: workspace.into(), name: name.into() })
     }
 }
 
@@ -99,28 +96,31 @@ mod tests {
         };
         for (ask, line) in [
             (
-                ProfileAsk::ProfileList { workspace: "w".into() },
+                Request::ProfileList(ProfileListAsk { workspace: "w".into() }),
                 r#"{"v":1,"op":"profile_list","workspace":"w"}"#,
             ),
             (
-                ProfileAsk::ProfileSet { workspace: "w".into(), profile: dev },
+                Request::ProfileSet(ProfileSetAsk { workspace: "w".into(), profile: dev }),
                 r#"{"v":1,"op":"profile_set","workspace":"w","name":"dev","dir":"/src","tools":["Edit","Bash(git *)"]}"#,
             ),
             (
-                ProfileAsk::ProfileSet {
+                Request::ProfileSet(ProfileSetAsk {
                     workspace: "w".into(),
                     profile: Profile { name: "look".into(), ..Profile::default() },
-                },
+                }),
                 r#"{"v":1,"op":"profile_set","workspace":"w","name":"look"}"#,
             ),
             (
-                ProfileAsk::ProfileRemove { workspace: "w".into(), name: "dev".into() },
+                Request::ProfileRemove(ProfileRemoveAsk {
+                    workspace: "w".into(),
+                    name: "dev".into(),
+                }),
                 r#"{"v":1,"op":"profile_remove","workspace":"w","name":"dev"}"#,
             ),
         ] {
-            assert_eq!(request_line(&Request::Profile(ask.clone())).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
-            assert_eq!(read, Some(Request::Profile(ask)), "{line}");
+            assert_eq!(read, Some(ask), "{line}");
         }
     }
 

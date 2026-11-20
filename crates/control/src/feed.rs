@@ -8,13 +8,24 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::client::TIMEOUT;
-use crate::{Client, RemoteError, Request};
+use crate::{Client, RemoteError};
 
 /// The longest wait the daemon holds a reply for, in milliseconds. A longer
 /// `wait` waits this long.
 pub const MAX_WAIT_MS: u64 = 60_000;
 
-/// The reply to [`crate::Request::CanvasChanges`].
+/// `canvas_changes`: the operations of a canvas numbered above `after`.
+/// With `wait`, the reply waits up to that many milliseconds for one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CanvasChangesAsk {
+    pub canvas: String,
+    #[serde(default)]
+    pub after: u64,
+    #[serde(default)]
+    pub wait: u64,
+}
+
+/// The reply to `canvas_changes`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CanvasFeed {
     /// The number of the first operation not in `ops`: ask again with
@@ -43,19 +54,20 @@ impl Client {
         wait: Duration,
     ) -> Result<CanvasFeed, RemoteError> {
         let wait = u64::try_from(wait.as_millis()).unwrap_or(u64::MAX).min(MAX_WAIT_MS);
-        let ask = Request::CanvasChanges { canvas: canvas.into(), after, wait };
-        self.call_within(&ask, TIMEOUT + Duration::from_millis(wait))
+        let ask = CanvasChangesAsk { canvas: canvas.into(), after, wait };
+        self.call_within(ask, TIMEOUT + Duration::from_millis(wait))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::Request;
     use crate::wire::request_line;
+    use crate::{CanvasChangesAsk, Request};
 
     #[test]
     fn a_client_writes_what_the_daemon_reads() {
-        let ask = Request::CanvasChanges { canvas: "main".into(), after: 6, wait: 100 };
+        let ask =
+            Request::CanvasChanges(CanvasChangesAsk { canvas: "main".into(), after: 6, wait: 100 });
         let line = request_line(&ask).unwrap();
         assert_eq!(
             line,
@@ -64,10 +76,15 @@ mod tests {
         let read = crate::read_request(&mut line.as_bytes()).unwrap();
         assert_eq!(
             read,
-            Some(Request::CanvasChanges { canvas: "main".into(), after: 6, wait: 100 })
+            Some(Request::CanvasChanges(CanvasChangesAsk {
+                canvas: "main".into(),
+                after: 6,
+                wait: 100
+            }))
         );
         let bare = br#"{"v":1,"op":"canvas_changes","canvas":"main"}"#;
         let read = crate::read_request(&mut &bare[..]).unwrap();
-        assert_eq!(read, Some(Request::CanvasChanges { canvas: "main".into(), after: 0, wait: 0 }));
+        let want = CanvasChangesAsk { canvas: "main".into(), after: 0, wait: 0 };
+        assert_eq!(read, Some(Request::CanvasChanges(want)));
     }
 }

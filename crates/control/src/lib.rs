@@ -7,416 +7,66 @@
 //! daemon.
 
 mod agent;
+mod blob;
 mod build;
+mod canvas;
 mod client;
 mod daemon;
+mod drive;
 mod feed;
 mod feedback;
 mod find;
 mod fold;
-mod imported;
 mod look;
 mod packet;
 mod pane;
 mod place;
 mod profile;
+mod record;
 mod session;
 mod sling;
 mod ui;
+mod uis;
 mod unix;
+mod verb;
 mod wire;
 mod workspace;
 
 use std::fmt;
-use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
-pub use agent::{
-    AgentAsk, CanvasEdit, CanvasEdited, CanvasPlaced, CanvasPut, CanvasRemove, CanvasRemoved, Put,
-};
+// Each verb's module holds its request and reply types and its `Client`
+// methods; all of them are the crate's API.
+pub use agent::*;
+pub use blob::*;
+pub use canvas::*;
+pub use daemon::*;
+pub use drive::*;
+pub use feed::*;
+pub use feedback::*;
+pub use find::*;
+pub use fold::*;
+pub use look::*;
+pub use packet::*;
+pub use pane::*;
+pub use profile::*;
+pub use record::*;
+pub use session::*;
+pub use sling::*;
+pub use ui::*;
+pub use uis::*;
+pub use workspace::*;
+
 pub use build::{PACKAGE, stamp};
 pub use client::Client;
-pub use daemon::{DaemonAsk, DaemonInfo, DaemonStopped, stop_mark};
-pub use feed::{CanvasFeed, MAX_WAIT_MS};
-pub use feedback::{
-    FeedbackAdded, FeedbackAsk, FeedbackEntries, FeedbackEntry, FeedbackFile, FeedbackNote,
-    FeedbackResolution, FeedbackResolved,
-};
-pub use find::CanvasFound;
-pub use fold::{CanvasFold, FoldAsk};
-pub use imported::CanvasImported;
-pub use look::{CanvasImage, CanvasImages, CanvasStrokes};
-pub use packet::{CanvasPacket, PacketAsk, PacketImage};
-pub use pane::{Pane, PaneAsk, PaneKind, PaneLayout, PaneSplit, PaneTree, PaneView, PaneViewed};
 pub use place::{
     default_data_dir, default_socket, live_socket, name_socket, named_socket, running_socket,
     socket_name_file, unname_socket,
 };
-pub use profile::{Profile, ProfileAsk, Profiles};
-pub use session::{
-    FileTouched, Listened, Session, SessionAsk, SessionInfo, Sessions, StatusSet, Taken, Touched,
-};
-pub use sling::{Backdrop, BackdropArea, Backdrops, SlingAsk, Slung};
-pub use ui::{LIVE_SIZE, LiveItem, UiAsk, UiOpen, UiOpened, UiReplied, UiShown};
 pub use unix::{bind_socket, connect_socket};
+pub use verb::{OPS, Request, Verb};
 pub use wire::{MAX_LINE, VERSION, read_request, write_reply};
-pub use workspace::{
-    Workspace, WorkspaceAgent, WorkspaceClosed, WorkspaceFileError, WorkspaceInfo, WorkspaceOpened,
-    WorkspaceRoot, Workspaces,
-};
-
-/// A request to the daemon. One variant per verb; `op` on the wire names it.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "op", rename_all = "snake_case")]
-pub enum Request {
-    /// Append an event to this machine's record.
-    RecordAppend(NewEvent),
-    /// Read events from this machine's record.
-    RecordList(EventFilter),
-    /// Store the bytes of the file at `path` as a blob. Bytes travel as a
-    /// file on this machine, never in the line (docs/service.md).
-    BlobPut { path: PathBuf },
-    /// Write the bytes of the blob `id` to the file at `path`.
-    BlobGet { id: String, path: PathBuf },
-    /// Store the HTML file at `path` as the next version of the UI `name`.
-    UiPut { name: String, path: PathBuf, source: String },
-    /// The latest version of every UI.
-    UiList,
-    /// Every version of the UI `name`.
-    UiShow { name: String },
-    /// Write the version `ui` names (`name`, `name@3` or a blob id) into the
-    /// directory `dir`, as `<name>.v<version>.html`.
-    UiExport { ui: String, dir: PathBuf },
-    /// Make a new canvas: empty, or holding the operations in the file at
-    /// `path` (a JSON list, as `ops` of `canvas_apply`), applied as `by`
-    /// (`user` or `agent:<name>`; absent: the user) in one write.
-    CanvasCreate {
-        canvas: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        path: Option<PathBuf>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        by: Option<String>,
-    },
-    /// List the canvases.
-    CanvasList,
-    /// One page of a canvas: the first, or the one `page` names (id or name).
-    CanvasShow {
-        canvas: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        page: Option<String>,
-    },
-    /// Apply operations to a canvas, as one undo step.
-    CanvasApply(CanvasOps),
-    /// Undo the last step of `by` on a canvas.
-    CanvasUndo(CanvasStep),
-    /// Redo the last step `by` undid on a canvas.
-    CanvasRedo(CanvasStep),
-    /// Make a new canvas from the tldraw file at `path`, named `canvas` or
-    /// after the file.
-    CanvasImport {
-        path: PathBuf,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        canvas: Option<String>,
-    },
-    /// Open a workspace: the directory `dir`, or one with no root named `name`.
-    WorkspaceOpen {
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        dir: Option<PathBuf>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        name: Option<String>,
-    },
-    /// The open workspaces.
-    WorkspaceList,
-    /// One open workspace, by name or by the directory of its file.
-    WorkspaceShow { workspace: String },
-    /// Close a workspace, by name or by the directory of its file.
-    WorkspaceClose { workspace: String },
-    /// The packet of a canvas page (docs/design/packet.md), stored as a blob
-    /// and written into a directory.
-    CanvasRead(PacketAsk),
-    /// The operations of a canvas numbered above `after`. With `wait`, the
-    /// reply waits up to that many milliseconds for one (docs/service.md).
-    CanvasChanges {
-        canvas: String,
-        #[serde(default)]
-        after: u64,
-        #[serde(default)]
-        wait: u64,
-    },
-    /// Images of what `of` names, an item id or a box (docs/service.md),
-    /// written as the PNG file at `path` or, for tiles, beside it.
-    CanvasCrop { canvas: String, of: String, path: PathBuf },
-    /// The raw points of a stroke, or of every stroke of a cluster.
-    CanvasStrokes { canvas: String, item: String },
-    /// The text items whose words hold `text`, on every page.
-    CanvasFind { canvas: String, text: String },
-    /// The session verbs (`session_list`, `session_show`, `status_set`,
-    /// `session_start`, `session_stop`, `session_send`, `sling_send`, `sling_backdrops`,
-    /// `session_listen`, `file_touched`), by their own `op`s: one variant
-    /// for them all.
-    #[serde(untagged)]
-    Session(SessionAsk),
-    /// The agent's canvas verbs (`canvas_put`, `canvas_edit`,
-    /// `canvas_remove`), by their own `op`s, as the session verbs are.
-    #[serde(untagged)]
-    Agent(AgentAsk),
-    /// The pane verbs (`pane_list`, `pane_open`, `pane_view`, ...), by
-    /// their own `op`s.
-    #[serde(untagged)]
-    Pane(PaneAsk),
-    /// The showing verbs (`ui_open`, `ui_shown`, `ui_reply`), by their own
-    /// `op`s.
-    #[serde(untagged)]
-    Showing(UiAsk),
-    /// The feedback verbs (`feedback_add`, `feedback_list`,
-    /// `feedback_resolve`, `feedback_path`), by their own `op`s.
-    #[serde(untagged)]
-    Feedback(FeedbackAsk),
-    /// The profile verbs (`profile_list`, `profile_set`, `profile_remove`),
-    /// by their own `op`s.
-    #[serde(untagged)]
-    Profile(ProfileAsk),
-    /// The fold verbs (`canvas_fold`, `canvas_unfold`), by their own `op`s.
-    #[serde(untagged)]
-    Fold(FoldAsk),
-    /// The daemon's own verbs (`daemon_info`, `daemon_stop`), by their own
-    /// `op`s.
-    #[serde(untagged)]
-    Daemon(DaemonAsk),
-}
-
-/// A successful answer. One variant per verb, holding that verb's reply type.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(untagged)]
-pub enum Reply {
-    RecordAppend(Appended),
-    RecordList(Events),
-    BlobPut(Stored),
-    BlobGet(Written),
-    UiPut(UiPut),
-    UiList(Uis),
-    UiShow(Uis),
-    UiExport(Exported),
-    CanvasCreate(CanvasInfo),
-    CanvasList(Canvases),
-    CanvasShow(CanvasPage),
-    CanvasApply(CanvasChange),
-    CanvasUndo(CanvasChange),
-    CanvasRedo(CanvasChange),
-    CanvasImport(CanvasImported),
-    WorkspaceOpen(WorkspaceOpened),
-    WorkspaceList(Workspaces),
-    WorkspaceShow(WorkspaceInfo),
-    WorkspaceClose(WorkspaceClosed),
-    CanvasRead(CanvasPacket),
-    CanvasChanges(CanvasFeed),
-    CanvasCrop(CanvasImages),
-    CanvasStrokes(CanvasStrokes),
-    CanvasFind(CanvasFound),
-    SessionList(Sessions),
-    SessionShow(SessionInfo),
-    SessionStart(SessionInfo),
-    SessionStop(SessionInfo),
-    SessionSend(SessionInfo),
-    StatusSet(StatusSet),
-    SlingSend(Slung),
-    SlingBackdrops(Backdrops),
-    SessionListen(Listened),
-    FileTouched(FileTouched),
-    CanvasPut(CanvasPlaced),
-    CanvasEdit(CanvasEdited),
-    CanvasRemove(CanvasRemoved),
-    Pane(PaneLayout),
-    UiOpen(UiOpened),
-    UiShown(UiShown),
-    UiReply(UiReplied),
-    FeedbackAdd(FeedbackAdded),
-    FeedbackList(FeedbackEntries),
-    FeedbackResolve(FeedbackResolution),
-    FeedbackPath(FeedbackFile),
-    Profiles(Profiles),
-    Fold(CanvasEdited),
-    DaemonInfo(DaemonInfo),
-    DaemonStopped(DaemonStopped),
-}
-
-/// An event to append. The daemon sets its number, time and machine tag,
-/// and checks `payload` against `kind`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NewEvent {
-    pub kind: String,
-    /// The program or agent that writes it.
-    pub source: String,
-    #[serde(default)]
-    pub tags: NewTags,
-    #[serde(default = "empty_object")]
-    pub payload: Value,
-}
-
-/// The tags a writer sets. The daemon adds `machine`.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NewTags {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub workspace: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub canvas: Option<String>,
-}
-
-/// Which events to read. Each field set narrows; none set reads them all.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EventFilter {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub machine: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub workspace: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub canvas: Option<String>,
-    /// Only events numbered above this.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub after: Option<u64>,
-}
-
-/// The reply to [`Request::RecordAppend`]: the event as stored, in the
-/// record's event format.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Appended {
-    pub event: Value,
-}
-
-/// The reply to [`Request::RecordList`]: the events, lowest number first.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Events {
-    pub events: Vec<Value>,
-}
-
-/// The reply to [`Request::BlobPut`]: the blob's id, `sha256:<hex>`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Stored {
-    pub id: String,
-}
-
-/// The reply to [`Request::BlobGet`]: how many bytes were written.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Written {
-    pub size: u64,
-}
-
-/// One version of an agent UI, as the record holds it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Ui {
-    pub name: String,
-    pub version: u64,
-    /// The code's blob id.
-    pub hash: String,
-    /// The code's size.
-    pub bytes: u64,
-    /// Who put it.
-    pub source: String,
-    /// When, in milliseconds since the Unix epoch, UTC.
-    pub time: u64,
-}
-
-/// The reply to [`Request::UiPut`]: the version that holds the bytes, and
-/// whether this put made it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct UiPut {
-    pub ui: Ui,
-    pub new: bool,
-}
-
-/// The reply to [`Request::UiList`] and [`Request::UiShow`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Uis {
-    pub uis: Vec<Ui>,
-}
-
-/// The reply to [`Request::UiExport`]: the version written and its file.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Exported {
-    pub ui: Ui,
-    pub path: PathBuf,
-}
-
-/// Operations to apply to a canvas (docs/service.md, "Canvas operations").
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CanvasOps {
-    pub canvas: String,
-    /// Who asks: `user` or `agent:<name>`.
-    #[serde(default = "user")]
-    pub by: String,
-    /// One operation object, or a list of them.
-    pub ops: Value,
-    /// A key the caller makes unique: sent again under it, the operations
-    /// are not applied twice (docs/service.md, "Canvas operations").
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub once: Option<String>,
-}
-
-/// Who takes an undo or redo step on which canvas.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CanvasStep {
-    pub canvas: String,
-    /// `user` or `agent:<name>`.
-    #[serde(default = "user")]
-    pub by: String,
-}
-
-/// One canvas, as listed. The reply to [`Request::CanvasCreate`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CanvasInfo {
-    pub canvas: String,
-}
-
-/// The reply to [`Request::CanvasList`]: the canvases, by id.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Canvases {
-    pub canvases: Vec<CanvasInfo>,
-}
-
-/// The reply to [`Request::CanvasShow`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CanvasPage {
-    pub canvas: String,
-    /// The sequence number the canvas's next operation gets.
-    pub next: u64,
-    /// The id of the page shown.
-    pub page: String,
-    /// Every page, in order: `{"id", "name"}`.
-    pub pages: Vec<Value>,
-    /// The page's items in drawing order, as the canvas file writes them.
-    pub items: Vec<Value>,
-    /// The absolute path of the canvas's file; none from a daemon older
-    /// than the field.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub path: Option<String>,
-}
-
-/// What a change to a canvas wrote: the reply to apply, undo and redo.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CanvasChange {
-    /// The sequence number of each operation written, in order.
-    pub seq: Vec<u64>,
-    /// The ids of the items and pages it made, in order. A reply without
-    /// them (a fold's) made none.
-    #[serde(default)]
-    pub made: Vec<String>,
-}
-
-fn user() -> String {
-    "user".into()
-}
-
-fn empty_object() -> Value {
-    Value::Object(serde_json::Map::new())
-}
 
 /// A failure as it crosses the socket: the core's error, or one of the
 /// protocol's own (`bad_request`, `too_large`, `unsupported_version`,

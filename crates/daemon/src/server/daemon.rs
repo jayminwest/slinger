@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use slinger_control::{self as control, DaemonAsk, DaemonInfo, DaemonStopped, RemoteError, Reply};
+use slinger_control::{self as control, DaemonInfo, DaemonStopped, RemoteError};
 
 use crate::server::Stopper;
 use crate::store::Store;
@@ -30,28 +30,24 @@ impl Here {
     }
 }
 
-pub(super) fn answer(store: &Store, here: &Here, ask: DaemonAsk) -> Result<Reply, RemoteError> {
+pub(super) fn stop(store: &Store, here: &Here) -> Result<DaemonStopped, RemoteError> {
     let pid = std::process::id();
-    match ask {
-        DaemonAsk::DaemonInfo => Ok(Reply::DaemonInfo(info(store, here, pid))),
-        DaemonAsk::DaemonStop => {
-            // The mark first: a stop that cannot leave it does not happen,
-            // so a launcher never takes a deliberate stop for a crash.
-            let mark = control::stop_mark(store.dir());
-            fs::write(&mark, format!("{pid}\n")).map_err(|e| {
-                let what = format!("cannot write {}: {e}", mark.display());
-                let hint = "check that slingerd's user can write its data directory".into();
-                RemoteError::new("internal", what, Some(hint))
-            })?;
-            // The reply still goes out: the server serves every connection
-            // it took before it ends.
-            here.stopper.stop();
-            Ok(Reply::DaemonStopped(DaemonStopped { pid }))
-        }
-    }
+    // The mark first: a stop that cannot leave it does not happen, so a
+    // launcher never takes a deliberate stop for a crash.
+    let mark = control::stop_mark(store.dir());
+    fs::write(&mark, format!("{pid}\n")).map_err(|e| {
+        let what = format!("cannot write {}: {e}", mark.display());
+        let hint = "check that slingerd's user can write its data directory".into();
+        RemoteError::new("internal", what, Some(hint))
+    })?;
+    // The reply still goes out: the server serves every connection it took
+    // before it ends.
+    here.stopper.stop();
+    Ok(DaemonStopped { pid })
 }
 
-fn info(store: &Store, here: &Here, pid: u32) -> DaemonInfo {
+pub(super) fn info(store: &Store, here: &Here) -> DaemonInfo {
+    let pid = std::process::id();
     let text = |p: &Path| p.to_string_lossy().into_owned();
     let processes = store.sessions().processes();
     let exe = std::env::current_exe().map(|p| text(&p)).unwrap_or_default();

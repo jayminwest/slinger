@@ -4,74 +4,83 @@
 //! workspace. Every reply carries each pane's kept view and the focus
 //! ([`crate::views`]); a change drops the views of the panes it closed.
 
-use slinger_control::{self as control, PaneAsk, PaneKind, RemoteError, Reply};
+use slinger_control::{
+    self as control, PaneCloseAsk, PaneKind, PaneListAsk, PaneOpenAsk, PaneResizeAsk, PaneViewAsk,
+    RemoteError,
+};
 use slinger_core::record::{Body, Event, PaneMoved, Tags};
 use slinger_core::workspace::panes::{Axis, Kind, Layout, Node, Pane};
 use slinger_core::workspace::view::{self, Views};
 
-use super::{catalog, drawn, kept, remote, stored};
+use super::uis::catalog;
+use super::{drawn, kept, remote, stored};
 use crate::store::Store;
 use crate::workspaces::Opened;
 
-pub fn answer(store: &Store, ask: PaneAsk) -> Result<Reply, RemoteError> {
+type Reply = Result<control::PaneLayout, RemoteError>;
+
+pub(super) fn list(store: &Store, PaneListAsk { workspace }: PaneListAsk) -> Reply {
+    let (opened, layout, ()) =
+        store.workspaces().panes(&workspace, |_| Ok(())).map_err(|e| kept(&e))?;
+    Ok(reply(store, &opened, &layout, None, None))
+}
+
+pub(super) fn open(store: &Store, ask: PaneOpenAsk) -> Reply {
+    let PaneOpenAsk { workspace, kind, target, beside, below } = ask;
+    let pane = shown(store, kind, &target)?;
+    let (opened, layout, number, event) = place(store, &workspace, pane, beside, below)?;
+    Ok(reply(store, &opened, &layout, Some(number), Some(event)))
+}
+
+pub(super) fn close(store: &Store, PaneCloseAsk { workspace, pane }: PaneCloseAsk) -> Reply {
+    let (opened, layout, moved) = store
+        .workspaces()
+        .panes(&workspace, |layout| Ok(layout.close(pane as usize)))
+        .map_err(|e| kept(&e))?;
+    let event = moved.map(|moved| record(store, &opened, moved)).transpose()?;
+    settle(store, &opened, &layout, None)?;
+    Ok(reply(store, &opened, &layout, None, event))
+}
+
+pub(super) fn resize(store: &Store, ask: PaneResizeAsk) -> Reply {
+    let PaneResizeAsk { workspace, pane, ratio } = ask;
+    let (opened, layout, moved) = store
+        .workspaces()
+        .panes(&workspace, |layout| Ok(layout.resize(pane as usize, ratio)))
+        .map_err(|e| kept(&e))?;
+    let event = moved.map(|moved| record(store, &opened, moved)).transpose()?;
+    settle(store, &opened, &layout, None)?;
+    Ok(reply(store, &opened, &layout, None, event))
+}
+
+pub(super) fn view(store: &Store, PaneViewAsk { workspace, views, focus }: PaneViewAsk) -> Reply {
     let workspaces = store.workspaces();
-    match ask {
-        PaneAsk::PaneList { workspace } => {
-            let (opened, layout, ()) =
-                workspaces.panes(&workspace, |_| Ok(())).map_err(|e| kept(&e))?;
-            Ok(reply(store, &opened, &layout, None, None))
-        }
-        PaneAsk::PaneOpen { workspace, kind, target, beside, below } => {
-            let pane = shown(store, kind, &target)?;
-            let (opened, layout, number, event) = open(store, &workspace, pane, beside, below)?;
-            Ok(reply(store, &opened, &layout, Some(number), Some(event)))
-        }
-        PaneAsk::PaneClose { workspace, pane } => {
-            let (opened, layout, moved) = workspaces
-                .panes(&workspace, |layout| Ok(layout.close(pane as usize)))
-                .map_err(|e| kept(&e))?;
-            let event = moved.map(|moved| record(store, &opened, moved)).transpose()?;
-            settle(store, &opened, &layout, None)?;
-            Ok(reply(store, &opened, &layout, None, event))
-        }
-        PaneAsk::PaneResize { workspace, pane, ratio } => {
-            let (opened, layout, moved) = workspaces
-                .panes(&workspace, |layout| Ok(layout.resize(pane as usize, ratio)))
-                .map_err(|e| kept(&e))?;
-            let event = moved.map(|moved| record(store, &opened, moved)).transpose()?;
-            settle(store, &opened, &layout, None)?;
-            Ok(reply(store, &opened, &layout, None, event))
-        }
-        PaneAsk::PaneView { workspace, views, focus } => {
-            let (opened, layout, ()) =
-                workspaces.panes(&workspace, |_| Ok(())).map_err(|e| kept(&e))?;
-            let canvases = layout.panes().into_iter().filter(|p| p.kind == Kind::Canvas);
-            let shown: Vec<_> = canvases.map(|p| (p.id, p.target.clone())).collect();
-            let ids = ids(&layout);
-            let (_, ()) = workspaces
-                .views()
-                .change(&opened.dir, |kept| {
-                    kept.keep(&ids);
-                    for control::PaneViewed { id, view } in views {
-                        let view = view::PaneView {
-                            canvas: view.canvas,
-                            page: view.page,
-                            x: view.x,
-                            y: view.y,
-                            zoom: view.zoom,
-                        };
-                        view.check()?;
-                        if shown.iter().any(|(at, canvas)| *at == id && *canvas == view.canvas) {
-                            kept.set(id, view)?;
-                        }
-                    }
-                    kept.focus = focus.filter(|f| ids.contains(f)).or(kept.focus);
-                    Ok(())
-                })
-                .map_err(|e| kept(&e))?;
-            Ok(reply(store, &opened, &layout, None, None))
-        }
-    }
+    let (opened, layout, ()) = workspaces.panes(&workspace, |_| Ok(())).map_err(|e| kept(&e))?;
+    let canvases = layout.panes().into_iter().filter(|p| p.kind == Kind::Canvas);
+    let shown: Vec<_> = canvases.map(|p| (p.id, p.target.clone())).collect();
+    let ids = ids(&layout);
+    let (_, ()) = workspaces
+        .views()
+        .change(&opened.dir, |kept| {
+            kept.keep(&ids);
+            for control::PaneViewed { id, view } in views {
+                let view = view::PaneView {
+                    canvas: view.canvas,
+                    page: view.page,
+                    x: view.x,
+                    y: view.y,
+                    zoom: view.zoom,
+                };
+                view.check()?;
+                if shown.iter().any(|(at, canvas)| *at == id && *canvas == view.canvas) {
+                    kept.set(id, view)?;
+                }
+            }
+            kept.focus = focus.filter(|f| ids.contains(f)).or(kept.focus);
+            Ok(())
+        })
+        .map_err(|e| kept(&e))?;
+    Ok(reply(store, &opened, &layout, None, None))
 }
 
 /// Drops the kept views of the panes `layout` no longer holds and, with
@@ -102,7 +111,7 @@ fn ids(layout: &Layout) -> Vec<u32> {
 /// or below it with `below`) or beside the whole window, and appends its
 /// `pane_moved`. Returns the workspace, its layout now, the new pane's number
 /// and the event's.
-pub fn open(
+pub(super) fn place(
     store: &Store,
     workspace: &str,
     pane: Pane,
@@ -161,18 +170,12 @@ fn reply(
     layout: &Layout,
     pane: Option<u32>,
     event: Option<u64>,
-) -> Reply {
+) -> control::PaneLayout {
     let views = store.workspaces().views().of(&opened.dir);
     let focus = views.focus.filter(|f| ids(layout).contains(f));
     let mut number = 0;
     let layout = wire(layout.root(), &mut number, &views);
-    Reply::Pane(control::PaneLayout {
-        workspace: opened.workspace.name.clone(),
-        layout,
-        pane,
-        event,
-        focus,
-    })
+    control::PaneLayout { workspace: opened.workspace.name.clone(), layout, pane, event, focus }
 }
 
 /// The tree as it crosses the socket, each pane with its number, its id and

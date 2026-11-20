@@ -2,41 +2,37 @@
 //! and `feedback_path`, their requests, replies and client methods
 //! (docs/service.md, "Feedback"). The app adds a note with what it shows;
 //! the CLI adds, lists and resolves them.
-//!
-//! [`crate::Request`] carries them as one variant, [`FeedbackAsk`].
 
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Client, RemoteError, Request};
+use crate::{Client, RemoteError};
 
-/// A feedback request, as a client writes it and the daemon reads it.
+/// `feedback_list`: the newest notes, newest first: the open ones, or `all`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "op", rename_all = "snake_case")]
-pub enum FeedbackAsk {
-    /// Save a note, with what the app shows.
-    FeedbackAdd(FeedbackNote),
-    /// The newest notes, newest first: the open ones, or `all`.
-    FeedbackList {
-        #[serde(default, skip_serializing_if = "is_false")]
-        all: bool,
-        /// At most this many; every one when absent.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        limit: Option<u64>,
-    },
-    /// Resolve the note saved at `ts`, with a note of how.
-    FeedbackResolve {
-        ts: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        note: Option<String>,
-    },
-    /// The file the notes go to.
-    FeedbackPath,
+pub struct FeedbackListAsk {
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub all: bool,
+    /// At most this many; every one when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
 }
 
-/// A note to save, and what the app showed when it was left. Each context
-/// field is optional; the CLI sends none.
+/// `feedback_resolve`: resolve the note saved at `ts`, with a note of how.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FeedbackResolveAsk {
+    pub ts: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// `feedback_path`: the file the notes go to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FeedbackPathAsk {}
+
+/// `feedback_add`: a note to save, and what the app showed when it was
+/// left. Each context field is optional; the CLI sends none.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FeedbackNote {
     pub text: String,
@@ -83,14 +79,14 @@ pub struct FeedbackResolved {
     pub note: Option<String>,
 }
 
-/// The reply to [`FeedbackAsk::FeedbackAdd`]: the file and the note saved.
+/// The reply to `feedback_add`: the file and the note saved.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FeedbackAdded {
     pub path: PathBuf,
     pub entry: FeedbackEntry,
 }
 
-/// The reply to [`FeedbackAsk::FeedbackList`]: the file and its notes,
+/// The reply to `feedback_list`: the file and its notes,
 /// newest first.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FeedbackEntries {
@@ -98,7 +94,7 @@ pub struct FeedbackEntries {
     pub entries: Vec<FeedbackEntry>,
 }
 
-/// The reply to [`FeedbackAsk::FeedbackResolve`]: the line appended.
+/// The reply to `feedback_resolve`: the line appended.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FeedbackResolution {
     pub path: PathBuf,
@@ -109,7 +105,7 @@ pub struct FeedbackResolution {
     pub note: Option<String>,
 }
 
-/// The reply to [`FeedbackAsk::FeedbackPath`].
+/// The reply to `feedback_path`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FeedbackFile {
     pub path: PathBuf,
@@ -123,7 +119,7 @@ impl Client {
     /// `invalid` for blank text or a file the daemon cannot write, and
     /// `unavailable` when the daemon does not answer.
     pub fn feedback_add(&self, note: FeedbackNote) -> Result<FeedbackAdded, RemoteError> {
-        self.call(&Request::Feedback(FeedbackAsk::FeedbackAdd(note)))
+        self.call(note)
     }
 
     /// The newest `limit` notes (every one when `None`), newest first: the
@@ -138,7 +134,7 @@ impl Client {
         all: bool,
         limit: Option<u64>,
     ) -> Result<FeedbackEntries, RemoteError> {
-        self.call(&Request::Feedback(FeedbackAsk::FeedbackList { all, limit }))
+        self.call(FeedbackListAsk { all, limit })
     }
 
     /// Resolves the note saved at `ts`, with `note`.
@@ -152,7 +148,7 @@ impl Client {
         ts: &str,
         note: Option<String>,
     ) -> Result<FeedbackResolution, RemoteError> {
-        self.call(&Request::Feedback(FeedbackAsk::FeedbackResolve { ts: ts.into(), note }))
+        self.call(FeedbackResolveAsk { ts: ts.into(), note })
     }
 
     /// The file the notes go to.
@@ -161,8 +157,7 @@ impl Client {
     ///
     /// `unavailable` when the daemon does not answer.
     pub fn feedback_path(&self) -> Result<PathBuf, RemoteError> {
-        let reply: FeedbackFile = self.call(&Request::Feedback(FeedbackAsk::FeedbackPath))?;
-        Ok(reply.path)
+        Ok(self.call(FeedbackPathAsk {})?.path)
     }
 }
 
@@ -190,26 +185,29 @@ mod tests {
         };
         for (ask, line) in [
             (
-                FeedbackAsk::FeedbackAdd(note),
+                Request::FeedbackAdd(note),
                 r#"{"v":1,"op":"feedback_add","text":"slow","canvas":"idea","selected":2}"#,
             ),
             (
-                FeedbackAsk::FeedbackList { all: false, limit: None },
+                Request::FeedbackList(FeedbackListAsk { all: false, limit: None }),
                 r#"{"v":1,"op":"feedback_list"}"#,
             ),
             (
-                FeedbackAsk::FeedbackList { all: true, limit: Some(5) },
+                Request::FeedbackList(FeedbackListAsk { all: true, limit: Some(5) }),
                 r#"{"v":1,"op":"feedback_list","all":true,"limit":5}"#,
             ),
             (
-                FeedbackAsk::FeedbackResolve { ts: "t".into(), note: Some("slinger-1".into()) },
+                Request::FeedbackResolve(FeedbackResolveAsk {
+                    ts: "t".into(),
+                    note: Some("slinger-1".into()),
+                }),
                 r#"{"v":1,"op":"feedback_resolve","ts":"t","note":"slinger-1"}"#,
             ),
-            (FeedbackAsk::FeedbackPath, r#"{"v":1,"op":"feedback_path"}"#),
+            (Request::FeedbackPath(FeedbackPathAsk {}), r#"{"v":1,"op":"feedback_path"}"#),
         ] {
-            assert_eq!(request_line(&Request::Feedback(ask.clone())).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
-            assert_eq!(read, Some(Request::Feedback(ask)), "{line}");
+            assert_eq!(read, Some(ask), "{line}");
         }
         let err = crate::read_request(&mut r#"{"v":1,"op":"feedback_add"}"#.as_bytes());
         assert_eq!(err.unwrap_err().code(), "bad_request");
