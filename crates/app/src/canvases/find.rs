@@ -4,7 +4,7 @@
 
 use std::borrow::Cow;
 
-use super::{Canvases, Open, View};
+use super::{Open, View};
 use crate::layout::{PaneId, Point, Rect, Viewport};
 use crate::mirror::Mirror;
 use crate::panes::{Kind, Panes};
@@ -61,22 +61,4 @@ pub(super) fn wanted<'a>(
 pub(super) fn canvas_of(panes: &Panes, pane: PaneId) -> Option<&str> {
     let shown = panes.shows(pane);
     (shown.kind == Kind::Canvas).then_some(shown.name.as_str())
-}
-
-impl Canvases {
-    /// Clears the selection when no pane in `shown` (each a canvas and the
-    /// page it asked for) shows its page. A pane whose first page has not
-    /// arrived may show it.
-    pub(super) fn clear_hidden_selection(&mut self, shown: &[(&str, Option<String>)]) {
-        let Some(s) = self.select.selection() else { return };
-        let maybe = shown.iter().any(|(canvas, asked)| {
-            let open =
-                find(self.follow.open(), canvas, asked.as_deref()).and_then(|o| o.mirror.as_ref());
-            let page = asked.as_deref().or(open.map(Mirror::page));
-            *canvas == s.canvas && page.is_none_or(|p| p == s.page)
-        });
-        if !maybe {
-            self.select.clear();
-        }
-    }
 }

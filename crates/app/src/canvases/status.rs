@@ -23,8 +23,7 @@ impl Canvases {
     /// the text tool places starts at the size, which the footers show
     /// while the text tool is chosen.
     pub fn set_pen(&mut self, tools: &Tools) {
-        self.ink.set_width(tools.width().points());
-        self.shapes.set_size(f64::from(tools.size()));
+        self.editing.set_pen(tools);
     }
 
     /// The footer of each pane of `panes` laid in `area`, in `theme`'s
@@ -65,7 +64,7 @@ impl Canvases {
             }
             let page = self.pages_of(panes, id);
             let typing = page.as_ref().is_some_and(|(canvas, _, at)| {
-                self.shapes.typing_on() == Some((canvas.as_str(), at.as_str()))
+                self.editing.typing_on() == Some((canvas.as_str(), at.as_str()))
             });
             let selected = self.selection().filter(|_| self.shows_selection(panes, id));
             let state = match selected {
@@ -79,17 +78,12 @@ impl Canvases {
             let out = !trail.is_empty();
             let centre = page.map(|(_, list, at)| pages::line(&list, &at) + &trail);
             let centre = centre.unwrap_or_default();
-            let zoom = self.follow.views().iter().find(|(p, _)| *p == id).map(|(_, v)| v.viewport);
+            let zoom = self.follow.view_of(id).map(|v| v.viewport);
             let agent = self.flow.agent_of(&pane.name);
             let (label, profiles) = agent.map(|a| (a.label(), !a.profiles.is_empty())).unzip();
+            let (width, size) = self.editing.pen_sizes();
             let shows = Shows {
-                pen: Some(Pen {
-                    tool,
-                    colour,
-                    width: self.ink.width(),
-                    size: self.shapes.size(),
-                    state,
-                }),
+                pen: Some(Pen { tool, colour, width, size, state }),
                 centre: &centre,
                 pages: !centre.is_empty(),
                 out,
@@ -140,8 +134,8 @@ impl Canvases {
     /// ([`title::saved`]): every change is written as it is made.
     pub(super) fn saved(&self, panes: &Panes, pane: PaneId, home: Option<&Path>) -> String {
         let file = self.file(panes, pane);
-        let settled = file.is_none_or(|(canvas, _)| self.ink.settled(canvas));
-        let problem = self.ink.problem().map(|p| p.message.as_str());
+        let settled = file.is_none_or(|(canvas, _)| self.editing.settled(canvas));
+        let problem = self.editing.problem().map(|p| p.message.as_str());
         title::saved(file, settled, problem, home)
     }
 
@@ -149,7 +143,7 @@ impl Canvases {
     /// ([`crate::scene::daemon`]), a `save` that waits on it says why.
     pub fn unsaved_while(&mut self, command: Command, daemon: Option<&Daemon>) {
         if command == Command::Save
-            && self.ink.problem().is_some()
+            && self.editing.problem().is_some()
             && let (Some(said), Some(daemon)) = (&mut self.zoomed, daemon)
         {
             *said = title::unsaved(daemon.unsaved());

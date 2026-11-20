@@ -43,7 +43,7 @@ impl Canvases {
         };
         let inside = self.follow.sling_box(panes.focus(), &selection);
         let opened = self.flow.open((&selection, inside), around, within);
-        if opened && self.shapes.end(&mut self.ink) {
+        if opened && self.editing.end_text() {
             self.send();
         }
         opened
@@ -118,7 +118,7 @@ impl Canvases {
             self.flow.entry_closed();
             return true;
         }
-        self.flow.sling_key(chord, self.follow.open(), &self.ink)
+        self.flow.sling_key(chord, self.follow.open(), self.editing.ink())
     }
 
     /// The entry's text is now `text`. Nothing more to draw (false): the
@@ -152,7 +152,7 @@ impl Canvases {
     /// of its canvas is in the daemon. Returns whether anything shown
     /// changed.
     pub(super) fn poll_sling(&mut self) -> bool {
-        self.flow.poll(self.follow.open(), &self.ink)
+        self.flow.poll(self.follow.open(), self.editing.ink())
     }
 
     /// The selection, when the focused pane of `panes` laid in `area` shows
@@ -166,9 +166,10 @@ impl Canvases {
         let placed = panes.place(area).into_iter().find(|(id, _, _)| *id == pane);
         let frame =
             crate::scene::status::content(placed.filter(|_| self.shows_selection(panes, pane))?.2);
-        let bounds = self.select.bounds(&self.follow.pane_shown(&self.ink, panes, pane))?;
-        let view = self.follow.views().iter().find(|(p, _)| *p == pane);
-        let on = view.map_or_else(Viewport::start, |(_, v)| v.viewport).rect_to_screen(bounds);
+        let shown = self.follow.pane_shown(self.editing.ink(), panes, pane);
+        let bounds = self.editing.selection_bounds(&shown)?;
+        let view = self.follow.view_of(pane);
+        let on = view.map_or_else(Viewport::start, |v| v.viewport).rect_to_screen(bounds);
         Some((selection, Rect { x: on.x + frame.x, y: on.y + frame.y, ..on }, frame))
     }
 }

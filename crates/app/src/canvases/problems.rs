@@ -23,13 +23,12 @@ impl Canvases {
     pub fn asking<'a>(&'a self, layout: Option<&'a Problem>) -> impl Iterator<Item = &'a Problem> {
         let open = self.follow.problems();
         let open = open.filter(move |_| layout.is_none());
-        layout.into_iter().chain(open).chain(self.ink.problem())
+        layout.into_iter().chain(open).chain(self.editing.problem())
     }
 
     /// What went wrong in the app itself: keeping the unsent ink in its
     /// file, or reading a PDF.
     pub fn own_problems(&self) -> impl Iterator<Item = &Problem> {
-        let kept = self.kept.as_ref().and_then(super::kept::Kept::problem);
-        kept.into_iter().chain(self.follow.pdf_problem())
+        self.editing.kept_problem().into_iter().chain(self.follow.pdf_problem())
     }
 }

@@ -158,7 +158,7 @@ impl Canvases {
             _ => None,
         });
         let Some(frame) = frame else { return };
-        self.select.clear();
+        self.editing.deselect();
         let view = self.view(pane);
         let here = (target.canvas, target.page);
         if view.trail.here.as_ref() != Some(&here) {

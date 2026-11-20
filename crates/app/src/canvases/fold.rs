@@ -20,10 +20,9 @@ use std::borrow::Cow;
 use super::Canvases;
 use crate::commands::Chord;
 use crate::config::Theme;
-use crate::layout::{PaneId, Point, Rect};
+use crate::layout::{Point, Rect};
 use crate::mirror::{LINE_WIDTH, Mirror};
 use crate::scene::canvas::{Fill, Item, ItemId, Shape};
-use crate::scene::ink::Change;
 
 /// The draw ids of fold marks: this plus the box's id. Above every item's
 /// id, below the ink's own ([`crate::scene::ink::PENDING`]).
@@ -37,44 +36,9 @@ const MARK_SIZE: f64 = 12.0;
 const CORNER: f64 = 4.5;
 
 impl Canvases {
-    /// Folds each box of the selection on `page` of `canvas`, or unfolds it
-    /// when folded, each one undo step; an unfold whose room is taken peeks
-    /// in `pane`. False when the selection holds no box shown there.
-    pub(super) fn fold_selection(&mut self, pane: PaneId, here: (&str, &str)) -> bool {
-        let Some(s) = self.select.selection().filter(|s| (&*s.canvas, &*s.page) == here) else {
-            return false;
-        };
-        let Some(mirror) = self.follow.mirror(here.0, here.1) else { return false };
-        let boxes: Vec<(ItemId, bool)> =
-            s.ids.iter().filter_map(|&id| Some((id, mirror.box_folded(id)?))).collect();
-        self.fold_boxes(pane, here, &boxes)
-    }
-
-    /// Folds each box of `boxes` on `page` of `canvas`, or unfolds it when
-    /// it says so, each one undo step. False for none.
-    pub(super) fn fold_boxes(
-        &mut self,
-        pane: PaneId,
-        here: (&str, &str),
-        boxes: &[(ItemId, bool)],
-    ) -> bool {
-        for &(id, open) in boxes {
-            let (canvas, on) = (here.0.to_string(), here.1.to_string());
-            let fold = Change::Fold { canvas: canvas.clone(), page: on.clone(), id, open };
-            let key = self.ink.push_keyed(fold);
-            if open {
-                self.follow.unfolding(key, pane, (canvas, on), id);
-            }
-        }
-        !boxes.is_empty() && {
-            self.send();
-            true
-        }
-    }
-
     /// The box whose fold mark a press at `at` on `page` of `canvas`, at
     /// `zoom`, is on, of `items` (the page as shown), and whether it is
-    /// folded: the press folds or unfolds it ([`Canvases::fold_boxes`]).
+    /// folded: the press folds or unfolds it.
     /// `None`, and the press goes on, when it is on none.
     pub(super) fn mark_under(
         &self,

@@ -107,7 +107,7 @@ fn ink_not_yet_written_is_selected_moved_and_erased_each_in_one_step() {
         let _home = open_notes(daemon);
         let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
         wait_until(|| shown(&mut canvases, &panes) == 1);
-        canvases.outbox.reconnect(Client::new("/nonexistent/x.sock"));
+        canvases.editing.outbox().reconnect(Client::new("/nonexistent/x.sock"));
         gesture(&mut canvases, &panes, Tool::Pen, &[(100.0, 100.0), (110.0, 110.0)], 10.0);
         gesture(&mut canvases, &panes, Tool::Pen, &[(300.0, 100.0), (310.0, 110.0)], 12.0);
         let around = [(80.0, 80.0), (130.0, 80.0), (130.0, 130.0), (80.0, 130.0), (80.0, 81.0)];
@@ -117,10 +117,10 @@ fn ink_not_yet_written_is_selected_moved_and_erased_each_in_one_step() {
         gesture(&mut canvases, &panes, Tool::Eraser, &[(290.0, 90.0), (320.0, 120.0)], 18.0);
         assert_eq!(held(daemon), Vec::<String>::new(), "nothing written yet");
 
-        canvases.outbox.reconnect(daemon.clone());
+        canvases.editing.outbox().reconnect(daemon.clone());
         wait_until(|| {
             shown(&mut canvases, &panes);
-            canvases.ink.settled("notes") && count(daemon, "stroke") == 1
+            canvases.editing.ink().settled("notes") && count(daemon, "stroke") == 1
         });
         let ids = canvases.selection().map(|s| s.ids.clone());
         assert_eq!(

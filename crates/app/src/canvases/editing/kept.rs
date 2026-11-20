@@ -1,0 +1,77 @@
+//! The pen's changes not yet written, kept on disk (slinger-e76db0,
+//! slinger-e7fc87): made while the daemon is down, a stroke, an erase, a
+//! move, a put, an edit or a page's change survives the app quitting and is
+//! sent after the next start, in the order made, ahead of anything made
+//! then, under the key it was applied once under, so one that was on its
+//! way is not written twice. A kept change that names an item another kept
+//! change adds still names it after the start ([`Ink::resume`]). The file
+//! follows the ink each time the changes waiting change; an undo or a redo
+//! is not kept ([`Ink::unsent`]). A pane waiting for a page kept to be
+//! added turns to it once it is, after the start too (slinger-857848): the
+//! pane by the server's id, which stays while it is open (a file an older
+//! build wrote names it by its place: at worst that pane does not turn).
+//!
+//! [`Ink::resume`]: crate::scene::ink::Ink::resume
+//! [`Ink::unsent`]: crate::scene::ink::Ink::unsent
+
+use super::Editing;
+use crate::backend::{Problem, Unsent};
+use crate::canvases::follow::Follow;
+use crate::layout::PaneId;
+use crate::scene::ink::Change;
+
+/// The file, which changes it holds (by the ink's keys, as they were
+/// saved), and why it could not be read or written, if it could not.
+pub(in crate::canvases) struct Kept {
+    file: Unsent,
+    saved: Vec<(u64, Change)>,
+    problem: Option<Problem>,
+}
+
+impl Kept {
+    pub(in crate::canvases) fn problem(&self) -> Option<&Problem> {
+        self.problem.as_ref()
+    }
+}
+
+impl Editing {
+    /// Keeps the changes not yet written in `file` from now on, and first
+    /// queues the changes it kept, to be sent before any made from now on;
+    /// a pane of `follow` waiting for a page kept to be added turns to it
+    /// once it is. The file is this app's alone while it runs
+    /// ([`Unsent::claim`]).
+    pub(in crate::canvases) fn keeping(&mut self, mut file: Unsent, follow: &mut Follow) {
+        let ((changes, turning), problem) = match file.claim() {
+            Ok(kept) => (kept, None),
+            Err(problem) => ((Vec::new(), Vec::new()), Some(problem)),
+        };
+        let keys = self.ink.resume(changes);
+        for (old, pane) in turning {
+            let Some(&key) = keys.get(&old) else { continue };
+            let Some((_, change)) = self.ink.unsent().find(|(k, _)| *k == key) else { continue };
+            let canvas = change.canvas().to_string();
+            follow.turn_when(key, PaneId::numbered(pane), canvas);
+        }
+        // Saved again under this run's keys at the first poll.
+        self.kept = Some(Kept { file, saved: Vec::new(), problem });
+    }
+
+    /// The file the changes not yet written are kept in, if any.
+    #[cfg(test)]
+    pub(in crate::canvases) fn kept(&self) -> Option<&Kept> {
+        self.kept.as_ref()
+    }
+
+    /// Writes the changes not yet written to the file, if they changed: a
+    /// change made, written or dropped, or one renamed to the ids the
+    /// daemon made; with the panes of `follow` waiting for a new page.
+    pub(super) fn keep(&mut self, follow: &Follow) {
+        let Some(kept) = &mut self.kept else { return };
+        if self.ink.unsent().eq(kept.saved.iter().map(|(key, change)| (*key, change))) {
+            return;
+        }
+        let turning = follow.turnings();
+        kept.problem = kept.file.save(&self.ink.kept(), &turning).err();
+        kept.saved = self.ink.unsent().map(|(key, change)| (key, change.clone())).collect();
+    }
+}

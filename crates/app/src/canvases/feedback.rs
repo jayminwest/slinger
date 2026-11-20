@@ -44,7 +44,7 @@ impl Canvases {
         if !self.flow.open_feedback(frame, context) {
             return false;
         }
-        if self.shapes.end(&mut self.ink) {
+        if self.editing.end_text() {
             self.send();
         }
         if self.flow.cancel_sling() | self.asks.cancel_entry() {

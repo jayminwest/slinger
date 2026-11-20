@@ -6,13 +6,12 @@
 //! selected texts ([`Canvases::resize`]). Select all, next and previous
 //! item, nudge, duplicate and fold act on the focused pane's page ([`Keyed`]).
 
-use super::{Canvases, canvas_of, find, wanted};
+use super::Canvases;
 use crate::commands::{CMD, Chord, Command, Keymap};
 use crate::config::Rgb;
-use crate::layout::{PaneId, Point, Rect, Size};
-use crate::mirror::Mirror;
+use crate::layout::{PaneId, Rect};
 use crate::panes::Panes;
-use crate::scene::select::{Keyed, Selection, into_view};
+use crate::scene::select::{Keyed, Selection};
 use crate::scene::sling::edits;
 use crate::scene::tools::Resize;
 
@@ -20,7 +19,7 @@ impl Canvases {
     /// Whether a text is being typed, or a page command asks: the keys
     /// that type go to it.
     pub fn editing(&self) -> bool {
-        self.shapes.editing() || self.asks.asking()
+        self.editing.text_open() || self.asks.asking()
     }
 
     /// Whether a key no command took is a text's: while the entry is open,
@@ -33,7 +32,7 @@ impl Canvases {
         let bound = keys.command(chord);
         let field = bound.is_none() || bound != Some(Command::Dictate) && edits(chord);
         let sizes = matches!(bound, Some(Command::SizeUp | Command::SizeDown));
-        let types = chord.types() && !(sizes && self.shapes.editing());
+        let types = chord.types() && !(sizes && self.editing.text_open());
         self.typing() && field || self.editing() && types
     }
 
@@ -52,11 +51,7 @@ impl Canvases {
             self.seek_sought();
             return true;
         }
-        let used = self.shapes.typed(text, &mut self.ink);
-        if used {
-            self.send();
-        }
-        used
+        self.editing.typed(&mut self.follow, text)
     }
 
     /// A key of the text being typed: its caret, selection and delete keys
@@ -64,11 +59,7 @@ impl Canvases {
     /// no canvas text is being typed (or the sling's entry, or a page
     /// command's question, has the keys), or the key is not one of them.
     pub fn edit_key(&mut self, chord: Chord) -> bool {
-        let used = !self.typing() && !self.asks.asking() && self.shapes.key(chord);
-        if used {
-            self.send();
-        }
-        used
+        !self.typing() && !self.asks.asking() && self.editing.key(&mut self.follow, chord)
     }
 
     /// Selects every character of the text being typed. False when none
@@ -80,125 +71,52 @@ impl Canvases {
     /// Pasted `text` goes where typed text goes, as text, not keys. False
     /// when nothing takes it (the sling's entry pastes for itself).
     pub fn pasted(&mut self, text: &str) -> bool {
-        !self.typing() && (self.asks.pasted(text) || self.shapes.pasted(text))
+        !self.typing() && (self.asks.pasted(text) || self.editing.pasted(text))
     }
 
     /// The selection, if any: one page's items, by the server's ids.
     pub fn selection(&self) -> Option<&Selection> {
-        self.select.selection()
+        self.editing.selection()
     }
 
     /// Whether `pane` of `panes` shows the selection's page.
     pub fn shows_selection(&self, panes: &Panes, pane: PaneId) -> bool {
-        let Some(s) = self.selection() else { return false };
-        let asked = wanted(self.follow.views(), pane, &s.canvas);
-        let open = find(self.follow.open(), &s.canvas, asked).and_then(|o| o.mirror.as_ref());
-        let showing = asked.or(open.map(Mirror::page));
-        canvas_of(panes, pane) == Some(&s.canvas) && showing == Some(&s.page)
+        self.editing.shows_selection(&self.follow, panes, pane)
     }
 
     /// Removes the selection, in one step, when `pane` of `panes` shows its
     /// page. Returns false when it does not, or there is none.
     pub fn delete_selection(&mut self, panes: &Panes, pane: PaneId) -> bool {
         let shown = self.shows_selection(panes, pane);
-        shown && self.select.delete(&mut self.ink) && {
-            self.send();
-            true
-        }
+        shown && self.editing.delete(&mut self.follow)
     }
 
     /// Makes the selection's strokes, texts, boxes and arrows `colour`, in
     /// one step ([`crate::scene::select::Select::recolour`]). Returns false
     /// when there is no selection, or none of it changes.
     pub fn recolour(&mut self, colour: Rgb) -> bool {
-        let Some(s) = self.select.selection() else { return false };
-        let open = self.follow.mirror(&s.canvas, &s.page);
-        let Some(mirror) = open else { return false };
-        let items = self.ink.shown(&s.canvas, &s.page, mirror.items());
-        self.select.recolour(colour, &items, &mut self.ink) && {
-            self.send();
-            true
-        }
+        self.editing.recolour(&mut self.follow, colour)
     }
 
     /// A size command (`size-up`, `size-down`, a size picked) resizes the
     /// text being typed, else the selected texts, in one step each
     /// ([`Resize`]). False when there is neither: it sets a new text's size.
     pub fn resize(&mut self, resize: Resize) -> bool {
-        if self.shapes.resize(resize) {
-            return true;
-        }
-        let Some(s) = self.select.selection() else { return false };
-        let open = self.follow.mirror(&s.canvas, &s.page);
-        let Some(mirror) = open else { return false };
-        let items = self.ink.shown(&s.canvas, &s.page, mirror.items());
-        let resized = self.select.resize(resize, &items, &mut self.ink);
-        if resized {
-            self.send();
-        }
-        resized
+        self.editing.resize(&mut self.follow, resize)
     }
 
     /// Clears the selection when `pane` of `panes` shows its page.
     /// Returns false when it does not, or there is none.
     pub fn clear_selection(&mut self, panes: &Panes, pane: PaneId) -> bool {
         let shown = self.shows_selection(panes, pane);
-        shown && self.select.clear()
+        shown && self.editing.deselect()
     }
 
     /// Does `keyed` on the page `pane` of `panes` (laid at `frame`) shows:
     /// select all; step to the next or previous item, panning it into
     /// view; nudge or duplicate the selection when the pane shows it.
     /// False, and the key goes on, when there is nothing to act on.
-    pub fn keyed(&mut self, panes: &Panes, (pane, frame): (PaneId, Rect), keyed: Keyed) -> bool {
-        let Some(canvas) = canvas_of(panes, pane) else { return false };
-        let open = self.follow.shown(canvas, pane);
-        let Some(on_page) = open.and_then(|o| o.mirror.as_ref()).map(|m| m.page().to_string())
-        else {
-            return false;
-        };
-        let viewport = self.view(pane).viewport;
-        let shown = self.shows_selection(panes, pane);
-        let items = self.follow.pane_shown(&self.ink, panes, pane);
-        let here = (canvas, on_page.as_str());
-        let zoom = viewport.zoom();
-        match keyed {
-            Keyed::All => self.select.all(here, &items),
-            Keyed::Step(forward) => {
-                let Some(item) = self.select.step(here, &items, forward) else { return false };
-                drop(items);
-                let size = Size { width: frame.width, height: frame.height };
-                if let Some((dx, dy)) = into_view(viewport, size, item) {
-                    self.pan(pane, dx, dy);
-                }
-                true
-            }
-            Keyed::Nudge(dx, dy) => {
-                let by = Point { x: dx / zoom, y: dy / zoom };
-                let moved = shown && self.select.nudge(by, &items, &mut self.ink);
-                drop(items);
-                moved && {
-                    self.send();
-                    true
-                }
-            }
-            Keyed::Duplicate => {
-                let Some(at) = self.select.duplicate_at(&items, zoom).filter(|_| shown) else {
-                    return false;
-                };
-                drop(items);
-                let ink = (canvas, &self.ink);
-                let ids = self.selection().map(|s| s.ids.clone()).unwrap_or_default();
-                let open = self.follow.mirror(canvas, &on_page);
-                let Some(items) = open.and_then(|m| m.copied(ink, &ids)?.items) else {
-                    return false;
-                };
-                self.place(pane, (canvas.to_string(), on_page), &items, at)
-            }
-            Keyed::Fold => {
-                drop(items);
-                shown && self.fold_selection(pane, (canvas, &on_page))
-            }
-        }
+    pub fn keyed(&mut self, panes: &Panes, at: (PaneId, Rect), keyed: Keyed) -> bool {
+        self.editing.keyed(&mut self.follow, panes, at, keyed)
     }
 }

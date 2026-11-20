@@ -34,7 +34,7 @@ impl Canvases {
             self.zoomed = Some(NO_CANVAS.to_string());
             return;
         };
-        self.shapes.end(&mut self.ink);
+        self.editing.end_text();
         self.close_entries();
         let last = self.found.as_ref().filter(|l| l.canvas == canvas).map(|l| l.text.as_str());
         self.asks.find((pane, frame), &canvas, last.unwrap_or_default());
@@ -107,7 +107,7 @@ impl Canvases {
     /// centres the item `id` at `at` in what its footer leaves of it and
     /// selects it alone.
     fn jump(&mut self, pane: PaneId, frame: Rect, place: (&str, &str), (id, at): (ItemId, Rect)) {
-        self.select.only(place, id);
+        self.editing.select_only(place, id);
         let frame = crate::scene::status::content(frame);
         let view = self.view(pane);
         view.page = Some((place.0.to_string(), place.1.to_string()));

@@ -128,9 +128,9 @@ impl Canvases {
         let Some(canvas) = canvas_of(panes, pane) else { return };
         let open = self.follow.shown(canvas, pane);
         let Some(mirror) = open.and_then(|o| o.mirror.as_ref()) else { return };
-        let view = self.follow.views().iter().find(|(p, _)| *p == pane).map(|(_, v)| v);
+        let view = self.follow.view_of(pane);
         let trail = view.map(|v| v.trail.on((canvas, mirror.page()))).unwrap_or_default();
-        let (items, within, _) = step::shown_in(mirror, &self.ink, canvas, &trail);
+        let (items, within, _) = step::shown_in(mirror, self.editing.ink(), canvas, &trail);
         let fit = step::content(&items, within.as_ref());
         drop(items);
         let screen = status::content(frame);
@@ -152,7 +152,7 @@ impl Canvases {
         let Some((canvas, list, _)) = self.pages_of(panes, pane) else { return };
         let op = PageOp::Add { name: pages::new_name(&list) };
         self.asks.changed(&list, &op);
-        let key = self.ink.push_keyed(Change::Page { canvas: canvas.clone(), op });
+        let key = self.editing.push_keyed(Change::Page { canvas: canvas.clone(), op });
         self.follow.turn_when(key, pane, canvas);
         self.send();
     }
@@ -162,7 +162,7 @@ impl Canvases {
     fn rename_page(&mut self, panes: &Panes, (pane, frame): (PaneId, Rect)) {
         let Some((canvas, list, at)) = self.pages_of(panes, pane) else { return };
         let Some(shown) = list.iter().find(|p| p.id == at) else { return };
-        self.shapes.end(&mut self.ink);
+        self.editing.end_text();
         self.close_entries();
         self.asks.rename((pane, frame), &canvas, shown);
         self.send();
@@ -177,7 +177,7 @@ impl Canvases {
             self.asks.kept_last();
             return;
         }
-        let items = self.follow.pane_shown(&self.ink, panes, pane).len();
+        let items = self.follow.pane_shown(self.editing.ink(), panes, pane).len();
         if let Some((canvas, op)) = self.asks.remove(pane, &canvas, shown, items) {
             self.change_pages(canvas, op);
         }
@@ -194,7 +194,7 @@ impl Canvases {
             let next = pages::after_remove(&list, page);
             self.follow.leave(&canvas, page, next.map(str::to_string).as_deref());
         }
-        self.ink.push(Change::Page { canvas, op });
+        self.editing.push(Change::Page { canvas, op });
         self.send();
     }
 
@@ -203,14 +203,14 @@ impl Canvases {
     /// is typed its own edits come first (slinger-304496); with none left,
     /// it ends, so it is a step too.
     fn step(&mut self, panes: &Panes, pane: PaneId, redo: bool) {
-        if self.shapes.undo(redo) {
+        if self.editing.undo_text(redo) {
             self.send();
             return;
         }
         let Some(canvas) = canvas_of(panes, pane) else { return };
         let canvas = canvas.to_string();
-        self.shapes.end(&mut self.ink);
-        self.ink.push(Change::Step { canvas, redo });
+        self.editing.end_text();
+        self.editing.push(Change::Step { canvas, redo });
         self.send();
     }
 

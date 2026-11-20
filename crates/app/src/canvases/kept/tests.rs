@@ -9,15 +9,15 @@ use crate::backend::tests::{open_notes, with_store};
 use crate::config::Rgb;
 use crate::layout::Point;
 use crate::scene::canvas::{ItemId, Shape};
-use crate::scene::ink::{Kept, PENDING};
+use crate::scene::ink::{Change, Kept, PENDING};
 
 const BLUE: Rgb = Rgb { r: 0, g: 0, b: 255 };
 
 /// A stroke on page p1 of `canvas` from `x`, finished.
 fn draw(canvases: &mut Canvases, canvas: &str, x: f64) {
-    canvases.ink.down(canvas, "p1", BLUE, Point { x, y: 1.0 });
-    canvases.ink.drag(Point { x: x + 1.0, y: 2.0 });
-    assert!(canvases.ink.up(None));
+    canvases.editing.ink_mut().down(canvas, "p1", BLUE, Point { x, y: 1.0 });
+    canvases.editing.ink_mut().drag(Point { x: x + 1.0, y: 2.0 });
+    assert!(canvases.editing.ink_mut().up(None));
 }
 
 /// The first x of each stroke the daemon holds on `notes`, in tenths.
@@ -85,7 +85,7 @@ fn a_stroke_written_as_the_app_quit_is_not_written_twice() {
     with_store(None, |daemon| {
         let _home = open_notes(daemon);
         let mut quit = Canvases::new(daemon.clone()).keeping(Unsent::at(path.clone()));
-        quit.outbox.reconnect(Client::new("/nonexistent/x.sock"));
+        quit.editing.outbox().reconnect(Client::new("/nonexistent/x.sock"));
         draw(&mut quit, "notes", 1.0);
         quit.poll();
         let kept = Unsent::at(path.clone()).load().unwrap();
@@ -104,12 +104,12 @@ fn a_stroke_written_as_the_app_quit_is_not_written_twice() {
 
         let mut canvases = Canvases::new(daemon.clone()).keeping(Unsent::at(path.clone()));
         // Each step its own check, so a failure names the one that failed.
-        let problem = canvases.kept.as_ref().and_then(|k| k.problem().cloned());
+        let problem = canvases.editing.kept().and_then(|k| k.problem().cloned());
         assert_eq!(problem, None, "the quit app let go of the file");
-        assert_eq!(canvases.ink.unsent().count(), 1, "the kept stroke queued");
+        assert_eq!(canvases.editing.ink().unsent().count(), 1, "the kept stroke queued");
         wait_until(|| {
             canvases.poll();
-            canvases.ink.settled("notes")
+            canvases.editing.ink().settled("notes")
         });
         assert_eq!(canvases.daemon_problems().next(), None, "sent again and answered, not refused");
         assert!(!path.exists(), "the file goes in the poll that hears the answer");
@@ -127,8 +127,8 @@ fn a_second_app_keeps_nothing_and_says_so() {
         || Canvases::new(Client::new("/nonexistent/x.sock")).keeping(Unsent::at(path.clone()));
     let mut one = down();
     let mut two = down();
-    assert!(one.kept.as_ref().unwrap().problem().is_none());
-    let problem = two.kept.as_ref().unwrap().problem().unwrap();
+    assert!(one.editing.kept().unwrap().problem().is_none());
+    let problem = two.editing.kept().unwrap().problem().unwrap();
     assert!(problem.message.contains("another slinger app keeps it"), "{problem:?}");
     draw(&mut one, "notes", 1.0);
     one.poll();
@@ -159,14 +159,14 @@ fn changes_made_while_the_daemon_is_down_are_sent_after_the_next_start() {
         draw(&mut quit, "notes", 1.0);
         wait_until(|| {
             quit.poll();
-            quit.ink.settled("notes")
+            quit.editing.ink().settled("notes")
         });
         let written = ItemId(1);
-        quit.outbox.reconnect(Client::new("/nonexistent/x.sock"));
+        quit.editing.outbox().reconnect(Client::new("/nonexistent/x.sock"));
         let (canvas, page) = (String::from("notes"), String::from("p1"));
         let by = Point { x: 10.0, y: 0.0 };
         let ids = vec![written];
-        quit.ink.push(Change::Move {
+        quit.editing.ink_mut().push(Change::Move {
             canvas: canvas.clone(),
             page: page.clone(),
             ids,
@@ -174,19 +174,19 @@ fn changes_made_while_the_daemon_is_down_are_sent_after_the_next_start() {
             follow: vec![],
         });
         draw(&mut quit, "notes", 3.0);
-        let kept = PENDING + quit.ink.unsent().last().unwrap().0;
+        let kept = PENDING + quit.editing.ink().unsent().last().unwrap().0;
         let (from, to) = (Point { x: 0.0, y: 0.0 }, Point { x: 3.0, y: 1.0 });
         let bound = [None, Some(ItemId(kept))];
         let shape = Shape::Arrow { from, to, width: 2.0, bound };
-        quit.ink.push(Change::Put {
+        quit.editing.ink_mut().push(Change::Put {
             canvas: canvas.clone(),
             page: page.clone(),
             colour: BLUE,
             shape,
         });
         draw(&mut quit, "notes", 5.0);
-        let erased = PENDING + quit.ink.unsent().last().unwrap().0;
-        quit.ink.push(Change::Remove { canvas, page, ids: vec![ItemId(erased)] });
+        let erased = PENDING + quit.editing.ink().unsent().last().unwrap().0;
+        quit.editing.ink_mut().push(Change::Remove { canvas, page, ids: vec![ItemId(erased)] });
         quit.poll();
         assert_eq!(Unsent::at(path.clone()).load().unwrap().len(), 5, "kept before any answer");
         drop(quit);
@@ -195,7 +195,7 @@ fn changes_made_while_the_daemon_is_down_are_sent_after_the_next_start() {
         let mut canvases = Canvases::new(daemon.clone()).keeping(Unsent::at(path.clone()));
         wait_until(|| {
             canvases.poll();
-            canvases.ink.settled("notes") && !path.exists()
+            canvases.editing.ink().settled("notes") && !path.exists()
         });
         let items = daemon.canvas_show("notes", None).unwrap().items;
         let kinds: Vec<_> = items.iter().map(|i| (i["id"].clone(), i["kind"].clone())).collect();
@@ -238,7 +238,7 @@ fn a_pane_waiting_for_a_page_added_while_the_daemon_was_down_turns_to_it_after_a
         let _home = open_notes(daemon);
         let mut quit = Canvases::new(daemon.clone()).keeping(Unsent::at(path.clone()));
         wait_until(|| page(&mut quit, right).is_some());
-        quit.outbox.reconnect(Client::new("/nonexistent/x.sock"));
+        quit.editing.outbox().reconnect(Client::new("/nonexistent/x.sock"));
         assert!(quit.command(&panes, (right, frame), Command::NewPage));
         quit.poll();
         assert_eq!(Unsent::at(path.clone()).load().unwrap().len(), 1, "the new page kept");

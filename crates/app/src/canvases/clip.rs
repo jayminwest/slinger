@@ -17,12 +17,11 @@
 //! - The crop tool's lift puts its snippet of a PDF there
 //!   ([`Canvases::cropped`]); the canvas does not change.
 
-use super::{Canvases, canvas_of, find};
+use super::{Canvases, canvas_of};
 use crate::config::Rgb;
-use crate::layout::{PaneId, Point, Rect, Viewport};
+use crate::layout::{Point, Rect, Viewport};
 use crate::mirror::{Mirror, clip};
 use crate::panes::Panes;
-use crate::scene::ink::Change;
 use crate::scene::paste::Clip;
 
 impl Canvases {
@@ -30,19 +29,10 @@ impl Canvases {
     /// in the text being typed; with none being typed, a selection the
     /// focused pane of `panes` shows.
     pub fn can_copy(&self, panes: &Panes) -> bool {
-        let shown = || self.shows_selection(panes, panes.focus()) && self.holds_selection();
-        !self.typing() && if self.editing() { self.shapes.selects() } else { shown() }
-    }
-
-    /// Whether the selection's page as shown holds every selected item,
-    /// which copy takes them from: the server's copy with the ink laid
-    /// over it, so ink not yet written is copied too (slinger-8e4112).
-    fn holds_selection(&self) -> bool {
-        let Some(selection) = self.selection() else { return false };
-        let open = find(self.follow.open(), &selection.canvas, Some(&selection.page));
-        let Some(mirror) = open.and_then(|o| o.mirror.as_ref()) else { return false };
-        let items = self.ink.shown(&selection.canvas, mirror.page(), mirror.items());
-        selection.ids.iter().all(|id| items.iter().any(|i| i.id == *id))
+        let shown = || {
+            self.shows_selection(panes, panes.focus()) && self.editing.holds_selection(&self.follow)
+        };
+        !self.typing() && if self.editing() { self.editing.text_selects() } else { shown() }
     }
 
     /// The selection as the clipboard takes it ([`Canvases::can_copy`]);
@@ -53,16 +43,13 @@ impl Canvases {
             return None;
         }
         if self.editing() {
-            let text = self.shapes.copy(cut);
+            let text = self.editing.copy_text(cut);
             if cut {
                 self.send();
             }
             return Some(Clip::new(text, None));
         }
-        let selection = self.selection()?;
-        let open = find(self.follow.open(), &selection.canvas, Some(&selection.page));
-        let ink = (selection.canvas.as_str(), &self.ink);
-        let clip = open.and_then(|o| o.mirror.as_ref())?.copied(ink, &selection.ids)?;
+        let clip = self.editing.copied(&self.follow)?;
         if cut {
             self.delete_selection(panes, panes.focus());
         }
@@ -91,41 +78,17 @@ impl Canvases {
         let Some(frame) = placed.map(|(_, _, frame)| crate::scene::status::content(frame)) else {
             return false;
         };
-        let view = self.follow.views().iter().find(|(p, _)| *p == focus);
-        let viewport = view.map_or_else(Viewport::start, |(_, v)| v.viewport);
+        let viewport = self.follow.view_of(focus).map_or_else(Viewport::start, |v| v.viewport);
         let centre = viewport.to_canvas(Point { x: frame.width / 2.0, y: frame.height / 2.0 });
         let page = mirror.page().to_string();
-        self.place(focus, (canvas.to_string(), page), &items, centre)
-    }
-
-    /// Adds a clip's `items` to `page` of `canvas`, as pane `to` shows it,
-    /// centred on `centre`, in one step: they are the selection once there,
-    /// and join the folded box the pane is inside, if any. False when there
-    /// is nothing to add.
-    pub(super) fn place(
-        &mut self,
-        to: PaneId,
-        (canvas, page): (String, String),
-        items: &str,
-        centre: Point,
-    ) -> bool {
-        let items = clip::pasted(items, &page, centre);
-        if items.is_empty() {
-            return false;
-        }
-        let change =
-            Change::Carry { canvas: canvas.clone(), page: page.clone(), items, gone: vec![] };
-        let key = self.ink.push_keyed(change);
-        self.follow.added_in((key, &mut self.ink), to, (&canvas, &page));
-        self.select.pasted(key, &canvas, &page);
-        self.send();
-        true
+        let here = (canvas.to_string(), page);
+        self.editing.place(&mut self.follow, focus, here, (&items, centre))
     }
 
     /// The snippet the crop tool's last lift made, as the clipboard takes
     /// it, once (docs/design/pdf.md).
     pub fn cropped(&mut self) -> Option<Clip> {
-        self.crop.take().as_ref().and_then(clip::snippet)
+        self.editing.cropped()
     }
 
     /// The canvas the focused pane of `panes` shows, and its page, once it
