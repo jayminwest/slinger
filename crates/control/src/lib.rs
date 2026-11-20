@@ -120,11 +120,7 @@ pub enum Request {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         canvas: Option<String>,
     },
-    // The workspace verbs are read here, but a client writes them with
-    // `workspace::Ask`: serializing them here would grow every binary that
-    // sends any request, the app's included (its size budget is nearly full).
     /// Open a workspace: the directory `dir`, or one with no root named `name`.
-    #[serde(skip_serializing)]
     WorkspaceOpen {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         dir: Option<PathBuf>,
@@ -132,23 +128,16 @@ pub enum Request {
         name: Option<String>,
     },
     /// The open workspaces.
-    #[serde(skip_serializing)]
     WorkspaceList,
     /// One open workspace, by name or by the directory of its file.
-    #[serde(skip_serializing)]
     WorkspaceShow { workspace: String },
     /// Close a workspace, by name or by the directory of its file.
-    #[serde(skip_serializing)]
     WorkspaceClose { workspace: String },
     /// The packet of a canvas page (docs/design/packet.md), stored as a blob
-    /// and written into a directory. A client writes it with
-    /// `packet::Read`, so the app, which never sends it, carries no code for it.
-    #[serde(skip_serializing)]
+    /// and written into a directory.
     CanvasRead(PacketAsk),
     /// The operations of a canvas numbered above `after`. With `wait`, the
     /// reply waits up to that many milliseconds for one (docs/service.md).
-    /// A client writes it with its own type, as the workspace verbs.
-    #[serde(skip_serializing)]
     CanvasChanges {
         canvas: String,
         #[serde(default)]
@@ -157,53 +146,44 @@ pub enum Request {
         wait: u64,
     },
     /// Images of what `of` names, an item id or a box (docs/service.md),
-    /// written as the PNG file at `path` or, for tiles, beside it. A client
-    /// writes it, and `CanvasStrokes`, with `look::Ask`.
-    #[serde(skip_serializing)]
+    /// written as the PNG file at `path` or, for tiles, beside it.
     CanvasCrop { canvas: String, of: String, path: PathBuf },
     /// The raw points of a stroke, or of every stroke of a cluster.
-    #[serde(skip_serializing)]
     CanvasStrokes { canvas: String, item: String },
-    /// The text items whose words hold `text`, on every page. A client
-    /// writes it with `find::Ask`.
-    #[serde(skip_serializing)]
+    /// The text items whose words hold `text`, on every page.
     CanvasFind { canvas: String, text: String },
     /// The session verbs (`session_list`, `session_show`, `status_set`,
     /// `session_start`, `session_stop`, `session_send`, `sling_send`, `sling_backdrops`,
-    /// `session_listen`, `file_touched`), read by their own `op`s. One variant for them all,
-    /// written only by clients that send them: each variant here adds code to
-    /// the app, which sends none of them (its size budget is nearly full).
-    #[serde(untagged, skip_serializing)]
+    /// `session_listen`, `file_touched`), by their own `op`s: one variant
+    /// for them all.
+    #[serde(untagged)]
     Session(SessionAsk),
     /// The agent's canvas verbs (`canvas_put`, `canvas_edit`,
-    /// `canvas_remove`), read by their own `op`s and written only by clients
-    /// that send them, as the session verbs are.
-    #[serde(untagged, skip_serializing)]
+    /// `canvas_remove`), by their own `op`s, as the session verbs are.
+    #[serde(untagged)]
     Agent(AgentAsk),
-    /// The pane verbs (`pane_list`, `pane_open`, `pane_view`, ...), read by
-    /// their own `op`s and written by clients with `PaneAsk` itself.
-    #[serde(untagged, skip_serializing)]
+    /// The pane verbs (`pane_list`, `pane_open`, `pane_view`, ...), by
+    /// their own `op`s.
+    #[serde(untagged)]
     Pane(PaneAsk),
-    /// The showing verbs (`ui_open`, `ui_shown`, `ui_reply`), read by their
-    /// own `op`s and written by clients with `UiAsk` itself.
-    #[serde(untagged, skip_serializing)]
+    /// The showing verbs (`ui_open`, `ui_shown`, `ui_reply`), by their own
+    /// `op`s.
+    #[serde(untagged)]
     Showing(UiAsk),
     /// The feedback verbs (`feedback_add`, `feedback_list`,
-    /// `feedback_resolve`, `feedback_path`), read by their own `op`s and
-    /// written by clients with `FeedbackAsk` itself.
-    #[serde(untagged, skip_serializing)]
+    /// `feedback_resolve`, `feedback_path`), by their own `op`s.
+    #[serde(untagged)]
     Feedback(FeedbackAsk),
     /// The profile verbs (`profile_list`, `profile_set`, `profile_remove`),
-    /// read by their own `op`s and written by clients with `ProfileAsk`.
-    #[serde(untagged, skip_serializing)]
+    /// by their own `op`s.
+    #[serde(untagged)]
     Profile(ProfileAsk),
-    /// The fold verbs (`canvas_fold`, `canvas_unfold`), read by their own
-    /// `op`s and written by clients with `FoldAsk` itself.
-    #[serde(untagged, skip_serializing)]
+    /// The fold verbs (`canvas_fold`, `canvas_unfold`), by their own `op`s.
+    #[serde(untagged)]
     Fold(FoldAsk),
-    /// The daemon's own verbs (`daemon_info`, `daemon_stop`), read by their
-    /// own `op`s and written by clients with `DaemonAsk` itself.
-    #[serde(untagged, skip_serializing)]
+    /// The daemon's own verbs (`daemon_info`, `daemon_stop`), by their own
+    /// `op`s.
+    #[serde(untagged)]
     Daemon(DaemonAsk),
 }
 

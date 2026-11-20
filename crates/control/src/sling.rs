@@ -3,14 +3,13 @@
 //! `sling_backdrops` first says which areas of PDF pages under the new ink
 //! to render; `sling_send` takes them back as [`Backdrop`]s.
 //!
-//! [`crate::Request`] reads it as a session verb ([`crate::SessionAsk`]) and
-//! does not write it, so the app carries no code for it.
+//! [`crate::Request`] carries both as session verbs ([`crate::SessionAsk`]).
 
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Client, RemoteError, SessionAsk};
+use crate::{Client, RemoteError, Request, SessionAsk};
 
 /// What a sling sends.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -128,7 +127,8 @@ impl Client {
     ) -> Result<Vec<BackdropArea>, RemoteError> {
         let (canvas, page) = (canvas.to_string(), page.map(str::to_string));
         let inside = inside.map(str::to_string);
-        let reply: Backdrops = self.call(&SessionAsk::SlingBackdrops { canvas, page, inside })?;
+        let reply: Backdrops =
+            self.call(&Request::Session(SessionAsk::SlingBackdrops { canvas, page, inside }))?;
         Ok(reply.backdrops)
     }
 
@@ -146,7 +146,7 @@ impl Client {
     /// page or workspace that is not there, and `invalid` for a selected id
     /// that is not one or a workspace with no agent.
     pub fn sling_send(&self, ask: SlingAsk) -> Result<Slung, RemoteError> {
-        self.call(&SessionAsk::SlingSend(ask))
+        self.call(&Request::Session(SessionAsk::SlingSend(ask)))
     }
 }
 

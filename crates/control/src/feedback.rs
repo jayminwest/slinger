@@ -3,14 +3,13 @@
 //! (docs/service.md, "Feedback"). The app adds a note with what it shows;
 //! the CLI adds, lists and resolves them.
 //!
-//! [`crate::Request`] reads them as one variant, [`FeedbackAsk`], and does
-//! not write them: a client writes [`FeedbackAsk`] itself.
+//! [`crate::Request`] carries them as one variant, [`FeedbackAsk`].
 
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Client, RemoteError};
+use crate::{Client, RemoteError, Request};
 
 /// A feedback request, as a client writes it and the daemon reads it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -124,7 +123,7 @@ impl Client {
     /// `invalid` for blank text or a file the daemon cannot write, and
     /// `unavailable` when the daemon does not answer.
     pub fn feedback_add(&self, note: FeedbackNote) -> Result<FeedbackAdded, RemoteError> {
-        self.call(&FeedbackAsk::FeedbackAdd(note))
+        self.call(&Request::Feedback(FeedbackAsk::FeedbackAdd(note)))
     }
 
     /// The newest `limit` notes (every one when `None`), newest first: the
@@ -139,7 +138,7 @@ impl Client {
         all: bool,
         limit: Option<u64>,
     ) -> Result<FeedbackEntries, RemoteError> {
-        self.call(&FeedbackAsk::FeedbackList { all, limit })
+        self.call(&Request::Feedback(FeedbackAsk::FeedbackList { all, limit }))
     }
 
     /// Resolves the note saved at `ts`, with `note`.
@@ -153,7 +152,7 @@ impl Client {
         ts: &str,
         note: Option<String>,
     ) -> Result<FeedbackResolution, RemoteError> {
-        self.call(&FeedbackAsk::FeedbackResolve { ts: ts.into(), note })
+        self.call(&Request::Feedback(FeedbackAsk::FeedbackResolve { ts: ts.into(), note }))
     }
 
     /// The file the notes go to.
@@ -162,7 +161,7 @@ impl Client {
     ///
     /// `unavailable` when the daemon does not answer.
     pub fn feedback_path(&self) -> Result<PathBuf, RemoteError> {
-        let reply: FeedbackFile = self.call(&FeedbackAsk::FeedbackPath)?;
+        let reply: FeedbackFile = self.call(&Request::Feedback(FeedbackAsk::FeedbackPath))?;
         Ok(reply.path)
     }
 }
@@ -208,7 +207,7 @@ mod tests {
             ),
             (FeedbackAsk::FeedbackPath, r#"{"v":1,"op":"feedback_path"}"#),
         ] {
-            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&Request::Feedback(ask.clone())).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
             assert_eq!(read, Some(Request::Feedback(ask)), "{line}");
         }

@@ -281,4 +281,38 @@ fn the_zoom_keys_are_on_command_and_the_pane_keys_on_option() {
     assert_eq!(keys.command(Chord::new(ALT, '≠')), None, "never the typed character");
 }
 
+/// What names a function key and how it prints, as a table (slinger-28ed59).
+#[test]
+fn function_keys_are_f1_to_f20_exactly_and_print_as_such() {
+    for (name, n) in [
+        ("f1", Some(1)),
+        ("f9", Some(9)),
+        ("f10", Some(10)),
+        ("f19", Some(19)),
+        ("f20", Some(20)),
+        ("f0", None),
+        ("f21", None),
+        ("f09", None),
+        ("f01", None),
+        ("f010", None),
+        ("f+1", None),
+        ("f-1", None),
+        ("f 1", None),
+        ("f1 ", None),
+        ("f1e1", None),
+        ("f99999999999", None),
+        ("F1", None),
+        ("g1", None),
+        ("f٤", None),
+    ] {
+        let key = n.and_then(|n| char::from_u32(super::F1 + n - 1));
+        assert_eq!(key_named(name), key, "{name:?}");
+    }
+    for n in 1..=20 {
+        let key = char::from_u32(super::F1 + n - 1).unwrap();
+        assert_eq!(Chord::new(0, key).glyphs(), format!("F{n}"));
+        assert_eq!(Chord::new(CMD | SHIFT, key).glyphs(), format!("⇧⌘F{n}"));
+    }
+}
+
 mod golden;

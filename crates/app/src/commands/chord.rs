@@ -68,12 +68,11 @@ pub(super) fn key_named(name: &str) -> Option<char> {
     if let Some(&(_, c)) = NAMED.iter().find(|(n, _)| *n == name) {
         return Some(c);
     }
-    // `f1` to `f20`, by hand: `str::parse` costs the app binary its size budget.
-    let n = match name.strip_prefix('f')?.as_bytes() {
-        &[d @ b'1'..=b'9'] => d - b'0',
-        &[b'1', d @ b'0'..=b'9'] => 10 + d - b'0',
-        b"20" => 20,
-        _ => return None,
-    };
-    char::from_u32(F1 + u32::from(n) - 1)
+    // `f1` to `f20`, no leading zero or sign.
+    let digits = name.strip_prefix('f')?;
+    if digits.starts_with('0') || !digits.bytes().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    let n = digits.parse::<u32>().ok().filter(|n| (1..=20).contains(n))?;
+    char::from_u32(F1 + n - 1)
 }

@@ -9,6 +9,7 @@
 //! calls post JSON text to the handler named [`HANDLER`]. [`script`] adds the
 //! look a page starts from: the canvas's paper, ink and type ([`LOOK`]).
 
+use std::fmt::Write as _;
 use std::sync::Arc;
 
 use serde_json::{Value, json};
@@ -51,7 +52,6 @@ pub const LOOK: &str = include_str!("ui/look.css");
 /// [`LOOK`]: a page with no styles of its own sits on the canvas as its ink
 /// does. Run again in an open page, it changes the look to a new theme's.
 pub fn script(theme: &Theme, first: &str) -> String {
-    // By hand, not `format!`: hex formatting costs the app its size budget.
     let mut js = String::from(first);
     js.push_str("(()=>{const d=document,i=\"slinger-look\",s=d.getElementById(i)||d.createElement(\"style\");s.id=i;s.textContent=`:root{");
     let colours = [
@@ -62,13 +62,7 @@ pub fn script(theme: &Theme, first: &str) -> String {
         ("error", theme.error),
     ];
     for (name, Rgb { r, g, b }) in colours {
-        js.push_str("--slinger-");
-        js.push_str(name);
-        js.push_str(":#");
-        for nibble in [r >> 4, r & 15, g >> 4, g & 15, b >> 4, b & 15] {
-            js.push(char::from_digit(u32::from(nibble), 16).unwrap_or('0'));
-        }
-        js.push(';');
+        let _ = write!(js, "--slinger-{name}:#{r:02x}{g:02x}{b:02x};");
     }
     let Rgb { r, g, b } = theme.background;
     let light = u32::from(r) * 299 + u32::from(g) * 587 + u32::from(b) * 114 > 127_500;

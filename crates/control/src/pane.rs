@@ -2,12 +2,11 @@
 //! (docs/service.md, "Panes"). The server keeps each workspace's panes;
 //! the app, the CLI and agents change them with these verbs alone.
 //!
-//! [`crate::Request`] reads them as one variant, [`PaneAsk`], and does not
-//! write them: a client writes [`PaneAsk`] itself.
+//! [`crate::Request`] carries them as one variant, [`PaneAsk`].
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Client, RemoteError};
+use crate::{Client, RemoteError, Request};
 
 /// A pane request, as a client writes it and the daemon reads it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -151,7 +150,7 @@ impl Client {
     /// `not_found` for a workspace that is not open, and `unavailable` when
     /// the daemon does not answer.
     pub fn pane_list(&self, workspace: &str) -> Result<PaneLayout, RemoteError> {
-        self.call(&PaneAsk::PaneList { workspace: workspace.into() })
+        self.call(&Request::Pane(PaneAsk::PaneList { workspace: workspace.into() }))
     }
 
     /// Opens a pane on `workspace` that shows the canvas or UI `target`,
@@ -172,7 +171,7 @@ impl Client {
         below: bool,
     ) -> Result<PaneLayout, RemoteError> {
         let (workspace, target) = (workspace.into(), target.into());
-        self.call(&PaneAsk::PaneOpen { workspace, kind, target, beside, below })
+        self.call(&Request::Pane(PaneAsk::PaneOpen { workspace, kind, target, beside, below }))
     }
 
     /// Closes pane number `pane` of `workspace`; the pane beside it takes
@@ -183,7 +182,7 @@ impl Client {
     ///
     /// As [`Client::pane_list`].
     pub fn pane_close(&self, workspace: &str, pane: u32) -> Result<PaneLayout, RemoteError> {
-        self.call(&PaneAsk::PaneClose { workspace: workspace.into(), pane })
+        self.call(&Request::Pane(PaneAsk::PaneClose { workspace: workspace.into(), pane }))
     }
 
     /// Moves the border after pane number `pane` of `workspace` (on its
@@ -201,7 +200,7 @@ impl Client {
         pane: u32,
         ratio: f64,
     ) -> Result<PaneLayout, RemoteError> {
-        self.call(&PaneAsk::PaneResize { workspace: workspace.into(), pane, ratio })
+        self.call(&Request::Pane(PaneAsk::PaneResize { workspace: workspace.into(), pane, ratio }))
     }
 
     /// Keeps where the panes of `workspace` named in `views` look, each by
@@ -222,7 +221,7 @@ impl Client {
         focus: Option<u32>,
     ) -> Result<PaneLayout, RemoteError> {
         let (workspace, views) = (workspace.into(), views.to_vec());
-        self.call(&PaneAsk::PaneView { workspace, views, focus })
+        self.call(&Request::Pane(PaneAsk::PaneView { workspace, views, focus }))
     }
 }
 
@@ -279,7 +278,7 @@ mod tests {
                 r#"{"v":1,"op":"pane_view","workspace":"w","views":[]}"#,
             ),
         ] {
-            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&Request::Pane(ask.clone())).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
             assert_eq!(read, Some(Request::Pane(ask)), "{line}");
         }

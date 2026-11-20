@@ -635,7 +635,7 @@ backend/pdf.rs  PDFs (docs/design/pdf.md): `fetch` gets a pdf item's blob
              is made whole or not at all; then `pane_open` beside the
              focused pane. A file that cannot be read makes nothing. A
              tldraw file (`is_tldraw`, by its extension) is made a canvas
-             by `canvas_import_id` instead, under the same id without
+             by `canvas_import` instead, under the same id without
              `.pdf` (`-2`... on a taken id), then the same `pane_open`.
 mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              feed reply applied in order; reads the canvas file's items
@@ -832,8 +832,8 @@ drive/outline.rs  the scene as text: one line for each thing the window
              shows, with its place, colour and text. Says, never decides.
 config.rs    the config file's format: text in, a typed config or an error
              with its line out; merges a machine's overlay over it.
-             `config/widths.rs` parses `[pen] widths` by hand (tenths of a
-             point: no float parsing, for the size budget), and
+             `config/widths.rs` parses `[pen] widths` (tenths of a point,
+             so a width reads back exactly as written), and
              `config/canvas.rs` the `[canvas]` paper (plain or dots, the
              grid's spacing in hundredths of a point), `config/sling.rs`
              `[sling] prompt`, the words a sling with nothing typed sends,

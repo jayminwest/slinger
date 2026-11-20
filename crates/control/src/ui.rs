@@ -2,13 +2,12 @@
 //! replies and client methods (docs/service.md, "Showings"). An agent opens
 //! a UI; the app asks what a pane shows and sends each reply.
 //!
-//! [`crate::Request`] reads them as one variant, [`UiAsk`], and does not
-//! write them: a client writes [`UiAsk`] itself.
+//! [`crate::Request`] carries them as one variant, [`UiAsk`].
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{Client, RemoteError, Ui};
+use crate::{Client, RemoteError, Request, Ui};
 
 /// A showing request, as a client writes it and the daemon reads it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -132,7 +131,7 @@ impl Client {
     /// size not above zero, data over 16384 bytes or a window with the
     /// most panes it holds; and `unavailable` when the daemon does not answer.
     pub fn ui_open(&self, open: UiOpen) -> Result<UiOpened, RemoteError> {
-        self.call(&UiAsk::UiOpen(open))
+        self.call(&Request::Showing(UiAsk::UiOpen(open)))
     }
 
     /// What the pane target `ui` shows: a showing's id (`pick-slot#12`) or a
@@ -143,7 +142,7 @@ impl Client {
     /// `not_found` when nothing matches, `invalid` for a target of no known
     /// form, and `unavailable` when the daemon does not answer.
     pub fn ui_shown(&self, ui: &str) -> Result<UiShown, RemoteError> {
-        self.call(&UiAsk::UiShown { ui: ui.into() })
+        self.call(&Request::Showing(UiAsk::UiShown { ui: ui.into() }))
     }
 
     /// Sends `value` from the showing `open` to the agent that opened it.
@@ -156,7 +155,7 @@ impl Client {
     /// over 16384 bytes or a showing that sent its 100 replies, and
     /// `unavailable` when the daemon does not answer.
     pub fn ui_reply(&self, open: &str, value: Value) -> Result<UiReplied, RemoteError> {
-        self.call(&UiAsk::UiReply { open: open.into(), value })
+        self.call(&Request::Showing(UiAsk::UiReply { open: open.into(), value }))
     }
 }
 
@@ -222,7 +221,7 @@ mod tests {
                 r#"{"v":1,"op":"ui_reply","open":"pick#3","value":[1]}"#,
             ),
         ] {
-            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&Request::Showing(ask.clone())).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
             assert_eq!(read, Some(Request::Showing(ask)), "{line}");
         }

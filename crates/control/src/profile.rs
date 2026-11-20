@@ -1,13 +1,11 @@
 //! The profile verbs: a workspace agent's named limits, their requests,
 //! reply and client methods (docs/service.md, "Profiles").
 //!
-//! [`crate::Request`] reads them as one variant, [`ProfileAsk`], and does
-//! not write them: a binary that never sends one (the app) carries no code
-//! for them.
+//! [`crate::Request`] carries them as one variant, [`ProfileAsk`].
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Client, RemoteError};
+use crate::{Client, RemoteError, Request};
 
 /// A profile request, as a client writes it and the daemon reads it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -54,7 +52,7 @@ impl Client {
     /// `not_found` for a workspace that is not open, and `unavailable` when
     /// the daemon does not answer.
     pub fn profile_list(&self, workspace: &str) -> Result<Profiles, RemoteError> {
-        self.call(&ProfileAsk::ProfileList { workspace: workspace.into() })
+        self.call(&Request::Profile(ProfileAsk::ProfileList { workspace: workspace.into() }))
     }
 
     /// Adds `profile` to `workspace`'s agent, or replaces the one of its
@@ -66,7 +64,10 @@ impl Client {
     /// workspace with no agent; `not_found` for a directory or a workspace
     /// that is not there; and `unavailable` when the daemon does not answer.
     pub fn profile_set(&self, workspace: &str, profile: Profile) -> Result<Profiles, RemoteError> {
-        self.call(&ProfileAsk::ProfileSet { workspace: workspace.into(), profile })
+        self.call(&Request::Profile(ProfileAsk::ProfileSet {
+            workspace: workspace.into(),
+            profile,
+        }))
     }
 
     /// Removes the profile `name` from `workspace`'s agent.
@@ -76,7 +77,10 @@ impl Client {
     /// `not_found` for a profile or a workspace that is not there, and
     /// `unavailable` when the daemon does not answer.
     pub fn profile_remove(&self, workspace: &str, name: &str) -> Result<Profiles, RemoteError> {
-        self.call(&ProfileAsk::ProfileRemove { workspace: workspace.into(), name: name.into() })
+        self.call(&Request::Profile(ProfileAsk::ProfileRemove {
+            workspace: workspace.into(),
+            name: name.into(),
+        }))
     }
 }
 
@@ -114,7 +118,7 @@ mod tests {
                 r#"{"v":1,"op":"profile_remove","workspace":"w","name":"dev"}"#,
             ),
         ] {
-            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&Request::Profile(ask.clone())).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
             assert_eq!(read, Some(Request::Profile(ask)), "{line}");
         }
