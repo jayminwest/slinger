@@ -176,6 +176,13 @@ pub enum Command {
     NudgeRightFine,
     NudgeUpFine,
     NudgeDownFine,
+    /// Step the focused pane into the selected box: it shows only what the
+    /// box holds, until a step out. Per pane, like its page.
+    StepIn,
+    /// Split the focused pane and step the new pane into the selected box.
+    StepInBeside,
+    /// Step the focused pane out of the box it is in, one level.
+    StepOut,
 }
 
 /// How many commands there are.
@@ -183,7 +190,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 82] = [
+    pub const ALL: [(Command, &str); 85] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -266,6 +273,9 @@ impl Command {
         (Command::NudgeRightFine, "nudge-right-fine"),
         (Command::NudgeUpFine, "nudge-up-fine"),
         (Command::NudgeDownFine, "nudge-down-fine"),
+        (Command::StepIn, "step-in"),
+        (Command::StepInBeside, "step-in-beside"),
+        (Command::StepOut, "step-out"),
     ];
 
     /// The command called `name` in the config file.
@@ -402,6 +412,9 @@ impl Default for Keymap {
             on(SHIFT, RIGHT),
             on(SHIFT, UP),
             on(SHIFT, DOWN),
+            on(CMD | ALT, 'i'),
+            on(CMD | ALT | SHIFT, 'i'),
+            on(CMD | ALT, 'o'),
         ])
     }
 }

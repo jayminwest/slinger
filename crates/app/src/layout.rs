@@ -198,6 +198,21 @@ impl Viewport {
         Self { origin: Point { x, y }, zoom }
     }
 
+    /// This zoom, looking from canvas point `corner` [`CANVAS_MARGIN`]
+    /// points in from the screen's top left: a view that starts at a box.
+    pub fn at(self, corner: Point) -> Self {
+        let margin = CANVAS_MARGIN / self.zoom;
+        Self { origin: Point { x: corner.x - margin, y: corner.y - margin }, ..self }
+    }
+
+    /// This view scrolled no further up or left than [`Viewport::at`]
+    /// `corner` (docs/design/fold.md: a pane inside a box).
+    pub fn held(self, corner: Point) -> Self {
+        let top = self.at(corner).origin;
+        let origin = Point { x: self.origin.x.max(top.x), y: self.origin.y.max(top.y) };
+        Self { origin, ..self }
+    }
+
     /// The zoom as people read it: "Zoom 150%".
     pub fn zoom_label(self) -> String {
         format!("Zoom {}%", self.percent())

@@ -273,7 +273,10 @@ impl Panes {
             | Command::Find
             | Command::FindNext
             | Command::NewText
-            | Command::Fold => {}
+            | Command::Fold
+            | Command::StepIn
+            | Command::StepInBeside
+            | Command::StepOut => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),

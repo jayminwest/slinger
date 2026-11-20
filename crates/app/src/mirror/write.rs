@@ -59,6 +59,23 @@ pub fn ops(change: &Change) -> Value {
     }
 }
 
+/// `ops` with each `add` naming folded box `inside` as `in`: its item
+/// joins the box (docs/design/fold.md, "Step in").
+pub fn joined(mut ops: Value, inside: ItemId) -> Value {
+    let each = |op: &mut Value| {
+        if let Some(o) =
+            op.as_object_mut().filter(|o| o.get("op").and_then(Value::as_str) == Some("add"))
+        {
+            o.insert("in".into(), item_ref(inside).into());
+        }
+    };
+    match &mut ops {
+        Value::Array(list) => list.iter_mut().for_each(each),
+        op => each(op),
+    }
+    ops
+}
+
 /// `item` as the canvas file's object, under its id: it reads back as
 /// `item` ([`super::item`]), to the tenth. Chrome (a panel, a caret) has none.
 pub fn object(item: &Item) -> Option<Value> {

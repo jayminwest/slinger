@@ -329,3 +329,12 @@
 # one in its old room; when something now lies there, it opens as a peek over the page
 # instead, which escape or a tap outside closes. Each fold or unfold is one undo step.
 #fold = "cmd+alt+f"
+# Step the focused pane into the selected box (or tap a folded box's miniature twice): the
+# pane shows only what the box holds, its footer the trail (page › box), and what you write
+# there goes into the box. Each pane keeps its own, as it keeps its own page.
+#step-in = "cmd+alt+i"
+# Split the focused pane and step the new pane into the selected box, to see two at once.
+#step-in-beside = "cmd+alt+shift+i"
+# Step the focused pane out of the box it is in, one level. Escape does the same when
+# nothing is selected (clear-selection's key).
+#step-out = "cmd+alt+o"

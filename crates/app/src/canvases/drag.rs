@@ -72,6 +72,7 @@ impl Canvases {
             }
         };
         let edits = self.shapes.tapped(at);
+        self.pen_joined();
         self.unshown = None;
         self.send();
         ended || edits

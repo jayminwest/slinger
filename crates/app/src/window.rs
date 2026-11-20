@@ -53,6 +53,7 @@ pub fn run(
         c if !selection(canvases, shared, tools, area, c) => return false,
         Command::ToggleSidebar => sidebar.set_open(!sidebar.is_open()),
         Command::DismissNotice => sidebar.dismiss(),
+        Command::StepInBeside => return items::beside(canvases, shared, area, socket),
         Command::StartAgent | Command::StopAgent | Command::RestartAgent => {
             agent(command, socket, sidebar, tools);
         }

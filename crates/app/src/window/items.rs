@@ -1,9 +1,13 @@
 //! Who holds the keyboard ([`keyboard`]), and so whether the item commands
 //! (select all, next and previous item, nudge, duplicate: [`Keyed`]) act
 //! on the focused pane's items ([`run`]), delete-selection deletes them
-//! ([`delete`]) and clear-selection clears them ([`clear`]). The one place that decides it: a caret inside a canvas
+//! ([`delete`]) and clear-selection clears them ([`clear`]), or, with
+//! nothing selected, steps the pane out of the box it is in. The one place that decides it: a caret inside a canvas
 //! text (slinger-ea308d) takes its keys here, and so does a page a press
-//! went on to, a live item's on a canvas (slinger-479dea).
+//! went on to, a live item's on a canvas (slinger-479dea). Also
+//! `step-in-beside` ([`beside`]): the selected box, in a new pane.
+
+use std::path::Path;
 
 use super::focus;
 use crate::canvases::Canvases;
@@ -48,13 +52,29 @@ pub fn delete(shared: &Shared, canvases: &mut Canvases) -> bool {
 /// Clears the selection on the focused pane of `shared` while the items
 /// hold the keyboard, as [`run`] says. False when it did nothing, so the
 /// key goes on (an escape to a page's form, or to a live item's page:
-/// slinger-0981ad).
+/// slinger-0981ad). With nothing selected, steps the pane out of the box
+/// it is in, one level (docs/design/fold.md).
 pub fn clear(shared: &Shared, canvases: &mut Canvases) -> bool {
-    items(shared, canvases) && canvases.clear_selection(&shared.panes, shared.panes.focus())
+    let (panes, focus) = (&shared.panes, shared.panes.focus());
+    items(shared, canvases)
+        && (canvases.clear_selection(panes, focus) || canvases.step_out(panes, focus))
 }
 
 /// Whether the items hold the keyboard: the window has it and no text of
 /// the app takes typing.
 fn items(shared: &Shared, canvases: &Canvases) -> bool {
     keyboard(shared, canvases) == Keyboard::Window && !canvases.editing()
+}
+
+/// Splits the focused pane of `shared` laid in `area` (through the daemon
+/// on `socket` for a workspace) and steps the new pane into the box
+/// selected there (docs/design/fold.md). False, and nothing splits, when
+/// the focused pane shows no selected box.
+pub fn beside(canvases: &mut Canvases, shared: &mut Shared, area: Rect, socket: &Path) -> bool {
+    let Some(target) = canvases.step_target(&shared.panes, shared.panes.focus()) else {
+        return false;
+    };
+    shared.command(Command::SplitRight, area, socket);
+    canvases.step_into(shared.panes.focus(), target);
+    true
 }

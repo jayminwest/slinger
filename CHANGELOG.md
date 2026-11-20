@@ -65,6 +65,14 @@ bullet with the area in bold.
   lies in its old room, it opens as a peek over the page instead: escape
   or a tap outside closes it, and nothing is moved. Each fold and unfold
   is one undo step.
+- **App:** step into a box. Select it and press opt+cmd+I (or Edit > Step
+  into box), or tap a folded box's miniature twice: the pane shows only
+  what the box holds, from its top left, inside a dashed frame, and the
+  footer adds the box's name to the page ("ideas · 2/3 › Plans"). What you
+  draw or type inside a folded box goes into it. Escape with nothing
+  selected, opt+cmd+O or the footer's ⤴ steps back out to the view you
+  had. opt+shift+cmd+I opens the box in a new pane beside, so two boxes
+  show at once; each pane keeps its own trail.
 - **App:** find sees into folded boxes. A text a folded box hides takes a
   find to that box, centred and selected, and the flash says the text is
   in a folded box.

@@ -195,6 +195,12 @@ lie wholly inside the box's frame, edges included.
   the box's `fold` in one step. When the item reaches past the open frame, the
   open size grows to hold it (right and down only, so the miniature stays).
 - A box that is erased, or a folded box unfolded elsewhere, steps the pane out.
+- In the app (slinger-b1ccf1): `step-in` (opt+cmd+I) on the selected box, or
+  two quick taps on a miniature with any tool but the pen and the eraser
+  (one tap is left to selecting it); `step-out` (opt+cmd+O), the footer's ⤴,
+  or escape. Escape takes, in order: the key overlay, the page menu, the
+  sling entry, the text being typed, a peek, a pop-up, the selection, and
+  only then steps out one box. `step-in-beside` (opt+shift+cmd+I) splits.
 
 ### The packet line
 

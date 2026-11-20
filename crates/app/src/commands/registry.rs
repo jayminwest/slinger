@@ -132,6 +132,9 @@ impl Command {
             Command::FindNext => "Find next",
             Command::NewText => "New text",
             Command::Fold => "Fold or unfold box",
+            Command::StepIn => "Step into box",
+            Command::StepInBeside => "Step into box beside",
+            Command::StepOut => "Step out of box",
         }
     }
 
@@ -190,7 +193,10 @@ impl Command {
             | Command::Find
             | Command::FindNext
             | Command::NewText
-            | Command::Fold => Group::Canvas,
+            | Command::Fold
+            | Command::StepIn
+            | Command::StepInBeside
+            | Command::StepOut => Group::Canvas,
             Command::OpenPdf
             | Command::OpenWorkspace
             | Command::CloseWorkspace

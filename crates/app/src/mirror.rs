@@ -25,12 +25,14 @@ use crate::scene::pages::Page;
 
 pub mod clip;
 mod fold;
+mod step;
 mod write;
 
+pub use step::Inside;
 use write::tenths;
 #[cfg(test)]
 pub use write::text_frame_at;
-pub use write::{add_pdf, object, ops};
+pub use write::{add_pdf, joined, object, ops};
 
 /// The height of text, in canvas units: the packet's text size, so the pane
 /// and the images an agent reads agree.
