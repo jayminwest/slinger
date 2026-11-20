@@ -2,6 +2,8 @@ use super::*;
 use crate::scene::canvas::Mark;
 use crate::scene::select::Select;
 
+mod taps;
+
 const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
 const BLUE: Rgb = Rgb { r: 0, g: 0, b: 255 };
 const HERE: (&str, &str) = ("main", "p1");
