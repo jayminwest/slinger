@@ -6,7 +6,7 @@ use super::*;
 
 /// The right edge of the dashed frame of the text being typed, at zoom 1,
 /// level with its first row.
-fn edge(shapes: &Shapes) -> (f64, f64) {
+pub(super) fn edge(shapes: &Shapes) -> (f64, f64) {
     let around = shapes.shown(HERE, Vec::new(), 1.0, &THEME);
     let frame = around.iter().find(|i| i.id == FRAME_ID).expect("a frame");
     let Shape::Panel { frame, .. } = frame.shape else { panic!() };
