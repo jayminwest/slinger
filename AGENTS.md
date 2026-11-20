@@ -50,6 +50,8 @@ cargo test --workspace
 - A daemon you start to test takes its own `--socket`, a `--data-dir` in your scratch directory and `--scratch`. Never point the user's app or config (`~/.config/slinger`) at it, and never restart the user's own daemon with a `--data-dir`: its canvases live in the default data directory (slinger-491a02).
 - Stop an app or daemon you started by its pid. `pkill -f target/debug/slinger-app` also kills the app that another worktree's tests are running (slinger-db4a8b).
 - Every TODO/FIXME/HACK/XXX cites a tracker id (`slinger-xxxx`), an issue (`#N`) or a URL on the same line.
+- An ask for the owner is a line in a file, not a seed. A check only a person can do goes in `docs/hand-check.md`. A pick you shipped that the owner has not confirmed goes in `docs/open-picks.md`. A plan has at most one owner-review seed.
+- A seed title is under 100 characters. The detail goes in its description.
 - Commits use conventional messages: `type(scope): summary (slinger-xxxx)`.
 - CHANGELOG entries go under `## [Unreleased]`, written for users.
 - Release: follow `.agents/skills/release/SKILL.md`.
