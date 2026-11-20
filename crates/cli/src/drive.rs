@@ -157,6 +157,12 @@ enum Op {
     },
     /// Print the text the driven window last cut or copied
     Clip,
+    /// Choose an item of the context menu a right click opened, by its title as `drive scene` prints it
+    Pick {
+        /// The item's title, such as New text; the words are joined with a space
+        #[arg(required = true, num_args = 1..)]
+        title: Vec<String>,
+    },
     /// Drop a file on the window at a point (X,Y FILE or X Y FILE)
     #[command(override_usage = "slinger drive drop [OPTIONS] X,Y FILE | X Y FILE")]
     Drop {
@@ -204,6 +210,7 @@ impl Drive {
             Op::Cut => "drive cut",
             Op::Paste { .. } => "drive paste",
             Op::Clip => "drive clip",
+            Op::Pick { .. } => "drive pick",
             Op::Drop { .. } => "drive drop",
             Op::Tick => "drive tick",
             Op::Scene { .. } => "drive scene",
@@ -272,6 +279,7 @@ impl Op {
             Self::Paste { text } if text.is_empty() => json!({ "op": "paste" }),
             Self::Paste { text } => json!({ "op": "paste", "text": text.join(" ") }),
             Self::Clip => json!({ "op": "clip" }),
+            Self::Pick { title } => json!({ "op": "pick", "title": title.join(" ") }),
             Self::Drop { args } => {
                 let mut args = args.clone();
                 let file = args.pop().map(PathBuf::from).unwrap_or_default();

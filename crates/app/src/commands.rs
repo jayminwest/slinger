@@ -7,6 +7,7 @@
 
 pub mod able;
 mod chord;
+pub mod context;
 pub mod menu;
 mod registry;
 

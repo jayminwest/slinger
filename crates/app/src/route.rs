@@ -3,7 +3,8 @@
 //! palette or overlay, a command, a tap, the pen, or on to the focused view.
 //! Space held, and the press, drags and lift of a pan with it, are the
 //! hand's ([`hand`]) before anything else; then the right and middle
-//! buttons' events ([`button`]): a pan goes on as the scroll it makes.
+//! buttons' events ([`button`]): a pan goes on as the scroll it makes, and
+//! a context click pops the menu for what it was on (`window::context`).
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -12,7 +13,7 @@ use std::time::Instant;
 use crate::canvases::Canvases;
 use crate::commands::menu::Native;
 use crate::commands::{Chord, Command};
-use crate::layout::{Point, Rect};
+use crate::layout::Rect;
 use crate::panes::Panes;
 use crate::scene::paste::Keyboard;
 use crate::scene::sidebar::Sidebar;
@@ -85,13 +86,14 @@ pub fn route(
         Some(false) => return Routed::Answer(Step::Stay),
         None => {}
     }
-    let event = match button(event, shared, tools, area, canvases) {
+    let event = match button(event, shared, canvases, area) {
         Ok(event) => event,
-        Err(Some(true)) => {
-            return Routed::Answer(Step::Draw(view(settings, shared, tools, sidebar, canvases)));
+        Err(Pressed::Click(at)) => {
+            let step = window::context::clicked(at, settings, shared, canvases, tools, sidebar);
+            return Routed::Answer(step);
         }
-        Err(Some(false)) => return Routed::Answer(Step::Stay),
-        Err(None) => return Routed::Answer(Step::Pass),
+        Err(Pressed::Pass) => return Routed::Answer(Step::Pass),
+        Err(_) => return Routed::Answer(Step::Stay),
     };
     // A press focuses the pane under it first, so the press works there.
     // The app takes it, and the window the keyboard, unless it goes on;
@@ -220,35 +222,18 @@ fn hand(
 
 /// A right or middle button's `event` ([`window::button::pressed`]):
 /// `Ok` with the event to route on (any other event, or a pan's scroll),
-/// else whether to draw, or `None` when it goes on to the view under it.
+/// else what it came to: taken, a pass or a context click.
 fn button(
     event: Event,
     shared: &mut Shared,
-    tools: &mut Tools,
-    area: Rect,
     canvases: &Canvases,
-) -> Result<Event, Option<bool>> {
+    area: Rect,
+) -> Result<Event, Pressed> {
     let Event::Button { button, phase, at } = event else { return Ok(event) };
     match window::button::pressed((button, phase, at), shared, canvases, area) {
         Pressed::On(event) => Ok(event),
-        Pressed::Took => Err(Some(false)),
-        Pressed::Pass => Err(None),
-        Pressed::Click(at) => Err(Some(clicked(at, shared, tools, area))),
+        pressed => Err(pressed),
     }
-}
-
-/// A context click at `at`, a point in the window of `shared` with its
-/// panes laid in `area`: the pointer is there for `tools` (a new text
-/// lands at it) and the pane under it takes focus, as a press there does.
-/// Under the key overlay, the palette, the page menu or an open pop-up it
-/// does nothing (false).
-fn clicked(at: Point, shared: &mut Shared, tools: &mut Tools, area: Rect) -> bool {
-    if shared.modal() || tools.open_kind().is_some() {
-        return false;
-    }
-    tools.moved(at);
-    shared.press_focus(area, at, false, false);
-    true
 }
 
 /// Flashes why a paste went nowhere when `chord` is paste's key and the

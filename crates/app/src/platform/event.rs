@@ -7,6 +7,7 @@ use std::ffi::c_void;
 use objc2::MainThreadMarker;
 
 use super::dispatch;
+use crate::commands::context::Popup;
 use crate::commands::{Chord, Command};
 use crate::layout::{Point, Size};
 use crate::scene::Scene;
@@ -123,6 +124,9 @@ pub enum Step {
     Quit,
     /// Put this on the clipboard, and draw.
     Copy(Clip, Box<Scene>),
+    /// Draw, then pop this context menu at its point; a pick comes back as
+    /// the [`Event::Command`] (or the edit) its item runs.
+    Menu(Popup, Box<Scene>),
     /// The reply cannot go on, and why.
     Refuse(String),
 }

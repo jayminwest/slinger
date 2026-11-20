@@ -73,6 +73,13 @@ fn drive_sends_one_request_and_prints_what_the_window_said() {
     let (_, got) = asked(&["copy"], &taken);
     assert_eq!(got, json!({ "op": "copy" }));
 
+    let (_, got) = asked(&["shot", "w.png"], &taken);
+    assert!(Path::new(got["path"].as_str().unwrap()).is_absolute(), "{got}");
+}
+
+#[test]
+fn drive_sends_the_button_control_and_a_menu_pick() {
+    let taken = json!({ "ok": true, "said": "taken" });
     let (_, got) = asked(&["press", "5,6", "--button", "right"], &taken);
     assert_eq!(
         (&got["op"], &got["button"], &got["control"]),
@@ -83,8 +90,8 @@ fn drive_sends_one_request_and_prints_what_the_window_said() {
     let (_, got) = asked(&["drag", "5,6", "--button", "middle"], &taken);
     assert_eq!(got["button"], "middle");
 
-    let (_, got) = asked(&["shot", "w.png"], &taken);
-    assert!(Path::new(got["path"].as_str().unwrap()).is_absolute(), "{got}");
+    let (_, got) = asked(&["pick", "New", "text"], &taken);
+    assert_eq!(got, json!({ "op": "pick", "title": "New text" }));
 }
 
 #[test]

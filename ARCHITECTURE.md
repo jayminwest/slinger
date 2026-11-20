@@ -447,7 +447,12 @@ main.rs      wires the modules below. The only caller of platform. With
              after the hand: a press over an open entry's field, an agent
              UI's page or a live item's page goes on to it; a drag past the
              slop routes on as the Event::Scroll it makes; a right click
-             moves the pointer there and focuses the pane under it. A press on
+             moves the pointer there and focuses the pane under it, then
+             answers Step::Menu with the menu for what it was on
+             (window/context.rs `subject_at`, `clicked`): the empty canvas
+             or a footer; nothing off the panes or under the overlay, the
+             palette, the page menu or a pop-up. A pick comes back as the
+             Event::Command its menu bar item sends. A press on
              a footer's or the sidebar's button goes no further; the lift
              on it runs it.
 window.rs    reads the window's Facts for `able::can` (window/facts.rs)
@@ -826,8 +831,13 @@ commands.rs  key commands: the closed list of commands, the chord parser
              `same_layout` says two bars differ only in that. `able` is the
              one enabled predicate: `can(command, &Facts)`, one exhaustive
              match, false only where the command would now do nothing or
-             only flash why not; the menu bar greys by it, and the context
-             menus will (plan pl-9880f1). Pure.
+             only flash why not; the menu bar and the context menus grey
+             by it. `context` is the context menus (plan pl-9880f1): a
+             Subject (the empty canvas, a pane's footer, an agent UI pane's
+             footer) and `items(subject, keys, checked, facts)`, each item
+             made by `menu::item`, the one constructor the bar uses too; no
+             menu starts or ends with a separator. A Popup is the items and
+             the point to pop them at. Pure.
 panes.rs     the window's panes: what each shows (a canvas or an agent UI, by
              name), how they tile (a layout::Tree), the one focused pane and
              the pane commands. `follow` builds them from the server's pane
@@ -1318,7 +1328,9 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              layout::SMALLEST) and says its new size as Event::Resized; main
              lays the scene out again at it. All unsafe, objc2 and AppKit
              code. No decisions.
-platform/event.rs  what the app hears (Event) and answers (Step), and
+platform/event.rs  what the app hears (Event) and answers (Step: pass,
+             stay, draw, draw and pass on, quit, copy, refuse, and Menu,
+             draw then pop a context menu), and
              waker: the post any thread calls to queue Event::Wake on the
              main dispatch queue, which the run loop serves in its common
              modes (during a stroke, a drag or a live resize too).
@@ -1329,7 +1341,10 @@ platform/window.rs  makes the window (its style, smallest size and
 platform/drive.rs  the driven window on the main thread: runs each ask from
              the driver's thread there (the main dispatch queue), hands its
              events to the same `dispatch` real input goes through, keeps the
-             scene shown to say as text (drive::shown), draws the content view into a
+             scene shown to say as text (drive::shown), keeps a Step::Menu's
+             popup in place of popping it (`drive scene` says it,
+             `drive pick` chooses an item by title, any input but a tick
+             closes it), draws the content view into a
              PNG (a window never shown draws too, agent UIs included), and
              keeps a cut or a copy in place of the clipboard, which stays
              the user's.
@@ -1374,7 +1389,14 @@ platform/menu.rs  makes the menu bar a scene's menus say, again when they
              setHelpMenu: (by role, never by title), again after an open
              panel puts the bar back (platform/panel.rs). An undo or redo key main
              passes on (the entry has it) goes on as undo: or redo: along
-             the responder chain, to the field's own undo.
+             the responder chain, to the field's own undo. `pop` pops a
+             Step::Menu's popup at its point (flipped to the content view)
+             with popUpMenuPositioningItem:atLocation:inView:, after the
+             scene is drawn and the answer's borrow is dropped: AppKit runs
+             the menu's own loop there, and a pick dispatches from inside
+             it. Its items are made by the same `made`, auto-enabling off,
+             each on or grey as the popup says (a native one always on);
+             a command item sends `pick:`, always Event::Command.
 platform/keys.rs  a key press as a chord and the text it types (none with
              cmd held), and the clipboard as a Clip: its plain text and a
              canvas's items under the app's own type
@@ -1672,6 +1694,7 @@ Each boundary has something that fails when it is broken:
 | The item keys act on the focused page through the window's routing (cmd+A, tab, shift+tab, an arrow, cmd+J reach the daemon); a text being typed or an open entry keeps them | `crates/app/src/tests/items.rs`, against a real daemon |
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
 | With the pen tool a mouse press selects and a tablet press draws; space held turns a drag into a pan with no tool, and types in a text being typed | `crates/app/src/scene/tools/tests.rs`, `crates/app/src/scene/hand.rs`, and `crates/app/src/tests/pointer.rs` against a real daemon |
+| A context click pops the menu for what it was on (the empty canvas, a footer, an agent UI pane's footer; never its page, nor under the palette), at its point, items grey by `able::can`; a pick then acts on the clicked pane and point; a driven window says the menu and picks by title | `crates/app/src/commands/context/tests.rs`, `crates/app/src/drive.rs` tests, and `crates/app/src/tests/context.rs` against a real daemon |
 | A right or middle drag past the slop pans as the same scroll does; a right click pans nothing and focuses the pane under it; the middle button never clicks; a right press on an open entry goes on to its field | `crates/app/src/scene/secondary/tests.rs`, and `crates/app/src/tests/secondary.rs` against a real daemon |
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |

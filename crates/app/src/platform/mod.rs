@@ -11,8 +11,8 @@
 //! ink (SPEC O2). Each canvas pane is a view of its own (`canvas`) that lives as
 //! long as its pane, so a new scene repaints only what changed. `web` shows agent
 //! UIs in sandboxed web views, each kept as long as its page is shown. `menu` is
-//! the menu bar. `keys` reads a key press, and reads and writes the clipboard for
-//! a cut, copy or paste no text field takes (greyed in the Edit menu when the app
+//! the menu bar, and pops a context menu ([`Step::Menu`]). `keys` reads a key
+//! press, and reads and writes the clipboard for a cut, copy or paste no text field takes (greyed in the Edit menu when the app
 //! would do nothing). `entry` is the sling's one-line text field; `overlay` dims
 //! the window under the key overlay; `chrome` the focus border and the flash's
 //! pill. `text` sets styled text: the sidebar's rows and the panes' footers. The
@@ -258,6 +258,14 @@ fn dispatch(event: Event, mtm: MainThreadMarker) -> bool {
             keys::copy(&clip, mtm);
             draw(state, &scene, mtm);
         }
+        // The answer's borrow is gone: a pick dispatches its event from
+        // inside the menu's own loop.
+        Step::Menu(popup, scene) => {
+            draw(state, &scene, mtm);
+            if let Some(view) = state.window.contentView() {
+                menu::pop(&popup, &view, mtm);
+            }
+        }
         // The window quits the app as it closes.
         Step::Quit => state.window.close(),
     }
@@ -279,7 +287,7 @@ fn reply(line: String, mtm: MainThreadMarker) -> Result<(), String> {
     drop(answer);
     match step {
         Step::Refuse(why) => return Err(why),
-        Step::Draw(scene) | Step::Through(scene) | Step::Copy(_, scene) => {
+        Step::Draw(scene) | Step::Through(scene) | Step::Copy(_, scene) | Step::Menu(_, scene) => {
             draw(state, &scene, mtm);
         }
         Step::Quit => state.window.close(),

@@ -206,6 +206,7 @@ slinger drive stroke 300,300 340,320 380,300 --tablet
 slinger drive space                     # hold the space bar (a pan with the pointer); --up lets go
 slinger drive press 300,200 --button right  # the right button (--button middle, or --control for ctrl+click)
 slinger drive lift 300,200 --button right   # within 4 points of its press: a context click; past them a drag pans
+slinger drive pick New text             # choose an item of the context menu it opened (drive scene lists it)
 slinger drive tick                      # take the daemon's news now
 slinger drive scroll 300,200 0,-40      # scroll over a point (a negative DY scrolls up)
 slinger drive scene                     # what the window shows, a line each

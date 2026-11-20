@@ -69,8 +69,8 @@ a "did you mean" suggestion.
 | `feedback path` | The feedback file's path. `--json`: `path` |
 | `daemon info` | One field per line, the name and the value separated by a tab: `version`, `build`, `protocol`, `pid`, `started_ms`, `exe`, `socket`, `data_dir`, `claude`, `slinger`, `log` (`-` for a path it has none of). `--json`: those fields (`claude`, `log` null when none) |
 | `daemon stop` | Nothing. `--json`: `pid` |
-| `drive [--app PATH] key <CHORD> [--text TEXT]`, `drive type <TEXT>...`, `drive press\|drag\|lift <X,Y> [--tablet] [--shift] [--touch] [--eraser] [--button left\|right\|middle] [--control]`, `drive stroke <X,Y>... [--tablet] [--shift] [--touch] [--eraser]`, `drive move <X,Y>`, `drive scroll <X,Y> <DX,DY>`, `drive zoom <X,Y> <FACTOR>`, `drive space [--up]`, `drive run <NAME>`, `drive copy`, `drive cut`, `drive paste [TEXT]...`, `drive drop <X,Y> <FILE>`, `drive tick` | `taken` or `passed` for each event, separated by spaces. `--json`: `said` |
-| `drive [--app PATH] scene [--debug]` | What the driven window shows, one line per thing: its kind, its place `x,y wxh`, its colour and its text. `--json`: `said` |
+| `drive [--app PATH] key <CHORD> [--text TEXT]`, `drive type <TEXT>...`, `drive press\|drag\|lift <X,Y> [--tablet] [--shift] [--touch] [--eraser] [--button left\|right\|middle] [--control]`, `drive stroke <X,Y>... [--tablet] [--shift] [--touch] [--eraser]`, `drive move <X,Y>`, `drive scroll <X,Y> <DX,DY>`, `drive zoom <X,Y> <FACTOR>`, `drive space [--up]`, `drive run <NAME>`, `drive copy`, `drive cut`, `drive paste [TEXT]...`, `drive pick <TITLE>...`, `drive drop <X,Y> <FILE>`, `drive tick` | `taken` or `passed` for each event, separated by spaces. `--json`: `said` |
+| `drive [--app PATH] scene [--debug]` | What the driven window shows, one line per thing: its kind, its place `x,y wxh`, its colour and its text; then, while a context menu is open, `menu X,Y` and a line per item (its title in quotes, its key, `grey`; `---` for a separator). `--json`: `said` |
 | `drive [--app PATH] shot <FILE>`, `drive clip`, `drive resize <W> <H>` | The PNG's path; the text last cut or copied; nothing. `--json`: `said` |
 | `guide` | The guide for agents: the ideas and the common tasks, then every command with its arguments and what it does. Needs no daemon. `--json`: `guide`, `commands` (`name`, `usage`, `about`) |
 | `skill install [--dir DIR]` | The path of each skill file written, one per line: `<DIR>/slinger/SKILL.md`, `<DIR>/slinger-listen/SKILL.md`. Needs no daemon. `--json`: `skills`, a list of `name`, `path`, `new` |
@@ -120,7 +120,11 @@ field; delete, forward-delete, the arrows, home and end edit the field as
 the key does, and another key that types no character does nothing there. `drive press|drag|lift --button right` (or `middle`) is that
 button's event: a right press and lift within 4 points is a context
 click, a drag past that pans. `--control` makes a left press, drag or
-lift the right button's, as macOS takes a ctrl+click. `drive space` holds the space bar down, as for a pan with the
+lift the right button's, as macOS takes a ctrl+click. A driven window
+never pops a context menu (it would hold the window until a person closed
+it): it keeps it, `drive scene` lists it, `drive pick <TITLE>` chooses an
+item as a pick in the real menu does (an error names the items, or says
+the item is grey), and any other event but a tick closes it. `drive space` holds the space bar down, as for a pan with the
 pointer, until `drive space --up`. `drive run` takes a
 command's name as the config file has it. `drive paste` with no text
 pastes what the driven window last cut or copied, which never touches the
