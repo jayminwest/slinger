@@ -641,6 +641,8 @@ bullet with the area in bold.
   "Remove page", "Restart agent in a new conversation", "Select a word, a
   row"). Each column is as wide as its longest row needs; a narrower
   window shows fewer columns instead.
+- **App:** dictation reaches Flick at a `$FLICK_SOCKET` path of any
+  length; one over 103 bytes no longer fails to connect.
 - **CLI, daemon:** `slingerd --socket` and `slinger --socket` take a path
   of any length. A path over 103 bytes (a deep scratch folder, say) no
   longer fails with "path must be shorter than SUN_LEN"; the app reaches
