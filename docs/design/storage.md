@@ -1,7 +1,9 @@
 # Canvas storage: canvases as files in the workspace folder
 
 Status: picked overnight 2026-11-20 (slinger-7c18bc), owner to confirm.
-Nothing here is built yet. Inputs: SPEC D6, D15, D19, K5, O8; the canvas file
+Re-checked against main the same night, after the switching, command-target
+and cleanup plans (section "Re-checked against main" below). Nothing here is
+built yet. Inputs: SPEC D6, D15, D19, K5, O8; the canvas file
 (`docs/design/canvas-file.md`); the workspace file (`docs/workspace.md`); the
 measurements in `docs/perf/canvas.md`; the owner's decision of 2026-11-20 in
 the seed: canvases become visible files in the workspace folder, with their
@@ -39,6 +41,10 @@ plan's later steps build on that section.
   appending to the old, unlinked inode: every later change is acknowledged
   and lost. That is harmless today only because nothing else writes into
   `canvases/`.
+- A canvas stays open until the daemon stops (or a write fails).
+  `workspace_close` takes the workspace off the open list and, since
+  b85e10c, ends its agent (`Sessions::close` in
+  `crates/daemon/src/sessions/close.rs`); its canvas stays open.
 - PDF and live-UI items name a blob by `hash`; the blob is only in this
   machine's `record.sqlite` (O8). A copied `.canvas` loses its PDFs.
 - The only guard is `record.lock` on the data directory. Two daemons with two
@@ -69,7 +75,7 @@ Taken for this doc (2026-11-20, same machine, load 1.6-2.5, other agents
 idle; `F_FULLFSYNC` as Rust's `sync_all` uses on macOS; 7 runs each, median
 then max; a throwaway script in the scratch directory, not in the repo):
 
-| step of a move | 5 658 561 B (scale 1) | 28 888 569 B (scale 5) |
+| step of a move | 5 658 561 B (scale 1) | 28 888 568 B (scale 5) |
 |---|---|---|
 | copy to a temp file, sync, rename, sync the directory | 11.5 (15.5) ms | 16.3 (18.0) ms |
 | SHA-256 of the source and of the copy | 6.7 (8.0) ms | 27.2 (36.8) ms |
@@ -160,7 +166,9 @@ the versions a canvas's `live` items show are copied beside it.
   open, so a second daemon on this machine (a test daemon on another data
   directory, an older build) cannot write it: that one opens it read-only
   and every change is `conflict`, hint "another slingerd on this machine
-  holds <path>". Before each append it `stat`s the path and compares device,
+  holds <path>". The lock lasts as long as the daemon holds the file open,
+  which is until it stops: closing a workspace does not let it go (see
+  "Today"). Before each append it `stat`s the path and compares device,
   inode, size and modification time with what it last wrote (1-2 µs). On a
   difference the file changed outside slinger (a sync, a `git checkout`, an
   editor): the daemon copies the bytes it holds (the old inode is still
@@ -190,7 +198,10 @@ The riskiest change in the project: the owner's canvases are the data.
   seed is about.
 
 The move, either way (one canvas, the daemon holding `record.lock`, the
-canvas's own lock taken so no change runs during it):
+canvas's own lock taken so no change runs during it, and the canvas it
+holds open closed at the end, under that lock, so the next change opens
+the folder file through the link; the held `File` is the inode that step 3
+links into `moved/`, so a change through it would land in the backup):
 
 1. Copy `canvases/<id>.canvas` to `<dir>/.<id>.canvas.new`, sync, rename to
    `<dir>/<id>.canvas`, sync `<dir>`. If `<dir>/<id>.canvas` exists already
@@ -212,18 +223,21 @@ canvas as it was at the move, so it costs the canvas's size at that moment
 
 **Back** (`canvas move --back <ID>`, the rollback): copy the folder file's
 current bytes to `canvases/.<id>.canvas.new`, sync, rename it over the link,
-sync. The folder file stays (with a note on stderr), so a synced machine
-still has it. By hand, with slingerd stopped, the same rollback is one copy:
+sync, and close the held canvas as above. The folder file stays (with a
+note on stderr), so a synced machine still has it. By hand, with slingerd stopped, the same rollback is one copy:
 `cp <dir>/<id>.canvas "<data dir>/canvases/<id>.canvas"`, because the format
 never changed.
 
 ## Q6. A folder that already holds the canvas, or a twin
 
 Opening a synced folder on a second machine: `<dir>/main.canvas` is there.
+The same holds for every canvas the synced toml names: its `canvas` and the
+canvases of its layout's `canvas:` panes (a PDF opened into the workspace is
+one, `paper.pdf`). Q6 covers each of them.
 
-- **A. Adopt it.** `workspace_open` sees `<dir>/<canvas>.canvas` and writes a
-  link to it instead of making an empty canvas. If the data directory already
-  has a real `main.canvas` (the twin the old bug made): when the twin holds
+- **A. Adopt it.** `workspace_open` sees `<dir>/<id>.canvas` for each canvas
+  the toml names and writes a link to it instead of making an empty canvas.
+  If the data directory already has a real `main.canvas` (the twin the old bug made): when the twin holds
   no operations (header only), it moves to `canvases/moved/` and the link
   replaces it; when it holds any, both stay, the workspace keeps the data
   directory's canvas (today's behaviour), and the workspace is listed with a
@@ -270,12 +284,16 @@ Machine state, never synced and never in the folder:
 - `record.sqlite` (the record, and every blob as a cache), `record.lock`,
   `socket`, `stopped`, `slingerd.log`, `sessions.json`, `packets/`.
 - `workspaces/open.json`, and rootless workspaces (`workspaces/<slug>/`).
-- **Per-pane views** (page, pan, zoom, focus; plan pl-85bfa0 steps 8-9):
-  `workspaces/views.json`, keyed by the workspace's directory and the pane id.
+- **Per-pane views** (canvas, page, pan, zoom, focus; built in b7d390e and
+  5412468, verb `pane_view`, `crates/daemon/src/views.rs`):
+  `workspaces/views.json`, keyed by the directory of the workspace's file and
+  then the pane id. Each view names its canvas by id, and a reply gives a
+  pane its view only when that is the canvas it shows. Views stay when a
+  workspace closes.
   They are where this machine's window looks, so they never go in a canvas
   file or the folder: two machines on one synced folder would fight over
   them, and a view change would write the canvas. A canvas move keeps the
-  id, so stored views still apply. A folder the user moves in Finder is a new
+  id, so stored views still apply: nothing re-keys or moves them. A folder the user moves in Finder is a new
   workspace directory, so its views start fresh.
 - The app's `unsent-ink.json` (keyed by canvas id; a move does not touch it).
 - `canvases/`: links, the canvases that belong to no folder workspace (loose
@@ -295,6 +313,59 @@ a whole file (temp and rename), which in a synced folder sends the whole
 file and is the moment a conflict copy is most likely. Q4's check sees the
 rename as an outside change unless compaction goes through the same lock and
 updates the identity it compares; the plan notes this as a risk.
+
+## Re-checked against main after the switching, command-target and cleanup plans
+
+This doc was written before the rest of plan pl-85bfa0 (kept pane views),
+plan pl-9880f1 (command targets) and the cleanup plan pl-abcb34 reached
+`main`. Checked again on `main` at e801660: every path, type and
+function it names, the 11 files it lists in the data directory, the 9
+numbers it takes from `docs/perf/canvas.md`, and each question against what
+landed.
+
+Changed in this doc:
+
+- **The scale-5 size** in the move table is 28 888 568 bytes, as in
+  `docs/perf/canvas.md` and as the generator wrote it again for this check,
+  not 28 888 569.
+- **Views are built** (b7d390e, 5412468). They are keyed by the directory of
+  the workspace's file, then pane id, and each names its canvas by id, so a
+  move (same id) needs no change to them; they outlive `workspace_close`.
+  "What stays in the data directory" and pick 9 now say so. No pick changed.
+- **A PDF canvas's id and its reuse** (2ffff75, `made_from` in
+  `crates/app/src/backend/pdf.rs`): the app names a PDF's canvas from the
+  file name (`paper.pdf`, then `paper-2.pdf`), and when `canvas_create`
+  answers `conflict` it opens the existing canvas if its first page shows a
+  `pdf` item of the same blob. It asks by id (`canvas_show`), so it works
+  through a link unchanged. It does need the canvas to be there: on a second
+  machine, a synced layout names `paper.pdf`, and if only the workspace's own
+  canvas were adopted, opening the PDF again there would make a new
+  `paper.pdf` in the data directory beside the folder's file, a twin. Q6 now
+  says it covers every canvas the toml names, which "What stays in the data
+  directory" already counted as the folder's.
+- **Closing a workspace keeps its canvas open** (true before tonight;
+  `workspace_close` now also ends the agent, b85e10c). Q4 now says the
+  `flock` lasts until the daemon stops, not until the workspace closes.
+- **The move closes the held canvas.** The held `File` is the inode that step
+  3 hard-links into `moved/`, so without closing it a later change would be
+  appended to the backup. This was missing before tonight too; it is now in
+  Q5's move and in `--back`.
+
+Did not need to change: Q1-Q8 and their picks, the four-step move, the
+blobs, compaction, and what an older build does. The cleanup plan moved code
+this doc does not name (daemon handlers into `crates/daemon/src/server/`,
+the `verbs!` table in `crates/control/src/verb.rs`, the app's canvas
+owners); a verb added by the plan is now five places (`docs/service.md`,
+"Adding a verb"), with new lines appended to the golden fixtures, which
+only the plan's step descriptions mention. The retake of
+`docs/perf/canvas.md` changed its pen rows and the app's method; this doc
+cites neither, and every daemon number it cites is unchanged there.
+
+Left for the plan, not picked here: a canvas made after the workspace
+opened (a PDF opened into it) is made in the data directory, and so is
+a reopened workspace's canvas (closing and reopening is now one tap in
+the sidebar); both reach the folder only through `canvas move` or the move
+on the next start.
 
 ## Recommended (picked overnight, owner to confirm)
 
@@ -322,8 +393,8 @@ Each pick is the one cheapest to reverse.
    twin with content stays and is reported, never chosen silently.
 7. **Q7: A**, local file systems only.
 8. **Q8: A**, the header's id wins; ids stay global for now.
-9. Views stay in the data directory (`workspaces/views.json`), as the
-   pl-85bfa0 plan already has them; nothing about views goes in the folder.
+9. Views stay in the data directory (`workspaces/views.json`), where the
+   daemon keeps them since b7d390e; nothing about views goes in the folder.
 
 What an older build does with the new layout, all picks together: an older
 slingerd lists a moved canvas, fails to open it with `canvas_too_new` and a
