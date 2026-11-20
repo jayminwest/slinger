@@ -165,6 +165,12 @@ impl Processes {
         self.program.clone().or_else(|| self.search.claude().ok())
     }
 
+    /// The CLI the hooks of a process started now run.
+    #[must_use]
+    pub fn slinger(&self) -> &Path {
+        &self.slinger
+    }
+
     /// Has the hooks of every process started from now on run `slinger`.
     pub fn set_slinger(&mut self, slinger: PathBuf) {
         self.slinger = slinger;

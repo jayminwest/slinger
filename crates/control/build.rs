@@ -1,8 +1,9 @@
-//! Stamps the build into slingerd for feedback notes (`src/feedback.rs`):
-//! `SLINGER_BUILD_SHA` is the commit checked out and `SLINGER_BUILD_DIRTY`
-//! is `1` when tracked files differ from it. A value already in the
-//! environment wins, so a release build can name its own. Without git (a
-//! source tarball) nothing is set and notes say `build=dev`.
+//! Stamps the build into every binary that links this crate (`src/build.rs`,
+//! read by slingerd's feedback notes and log): `SLINGER_BUILD_SHA` is the
+//! commit checked out and `SLINGER_BUILD_DIRTY` is `1` when tracked files
+//! differ from it. A value already in the environment wins, so a release
+//! build can name its own. Without git (a source tarball) nothing is set and
+//! the stamp is `dev`.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

@@ -55,17 +55,6 @@ fn an_offset_is_what_date_prints() {
 }
 
 #[test]
-fn the_build_is_the_sha_dirty_or_dev() {
-    let sha = "0123456789ABCDEF0123456789abcdef01234567";
-    assert_eq!(build(Some(sha), Some("0")), sha.to_lowercase());
-    assert_eq!(build(Some(sha), None), sha.to_lowercase());
-    assert_eq!(build(Some(sha), Some("1")), format!("{}-dirty", sha.to_lowercase()));
-    assert_eq!(build(Some("unknown"), Some("1")), "dev");
-    assert_eq!(build(Some("abc"), None), "dev");
-    assert_eq!(build(None, None), "dev");
-}
-
-#[test]
 fn a_note_is_trimmed_and_leaves_out_what_it_has_not() {
     let context = Context {
         workspace: Some("notes".into()),
