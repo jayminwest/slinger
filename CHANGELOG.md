@@ -11,6 +11,14 @@ bullet with the area in bold.
 
 ### Added
 
+- **Daemon:** slingerd keeps where each pane of each workspace looks (its
+  page, pan and zoom) and which pane has the focus, in
+  `workspaces/views.json` in its data directory, through the new `pane_view`
+  verb. Every pane reply carries them, so they survive a restart and a
+  workspace closed and opened again; a pane opened beside another on the
+  same canvas starts where that one looks. The workspace file is not
+  written. `slinger pane list --json` shows them. The app uses them in a
+  coming step.
 - **App:** after an update, slinger.app notices a slingerd of another
   build and offers to restart it: a notice names both builds and how many
   running agents a restart would end, and "Restart slingerd" (the notice,
@@ -60,7 +68,9 @@ bullet with the area in bold.
   a canvas text or an entry such as Find or Feedback), pen and mouse
   events, scrolls, the space bar held for a pan, and commands, then reads back what the window
   shows as text (`drive scene`) or as a PNG (`drive shot`). It never
-  touches your clipboard, your saved window or your own daemon. See
+  touches your clipboard, your saved window or your own daemon. Every
+  point is written `X,Y` or `X Y`, `slinger drive <op> --help` says what
+  each op takes, and a socket path of any length works. See
   `slinger guide`.
 - **App:** undo and redo while you type a canvas text. Cmd+Z and
   Shift+Cmd+Z (and Undo and Redo in the Edit menu) step through the text's

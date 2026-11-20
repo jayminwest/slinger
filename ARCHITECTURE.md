@@ -198,6 +198,13 @@ workspace/panes.rs  a workspace's panes (SPEC section 7): the tree of panes
              `next`; version 1, no ids, still read with ids 1..n; ids are
              repaired, never refused). Workspace::panes reads it (one pane on
              the canvas when unset or unreadable), set_panes stores version 2.
+workspace/view.rs  where each pane looks: `PaneView` (canvas, page, the
+             canvas point at the top left, zoom) and `Views` (the focus and
+             a view per pane id) with the rules (`set` refuses a number that
+             is not finite or a zoom of 0 or less; `keep` drops gone panes;
+             `copy`; `view_of` gives a view only for the canvas the pane
+             shows), and `Kept`, the text of the daemon's views file by
+             workspace directory (unreadable text is no views).
 workspace/profile.rs  an agent's profiles (`[[agent.profile]]`): a name,
              a working directory and permission rules, each rule checked
              against the tools it knows (an unknown one is refused, never
@@ -287,15 +294,24 @@ workspaces.rs the open workspaces: the list of directories that hold their
              it for the workspace tag of each event it appends. `panes`
              changes a workspace's layout under the list's lock and writes
              the file whole when it changed; `edit` does the same for any
-             change the core makes (the profiles).
+             change the core makes (the profiles). It holds the panes'
+             kept views (`views()`); workspaces/disk.rs writes its files
+             whole and synced.
+views.rs     where the panes look: `workspaces/views.json` (the core's
+             `view::Kept`), read on first use and kept in memory; `change`
+             writes it whole and synced when the views changed, one at a
+             time. Never the workspace's file, never the record.
 server/profile.rs  `profile_list`, `profile_set`, `profile_remove`: the core
              checks the profile, a `dir` must be there (kept with its links
              resolved), and `Workspaces::edit` writes the file.
-server/pane.rs  `pane_list`, `pane_open`, `pane_close`, `pane_resize`: the canvas or UI a
+server/pane.rs  `pane_list`, `pane_open`, `pane_close`, `pane_resize`, `pane_view`: the canvas or UI a
              pane shows must exist; the core changes the layout; each change
              appends its `pane_moved`, tagged with the workspace. The reply
-             gives each pane its number and its core id. `open` is
-             shared with `ui_open`.
+             gives each pane its number, its core id and its kept view (for
+             the canvas it shows), and the kept focus. A change drops gone
+             panes' views; an open beside a pane on the same canvas copies
+             its view. `pane_view` keeps views and focus, appends nothing.
+             `open` is shared with `ui_open`.
 server/showing.rs  `ui_open`, `ui_shown`, `ui_reply`: an open checks all
              before it appends `ui_opened` and opens the pane, or, on a
              canvas, appends it under the canvas's lock once the put will go
@@ -743,7 +759,9 @@ drive.rs     a driven window's requests (`slinger-app --drive SOCKET`, which
              scroll, a pinch, a command, a paste, a drop, a tick), or an ask
              for the scene, a PNG, a resize or the window's own clipboard; a
              thread reads and writes the socket and hands each ask to the
-             main thread (platform/drive.rs). Pure but for the socket.
+             main thread (platform/drive.rs). Pure but for the socket;
+             `shown` keeps the scene to say up to date, an entry's typing
+             included (its field shows it with no draw).
 drive/outline.rs  the scene as text: one line for each thing the window
              shows, with its place, colour and text. Says, never decides.
 config.rs    the config file's format: text in, a typed config or an error
@@ -1241,7 +1259,7 @@ platform/window.rs  makes the window (its style, smallest size and
 platform/drive.rs  the driven window on the main thread: runs each ask from
              the driver's thread there (the main dispatch queue), hands its
              events to the same `dispatch` real input goes through, keeps the
-             last scene drawn to say as text, draws the content view into a
+             scene shown to say as text (drive::shown), draws the content view into a
              PNG (a window never shown draws too, agent UIs included), and
              keeps a cut or a copy in place of the clipboard, which stays
              the user's.
@@ -1504,6 +1522,7 @@ Each boundary has something that fails when it is broken:
 | A daemon names its socket in its data directory while it serves and takes the name back as it stops; `slinger` given no socket finds it there, on any path, and so does the app with no `[daemon] socket`; both pass over a name nothing listens on (`control::live_socket`), and an explicit socket is kept (docs/service.md) | `crates/control/src/place.rs` tests, `crates/daemon/tests/signals.rs`, `crates/cli/tests/agent_env.rs`, `crates/app/src/backend/place.rs` tests |
 | A bare `slinger-app`, a driven window and an app whose config names a socket never start a daemon; a bundled one starts its own slingerd only when none answers and none was stopped on purpose, one at a time | `crates/app/src/launch/tests.rs`, `crates/app/src/backend/daemon/tests.rs` |
 | A slingerd of another build is offered for a restart, never restarted unasked; `restart-daemon` stops it and the bundled one answers in its place; one that lacks `daemon_info` reads as old and is not stopped from the app | `crates/app/src/launch/skew.rs`, `crates/app/src/backend/daemon/tests.rs`, `crates/app/src/scene/sidebar/launched/tests.rs` |
+| `slinger drive` and `slinger-app --drive` take a socket path of any length (`control::{bind_socket, connect_socket}`, a short path in the temporary directory for a long one), and every drive op takes a point as `X,Y` or `X Y` | `crates/control/src/unix.rs` tests, `crates/cli/src/tests/drive.rs` |
 | The client takes a reply slower than 5 s (the daemon under disk load) as an answer, not `unavailable`; it waits 30 s at most, and no reply in that time hints to retry or restart, not to start the daemon (docs/service.md) | `crates/control/src/client.rs` tests, with a fake daemon |
 | The packet's line format (docs/design/packet.md); no agent item is rendered | `crates/core/tests/packet.rs`, with a stored snapshot |
 | The packet's image rules: scale, margin, tiles, same bytes for the same input | `crates/core/tests/render.rs`, with golden images |
@@ -1542,6 +1561,7 @@ Each boundary has something that fails when it is broken:
 | Only `platform/pdf.rs` reads a PDF (CoreGraphics, PDFKit or a PDF crate); the core, the daemon, control and the CLI never parse one | `check:layers` rule `pdf-lives-in-platform-pdf` |
 | A layout reads back as written; a closed pane's space goes to its sibling | the tests of `crates/core/src/workspace/panes.rs`, `crates/app/src/layout/tree.rs` and `crates/app/src/panes.rs` |
 | Panes open, close, resize and list through the socket, each change records `pane_moved`, closing a pane already gone succeeds, the layout survives a restart; the app follows another client's change | `crates/daemon/src/tests/pane.rs` through a real socket, and `crates/app/src/backend.rs` |
+| Each pane's kept view and the focus come back in every pane reply and after a restart; a close drops a gone pane's, an open beside a pane on the same canvas copies it; a view of another canvas or a gone pane is left out; `pane_view` writes neither the workspace file nor the record | `crates/core/src/workspace/view/tests.rs`, `crates/daemon/src/tests/pane_view.rs` through a real socket |
 | An agent opens a UI with data; each reply is recorded and reaches its running session as one JSON line, in order; a reply for a stopped session stays in the record; a refused open records nothing; replies are bounded | `crates/daemon/src/tests/showing.rs`, with a stand-in for Claude Code, and `crates/core/src/ui/showing.rs` |
 | A canvas page reads every kind from the canvas file and follows each feed operation | `crates/app/src/mirror/tests.rs` |
 | A folded box hides what it holds and draws it as its miniature; `fold` and the fold mark fold and unfold through the daemon; an unfold into a taken room peeks until escape or a press outside, writing nothing | `crates/app/src/mirror/fold/tests.rs`, `crates/app/src/canvases/fold/tests.rs`, and `crates/app/src/tests/fold.rs` against a real daemon |

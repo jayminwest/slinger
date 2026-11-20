@@ -88,7 +88,13 @@ mod shown {
     fn laid(workspace: &str, panes: &[(u32, &str)]) -> Panes {
         let leaf = |(at, &(id, canvas)): (usize, &(u32, &str))| {
             let pane = u32::try_from(at + 1).unwrap();
-            PaneTree::Pane(Shown { pane, id, kind: PaneKind::Canvas, target: canvas.into() })
+            PaneTree::Pane(Shown {
+                pane,
+                id,
+                kind: PaneKind::Canvas,
+                target: canvas.into(),
+                view: None,
+            })
         };
         let mut leaves = panes.iter().enumerate().map(leaf).rev();
         let last = leaves.next().unwrap();

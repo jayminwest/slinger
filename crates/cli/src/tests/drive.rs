@@ -2,7 +2,6 @@
 //! takes one request line and answers it.
 
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixListener;
 use std::path::Path;
 
 use serde_json::{Value, json};
@@ -27,9 +26,15 @@ fn drive(app: Option<&Path>, args: &[&str]) -> Run {
 /// Runs `slinger drive` with `args` against an app that answers `reply`:
 /// the run, and the request the app got.
 fn asked(args: &[&str], reply: &Value) -> (Run, Value) {
+    asked_at("a.sock", args, reply)
+}
+
+/// [`asked`], the app's socket at `name` in a new directory.
+fn asked_at(name: &str, args: &[&str], reply: &Value) -> (Run, Value) {
     let dir = TempDir::new().unwrap();
-    let socket = dir.path().join("a.sock");
-    let listener = UnixListener::bind(&socket).unwrap();
+    let socket = dir.path().join(name);
+    std::fs::create_dir_all(socket.parent().unwrap()).unwrap();
+    let listener = slinger_control::bind_socket(&socket).unwrap();
     let reply = reply.to_string();
     let app = std::thread::spawn(move || {
         let (stream, _) = listener.accept().unwrap();
@@ -87,6 +92,41 @@ fn drive_fails_loudly_with_no_app_a_refusal_or_a_bad_point() {
     assert_eq!(run.code, exit::INVALID);
     assert!(run.err.contains("no chord"), "{}", run.err);
 
-    let point = drive(Some(Path::new("/nonexistent/a.sock")), &["stroke", "1;2"]);
-    assert_eq!(point.code, exit::USAGE);
+    for args in [
+        &["stroke", "1;2"][..],
+        &["stroke", "1", "2", "3"],
+        &["press", "1,2,3"],
+        &["scroll", "1", "2", "3"],
+    ] {
+        let point = drive(Some(Path::new("/nonexistent/a.sock")), args);
+        assert_eq!(point.code, exit::USAGE, "{args:?}");
+        assert!(point.err.contains("X,Y or X Y"), "{}", point.err);
+    }
+}
+
+#[test]
+fn a_point_is_x_comma_y_or_x_space_y_for_every_op() {
+    let taken = json!({ "ok": true, "said": "taken" });
+    for (one, other) in [
+        (&["press", "10,20", "--tablet"][..], &["press", "10", "20", "--tablet"][..]),
+        (&["move", "10,20"], &["move", "10", "20"]),
+        (&["scroll", "10,20", "0,-30"], &["scroll", "10", "20", "0", "-30"]),
+        (&["zoom", "10,20", "1.5"], &["zoom", "10", "20", "1.5"]),
+        (&["drop", "10,20", "a.pdf"], &["drop", "10", "20", "a.pdf"]),
+        (&["stroke", "1,2", "3.5,4"], &["stroke", "1", "2", "3.5", "4"]),
+    ] {
+        let (_, one) = asked(one, &taken);
+        let (_, other) = asked(other, &taken);
+        assert_eq!(one, other);
+    }
+    let (_, got) = asked(&["press", "10,20"], &taken);
+    assert_eq!((&got["x"], &got["y"]), (&json!(10.0), &json!(20.0)));
+}
+
+#[test]
+fn drive_reaches_an_app_whose_socket_path_is_too_long_for_a_socket() {
+    let deep = format!("{}/{}/a.sock", "a".repeat(60), "b".repeat(60));
+    let (run, got) = asked_at(&deep, &["tick"], &json!({ "ok": true, "said": "" }));
+    assert_eq!((run.code, run.err.as_str()), (exit::OK, ""));
+    assert_eq!(got, json!({ "op": "tick" }));
 }
