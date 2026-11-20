@@ -19,7 +19,7 @@ Read `docs/PHILOSOPHY.md` before you change any design. In short:
 - `plugin/`: the Claude Code plugin: the skill that tells an agent when to use slinger (`plugin/skills/slinger/SKILL.md`) and the one that makes a session take a workspace's slings (`plugin/skills/slinger-listen/SKILL.md`). `.claude-plugin/marketplace.json` lists it. The CLI ships the same skills (`slinger skill install`) and the guide it points to (`slinger guide`, from `crates/cli/src/guide.md`).
 - `crates/control/`: the control protocol (`slinger-control`): the requests, the replies, the wire format and the socket client. The contract is in `docs/service.md`.
 - `crates/daemon/`: the daemon (`slingerd` binary). It owns the socket, the signals and startup, and serves the core. It holds no domain logic.
-- `crates/app/`: the macOS app (`slinger-app` binary). This is a thin layer over the daemon's control socket. Only `crates/app/src/platform/` holds `unsafe`, objc2 or AppKit code. `scripts/bundle.sh` builds the `.app`.
+- `crates/app/`: the macOS app (`slinger-app` binary). This is a thin layer over the daemon's control socket. Only `crates/app/src/platform/` holds `unsafe`, objc2 or AppKit code. `scripts/bundle.sh` builds the `.app`, with `slingerd` and `slinger` beside `slinger-app` in the bundle's Contents/MacOS; `--install` links them into `~/.local/bin`.
 - `xtask/`: the quality gates (`cargo xtask check-all`). The budgets and the layer rules (`budgets/layer-rules.json`) are in `budgets/`.
 - `ARCHITECTURE.md`: the layers, the boundaries and how to add things. Update it in the same commit as any change to a contract.
 
