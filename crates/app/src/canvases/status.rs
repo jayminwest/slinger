@@ -7,10 +7,11 @@
 use std::path::Path;
 
 use super::{Canvases, canvas_of};
-use crate::commands::Keymap;
+use crate::commands::{Command, Keymap};
 use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Rect};
 use crate::panes::{Kind, Panes};
+use crate::scene::daemon::Daemon;
 use crate::scene::pages;
 use crate::scene::status::{self, Footer, Pen, Shows, State};
 use crate::scene::title;
@@ -142,5 +143,16 @@ impl Canvases {
         let settled = file.is_none_or(|(canvas, _)| self.ink.settled(canvas));
         let problem = self.ink.problem().map(|p| p.message.as_str());
         title::saved(file, settled, problem, home)
+    }
+
+    /// After `command`: while the app starts `daemon` or it is away
+    /// ([`crate::scene::daemon`]), a `save` that waits on it says why.
+    pub fn unsaved_while(&mut self, command: Command, daemon: Option<&Daemon>) {
+        if command == Command::Save
+            && self.ink.problem().is_some()
+            && let (Some(said), Some(daemon)) = (&mut self.zoomed, daemon)
+        {
+            *said = title::unsaved(daemon.unsaved());
+        }
     }
 }

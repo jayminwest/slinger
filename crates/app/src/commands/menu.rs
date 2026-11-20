@@ -179,7 +179,16 @@ const BAR: [(&str, &[Action]); 8] = [
             R(Command::ShrinkPane),
         ],
     ),
-    ("Window", &[R(Command::ToggleSidebar), R(Command::DismissNotice), N(Native::Minimise)]),
+    (
+        "Window",
+        &[
+            R(Command::ToggleSidebar),
+            R(Command::DismissNotice),
+            R(Command::StartSlingerd),
+            R(Command::RestartDaemon),
+            N(Native::Minimise),
+        ],
+    ),
     (
         "Help",
         &[

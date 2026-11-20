@@ -338,3 +338,11 @@
 # Step the focused pane out of the box it is in, one level. Escape does the same when
 # nothing is selected (clear-selection's key).
 #step-out = "cmd+alt+o"
+# Start slingerd after `slinger daemon stop` stopped it: the bundled app starts the one
+# it holds, as it does when it opens. The sidebar's "Start slingerd" line runs it. No key
+# by default: the palette and the Window menu run it.
+#start-slingerd = ""
+# Stop slingerd and start the one the bundled app holds: the offer that shows when the
+# slingerd that answers is another build runs it. It ends the agents' processes slingerd
+# runs. No key by default: the palette and the Window menu run it.
+#restart-daemon = ""

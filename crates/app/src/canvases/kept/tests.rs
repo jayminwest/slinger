@@ -39,7 +39,7 @@ fn strokes_drawn_while_the_daemon_is_down_are_sent_after_the_next_start() {
     assert_eq!(Unsent::at(path.clone()).load().unwrap().len(), 3, "kept before any answer");
     wait_until(|| {
         quit.poll();
-        quit.problems().next().is_some()
+        quit.daemon_problems().next().is_some()
     });
     assert_eq!(Unsent::at(path.clone()).load().unwrap().len(), 3, "not reached: still kept");
     drop(quit);
@@ -67,8 +67,9 @@ fn a_file_that_cannot_be_read_is_a_problem_and_a_new_stroke_replaces_it() {
     std::fs::write(&path, "{nope").unwrap();
     let mut canvases =
         Canvases::new(Client::new("/nonexistent/x.sock")).keeping(Unsent::at(path.clone()));
-    let problem = canvases.problems().next().unwrap();
+    let problem = canvases.own_problems().next().unwrap();
     assert!(problem.message.starts_with(&path.display().to_string()), "{problem:?}");
+    assert_eq!(canvases.daemon_problems().next(), None, "the app's own, not the daemon's");
     draw(&mut canvases, "notes", 1.0);
     canvases.poll();
     assert_eq!(Unsent::at(path).load().unwrap().len(), 1);
@@ -110,7 +111,7 @@ fn a_stroke_written_as_the_app_quit_is_not_written_twice() {
             canvases.poll();
             canvases.ink.settled("notes")
         });
-        assert_eq!(canvases.problems().next(), None, "sent again and answered, not refused");
+        assert_eq!(canvases.daemon_problems().next(), None, "sent again and answered, not refused");
         assert!(!path.exists(), "the file goes in the poll that hears the answer");
         assert_eq!(strokes(daemon), [10], "written once");
     });

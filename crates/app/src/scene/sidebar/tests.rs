@@ -230,10 +230,10 @@ fn the_pen_s_next_press_takes_a_done_agent_out_of_the_notice() {
 #[test]
 fn the_notice_s_x_dismisses_it_and_the_rest_shows_the_agent_s_workspace() {
     let mut sidebar = heard(vec![ws("ada", None), ws("bo", None)]);
-    assert_eq!(sidebar.notice_targets(WINDOW), [], "no notice, no targets");
+    assert_eq!(sidebar.notice_targets(&T, WINDOW), [], "no notice, no targets");
     sidebar.update(Ok(vec![ws("ada", None), noted("bo", Status::Blocked, "which key?")]));
     let labels = sidebar.notice(&T, WINDOW);
-    let targets = sidebar.notice_targets(WINDOW);
+    let targets = sidebar.notice_targets(&T, WINDOW);
     let close = (labels[1].frame, Tap::Run(crate::commands::Command::DismissNotice));
     assert_eq!(targets, [close, (labels[0].frame, Tap::Workspace(1))]);
 }

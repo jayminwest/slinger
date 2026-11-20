@@ -135,6 +135,8 @@ impl Command {
             Command::StepIn => "Step into box",
             Command::StepInBeside => "Step into box beside",
             Command::StepOut => "Step out of box",
+            Command::StartSlingerd => "Start slingerd",
+            Command::RestartDaemon => "Restart slingerd",
         }
     }
 
@@ -225,7 +227,9 @@ impl Command {
             | Command::ShowCommands
             | Command::LeaveFeedback
             | Command::ShowFeedbackFile
-            | Command::ShowAllFeedback => Group::Window,
+            | Command::ShowAllFeedback
+            | Command::StartSlingerd
+            | Command::RestartDaemon => Group::Window,
         }
     }
 }

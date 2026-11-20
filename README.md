@@ -8,17 +8,24 @@ Agent tools are chat windows: you type text, and text comes back. Slinger is one
 
 ## Quickstart
 
+On a Mac, build slinger and install it:
+
 ```bash
-cargo install --locked --git https://github.com/jayminwest/slinger slinger
+scripts/bundle.sh --install   # slinger.app to /Applications; links slinger and slingerd in ~/.local/bin to it
+```
+
+Then open slinger from Spotlight or the Dock. With no daemon running, the app starts the `slingerd` inside it; the window says "Starting slingerd…", then shows your canvases. slingerd keeps running after you quit the app, so agents keep working, and the app starts it again if it stops by itself. Its log is `slingerd.log` in the data directory; `slinger daemon info` names it. The protocol is in [docs/service.md](docs/service.md).
+
+The CLI is `~/.local/bin/slinger`, a link into the app. Put `~/.local/bin` on your `PATH`, then:
+
+```bash
+slinger canvas create main
 slinger --help
 ```
 
-Start the daemon, then use the CLI. The protocol is in [docs/service.md](docs/service.md).
+The bundle holds `slingerd` and `slinger` beside the app, so one install holds one copy of each: `--install` replaces whatever is at `~/.local/bin/slingerd` and `~/.local/bin/slinger` (a copy from an older install, or a link) with a link into `/Applications/slinger.app`.
 
-```bash
-cargo run --release --bin slingerd &   # the record goes in the default data directory
-cargo run --release --bin slinger -- canvas create main
-```
+To update, run `scripts/bundle.sh --install` again and reopen the app. The install stops and starts nothing, so the slingerd that runs keeps the old build. The app sees this and offers "Restart slingerd", naming both builds and the running agents a restart ends. Accept it when those agents can stop.
 
 Teach your agents to use it. In Claude Code, install the plugin:
 
@@ -29,18 +36,9 @@ Teach your agents to use it. In Claude Code, install the plugin:
 
 For another harness, `slinger skill install --dir <its skills directory>` writes the same skill. The skill sends the agent to `slinger guide`, which the binary prints, so the guide always fits the installed commands.
 
-Build and open the macOS app (it shows the daemon's answer):
+Run the bundle, not the bare `slinger-app` binary (from `cargo run`, a shell or ssh). Only the bundle starts a daemon: a bare binary waits for one. And whenever the app reads your files (opening a workspace, a PDF or a drawing, or exporting a UI), macOS gives folder access (Desktop, Documents, Downloads) to the bundle, which says why it asks. A bare binary gets none of its own, so its open panel can show those folders empty or refuse them.
 
-```bash
-scripts/bundle.sh && open target/slinger.app
-scripts/bundle.sh --install   # the app to /Applications; links slingerd and slinger in ~/.local/bin to it
-```
-
-The bundle holds `slingerd` and `slinger` beside the app, so one install holds one copy of each: `--install` replaces whatever is at `~/.local/bin/slingerd` and `~/.local/bin/slinger` (a copy from an older install, or a link) with a link into `/Applications/slinger.app`. It stops and starts nothing; a running daemon keeps its build until it is restarted.
-
-Run the bundle, not the bare `slinger-app` binary (from `cargo run`, a shell or ssh), whenever the app reads your files: opening a workspace, a PDF or a drawing, or exporting a UI. macOS gives folder access (Desktop, Documents, Downloads) to the bundle, which says why it asks. A bare binary gets none of its own, so its open panel can show those folders empty or refuse them.
-
-The app does not start the daemon: run `slingerd` first, or at login from a service manager ([docs/service.md](docs/service.md), "Running it as a system service"). The daemon refuses a data directory in a temporary directory unless it is given `--scratch`, because the system empties those.
+On a host with no app (Linux, a server), install the CLI and the daemon with `cargo install --locked --git https://github.com/jayminwest/slinger slinger slingerd` and run `slingerd` under a service manager ([docs/service.md](docs/service.md), "Running it").
 
 ## Without a pen
 

@@ -18,6 +18,7 @@ mod drive;
 mod fold;
 mod items;
 mod keyboard;
+mod launch;
 mod pointer;
 mod size;
 mod sling_box;
@@ -52,6 +53,7 @@ impl World {
         );
         match routed {
             Routed::Answer(step) | Routed::Watch(_, step) => !matches!(step, Step::Pass),
+            Routed::Launch(_) => true,
             Routed::News(_) => {
                 w.canvases.poll();
                 view(&w.settings, &mut w.shared, &w.tools, &w.sidebar, &mut w.canvases);

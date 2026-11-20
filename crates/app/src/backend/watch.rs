@@ -200,6 +200,11 @@ impl Watch {
         self.codes.try_iter().flatten().collect()
     }
 
+    /// Asks again, at once: a daemon came to answer.
+    pub fn poke(&self) {
+        self.asked.poke(|_| {});
+    }
+
     /// Asks the daemon on `socket`, at once.
     pub fn follow(&self, socket: PathBuf) {
         self.asked.poke(|a| a.socket = socket);
@@ -332,6 +337,20 @@ mod tests {
             };
             assert_eq!(came.unwrap().workspace, "notes");
             assert!(picked.elapsed() < LONG / 3, "a poke, not the timeout");
+        });
+    }
+
+    #[test]
+    fn a_poke_starts_a_round_at_once() {
+        with_socket(|socket| {
+            let d = &Client::new(socket);
+            let watch = Watch::every(LONG, (socket.to_path_buf(), None, None), &Wake::none());
+            crate::backend::testing::wait_until(|| watch.latest() == Some(Ok(Vec::new())));
+            let _dir = open_notes(d);
+            let poked = Instant::now();
+            watch.poke();
+            crate::backend::testing::wait_until(|| watch.latest().is_some());
+            assert!(poked.elapsed() < LONG / 3, "a poke, not the timeout");
         });
     }
 

@@ -1,0 +1,8 @@
+#!/bin/sh
+# A stand-in for slingerd (backend/daemon/tests.rs): writes its arguments,
+# one a line, to `argv` beside its --log file (its second argument), says
+# what `say` there holds on stderr, and exits with the code `exit` holds.
+dir=$(dirname "$2")
+printf '%s\n' "$@" > "$dir/argv"
+if [ -f "$dir/say" ]; then cat "$dir/say" >&2; fi
+exit "$(cat "$dir/exit")"

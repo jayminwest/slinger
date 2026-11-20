@@ -27,6 +27,7 @@ use crate::scene::{Label, status, style};
 
 mod agent;
 pub mod broken;
+pub mod launched;
 pub mod notice;
 
 pub use agent::{Agent, Process, Status};
@@ -92,6 +93,9 @@ pub struct Sidebar {
     workspaces: Option<Vec<Workspace>>,
     /// Why there is no list.
     problem: Option<String>,
+    /// What the app says of the daemon it starts, in place of the list,
+    /// and of its build.
+    launched: launched::Launched,
     /// The agents in the notice, oldest first, with the status each became.
     notice: Vec<notice::Noticed>,
     /// The workspace whose panes the window shows; `None`: the first usable.
@@ -113,7 +117,9 @@ enum Shown {
 impl Sidebar {
     /// An empty sidebar, open or collapsed.
     pub fn new(open: bool) -> Self {
-        Self { open, workspaces: None, problem: None, notice: Vec::new(), shown: None, last: None }
+        let (workspaces, problem, launched, notice) =
+            (None, None, launched::Launched::default(), Vec::new());
+        Self { open, workspaces, problem, launched, notice, shown: None, last: None }
     }
 
     /// The sidebar, showing `last` (the workspace the window showed when the
@@ -279,6 +285,10 @@ impl Sidebar {
         let heading = Font { size: Some(11.0), bold: false, spacing: 1.0 };
         let mut lines = vec![Line::new(HEADING.into(), theme.muted, heading)];
         match (&self.workspaces, &self.problem) {
+            _ if let Some(daemon) = self.daemon() => {
+                let line = |(t, c, run)| Line { run, ..Line::new(t, c, Font::PLAIN) };
+                lines.extend(daemon.sidebar(theme).into_iter().map(line));
+            }
             (_, Some(problem)) => {
                 lines.push(Line::new(format!("✗ {problem}"), theme.error, Font::PLAIN));
             }
@@ -327,7 +337,7 @@ impl Sidebar {
             if line.shown {
                 lit = Some((lit.map_or(y, |(top, _)| top), y + ROW));
             }
-            let tap = line.workspace.map(|i| line.run.map_or(Tap::Workspace(i), Tap::Run));
+            let tap = line.run.map(Tap::Run).or(line.workspace.map(Tap::Workspace));
             match (tap, targets.last_mut()) {
                 (Some(t), Some((frame, at))) if *at == t => frame.height = y + ROW - frame.y,
                 (Some(t), _) => {

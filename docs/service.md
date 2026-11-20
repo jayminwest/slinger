@@ -154,6 +154,24 @@ write at a time, so any thread may write to it while the daemon serves.
   socket` wins; else the live named socket, else the default path. It
   watches the name, so the window follows a daemon that starts, moves or
   stops after it opened.
+- **The bundled app starts one.** slinger.app with no `[daemon] socket`
+  in its config looks at the socket about once a second and, when none
+  answers, runs the `slingerd` inside it (`Contents/MacOS/slingerd --log
+  <data dir>/slingerd.log`, no `--socket`, no `--data-dir`) in a process
+  group of its own, so it outlives the app; the window says "Starting
+  slingerd…" until it answers. Exit 4 (another daemon won the lock) is
+  waited for; any other exit, or 10 s with no answer, shows "slingerd did
+  not start" with the log, and the app tries again 30 s later. A daemon
+  that died is started again; one stopped on purpose (the `stopped` mark
+  of `daemon_stop`) is not, until the app is opened again or
+  `start-slingerd` runs. A bare `slinger-app` (`cargo run`, the tests), a
+  driven window and an app whose config names a socket never start one.
+  Each time a daemon comes to answer it, the app asks `daemon_info`; when
+  the version or build is not its own, the window offers "Restart slingerd"
+  (naming both builds and the agents' processes a restart would end). It
+  never restarts unasked: `restart-daemon` sends `daemon_stop`, then starts
+  its own once the old one is gone. A daemon that answers `bad_request`
+  predates the verbs and must be stopped with SIGTERM once.
 - There is no network transport.
 
 ## Protocol
@@ -1310,14 +1328,30 @@ not open, and an agent with no session.
 5. Add the verb to the table above, then expose it from each client that
    needs it.
 
-## Running it as a system service
+## Running it
 
-The repo ships no launchd or systemd unit. On macOS `scripts/bundle.sh
---install` puts the app in `/Applications`, with `slingerd` and `slinger`
-inside it (`slinger.app/Contents/MacOS`), and links `~/.local/bin/slingerd`
-and `~/.local/bin/slinger` to those, for a unit to run. To add one, run `slingerd` (the default
-socket and data directory, or a `--socket <PATH>` and a `--data-dir <PATH>`
-that lasts) as the user who owns the data, restart it on
-failure, and stop it with SIGTERM. The daemon does not fork and does not
-write a pid file, so use the service manager's simple (foreground) type. Do
-not use socket activation: the daemon creates and locks its own socket.
+On macOS the app runs the daemon. `scripts/bundle.sh --install` puts
+slinger.app in `/Applications`, with `slingerd` and `slinger` inside it
+(`slinger.app/Contents/MacOS`), and links `~/.local/bin/slingerd` and
+`~/.local/bin/slinger` to those. Opening the app starts that `slingerd`
+when none answers, with its log at `slingerd.log` in the data directory,
+and offers to restart one of another build (see "Socket", "The bundled app
+starts one"). The daemon outlives the app. A login item, which would start
+it before the app is opened, is not shipped yet.
+
+On a headless or remote host, or to keep a daemon up with no app, run it
+under a service manager. The repo ships no launchd or systemd unit. To add
+one:
+
+- Run `slingerd` as the user who owns the data, with the default socket
+  and data directory, or a `--socket <PATH>` and a `--data-dir <PATH>`
+  that lasts (not in a temporary directory; see "The daemon").
+- Use the service manager's simple (foreground) type: the daemon does not
+  fork and does not write a pid file. Restart it on failure.
+- Do not use socket activation: the daemon creates and locks its own
+  socket.
+- Stop it with SIGTERM, or with `slinger daemon stop`. Its agents' processes
+  stop with it.
+- Give it `--log <PATH>` for a log file, or let the service manager take
+  its stderr. It ignores SIGHUP, so a daemon started from a terminal
+  outlives the terminal.

@@ -312,7 +312,9 @@ impl Panes {
             | Command::Fold
             | Command::StepIn
             | Command::StepInBeside
-            | Command::StepOut => {}
+            | Command::StepOut
+            | Command::StartSlingerd
+            | Command::RestartDaemon => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),

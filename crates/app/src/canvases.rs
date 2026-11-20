@@ -30,6 +30,7 @@ mod live;
 mod news;
 mod paging;
 mod pdf;
+mod problems;
 mod reader;
 mod seek;
 mod start;
@@ -201,13 +202,6 @@ impl Canvases {
         self.pdfs = pdf::Pdfs::start(daemon.clone(), crate::backend::pdf::cache(), &self.wake);
         self.daemon = daemon;
         self.open.clear();
-    }
-
-    /// What is wrong with any canvas followed, or with sending the ink.
-    pub fn problems(&self) -> impl Iterator<Item = &Problem> {
-        let kept = self.kept.as_ref().and_then(kept::Kept::problem).into_iter();
-        let open = self.open.iter().filter_map(|o| o.problem.as_ref());
-        open.chain(self.ink.problem()).chain(kept.chain(self.pdfs.problem()))
     }
 
     /// The pen went down in `pane` of `panes`, laid at `frame` in the

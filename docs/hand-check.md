@@ -27,9 +27,15 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 ## Launcher (plan pl-ac18df)
 
 - [ ] `scripts/bundle.sh --install` (checked with scratch SLINGER_APP_DIR and HOME only): `ls -l ~/.local/bin/slinger ~/.local/bin/slingerd` are links into /Applications/slinger.app; `slinger --version` runs through the link; an agent session's hooks still find slinger (`slinger daemon info` names the bundled one); About slinger shows the version and the build number (slinger-0d265b)
+- [ ] restart offer (slinger-866657): install a newer build with `scripts/bundle.sh --install` while slingerd runs with an agent working, quit and reopen the app: the notice names both builds and "ends 1 running agent"; Restart slingerd shows "Starting slingerd…" and brings the window back on the new daemon (`slinger daemon info` shows the new build and the exe inside the app); canvases and waiting slings are intact; ✕ hides the offer until the next different daemon (launcher, skew and offer tests passed; a driven window never manages a daemon, so it cannot show the offer)
+- [ ] read README "Quickstart" and docs/service.md "Running it" against the install above: every command works as written and nothing tells you to start the daemon from a terminal (slinger-5f71e8)
 - [ ] after `scripts/bundle.sh --install` the icon shows in the Dock, cmd+tab, Finder and Spotlight and reads at the smallest size (macOS may cache the old one: `touch /Applications/slinger.app`) (slinger-d8fb56)
 
-- [ ] from a slingerd that the bundled app started (once slinger-5e8b60 lands; until then `env -i HOME=$HOME USER=$USER SHELL=$SHELL PATH=/usr/bin:/bin:/usr/sbin:/sbin slingerd` with no --claude), start an agent and sling once: Claude Code is found, its hooks report, its Bash tool finds git/cargo/sd, its MCP servers load (slinger-be3082)
+- [ ] first launch (slinger-5e8b60): with no slingerd running, open /Applications/slinger.app: "Starting slingerd…" then the canvases, no terminal used; quit the app: slingerd and a working agent keep running; reopen: the window finds it; `slinger daemon info` names the exe inside the app and the log `slingerd.log` in the data directory, which holds its start line (scene and launcher tests passed; a driven window never starts a daemon by design) (slinger-5e8b60)
+- [ ] with the bundled app open, `kill -9` its slingerd: "Starting slingerd…" and it is back within seconds, and ink drawn meanwhile is sent; `slinger daemon stop` instead: "slingerd is stopped" and the sidebar's Start slingerd brings it back (slinger-5e8b60)
+- [ ] open two copies of the app at once with no daemon (`open -n` twice): one slingerd runs (`pgrep -l slingerd`), neither window shows "did not start" (slinger-5e8b60)
+- [ ] a workspace under ~/Documents opened through the app-started daemon: which macOS prompt appears and for whom (slinger.app or slingerd); does the grant survive a reinstall (the bundle is signed ad hoc) (slinger-5e8b60)
+- [ ] from a slingerd that the bundled app started, start an agent and sling once: Claude Code is found, its hooks report, its Bash tool finds git/cargo/sd, its MCP servers load (slinger-be3082)
 
 ## Agent sessions, workspaces and the rest
 

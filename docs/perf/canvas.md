@@ -1,6 +1,7 @@
 # Measured: slinger on a synthetic 5 MB+ canvas
 
-slinger-6c0f10, measured 2026-11-20. These are inputs for the storage design
+slinger-6c0f10, measured 2026-11-20; the switch and lasso rows were taken
+again later that day, after slinger-2c5d60 and slinger-a1035a (below). These are inputs for the storage design
 (slinger-7c18bc). Every number below was taken with the commands in "How to
 measure again". A number that could not be taken is listed under "Not taken",
 with the reason.
@@ -33,8 +34,14 @@ instead. Nothing large is committed: the same settings give the same bytes.
 
 The counts come from `jq` over files the example wrote with the same settings; the page 1 item
 counts come from the first `canvas_show`, before the script adds anything. Writing
-the file takes 0.7 s at scale 1 and 12.7 s at scale 5 (release); the second
-is long because a lasso move costs more as the canvas grows (below). A move
+the file took 0.7 s at scale 1 and 12.7 s at scale 5 (release, load 2.3),
+because each move or erase scanned every item once per id. Since
+slinger-a1035a it takes 0.4 s and 8.0 s, against 0.5 s and 14.3 s for the
+code just before it in the same session (load 5.5-7.1), and writes the same
+bytes (same `shasum` at both scales). A `sample` profile of a debug build at
+scale 2 no longer shows `Log::carried`; the largest part left under
+`Log::apply` is `History::apply` cloning the whole canvas for each step
+(18% of samples, and 8% more dropping the clone). A move
 line is one moved item, so a lasso of 15 strokes writes 15 lines.
 Compared with the real board in `docs/design/canvas-file.md` (7 563 strokes,
 170 938 points, median 21, 99th percentile 63), scale 1 has about as many
@@ -53,6 +60,14 @@ asks for long point arrays): per stroke it is heavier than the real board.
   "Spread between runs". The `SLINGER_TRACE` rows come from the last run of
   each scale, after lane a's trace reached `main`. Compare the big and small
   rows of one run, not runs from different times.
+- The switch rows and the lasso rows were taken again after slinger-2c5d60
+  (the app's 1 s `Watch` poll is gone) and around slinger-a1035a. Switch
+  and "before slinger-a1035a": one run of each scale, with the app; scale 1
+  at load 5.6 then 6.1, scale 5 at load 8.1 then 10.8. "After": `--no-app`
+  runs, scale 1 at 5.7 then 5.1 (an earlier run at 7.7 was dropped: its
+  "add a stroke" row was 17.9 ms, the fsync pattern below), scale 5 at 5.9
+  then 5.5. No `rustc` was running at the start of any of them. The loads
+  are higher than those of the first runs.
 - Each row is timed from one Unix-socket request to its reply (Python
   `time.perf_counter`), which includes the JSON encode and decode on both
   sides. A drive request that does nothing costs 0.0-0.1 ms.
@@ -71,14 +86,17 @@ Medians in ms, with the p90 after the slash. A row with one run has no p90.
 | `canvas_show` p4 (PDF page), warm | 0.1 | 13.5 / 14.1 | 74.2 / 110.2 |
 | `sling_backdrops` p4 (ink over PDF pages) | 0.2 / 0.4 | 283.7 / 291.2 | 1306.3 / 1433.5 |
 | `canvas_apply`: add one 31-point stroke (user) | 4.5 / 5.3 | 4.7 / 6.9 | 5.2 / 18.0 |
-| `canvas_apply`: lasso move of the strokes just added | 5.2 / 5.7 (20 ids) | 8.4 / 9.2 (20 ids) | 18.8 / 23.2 (8 ids) |
+| `canvas_apply`: lasso move of the strokes just added (first runs) | 5.2 / 5.7 (20 ids) | 8.4 / 9.2 (20 ids) | 18.8 / 23.2 (8 ids) |
+| the same, again, just before slinger-a1035a | 5.4 / 6.2 | 7.2 / 7.6 | 24.3 / 26.2 |
+| the same, after slinger-a1035a | 5.1 / 5.2 | 6.1 / 6.2 | 13.2 / 13.6 |
 | `canvas_read` p1, all new (no sling yet) | 34.3 | 691.0 (196 images) | 3680.7 (829 images) |
 | `canvas_read` p1, only the last 2 lines new | 25.4 / 27.3 | 507.7 / 510.9 | 2383.3 / 2606.9 |
 | `sling_send` p1, first (all new; starts the agent) | 45.1 | 996.9 (2 074 strokes) | 5665.1 (9 543 strokes) |
 | `sling_send` p1, one new stroke | 26.1 / 26.7 | 511.8 / 515.7 | 2545.6 / 2595.7 |
 
 Runs: 20 at scale 1 (5 for `sling_send`), and 8 at scale 5 (3 for
-`sling_send`).
+`sling_send`). The `small` column of the lasso rows is from the scale-1 run;
+the scale-5 runs' small lasso was 5.2 / 6.2 before and 4.2 / 5.2 after.
 
 The sling numbers are the daemon's part only. The agent is the daemon tests'
 stand-in for Claude Code (`crates/daemon/src/tests/claude`, given as
@@ -97,8 +115,11 @@ timed here.
 
 | what | small | big, scale 1 | big, scale 5 |
 |---|---|---|---|
-| switch: tap a sidebar row, until the window shows the new title | 978.4 / 984.4 | 1009.6 / 1016.2 | 1004.1 / 1008.0 (to big), 837.8 (to small) |
-| switch: the new title until the final outline (the canvas's part) | 10.6 / 22.2 | 41.6 / 57.1 | 197.9 / 228.0 |
+| switch: tap a sidebar row, until the window shows the new title | 35.0 / 60.2 | 17.5 / 24.6 | 29.2 / 34.5 (to big), 53.8 / 61.7 (to small) |
+| the same, before slinger-2c5d60 (the 1 s `Watch` poll) | 978.4 / 984.4 | 1009.6 / 1016.2 | 1004.1 / 1008.0 (to big), 837.8 (to small) |
+| switch: tap a sidebar row, until the final outline | 35.0 / 60.2 | 63.2 / 88.9 | 234.4 / 280.6 |
+| switch: the new title until the final outline (the canvas's part) | 0.0 / 0.0 | 46.4 / 65.9 | 200.5 / 262.5 |
+| the same, before slinger-2c5d60 | 10.6 / 22.2 | 41.6 / 57.1 | 197.9 / 228.0 |
 | pen sample, zoom as opened (marks in view: 20 / 36 / 58) | 0.1 | 0.4 / 0.4 | 1.7 / 2.4 |
 | pen sample, samples 1900-2000 of one 2000-sample stroke | 0.1 | 0.4 / 0.5 | 1.6 / 10.4 |
 | pen sample, zoomed out to 17% (marks in view: 27 / 104 / 460) | 0.1 | 0.6 / 0.6 | 2.6 / 3.3 |
@@ -106,16 +127,33 @@ timed here.
 The switch rows above are timed from outside, by polling: each round is a
 tick and then a scene, about 1-40 ms apart. So they are an upper bound, by
 up to one round. Switch runs: 10 at scale 1 and 4 at scale 5, for each direction. Pen: 100
-samples a row. The `small` column is from the scale-1 run; the scale-5 run's
-small rows agree (switch part 5.1 ms, pen 0.1 ms) but for the tap to the
-title (837.8 ms), which depends on where the `Watch` poll was when the tap came.
+samples a row. The `small` column is from the scale-1 run. The pen rows are
+from the first runs; the later runs agree (0.4 / 0.4 / 0.6 ms at scale 1,
+2.0 / 1.7 / 2.4 ms at scale 5). Since slinger-2c5d60 the small canvas's
+outline comes with its title, so its "canvas's part" is 0 by this polling;
+the trace below puts it at about 12 ms. Before slinger-2c5d60, the tap to
+the title depended on where the `Watch` poll was when the tap came.
 
 ### The switch by `SLINGER_TRACE=switch`
 
-These come from the app's own trace line (slinger-9fd400), from the last run
-of each scale. Each phase is the time since the phase before it, starting at
-the pick. Lines with whole milliseconds. The runs are 10 (scale 1) and 4
-(scale 5) for each direction.
+These come from the app's own trace line (slinger-9fd400). Each phase is
+the time since the phase before it, starting at the pick. Lines with whole
+milliseconds. The runs are 10 (scale 1) and 4 (scale 5) for each direction.
+
+After slinger-2c5d60 (the later runs):
+
+| phase | to small (scale-1 run) | to big, scale 1 | to big, scale 5 |
+|---|---|---|---|
+| pick to `watch` | 0 / 0 | 0 / 0 | 0 / 0 |
+| `watch` to `layout` | 0 / 0 | 0 / 0 | 0 / 0 |
+| `layout` to `taken` | 5.5 / 7 | 4 / 8 | 2.5 / 3 |
+| `taken` to `shown` | 4 / 4 | 33 / 35 | 158.5 / 167 |
+| `shown` to `heard` | 3 / 4 | 0 / 0 | 0 / 1 |
+| `heard` to `drawn` | 0 / 1 | 5 / 10 | 24.5 / 48 |
+
+In the scale-5 run the small canvas's phases were 0, 0, 5, 7.5, 3 and 0.
+
+Before slinger-2c5d60 (the first runs, from the last run of each scale):
 
 | phase | to small (scale-1 run) | to big, scale 1 | to big, scale 5 |
 |---|---|---|---|
@@ -168,20 +206,28 @@ Most rows move by 10-20% with the load. `canvas_apply` moves by 3x at load
   for it before each sling on that sling's thread
   (`crates/app/src/backend/sling.rs`), so a sling waits for both.
   This confirms the seed's first finding at scale.
-- **A lasso move** grows with the canvas: 8 ids cost 18.8 ms at scale 5,
+- **A lasso move** grew with the canvas: 8 ids cost 18.8 ms at scale 5,
   against 4.8 ms on the small canvas. The generator applies the same ops
   through `Log`. A `sample` profile of a debug build at scale 2 put 59% of
   its time in `Log::carried`, and 34% in the `Canvas::held` scan under it.
-  `Canvas::held` filters every item, and runs for each moved or removed id. This is a finding of this measurement, not of the
-  seed. Adding a stroke stays flat (about 5 ms, which is mostly the fsync).
-- **The workspace switch** takes about 1 s at every size. The trace puts
-  almost all of it before `watch`: the app's `Watch` asks the daemon for the
-  layout once a second (`crates/app/src/backend.rs`, `EVERY`), and a pick
-  waits for the next round. That is not storage. The canvas's own part is
-  the `Follower`'s `canvas_show` (`taken` to `shown`), plus building the
-  first scene (`heard` to `drawn`). It grows from 4 + 0 ms (small) to
-  34 + 4 ms (5.7 MB) to 168 + 23 ms (28.9 MB). That agrees with the warm
-  `canvas_show` rows and with the polled "title to final outline" rows.
+  `Canvas::held` filtered every item, and ran for each moved or removed id.
+  This was a finding of this measurement, not of the seed. slinger-a1035a
+  fixed it: in later runs at higher load, 24.3 ms became 13.2 ms at scale 5,
+  and 7.2 ms became 6.1 ms at scale 1. It still grows with the canvas
+  (13.2 against 4.2 ms on the small one): each step clones the whole canvas
+  (`History::apply`). Adding a stroke stays flat (about 5 ms, which is
+  mostly the fsync).
+- **The workspace switch** took about 1 s at every size in the first runs,
+  almost all of it before `watch`: the app's `Watch` asked the daemon for
+  the layout once a second, and a pick waited for the next round. Since
+  slinger-2c5d60 the `Watch` wakes on a pick, and pick to `layout` is 0 ms.
+  What is left is the canvas's own part: the `Follower`'s `canvas_show`
+  (`taken` to `shown`), plus building the first scene (`heard` to
+  `drawn`). It grows from 4 + 0 ms (small) to 33 + 5 ms (5.7 MB) to
+  158.5 + 24.5 ms (28.9 MB), as in the first runs (4 + 0, 34 + 4,
+  168 + 23). So a switch to a 28.9 MB canvas now takes about 190 ms by the
+  trace and 234 ms to the final outline by polling, nearly all of it the
+  warm `canvas_show` of the page: that is storage.
 - **A pen sample's scene rebuild** grows mostly with the page's items, less
   with the marks in view: 0.1 ms (129 items), 0.4 ms (2 197), 1.6-1.7 ms
   (10 212). Zooming out to 460 marks in view gives 2.3-2.6 ms. Within one

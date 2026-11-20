@@ -29,6 +29,7 @@ pub mod button;
 pub mod canvas;
 pub mod crop;
 pub mod cursor;
+pub mod daemon;
 pub mod dictation;
 pub mod editor;
 pub mod feedback;
@@ -163,8 +164,9 @@ pub const BORDER: f64 = 1.0;
 /// in `canvases` draw their canvas. An agent UI pane shows its page from
 /// `uis` inside the border's width, with its note from `notes` over it; one
 /// that cannot show says its name and why. Every other pane shows its kind
-/// and name. `problems` show in the focused pane, each with its hint under it:
-/// the window keeps working on the last good config and says what is wrong.
+/// and name. The lines `said` ([`daemon::said`]: the problems, each with its
+/// hint under it, or the launch line) show in the focused pane: the window
+/// keeps working on the last good config and says what is wrong.
 /// The notice, if any, is the last labels, over the panes. One pane alone
 /// has no focus border: there is no other pane it could be told from.
 #[expect(clippy::too_many_arguments, reason = "each is one input the window shows")]
@@ -172,7 +174,7 @@ pub fn build(
     size: Size,
     panes: &Panes,
     theme: &Theme,
-    problems: &[&Problem],
+    said: &[(String, Rgb)],
     sidebar: &Sidebar,
     canvases: Vec<CanvasPane>,
     uis: &Uis,
@@ -210,10 +212,7 @@ pub fn build(
         }
         if id == panes.focus() {
             focus.frame = frame;
-            for p in problems {
-                texts.push((format!("✗ {}", p.message), theme.error));
-                texts.extend(p.hint.clone().map(|hint| (hint, theme.muted)));
-            }
+            texts.extend(said.iter().cloned());
         }
         let lines = layout::lines(status::content(frame), texts.len());
         labels.extend(texts.into_iter().zip(lines).map(|((text, colour), frame)| Label {
@@ -316,7 +315,8 @@ mod tests {
         canvases: Vec<CanvasPane>,
     ) -> Scene {
         let (uis, notes) = (Uis::new(), Notes::new());
-        super::build(layout::WINDOW, panes, theme, problems, sidebar, canvases, &uis, &notes)
+        let said = daemon::said(None, problems.iter().copied(), None, theme);
+        super::build(layout::WINDOW, panes, theme, &said, sidebar, canvases, &uis, &notes)
     }
 
     #[test]

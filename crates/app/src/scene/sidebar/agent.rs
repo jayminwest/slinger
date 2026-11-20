@@ -97,6 +97,8 @@ pub struct Agent {
     pub profile: Option<String>,
     /// The names of its profiles, in its workspace file's order.
     pub profiles: Vec<String>,
+    /// slingerd runs its process: a restart of slingerd would end it.
+    pub running: bool,
 }
 
 impl Agent {
