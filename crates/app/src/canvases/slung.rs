@@ -5,7 +5,7 @@
 //! sling takes, and the words a sling with none sends (`[sling] prompt`).
 //! Runs on the main thread and never waits.
 
-use super::{Canvases, canvas_of, find, wanted};
+use super::{Canvases, canvas_of};
 use crate::config::{Prompt, Theme};
 use crate::layout::{PaneId, Rect, Viewport};
 use crate::panes::{Kind, Panes};
@@ -64,7 +64,7 @@ impl Canvases {
             self.zoomed = Some(why.to_string());
             return true;
         }
-        let inside = self.sling_box(panes.focus(), &selection);
+        let inside = self.follow.sling_box(panes.focus(), &selection);
         self.sling_now((&selection, inside), ("", profile), around, within)
     }
 
@@ -103,7 +103,7 @@ impl Canvases {
     /// box there: a sling of the box.
     fn room_in(&self, panes: &Panes, area: Rect) -> Option<(Selection, Rect, Rect)> {
         let target = self.page_in(panes, area)?;
-        self.sling_box(panes.focus(), &target.0).is_some().then_some(target)
+        self.follow.sling_box(panes.focus(), &target.0).is_some().then_some(target)
     }
 
     /// The page the focused pane of `panes` laid in `area` shows, as a
@@ -154,9 +154,9 @@ impl Canvases {
         let placed = panes.place(area).into_iter().filter(|(_, p, _)| p.kind == Kind::Canvas);
         let seen = placed.filter_map(|(id, pane, frame)| {
             let canvas = canvas_of(panes, id)?;
-            let open = find(&self.open, canvas, wanted(&self.views, id, canvas))?;
+            let open = self.follow.shown(canvas, id)?;
             let page = open.mirror.as_ref()?.page().to_string();
-            let view = self.views.iter().find(|(p, _)| *p == id);
+            let view = self.follow.views().iter().find(|(p, _)| *p == id);
             let viewport = view.map_or_else(Viewport::start, |(_, v)| v.viewport);
             let focused = id == panes.focus();
             Some((id, status::content(frame), pane.name.clone(), page, viewport, focused))

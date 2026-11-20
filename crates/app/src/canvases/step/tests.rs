@@ -60,6 +60,7 @@ fn the_room_draws_dashed_with_no_fill() {
 fn a_carry_into_a_pane_inside_a_folded_box_joins_it() {
     use crate::backend::testing::{user_stroke, wait_until};
     use crate::backend::tests::{open_notes, with_store};
+    use crate::canvases::find::find;
     use crate::commands::Command;
     use crate::config::Config;
     use crate::layout::{Axis, WINDOW};
@@ -114,7 +115,8 @@ fn a_carry_into_a_pane_inside_a_folded_box_joins_it() {
         let id = crate::mirror::item_id(&made).unwrap();
         wait_until(|| {
             show(&mut canvases);
-            let open = find(&canvases.open, "notes", Some(&p2)).and_then(|o| o.mirror.as_ref());
+            let open =
+                find(canvases.follow.open(), "notes", Some(&p2)).and_then(|o| o.mirror.as_ref());
             open.is_some_and(|m| m.box_folded(id) == Some(true))
         });
         let boxed = Boxed { canvas: "notes".into(), page: p2.clone(), id, folded: true };
@@ -147,6 +149,7 @@ fn a_carry_into_a_pane_inside_a_folded_box_joins_it() {
 fn zoom_to_fit_inside_a_box_fits_its_room() {
     use crate::backend::testing::wait_until;
     use crate::backend::tests::{open_notes, with_store};
+    use crate::canvases::find::find;
     use crate::commands::Command;
     use crate::config::Config;
     use crate::layout::{Size, WINDOW};
@@ -171,7 +174,8 @@ fn zoom_to_fit_inside_a_box_fits_its_room() {
         wait_until(|| {
             canvases.poll();
             scenes = canvases.show(&panes, WINDOW.rect(), &Config::default().theme);
-            let open = find(&canvases.open, "notes", Some("p1")).and_then(|o| o.mirror.as_ref());
+            let open =
+                find(canvases.follow.open(), "notes", Some("p1")).and_then(|o| o.mirror.as_ref());
             open.is_some_and(|m| m.items().len() == 2)
         });
         let pane = panes.focus();

@@ -70,7 +70,8 @@ impl Canvases {
     pub(super) fn clear_hidden_selection(&mut self, shown: &[(&str, Option<String>)]) {
         let Some(s) = self.select.selection() else { return };
         let maybe = shown.iter().any(|(canvas, asked)| {
-            let open = find(&self.open, canvas, asked.as_deref()).and_then(|o| o.mirror.as_ref());
+            let open =
+                find(self.follow.open(), canvas, asked.as_deref()).and_then(|o| o.mirror.as_ref());
             let page = asked.as_deref().or(open.map(Mirror::page));
             *canvas == s.canvas && page.is_none_or(|p| p == s.page)
         });

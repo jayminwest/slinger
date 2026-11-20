@@ -11,7 +11,7 @@
 //! button, so a short prompt can be typed beside it first. The eraser
 //! never taps a button (nor erases it: it is not ink).
 
-use super::{Canvases, canvas_of, find, pane_shown, wanted};
+use super::{Canvases, canvas_of};
 use crate::layout::{Rect, Viewport};
 use crate::panes::Panes;
 use crate::scene::select::Selection;
@@ -51,11 +51,11 @@ impl Canvases {
         let frame = panes.place(area).into_iter().find(|(id, ..)| *id == pane)?.2;
         let frame = crate::scene::status::content(frame);
         let canvas = canvas_of(panes, pane)?;
-        let open = find(&self.open, canvas, wanted(&self.views, pane, canvas))?;
+        let open = self.follow.shown(canvas, pane)?;
         let shown = open.mirror.as_ref()?.page().to_string();
-        let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
+        let items = self.follow.pane_shown(&self.ink, panes, pane);
         let button = crate::scene::button::first(&items)?;
-        let view = self.views.iter().find(|(p, _)| *p == pane);
+        let view = self.follow.views().iter().find(|(p, _)| *p == pane);
         let viewport = view.map_or_else(Viewport::start, |(_, v)| v.viewport);
         let selection = Selection { canvas: canvas.into(), page: shown, ids: Vec::new() };
         Some((selection, in_window(viewport, frame, button), frame))

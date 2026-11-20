@@ -5,7 +5,7 @@
 //! opens it), under the last text ended on the pane's page, or at the
 //! pane's centre.
 
-use super::{Canvases, canvas_of, find, pane_shown, step, to_canvas, wanted};
+use super::{Canvases, canvas_of, step, to_canvas};
 use crate::commands::{Command, Keymap};
 use crate::config::Rgb;
 use crate::layout::{PaneId, Point, Rect, Size};
@@ -36,13 +36,13 @@ impl Canvases {
             return false;
         }
         let Some(canvas) = canvas_of(panes, pane).map(str::to_string) else { return false };
-        let open = find(&self.open, &canvas, wanted(&self.views, pane, &canvas));
+        let open = self.follow.shown(&canvas, pane);
         let Some(shown) = open.and_then(|o| o.mirror.as_ref()).map(|m| m.page().to_string()) else {
             return false;
         };
         let viewport = self.view(pane).viewport;
         let typed = self.shapes.editing();
-        let joined = self.typing_in();
+        let joined = self.follow.typing_in();
         let aimed = pointer.filter(|p| !typed && frame.contains(*p));
         let chained = if aimed.is_none() { self.shapes.chained(&mut self.ink) } else { None };
         let centre = Point { x: frame.x + frame.width / 2.0, y: frame.y + frame.height / 2.0 };
@@ -56,13 +56,13 @@ impl Canvases {
         let typed = if on.is_some() { step::Typed::Under(joined) } else { step::Typed::In(pane) };
         let (canvas, shown) = on.unwrap_or((canvas, shown));
         if aimed.is_some() {
-            let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
+            let items = self.follow.pane_shown(&self.ink, panes, pane);
             let reach = (at, REACH / viewport.zoom());
             self.shapes.start_at((&canvas, &shown), reach, &items, colour, &mut self.ink);
         } else {
             self.shapes.start((&canvas, &shown), at, colour, &mut self.ink);
         }
-        self.typed_in(typed);
+        self.follow.typed_in(typed, &self.shapes, &mut self.ink);
         let size = Size { width: frame.width, height: frame.height };
         let into = self.shapes.typing_frame().and_then(|f| into_view(viewport, size, f));
         if let Some((dx, dy)) = into.filter(|_| seen) {

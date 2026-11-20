@@ -4,6 +4,7 @@ use std::path::Path;
 use super::*;
 use crate::backend::testing::wait_until;
 use crate::backend::tests::{open_notes, with_daemon};
+use crate::canvases::Canvases;
 use crate::config::Config;
 use crate::layout::WINDOW;
 use crate::panes::{Kind, Pane};
@@ -41,9 +42,9 @@ fn an_opened_pdf_shows_grey_then_its_pages_once_its_file_has_come() {
         // A cache of its own: the app's is shared by every test process and
         // worktree, and a fetched file is named by its bytes (slinger-f19088).
         let cache = tempfile::tempdir().unwrap();
-        canvases.pdfs = Pdfs::start(daemon.clone(), cache.path().to_owned(), &Wake::none());
+        canvases.follow.pdfs = Pdfs::start(daemon.clone(), cache.path().to_owned(), &Wake::none());
         canvases.open_pdf(&notes, Some("notes"), file.clone(), two_pages);
-        wait_until(|| canvases.poll() && canvases.pdfs.opened.is_none());
+        wait_until(|| canvases.poll() && canvases.follow.pdfs.opened.is_none());
         assert_eq!(canvases.own_problems().next(), None);
         assert!(daemon.canvas_list().unwrap().contains(&"paper.pdf".to_string()));
 
@@ -89,7 +90,7 @@ fn a_tldraw_file_opens_as_an_imported_canvas_in_a_pane() {
         let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let board = manifest.join("../core/tests/fixtures/idea.tldraw");
         canvases.open_pdf(&notes, Some("notes"), board, unreadable);
-        wait_until(|| canvases.poll() && canvases.pdfs.opened.is_none());
+        wait_until(|| canvases.poll() && canvases.follow.pdfs.opened.is_none());
         assert_eq!(canvases.own_problems().next(), None, "not read as a PDF");
         assert!(daemon.canvas_list().unwrap().contains(&"idea".to_string()));
         let layout = daemon.pane_list("notes").unwrap().layout;
@@ -115,11 +116,11 @@ fn a_pdf_that_did_not_come_is_asked_for_again_the_next_time_it_is_drawn() {
         let blocker = dir.path().join("blocked");
         fs::write(&blocker, "").unwrap();
         let mut canvases = Canvases::new(daemon.clone());
-        canvases.pdfs = Pdfs::start(daemon.clone(), blocker.join("cache"), &Wake::none());
+        canvases.follow.pdfs = Pdfs::start(daemon.clone(), blocker.join("cache"), &Wake::none());
         let notes = Panes::new(Pane { kind: Kind::Canvas, name: "notes".into() });
         wait_until(|| {
             pages(&mut canvases, &notes);
-            matches!(canvases.pdfs.files.get(&hash), Some(Fetch::Missed(1, _)))
+            matches!(canvases.follow.pdfs.files.get(&hash), Some(Fetch::Missed(1, _)))
         });
         assert_eq!(pages(&mut canvases, &notes), [(1, None)], "grey while it waits");
         fs::remove_file(&blocker).unwrap();
@@ -151,7 +152,7 @@ fn the_same_pdf_dropped_twice_is_one_canvas_in_one_pane() {
         let mut canvases = Canvases::new(daemon.clone());
         for _ in 0..2 {
             canvases.open_pdf(&notes, Some("notes"), file.clone(), two_pages);
-            wait_until(|| canvases.poll() && canvases.pdfs.opened.is_none());
+            wait_until(|| canvases.poll() && canvases.follow.pdfs.opened.is_none());
             assert_eq!(canvases.own_problems().next(), None);
         }
         let made = daemon.canvas_list().unwrap();

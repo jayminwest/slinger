@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 
 use slinger_control::Client;
 
-use super::Canvases;
+use super::Follow;
 use crate::backend::pdf::{self, Opening, Pages};
 use crate::backend::{Problem, Wake};
 use crate::panes::Panes;
@@ -48,7 +48,7 @@ enum Fetch {
 }
 
 /// The PDFs fetched, and the last PDF opened.
-pub(super) struct Pdfs {
+pub(in crate::canvases) struct Pdfs {
     daemon: Client,
     /// Where the PDFs are fetched to, and an open writes its operations.
     dir: PathBuf,
@@ -83,7 +83,7 @@ impl Pdfs {
     }
 
     /// The file of the PDF that is blob `hash`, once it has come.
-    pub(super) fn file(&self, hash: &str) -> Option<PathBuf> {
+    pub(in crate::canvases) fn file(&self, hash: &str) -> Option<PathBuf> {
         match self.files.get(hash)? {
             Fetch::Came(file) => Some(file.clone()),
             Fetch::Asked(_) | Fetch::Missed(..) => None,
@@ -134,13 +134,13 @@ impl Pdfs {
     }
 }
 
-impl Canvases {
+impl Follow {
     /// Opens the PDF `file` as a new canvas (the same bytes again: the
     /// canvas they made), its pages' sizes read by `sizes`, in a pane
     /// beside the focused pane of `panes` in `workspace` unless one shows
     /// it ([`backend::pdf::open`]), on a thread of its own. One open at a
     /// time: another while one runs does nothing.
-    pub fn open_pdf(
+    pub(in crate::canvases) fn open_pdf(
         &mut self,
         panes: &Panes,
         workspace: Option<&str>,

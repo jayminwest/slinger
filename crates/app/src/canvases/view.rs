@@ -197,14 +197,20 @@ impl super::Canvases {
     /// looks: the same page, pan, zoom and boxes. After that each moves on
     /// its own.
     pub fn split_view(&mut self, from: PaneId, to: PaneId) {
-        self.views.copy(from, to);
+        self.follow.split_view(from, to);
     }
 
     /// Forgets the panes' views of `workspace`, closed (the shown one's
     /// once the window leaves it): open again, it shows them as the daemon
     /// kept them.
     pub fn forget(&mut self, workspace: &str) {
-        self.views.forget(workspace);
+        self.follow.forget(workspace);
+    }
+
+    /// The app quits: the looks of `panes` go to the daemon at once, and
+    /// this waits for that a short while at most ([`follow`](super::follow)).
+    pub fn quitting(&mut self, panes: &crate::panes::Panes) {
+        self.follow.quitting(panes);
     }
 }
 

@@ -1,14 +1,14 @@
 //! Where the shown workspace's panes look, handed to the daemon to keep
 //! ([`crate::backend::Saver`]) each time a draw changes it, and at quit.
-//! What comes back from the daemon is [`super::View::restore`]'s.
+//! What comes back from the daemon is [`View::learn`]'s.
 
 use std::time::Duration;
 
 use slinger_control::{PaneView, PaneViewed};
 
-use super::find::{find, wanted};
-use super::view::View;
-use super::{Canvases, Open};
+use super::super::find::{find, wanted};
+use super::super::view::View;
+use super::{Follow, Open};
 use crate::backend::Looks;
 use crate::layout::PaneId;
 use crate::mirror::Mirror;
@@ -38,9 +38,9 @@ pub(super) fn looks(panes: &Panes, views: &[(PaneId, View)], open: &[Open]) -> O
     Some(Looks { workspace, views, focus: Some(panes.focus().number()) })
 }
 
-impl Canvases {
+impl Follow {
     /// Hands the looks of `panes` over to be kept, if they changed.
-    pub(super) fn save(&mut self, panes: &Panes) {
+    pub(in crate::canvases) fn save(&mut self, panes: &Panes) {
         if let Some(looks) = looks(panes, &self.views, &self.open) {
             self.saver.hand(looks);
         }

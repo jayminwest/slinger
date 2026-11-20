@@ -13,7 +13,7 @@
 
 use std::borrow::Cow;
 
-use super::{Canvases, canvas_of, find, pane_shown, to_canvas, wanted};
+use super::{Canvases, canvas_of, to_canvas};
 use crate::layout::{PaneId, Point, Rect};
 use crate::mirror::Mirror;
 use crate::panes::Panes;
@@ -36,7 +36,7 @@ impl Canvases {
         }
         let landing = self.landing(panes, under, pen.at);
         let landing = landing.as_ref().map(|(canvas, page, at)| Landing { canvas, page, at: *at });
-        let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
+        let items = self.follow.pane_shown(&self.ink, panes, pane);
         self.select.keep_ratio(pen.shift);
         self.select.hover(at, landing, &items)
     }
@@ -56,12 +56,11 @@ impl Canvases {
         self.select.keep_ratio(pen.shift);
         let mark = self.ink.mark();
         let ended = self.ink.up(Some(at)) || {
-            let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
+            let items = self.follow.pane_shown(&self.ink, panes, pane);
             self.shapes.up(Some(at), &items, &mut self.ink) || self.crop.up(Some(at), &items) || {
                 let landing =
                     landing.as_ref().map(|(canvas, page, at)| Landing { canvas, page, at: *at });
-                let source = canvas_of(panes, pane)
-                    .and_then(|c| find(&self.open, c, wanted(&self.views, pane, c)));
+                let source = canvas_of(panes, pane).and_then(|c| self.follow.shown(c, pane));
                 let source = source.and_then(|o| Some((o.canvas.as_str(), o.mirror.as_ref()?)));
                 let carry = |ink: &Ink, ids: &[ItemId], by| match (source, landing) {
                     (Some((canvas, mirror)), Some(to)) => {
@@ -73,9 +72,9 @@ impl Canvases {
             }
         };
         let edits = self.shapes.tapped(at);
-        self.pen_joined();
+        self.follow.pen_joined(&mut self.ink);
         if let (Some((to, _)), Some((canvas, page, _))) = (under, &landing) {
-            self.added_in(mark, to, (canvas, page));
+            self.follow.added_in((mark, &mut self.ink), to, (canvas, page));
         }
         self.unshown = None;
         self.send();
@@ -161,13 +160,24 @@ impl Canvases {
     ) -> Option<R> {
         let (pane, frame) = under?;
         let canvas = canvas_of(panes, pane)?;
-        let open = find(&self.open, canvas, wanted(&self.views, pane, canvas));
+        let open = self.follow.shown(canvas, pane);
         let shown = open.and_then(|o| o.mirror.as_ref()).map(Mirror::page)?;
-        let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v.viewport);
+        let view = self.follow.views().iter().find(|(p, _)| *p == pane).map(|(_, v)| v.viewport);
         let viewport = view.unwrap_or_else(crate::layout::Viewport::start);
-        let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
+        let items = self.follow.pane_shown(&self.ink, panes, pane);
         let at = to_canvas(viewport, frame, at);
         Some(ask(self, (canvas, shown), at, viewport.zoom(), &items))
+    }
+
+    /// Whether `at`, a point in the window over `under`, the canvas pane
+    /// of `panes` there and its frame, is on a live item whose page shows
+    /// and takes presses, and not on the selection a press there would
+    /// grab: a right press there is the page's.
+    pub fn page_under(&self, panes: &Panes, under: Option<(PaneId, Rect)>, at: Point) -> bool {
+        self.at_pane(panes, under, at, |c, here, at, zoom, items| {
+            c.follow.live_under(items, at, zoom) && !c.select.grabs(here, at, zoom, items)
+        })
+        .unwrap_or(false)
     }
 
     /// The canvas, the page and the canvas point under `at`, a point in the
@@ -181,7 +191,7 @@ impl Canvases {
     ) -> Option<(String, String, Point)> {
         let (to, frame) = under?;
         let canvas = canvas_of(panes, to)?;
-        let open = find(&self.open, canvas, wanted(&self.views, to, canvas))?;
+        let open = self.follow.shown(canvas, to)?;
         let shown = open.mirror.as_ref()?.page().to_string();
         let canvas = canvas.to_string();
         Some((canvas, shown, to_canvas(self.view(to).viewport, frame, at)))

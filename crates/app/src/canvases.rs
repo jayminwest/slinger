@@ -1,24 +1,26 @@
-//! The canvases the panes show. Each canvas a pane shows is followed once,
-//! however many panes show it: a [`Follower`] on its own thread, and the
-//! [`Mirror`] its news keeps up to date. Each canvas pane has its own
-//! viewport, and keeps the last scene it drew, so the next one repaints only
-//! what changed. The pen draws on a canvas pane: its [`Ink`] shows over the
-//! page at once and goes to the daemon through an [`Outbox`]. The eraser and
-//! the lasso work on the page as shown ([`Select`]), and so do the text, box
-//! and arrow tools ([`Shapes`]) and the crop tool ([`Crop`], whose snippet goes
-//! to the clipboard, not the canvas); what they change goes the same way, in turn
-//! with the strokes. The sling sends the selection ([`sling`]) once the ink
-//! before it is in, and what became of it shows on the canvas ([`slung`]);
-//! [`flow`] owns the sling, what became of it, its spoken prompt, the
-//! feedback entry and the agents slings go to. Runs on the
-//! main thread and never waits: the followers, the outbox, the slinger and
-//! Flick's thread do.
+//! The canvases the panes show. What each pane shows is [`follow`]'s: each
+//! page a pane shows is followed once, however many panes show it (a
+//! [`Follower`] on its own thread, and the [`Mirror`] its news keeps up to
+//! date), each canvas pane has its own view and keeps the last scene it
+//! drew, so the next one repaints only what changed, and the live items'
+//! pages, the PDFs and the views the daemon keeps are fetched and sent on
+//! threads of its own. The pen draws on a canvas pane: its [`Ink`] shows
+//! over the page at once and goes to the daemon through an [`Outbox`]. The
+//! eraser and the lasso work on the page as shown ([`Select`]), and so do
+//! the text, box and arrow tools ([`Shapes`]) and the crop tool ([`Crop`],
+//! whose snippet goes to the clipboard, not the canvas); what they change
+//! goes the same way, in turn with the strokes. The sling sends the
+//! selection ([`sling`]) once the ink before it is in, and what became of
+//! it shows on the canvas ([`slung`]); [`flow`] owns the sling, what became
+//! of it, its spoken prompt, the feedback entry and the agents slings go
+//! to. Runs on the main thread and never waits: the followers, the outbox,
+//! the slinger and Flick's thread do.
 //!
-//! Each pane keeps its own page, followed once however many panes show it:
-//! page commands, undo and redo are in [`paging`], live items' pages in [`live`];
-//! typed text and the selection's keys in [`keys`]; cut, copy and paste in
-//! [`clip`]; finding text on a canvas's pages in [`seek`]; the PDFs `pdf` items show, and opening
-//! one, in [`pdf`]; a PDF's canvas in reader mode, in [`reader`].
+//! Page commands, undo and redo are in [`paging`]; typed text and the
+//! selection's keys in [`keys`]; cut, copy and paste in [`clip`]; finding
+//! text on a canvas's pages in [`seek`]; folding boxes in [`fold`] and
+//! stepping into them in [`step`]; a PDF's canvas in reader mode, in
+//! [`reader`].
 
 mod button;
 mod clip;
@@ -26,13 +28,11 @@ mod context;
 mod drag;
 mod find;
 mod fold;
+mod follow;
 mod kept;
 mod keys;
-mod live;
-mod looks;
 mod news;
 mod paging;
-mod pdf;
 mod problems;
 mod reader;
 mod seek;
@@ -41,11 +41,12 @@ mod step;
 mod view;
 
 use std::borrow::Cow;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use slinger_control::Client;
 
-use crate::backend::{Follower, Outbox, Problem, Saver, Wake, run};
+use crate::backend::{Follower, Outbox, Problem, Wake, run};
 use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Point, Rect, Size};
 use crate::mirror::Mirror;
@@ -58,11 +59,12 @@ use crate::scene::pages::Pages;
 use crate::scene::select::Select;
 use crate::scene::shapes::{Press, Shapes};
 use crate::scene::tools::Tool;
-use crate::scene::{CanvasPane, canvas};
+use crate::scene::{CanvasPane, Notes, Scene, canvas};
 use crate::trace::Paged;
-use find::{canvas_of, find, matches, pane_shown, to_canvas, wanted};
+use find::{canvas_of, find, to_canvas, wanted};
 use flow::SlingFlow;
-use view::{View, Views};
+use follow::Follow;
+use view::View;
 
 mod feedback;
 mod flow;
@@ -74,8 +76,9 @@ mod status;
 /// The canvases of a window's panes.
 pub struct Canvases {
     daemon: Client,
-    open: Vec<Open>,
-    views: Views,
+    /// The pages the panes show, their views, and the threads that fetch
+    /// them ([`follow`]).
+    follow: Follow,
     ink: Ink,
     select: Select,
     shapes: Shapes,
@@ -92,10 +95,6 @@ pub struct Canvases {
     asks: Pages,
     /// The last find, for `find-next`.
     found: Option<seek::Last>,
-    /// The panes waiting for a new page, by the key of its `page.add`.
-    turning: Vec<(u64, PaneId, String)>,
-    lives: live::Lives,
-    pdfs: pdf::Pdfs,
     /// What to flash once: a pane's new zoom ("Zoom 150%"), the grid's
     /// toggle or where `save` said the canvas went.
     zoomed: Option<String>,
@@ -105,15 +104,8 @@ pub struct Canvases {
     kept: Option<kept::Kept>,
     /// The pane the pointer is on a selection handle in, and its cursor.
     handle: Option<(PaneId, crate::scene::cursor::Cursor)>,
-    /// The unfolds on their way, and the peek shown.
-    folds: fold::Folds,
-    /// The last tap on a miniature, and what the pen and the text being
-    /// typed join ([`step`]).
-    steps: step::Steps,
     /// Wakes the main thread when a backend thread has news.
     wake: Wake,
-    /// Sends where the panes look to the daemon to keep ([`looks`]).
-    saver: Saver,
 }
 
 /// One canvas page followed: the page asked for (`None`: the first), as
@@ -146,13 +138,11 @@ impl Canvases {
         let (outbox, flow) =
             (Outbox::start(daemon.clone(), &wake), SlingFlow::start(&daemon, &wake));
         let (ink, select) = (Ink::named(run()), Select::default());
-        let (open, views) = (Vec::new(), Views::default());
-        let (shapes, asks, turning) = (Shapes::default(), Pages::default(), Vec::new());
-        let (pen, unshown, lives) = (None, None, live::Lives::start(daemon.clone(), &wake));
-        let pdfs = pdf::Pdfs::start(daemon.clone(), crate::backend::pdf::cache(), &wake);
+        let (shapes, asks, follow) =
+            (Shapes::default(), Pages::default(), Follow::start(&daemon, &wake));
+        let (pen, unshown) = (None, None);
         Self {
-            open,
-            views,
+            follow,
             ink,
             select,
             shapes,
@@ -163,16 +153,10 @@ impl Canvases {
             unshown,
             asks,
             found: None,
-            turning,
-            lives,
-            pdfs,
             zoomed: None,
             paper: Paper::default(),
             kept: None,
             handle: None,
-            folds: fold::Folds::default(),
-            steps: step::Steps::default(),
-            saver: Saver::start(daemon.clone()),
             wake,
             daemon,
         }
@@ -183,11 +167,8 @@ impl Canvases {
     pub fn reconnect(&mut self, daemon: Client) {
         self.outbox.reconnect(daemon.clone());
         self.flow.reconnect(&daemon);
-        self.saver.reconnect(daemon.clone());
-        self.lives = live::Lives::start(daemon.clone(), &self.wake);
-        self.pdfs = pdf::Pdfs::start(daemon.clone(), crate::backend::pdf::cache(), &self.wake);
+        self.follow.reconnect(daemon.clone());
         self.daemon = daemon;
-        self.open.clear();
     }
 
     /// The pen went down in `pane` of `panes`, laid at `frame` in the
@@ -212,17 +193,17 @@ impl Canvases {
     ) -> bool {
         let Some(canvas) = canvas_of(panes, pane).filter(|_| !pen.touch) else { return false };
         self.asks.cancel();
-        let open = find(&self.open, canvas, wanted(&self.views, pane, canvas));
+        let open = self.follow.shown(canvas, pane);
         let Some(shown) = open.and_then(|o| o.mirror.as_ref()).map(|m| m.page().to_string()) else {
             self.close_entries();
             return false;
         };
         let viewport = self.view(pane).viewport;
         let at = to_canvas(viewport, frame, pen.at);
-        if self.peek_press(pane, at) {
+        if self.follow.peek_press(pane, at) {
             return true;
         }
-        let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
+        let items = self.follow.pane_shown(&self.ink, panes, pane);
         let press = Press { at, when: pen.when, zoom: viewport.zoom(), shift: pen.shift };
         let here = (canvas, shown.as_str());
         let mark =
@@ -232,7 +213,7 @@ impl Canvases {
             return self.fold_boxes(pane, here, &[fold]);
         }
         let taps = !matches!(tool, Tool::Pen | Tool::Eraser);
-        let mini = taps.then(|| self.miniature_under(here, at, &items)).flatten();
+        let mini = taps.then(|| self.follow.miniature_under(here, at, &items)).flatten();
         let grabs = self.select.grabs(here, at, viewport.zoom(), &items);
         if let Some(button) = button::under(&items, at).filter(|_| !grabs && tool != Tool::Eraser) {
             drop(items);
@@ -244,16 +225,16 @@ impl Canvases {
         }
         self.close_entries();
         self.flow.pressed();
-        let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
-        if self.lives.under(&items, at, viewport.zoom()) && !grabs {
+        let items = self.follow.pane_shown(&self.ink, panes, pane);
+        if self.follow.live_under(&items, at, viewport.zoom()) && !grabs {
             return false;
         }
         drop(items);
-        self.pen_in(pane, here);
-        let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
+        self.follow.pen_in(pane, here, self.ink.mark());
+        let items = self.follow.pane_shown(&self.ink, panes, pane);
         if self.shapes.down((tool, colour), here, press, &items, &mut self.ink) {
             drop(items);
-            self.typed_in(step::Typed::In(pane));
+            self.follow.typed_in(step::Typed::In(pane), &self.shapes, &mut self.ink);
             self.send();
         } else if self.crop.down(tool, here, press, &items) {
             // Its box shows over the page; the lift makes the snippet.
@@ -267,6 +248,25 @@ impl Canvases {
         self.pen = Some((pane, frame));
         self.unshown = Some(pen.when);
         true
+    }
+
+    /// Puts the page of each live item `scene`'s canvas panes draw over it,
+    /// with its note from `notes` in `theme`'s colours ([`follow`]).
+    pub fn show_live(&mut self, scene: &mut Scene, notes: &Notes, theme: &Theme) {
+        self.follow.show_live(scene, notes, theme);
+    }
+
+    /// Opens the PDF `file` as a new canvas, its pages' sizes read by
+    /// `sizes`, beside the focused pane of `panes` in `workspace`, on a
+    /// thread of its own ([`follow`]).
+    pub fn open_pdf(
+        &mut self,
+        panes: &Panes,
+        workspace: Option<&str>,
+        file: PathBuf,
+        sizes: crate::backend::pdf::Pages,
+    ) {
+        self.follow.open_pdf(panes, workspace, file, sizes);
     }
 
     /// A paint showed ink `delay` seconds after its pen event.
@@ -285,7 +285,7 @@ impl Canvases {
     }
 
     fn view(&mut self, pane: PaneId) -> &mut View {
-        self.views.get(pane)
+        self.follow.view(pane)
     }
 
     /// The panes now are another workspace's: what was under way in a pane
@@ -297,7 +297,6 @@ impl Canvases {
         }
         self.handle = None;
         self.asks.cancel();
-        self.steps.switched();
     }
 
     /// The scene of each canvas pane of `panes` laid in `area` whose page
@@ -308,7 +307,7 @@ impl Canvases {
     /// panes that closed, and clears a selection no pane shows. Each pane's
     /// pointer is the arrow: the window decides it from the pen.
     pub fn show(&mut self, panes: &Panes, area: Rect, theme: &Theme) -> Vec<CanvasPane> {
-        if self.views.within(panes.workspace()) {
+        if self.follow.within(panes.workspace()) {
             self.switched();
         }
         // A canvas pane's canvas is what its footer leaves of it.
@@ -316,51 +315,15 @@ impl Canvases {
             .filter(|(_, p, _)| p.kind == Kind::Canvas)
             .map(|(id, p, frame)| (id, p, crate::scene::status::content(frame)))
             .collect();
-        for (id, pane, _) in &placed {
-            self.views.get(*id).learn(&pane.name, panes.kept(*id));
-        }
-        let shown: Vec<(&str, Option<String>)> = placed
-            .iter()
-            .map(|(id, p, _)| {
-                (p.name.as_str(), wanted(&self.views, *id, &p.name).map(str::to_string))
-            })
-            .collect();
-        for o in self.open.iter().filter(|o| !shown.iter().any(|(c, _)| *c == o.canvas)) {
-            // No feed of it comes now: its strokes already written are let go.
-            self.ink.heard(&o.canvas, u64::MAX);
-        }
-        self.open.retain(|o| shown.iter().any(|(c, p)| matches(o, c, p.as_deref())));
-        for (canvas, page) in &shown {
-            if find(&self.open, canvas, page.as_deref()).is_none() {
-                let (daemon, wake) = (self.daemon.clone(), &self.wake);
-                let follower = Follower::start(daemon, (*canvas).to_string(), page.clone(), wake);
-                let (canvas, asked) = ((*canvas).to_string(), page.clone());
-                let (mirror, problem, file, paged) = (None, None, None, None);
-                let heard = 0;
-                self.open.push(Open {
-                    canvas,
-                    asked,
-                    follower,
-                    mirror,
-                    heard,
-                    problem,
-                    file,
-                    paged,
-                });
-            }
-        }
-        self.views.keep(&placed.iter().map(|(id, ..)| *id).collect::<Vec<_>>());
+        let shown = self.follow.follow(panes, &placed, &mut self.ink);
         self.clear_hidden_selection(&shown);
         // A selection may hold hidden items on a page a pane is inside a box of.
-        let inside: Vec<(String, String)> =
-            self.views.iter().filter_map(|(_, v)| v.trail.page()).collect();
+        let inside = self.follow.insides();
         let (mut scenes, grid) = (Vec::new(), self.paper.grid(theme));
         for (id, pane, frame) in placed {
-            let open = find(&self.open, &pane.name, wanted(&self.views, id, &pane.name));
-            let mirror = open.and_then(|o| o.mirror.as_ref());
-            let marks = mirror.and_then(|m| self.peek_in(id, (&*pane.name, m.page())));
+            let follow::Showing { mirror, peek: marks, view, pdfs } =
+                self.follow.showing(id, &pane.name);
             let screen = Size { width: frame.width, height: frame.height };
-            let view = self.views.get(id);
             view.read(&pane.name, mirror.map(Mirror::items), screen);
             let Some(mirror) = mirror else {
                 if let Some(last) = &view.last {
@@ -396,7 +359,7 @@ impl Canvases {
             let mut items = fold::drawn(items, mirror, marks, theme);
             items.extend(within.map(|w| Cow::Owned(step::room(w.room, theme.muted))));
             let items = items.iter().map(AsRef::as_ref);
-            let files = |hash: &str| self.pdfs.file(hash);
+            let files = |hash: &str| pdfs.file(hash);
             let scene = canvas::build_with(items, (view.viewport, screen), theme, last, &files);
             let mut scene = scene.on(grid, last);
             if self.pen.is_some_and(|(p, _)| p == id) {
@@ -406,8 +369,8 @@ impl Canvases {
             view.last = Some(Rc::clone(&scene));
             scenes.push(CanvasPane { pane: id, frame, scene, cursor: Cursor::Arrow });
         }
-        self.pdfs.want(&scenes);
-        self.save(panes);
+        self.follow.want(&scenes);
+        self.follow.save(panes);
         scenes
     }
 }

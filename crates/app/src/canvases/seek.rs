@@ -9,7 +9,7 @@
 
 use serde_json::Value;
 
-use super::{Canvases, canvas_of, find, wanted};
+use super::{Canvases, canvas_of};
 use crate::layout::{PaneId, Rect};
 use crate::mirror;
 use crate::panes::Panes;
@@ -72,7 +72,7 @@ impl Canvases {
             }
         };
         let hits: Vec<Hit> = found.iter().filter_map(hit).collect();
-        let open = find(&self.open, &canvas, wanted(&self.views, pane, &canvas));
+        let open = self.follow.shown(&canvas, pane);
         let mirror = open.and_then(|o| o.mirror.as_ref());
         let pages = mirror.map(|m| m.pages().to_vec()).unwrap_or_default();
         let shown = mirror.map(|m| m.page().to_string()).unwrap_or_default();
