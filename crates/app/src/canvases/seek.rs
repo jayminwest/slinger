@@ -2,7 +2,9 @@
 //! words, the daemon's `canvas_find` over every page of the pane's canvas,
 //! and the jump: the pane turns to the text's page and centres it, the
 //! text is the selection (so the item keys act from it), and the flash
-//! says which of how many it is. Which text is next is
+//! says which of how many it is. A text a folded box hides is not on the
+//! page the pane draws: the jump goes to that box (the outermost, as the
+//! hit's `folded` names it) and selects it instead. Which text is next is
 //! [`crate::scene::pages::find`]'s; the search is the daemon's.
 
 use serde_json::Value;
@@ -11,7 +13,7 @@ use super::{Canvases, canvas_of, find, wanted};
 use crate::layout::{PaneId, Rect};
 use crate::mirror;
 use crate::panes::Panes;
-use crate::scene::canvas::ItemId;
+use crate::scene::canvas::{Item, ItemId};
 use crate::scene::pages::find::{self as finding, Hit, Sought};
 
 /// What `find` flashes on a pane that shows no canvas.
@@ -79,29 +81,49 @@ impl Canvases {
         self.asks.found(finding::said(&text, &hits, at, &pages));
         let hit = at.and_then(|i| hits.get(i));
         if let Some(hit) = hit {
-            self.jump(pane, frame, &canvas, hit);
+            let to = self.shown_as(mirror.filter(|m| m.page() == hit.page), &canvas, hit);
+            self.jump(pane, frame, (&canvas, &hit.page), to);
         }
         self.found = Some(Last { canvas, text, item: hit.map(|h| h.item) });
     }
 
-    /// Turns `pane`, laid at `frame`, to `hit`'s page of `canvas`, centres
-    /// the text in what its footer leaves of it and selects it alone.
-    fn jump(&mut self, pane: PaneId, frame: Rect, canvas: &str, hit: &Hit) {
-        self.select.only((canvas, &hit.page), hit.item);
+    /// What a find goes to for `hit` on `canvas`: the text and its frame,
+    /// or the folded box that hides it and the box's frame (its miniature),
+    /// from `shown`, the mirror of the hit's page when the pane shows it,
+    /// else from the daemon's page. A box not found keeps the text's frame.
+    fn shown_as(&self, shown: Option<&mirror::Mirror>, canvas: &str, hit: &Hit) -> (ItemId, Rect) {
+        let Some(folded) = hit.folded else { return (hit.item, hit.frame) };
+        let frame = |item: &Item| (item.id == folded).then(|| item.shape.bounds()).flatten();
+        let frame = match shown {
+            Some(mirror) => mirror.items().iter().find_map(frame),
+            None => self.daemon.canvas_show(canvas, Some(&hit.page)).ok().and_then(|page| {
+                page.items.iter().filter_map(mirror::item).find_map(|i| frame(&i))
+            }),
+        };
+        (folded, frame.unwrap_or(hit.frame))
+    }
+
+    /// Turns `pane`, laid at `frame`, to `place` (a canvas and its page),
+    /// centres the item `id` at `at` in what its footer leaves of it and
+    /// selects it alone.
+    fn jump(&mut self, pane: PaneId, frame: Rect, place: (&str, &str), (id, at): (ItemId, Rect)) {
+        self.select.only(place, id);
         let frame = crate::scene::status::content(frame);
         let view = self.view(pane);
-        view.page = Some((canvas.to_string(), hit.page.clone()));
-        let on = view.viewport.rect_to_screen(hit.frame);
+        view.page = Some((place.0.to_string(), place.1.to_string()));
+        let on = view.viewport.rect_to_screen(at);
         let (x, y) = (on.x + on.width / 2.0, on.y + on.height / 2.0);
         view.pan(frame.width / 2.0 - x, frame.height / 2.0 - y);
     }
 }
 
-/// A found item as a [`Hit`]: its page and its frame.
+/// A found item as a [`Hit`]: its page, its frame and the folded box
+/// that hides it, if one does.
 fn hit(found: &Value) -> Option<Hit> {
     let item = mirror::item(found)?;
     let page = found.get("page")?.as_str()?.to_string();
-    Some(Hit { page, item: item.id, frame: item.shape.bounds()? })
+    let folded = found.get("folded").and_then(Value::as_str).and_then(mirror::item_id);
+    Some(Hit { page, item: item.id, frame: item.shape.bounds()?, folded })
 }
 
 #[cfg(test)]

@@ -19,9 +19,10 @@
 //!   select tool or the lasso the second press may be a drag of what the
 //!   first tap selected, so the edit waits for the lift, and starts only
 //!   when the pen lifts where it went down ([`Shapes::tapped`]). The edit
-//!   is one change when it ends: an `add`, a `set`, or a `remove` when it
-//!   was emptied.
-//!   A text also starts from the keyboard ([`Shapes::start`], [`start`]).
+//!   is one change when it ends: an `add`, a `set` (with the arrows bound
+//!   to it when its frame moved), or a `remove` when it was emptied.
+//!   A text also starts from the keyboard ([`Shapes::start`], [`start`]),
+//!   or opens there as a tap opens it ([`Shapes::start_at`]).
 //! - Box: a drag from corner to corner.
 //! - Arrow: a drag from start to end. An end that lands on an item binds to
 //!   it ([`target`]), and when that item moves the end follows ([`follow`]),
@@ -37,14 +38,13 @@ use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect};
 use crate::mirror::{LINE_WIDTH, TEXT_SIZE};
 use crate::scene::canvas::{Fill, Item, ItemId, Shape};
-use crate::scene::editor::{Editing, Editor};
-use crate::scene::glyphs;
+use crate::scene::editor::Editing;
 use crate::scene::ink::{Change, Ink, on_server};
 use crate::scene::paste;
 use crate::scene::tools::{Resize, Tool};
 
 mod bind;
-pub use bind::{follow, follow_by, target};
+pub use bind::{follow, follow_by, follow_frames, target};
 
 /// Two presses this close in time, in seconds, are a double tap...
 pub const DOUBLE_TAP: f64 = 0.4;
@@ -108,20 +108,21 @@ struct Drag {
 /// the last press,
 /// the edit a double tap with the select tool or the lasso asks for
 /// once the pen lifts where it went down, within the reach there, and the
-/// size a new text starts at ([`TEXT_SIZE`] until one is set), and where
-/// the last text ended ([`start`]).
+/// size a new text starts at ([`TEXT_SIZE`] until one is set), where
+/// the last text ended, and the `new-text` key the hint names ([`start`]).
 #[derive(Debug, Default)]
 pub struct Shapes {
     drag: Option<(String, String, Drag)>,
     editing: Option<Editing>,
     ended: Option<(String, String, Rect)>,
     selecting: bool,
-    widening: Option<f64>,
+    widening: Option<(f64, f64)>,
     /// How many quick presses in a row landed inside the text being typed.
     taps: u8,
     last: Option<(String, String, Press)>,
     waiting: Option<(Editing, Point, f64)>,
     size: Option<f64>,
+    next: Option<Chord>,
 }
 
 impl Shapes {
@@ -136,15 +137,11 @@ impl Shapes {
         self.size.unwrap_or(TEXT_SIZE)
     }
 
-    /// The text being typed takes the size `resize` makes of its own.
-    /// False when none is.
+    /// The text being typed takes the size `resize` makes of its own, as
+    /// a step of its undo ([`Editing::resize`]). False when none is.
     pub fn resize(&mut self, resize: Resize) -> bool {
         let Some(editing) = &mut self.editing else { return false };
-        editing.size = resize.of(editing.size);
-        if editing.column < glyphs::UNWRAPPED {
-            // About as wide, on half a cell of the new size.
-            editing.column = glyphs::column(editing.column, editing.size);
-        }
+        editing.resize(resize.of(editing.size));
         true
     }
 
@@ -177,7 +174,7 @@ impl Shapes {
             let here = editing.canvas == canvas && editing.page == page;
             if here && on_edge(editing, press.at, press.zoom) {
                 let bounds = editing.bounds();
-                self.widening = Some(press.at.x - (bounds.x + bounds.width));
+                self.widening = Some((press.at.x - (bounds.x + bounds.width), editing.column));
                 return true;
             }
             if here && editing.bounds().outset(reach).contains(press.at) {
@@ -195,18 +192,7 @@ impl Shapes {
         }
         let edits = tool == Tool::Text || (double && tool != Tool::Pen);
         if let Some(item) = text_at(items, press.at, reach).filter(|_| edits) {
-            let Shape::Text { frame, text, size, column } = &item.shape else { return true };
-            let column = column.unwrap_or(glyphs::UNWRAPPED);
-            let editing = Editing {
-                canvas: canvas.to_string(),
-                page: page.to_string(),
-                at: Point { x: frame.x, y: frame.y },
-                editor: Editor::new(text.clone()),
-                colour: item.colour,
-                size: *size,
-                column,
-                item: Some((item.id, text.clone(), *size, column)),
-            };
+            let Some(editing) = start::edit((canvas, page), item, items) else { return true };
             if matches!(tool, Tool::Select | Tool::Lasso) {
                 self.waiting = Some((editing, press.at, reach));
                 return false;
@@ -249,7 +235,7 @@ impl Shapes {
     /// the text wraps in ([`Editing::widen`]). Returns false when none of
     /// them is under it.
     pub fn drag(&mut self, at: Point) -> bool {
-        if let Some((editing, off)) = self.editing.as_mut().zip(self.widening) {
+        if let Some((editing, (off, _))) = self.editing.as_mut().zip(self.widening) {
             editing.widen(at.x - off);
             return true;
         }
@@ -273,7 +259,11 @@ impl Shapes {
         if let Some(at) = at {
             self.drag(at);
         }
-        if std::mem::take(&mut self.selecting) | self.widening.take().is_some() {
+        let widened = self.widening.take();
+        if let Some((editing, (_, column))) = self.editing.as_mut().zip(widened) {
+            editing.widened(column);
+        }
+        if std::mem::take(&mut self.selecting) | widened.is_some() {
             return true;
         }
         let Some((canvas, page, drag)) = self.drag.take() else { return false };
@@ -310,8 +300,8 @@ impl Shapes {
     /// Typed `text` goes into the text being edited at its caret, in place
     /// of its selection: delete deletes back, return starts a line, escape
     /// ends the text (to `ink`). Other control and function keys do
-    /// nothing ([`Editor::typed`]). Returns false, and nothing changes,
-    /// when no text is being edited.
+    /// nothing ([`Editor::typed`](super::editor::Editor::typed)). Returns
+    /// false, and nothing changes, when no text is being edited.
     pub fn typed(&mut self, text: &str, ink: &mut Ink) -> bool {
         let Some(editing) = &mut self.editing else { return false };
         match text.split_once('\u{1b}') {
@@ -325,10 +315,17 @@ impl Shapes {
     }
 
     /// A key of the text being typed: its caret, selection and delete keys
-    /// ([`Editor::key`]). Returns false when no text is being typed, or the
-    /// key is not one of them.
+    /// ([`Editor::key`](super::editor::Editor::key)). Returns false when no
+    /// text is being typed, or the key is not one of them.
     pub fn key(&mut self, chord: Chord) -> bool {
         self.editing.as_mut().is_some_and(|editing| editing.key(chord))
+    }
+
+    /// Undoes the last edit of the text being typed (a new size or column
+    /// too), or with `redo` redoes one. False when no text is being typed
+    /// or it has no such step.
+    pub fn undo(&mut self, redo: bool) -> bool {
+        self.editing.as_mut().is_some_and(|editing| editing.undo(redo))
     }
 
     /// The characters selected in the text being typed, if any; with `cut`,
@@ -352,25 +349,17 @@ impl Shapes {
         true
     }
 
-    /// Ends the text being edited, as one change to `ink`: a new text's
-    /// `add`, an edited text's `set`, or its `remove` when emptied. Blank
-    /// new text and an unchanged edit make none. Returns false when no text
-    /// was being edited.
+    /// Ends the text being edited, as one change to `ink` ([`start::ended`]):
+    /// a new text's `add`, an edited text's `set` (with the arrows bound to
+    /// it following a new frame), or its `remove` when emptied. Blank new
+    /// text and an unchanged edit make none. Returns false when no text was
+    /// being edited.
     pub fn end(&mut self, ink: &mut Ink) -> bool {
         (self.selecting, self.widening) = (false, None);
         let Some(editing) = self.editing.take() else { return false };
-        let changed = editing.changed();
-        let blank = editing.editor.text().trim().is_empty();
-        let (frame, size, column) = (editing.frame(), editing.size, Some(editing.column));
-        let shape = Shape::Text { frame, text: editing.editor.text().to_string(), size, column };
-        let (canvas, page) = (editing.canvas, editing.page);
-        self.ended = Some((canvas.clone(), page.clone(), frame));
-        match editing.item {
-            None if blank => {}
-            None => ink.push(Change::Put { canvas, page, colour: editing.colour, shape }),
-            Some((id, ..)) if blank => ink.push(Change::Remove { canvas, page, ids: vec![id] }),
-            Some(_) if !changed => {}
-            Some((id, ..)) => ink.push(Change::Set { canvas, page, id, shape }),
+        self.ended = Some((editing.canvas.clone(), editing.page.clone(), editing.frame()));
+        if let Some(change) = start::ended(editing) {
+            ink.push(change);
         }
         true
     }
@@ -396,8 +385,8 @@ impl Shapes {
             items.push(Cow::Owned(Item { id: PREVIEW, colour: drag.colour, shape }));
         }
         if let Some(editing) = self.editing.as_ref().filter(|e| here(&e.canvas, &e.page)) {
-            if let Some((id, ..)) = &editing.item {
-                items.retain(|i| i.id != *id);
+            if let Some(was) = &editing.item {
+                items.retain(|i| i.id != was.id);
             }
             let (frame, text, size) = (editing.frame(), editing.editor.text(), editing.size);
             let (caret, selected) = editing.marks(CARET / zoom);
@@ -417,7 +406,7 @@ impl Shapes {
                 Shape::Panel { frame: around, fill: None, width: FRAME_LINE / zoom, dashed: true };
             items.push(Cow::Owned(Item { id: FRAME_ID, colour: theme.muted, shape }));
             let under = Point { x: around.x, y: around.y + around.height + HINT_GAP / zoom };
-            let hint = label(HINT_ID, HINT.to_string(), theme.muted, under, zoom);
+            let hint = label(HINT_ID, self.hint(), theme.muted, under, zoom);
             items.push(Cow::Owned(hint));
         }
         items

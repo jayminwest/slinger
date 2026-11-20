@@ -1,7 +1,7 @@
-//! Chords as the config file writes them: [`Chord::parse`] reads
-//! `"cmd+shift+k"`, a key's name (`space`, `f5`) or one character.
+//! Chords in the config file's words: the names of the keys that type no
+//! character, and [`Chord::parse`].
 
-use super::{ALT, CMD, CTRL, Chord, DELETE, DOWN, F1, FORWARD_DELETE, LEFT, RIGHT, SHIFT, UP};
+use super::{ALT, CMD, CTRL, Chord, SHIFT};
 
 /// The names of the keys that do not type a character, and the code point
 /// macOS gives each. `f1` to `f20` are parsed apart.
@@ -17,6 +17,19 @@ const NAMED: [(&str, char); 10] = [
     ("right", RIGHT),
     ("forward-delete", FORWARD_DELETE),
 ];
+
+/// The code points macOS gives the keys that move a caret, and delete.
+pub const UP: char = '\u{f700}';
+pub const DOWN: char = '\u{f701}';
+pub const LEFT: char = '\u{f702}';
+pub const RIGHT: char = '\u{f703}';
+pub const FORWARD_DELETE: char = '\u{f728}';
+pub const HOME: char = '\u{f729}';
+pub const END: char = '\u{f72b}';
+pub const DELETE: char = '\u{7f}';
+
+/// `f1`'s code point; `f2` to `f20` follow it.
+pub(super) const F1: u32 = 0xf704;
 
 impl Chord {
     /// Parses `"cmd+q"`: lowercase modifiers (`shift`, `ctrl`, `alt`, `cmd`)

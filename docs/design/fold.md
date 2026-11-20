@@ -270,6 +270,10 @@ lie wholly inside the box's frame, edges included.
   fold, move and erase any box. An agent may fold only a box it made, and
   move or erase a folded box only when it may change every item carried;
   otherwise the request fails as an edit of another's item does today.
+- Anyone may add into any folded box (`add` with `in`, or `canvas put --in`):
+  a `set` of a folded box that keeps its frame and colour and changes its
+  list only by items its author may change is allowed (`Canvas::joins`; see
+  "Sling a box"). Taking another's items in or out is not.
 
 ### What an old reader keeps
 
@@ -352,7 +356,27 @@ folds through `canvas_fold`, not a raw `set`, so the contents rule is the core's
 ### Sling a box (step 7)
 
 The packet of a sling of a box is `canvas read --in <box>`; its contents are
-`Canvas::contents`. Where the answer lands is settled with slinger-387333.
+`Canvas::contents`. `sling_send` takes `in`; line 1 of the message names
+the box (`in=b4`) as the packet header does, and the note on every sling of
+a box says to answer with `canvas put --in b4`.
+
+Where the answer lands (settled with slinger-387333, picked overnight
+2026-11-20, owner to confirm): the box is **named, never detected** from
+ink, and a put **does not default** to it; the agent passes `in`. That is
+the reading cheapest to reverse: a default can be added later on top of
+the named box, and nothing guesses. A put with `in` goes in the box's room
+(`Canvas::free_in`: beside its item first, then reading order, among the
+box's contents only; page items outside do not count). An open box with no
+room is `conflict`; a folded box takes it below its contents and grows its
+open size, as an `add` with `in` does. Joining writes a `set` of the box,
+so the author rule takes one exception (`Canvas::joins`): anyone may change
+a folded box's list by items they may change (theirs), and its open size,
+keeping its frame and colour. So an agent answers in the user's folded box,
+and its undo takes the answer out; it still cannot take the user's items
+in or out. An open box never grows for an answer.
+
+The app (slinger-1350e7, slinger-b1ccf1) sends `sling_send` with `in`: the
+box selected for "sling a box", or the box a pane is stepped into.
 
 ### Tests that hold acceptance 5 (step 2)
 

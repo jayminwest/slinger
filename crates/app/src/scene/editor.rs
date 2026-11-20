@@ -14,6 +14,7 @@
 //! The keys ([`Editor::key`]) are fixed text keys, not commands: while a
 //! text is typed they come before the keymap, so alt+arrows move by words
 //! instead of panning, and cmd+A selects the text's characters.
+//! Undo and redo of its edits are the keymap's commands ([`undo`]).
 
 use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 
@@ -22,8 +23,9 @@ use crate::commands::{
 };
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
-use crate::scene::canvas::ItemId;
+use crate::scene::canvas::{Item, ItemId};
 use crate::scene::glyphs::{self, Laid};
+use undo::{History, Run};
 
 /// A text's characters with a caret and a selection in them.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -37,6 +39,8 @@ pub struct Editor {
     goal: Option<f64>,
     /// What ctrl+K last took out, for ctrl+Y ([`emacs`]).
     killed: String,
+    /// The steps undo and redo go through ([`undo`]).
+    history: History,
 }
 
 /// How far a key moves or deletes: by a character, a word, to the row's
@@ -88,14 +92,20 @@ impl Editor {
     pub fn cut(&mut self) -> Option<String> {
         let (a, b) = self.selection()?;
         let cut = self.text[a..b].to_string();
-        self.replace(a, b, "");
+        self.replace(a, b, "", None);
         Some(cut)
     }
 
-    /// `text` goes in at the caret, in place of the selection if any.
+    /// `text` goes in at the caret, in place of the selection if any, as
+    /// one undo step of its own (a paste).
     pub fn insert(&mut self, text: &str) {
+        self.put(text, None);
+    }
+
+    /// As [`Editor::insert`], as part of `run`.
+    fn put(&mut self, text: &str, run: Option<Run>) {
         let (a, b) = self.selection().unwrap_or((self.caret, self.caret));
-        self.replace(a, b, text);
+        self.replace(a, b, text, run);
     }
 
     /// Selects every character.
@@ -103,6 +113,7 @@ impl Editor {
         self.anchor = Some(0);
         self.caret = self.text.len();
         self.goal = None;
+        self.moved();
     }
 
     /// Puts the caret at `index` (a press inside the text); with `extend`
@@ -112,6 +123,7 @@ impl Editor {
         self.anchor = if extend { Some(self.anchor.unwrap_or(self.caret)) } else { None };
         self.caret = index.min(self.text.len());
         self.goal = None;
+        self.moved();
     }
 
     /// Selects from `a` to `b`, the caret at `b`.
@@ -149,10 +161,16 @@ impl Editor {
         self.select(start, index + end.map_or(rest.len(), |(i, _)| i));
     }
 
-    /// Deletes the selection, else from the caret to `to`.
+    /// Deletes the selection, else from the caret to `to`: one character
+    /// deleted joins a run of them.
     fn delete(&mut self, to: usize) {
+        let run = match self.selection() {
+            None if to == before(&self.text, self.caret) => Some(Run::Deleting),
+            None if to == after(&self.text, self.caret) => Some(Run::Forward),
+            _ => None,
+        };
         let (a, b) = self.selection().unwrap_or((to.min(self.caret), to.max(self.caret)));
-        self.replace(a, b, "");
+        self.replace(a, b, "", run);
     }
 
     /// Typed `text` (the characters a key typed) does what a text field does:
@@ -162,10 +180,10 @@ impl Editor {
         for c in text.chars() {
             match c {
                 '\u{7f}' | '\u{8}' => self.delete(before(&self.text, self.caret)),
-                '\r' | '\n' => self.insert("\n"),
+                '\r' | '\n' => self.put("\n", Some(Run::Typing)),
                 // The arrow and function keys are in this private range.
                 c if c.is_control() || ('\u{f700}'..='\u{f8ff}').contains(&c) => {}
-                c => self.insert(c.encode_utf8(&mut [0; 4])),
+                c => self.put(c.encode_utf8(&mut [0; 4]), Some(Run::Typing)),
             }
         }
     }
@@ -286,12 +304,20 @@ impl Editor {
         Act::Move(to, Some(goal))
     }
 
-    /// `text[a..b]` becomes `with`, and the caret stands after it.
-    fn replace(&mut self, a: usize, b: usize, with: &str) {
+    /// `text[a..b]` becomes `with`, and the caret stands after it; a
+    /// change is an undo step, or joins `run` ([`undo`]).
+    fn replace(&mut self, a: usize, b: usize, with: &str, run: Option<Run>) {
+        let changes = a < b || !with.is_empty();
+        if changes {
+            self.remember(run);
+        }
         self.text.replace_range(a..b, with);
         self.caret = a + with.len();
         self.anchor = None;
         self.goal = None;
+        if changes {
+            self.ran(run);
+        }
     }
 }
 
@@ -340,10 +366,22 @@ pub struct Editing {
     /// before texts wrapped); a new one's holds [`glyphs::NEW_COLUMN`]
     /// characters. A drag of its frame's edge sets it ([`Editing::widen`]).
     pub column: f64,
-    /// The text item edited, and its text, size and column before; `None`
-    /// for a new text.
-    pub item: Option<(ItemId, String, f64, f64)>,
+    /// The text item edited, as it was when it opened; `None` for a new text.
+    pub item: Option<Opened>,
     pub editor: Editor,
+}
+
+/// A text item as it was when it opened to be edited: its id, text, size,
+/// column and frame, and the arrows bound to it then, which follow its new
+/// frame when it ends ([`crate::scene::shapes::follow_frames`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Opened {
+    pub id: ItemId,
+    pub text: String,
+    pub size: f64,
+    pub column: f64,
+    pub frame: Rect,
+    pub arrows: Vec<Item>,
 }
 
 impl Editing {
@@ -374,10 +412,10 @@ impl Editing {
     /// Whether ending it changes its item: a new text, or an edit of its
     /// text, its size or its column.
     pub fn changed(&self) -> bool {
-        self.item.as_ref().is_none_or(|(_, text, size, column)| {
-            text != self.editor.text()
-                || size.total_cmp(&self.size).is_ne()
-                || column.total_cmp(&self.column).is_ne()
+        self.item.as_ref().is_none_or(|was| {
+            was.text != self.editor.text()
+                || was.size.total_cmp(&self.size).is_ne()
+                || was.column.total_cmp(&self.column).is_ne()
         })
     }
 
@@ -433,3 +471,4 @@ impl Editing {
 mod emacs;
 #[cfg(test)]
 mod tests;
+mod undo;

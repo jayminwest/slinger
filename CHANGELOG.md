@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** undo and redo while you type a canvas text. Cmd+Z and
+  Shift+Cmd+Z (and Undo and Redo in the Edit menu) step through the text's
+  own edits, as a Mac text field does: a run of typing is one step, a run of
+  deletes another, a paste or a cut one each, and a new size (the size
+  keys) or a drag of its column one each. Once the text ends, undo
+  takes back the whole text from the canvas, as before.
 - **App:** a typed text wraps. A new text wraps at 48 characters, and
   while you type it its dashed frame shows that column; drag the frame's
   right edge (the pointer shows a left-right arrow) to make the column
@@ -31,6 +37,12 @@ bullet with the area in bold.
   Such a packet's header names the box: `in=b4`.
 - **Agents:** `slinger canvas find` finds texts inside folded boxes too,
   and names the folded box that hides each (`i7 in i4`).
+- **Agents:** sling a box: `slinger sling send <ID> --in b4` sends only
+  what the box holds, and the agent's note asks for the answer in it.
+  `slinger canvas put <ID> --beside c12 --in b4` puts the answer in the box,
+  among what it holds, and an answer in a folded box joins it, the user's
+  box too. Over a PDF, the sling of a box renders only the page under the
+  ink the box holds (`sling_backdrops` takes `in`).
 - **Agents:** an `add` in `slinger canvas apply` may name a folded box with
   `in`: the new item joins it, and the box's open size grows to hold it.
 - **App:** start a text without a tap. New text (`new-text`, ctrl+return,
@@ -38,6 +50,8 @@ bullet with the area in bold.
   starts the next half a line under it, so notes follow one another from
   the keyboard. With no text being typed it starts one at the pointer, or,
   with the pointer off the pane, under the last text you ended there.
+  With the pointer on a text, it opens that text to edit, as a tap with
+  the text tool does. The hint under a text you type names its key.
 - **CLI:** `slinger canvas fold <ID> <ITEM>` folds a box to a miniature that
   keeps what lies inside it, and `slinger canvas unfold` opens it again in
   its old room, each as one undo step. When something now lies in that
@@ -59,6 +73,9 @@ bullet with the area in bold.
   selected, opt+cmd+O or the footer's ⤴ steps back out to the view you
   had. opt+shift+cmd+I opens the box in a new pane beside, so two boxes
   show at once; each pane keeps its own trail.
+- **App:** find sees into folded boxes. A text a folded box hides takes a
+  find to that box, centred and selected, and the flash says the text is
+  in a folded box.
 
 - **App:** a canvas text being typed has a real caret. The arrow keys move
   it (alt by words, cmd to a row's ends or the text's start and end), shift
@@ -87,6 +104,10 @@ bullet with the area in bold.
   delete removes it and tab goes on to the next item from it.
 - **CLI:** `slinger canvas find <CANVAS> <TEXT>` prints the page, id and
   text of each text item that holds the words, on every page.
+- **App:** nudge the selection by one point: shift and an arrow
+  (`nudge-left-fine`, `nudge-right-fine`, `nudge-up-fine`,
+  `nudge-down-fine`, also in the Edit menu and the command palette). While
+  you type a canvas text, shift and an arrow still select characters.
 - **App:** act on a canvas's items from the keyboard. Select all
   (`select-all`, cmd+A) selects every item on the focused page; tab and
   shift+tab (`next-item`, `previous-item`) select the next or previous item
@@ -517,6 +538,16 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a wrapped text resized with the select tool's handles or the
+  size keys keeps wrapping; before, a resize could leave its column exactly
+  as wide as its longest line, and it then ran on one line as you typed.
+- **App:** an arrow bound to a selected text follows it when the size keys
+  resize the text, as it does when you move or nudge it.
+- **App:** an arrow bound to a text you are typing follows the text when
+  it ends with a new size, more rows or a new column, in the same undo step.
+- **App:** while a live item's page on a canvas has the keyboard, delete
+  goes to the page; it no longer deletes the selected canvas items.
+  Escape goes to the page too; it no longer clears the canvas selection.
 - **Agents:** a reply that leaves out its colour and size no longer takes
   them from writing hidden in a folded box; it matches what the page shows.
 - **App:** the caret in a canvas text moves, and delete deletes, by what

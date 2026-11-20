@@ -198,15 +198,15 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_list` | none | `sessions`: list of sessions, sorted by agent |
 | `session_show` | `agent`: string | `session` |
 | `status_set` | `agent`: string, `status`: `working`, `blocked` or `done`, `note`: string (optional) | `agent`, `status`, `note` (absent when none), `event`: the number of the event appended (absent for `working`) |
-| `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `ink`: a `pts` list in tenths, `arrow`: `[from, to]` item ids; optional `color`: `#rrggbb` or `#rrggbbaa`, `at`: `[x, y]` in tenths, `size`: a text's character size in tenths (40 to 4000; text only). Without `color` or `size`, they match the user's writing beside the item ("Agent canvas verbs") | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
+| `canvas_put` | `canvas`: canvas id, `agent`: string, `beside`: an item id, then one of `text`: string, `box`: `[w, h]` in tenths, `ink`: a `pts` list in tenths, `arrow`: `[from, to]` item ids; optional `color`: `#rrggbb` or `#rrggbbaa`, `at`: `[x, y]` in tenths, `size`: a text's character size in tenths (40 to 4000; text only), `in`: a box (`b4`) it goes in, the answer to a sling of that box. Without `color` or `size`, they match the user's writing beside the item ("Agent canvas verbs") | `item`: the new item's id, `page`: its page's id, `x`, `y`, `w`, `h`: its box in tenths, `seq`: the operation's number, `event`: the `reply_landed` appended (absent when none) |
 | `canvas_edit` | `canvas`: canvas id, `agent`: string, `item`: an item id, then any of `text`: string, `size`: a text's character size in tenths (40 to 4000; the frame refits the words), `box`: `[w, h]` in tenths, `move`: `[x, y]` in tenths | `item`, `page`, `x`, `y`, `w`, `h`: its box now, `seq`: the numbers written (empty when nothing changed) |
 | `canvas_remove` | `canvas`: canvas id, `agent`: string, `item`: an item id | `seq`: the numbers written (empty when it was already gone) |
 | `session_start` | `workspace`: string, its name or the directory of its file, `fresh`: bool (default `false`), `profile`: a profile's name (optional) | `session` |
 | `session_stop` | `workspace`: string | `session` |
 | `session_send` | `workspace`: string, `text`: string | `session` |
 | `session_listen` | `workspace`: string, `wait`: milliseconds to hold the request open (default 0, at most 60000), `pid`: the process that works on the sling (optional) | `agent`, `sling`: `{event, canvas, dir, text}`, the oldest sling that waits (absent when none came) |
-| `sling_backdrops` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `backdrops`: list of `{item, hash, pdfpage, pagesize, crop, frame, area, width, height}`, the areas of PDF pages under the new ink (empty when none) |
-| `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `select`: list of item ids (optional), `prompt`: string (default empty), `profile`: a profile's name (optional), `backdrops`: list of `{item, area, image, words}` (optional) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` (empty when a listener takes it), `deliver`: `process` or `listen`, `tokens`: about how many tokens the agent reads for it (optional) |
+| `sling_backdrops` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `in`: a box's id (optional: a sling of the box, on its page) | `backdrops`: list of `{item, hash, pdfpage, pagesize, crop, frame, area, width, height}`, the areas of PDF pages under the new ink (empty when none) |
+| `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `in`: a box's id (optional: a sling of the box, on its page), `select`: list of item ids (optional), `prompt`: string (default empty), `profile`: a profile's name (optional), `backdrops`: list of `{item, area, image, words}` (optional) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` (empty when a listener takes it), `deliver`: `process` or `listen`, `tokens`: about how many tokens the agent reads for it (optional) |
 | `profile_list` | `workspace`: as `workspace_show` | `workspace`: its name, `profiles`: list of `{name, dir, tools}`, in its file's order |
 | `profile_set` | `workspace`, `name`: string, `dir`: absolute path of a directory (optional), `tools`: list of permission rules (optional) | `workspace`, `profiles` |
 | `profile_remove` | `workspace`, `name`: string | `workspace`, `profiles` |
@@ -944,7 +944,12 @@ selection as packet ids (a stroke is named by its cluster), the packet with
 each image under the line that names it, a `# reply` note naming only the
 agent verbs this daemon serves (`canvas put`, `canvas crop`, `ui put` with
 `ui open`), and the
-prompt last. The first sling into a conversation (no `sling_sent` of the
+prompt last. With `in` (a box, `b4`), the sling is of that box (docs/design/fold.md, "Sling a
+box"): the packet is `canvas_read`'s with `in`, only what the box holds,
+its header naming the box; line 1 names it too (`in=b4`), and the note on
+every sling of it asks for the answer in it (`canvas_put` with `in`). A
+box is named, never guessed from ink, and a put without `in` lands beside
+its item as ever. The first sling into a conversation (no `sling_sent` of the
 agent names its session id) gets the whole note, which ends by pointing at
 `slinger guide`, later ones one line. It
 reaches the process as one stream-json user message: text blocks and a
@@ -1000,8 +1005,9 @@ show` names it (`i3`); `hash`, `pdfpage`, `pagesize` and `crop` (`null` for
 none) as stored, in tenths of a point; `frame` and `area` (the image frame ∩
 the item's frame) as `[x, y, w, h]` in tenths; `width` and `height`, the
 pixels to render (the area at the packet's scale, rounded up). Nothing new,
-or no new ink over a PDF, is an empty list; the canvas and page fail as in
-`canvas_read`. The app renders each area and passes it to `sling_send` in
+or no new ink over a PDF, is an empty list; with `in`, only the new ink the
+box holds counts, as in that box's sling. The canvas, page and box fail as
+in `canvas_read`. The app renders each area and passes it to `sling_send` in
 `backdrops`: `item` and `area` as given, `image` the absolute path of the
 raw pixels (8-bit R, G, B, rows from the top, exactly `width * height * 3`
 bytes) and `words` the absolute path of a JSON array of `{text, x, y, w,
@@ -1084,7 +1090,16 @@ and only its shape counts. Each goes in free space: 24 units right of the
 item, top-aligned; else below it, left of it or above it; else further
 right, past whatever is in the way. It never comes within 12 units of
 another item. With `at`, the top-left corner of its box goes at `[x, y]`
-instead, wherever that is on the page. An arrow joins `from` and `to`, two
+instead, wherever that is on the page. With `in` (a box on that page,
+`b4`; `beside` may be the box itself), the answer goes in the box: free
+space among what the box holds (open: inside its frame; folded: inside its
+open size), beside the item first, else the first place in reading order
+24 units in from the box's top left or past what it holds. Page items
+outside the box do not count. An open box with no such place is
+`conflict`, and an `at` outside it `invalid`; a folded box with none takes
+it below all it holds. An item put in a folded box joins it as an `add`
+with `in` does ("Canvas operations"), the user's box too: an agent may
+change a folded box's list by its own items only, and its open size. An arrow joins `from` and `to`, two
 items on that page, from the edge of one to the edge of the other, and
 points at both; it takes no `at`. `color` draws any of them in that colour,
 and `size` sizes a text's characters. What a put leaves out matches the

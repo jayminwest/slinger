@@ -4,7 +4,7 @@
 use std::borrow::Cow;
 use std::collections::HashSet;
 
-use crate::layout::Point;
+use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::ink::on_server;
 
@@ -34,14 +34,42 @@ pub fn follow_by(
     map: impl Fn(Point) -> Point,
 ) -> Vec<Item> {
     let moved: HashSet<&ItemId> = ids.iter().collect();
-    let on = |end: Option<ItemId>| end.is_some_and(|id| moved.contains(&id));
+    ends(items, |id| moved.contains(&id), |_, p| map(p))
+}
+
+/// The arrows of `items` that follow items resized in place, each of
+/// `framed` an item's id with its box before and after: a bound end keeps
+/// its place on its item's box, as a part of the box's width and height.
+pub fn follow_frames(items: &[Cow<'_, Item>], framed: &[(ItemId, Rect, Rect)]) -> Vec<Item> {
+    let find = |id: ItemId| framed.iter().find(|(i, ..)| *i == id);
+    let stretch = |p: Point, (before, after): (Rect, Rect)| {
+        let part = |a: f64, b: f64| if b > 0.0 { a / b } else { 1.0 };
+        Point {
+            x: after.x + (p.x - before.x) * part(after.width, before.width),
+            y: after.y + (p.y - before.y) * part(after.height, before.height),
+        }
+    };
+    let map = |id, p| find(id).map_or(p, |&(_, before, after)| stretch(p, (before, after)));
+    ends(items, |id| find(id).is_some(), map)
+}
+
+/// The arrows of `items`, not `moved` themselves, with an end bound to an
+/// item that is, as they are after: that end put where `map` says for its item.
+fn ends(
+    items: &[Cow<'_, Item>],
+    moved: impl Fn(ItemId) -> bool,
+    map: impl Fn(ItemId, Point) -> Point,
+) -> Vec<Item> {
     let mut follows = Vec::new();
-    for item in items.iter().filter(|i| !moved.contains(&i.id)) {
+    for item in items.iter().filter(|i| !moved(i.id)) {
         let Shape::Arrow { from, to, width, bound } = &item.shape else { continue };
-        if !on(bound[0]) && !on(bound[1]) {
+        if !bound.iter().flatten().any(|&id| moved(id)) {
             continue;
         }
-        let shift = |p: Point, end| if on(end) { map(p) } else { p };
+        let shift = |p: Point, end: Option<ItemId>| match end {
+            Some(id) if moved(id) => map(id, p),
+            _ => p,
+        };
         let (from, to) = (shift(*from, bound[0]), shift(*to, bound[1]));
         let shape = Shape::Arrow { from, to, width: *width, bound: *bound };
         follows.push(Item { id: item.id, colour: item.colour, shape });

@@ -205,7 +205,7 @@ fn sling(
     let backdrops = render
         .map(|(r, pdfs)| backdrops(daemon, &canvas, page.as_deref(), *r, pdfs, &dir))
         .unwrap_or_default();
-    let request = SlingAsk { canvas, page, select, prompt, profile, backdrops };
+    let request = SlingAsk { canvas, page, inside: None, select, prompt, profile, backdrops };
     let slung = daemon.sling_send(request);
     let _ = fs::remove_dir_all(&dir);
     let slung = slung.map_err(Problem::from)?;
@@ -226,7 +226,7 @@ fn backdrops(
     pdfs: &Path,
     dir: &Path,
 ) -> Vec<Backdrop> {
-    let areas = daemon.sling_backdrops(canvas, page).unwrap_or_default();
+    let areas = daemon.sling_backdrops(canvas, page, None).unwrap_or_default();
     if areas.is_empty() || fs::create_dir_all(dir).is_err() {
         return Vec::new();
     }

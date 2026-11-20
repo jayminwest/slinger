@@ -49,7 +49,7 @@ pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Reply, RemoteError> {
     let under = under(&ask.backdrops)?;
     let mut packet = store
         .canvases()
-        .packet(&ask.canvas, ask.page.as_deref(), None, after, &ask.select, &under)
+        .packet(&ask.canvas, ask.page.as_deref(), ask.inside.as_deref(), after, &ask.select, &under)
         .map_err(|e| drawn(&e))?;
     // The packet is stored as it is here: without `at`.
     let text = packet.text();
@@ -111,15 +111,16 @@ pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Reply, RemoteError> {
     }))
 }
 
-/// The areas of PDF pages under the new ink a sling of `canvas` would draw
-/// now, after the canvas's last sling.
+/// The areas of PDF pages under the new ink a sling of `canvas` (of the box
+/// `inside`, when given) would draw now, after the canvas's last sling.
 pub(super) fn backdrops(
     store: &Store,
     canvas: &str,
     page: Option<&str>,
+    inside: Option<&str>,
 ) -> Result<Reply, RemoteError> {
     let after = read::last_sling(store, canvas)?;
-    let areas = store.canvases().backdrops(canvas, page, after).map_err(|e| drawn(&e))?;
+    let areas = store.canvases().backdrops(canvas, page, inside, after).map_err(|e| drawn(&e))?;
     let backdrops = areas
         .into_iter()
         .map(|a| BackdropArea {

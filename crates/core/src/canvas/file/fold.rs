@@ -144,8 +144,13 @@ impl Log {
     /// box, or a box on another page than the item; `not_found` for a box
     /// that is not there.
     pub(super) fn join(&self, inside: &serde_json::Value, out: &mut Vec<Action>) -> Result<()> {
-        let hint = "pass `in` as the id of a folded box on the item's page (b4 or i4)";
-        let id = inside.as_str().ok_or_else(|| invalid("`in` is not an item id", hint))?;
+        let id = inside.as_str().ok_or_else(|| invalid("`in` is not an item id", JOIN_HINT))?;
+        self.join_box(id, out)
+    }
+
+    /// [`Log::join`] with the box's id as text.
+    pub(super) fn join_box(&self, id: &str, out: &mut Vec<Action>) -> Result<()> {
+        let hint = JOIN_HINT;
         let (item, _, on) = self.named(id)?;
         let adds = out.iter().filter(|a| matches!(a, Action::Add { .. } | Action::PageAdd { .. }));
         let made = self.made(out, &(adds.count().saturating_sub(1)).to_string());
@@ -227,6 +232,8 @@ fn moved(canvas: &Canvas, item: ItemId, shape: &Shape) -> Option<Point> {
     let by = Point::new(b.x - a.x, b.y - a.y);
     (by != Point::default()).then_some(by)
 }
+
+const JOIN_HINT: &str = "pass `in` as the id of a folded box on the item's page (b4 or i4)";
 
 fn invalid(message: &str, hint: &str) -> Error {
     Error::Invalid { message: message.into(), hint: Some(hint.into()) }

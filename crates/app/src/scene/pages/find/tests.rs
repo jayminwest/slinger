@@ -10,6 +10,7 @@ fn hit(page: &str, item: u64) -> Hit {
         page: page.into(),
         item: ItemId(item),
         frame: Rect { x: 0.0, y: 0.0, width: 10.0, height: 10.0 },
+        folded: None,
     }
 }
 
@@ -41,4 +42,6 @@ fn the_flash_names_the_words_the_place_among_the_hits_and_the_page() {
     assert_eq!(said("plan", &hits, Some(1), &pages), "“plan” 2/2 · notes");
     assert_eq!(said("plan", &[hit("p8", 1)], Some(0), &pages), "“plan” 1/1 · p8");
     assert_eq!(said("plan", &[], None, &pages), "No text holds “plan”");
+    let hidden = Hit { folded: Some(ItemId(7)), ..hit("p1", 4) };
+    assert_eq!(said("plan", &[hidden], Some(0), &pages), "“plan” 1/1 · ideas · in a folded box");
 }

@@ -93,6 +93,13 @@ pub fn column(width: f64, size: f64) -> f64 {
     ((width / cell).floor().max(1.0) + 0.5) * cell
 }
 
+/// A text's column of about `width` at its new `size`, as [`column`] puts
+/// it, so a resize never lands it on whole cells; a text that does not
+/// wrap ([`UNWRAPPED`]) stays so.
+pub fn rewrapped(width: f64, size: f64) -> f64 {
+    if width < UNWRAPPED { column(width, size) } else { width }
+}
+
 /// One of the core's rows of a text: the byte range of its characters. The
 /// line end or the space a row breaks at is in neither row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

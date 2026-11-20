@@ -95,7 +95,11 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              an item, placed by free_beside or at the agent's `How::at`, in
              `How::colour`, text at `How::text_size` (tenths, checked against
              TEXT_SIZES by put::text_size), as one undo step; check_put says
-             first whether a put would go.
+             first whether a put would go. With `How::inside` (the answer
+             to a sling of a box) it goes in the box: Canvas::free_in
+             (canvas/fold.rs) places it among the box's contents, and
+             Log::join_box joins a folded box; Canvas::joins lets an
+             agent change a user's folded box by its own items only.
              edit.rs: the agent changes (text, text size, size, place) or removes what it
              put; a move or resize (here or by canvas_apply, Log::followed)
              refits the bound ends of the arrows `by` may change, in the
@@ -654,9 +658,9 @@ config.rs    the config file's format: text in, a typed config or an error
              `[sling] prompt`, the words a sling with nothing typed sends,
              `config/pointer.rs` `[pointer] press`, what a mouse press does
              with the pen tool (select, or the tool). Pure.
-commands.rs  key commands: the closed list of commands, the chord parser and
-             the keymap from a chord to a command (and a command to its
-             live chord). `registry` gives each command a title and a
+commands.rs  key commands: the closed list of commands, the chord parser
+             (`chord`: key names and `Chord::parse`) and the keymap from a
+             chord to a command (and a command to its live chord). `registry` gives each command a title and a
              group and prints a chord in macOS glyphs: the key overlay,
              the palette and the menu bar read it (SPEC D21). `menu` lays
              the menu bar out: each menu's items, the key each shows and
@@ -760,7 +764,8 @@ scene/editor.rs  the canvas text being typed (docs/design/pen-less.md 2A):
              frame's right edge sets it, `widen`, on half a cell so it never
              reads back as unwrapped, glyphs::column); its caret bar and
              selection boxes are scene items (`Shape::Caret` is a plain
-             bar). Pure.
+             bar). Its undo (editor/undo.rs, `History`) holds its edits and
+             its new sizes and columns (`Look`, `Editing::undo`). Pure.
 scene/paste.rs  the clipboard as the app sees it (`Clip`: plain text, a
              canvas's items) and the edits no text field takes (`Edit`:
              cut, copy, paste); pasted text made fit to type: line ends as
@@ -924,7 +929,10 @@ scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
              may drag the selection); a drag makes a box or an arrow, whose ends
              bind to the items they land on. An arrow bound to a moved item
              follows it (`follow`, shapes/bind.rs): the move's change carries the arrow's
-             new ends, so it is still one `canvas_apply`. Each text, shape
+             new ends, so it is still one `canvas_apply`; after a resize the
+             end keeps its place on the item's box (`follow_by`, `follow_frames`;
+             an edited text keeps the arrows bound to it when it opens and
+             reframes them when it ends, `start::ended`). Each text, shape
              or edit is one change. Pure.
 scene/select/hit.rs  which items an eraser's path touches, which items a
              lasso holds and which the select tool's box touches: the core's
@@ -949,13 +957,15 @@ scene/select/keys.rs  the selection from the keyboard: select all takes
              every item the select tool may; next and previous step in
              reading order (box top, then left), wrapping, and bring the
              item into view (`into_view`); a nudge moves the selection 10
-             screen points as one `move` with bound arrows following; a
+             screen points (a fine nudge 1) as one `move` with bound arrows
+             following; a
              duplicate lands 20 screen points down and right, as a paste
              (one step), selected once there. Pure.
 window/items.rs  who holds the keyboard (`keyboard`), and so whether the
-             item commands act on the focused pane's items: only while the
-             window has it and no text of the app takes typing; else the
-             key goes on (select all to a field or a page as `selectAll:`).
+             item commands and delete-selection act on the focused pane's
+             items: only while the window has it and no text of the app
+             takes typing; else the key goes on (select all to a field or a
+             page as `selectAll:`, delete to a live item's page).
 scene/select/carry.rs  a drag of the selection goes by the canvas pane
              under the pen, read through that pane's own view, at every pen
              event and at the lift: over a pane on the same page the items

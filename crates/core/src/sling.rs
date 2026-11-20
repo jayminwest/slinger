@@ -35,6 +35,12 @@
 //! as text ([`Message::text`]): the images are files in the packet's `at=`
 //! directory.
 //!
+//! A sling of a box (docs/design/fold.md, "Sling a box") names it on line 1
+//! (`in=b4`), as its packet's header does; its packet holds only what the
+//! box holds, and the note asks for the answer in the box (`--in b4`) on
+//! every sling of it. The box is named, not guessed from ink, and a put
+//! does not default to it (slinger-387333).
+//!
 //! [`first`] says which slings get the whole note. [`landed`] is the other
 //! end: the record's `reply_landed` when the agent answers on the canvas.
 
@@ -219,7 +225,8 @@ pub fn message(sling: &Sling<'_>) -> Message {
         }
     }
     out.text.extend(rest);
-    out.text.push_str(&note(canvas, sling.first, sling.verbs, sling.listener));
+    let inside = packet.header.inside.as_deref();
+    out.text.push_str(&note(canvas, inside, sling.first, sling.verbs, sling.listener));
     out.text.push_str("# prompt\n");
     out.text.push_str(sling.prompt);
     out.finish()
@@ -255,6 +262,9 @@ fn header(sling: &Sling<'_>) -> String {
     if let Some(listener) = sling.listener {
         let _ = write!(out, " agent={}", listener.agent);
     }
+    if let Some(inside) = &packet.header.inside {
+        let _ = write!(out, " in={inside}");
+    }
     let all = || packet.new.iter().chain(&packet.made).chain(&packet.page);
     let mut selected = sling.selection.iter().filter(|id| all().any(|e| &e.id == *id));
     if let Some(first) = selected.next() {
@@ -268,11 +278,19 @@ fn header(sling: &Sling<'_>) -> String {
 }
 
 /// The `# reply` section: the whole note on a first sling (ending with the
-/// guide's line when there is a CLI to run), one line after, then a
-/// listener's lines. Nothing on a later sling when there are no verbs
-/// to name and no listener.
-fn note(canvas: &str, first: bool, verbs: &[Verb], listener: Option<Listener<'_>>) -> String {
-    let theirs = listener.map(|l| l.note(verbs)).unwrap_or_default();
+/// guide's line when there is a CLI to run), one line after, then the
+/// box's line on a sling of a box `inside`, then a listener's lines.
+/// Nothing on a later sling when there are no verbs to name, no box and no
+/// listener.
+fn note(
+    canvas: &str,
+    inside: Option<&str>,
+    first: bool,
+    verbs: &[Verb],
+    listener: Option<Listener<'_>>,
+) -> String {
+    let boxed = inside.map(|b| boxed(b, verbs)).unwrap_or_default();
+    let theirs = boxed + &listener.map(|l| l.note(verbs)).unwrap_or_default();
     if first {
         let mut out = format!("# reply\n{INTRO}");
         for verb in verbs {
@@ -289,6 +307,16 @@ fn note(canvas: &str, first: bool, verbs: &[Verb], listener: Option<Listener<'_>
     let line: Vec<String> = verbs.iter().map(|v| v.short(canvas)).collect();
     let line = if line.is_empty() { String::new() } else { capitalize(&line.join("; ")) + ".\n" };
     format!("# reply\n{line}{theirs}")
+}
+
+/// The note's line for a sling of the box `inside`.
+fn boxed(inside: &str, verbs: &[Verb]) -> String {
+    let answer = if verbs.contains(&Verb::Put) {
+        format!(" Answer in it: add `--in {inside}` to each `canvas put`.")
+    } else {
+        String::new()
+    };
+    format!("This sling is of box {inside}: the packet holds only what is in it.{answer}\n")
 }
 
 fn capitalize(s: &str) -> String {

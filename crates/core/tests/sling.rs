@@ -268,3 +268,22 @@ fn a_sling_is_first_in_a_conversation_none_of_the_agents_slings_went_into() {
     assert!(first(&[sent(None), sent(Some("s0"))], "s1"), "another conversation, or none named");
     assert!(!first(&[sent(Some("s0")), sent(Some("s1"))], "s1"));
 }
+
+#[test]
+fn a_sling_of_a_box_names_it_and_asks_for_the_answer_in_it_every_time() {
+    let mut p = packet();
+    p.header.inside = Some("b4".into());
+    for first in [true, false] {
+        let text = show(&message(&sling(&p, &[], first)));
+        assert!(text.starts_with("slinger-sling 1 canvas=idea in=b4\n"), "{text}");
+        assert!(text.lines().nth(1).unwrap().contains(" in=b4 "), "the packet's header too");
+        assert!(text.contains("This sling is of box b4"), "{text}");
+        assert!(text.contains("add `--in b4` to each `canvas put`"), "{text}");
+    }
+    // Without a put to run, the note names the box but asks for no flag.
+    let s = Sling { verbs: &[], ..sling(&p, &[], false) };
+    let text = show(&message(&s));
+    assert!(text.contains("This sling is of box b4") && !text.contains("--in"), "{text}");
+    // A sling of a page names no box.
+    assert!(!show(&message(&sling(&packet(), &[], true))).contains("box b4"));
+}

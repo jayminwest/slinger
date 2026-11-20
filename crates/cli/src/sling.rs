@@ -19,6 +19,9 @@ pub enum Sling {
         /// The page, by id (p1) or name [default: the first page]
         #[arg(long)]
         page: Option<String>,
+        /// Sling a box: its packet holds only what it holds, and the agent answers in it
+        #[arg(long = "in", value_name = "BOX")]
+        inside: Option<String>,
         /// The selected items: ids such as c42,t12 or i7
         #[arg(long, value_name = "IDS", value_delimiter = ',')]
         select: Vec<String>,
@@ -44,7 +47,7 @@ pub fn execute(
     daemon: &control::Client,
     input: &mut dyn Read,
 ) -> anyhow::Result<Output> {
-    let Sling::Send { canvas, page, select, prompt, profile } = command;
+    let Sling::Send { canvas, page, inside, select, prompt, profile } = command;
     let mut prompt = prompt.clone().unwrap_or_default();
     if prompt == "-" {
         prompt.clear();
@@ -53,6 +56,7 @@ pub fn execute(
     let ask = control::SlingAsk {
         canvas: canvas.clone(),
         page: page.clone(),
+        inside: inside.clone(),
         select: select.clone(),
         prompt,
         profile: profile.clone(),

@@ -5,12 +5,12 @@
 //! `registry` gives each command a title and a group for the surfaces that
 //! list them; `menu` lays them out as the menu bar.
 
+mod chord;
 pub mod menu;
-mod parse;
 mod registry;
 
-#[cfg(test)]
-use parse::key_named;
+use chord::F1;
+pub use chord::{DELETE, DOWN, END, FORWARD_DELETE, HOME, LEFT, RIGHT, UP};
 pub use registry::Group;
 
 /// Every action a key can run. Later seeds add to [`Command::ALL`].
@@ -171,6 +171,11 @@ pub enum Command {
     NewText,
     /// Fold each selected box to a miniature, or unfold a folded one.
     Fold,
+    /// Move the selection a point that way, in one undo step.
+    NudgeLeftFine,
+    NudgeRightFine,
+    NudgeUpFine,
+    NudgeDownFine,
     /// Step the focused pane into the selected box: it shows only what the
     /// box holds, until a step out. Per pane, like its page.
     StepIn,
@@ -185,7 +190,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 81] = [
+    pub const ALL: [(Command, &str); 85] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -264,6 +269,10 @@ impl Command {
         (Command::FindNext, "find-next"),
         (Command::NewText, "new-text"),
         (Command::Fold, "fold"),
+        (Command::NudgeLeftFine, "nudge-left-fine"),
+        (Command::NudgeRightFine, "nudge-right-fine"),
+        (Command::NudgeUpFine, "nudge-up-fine"),
+        (Command::NudgeDownFine, "nudge-down-fine"),
         (Command::StepIn, "step-in"),
         (Command::StepInBeside, "step-in-beside"),
         (Command::StepOut, "step-out"),
@@ -287,19 +296,6 @@ pub struct Chord {
     mods: u8,
     key: char,
 }
-
-/// The code points macOS gives the keys that move a caret, and delete.
-pub const UP: char = '\u{f700}';
-pub const DOWN: char = '\u{f701}';
-pub const LEFT: char = '\u{f702}';
-pub const RIGHT: char = '\u{f703}';
-pub const FORWARD_DELETE: char = '\u{f728}';
-pub const HOME: char = '\u{f729}';
-pub const END: char = '\u{f72b}';
-pub const DELETE: char = '\u{7f}';
-
-/// `f1`'s code point; `f2` to `f20` follow it.
-const F1: u32 = 0xf704;
 
 impl Chord {
     /// A key event: `mods` is a set of the bits above (others are dropped),
@@ -412,6 +408,10 @@ impl Default for Keymap {
             on(CMD, 'g'),
             on(CTRL, '\r'),
             on(CMD | ALT, 'f'),
+            on(SHIFT, LEFT),
+            on(SHIFT, RIGHT),
+            on(SHIFT, UP),
+            on(SHIFT, DOWN),
             on(CMD | ALT, 'i'),
             on(CMD | ALT | SHIFT, 'i'),
             on(CMD | ALT, 'o'),

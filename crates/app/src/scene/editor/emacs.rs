@@ -58,7 +58,7 @@ impl Editor {
         let (a, b) = self.selection().unwrap_or((self.caret, end));
         if a < b {
             self.killed = self.text[a..b].to_string();
-            self.replace(a, b, "");
+            self.replace(a, b, "", None);
         }
         true
     }
@@ -77,7 +77,7 @@ impl Editor {
         let (a, b) = (before(&self.text, mid), after(&self.text, mid));
         if a < mid && mid < b && !self.text[a..b].contains('\n') {
             let swapped = format!("{}{}", &self.text[mid..b], &self.text[a..mid]);
-            self.replace(a, b, &swapped);
+            self.replace(a, b, &swapped, None);
         }
         true
     }
