@@ -663,6 +663,11 @@ bullet with the area in bold.
   longer names one, the sidebar highlights that workspace (by its folder's
   name) at launch, and the panes say why its file is broken rather than
   'open workspace not found'.
+- **App:** opening or dropping the same PDF again shows the canvas it made,
+  with what you wrote on it, instead of making `t-2.pdf`, `t-3.pdf`, ….
+  "The same" means the same bytes, wherever the file is; a changed file
+  under the same name still gets a canvas of its own. No second pane opens
+  when one already shows it.
 - **App:** a workspace no longer opens at another workspace's zoom and
   scroll, or shows its ink while its own page comes. Going back to a
   workspace finds each pane, and the focus, where you left them. Closing

@@ -33,6 +33,7 @@ Choices an agent made and shipped that the owner has not confirmed. An agent tha
 
 - [ ] canvas schema leaves out the pdf kind though canvas apply accepts one (the design chose not to advertise it; docs/cli.md says so); decide whether the schema should list it (slinger-e23fd6)
 - [ ] add the crop tool to the tool pop-up (pick-tool) for pen-only use; the design asks only for the registry and a key (slinger-0e6e66)
+- [ ] the same PDF opened or dropped again (same bytes, its canvas found among the file's ids `t.pdf`, `t-2.pdf`, …) shows the canvas it made; a copy under another file name still makes a new canvas; when a pane of the workspace shows it already no pane opens and focus stays where the drop put it (backend/pdf.rs `made_from`) (slinger-d21286)
 - [ ] confirm reader mode defaults: zoom commands (cmd +/-/0) do nothing as well as pinch; a page of a PDF's canvas with no pdf items pans and zooms freely (slinger-387fb4)
 
 ## Launcher (plan pl-ac18df)

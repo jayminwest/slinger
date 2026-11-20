@@ -137,3 +137,26 @@ fn the_wait_before_asking_again_doubles_up_to_a_minute_or_so() {
     let waits: Vec<u64> = [1, 2, 3, 7, 8, 100].map(|n| wait(n).as_secs()).into();
     assert_eq!(waits, [1, 2, 4, 64, 64, 64]);
 }
+
+/// slinger-d21286: what a drop runs (`window::open_pdf`), twice on the
+/// same PDF, makes one canvas in one pane.
+#[test]
+fn the_same_pdf_dropped_twice_is_one_canvas_in_one_pane() {
+    with_daemon(|daemon| {
+        let _notes = open_notes(daemon);
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("t.pdf");
+        fs::write(&file, b"%PDF-1.7 two pages").unwrap();
+        let notes = Panes::new(Pane { kind: Kind::Canvas, name: "notes".into() });
+        let mut canvases = Canvases::new(daemon.clone());
+        for _ in 0..2 {
+            canvases.open_pdf(&notes, Some("notes"), file.clone(), two_pages);
+            wait_until(|| canvases.poll() && canvases.pdfs.opened.is_none());
+            assert_eq!(canvases.own_problems().next(), None);
+        }
+        let made = daemon.canvas_list().unwrap();
+        assert_eq!(made.iter().filter(|c| c.starts_with('t')).count(), 1, "{made:?}");
+        let layout = daemon.pane_list("notes").unwrap().layout;
+        assert_eq!(layout.panes().iter().filter(|p| p.target == "t.pdf").count(), 1);
+    });
+}

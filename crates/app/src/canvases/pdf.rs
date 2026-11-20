@@ -135,9 +135,10 @@ impl Pdfs {
 }
 
 impl Canvases {
-    /// Opens the PDF `file` as a new canvas, its pages' sizes read by
-    /// `sizes`, in a pane beside the focused pane of `panes` in `workspace`
-    /// ([`backend::pdf::open`]), on a thread of its own. One open at a
+    /// Opens the PDF `file` as a new canvas (the same bytes again: the
+    /// canvas they made), its pages' sizes read by `sizes`, in a pane
+    /// beside the focused pane of `panes` in `workspace` unless one shows
+    /// it ([`backend::pdf::open`]), on a thread of its own. One open at a
     /// time: another while one runs does nothing.
     pub fn open_pdf(
         &mut self,
