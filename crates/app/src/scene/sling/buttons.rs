@@ -2,10 +2,11 @@
 //! common action with no keyboard): "➤ Sling" sends the selection at once
 //! with no prompt, as the handwriting is the question, "+ prompt" opens
 //! the entry to add words first, and "Delete" removes the selection (a tap
-//! on empty canvas already selects nothing). While a sling is out the
-//! sling's two show greyed and a tap on them does nothing: one sling is
-//! followed at a time. No button ever moves: a second tap lands on what
-//! the first did, never on "Delete" (slinger-a36783). They stand to the right
+//! on empty canvas already selects nothing). They work while a sling is
+//! out, as `sling-now` and the footer's Sling do: the agent takes a sling
+//! sent while it works (`docs/service.md`, `pending`) and the pill follows
+//! the newest (slinger-2a558e). No button ever moves: a second tap lands on
+//! what the first did, never on "Delete" (slinger-a36783). They stand to the right
 //! of the selection's box, level with its top (its count is above its top
 //! left), inside its pane. Each is a tap target that runs its command when the pen lifts on
 //! it ([`crate::scene::taps`]); a press there never draws ink.
@@ -29,23 +30,17 @@ const BETWEEN: f64 = 4.0;
 
 /// The buttons for a selection whose box is `around`, in its pane's frame
 /// `within` (both in the window), in `theme`'s colours, the sling's two
-/// first, greyed and idle while `out` (a sling is out): their labels, and
-/// their targets ("➤ Sling" runs `sling-now`, "+ prompt" runs `sling`,
+/// first: their labels, and their targets ("➤ Sling" runs `sling-now`, "+ prompt" runs `sling`,
 /// "Delete" runs `delete-selection`).
-pub fn buttons(around: Rect, within: Rect, theme: &Theme, out: bool) -> (Vec<Label>, Vec<Target>) {
+pub fn buttons(around: Rect, within: Rect, theme: &Theme) -> (Vec<Label>, Vec<Target>) {
     let wide = 3.0 * WIDE + 2.0 * BETWEEN;
     let right = within.x + within.width - wide - GAP;
     let x = (around.x + around.width + GAP).min(right).max(within.x + GAP);
     let bottom = within.y + within.height - style::TAP - GAP;
     let y = around.y.min(bottom).max(within.y + GAP);
     let fill = Some(style::panel(theme));
-    let sling = if out {
-        (SLING, theme.muted, fill, Tap::Idle)
-    } else {
-        (SLING, theme.background, Some(theme.focus), Tap::Run(Command::SlingNow))
-    };
+    let sling = (SLING, theme.background, Some(theme.focus), Tap::Run(Command::SlingNow));
     let prompt = (PROMPT, theme.text, fill, Tap::Run(Command::Sling));
-    let prompt = if out { (PROMPT, theme.muted, fill, Tap::Idle) } else { prompt };
     let delete = (DELETE, theme.text, fill, Tap::Run(Command::DeleteSelection));
     let (mut labels, mut targets, mut left) = (Vec::new(), Vec::new(), x);
     for (text, colour, fill, tap) in [sling, prompt, delete] {

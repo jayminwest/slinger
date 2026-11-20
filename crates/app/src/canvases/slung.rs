@@ -21,6 +21,11 @@ use crate::scene::status;
 
 /// What `sling-now` flashes on a canvas whose workspace has no agent.
 pub const NO_AGENT: &str = "No agent in this workspace";
+/// What it flashes on a PDF's canvas, which no workspace has: a sling goes
+/// to the agent of its canvas's workspace (docs/service.md, `sling_send`).
+pub const PDF: &str = "A PDF cannot be slung: sling a crop of it";
+/// What it flashes on any other canvas that no open workspace has.
+pub const NO_WORKSPACE: &str = "No open workspace has this canvas";
 /// Where a sling of a whole page with no button on it is said to be made:
 /// this far into its pane from the top left.
 const CORNER: f64 = 8.0;
@@ -52,8 +57,8 @@ impl Canvases {
     /// The `sling-now` command on the focused pane of `panes` laid in
     /// `area`: sends the open entry, as return does; else slings the
     /// selection there with no words, or with nothing selected what is new
-    /// on its page. A canvas whose workspace has no agent flashes so and
-    /// sends nothing. False when the pane shows no canvas page, or a sling
+    /// on its page. A canvas that has no agent to sling to flashes why
+    /// ([`unslingable`]) and sends nothing. False when the pane shows no canvas page, or a sling
     /// is on its way.
     /// The sling goes under `profile` (a tap on the profile menu's row).
     pub fn sling_now_command(&mut self, panes: &Panes, area: Rect, profile: Profile) -> bool {
@@ -68,8 +73,8 @@ impl Canvases {
         let Some((selection, around, within)) = target.or_else(|| self.page_in(panes, area)) else {
             return false;
         };
-        if self.agents.is_some() && self.agent_of(&selection.canvas).is_none() {
-            self.zoomed = Some(NO_AGENT.to_string());
+        if let Some(why) = unslingable(self.agents.as_deref(), &selection.canvas) {
+            self.zoomed = Some(why.to_string());
             return true;
         }
         let inside = self.sling_box(panes.focus(), &selection);
@@ -175,9 +180,9 @@ impl Canvases {
     }
 
     /// What the window draws for the sling over the canvas panes of
-    /// `panes` laid in `area`, in `theme`'s colours: "➤ Sling" and "+
-    /// prompt" beside the selection while no sling is out, "Delete" beside
-    /// it, the pen's buttons beside the open entry, the "✓" that resolves
+    /// `panes` laid in `area`, in `theme`'s colours: "➤ Sling", "+
+    /// prompt" and "Delete" beside the selection while no entry is open and
+    /// no sling waits for the daemon's answer, the pen's buttons beside the open entry, the "✓" that resolves
     /// each recent note under a note's, and the pill; their labels (the
     /// buttons' first), tap targets, and the
     /// answer's panel.
@@ -186,7 +191,7 @@ impl Canvases {
         let idle = self.sling.canvas().is_none() && !self.typing();
         let selected = self.selection_in(panes, area).filter(|(s, ..)| idle && !s.ids.is_empty());
         if let Some((_, around, within)) = selected {
-            (labels, targets) = buttons::buttons(around, within, theme, self.slung.out());
+            (labels, targets) = buttons::buttons(around, within, theme);
         }
         let (pen, tapped) = self.entry_buttons(theme);
         let (ticks, ticked) = self.notes.ticks(theme);
@@ -221,6 +226,25 @@ pub(super) fn agent_in<'a>(
 ) -> Option<&'a Agent> {
     let list = agents.into_iter().flatten();
     list.filter(|(c, _)| c == canvas).find_map(|(_, agent)| agent.as_ref())
+}
+
+/// Why a sling of `canvas` cannot go, as `agents` (each open workspace's
+/// canvas and its agent) has it: what `sling-now` flashes. `None` when its
+/// workspace has an agent, or before the sidebar heard (the daemon says).
+pub(super) fn unslingable(
+    agents: Option<&[(String, Option<Agent>)]>,
+    canvas: &str,
+) -> Option<&'static str> {
+    let agents = agents?;
+    if agent_in(Some(agents), canvas).is_some() {
+        None
+    } else if agents.iter().any(|(c, _)| c == canvas) {
+        Some(NO_AGENT)
+    } else if crate::scene::pdf::reader(canvas) {
+        Some(PDF)
+    } else {
+        Some(NO_WORKSPACE)
+    }
 }
 
 /// `seen` as the pill wants it.

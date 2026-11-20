@@ -293,6 +293,7 @@ impl Slung {
     }
 
     /// Whether a sling is out: on its way, or the agent works on it.
+    #[cfg(test)]
     pub fn out(&self) -> bool {
         let out = self.out.as_ref().map(|o| &o.stage);
         matches!(out, Some(Stage::Aimed | Stage::Working | Stage::Queued | Stage::Blocked(_)))
