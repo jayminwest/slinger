@@ -1,5 +1,5 @@
 use serde_json::json;
-use slinger_control::{CanvasOps, Client};
+use slinger_control::{CanvasFold, CanvasOps, Client, FoldAsk};
 
 use crate::backend::testing::wait_until;
 use crate::backend::tests::with_daemon;
@@ -133,5 +133,72 @@ fn the_text_a_find_goes_to_is_the_selection_and_next_item_goes_on_from_it() {
         assert!(there != planned && there != other);
         shown(&mut canvases, &panes);
         assert_eq!(selected(&canvases), ("p2".into(), there), "kept once the page shows");
+    });
+}
+
+/// A canvas `main` with a box on each page, each holding a text with
+/// "plan", then folded: on the first at (0, 0), on the second, `Two`, far
+/// down. Each box is 400 units square, so its miniature is 100. The ids of
+/// the two boxes.
+fn folded(daemon: &Client) -> [String; 2] {
+    daemon.canvas_create("main").unwrap();
+    let add = |page: &str, kind: &str, x: i64, y: i64| {
+        let item = match kind {
+            "box" => json!({ "page": page, "kind": "box", "x": x, "y": y, "w": 4000, "h": 4000 }),
+            _ => {
+                json!({ "page": page, "kind": "text", "x": x + 1000, "y": y + 1000, "text": "the plan" })
+            }
+        };
+        json!({ "op": "add", "item": item })
+    };
+    let ops = json!([
+        { "op": "page.add", "name": "Two" },
+        add("p1", "box", 0, 0),
+        add("p1", "text", 0, 0),
+        add("p2", "box", 30_000, 40_000),
+        add("p2", "text", 30_000, 40_000),
+    ]);
+    let ask = CanvasOps { canvas: "main".into(), by: "user".into(), ops, once: None };
+    let made = daemon.canvas_apply(ask).unwrap().made;
+    let boxes = [made[1].clone(), made[3].clone()];
+    for item in &boxes {
+        let fold =
+            CanvasFold { canvas: "main".into(), item: item.clone(), by: "user".into(), once: None };
+        daemon.canvas_fold(&FoldAsk::CanvasFold(fold)).unwrap();
+    }
+    boxes
+}
+
+#[test]
+fn a_text_a_folded_box_hides_takes_a_find_to_that_box_selected_and_centred() {
+    with_daemon(|daemon| {
+        let boxes = folded(daemon);
+        let panes = Panes::new(Pane { kind: Kind::Canvas, name: "main".into() });
+        let (pane, frame) = (panes.focus(), WINDOW.rect());
+        let mut canvases = Canvases::new(daemon.clone());
+        shown(&mut canvases, &panes);
+        let content = status::content(frame);
+        let went = |canvases: &mut Canvases| {
+            let s = canvases.selection().expect("a selection");
+            assert_eq!(s.ids.len(), 1, "the box alone");
+            let (on, id) = (s.page.clone(), crate::mirror::item_ref(s.ids[0]));
+            let view = canvases.view(pane);
+            let middle =
+                view.viewport.to_canvas(Point { x: content.width / 2.0, y: content.height / 2.0 });
+            (on, id, (middle.x.round(), middle.y.round()))
+        };
+
+        // On the shown page: the box, from the pane's own mirror.
+        canvases.command(&panes, (pane, frame), Command::Find);
+        answer(&mut canvases, "plan");
+        assert_eq!(canvases.said().as_deref(), Some("“plan” 1/2 · Page 1 · in a folded box"));
+        assert_eq!(went(&mut canvases), ("p1".into(), boxes[0].clone(), (50.0, 50.0)));
+
+        // On a page not shown: the box, from the daemon's page.
+        canvases.command(&panes, (pane, frame), Command::FindNext);
+        assert_eq!(canvases.said().as_deref(), Some("“plan” 2/2 · Two · in a folded box"));
+        assert_eq!(went(&mut canvases), ("p2".into(), boxes[1].clone(), (3050.0, 4050.0)));
+        shown(&mut canvases, &panes);
+        assert_eq!(went(&mut canvases).1, boxes[1], "kept once the page shows");
     });
 }

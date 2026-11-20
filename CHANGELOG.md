@@ -63,6 +63,9 @@ bullet with the area in bold.
   lies in its old room, it opens as a peek over the page instead: escape
   or a tap outside closes it, and nothing is moved. Each fold and unfold
   is one undo step.
+- **App:** find sees into folded boxes. A text a folded box hides takes a
+  find to that box, centred and selected, and the flash says the text is
+  in a folded box.
 
 - **App:** a canvas text being typed has a real caret. The arrow keys move
   it (alt by words, cmd to a row's ends or the text's start and end), shift
