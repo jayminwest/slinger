@@ -13,6 +13,8 @@
 //! - The select tool ([`pick`]): a press on an item selects it, a drag from
 //!   empty canvas draws a box that selects what it touches, and a drag
 //!   inside the selection's box moves it, as the lasso's does.
+//! - From the keyboard ([`keys`]): select all, the next or previous item,
+//!   a nudge of the selection and where its duplicate lands.
 //! - The selection: one page's items, in a box with a faint fill of the
 //!   focus colour, a square handle at each corner (a drag on one resizes
 //!   the selection, [`scale`]) and the number of items above it. It
@@ -36,11 +38,13 @@
 
 mod carry;
 mod hit;
+mod keys;
 mod pick;
 mod scale;
 
 pub use carry::Landing;
 use carry::{Arriving, Target};
+pub use keys::{Keyed, into_view};
 
 use std::borrow::Cow;
 use std::collections::HashSet;
