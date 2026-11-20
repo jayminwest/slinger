@@ -12,7 +12,7 @@ use std::time::Instant;
 
 use crate::Event;
 use crate::backend::pdf::Pages;
-use crate::backend::{self, Problem, Settings};
+use crate::backend::{self, Settings};
 use crate::canvases::Canvases;
 use crate::commands::{self, Command};
 use crate::layout::{PaneId, Point, Rect};
@@ -384,7 +384,8 @@ pub fn focus(panes: &Panes, area: Rect) -> (PaneId, Rect) {
 /// The window: the sidebar, the panes and their footers (their buttons kept
 /// in `shared` for the pen, the one under it lit, with its tip when it is
 /// a glyph), any problem with the
-/// daemon, a canvas or the config (each said once), the notice, the
+/// daemon, a canvas or the config (each said once; the launch line in place
+/// of the daemon's, [`scene::daemon`]), the notice, the
 /// sling's buttons and what became of it, the pop-up at the pen and the
 /// flash of a new tool, a page command, a sling or a saved note, the key
 /// overlay, the palette or the page menu on top, the tool's cursor (a
@@ -403,14 +404,10 @@ pub fn view(
     canvases.set_prompt(&settings.config.prompt);
     canvases.follow_keys(&settings.config.keys);
     let drawn = canvases.show(&shared.panes, area, theme);
-    let mut problems: Vec<&Problem> = Vec::new();
-    for problem in shared.trouble.iter().chain(canvases.problems()).chain(&settings.problem) {
-        if !problems.contains(&problem) {
-            problems.push(problem);
-        }
-    }
+    let asking = shared.trouble.iter().chain(canvases.problems());
+    let said = scene::daemon::said(sidebar.daemon(), asking, settings.problem.as_ref(), theme);
     let (size, uis, notes) = (shared.size, &shared.uis, &shared.notes);
-    let mut scene = scene::build(size, &shared.panes, theme, &problems, sidebar, drawn, uis, notes);
+    let mut scene = scene::build(size, &shared.panes, theme, &said, sidebar, drawn, uis, notes);
     canvases.show_live(&mut scene, notes, theme);
     canvases.show_sling(&mut scene, theme, &settings.config.keys, sidebar);
     scene.keyboard = keyboard(shared, canvases);

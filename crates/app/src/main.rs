@@ -1,7 +1,8 @@
 //! The `slinger` macOS app: a thin front end over `slingerd`. It does not
 //! link the core.
 //!
-//! `backend` gets the data, `config` reads the config file, `commands` turns
+//! `backend` gets the data (and keeps a bundled app's slingerd running, as
+//! `launch` decides), `config` reads the config file, `commands` turns
 //! keys into commands, `panes` keeps the window's panes and their focus,
 //! `shared` keeps them as the server does, `canvases` keeps what each canvas
 //! pane shows (a `mirror` of a page, a viewport and the pen's ink), `scene`
@@ -24,6 +25,7 @@ mod canvases;
 mod commands;
 mod config;
 mod drive;
+mod launch;
 mod layout;
 mod mirror;
 mod panes;
@@ -43,7 +45,7 @@ use std::time::Instant;
 
 use slinger_control::{self as control, PaneKind::Canvas};
 
-use crate::backend::{Settings, Wake, Watch};
+use crate::backend::{Launcher, Settings, Wake, Watch};
 use crate::canvases::Canvases;
 use crate::commands::Command;
 use crate::config::Shown;
@@ -75,6 +77,9 @@ fn main() -> ExitCode {
 /// What to type, said when the arguments are not these.
 const USAGE: &str =
     "usage: slinger-app [--preview UI [--data JSON] [--as item] [--background] | --drive SOCKET]";
+
+/// What `start-slingerd` flashes in an app that starts no daemon.
+const NOT_MANAGED: &str = "Only slinger.app starts slingerd, when its config names no socket";
 
 /// Writes `message` and its `hint` to stderr; the exit code for a failure.
 fn fail(message: &str, hint: Option<&str>) -> ExitCode {
@@ -154,6 +159,7 @@ fn window(mut settings: Settings, drive: Option<&Path>) -> ExitCode {
     let wake = Wake::new(platform::waker());
     let wanted = settings.config.workspace.clone();
     let watch = Watch::start(socket.clone(), wanted, last.clone(), &wake);
+    let launcher = backend::daemon::managed(&settings, !own).map(|m| Launcher::start(m, &wake));
     let mut shown = settings.config.sidebar;
     let open = Shown::starts_open(shown, platform::remembered_sidebar().filter(|_| own));
     let mut sidebar = Sidebar::new(open).preferring(last);
@@ -190,10 +196,18 @@ fn window(mut settings: Settings, drive: Option<&Path>) -> ExitCode {
                 return step;
             }
             Routed::News(force) => force,
+            Routed::Start => {
+                match &launcher {
+                    Some(launcher) => launcher.ask(),
+                    None => tools.flash().say(NOT_MANAGED.into(), Instant::now()),
+                }
+                return Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases));
+            }
         };
         // Before the channels are drained: news sent from here on wakes again.
         wake.taken();
-        let heard = watch.latest().is_some_and(|now| sidebar.update(now));
+        let heard = watch.latest().is_some_and(|now| sidebar.update(now))
+            | launcher.as_ref().and_then(Launcher::latest).is_some_and(|s| sidebar.set_daemon(s.0));
         let moved = watch
             .layout()
             .map(|(news, stamps)| {

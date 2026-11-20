@@ -10,6 +10,7 @@
 //! the pen's strokes are sent on another ([`Outbox`]) and kept on disk until
 //! sent ([`Unsent`]), slings on a third ([`Slinger`]) and notes of feedback
 //! on their own ([`Noter`]). It also asks Flick to dictate ([`Flick`]), on a fourth.
+//! A bundled app keeps its daemon running from a [`Launcher`] ([`daemon`]).
 //! Each of these threads hands its news on through a [`Teller`], which wakes
 //! the main thread to take it ([`wake`]): news never waits for the timer.
 
@@ -23,6 +24,7 @@ use slinger_control::{self as control, RemoteError};
 use crate::config::{self, Config, Layer};
 
 mod agents;
+pub mod daemon;
 mod feedback;
 mod flick;
 mod follow;
@@ -39,6 +41,7 @@ pub mod wake;
 mod watch;
 
 pub use agents::{close_workspace, open_workspace, start_agent, stop_agent, workspaces};
+pub use daemon::Launcher;
 pub use feedback::{Noter, feedback_file};
 pub use flick::Flick;
 pub use follow::{Follower, News};
