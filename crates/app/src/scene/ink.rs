@@ -66,6 +66,7 @@ pub fn on_server(id: ItemId) -> bool {
 
 /// One pen, mouse or touch event, as `platform` hears it.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[expect(clippy::struct_excessive_bools, reason = "what one event says, each fact on its own")]
 pub struct Pen {
     /// Where, in the window's points from its top left.
     pub at: Point,
@@ -80,6 +81,10 @@ pub struct Pen {
     /// Whether shift was held: the select tool's press adds to the
     /// selection, or takes an item out of it.
     pub shift: bool,
+    /// Whether a tablet pen made it, not a mouse or a trackpad: with the pen
+    /// tool chosen, only a tablet press draws
+    /// ([`crate::scene::tools::Tools::set_device`]).
+    pub tablet: bool,
 }
 
 /// A pen line on a page, in canvas units.

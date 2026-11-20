@@ -19,6 +19,10 @@ bullet with the area in bold.
   dictation go in at the caret. A press inside the text puts the caret
   there; a drag or a shift-press selects. While a text is typed these keys
   are its own, before your key bindings.
+- **App:** pan without a right button. Hold space and drag (mouse,
+  trackpad or pen) to pan the pane under the press; the pointer is a hand.
+  A middle-button drag pans as a right-button drag does. While you type a
+  text or an entry is open, space types a space as before.
 - **App:** find typed text. Find text… (`find`, cmd+F, Edit menu and the
   command palette) asks for words and takes the focused pane to the first
   text on its canvas that holds them, on its page or a later one, centred;
@@ -333,6 +337,13 @@ bullet with the area in bold.
   sidebar (default `"#4cc36b"`, the green it always had).
 
 ### Changed
+
+- **App:** a mouse or trackpad no longer draws stray lines. With the pen
+  tool chosen, a mouse or trackpad press selects and moves items, as the
+  select tool does; the tablet pen draws exactly as before. Every other
+  tool (text, box, arrow, lasso, eraser, crop) works with the mouse as
+  chosen. The footer and the pointer show what a press will do. To draw
+  with the mouse again, set `[pointer] press = "tool"` in the config.
 
 - **CLI:** `slinger` finds the running `slingerd` on any socket, not only on
   the default one: the daemon names its socket in its data directory while

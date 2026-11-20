@@ -15,6 +15,7 @@ use crate::scene::tools::Tool;
 
 mod items;
 mod keyboard;
+mod pointer;
 
 /// The window's state, as `window` keeps it, with no watch.
 struct World {
@@ -60,7 +61,7 @@ impl World {
 }
 
 fn at(x: f64, y: f64, when: f64) -> Pen {
-    Pen { at: Point { x, y }, when, touch: false, eraser: false, shift: false }
+    Pen { at: Point { x, y }, when, touch: false, eraser: false, shift: false, tablet: true }
 }
 
 fn count(daemon: &control::Client, kind: &str) -> usize {

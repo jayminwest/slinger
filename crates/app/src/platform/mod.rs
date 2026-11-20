@@ -2,24 +2,23 @@
 //! project is in this directory (gate check:layers, rule `platform-owns-ffi`). It
 //! exposes safe functions and makes no decisions: `input` turns a key press into
 //! a [`Chord`], a pen or mouse event into a [`Pen`] (every point: mouse
-//! coalescing is off), a trackpad scroll, a right-button drag or a pinch into a
-//! pan or a zoom, and a tablet pen's proximity into the end in use, and hands
-//! them on, and keeps the pointer's cursor; and it draws what a [`Scene`] says. A
-//! canvas view says how long after its pen event it painted new ink (SPEC O2).
-//! Each canvas pane is a view of its own (`canvas`) that lives as long as its
-//! pane, so a new scene repaints only what changed. `web` shows agent UIs in
-//! sandboxed web views, each kept as long as its page is shown. `menu` is the
-//! menu bar. `keys` reads a key press, and reads and writes the clipboard for a
-//! cut, copy or paste no text field takes (greyed in the Edit menu when the app
+//! coalescing is off), a trackpad scroll, a right- or middle-button drag or a
+//! pinch into a pan or a zoom, and a tablet pen's proximity into its end and
+//! device, and hands them on, and keeps the pointer's cursor; and it draws what a
+//! [`Scene`] says. A canvas view says how long after its pen event it painted new
+//! ink (SPEC O2). Each canvas pane is a view of its own (`canvas`) that lives as
+//! long as its pane, so a new scene repaints only what changed. `web` shows agent
+//! UIs in sandboxed web views, each kept as long as its page is shown. `menu` is
+//! the menu bar. `keys` reads a key press, and reads and writes the clipboard for
+//! a cut, copy or paste no text field takes (greyed in the Edit menu when the app
 //! would do nothing). `entry` is the sling's one-line text field; `overlay` dims
 //! the window under the key overlay; `chrome` the focus border and the flash's
 //! pill. `text` sets styled text: the sidebar's rows and the panes' footers. The
 //! window resizes, down to [`layout::SMALLEST`], and says its new size; `files`
 //! sets its title bar, shows a canvas's file in the Finder and hands on files
-//! dropped on the window; `pdf` reads and draws PDFs; `panel` asks for a
-//! folder or a file to open; `window` makes it; `remember` keeps its frame,
-//! whether the sidebar was open and the workspace it showed, for the next
-//! launch.
+//! dropped on the window; `pdf` reads and draws PDFs; `panel` asks for a folder
+//! or a file to open; `window` makes it; `remember` keeps its frame, whether the
+//! sidebar was open and the workspace it showed, for the next launch.
 //!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
 //! that touches `AppKit` takes a `MainThreadMarker`, which only the main thread
@@ -96,9 +95,10 @@ pub enum Event {
     /// The pen or pointer moved to a point in the window (top-left origin),
     /// with no button down.
     Moved(Point),
-    /// A tablet pen came near the tablet with its eraser end (true), or
-    /// with its tip, or left it (false).
-    EraserEnd(bool),
+    /// A tablet pen came near the tablet (`near`) or left it, with its eraser end or not.
+    Proximity { near: bool, eraser: bool },
+    /// Space, no modifier, went down (true, and each repeat) or up; or the keys went.
+    Space(bool),
     /// The pen or the mouse button went down.
     Press(Pen),
     /// The pen or the mouse moved while down.
@@ -201,6 +201,12 @@ define_class!(
         #[unsafe(method(windowDidBecomeKey:))]
         fn did_become_key(&self, _note: &NSNotification) {
             input::became_key(self);
+        }
+
+        /// The window lost the keys: a held space is up.
+        #[unsafe(method(windowDidResignKey:))]
+        fn did_resign_key(&self, _note: &NSNotification) {
+            dispatch(Event::Space(false), self.mtm());
         }
 
         /// The window's content changed size: the scene follows it.

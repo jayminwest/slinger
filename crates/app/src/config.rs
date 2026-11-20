@@ -3,10 +3,12 @@
 //!
 //! The format is a small subset of TOML: `# comments`, `[table]` headers and
 //! `key = "string"` lines. In `[keys]`, each key is a command's name and its
-//! value is a chord (`commands`). Every key is optional; a missing key keeps its
-//! default. `[pen] colours` and `[pen] widths` are lists in one string
-//! ([`Palette`], [`Widths`]); `[canvas]` is the paper under the ink ([`Canvas`]);
-//! `[sling] prompt` the words a sling with none sends ([`Prompt`]). A machine's overlay file is parsed the same way and merged over
+//! value is a chord (`commands`). Every key is optional; a missing key keeps
+//! its default. `[pen] colours` and `[pen] widths` are lists in one string
+//! ([`Palette`], [`Widths`]); `[canvas]` is the paper under the ink
+//! ([`Canvas`]); `[sling] prompt` the words a sling with none sends
+//! ([`Prompt`]); `[pointer] press` what a mouse press does with the pen tool
+//! ([`Press`]). A machine's overlay file is parsed the same way and merged over
 //! the shared file key by key ([`Layer::over`]). `config.example.toml` at the
 //! repository root lists every key with its default.
 
@@ -16,11 +18,13 @@ use std::path::{Path, PathBuf};
 use crate::commands::{Chord, Command, Keymap};
 
 pub mod canvas;
+mod pointer;
 mod sling;
 mod theme;
 mod widths;
 
 pub use canvas::Canvas;
+pub use pointer::Press;
 pub use sling::Prompt;
 pub use theme::Theme;
 use theme::rgb;
@@ -109,6 +113,8 @@ pub struct Config {
     pub sidebar: Option<Shown>,
     pub canvas: Canvas,
     pub prompt: Prompt,
+    /// What a mouse or trackpad press does with the pen tool.
+    pub press: Press,
 }
 
 /// What one file sets. Unset keys fall through to the layer below.
@@ -128,6 +134,7 @@ pub struct Layer {
     paper: Option<canvas::Background>,
     grid: Option<canvas::Grid>,
     prompt: Option<Prompt>,
+    press: Option<Press>,
     /// By command: `Some(None)` unbinds it.
     #[expect(
         clippy::option_option,
@@ -155,6 +162,7 @@ impl Default for Layer {
             paper: None,
             grid: None,
             prompt: None,
+            press: None,
             keys: [None; Command::ALL.len()],
         }
     }
@@ -191,6 +199,7 @@ impl Layer {
             paper: top.paper.or(self.paper),
             grid: top.grid.or(self.grid),
             prompt: top.prompt.or(self.prompt),
+            press: top.press.or(self.press),
             keys,
         }
     }
@@ -224,6 +233,7 @@ impl Layer {
                 grid: self.grid.unwrap_or_default(),
             },
             prompt: self.prompt.unwrap_or_default(),
+            press: self.press.unwrap_or_default(),
         }
     }
 
@@ -261,6 +271,9 @@ impl Layer {
             ("sling", "prompt") => {
                 return put(&mut self.prompt, Prompt::parse(&value).ok_or(ErrorKind::BadPrompt)?);
             }
+            ("pointer", "press") => {
+                return put(&mut self.press, Press::parse(&value).ok_or(ErrorKind::BadPress)?);
+            }
             ("theme", "background") => &mut self.background,
             ("theme", "text") => &mut self.text,
             ("theme", "muted") => &mut self.muted,
@@ -296,8 +309,8 @@ fn put<T>(slot: &mut Option<T>, value: T) -> Result<(), ErrorKind> {
     Ok(())
 }
 
-const TABLES: [&str; 8] =
-    ["theme", "daemon", "workspace", "pen", "window", "canvas", "sling", "keys"];
+const TABLES: [&str; 9] =
+    ["theme", "daemon", "workspace", "pen", "window", "pointer", "canvas", "sling", "keys"];
 
 /// A line the parser rejects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -330,6 +343,8 @@ pub enum ErrorKind {
     BadGrid,
     /// `[sling] prompt` is blank.
     BadPrompt,
+    /// `[pointer] press` is neither `select` nor `tool`.
+    BadPress,
     /// A key in `[keys]` that names no command.
     UnknownCommand,
     BadChord,
@@ -375,6 +390,7 @@ impl ErrorKind {
                 "the value is blank",
                 "write the words a sling with no prompt sends: \"Read what I wrote and do what it asks.\"",
             ),
+            Self::BadPress => ("the value is not select or tool", "write \"select\" or \"tool\""),
             Self::UnknownCommand => ("unknown command", every),
             Self::BadChord => (
                 "the value is not a key chord",

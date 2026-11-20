@@ -63,6 +63,15 @@
 # (open the first time). The toggle-sidebar command opens or collapses it at any time.
 #sidebar = "open"
 
+# --- pointer: the mouse and the trackpad.
+[pointer]
+# What a mouse or trackpad press does on a canvas with the pen tool chosen: "select" picks
+# and moves items, as the select tool does, so a mouse draws no stray line; "tool" draws
+# with the pen. A tablet pen always does what the chosen tool does, and every other tool
+# (text, box, arrow, lasso, eraser, crop) works with the mouse as chosen. Hold space and
+# drag, or drag with the middle button, to pan the pane under the pointer.
+#press = "select"
+
 # --- canvas: the paper under the ink.
 [canvas]
 # What the canvas panes show under the items when the app starts: "plain", or "dots" for a

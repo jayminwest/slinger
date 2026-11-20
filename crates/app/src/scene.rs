@@ -35,6 +35,7 @@ pub mod feedback;
 pub mod flash;
 pub mod glyphs;
 pub mod grid;
+pub mod hand;
 pub mod ink;
 pub mod live;
 pub mod overlay;

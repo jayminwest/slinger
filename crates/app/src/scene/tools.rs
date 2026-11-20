@@ -12,6 +12,13 @@
 //! (so the footer and the cursor say so), and the chosen tool
 //! ([`Tools::chosen`]) comes back with the tip.
 //!
+//! The pen tool is the tablet's (docs/design/pen-less.md, pick 1B): while
+//! the device last seen is a mouse or a trackpad ([`Tools::set_device`]),
+//! the pen tool chosen acts as the select tool, so a mouse never draws a
+//! stray line, unless `[pointer] press = "tool"` ([`Press`]). Every other
+//! tool does with the mouse what it does with the pen, and a tablet press
+//! always gets the chosen tool.
+//!
 //! A pop-up opens from a key command where the pen or pointer last was, or
 //! at the focused pane's centre before either has been in the window. The
 //! pen picks a cell; a digit picks the cell with that number; the arrow keys
@@ -21,9 +28,8 @@
 use std::time::Instant;
 
 use crate::commands::{Chord, Command, Keymap};
-use crate::config::{Palette, Rgb, Theme, Width, Widths};
+use crate::config::{Config, Palette, Press, Rgb, Width, Widths};
 use crate::layout::{self, Point, Rect};
-use crate::scene::Label;
 use crate::scene::flash::Flash;
 
 /// What the pen does on the canvas.
@@ -115,6 +121,10 @@ pub struct Popup {
 pub struct Tools {
     tool: Tool,
     eraser_end: bool,
+    /// Whether the device last seen is a tablet pen, not a mouse or a trackpad.
+    tablet: bool,
+    /// What a mouse press does with the pen tool.
+    press: Press,
     colour: Rgb,
     /// A colour picked from the pop-up and not yet taken ([`Tools::picked`]).
     picked: Option<Rgb>,
@@ -140,6 +150,8 @@ impl Tools {
         Self {
             tool: Tool::Pen,
             eraser_end: false,
+            tablet: false,
+            press: Press::default(),
             colour,
             picked: None,
             palette,
@@ -158,6 +170,22 @@ impl Tools {
         self.width = widths.widths()[0];
         self.widths = widths;
         self
+    }
+
+    /// The pen as `config` sets it up: its palette, its widths and what a
+    /// mouse press does with the pen tool.
+    pub fn configured(config: &Config) -> Self {
+        let mut tools = Self::new(config.palette.clone()).with_widths(config.widths.clone());
+        tools.press = config.press;
+        tools
+    }
+
+    /// A reloaded `config`: its palette ([`Tools::set_palette`]), its widths
+    /// ([`Tools::set_widths`]) and what a mouse press does with the pen tool.
+    pub fn set_config(&mut self, config: &Config) {
+        self.set_palette(config.palette.clone());
+        self.set_widths(config.widths.clone());
+        self.press = config.press;
     }
 
     /// The flash that names a new tool ([`Tools::chosen`]) or width.
@@ -183,10 +211,15 @@ impl Tools {
         self.width
     }
 
-    /// What the pen does: the eraser while the pen's eraser end is in use,
-    /// else the chosen tool.
+    /// What a press does: the eraser while the pen's eraser end is in use;
+    /// the select tool for a mouse or a trackpad with the pen tool chosen
+    /// (unless [`Press::Tool`]); else the chosen tool.
     pub fn tool(&self) -> Tool {
-        if self.eraser_end { Tool::Eraser } else { self.tool }
+        match self.tool {
+            _ if self.eraser_end => Tool::Eraser,
+            Tool::Pen if !self.tablet && self.press == Press::Select => Tool::Select,
+            tool => tool,
+        }
     }
 
     /// The tool chosen with a key, a menu or a pop-up: what the pen's tip does.
@@ -198,6 +231,13 @@ impl Tools {
     /// or a trackpad is (`false`). Returns whether that changed.
     pub fn set_eraser_end(&mut self, eraser: bool) -> bool {
         std::mem::replace(&mut self.eraser_end, eraser) != eraser
+    }
+
+    /// The device last seen is a tablet pen (`true`: it came near the
+    /// tablet, or pressed) or a mouse or a trackpad (`false`: the pen left,
+    /// or the mouse pressed). Returns whether that changed.
+    pub fn set_device(&mut self, tablet: bool) -> bool {
+        std::mem::replace(&mut self.tablet, tablet) != tablet
     }
 
     /// Runs a tool command (`tool-pen` to `tool-select`, `crop-pdf`): the tool it names
@@ -378,67 +418,7 @@ impl Tools {
             Kind::Size => self.size = i,
         }
     }
-
-    /// The open pop-up as labels in `theme`'s colours, to draw on top of
-    /// everything else: a panel with a border, then each cell. A colour is
-    /// a swatch, with a ring when lit; a word (a tool, or a size in points)
-    /// is lit by swapping its colours; a width is a line that wide in the
-    /// pen's colour, framed when lit.
-    pub fn labels(&self, theme: &Theme) -> Vec<Label> {
-        let Some(popup) = &self.popup else { return Vec::new() };
-        let fill = |frame: Rect, colour: Rgb| Label {
-            text: String::new(),
-            colour,
-            fill: Some(colour),
-            frame,
-        };
-        let panel = popup.place.panel;
-        let mut labels = vec![fill(panel, theme.muted), fill(panel.outset(-1.0), theme.background)];
-        for (i, &cell) in popup.place.cells.iter().enumerate() {
-            let lit = i == popup.lit;
-            let word = |text: String| Label {
-                text,
-                colour: if lit { theme.background } else { theme.text },
-                fill: lit.then_some(theme.text),
-                frame: cell,
-            };
-            match popup.kind {
-                Kind::Colour => {
-                    if lit {
-                        labels.push(fill(cell.outset(2.0), theme.text));
-                    }
-                    labels.push(fill(cell, self.palette.colours()[i]));
-                }
-                Kind::Shape => labels.push(word(SHAPES[i].name().to_string())),
-                Kind::Tool => labels.push(word(TOOLS[i].name().to_string())),
-                Kind::Size => labels.push(word(SIZES[i].to_string())),
-                Kind::Width => {
-                    if lit {
-                        labels.push(fill(cell, theme.text));
-                        labels.push(fill(cell.outset(-1.0), theme.background));
-                    }
-                    labels.push(fill(line(cell, self.widths.widths()[i]), self.colour));
-                }
-            }
-        }
-        labels
-    }
 }
-
-/// A line `width` wide across the middle of `cell`, inside its edges: as
-/// wide as the cell leaves room for, at least one point.
-fn line(cell: Rect, width: Width) -> Rect {
-    let high = width.points().clamp(1.0, cell.height - 2.0 * LINE_INSET);
-    Rect {
-        x: cell.x + LINE_INSET,
-        y: cell.y + (cell.height - high) / 2.0,
-        width: cell.width - 2.0 * LINE_INSET,
-        height: high,
-    }
-}
-
-/// The room between a width's line and the edges of its cell, in points.
-const LINE_INSET: f64 = 4.0;
 
 const ESCAPE: Chord = Chord::new(0, '\u{1b}');
 const RETURN: Chord = Chord::new(0, '\r');
@@ -458,6 +438,8 @@ const DIGITS: [Chord; Palette::MAX] = [
     Chord::new(0, '8'),
     Chord::new(0, '9'),
 ];
+
+mod labels;
 
 #[cfg(test)]
 mod tests;

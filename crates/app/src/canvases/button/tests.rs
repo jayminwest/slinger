@@ -76,7 +76,7 @@ fn tap(canvases: &mut Canvases, panes: &Panes, on: Rect) -> bool {
 /// The pen goes down with `tool` in the middle of `on`.
 fn press(canvases: &mut Canvases, panes: &Panes, on: Rect, tool: Tool) -> bool {
     let at = Point { x: on.x + on.width / 2.0, y: on.y + on.height / 2.0 };
-    let pen = Pen { at, when: 0.0, touch: false, eraser: false, shift: false };
+    let pen = Pen { at, when: 0.0, touch: false, eraser: false, shift: false, tablet: false };
     let colour = Rgb { r: 0, g: 0, b: 0 };
     canvases.pen_down(panes, (panes.focus(), WINDOW.rect()), pen, (tool, colour))
 }
@@ -258,6 +258,7 @@ fn the_eraser_over_a_button_slings_nothing() {
             touch: false,
             eraser: false,
             shift: false,
+            tablet: false,
         };
         assert!(canvases.pen_drag(&panes, pen(frame.x + 10.0, 0.1), here), "the erase goes on");
         assert!(canvases.pen_drag(&panes, pen(frame.x + frame.width - 10.0, 0.2), here));

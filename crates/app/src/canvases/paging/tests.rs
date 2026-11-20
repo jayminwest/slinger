@@ -15,7 +15,7 @@ const GREY: Rgb = Rgb { r: 128, g: 128, b: 128 };
 const MARKS: u64 = u64::MAX - 64;
 
 fn pen(x: f64, y: f64, when: f64) -> Pen {
-    Pen { at: Point { x, y }, when, touch: false, eraser: false, shift: false }
+    Pen { at: Point { x, y }, when, touch: false, eraser: false, shift: false, tablet: false }
 }
 
 /// `notes` in two panes side by side, the left one focused.
