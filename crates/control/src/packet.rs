@@ -6,9 +6,9 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::client::absolute;
-use crate::{Client, RemoteError, Request};
+use crate::{Client, RemoteError};
 
-/// The arguments of [`Request::CanvasRead`](crate::Request::CanvasRead).
+/// `canvas_read`: the page to read, and where to write the packet.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PacketAsk {
     pub canvas: String,
@@ -32,7 +32,7 @@ pub struct PacketAsk {
     pub out: Option<PathBuf>,
 }
 
-/// The reply to [`Request::CanvasRead`](crate::Request::CanvasRead).
+/// The reply to `canvas_read`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CanvasPacket {
     /// The blob id of the packet's text as stored: without `at`.
@@ -63,7 +63,7 @@ impl Client {
     /// write, and `unavailable` when the daemon does not answer.
     pub fn canvas_read(&self, mut ask: PacketAsk) -> Result<CanvasPacket, RemoteError> {
         ask.out = ask.out.as_deref().map(absolute).transpose()?;
-        self.call(&Request::CanvasRead(ask))
+        self.call(ask)
     }
 }
 

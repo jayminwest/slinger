@@ -4,14 +4,9 @@ use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::{
-    Appended, CanvasChange, CanvasImported, CanvasInfo, CanvasOps, CanvasPage, CanvasStep,
-    Canvases, EventFilter, Events, Exported, NewEvent, RemoteError, Request, Stored, Ui, UiPut,
-    Uis, Written, wire,
-};
+use crate::{RemoteError, Verb, wire};
 
 /// The daemon's program name, for messages.
 const DAEMON: &str = "slingerd";
@@ -33,211 +28,22 @@ impl Client {
         Self { socket: socket.into() }
     }
 
-    /// Appends an event and returns it as stored.
-    ///
-    /// # Errors
-    ///
-    /// `invalid` for an unknown kind or a payload that does not fit it, and
-    /// `unavailable` when the daemon does not answer.
-    pub fn record_append(&self, event: NewEvent) -> Result<Value, RemoteError> {
-        let reply: Appended = self.call(&Request::RecordAppend(event))?;
-        Ok(reply.event)
-    }
-
-    /// The events `filter` selects, lowest number first. None is not an error.
-    ///
-    /// # Errors
-    ///
-    /// The daemon's error, or `unavailable` when it does not answer.
-    pub fn record_list(&self, filter: EventFilter) -> Result<Vec<Value>, RemoteError> {
-        let reply: Events = self.call(&Request::RecordList(filter))?;
-        Ok(reply.events)
-    }
-
-    /// Stores the bytes of the file at `file` and returns the blob's id.
-    /// Storing bytes already held returns the same id. A relative path is
-    /// taken from this process's working directory.
-    ///
-    /// # Errors
-    ///
-    /// `not_found` when there is no such file, `invalid` when the daemon
-    /// cannot read it, and `unavailable` when the daemon does not answer.
-    pub fn blob_put(&self, file: &Path) -> Result<String, RemoteError> {
-        let reply: Stored = self.call(&Request::BlobPut { path: absolute(file)? })?;
-        Ok(reply.id)
-    }
-
-    /// Writes the bytes of the blob `id` to the file at `file`, replacing it,
-    /// and returns how many there were.
-    ///
-    /// # Errors
-    ///
-    /// `not_found` when the record holds no such blob, `invalid` for an id
-    /// that is not one or a file the daemon cannot write, and `unavailable`
-    /// when the daemon does not answer.
-    pub fn blob_get(&self, id: &str, file: &Path) -> Result<u64, RemoteError> {
-        let request = Request::BlobGet { id: id.to_string(), path: absolute(file)? };
-        let reply: Written = self.call(&request)?;
-        Ok(reply.size)
-    }
-
-    /// Stores the HTML file at `file` as the next version of the UI `name`,
-    /// put by `source`. Bytes equal to the latest version's add none.
-    ///
-    /// # Errors
-    ///
-    /// `invalid` for a name or code the rules refuse (docs/design/live-items.md),
-    /// `not_found` when there is no such file, and `unavailable` when the
-    /// daemon does not answer.
-    pub fn ui_put(&self, name: &str, file: &Path, source: &str) -> Result<UiPut, RemoteError> {
-        let path = absolute(file)?;
-        self.call(&Request::UiPut { name: name.into(), path, source: source.into() })
-    }
-
-    /// The latest version of every UI, by name. With `name`, every version of
-    /// that UI, oldest first.
-    ///
-    /// # Errors
-    ///
-    /// `not_found` for a name with no versions, and `unavailable` when the
-    /// daemon does not answer.
-    pub fn ui_list(&self, name: Option<&str>) -> Result<Vec<Ui>, RemoteError> {
-        let request = name.map_or(Request::UiList, |name| Request::UiShow { name: name.into() });
-        let reply: Uis = self.call(&request)?;
-        Ok(reply.uis)
-    }
-
-    /// Writes the version `ui` names into the directory `dir`, creating it.
-    ///
-    /// # Errors
-    ///
-    /// `not_found` when nothing matches `ui`, `invalid` for a reference of
-    /// no known form or a directory the daemon cannot write, and
-    /// `unavailable` when the daemon does not answer.
-    pub fn ui_export(&self, ui: &str, dir: &Path) -> Result<Exported, RemoteError> {
-        self.call(&Request::UiExport { ui: ui.into(), dir: absolute(dir)? })
-    }
-
-    /// Makes a new, empty canvas.
-    ///
-    /// # Errors
-    ///
-    /// `invalid` for an id that is not one, `conflict` when it exists, and
-    /// `unavailable` when the daemon does not answer.
-    pub fn canvas_create(&self, canvas: &str) -> Result<(), RemoteError> {
-        let _: CanvasInfo =
-            self.call(&Request::CanvasCreate { canvas: canvas.into(), path: None, by: None })?;
-        Ok(())
-    }
-
-    /// Makes a new canvas that holds the operations in the file `ops` (a
-    /// JSON list, as [`CanvasOps::ops`]) applied as `by` (`user` or
-    /// `agent:<name>`; `None`: the user), so only that author's edits and
-    /// removes reach them later: the whole canvas, or none. Its first page
-    /// is `p1`.
-    ///
-    /// # Errors
-    ///
-    /// As [`Client::canvas_create`], `not_found` for a file that is not
-    /// there, and `invalid` for one that is not JSON, an operation the
-    /// canvas refuses or a `by` that is not an author.
-    pub fn canvas_create_with(
-        &self,
-        canvas: &str,
-        ops: &Path,
-        by: Option<&str>,
-    ) -> Result<(), RemoteError> {
-        let (path, by) = (Some(absolute(ops)?), by.map(str::to_string));
-        let _: CanvasInfo =
-            self.call(&Request::CanvasCreate { canvas: canvas.into(), path, by })?;
-        Ok(())
-    }
-
-    /// The ids of the canvases, sorted.
-    ///
-    /// # Errors
-    ///
-    /// The daemon's error, or `unavailable` when it does not answer.
-    pub fn canvas_list(&self) -> Result<Vec<String>, RemoteError> {
-        let reply: Canvases = self.call(&Request::CanvasList)?;
-        Ok(reply.canvases.into_iter().map(|c| c.canvas).collect())
-    }
-
-    /// One page of a canvas: the first, or the one `page` names by id or name.
-    ///
-    /// # Errors
-    ///
-    /// `not_found` for a canvas or page that is not there, and `unavailable`
-    /// when the daemon does not answer.
-    pub fn canvas_show(&self, canvas: &str, page: Option<&str>) -> Result<CanvasPage, RemoteError> {
-        let page = page.map(str::to_string);
-        self.call(&Request::CanvasShow { canvas: canvas.to_string(), page })
-    }
-
-    /// Applies operations to a canvas as one undo step, and returns what was
-    /// written. The operations are on disk when this returns.
-    ///
-    /// # Errors
-    ///
-    /// `not_found` for a canvas or item that is not there, `invalid` for an
-    /// operation that is not one or that the canvas refuses, and
-    /// `unavailable` when the daemon does not answer.
-    pub fn canvas_apply(&self, ops: CanvasOps) -> Result<CanvasChange, RemoteError> {
-        self.call(&Request::CanvasApply(ops))
-    }
-
-    /// Undoes the last step of `step.by` on the canvas.
-    ///
-    /// # Errors
-    ///
-    /// `not_found` for a canvas that is not there, and `unavailable` when the
-    /// daemon does not answer.
-    pub fn canvas_undo(&self, step: CanvasStep) -> Result<CanvasChange, RemoteError> {
-        self.call(&Request::CanvasUndo(step))
-    }
-
-    /// Makes a new canvas from the tldraw file `file`, named `canvas` or,
-    /// without one, after the file.
-    ///
-    /// # Errors
-    ///
-    /// `not_found` for a file that is not there, `invalid` for one that is
-    /// not a tldraw file or a name that is not a canvas id, `conflict` when
-    /// the canvas exists, and `unavailable` when the daemon does not answer.
-    pub fn canvas_import(
-        &self,
-        file: &Path,
-        canvas: Option<&str>,
-    ) -> Result<CanvasImported, RemoteError> {
-        let (path, canvas) = (absolute(file)?, canvas.map(str::to_string));
-        self.call(&Request::CanvasImport { path, canvas })
-    }
-
-    /// Redoes the last step `step.by` undid on the canvas.
-    ///
-    /// # Errors
-    ///
-    /// As [`Client::canvas_undo`].
-    pub fn canvas_redo(&self, step: CanvasStep) -> Result<CanvasChange, RemoteError> {
-        self.call(&Request::CanvasRedo(step))
-    }
-
-    /// Sends `request` and reads the reply.
-    pub(crate) fn call<T: DeserializeOwned>(&self, request: &Request) -> Result<T, RemoteError> {
-        self.call_within(request, TIMEOUT)
+    /// Sends `ask` and reads the reply as its verb's.
+    pub(crate) fn call<V: Verb>(&self, ask: V) -> Result<V::Reply, RemoteError> {
+        self.call_within(ask, TIMEOUT)
     }
 
     /// [`Client::call`] for a request the daemon may take `timeout` to answer.
     ///
-    /// Only reading the reply's type depends on `T`; the rest is
-    /// [`Client::answer`], so each reply type does not build another copy of
-    /// the socket IO (slinger-548ea9).
-    pub(crate) fn call_within<T: DeserializeOwned>(
+    /// Only reading the reply's type depends on `V`; the rest is
+    /// [`Client::answer`], so each verb does not build another copy of the
+    /// socket IO (slinger-548ea9).
+    pub(crate) fn call_within<V: Verb>(
         &self,
-        request: &Request,
+        ask: V,
         timeout: Duration,
-    ) -> Result<T, RemoteError> {
-        let line = wire::request_line(request).map_err(|e| self.unavailable(&e, timeout))?;
+    ) -> Result<V::Reply, RemoteError> {
+        let line = wire::request_line(&ask.into()).map_err(|e| self.unavailable(&e, timeout))?;
         serde_json::from_value(self.answer(&line, timeout)?).map_err(internal)
     }
 
@@ -364,9 +170,8 @@ mod tests {
             let _ = wait.recv();
         });
         let client = Client::new(&socket);
-        let err = client
-            .call_within::<Canvases>(&Request::CanvasList, Duration::from_millis(200))
-            .unwrap_err();
+        let err =
+            client.call_within(crate::CanvasListAsk {}, Duration::from_millis(200)).unwrap_err();
         drop(done);
         assert_eq!(err.code(), "unavailable");
         assert!(err.to_string().ends_with(" did not reply within 200ms"), "{err}");

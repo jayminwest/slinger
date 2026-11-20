@@ -1,27 +1,12 @@
 //! The agent's canvas verbs: their requests, replies and client methods
 //! (docs/service.md, "Agent canvas verbs").
 //!
-//! [`crate::Request`] carries them as one variant, [`AgentAsk`]. A new
-//! agent canvas verb is a new variant here.
-
 use serde::{Deserialize, Serialize};
 
-use crate::{Client, RemoteError, Request};
+use crate::{Client, RemoteError};
 
-/// An agent canvas request, as a client writes it and the daemon reads it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "op", rename_all = "snake_case")]
-pub enum AgentAsk {
-    /// Put text, a box, ink or an arrow beside an item, where it covers
-    /// nothing or where the agent says.
-    CanvasPut(CanvasPut),
-    /// Change an item the agent made: its text, its size or its place.
-    CanvasEdit(CanvasEdit),
-    /// Take an item the agent made off the canvas. One already gone is fine.
-    CanvasRemove(CanvasRemove),
-}
-
-/// What [`AgentAsk::CanvasPut`] asks.
+/// `canvas_put`: put text, a box, ink or an arrow beside an item, where it
+/// covers nothing or where the agent says.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "PutLine")]
 pub struct CanvasPut {
@@ -102,7 +87,7 @@ pub enum Put {
     Arrow([String; 2]),
 }
 
-/// The reply to [`AgentAsk::CanvasPut`]: the new item and the box it covers.
+/// The reply to `canvas_put`: the new item and the box it covers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CanvasPlaced {
     /// The new item's id (`i12`).
@@ -121,7 +106,8 @@ pub struct CanvasPlaced {
     pub event: Option<u64>,
 }
 
-/// What [`AgentAsk::CanvasEdit`] asks. What it leaves out stays.
+/// `canvas_edit`: change an item the agent made: its text, its size or its
+/// place. What it leaves out stays.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CanvasEdit {
     pub canvas: String,
@@ -144,7 +130,8 @@ pub struct CanvasEdit {
     pub to: Option<[i64; 2]>,
 }
 
-/// What [`AgentAsk::CanvasRemove`] asks.
+/// `canvas_remove`: take an item the agent made off the canvas. One already
+/// gone is fine.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CanvasRemove {
     pub canvas: String,
@@ -154,7 +141,7 @@ pub struct CanvasRemove {
     pub item: String,
 }
 
-/// The reply to [`AgentAsk::CanvasEdit`]: the item and the box it covers now.
+/// The reply to `canvas_edit`: the item and the box it covers now.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CanvasEdited {
     /// The item's id (`i12`).
@@ -170,7 +157,7 @@ pub struct CanvasEdited {
     pub seq: Vec<u64>,
 }
 
-/// The reply to [`AgentAsk::CanvasRemove`].
+/// The reply to `canvas_remove`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CanvasRemoved {
     /// The numbers of the operations written: none when it was already gone.
@@ -205,7 +192,7 @@ impl Client {
     /// for an arrow or a put that cannot be drawn, and `unavailable` when the
     /// daemon does not answer.
     pub fn canvas_put_as(&self, put: CanvasPut) -> Result<CanvasPlaced, RemoteError> {
-        self.call(&Request::Agent(AgentAsk::CanvasPut(put)))
+        self.call(put)
     }
 
     /// Changes an item the agent of `edit` made.
@@ -217,7 +204,7 @@ impl Client {
     /// a change that does not fit the item, and `unavailable` when the
     /// daemon does not answer.
     pub fn canvas_edit(&self, edit: CanvasEdit) -> Result<CanvasEdited, RemoteError> {
-        self.call(&Request::Agent(AgentAsk::CanvasEdit(edit)))
+        self.call(edit)
     }
 
     /// Removes the item `item` from `canvas`, as `agent`. An item already
@@ -235,7 +222,7 @@ impl Client {
         item: &str,
     ) -> Result<CanvasRemoved, RemoteError> {
         let (canvas, agent, item) = (canvas.into(), agent.into(), item.into());
-        self.call(&Request::Agent(AgentAsk::CanvasRemove(CanvasRemove { canvas, agent, item })))
+        self.call(CanvasRemove { canvas, agent, item })
     }
 }
 
@@ -245,8 +232,8 @@ mod tests {
     use crate::Request;
     use crate::wire::request_line;
 
-    fn put(what: Put) -> AgentAsk {
-        AgentAsk::CanvasPut(CanvasPut {
+    fn put(what: Put) -> Request {
+        Request::CanvasPut(CanvasPut {
             canvas: "idea".into(),
             agent: "scout".into(),
             beside: "c12".into(),
@@ -268,39 +255,37 @@ mod tests {
             (put(Put::Ink(vec![0, 0, 50, 10])), r#""ink":[0,0,50,10]}"#),
             (
                 {
-                    let AgentAsk::CanvasPut(mut ask) = put(Put::Box([1, 2])) else {
-                        unreachable!()
-                    };
+                    let Request::CanvasPut(mut ask) = put(Put::Box([1, 2])) else { unreachable!() };
                     (ask.color, ask.at) = (Some("#ffd400".into()), Some([10, 20]));
-                    AgentAsk::CanvasPut(ask)
+                    Request::CanvasPut(ask)
                 },
                 r##""box":[1,2],"color":"#ffd400","at":[10,20]}"##,
             ),
             (
                 {
-                    let AgentAsk::CanvasPut(mut ask) = put(Put::Text("hi".into())) else {
+                    let Request::CanvasPut(mut ask) = put(Put::Text("hi".into())) else {
                         unreachable!()
                     };
                     ask.text_size = Some(480);
-                    AgentAsk::CanvasPut(ask)
+                    Request::CanvasPut(ask)
                 },
                 r#""text":"hi","size":480}"#,
             ),
             (
                 {
-                    let AgentAsk::CanvasPut(mut ask) = put(Put::Text("hi".into())) else {
+                    let Request::CanvasPut(mut ask) = put(Put::Text("hi".into())) else {
                         unreachable!()
                     };
                     ask.inside = Some("b4".into());
-                    AgentAsk::CanvasPut(ask)
+                    Request::CanvasPut(ask)
                 },
                 r#""text":"hi","in":"b4"}"#,
             ),
         ] {
             let line = format!("{head},{tail}");
-            assert_eq!(request_line(&Request::Agent(ask.clone())).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
-            assert_eq!(read, Some(Request::Agent(ask)), "{line}");
+            assert_eq!(read, Some(ask), "{line}");
         }
     }
 
@@ -320,18 +305,18 @@ mod tests {
         let head = r#"{"v":1,"op":"#;
         for (ask, line) in [
             (
-                AgentAsk::CanvasEdit(edit),
+                Request::CanvasEdit(edit),
                 r#""canvas_edit","canvas":"idea","agent":"scout","item":"i2","text":"hi","size":480,"move":[10,20]}"#,
             ),
             (
-                AgentAsk::CanvasRemove(remove),
+                Request::CanvasRemove(remove),
                 r#""canvas_remove","canvas":"idea","agent":"scout","item":"i2"}"#,
             ),
         ] {
             let line = format!("{head}{line}");
-            assert_eq!(request_line(&Request::Agent(ask.clone())).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
-            assert_eq!(read, Some(Request::Agent(ask)), "{line}");
+            assert_eq!(read, Some(ask), "{line}");
         }
     }
 

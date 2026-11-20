@@ -26,7 +26,7 @@ use std::path::Path;
 use std::sync::mpsc;
 
 use serde_json::Value;
-use slinger_control::{Client, read_request};
+use slinger_control::{Client, OPS, read_request};
 
 /// How many verbs the protocol has. A new verb raises it, with its lines.
 const VERBS: usize = 56;
@@ -111,7 +111,9 @@ fn every_verb_has_its_lines_and_no_line_is_for_no_verb() {
     let replied: BTreeSet<String> = replies::REPLIES.iter().map(|(op, _)| op.to_string()).collect();
     assert_eq!(replied.len(), replies::REPLIES.len(), "a verb has two reply lines");
     assert_eq!(requested, replied, "verbs with a request line but no reply line, or the other way");
-    assert_eq!(requested.len(), VERBS);
+    let verbs: BTreeSet<String> = OPS.iter().copied().map(String::from).collect();
+    assert_eq!(requested, verbs, "verbs with lines but no row in OPS, or the other way");
+    assert_eq!((requested.len(), OPS.len()), (VERBS, VERBS));
 }
 
 /// The ops in docs/service.md's verb table: the first cell of each row
@@ -136,9 +138,9 @@ fn documented() -> BTreeSet<String> {
 #[test]
 fn the_service_md_verb_table_lists_exactly_the_verbs() {
     let documented = documented();
-    let requested: BTreeSet<String> = fixture("requests.jsonl").lines().map(op).collect();
-    let undocumented: Vec<_> = requested.difference(&documented).collect();
-    let unknown: Vec<_> = documented.difference(&requested).collect();
+    let verbs: BTreeSet<String> = OPS.iter().copied().map(String::from).collect();
+    let undocumented: Vec<_> = verbs.difference(&documented).collect();
+    let unknown: Vec<_> = documented.difference(&verbs).collect();
     assert!(
         undocumented.is_empty(),
         "verbs missing from docs/service.md's table: {undocumented:?}"

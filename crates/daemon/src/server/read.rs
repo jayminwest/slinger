@@ -4,7 +4,7 @@
 use std::fs;
 use std::path::Path;
 
-use slinger_control::{CanvasPacket, PacketAsk, PacketImage, RemoteError, Reply};
+use slinger_control::{CanvasPacket, PacketAsk, PacketImage, RemoteError};
 use slinger_core::packet::Packet;
 use slinger_core::record::{BlobId, Body};
 use slinger_core::session::listen::Heard;
@@ -18,7 +18,7 @@ const TEXT_FILE: &str = "packet.txt";
 /// Builds the packet, stores its text (without `at`) and each image as
 /// blobs, then writes the text (with `at`) and the images into `ask.out` or
 /// the store's directory for it.
-pub(super) fn packet(store: &Store, ask: PacketAsk) -> Result<Reply, RemoteError> {
+pub(super) fn packet(store: &Store, ask: PacketAsk) -> Result<CanvasPacket, RemoteError> {
     let after = match ask.after {
         Some(after) => after,
         None => last_sling(store, &ask.canvas)?,
@@ -40,7 +40,7 @@ pub(super) fn packet(store: &Store, ask: PacketAsk) -> Result<Reply, RemoteError
     packet.header.at = Some(dir.to_string_lossy().into_owned());
     let text = packet.text();
     write(&dir, &packet, &text)?;
-    Ok(Reply::CanvasRead(CanvasPacket { packet: id.to_string(), dir, text, images }))
+    Ok(CanvasPacket { packet: id.to_string(), dir, text, images })
 }
 
 /// Writes the text and the images into `dir`, creating it.

@@ -25,7 +25,9 @@
 
 use std::fs;
 
-use slinger_control::{Backdrop, BackdropArea, Backdrops, RemoteError, Reply, SlingAsk, Slung};
+use slinger_control::{
+    Backdrop, BackdropArea, Backdrops, RemoteError, SlingAsk, SlingBackdropsAsk, Slung,
+};
 use slinger_core::canvas::file::{backdrop, rect_tenths, size_tenths};
 use slinger_core::record::{BlobId, Body, Event, NamedBlob, SlingSent, Tags};
 use slinger_core::render;
@@ -41,7 +43,7 @@ use crate::store::{Query, Store};
 /// names. A test ties each one to a request the daemon answers.
 pub(crate) const VERBS: [Verb; 3] = [Verb::Put, Verb::Crop, Verb::Ui];
 
-pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Reply, RemoteError> {
+pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Slung, RemoteError> {
     let sessions = store.sessions();
     let _one = sessions.slinging();
     let (workspace, agent) = sessions.on_canvas(store, &ask.canvas).map_err(|e| remote(&e))?;
@@ -98,7 +100,7 @@ pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Reply, RemoteError> {
         sessions.listeners().push(&agent, sling).map_err(|e| stored(&e))?;
     }
     let deliver = if listens { Delivery::Listen } else { Delivery::Process };
-    Ok(Reply::SlingSend(Slung {
+    Ok(Slung {
         event,
         packet: id.to_string(),
         from: packet.header.from,
@@ -108,17 +110,16 @@ pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Reply, RemoteError> {
         session_id: session_id.unwrap_or_default(),
         deliver: Some(deliver.name().into()),
         tokens: Some(tokens),
-    }))
+    })
 }
 
 /// The areas of PDF pages under the new ink a sling of `canvas` (of the box
 /// `inside`, when given) would draw now, after the canvas's last sling.
 pub(super) fn backdrops(
     store: &Store,
-    canvas: &str,
-    page: Option<&str>,
-    inside: Option<&str>,
-) -> Result<Reply, RemoteError> {
+    SlingBackdropsAsk { canvas, page, inside }: SlingBackdropsAsk,
+) -> Result<Backdrops, RemoteError> {
+    let (canvas, page, inside) = (canvas.as_str(), page.as_deref(), inside.as_deref());
     let after = read::last_sling(store, canvas)?;
     let areas = store.canvases().backdrops(canvas, page, inside, after).map_err(|e| drawn(&e))?;
     let backdrops = areas
@@ -135,7 +136,7 @@ pub(super) fn backdrops(
             height: a.height,
         })
         .collect();
-    Ok(Reply::SlingBackdrops(Backdrops { backdrops }))
+    Ok(Backdrops { backdrops })
 }
 
 /// The backdrops a sling names, read from their files. Nothing is stored

@@ -7,9 +7,8 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
 use clap::{Args, Subcommand, ValueEnum};
-use serde_json::{Value, json};
 
-use slinger_control::RemoteError;
+use slinger_control::{DriveAsk, DriveButton, DriveReply, PenAt, PenFlags, RemoteError};
 
 use crate::env::Env;
 use crate::output::Output;
@@ -224,84 +223,77 @@ impl Drive {
             let hint = format!("pass --app <PATH>, or set {DRIVE_ENV}");
             return Err(RemoteError::new("usage", "no driven app's socket", Some(hint)).into());
         };
-        let reply = ask(app, &self.op.request()?)?;
-        if reply["ok"] == true {
-            let said = reply["said"].as_str().unwrap_or_default().trim_end().to_string();
-            return Ok(Output::new(json!({ "said": said }), said));
+        match ask(app, &self.op.request()?)? {
+            DriveReply::Said(said) => Ok(Output::one("said", said.trim_end().to_string())),
+            DriveReply::Refused(why) => Err(RemoteError::new("invalid", why, None).into()),
         }
-        let why = reply["error"].as_str().unwrap_or("the app gave no reply").to_string();
-        Err(RemoteError::new("invalid", why, None).into())
     }
 }
 
 impl Op {
-    /// The request line's object (crates/app/src/drive.rs reads it).
-    fn request(&self) -> anyhow::Result<Value> {
-        let penned = |op: &str, at: &[String], pen: &Pen, mouse: &Mouse| -> anyhow::Result<Value> {
+    /// The request (crates/app/src/drive.rs reads it).
+    fn request(&self) -> anyhow::Result<DriveAsk> {
+        let penned = |at: &[String], pen: &Pen, mouse: &Mouse| -> anyhow::Result<PenAt> {
             let [x, y] = numbers(at)?;
-            let mut request = with(json!({ "op": op, "x": x, "y": y }), pen);
             let button = match mouse.button {
-                Which::Left => "left",
-                Which::Right => "right",
-                Which::Middle => "middle",
+                Which::Left => DriveButton::Left,
+                Which::Right => DriveButton::Right,
+                Which::Middle => DriveButton::Middle,
             };
-            (request["button"], request["control"]) = (json!(button), json!(mouse.control));
-            Ok(request)
+            Ok(PenAt { x, y, pen: pen.flags(), button, control: mouse.control })
         };
         Ok(match self {
-            Self::Key { chord, text } => json!({ "op": "key", "chord": chord, "text": text }),
-            Self::Type { text } => json!({ "op": "type", "text": text.join(" ") }),
-            Self::Press { at, pen, mouse } => penned("press", at, pen, mouse)?,
-            Self::Drag { at, pen, mouse } => penned("drag", at, pen, mouse)?,
-            Self::Lift { at, pen, mouse } => penned("lift", at, pen, mouse)?,
+            Self::Key { chord, text } => DriveAsk::Key { chord: chord.clone(), text: text.clone() },
+            Self::Type { text } => DriveAsk::Type { text: text.join(" ") },
+            Self::Press { at, pen, mouse } => DriveAsk::Press(penned(at, pen, mouse)?),
+            Self::Drag { at, pen, mouse } => DriveAsk::Drag(penned(at, pen, mouse)?),
+            Self::Lift { at, pen, mouse } => DriveAsk::Lift(penned(at, pen, mouse)?),
             Self::Stroke { points, pen } => {
                 let flat =
                     split(points).filter(|n| n.len() % 2 == 0).ok_or_else(|| wrong(points))?;
-                let points = flat.as_chunks::<2>().0;
-                with(json!({ "op": "stroke", "points": points }), pen)
+                let points = flat.as_chunks::<2>().0.to_vec();
+                DriveAsk::Stroke { points, pen: pen.flags() }
             }
             Self::Move { at } => {
                 let [x, y] = numbers(at)?;
-                json!({ "op": "move", "x": x, "y": y })
+                DriveAsk::Move { x, y }
             }
             Self::Scroll { args } => {
                 let [x, y, dx, dy] = numbers(args)?;
-                json!({ "op": "scroll", "x": x, "y": y, "dx": dx, "dy": dy })
+                DriveAsk::Scroll { x, y, dx, dy }
             }
             Self::Zoom { args } => {
                 let [x, y, factor] = numbers(args)?;
-                json!({ "op": "zoom", "x": x, "y": y, "factor": factor })
+                DriveAsk::Zoom { x, y, factor }
             }
-            Self::Space { up } => json!({ "op": "space", "down": !up }),
-            Self::Run { name } => json!({ "op": "command", "name": name }),
-            Self::Copy => json!({ "op": "copy" }),
-            Self::Cut => json!({ "op": "cut" }),
-            Self::Paste { text } if text.is_empty() => json!({ "op": "paste" }),
-            Self::Paste { text } => json!({ "op": "paste", "text": text.join(" ") }),
-            Self::Clip => json!({ "op": "clip" }),
-            Self::Pick { title } => json!({ "op": "pick", "title": title.join(" ") }),
+            Self::Space { up } => DriveAsk::Space { down: !up },
+            Self::Run { name } => DriveAsk::Command { name: name.clone() },
+            Self::Copy => DriveAsk::Copy,
+            Self::Cut => DriveAsk::Cut,
+            Self::Paste { text } => {
+                DriveAsk::Paste { text: (!text.is_empty()).then(|| text.join(" ")) }
+            }
+            Self::Clip => DriveAsk::Clip,
+            Self::Pick { title } => DriveAsk::Pick { title: title.join(" ") },
             Self::Drop { args } => {
                 let mut args = args.clone();
                 let file = args.pop().map(PathBuf::from).unwrap_or_default();
                 let [x, y] = numbers(&args)?;
-                json!({ "op": "drop", "x": x, "y": y, "path": std::path::absolute(file)? })
+                DriveAsk::Drop { x, y, path: std::path::absolute(file)? }
             }
-            Self::Tick => json!({ "op": "tick" }),
-            Self::Scene { debug } => json!({ "op": "scene", "debug": debug }),
-            Self::Shot { file } => json!({ "op": "shot", "path": std::path::absolute(file)? }),
-            Self::Resize { w, h } => json!({ "op": "resize", "w": w, "h": h }),
+            Self::Tick => DriveAsk::Tick,
+            Self::Scene { debug } => DriveAsk::Scene { debug: *debug },
+            Self::Shot { file } => DriveAsk::Shot { path: std::path::absolute(file)? },
+            Self::Resize { w, h } => DriveAsk::Resize { w: *w, h: *h },
         })
     }
 }
 
-/// `request` with what made its pen event.
-fn with(mut request: Value, pen: &Pen) -> Value {
-    for (key, on) in
-        [("tablet", pen.tablet), ("shift", pen.shift), ("touch", pen.touch), ("eraser", pen.eraser)]
-    {
-        request[key] = json!(on);
+impl Pen {
+    /// What made the pen event, as the request says it.
+    fn flags(&self) -> PenFlags {
+        PenFlags { tablet: self.tablet, shift: self.shift, touch: self.touch, eraser: self.eraser }
     }
-    request
 }
 
 /// The `N` numbers `args` give, each arg one number or several joined
@@ -324,7 +316,7 @@ fn wrong(args: &[String]) -> anyhow::Error {
 }
 
 /// Sends `request` to the app on `socket` and waits for its reply.
-fn ask(socket: &Path, request: &Value) -> anyhow::Result<Value> {
+fn ask(socket: &Path, request: &DriveAsk) -> anyhow::Result<DriveReply> {
     let gone = |e: std::io::Error| {
         let hint = "start one: slinger-app --drive <PATH>, with a config that names its daemon";
         RemoteError::new(
@@ -334,8 +326,8 @@ fn ask(socket: &Path, request: &Value) -> anyhow::Result<Value> {
         )
     };
     let mut stream = slinger_control::connect_socket(socket).map_err(gone)?;
-    writeln!(stream, "{request}").map_err(gone)?;
+    writeln!(stream, "{}", request.line()).map_err(gone)?;
     let mut line = String::new();
     BufReader::new(&stream).read_line(&mut line).map_err(gone)?;
-    Ok(serde_json::from_str(&line).unwrap_or(Value::Null))
+    Ok(DriveReply::read(&line))
 }

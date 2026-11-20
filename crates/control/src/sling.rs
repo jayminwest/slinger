@@ -2,16 +2,25 @@
 //! canvas's workspace (docs/service.md, "Slings"), and its client method.
 //! `sling_backdrops` first says which areas of PDF pages under the new ink
 //! to render; `sling_send` takes them back as [`Backdrop`]s.
-//!
-//! [`crate::Request`] carries both as session verbs ([`crate::SessionAsk`]).
 
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Client, RemoteError, Request, SessionAsk};
+use crate::{Client, RemoteError};
 
-/// What a sling sends.
+/// `sling_backdrops`: the areas of PDF pages under the new ink a
+/// `sling_send` would draw; with `in`, a sling of that box.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SlingBackdropsAsk {
+    pub canvas: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page: Option<String>,
+    #[serde(default, rename = "in", skip_serializing_if = "Option::is_none")]
+    pub inside: Option<String>,
+}
+
+/// `sling_send`: what a sling sends.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SlingAsk {
     pub canvas: String,
@@ -127,9 +136,7 @@ impl Client {
     ) -> Result<Vec<BackdropArea>, RemoteError> {
         let (canvas, page) = (canvas.to_string(), page.map(str::to_string));
         let inside = inside.map(str::to_string);
-        let reply: Backdrops =
-            self.call(&Request::Session(SessionAsk::SlingBackdrops { canvas, page, inside }))?;
-        Ok(reply.backdrops)
+        Ok(self.call(SlingBackdropsAsk { canvas, page, inside })?.backdrops)
     }
 
     /// Sends the new ink of a canvas page and a prompt to the agent of the
@@ -146,7 +153,7 @@ impl Client {
     /// page or workspace that is not there, and `invalid` for a selected id
     /// that is not one or a workspace with no agent.
     pub fn sling_send(&self, ask: SlingAsk) -> Result<Slung, RemoteError> {
-        self.call(&Request::Session(SessionAsk::SlingSend(ask)))
+        self.call(ask)
     }
 }
 

@@ -2,32 +2,37 @@
 //! profiles as they cross the socket. The core checks a profile and changes
 //! the workspace; the file is written whole before the reply.
 
-use slinger_control::{self as control, ProfileAsk, Profiles, RemoteError, Reply};
+use slinger_control::{
+    self as control, ProfileListAsk, ProfileRemoveAsk, ProfileSetAsk, Profiles, RemoteError,
+};
 use slinger_core::workspace::Profile;
 
 use super::{kept, remote};
 use crate::store::Store;
 use crate::workspaces::Opened;
 
-pub fn answer(store: &Store, ask: ProfileAsk) -> Result<Reply, RemoteError> {
-    let workspaces = store.workspaces();
-    let opened = match ask {
-        ProfileAsk::ProfileList { workspace } => {
-            workspaces.show(&workspace).map_err(|e| kept(&e))?
-        }
-        ProfileAsk::ProfileSet { workspace, profile } => {
-            let control::Profile { name, dir, tools } = profile;
-            // Checked first, so a relative dir is refused before it is looked for.
-            let checked = Profile::new(name, dir, tools).map_err(|e| remote(&e))?;
-            let dir = checked.dir.as_deref().map(directory).transpose()?;
-            let profile = Profile::new(checked.name, dir, checked.tools).map_err(|e| remote(&e))?;
-            workspaces.edit(&workspace, |ws| ws.set_profile(profile)).map_err(|e| kept(&e))?.0
-        }
-        ProfileAsk::ProfileRemove { workspace, name } => {
-            workspaces.edit(&workspace, |ws| ws.remove_profile(&name)).map_err(|e| kept(&e))?.0
-        }
-    };
-    Ok(Reply::Profiles(wire(opened)))
+type Reply = Result<Profiles, RemoteError>;
+
+pub(super) fn list(store: &Store, ProfileListAsk { workspace }: ProfileListAsk) -> Reply {
+    Ok(wire(store.workspaces().show(&workspace).map_err(|e| kept(&e))?))
+}
+
+pub(super) fn set(store: &Store, ProfileSetAsk { workspace, profile }: ProfileSetAsk) -> Reply {
+    let control::Profile { name, dir, tools } = profile;
+    // Checked first, so a relative dir is refused before it is looked for.
+    let checked = Profile::new(name, dir, tools).map_err(|e| remote(&e))?;
+    let dir = checked.dir.as_deref().map(directory).transpose()?;
+    let profile = Profile::new(checked.name, dir, checked.tools).map_err(|e| remote(&e))?;
+    let edited = store.workspaces().edit(&workspace, |ws| ws.set_profile(profile));
+    Ok(wire(edited.map_err(|e| kept(&e))?.0))
+}
+
+pub(super) fn remove(
+    store: &Store,
+    ProfileRemoveAsk { workspace, name }: ProfileRemoveAsk,
+) -> Reply {
+    let edited = store.workspaces().edit(&workspace, |ws| ws.remove_profile(&name));
+    Ok(wire(edited.map_err(|e| kept(&e))?.0))
 }
 
 /// A profile's directory as one path: there, a directory, links resolved.

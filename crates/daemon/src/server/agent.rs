@@ -2,7 +2,7 @@
 //! `reply_landed` a put appends when it answers a sling, `canvas_edit` and
 //! `canvas_remove`.
 
-use slinger_control::{self as control, AgentAsk, RemoteError, Reply};
+use slinger_control::{self as control, CanvasEdited, CanvasPlaced, CanvasRemoved, RemoteError};
 use slinger_core::canvas::file::{Edit, How, Placed, Put};
 use slinger_core::record::{Event, Tags};
 use slinger_core::{session, sling};
@@ -10,36 +10,33 @@ use slinger_core::{session, sling};
 use super::{drawn, remote, stored};
 use crate::store::{Query, Store};
 
-pub(super) fn answer(store: &Store, ask: AgentAsk) -> Result<Reply, RemoteError> {
-    match ask {
-        AgentAsk::CanvasPut(put) => {
-            let what = match put.what {
-                control::Put::Text(text) => Put::Text(text),
-                control::Put::Box([w, h]) => Put::Box { w, h },
-                control::Put::Ink(pts) => Put::Ink(pts),
-                control::Put::Arrow([from, to]) => Put::Arrow { from, to },
-            };
-            let how =
-                How { colour: put.color, at: put.at, text_size: put.text_size, inside: put.inside };
-            canvas_put(store, &put.canvas, &put.agent, &put.beside, (&what, &how))
-        }
-        AgentAsk::CanvasEdit(ask) => {
-            session::check_agent(&ask.agent).map_err(|e| remote(&e))?;
-            let edit =
-                Edit { text: ask.text, text_size: ask.text_size, size: ask.size, to: ask.to };
-            let edited = store.canvases().edit(&ask.canvas, &ask.agent, &ask.item, &edit);
-            let Placed { written, item, page, frame: [x, y, w, h] } =
-                edited.map_err(|e| drawn(&e))?;
-            let seq = written.seq;
-            Ok(Reply::CanvasEdit(control::CanvasEdited { item, page, x, y, w, h, seq }))
-        }
-        AgentAsk::CanvasRemove(ask) => {
-            session::check_agent(&ask.agent).map_err(|e| remote(&e))?;
-            let removed = store.canvases().remove(&ask.canvas, &ask.agent, &ask.item);
-            let seq = removed.map_err(|e| drawn(&e))?.seq;
-            Ok(Reply::CanvasRemove(control::CanvasRemoved { seq }))
-        }
-    }
+pub(super) fn put(store: &Store, put: control::CanvasPut) -> Result<CanvasPlaced, RemoteError> {
+    let what = match put.what {
+        control::Put::Text(text) => Put::Text(text),
+        control::Put::Box([w, h]) => Put::Box { w, h },
+        control::Put::Ink(pts) => Put::Ink(pts),
+        control::Put::Arrow([from, to]) => Put::Arrow { from, to },
+    };
+    let how = How { colour: put.color, at: put.at, text_size: put.text_size, inside: put.inside };
+    canvas_put(store, &put.canvas, &put.agent, &put.beside, (&what, &how))
+}
+
+pub(super) fn edit(store: &Store, ask: control::CanvasEdit) -> Result<CanvasEdited, RemoteError> {
+    session::check_agent(&ask.agent).map_err(|e| remote(&e))?;
+    let edit = Edit { text: ask.text, text_size: ask.text_size, size: ask.size, to: ask.to };
+    let edited = store.canvases().edit(&ask.canvas, &ask.agent, &ask.item, &edit);
+    let Placed { written, item, page, frame: [x, y, w, h] } = edited.map_err(|e| drawn(&e))?;
+    let seq = written.seq;
+    Ok(CanvasEdited { item, page, x, y, w, h, seq })
+}
+
+pub(super) fn remove(
+    store: &Store,
+    control::CanvasRemove { canvas, agent, item }: control::CanvasRemove,
+) -> Result<CanvasRemoved, RemoteError> {
+    session::check_agent(&agent).map_err(|e| remote(&e))?;
+    let removed = store.canvases().remove(&canvas, &agent, &item);
+    Ok(CanvasRemoved { seq: removed.map_err(|e| drawn(&e))?.seq })
 }
 
 /// Puts the item, then appends `reply_landed` when the agent was slung
@@ -50,7 +47,7 @@ fn canvas_put(
     agent: &str,
     beside: &str,
     (what, how): (&Put, &How),
-) -> Result<Reply, RemoteError> {
+) -> Result<CanvasPlaced, RemoteError> {
     session::check_agent(agent).map_err(|e| remote(&e))?;
     let placed = store.canvases().put(canvas, agent, beside, what, how).map_err(|e| drawn(&e))?;
     let Placed { written, item, page, frame: [x, y, w, h] } = placed;
@@ -71,5 +68,5 @@ fn canvas_put(
         None => None,
     };
     let seq = written.seq.first().copied().unwrap_or_default();
-    Ok(Reply::CanvasPut(control::CanvasPlaced { item, page, x, y, w, h, seq, event }))
+    Ok(CanvasPlaced { item, page, x, y, w, h, seq, event })
 }

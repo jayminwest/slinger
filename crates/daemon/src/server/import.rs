@@ -2,9 +2,8 @@
 //! file) and `canvas_create` (a file of operations, or none).
 
 use std::fs;
-use std::path::Path;
 
-use slinger_control::{CanvasImported, CanvasInfo, RemoteError, Reply};
+use slinger_control::{CanvasCreateAsk, CanvasImportAsk, CanvasImported, CanvasInfo, RemoteError};
 use slinger_core::canvas::Time;
 use slinger_core::canvas::file::id_from_name;
 use slinger_core::tldraw;
@@ -16,10 +15,9 @@ use crate::store::{Store, now_ms};
 /// at `path` applied as `by` (default the user), the whole canvas or none.
 pub(super) fn create(
     store: &Store,
-    canvas: String,
-    path: Option<&Path>,
-    by: Option<&str>,
-) -> Result<Reply, RemoteError> {
+    CanvasCreateAsk { canvas, path, by }: CanvasCreateAsk,
+) -> Result<CanvasInfo, RemoteError> {
+    let (path, by) = (path.as_deref(), by.as_deref());
     let canvases = store.canvases();
     let made = match path {
         None => canvases.create(&canvas),
@@ -33,16 +31,16 @@ pub(super) fn create(
         }
     };
     made.map_err(|e| drawn(&e))?;
-    Ok(Reply::CanvasCreate(CanvasInfo { canvas }))
+    Ok(CanvasInfo { canvas })
 }
 
 /// Reads the file, imports it and stores the canvas as `canvas`, or under an
 /// id made from the file's name.
 pub(super) fn canvas(
     store: &Store,
-    path: &Path,
-    canvas: Option<String>,
-) -> Result<Reply, RemoteError> {
+    CanvasImportAsk { path, canvas }: CanvasImportAsk,
+) -> Result<CanvasImported, RemoteError> {
+    let path = path.as_path();
     let bytes = fs::read(absolute(path)?).map_err(|e| unreadable(path, &e))?;
     let id = canvas
         .unwrap_or_else(|| id_from_name(&path.file_stem().unwrap_or_default().to_string_lossy()));
@@ -56,10 +54,10 @@ pub(super) fn canvas(
         ("box", report.boxes),
         ("arrow", report.arrows),
     ];
-    Ok(Reply::CanvasImport(CanvasImported {
+    Ok(CanvasImported {
         canvas: id,
         pages: count(report.pages),
         items: items.into_iter().map(|(k, n)| (k.to_owned(), count(n))).collect(),
         skipped: report.skipped.into_iter().map(|(k, n)| (k, count(n))).collect(),
-    }))
+    })
 }

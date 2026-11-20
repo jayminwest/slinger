@@ -773,8 +773,8 @@ and a packet's ids (`b4`). An agent folds only a box it made (`invalid`
 otherwise), and an item that is not a box, or a box of no area, is
 `invalid`. The reply is the box and its frame now, as `canvas_edit`'s is: a
 client that needs only what was written reads it as `canvas_apply`'s reply
-(`made` empty). A client writes them with `FoldAsk`
-(`crates/control/src/fold.rs`).
+(`made` empty). A client writes them with `Client::canvas_fold`, which
+takes a `FoldAsk` (`crates/control/src/fold.rs`).
 
 ```json
 { "v": 1, "op": "canvas_fold", "canvas": "main", "item": "b4" }
@@ -1283,8 +1283,8 @@ is `invalid`.
 { "ok": true, "seq": [60] }
 ```
 
-The agent canvas verbs are one variant of `Request` (`Request::Agent`),
-written by `crates/control/src/agent.rs`.
+The agent canvas verbs' requests and replies are in
+`crates/control/src/agent.rs`.
 
 #### How a blob's bytes travel
 
@@ -1343,22 +1343,26 @@ not open, and an agent with no session.
 
 1. Add the capability to `crates/core` with tests. A verb about the
    daemon's own process (`daemon_info`, `daemon_stop`) has no core half.
-2. In `crates/control`, add the request: a `Request` variant in
-   `src/lib.rs`, or a variant of a group's own enum, tagged by `op`, that
-   `Request` carries as one `#[serde(untagged)]` variant (`SessionAsk` in
-   `src/session.rs`, `AgentAsk` in `src/agent.rs`, `PaneAsk` in
-   `src/pane.rs`, ...; `sling_send` and `sling_backdrops` are session
-   verbs). Add its reply type and its `Reply` variant, and a typed method
-   to `Client` that sends the `Request`. Add the verb's request and reply
-   lines to the golden fixtures (`crates/control/tests/golden`): its test
-   fails until they are there and the verb has its row in the table
-   above.
-3. Add one arm to `answer` in `crates/daemon/src/server.rs`. It calls the
-   core and nothing else.
-4. Add tests to `crates/daemon/src/tests.rs`. They go through a real socket.
-5. Add the verb to the table above (the golden test checks the table
-   against the verbs both ways), then expose it from each client that
-   needs it.
+2. In the verb's module of `crates/control` (`src/canvas.rs`,
+   `src/session.rs`, ...), add its request type (a struct of the line's
+   fields; an empty one is `struct XAsk {}`), its reply type, and a typed
+   method on `Client` that sends the request with `self.call(ask)`, which
+   returns the verb's reply type.
+3. Add one row to the `verbs!` table in `crates/control/src/verb.rs`:
+   `"op" Variant(RequestType) -> ReplyType,`. The row makes the `Request`
+   variant tagged `op`, the `Verb` impl that ties the request to its reply,
+   and the op's entry in `OPS`.
+4. Add one arm to `answer` in `crates/daemon/src/server/answer.rs`,
+   `Request::Variant(ask) => by(store, ask, module::handler)`, and the
+   handler in its `server/` module. The handler calls the core and returns
+   the verb's reply type, so the compiler refuses another verb's reply.
+5. Add the verb's row to the table above. The golden test
+   (`crates/control/tests/golden`) checks the table, `OPS` and the
+   fixtures against each other both ways, so it fails until the verb's
+   request and reply lines are in the fixtures too.
+
+Then add tests to `crates/daemon/src/tests/` (they go through a real
+socket) and expose the verb from each client that needs it.
 
 ## Running it
 

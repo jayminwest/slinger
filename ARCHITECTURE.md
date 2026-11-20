@@ -10,7 +10,9 @@ crates/cli    slinger: argv -> control-socket requests -> output contract (docs/
               Does not link the core.
 crates/control  slinger-control: the control protocol (docs/service.md): requests, replies,
               the wire format and the socket client, and the build stamp every binary
-              carries (its build.rs, `control::stamp`). Does not link the core.
+              carries (its build.rs, `control::stamp`). Does not link the core. One
+              table (`src/verb.rs`) makes `Request` and ties each verb's request type
+              to its reply type (`Verb`), so `Client::call` returns that type.
 crates/daemon slingerd: owns the IO the core leaves out (socket, signals, startup, the
               record's SQLite file) and serves the core. A thin main over its library.
               No domain logic.
@@ -248,12 +250,19 @@ lib.rs       argv, startup and signals: `run`. While `serve` runs, the data
              leaves stderr alone, so an in-process test keeps its own.
 log.rs       the `--log` file: rotated once at start (over 1 MiB to `.1`),
              opened for appending, and the daemon's start and stop lines.
-server.rs    the control socket and `answer`, one arm per verb. `serve` takes the
-             store, so a verb that reads or writes the record reaches it here.
-             Blob and UI verbs read and write the file the client names: a
-             blob's bytes travel as a file, never in the line (docs/service.md).
-             `ui_put` decides its version inside the store's write
+server.rs    the control socket: one thread per connection, one request and
+             one reply each. `serve` takes the store, so a verb that reads or
+             writes the record reaches it here.
+server/answer.rs  `answer`, one arm per verb: each hands the verb's request
+             to its handler, which returns the verb's own reply type
+             (`control::Verb::Reply`); the reply is written with its keys
+             sorted.
+server/record.rs, server/uis.rs  the record, blob and UI catalog verbs.
+             They read and write the file the client names: a blob's bytes
+             travel as a file, never in the line (docs/service.md). `ui_put`
+             decides its version inside the store's write
              (`Store::append_if`), so two puts cannot take one number.
+server/canvas.rs, server/workspace.rs  the canvas and workspace verbs.
 store.rs     the record on disk: one SQLite file (rusqlite, bundled) with
              the event log and the blobs. The only module that knows its
              layout. Stores each event as the line `record::encode` wrote.
@@ -416,8 +425,8 @@ server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
              looked up under the sling lock so a fast reply finds its sling;
              `canvas_edit` and `canvas_remove`, which pass the agent's name
              to the core's `Log::edit` and `Log::remove`.
-server/fold.rs  `canvas_fold` and `canvas_unfold` (`FoldAsk`, written by
-             clients themselves, crates/control/src/fold.rs): the core's
+server/fold.rs  `canvas_fold` and `canvas_unfold` (a client picks one with
+             `FoldAsk`, crates/control/src/fold.rs): the core's
              `Log::fold` and `Log::unfold` through `Canvases::fold`; the
              reply is a `CanvasEdited` (the box's frame now), which a client
              may read as a `CanvasChange` (`made` defaults to empty).
@@ -826,8 +835,9 @@ canvases/flow.rs  `SlingFlow`, the one owner of the sling's state: the
              buttons beside a note's or a new name's entry
              (scene/sling/pen.rs), with the selection's in sling_marks.
 drive.rs     a driven window's requests (`slinger-app --drive SOCKET`, which
-             `slinger drive` sends): one line of JSON per connection in, one
-             line out. `parse` turns a request into the events platform hands
+             `slinger drive` sends): one line per connection in, one line
+             out, read and written as `control::{DriveAsk, DriveReply}`
+             (crates/control/src/drive.rs). `parse` turns a request into the events platform hands
              in for real input (a key and the text it types, the pen, the
              right or middle button or a ctrl+press, a scroll, a pinch, a command, a paste, a drop, a tick), or an ask
              for the scene, a PNG, a resize or the window's own clipboard; a
@@ -1659,6 +1669,7 @@ Each boundary has something that fails when it is broken:
 | The protocol crate does not link the core | `check:layers` rule `control-is-transport-only` |
 | The CLI reaches the core only through the socket | `check:layers` rule `cli-uses-the-socket` |
 | The app reaches the core only through the socket | `check:layers` rule `app-uses-the-socket` |
+| `slinger drive` and a driven window write and read drive lines only as `control::{DriveAsk, DriveReply}`, never as hand-built JSON; each op's line is golden (`crates/control/tests/fixtures/drive.jsonl`) | `check:layers` rule `drive-speaks-typed`, `crates/control/src/drive.rs` tests, `crates/cli/src/tests/drive_wire.rs`, `crates/app/src/drive.rs` tests |
 | The agent guide, the skill, the plugin and the sling note (the core's stored snapshots) name only commands and flags the CLI has; the plugin has the binary's version | `crates/cli/src/tests/guide.rs` |
 | A driven window's request becomes the events real input makes, and a wrong one says how; the outline says a typed text and its caret; `slinger drive` sends the request and maps the reply to its exit code | `crates/app/src/drive.rs`, `crates/app/src/tests/drive.rs`, `crates/cli/src/tests/drive.rs` |
 | The record's event and blob-id formats are readable by older readers | `crates/core/tests/record.rs`, with stored fixtures |

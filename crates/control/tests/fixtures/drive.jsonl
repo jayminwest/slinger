@@ -1,0 +1,25 @@
+{"chord":"cmd+j","op":"key","text":null}
+{"chord":"escape","op":"key","text":"\u001b"}
+{"op":"type","text":"Hi there"}
+{"button":"left","control":false,"eraser":false,"op":"press","shift":true,"tablet":true,"touch":false,"x":10.0,"y":20.0}
+{"button":"middle","control":false,"eraser":false,"op":"drag","shift":false,"tablet":false,"touch":false,"x":10.5,"y":-2.0}
+{"button":"left","control":true,"eraser":true,"op":"lift","shift":false,"tablet":false,"touch":true,"x":5.0,"y":6.0}
+{"eraser":false,"op":"stroke","points":[[1.0,2.0],[3.5,4.0]],"shift":false,"tablet":true,"touch":false}
+{"op":"move","x":10.0,"y":20.0}
+{"dx":0.0,"dy":-30.0,"op":"scroll","x":10.0,"y":20.0}
+{"factor":1.5,"op":"zoom","x":10.0,"y":20.0}
+{"down":true,"op":"space"}
+{"down":false,"op":"space"}
+{"name":"toggle-sidebar","op":"command"}
+{"op":"copy"}
+{"op":"cut"}
+{"op":"paste"}
+{"op":"paste","text":"two words"}
+{"op":"clip"}
+{"op":"pick","title":"New text"}
+{"op":"drop","path":"/tmp/a.pdf","x":10.0,"y":20.0}
+{"op":"tick"}
+{"debug":false,"op":"scene"}
+{"debug":true,"op":"scene"}
+{"op":"shot","path":"/tmp/w.png"}
+{"h":600.5,"op":"resize","w":800.0}
