@@ -89,3 +89,19 @@ fn find_prints_page_item_and_text_per_match_and_nothing_for_none() {
     assert_eq!(json(&runs[4])["found"][0]["id"], "i1");
     assert_eq!(runs[5].code, exit::NOT_FOUND);
 }
+
+#[test]
+fn find_names_the_folded_box_a_found_text_is_hidden_in() {
+    let items = r#"[{"op":"add","item":{"page":"p1","kind":"box","x":0,"y":0,"w":4000,"h":4000}},
+{"op":"add","item":{"page":"p1","kind":"text","x":500,"y":500,"text":"the plan"}}]"#;
+    let runs = cli_each(&[
+        &["canvas", "create", "main"],
+        &["canvas", "apply", "main", items],
+        &["canvas", "fold", "main", "b1"],
+        &["canvas", "find", "main", "plan"],
+        &["canvas", "read", "main", "--in", "b1", "--after", "99"],
+    ]);
+    assert_eq!(runs[2].code, exit::OK, "{}", runs[2].err);
+    assert_eq!(runs[3].out, "p1\ti2 in i1\tthe plan\n");
+    assert!(runs[4].out.contains("\nt2 text "), "{}", runs[4].out);
+}

@@ -190,7 +190,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `pane_open` | `workspace`, `kind`: `canvas` or `ui`, `target`: canvas id or UI name, `beside`: a pane number (optional), `below`: bool (default `false`) | `workspace`, `layout`, `pane`: the new pane's number, `event`: the `pane_moved` appended |
 | `pane_close` | `workspace`, `pane`: a pane number | `workspace`, `layout`, `event`: the `pane_moved` appended (absent when nothing changed) |
 | `pane_resize` | `workspace`, `pane`: a pane number, `ratio`: number | `workspace`, `layout`, `event`: the `pane_moved` appended (absent when nothing changed) |
-| `canvas_read` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `after`: number (optional, default the last sling's), `select`: list of item ids (optional), `out`: absolute path of a directory (optional) | `packet`: blob id of the text, `dir`: the directory written, `text`: the packet with `at`, `images`: list of `{name, id}` |
+| `canvas_read` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `in`: a box's id (optional: read what it holds), `after`: number (optional, default the last sling's), `select`: list of item ids (optional), `out`: absolute path of a directory (optional) | `packet`: blob id of the text, `dir`: the directory written, `text`: the packet with `at`, `images`: list of `{name, id}` |
 | `canvas_crop` | `canvas`: canvas id, `of`: an item id or a box, `path`: absolute path of a PNG file | `images`: list of `{path, x, y, width, height}` |
 | `canvas_strokes` | `canvas`: canvas id, `item`: an item id | `strokes`: list of stroke items with `points` |
 | `canvas_find` | `canvas`: canvas id, `text`: string | `found`: list of text items that hold it, page by page in reading order |
@@ -373,7 +373,7 @@ tenths of a unit.
 
 | `op` | fields |
 |---|---|
-| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000`. A `text` without `w` or `h` gets a frame that fits its words (the rule is in `docs/design/canvas-file.md`); a given size is kept. A `text`'s optional `size` (40 to 4000 tenths; missing, 240) is the size of its characters; outside that range it is `invalid`. An arrow's `from` or `to` may be `$n` (`$0`, `$1`, ...): the item that `made[n]` of this same request names, made by an `add` before it, so items and the arrows between them are added in one step; so may an id in a box's `fold.items` |
+| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000`. A `text` without `w` or `h` gets a frame that fits its words (the rule is in `docs/design/canvas-file.md`); a given size is kept. A `text`'s optional `size` (40 to 4000 tenths; missing, 240) is the size of its characters; outside that range it is `invalid`. An arrow's `from` or `to` may be `$n` (`$0`, `$1`, ...): the item that `made[n]` of this same request names, made by an `add` before it, so items and the arrows between them are added in one step; so may an id in a box's `fold.items`. Beside `item`, an optional `in` (`b4` or `i4`) names a folded box on the item's page that the item joins (docs/design/fold.md, "Step in"): the step writes the `add` and a `set` of the box's `fold` listing it, its open size grown right and down to hold it. An `in` an open box adds plainly; one that is not a box, or on another page, is `invalid` |
 | `remove` | `ids`: list of item ids. Ids already gone are fine |
 | `move` | `ids`, `dx`, `dy` |
 | `set` | `id`, `fields`: item fields to replace, laid over the item's current ones. New `text` without `w` or `h` reads the missing one as 0, so the frame fits the new words (at the text's `size`) by the same rule; `"size": null` puts a text back to the usual 240 |
@@ -443,7 +443,11 @@ event tagged with the canvas names, and 0 (everything is new) before the
 first. A read never moves it; a sling does. `after` at or past the last
 operation is a valid packet with nothing new. `select` takes ids as the
 file (`i12`) or a packet (`c12`, `t12`) writes them, and keeps only those
-items in the `page` section. The text, without `at`, is stored as a blob,
+items in the `page` section. `in` names a box (`b4` or `i4`) and reads what
+it holds directly, open or folded, as if it were the page, on the box's own
+page (docs/design/fold.md); a `page` that is not the box's page, or a box
+that is not there, is `not_found`, and an item that is not a box is
+`invalid`. The text, without `at`, is stored as a blob,
 so the same page gives the same id; each image is a blob too. The daemon
 writes `packet.txt` and the images into `out` (made if missing), or into
 `packets/<hex>/` in its data directory, and `text` carries
@@ -610,7 +614,9 @@ in its colour on white, and tiles of at most 1568 pixels a side, overlapping
 by 64. An item is framed by a 16-unit margin. A box `of` is `x,y,w,h` in
 tenths of a unit on the first page, or `<page>:x,y,w,h` on the page with
 that id or name; it is cut at its edges, and a box with nothing in it is a
-white image. A `pdf` item draws as its frame in grey with `pdf p<page>`
+white image. A folded box `of` draws open: its open frame and what it
+holds directly (docs/design/fold.md); a box of the page draws only what
+the page shows, a folded box as its miniature. A `pdf` item draws as its frame in grey with `pdf p<page>`
 at its top left: only the app can draw a PDF's page, and a crop takes no
 backdrop (docs/design/pdf.md). A crop is at most 16000 units a side (at most 4 by 4 tiles):
 a larger one, or a negative size, is `invalid` with a hint. The daemon
@@ -641,6 +647,9 @@ the canvas's order, and on a page top to bottom, then left to right. A match
 ignores case, and a run of spaces or line breaks in either counts as one
 space, so it finds words a text wraps. Ink and a PDF's words are not
 searched. A `text` of no words finds nothing (an empty list, not an error).
+Find sees into folded boxes (docs/design/fold.md): a text a folded box holds
+is found, placed in reading order where the page shows the outermost folded
+box that holds it, and carries `folded`: that box's id (`i4`).
 The app's `find` and `find-next` ask it; a client writes it with its own
 type (`crates/control/src/find.rs`).
 

@@ -79,6 +79,25 @@ pub fn items(canvas: &Canvas, items: &[ItemId], id: &str) -> Vec<Image> {
 #[must_use]
 pub fn over(canvas: &Canvas, items: &[ItemId], id: &str, backdrops: &[Backdrop]) -> Vec<Image> {
     let found: Vec<&Item> = items.iter().filter_map(|i| canvas.item(*i)).collect();
+    let under = found.first().map(|i| usable(canvas, i.page(), backdrops)).unwrap_or_default();
+    framed(&found, id, &under)
+}
+
+/// Draws a folded box open (docs/design/fold.md, "Crop"): its open frame
+/// and what it holds directly, a folded box inside as its miniature, framed
+/// as [`items`] frames. Anything but a folded box draws as [`items`] does.
+#[must_use]
+pub fn open(canvas: &Canvas, of: ItemId, id: &str) -> Vec<Image> {
+    let Some(opened) = canvas.opened(of) else { return items(canvas, &[of], id) };
+    let held = canvas.contents(of);
+    let found: Vec<&Item> =
+        std::iter::once(&opened).chain(held.iter().filter_map(|i| canvas.item(*i))).collect();
+    framed(&found, id, &[])
+}
+
+/// Draws `found` in the order given, framed by the box around them plus
+/// [`MARGIN`], over `under`, trimmed to their ink.
+fn framed(found: &[&Item], id: &str, under: &[(&Backdrop, Rect)]) -> Vec<Image> {
     let Some(frame) = found.iter().map(|i| i.bounds()).reduce(union) else {
         return Vec::new();
     };
@@ -88,8 +107,7 @@ pub fn over(canvas: &Canvas, items: &[ItemId], id: &str, backdrops: &[Backdrop])
         frame.w + 2.0 * MARGIN,
         frame.h + 2.0 * MARGIN,
     );
-    let under = found.first().map(|i| usable(canvas, i.page(), backdrops)).unwrap_or_default();
-    draw(&found, frame, id, true, &under)
+    draw(found, frame, id, true, under)
 }
 
 /// Draws what is on `page` inside `area`, cut at its edges: every item that
