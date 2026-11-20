@@ -11,6 +11,15 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** act on a canvas's items from the keyboard. Select all
+  (`select-all`, cmd+A) selects every item on the focused page; tab and
+  shift+tab (`next-item`, `previous-item`) select the next or previous item
+  in reading order and bring it into view; the arrows (`nudge-left`,
+  `nudge-right`, `nudge-up`, `nudge-down`) move the selection 10 points;
+  Duplicate (`duplicate`, cmd+J) copies the selection beside itself. Each
+  is in the Edit menu and the command palette. While you type a canvas text
+  or an entry, those keys stay theirs, and cmd+A in an entry or an agent
+  UI still selects its text.
 - **App:** run outside its `.app` (a bare `slinger-app` from a shell), the
   app says once, when you cancel a file panel, to run slinger.app to reach
   Downloads, Desktop and Documents: macOS lets the panel show those folders
