@@ -36,6 +36,16 @@ Choices an agent made and shipped that the owner has not confirmed. An agent tha
 - [ ] restart-offer picks (slinger-866657): `restart-daemon` sits in the Window menu beside Start slingerd (the seed said the slinger menu); the offer is a two-row bar above the agents' notice; `dismiss-notice` hides both the agents' notice and the offer (the offer's own ✕ hides only it); an old daemon (no `daemon_info`) gets a notice that says to stop it with SIGTERM and no Restart button; builds are named by stamp, with the version only when the versions differ; a newer daemon also reads as "another build" (plan risk 3) (slinger-866657)
 - [ ] app icon (slinger-d8fb56): a placeholder drawn by an agent, crates/app/icon/slinger.svg (a light stroke slung to the top right ending in a blue arrowhead, on the dark paper #1e1e1e); replace the SVG and run scripts/icon.sh for real art (slinger-d8fb56)
 
+## Canvas storage (slinger-7c18bc, docs/design/storage.md; nothing built yet)
+
+- [ ] canvas file in the folder as `<dir>/<id>.canvas` beside slinger-workspace.toml, not in a `slinger/` subfolder (slinger-7c18bc)
+- [ ] the daemon finds a moved canvas through a link header `{"slinger":"canvas","v":2,"id":..,"at":..}` left at `canvases/<id>.canvas`, so an older slingerd refuses it (canvas_too_new) instead of making an empty twin; this spends header version 2 on links (slinger-7c18bc)
+- [ ] blobs of a folder canvas go to `<dir>/.slinger/blobs/sha256-<hex>` (hidden; written through, the record becomes a cache); UI code stays in the record by D19, only shown versions are copied (slinger-7c18bc)
+- [ ] writer guard is flock on the canvas file plus a stat check before each append; an outside change saves the daemon's copy beside the file as `<id> (slinger <machine> <time>).canvas` and refuses the change; no lock file in the folder (slinger-7c18bc)
+- [ ] migration: an explicit `slinger canvas move <ID>` / `--back` first, automatic moves on start only after the owner has moved one canvas and back; originals are kept in `canvases/moved/` and never removed by slinger (slinger-7c18bc)
+- [ ] a folder that already holds `<canvas>.canvas` is adopted; a header-only twin in the data dir goes to `moved/`, a twin with content stays and is reported (slinger-7c18bc)
+- [ ] canvases stay out of network file systems (smbfs, nfs, afpfs, webdav); loose and rootless canvases stay in the data directory, not `~/Documents/Slinger`; ids stay global and the header's id wins over a Finder rename (slinger-7c18bc)
+
 ## Agent sessions, workspaces and the rest
 
 - [ ] slings left waiting for a listener that went away stay queued while later slings start a process (7ef062f); should starting the agent hand them to it? Also: after stop-agent the next sling starts the agent again; confirm (follow-up of 38ddde) (slinger-7e2d5f)
