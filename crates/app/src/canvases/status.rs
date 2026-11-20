@@ -14,13 +14,15 @@ use crate::panes::{Kind, Panes};
 use crate::scene::pages;
 use crate::scene::status::{self, Footer, Pen, Shows, State};
 use crate::scene::title;
-use crate::scene::tools::Tool;
+use crate::scene::tools::{Tool, Tools};
 
 impl Canvases {
-    /// The pen's line width, in canvas units: new strokes take it, and the
-    /// footers show it.
-    pub fn set_pen_width(&mut self, width: f64) {
-        self.ink.set_width(width);
+    /// The pen's line width, in canvas units, and a new text's size, from
+    /// `tools`: new strokes take the width, and the footers show it; a text
+    /// the text tool places starts at the size.
+    pub fn set_pen(&mut self, tools: &Tools) {
+        self.ink.set_width(tools.width().points());
+        self.shapes.set_size(f64::from(tools.size()));
     }
 
     /// The footer of each pane of `panes` laid in `area`, in `theme`'s

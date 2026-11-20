@@ -210,6 +210,9 @@ impl Panes {
             | Command::PickWidth
             | Command::WidthUp
             | Command::WidthDown
+            | Command::PickSize
+            | Command::SizeUp
+            | Command::SizeDown
             | Command::ToggleSidebar
             | Command::DismissNotice
             | Command::SlingNow
