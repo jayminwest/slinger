@@ -6,7 +6,6 @@
 
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -97,7 +96,7 @@ pub(crate) fn fake_flick(
     answer: fn(&str) -> String,
 ) -> (PathBuf, Arc<Mutex<Vec<String>>>) {
     let socket = dir.join("flick.sock");
-    let listener = UnixListener::bind(&socket).unwrap();
+    let listener = control::bind_socket(&socket).unwrap();
     let heard = Arc::new(Mutex::new(Vec::new()));
     let theirs = Arc::clone(&heard);
     std::thread::spawn(move || {
