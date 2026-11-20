@@ -10,8 +10,9 @@
 //!   selected, one along, after the last back to the first; with nothing
 //!   selected on the page, the first (or, going back, the last). The item
 //!   comes into view ([`into_view`]).
-//! - Nudge: the selection moves [`NUDGE`] screen points at any zoom, as one
-//!   `move`, with the arrows bound to it following, as a drag's lift does.
+//! - Nudge: the selection moves [`NUDGE`] screen points at any zoom ([`FINE`]
+//!   for the fine nudges, shift and an arrow), as one `move`, with the
+//!   arrows bound to it following, as a drag's lift does.
 //! - Duplicate: a copy of the selection lands [`DUPLICATE`] screen points
 //!   down and right of it, as a paste lands, and is the selection once there.
 //! - Resize: a size command with texts selected (and none being typed)
@@ -34,6 +35,8 @@ use crate::scene::tools::Resize;
 
 /// How far a nudge moves the selection, in screen points.
 pub const NUDGE: f64 = 10.0;
+/// How far a fine nudge (shift and an arrow) moves it, in screen points.
+pub const FINE: f64 = 1.0;
 /// How far down and right of the selection its duplicate lands, in screen points.
 pub const DUPLICATE: f64 = 20.0;
 
@@ -61,6 +64,10 @@ impl Keyed {
             Command::NudgeRight => Keyed::Nudge(NUDGE, 0.0),
             Command::NudgeUp => Keyed::Nudge(0.0, -NUDGE),
             Command::NudgeDown => Keyed::Nudge(0.0, NUDGE),
+            Command::NudgeLeftFine => Keyed::Nudge(-FINE, 0.0),
+            Command::NudgeRightFine => Keyed::Nudge(FINE, 0.0),
+            Command::NudgeUpFine => Keyed::Nudge(0.0, -FINE),
+            Command::NudgeDownFine => Keyed::Nudge(0.0, FINE),
             Command::Duplicate => Keyed::Duplicate,
             Command::Fold => Keyed::Fold,
             _ => return None,

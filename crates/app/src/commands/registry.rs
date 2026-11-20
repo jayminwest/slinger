@@ -123,6 +123,10 @@ impl Command {
             Command::NudgeRight => "Nudge right",
             Command::NudgeUp => "Nudge up",
             Command::NudgeDown => "Nudge down",
+            Command::NudgeLeftFine => "Nudge left a point",
+            Command::NudgeRightFine => "Nudge right a point",
+            Command::NudgeUpFine => "Nudge up a point",
+            Command::NudgeDownFine => "Nudge down a point",
             Command::Duplicate => "Duplicate",
             Command::Find => "Find text…",
             Command::FindNext => "Find next",
@@ -173,6 +177,10 @@ impl Command {
             | Command::NudgeRight
             | Command::NudgeUp
             | Command::NudgeDown
+            | Command::NudgeLeftFine
+            | Command::NudgeRightFine
+            | Command::NudgeUpFine
+            | Command::NudgeDownFine
             | Command::Duplicate
             | Command::Undo
             | Command::Redo

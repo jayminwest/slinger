@@ -265,6 +265,10 @@ impl Panes {
             | Command::NudgeRight
             | Command::NudgeUp
             | Command::NudgeDown
+            | Command::NudgeLeftFine
+            | Command::NudgeRightFine
+            | Command::NudgeUpFine
+            | Command::NudgeDownFine
             | Command::Duplicate
             | Command::Find
             | Command::FindNext

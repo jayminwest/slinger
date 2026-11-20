@@ -239,7 +239,7 @@ pub fn selection(
             canvases.open_feedback(panes, at, workspace, tools.tool());
             true
         }
-        Command::DeleteSelection => canvases.delete_selection(panes, panes.focus()),
+        Command::DeleteSelection => items::delete(shared, canvases),
         Command::ClearSelection => canvases.clear_selection(panes, panes.focus()),
         Command::Sling | Command::Dictate => canvases.sling_command(command, panes, area),
         Command::SlingNow => canvases.sling_now_command(panes, area, Profile::Running),

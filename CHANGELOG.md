@@ -84,6 +84,10 @@ bullet with the area in bold.
   delete removes it and tab goes on to the next item from it.
 - **CLI:** `slinger canvas find <CANVAS> <TEXT>` prints the page, id and
   text of each text item that holds the words, on every page.
+- **App:** nudge the selection by one point: shift and an arrow
+  (`nudge-left-fine`, `nudge-right-fine`, `nudge-up-fine`,
+  `nudge-down-fine`, also in the Edit menu and the command palette). While
+  you type a canvas text, shift and an arrow still select characters.
 - **App:** act on a canvas's items from the keyboard. Select all
   (`select-all`, cmd+A) selects every item on the focused page; tab and
   shift+tab (`next-item`, `previous-item`) select the next or previous item
@@ -519,6 +523,8 @@ bullet with the area in bold.
   as wide as its longest line, and it then ran on one line as you typed.
 - **App:** an arrow bound to a selected text follows it when the size keys
   resize the text, as it does when you move or nudge it.
+- **App:** while a live item's page on a canvas has the keyboard, delete
+  goes to the page; it no longer deletes the selected canvas items.
 - **Agents:** a reply that leaves out its colour and size no longer takes
   them from writing hidden in a folded box; it matches what the page shows.
 - **App:** the caret in a canvas text moves, and delete deletes, by what

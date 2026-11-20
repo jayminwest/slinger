@@ -50,7 +50,8 @@ fn each_nudge_duplicate_and_fold_command_is_keyed_and_no_other() {
     assert_eq!(Keyed::of(Command::Duplicate), Some(Keyed::Duplicate));
     let keyed = Command::ALL.iter().filter(|(c, _)| Keyed::of(*c).is_some()).count();
     assert_eq!(Keyed::of(Command::Fold), Some(Keyed::Fold));
-    assert_eq!(keyed, 9);
+    assert_eq!(Keyed::of(Command::NudgeLeftFine), Some(Keyed::Nudge(-FINE, 0.0)));
+    assert_eq!(keyed, 13);
     assert_eq!(Keyed::of(Command::DeleteSelection), None);
 }
 
