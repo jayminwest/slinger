@@ -44,7 +44,7 @@ use crate::scene::paste;
 use crate::scene::tools::{Resize, Tool};
 
 mod bind;
-pub use bind::{follow, follow_by, target};
+pub use bind::{follow, follow_by, follow_frames, target};
 
 /// Two presses this close in time, in seconds, are a double tap...
 pub const DOUBLE_TAP: f64 = 0.4;
