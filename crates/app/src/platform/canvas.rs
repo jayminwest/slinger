@@ -38,7 +38,7 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{
     NSAffineTransform, NSAttributedString, NSAttributedStringKey, NSDictionary,
-    NSMutableAttributedString, NSObject, NSPoint, NSProcessInfo, NSRange, NSRect, NSSize, NSString,
+    NSMutableAttributedString, NSObject, NSPoint, NSProcessInfo, NSRect, NSSize, NSString,
 };
 
 use super::{Event, color, dispatch, pdf};
@@ -158,11 +158,7 @@ impl CanvasView {
             let laid = |d: &Draw| {
                 matches!(
                     d.mark,
-                    Mark::Text { .. }
-                        | Mark::Live { .. }
-                        | Mark::Pdf { .. }
-                        | Mark::Button { .. }
-                        | Mark::Caret { .. }
+                    Mark::Text { .. } | Mark::Live { .. } | Mark::Pdf { .. } | Mark::Button { .. }
                 )
             };
             scene.draws.iter().any(|d| d.id == *id && laid(d))
@@ -271,17 +267,7 @@ fn paint(scene: &Scene, dirty: NSRect, texts: &mut HashMap<ItemId, Laid>) {
                     path.stroke();
                 }
             }
-            Mark::Caret { at, column, text, size, line, zoom, width } => {
-                let from = (text.clone(), *column, *size, *line, draw.colour);
-                let end = end_of(laid(texts, draw.id, from));
-                let bar = Rect {
-                    x: at.x + end.origin.x * zoom,
-                    y: at.y + end.origin.y * zoom,
-                    width: *width,
-                    height: end.size.height * zoom,
-                };
-                NSBezierPath::bezierPathWithRect(ns_rect(bar)).fill();
-            }
+            Mark::Caret { frame } => NSRectFill(ns_rect(*frame)),
         }
     }
 }
@@ -299,24 +285,6 @@ fn paint_dots(grid: Grid, scene: &Scene, area: Rect) {
     }
     color(grid.colour).setFill();
     path.fill();
-}
-
-/// Where the next character of a laid-out text goes, in its own points: a
-/// line's top left, as tall as the line. After a line break, or in an empty
-/// text, that is the start of the line the layout keeps for it; otherwise
-/// the right edge of the last character.
-fn end_of(laid: &Laid) -> NSRect {
-    let glyphs = laid.manager.glyphRangeForTextContainer(&laid.container);
-    let extra = laid.manager.extraLineFragmentRect();
-    if extra.size.height > 0.0 || glyphs.length == 0 {
-        return NSRect::new(extra.origin, NSSize::new(0.0, extra.size.height));
-    }
-    let last = NSRange::new(glyphs.end() - 1, 1);
-    let r = laid.manager.boundingRectForGlyphRange_inTextContainer(last, &laid.container);
-    NSRect::new(
-        NSPoint::new(r.origin.x + r.size.width, r.origin.y),
-        NSSize::new(0.0, r.size.height),
-    )
 }
 
 /// The system cursor `cursor` names, or its ring drawn.

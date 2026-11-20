@@ -11,6 +11,14 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a canvas text being typed has a real caret. The arrow keys move
+  it (alt by words, cmd to a row's ends or the text's start and end), shift
+  selects, delete and forward delete (alt by words, cmd to the row's start)
+  take the selection or what is beside the caret, cmd+A selects the whole
+  text, and cut and copy take the selected characters. Typing, a paste and
+  dictation go in at the caret. A press inside the text puts the caret
+  there; a drag or a shift-press selects. While a text is typed these keys
+  are its own, before your key bindings.
 - **App:** find typed text. Find text… (`find`, cmd+F, Edit menu and the
   command palette) asks for words and takes the focused pane to the first
   text on its canvas that holds them, on its page or a later one, centred;

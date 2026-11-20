@@ -26,8 +26,12 @@ pub fn keyboard(shared: &Shared, canvases: &Canvases) -> Keyboard {
 /// while the items hold the keyboard: the window has it and no text of
 /// the app takes typing. False when it did nothing, so the key goes on (a
 /// select all to an entry's field or a page; an arrow to a page). Any
-/// other command goes on (true).
+/// other command goes on (true). Select all chosen from the menu while a
+/// canvas text is typed selects its characters, as its key does.
 pub fn run(command: Command, shared: &Shared, canvases: &mut Canvases, area: Rect) -> bool {
+    if command == Command::SelectAll && canvases.select_text() {
+        return true;
+    }
     let Some(keyed) = Keyed::of(command) else { return true };
     let items = keyboard(shared, canvases) == Keyboard::Window && !canvases.editing();
     items && canvases.keyed(&shared.panes, focus(&shared.panes, area), keyed)

@@ -68,7 +68,9 @@ fn a_text_being_typed_or_an_open_entry_keeps_the_keys() {
         w.drag_box(400.0, 10.0);
         w.until(|_| boxes(daemon).len() == 1);
         w.type_word(100.0, 11.0);
-        assert!(!w.send(Event::Key(Chord::new(CMD, 'a'))), "select all goes on");
+        // slinger-ea308d: select all selects the text's characters, not items.
+        assert!(w.send(Event::Key(Chord::new(CMD, 'a'))), "the text's select all");
+        assert!(w.send(Event::Command(Command::SelectAll)), "chosen from the menu too");
         assert_eq!(selected(&w), 0);
         assert!(!w.send(Event::Key(Chord::new(0, '\t'))), "tab types");
         assert_eq!(selected(&w), 0);

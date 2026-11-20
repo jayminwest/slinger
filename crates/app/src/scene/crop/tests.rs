@@ -22,7 +22,7 @@ fn item(id: u64, shape: Shape) -> Cow<'static, Item> {
 }
 
 fn press(at: Point) -> Press {
-    Press { at, when: 0.0, zoom: 1.0 }
+    Press { at, when: 0.0, zoom: 1.0, shift: false }
 }
 
 /// The page whole, at half its size in points: 1224 by 1584 units.

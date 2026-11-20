@@ -690,7 +690,20 @@ scene/glyphs.rs  the box a text's glyphs fill, as a canvas view draws it:
              (kept per text and size), else an estimate of the system font
              (tests). A canvas text is drawn in the core's rows for its
              stored column, a size apart (the box `canvas put` reports and
-             a crop draws), in the system font at 0.83 of its size. Pure.
+             a crop draws), in the system font at 0.83 of its size.
+             `layout`: those rows as byte ranges; `Laid`: where a caret
+             stands, which index a point is nearest, a selection's boxes,
+             from the same rows and measures. Pure.
+scene/editor.rs  the canvas text being typed (docs/design/pen-less.md 2A):
+             its characters, caret and selection (`Editor`), moved by
+             fixed text keys (arrows, alt for words, cmd for rows and the
+             text's ends, home/end, shift extends, delete and forward
+             delete, cmd+a), not registry commands: `taken` gives them
+             the key before the keymap while a text is typed. A press
+             inside places the caret, a drag or shift-press selects; copy
+             and cut take the selected characters. `Editing`: where the
+             text is and how it is set; its caret bar and selection boxes
+             are scene items (`Shape::Caret` is a plain bar). Pure.
 scene/paste.rs  the clipboard as the app sees it (`Clip`: plain text, a
              canvas's items) and the edits no text field takes (`Edit`:
              cut, copy, paste); pasted text made fit to type: line ends as
