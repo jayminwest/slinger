@@ -198,7 +198,7 @@ kind:
 |---|---|
 | `stroke` | `width`, `pts` (delta array, above, at least one pair) |
 | `text` | `x`, `y`, `w`, `h` (the frame the text is laid out in; `w` and `h` read as 0 when missing), `text`, then optional `size`: the text's size (a character's cell is that tall and half that wide, about a character of the app's font), from 40 to 4000 tenths (4 to 400 units). A missing or `null` `size` is 240 (24 units), and a writer leaves it out at 240, so a file from before sizes reads and writes the same bytes. A frame narrower than one character cell gets the size of the text unwrapped; one with no height keeps its width and gets the height of the text wrapped to it. Zero-width characters (U+200B, U+200C, U+200D, U+2060, U+FE0F, U+FEFF) take no cell. Readers and writers apply this rule, so a line written without a frame size replays to the same frame. The app writes text the user types as wide as its longest line, so it never wraps (one written a full size a character wide, as cells were before slinger-ce52ee, reads as typed too), and keeps that width as it grows; any other width is a column, which a resize scales with the size and an edit keeps. A `set` of a text carries `"size":null` for the usual size, which clears an earlier one. |
-| `box` | `x`, `y`, `w`, `h` |
+| `box` | `x`, `y`, `w`, `h` (the frame on the page: the miniature while folded), then optional `fold`: `{"w":<open w>,"h":<open h>,"items":["i5",…]}` while the box is folded (`docs/design/fold.md`): its open size (both above 0; the open frame's top left is the box's) and the ids of the items it holds directly, in the order taken. Absent or `null`: open. The items it holds stay items with their own lines, at their places; a reader hides them. A listed id that is gone or on another page is skipped, an item two boxes list belongs to the lower box id, and an entry that would make a box hold itself, at any depth, is skipped: no list is damage. A `set` carries `"fold":null` to open the box. A move or remove of a folded box names every item it holds as well |
 | `arrow` | `pts` (delta array, two or more pairs); optional `from`, `to` (item ids it points at) |
 | `live` | `x`, `y`, `w`, `h` (both above 0), `ui` (the UI's name), `hash` (the blob id of the version shown), `open` (the showing, `pick-slot#12`) |
 | `button` | `x`, `y`, `w`, `h` (both above 0): the built-in "send to agent" button (SPEC section 8). It names no code: the app draws it, and a tap on it slings what is new on its page |
@@ -274,6 +274,10 @@ undo history (slinger-2628e5):
 - A reader skips an operation kind it does not know, keeps an item of a kind it does
   not know without drawing it, and ignores fields it does not know. Because the file
   is never rewritten, all of them stay on disk.
+- Added so far without a `v` change: the text `size`, the `live`, `button` and `pdf`
+  kinds, and a box's `fold` (`docs/design/fold.md`). A reader from before `fold` shows
+  a folded box as a small open box and every item it holds where it is: it loses
+  the fold, never an item.
 - `v` goes up only when an old reader would misread the file (for example, a new
   coordinate unit). A new kind of thing is a new `op`, never a new meaning for an old
   one, as with CLI verbs (section 7).

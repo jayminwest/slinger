@@ -248,8 +248,10 @@ impl Log {
     }
 
     /// Applies `ops` (one operation object or a list of them) as one undo
-    /// step of `by`. Every operation applies or none does. The arrows bound
-    /// to what the ops move or resize follow, as [`Log::followed`] says.
+    /// step of `by`. Every operation applies or none does. A move or a
+    /// remove of a folded box carries what it holds ([`Log::carried`]), and
+    /// the arrows bound to what the ops move or resize follow, as
+    /// [`Log::followed`] says.
     ///
     /// # Errors
     ///
@@ -265,7 +267,7 @@ impl Log {
             let op = op.as_object().ok_or_else(|| bad("an operation is not an object".into()))?;
             self.read_op(op, &mut actions)?;
         }
-        let actions = self.followed(by, actions);
+        let actions = self.followed(by, self.carried(actions));
         self.step(by, at, actions)
     }
 
@@ -381,6 +383,14 @@ impl Log {
                         bad(format!("`{key}` \"${n}\" names no item an `add` before it made"))
                     })?;
                     item.insert(key.into(), json::item_id(made).into());
+                }
+                let listed = item.get_mut("fold").and_then(|f| f.get_mut("items"));
+                for v in listed.and_then(Value::as_array_mut).into_iter().flatten() {
+                    let Some(n) = v.as_str().and_then(|s| s.strip_prefix('$')) else { continue };
+                    let made = self.made(out, n).ok_or_else(|| {
+                        bad(format!("`fold` lists \"${n}\", which no `add` before it made"))
+                    })?;
+                    *v = json::item_id(made).into();
                 }
                 let page = json::text(&item, "page").and_then(json::parse_page).map_err(bad)?;
                 let shape = read_shape(&item)?;

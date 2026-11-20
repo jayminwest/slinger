@@ -124,7 +124,7 @@ impl Log {
                 Shape::Text { text: text.clone(), frame: origin(w, h), colour, size }
             }
             Put::Box { w, h } => {
-                Shape::Box { frame: origin(json::units(*w), json::units(*h)), colour }
+                Shape::Box { frame: origin(json::units(*w), json::units(*h)), colour, fold: None }
             }
             Put::Ink(pts) => Shape::Stroke { points: points(pts), colour, width: INK_WIDTH },
             Put::Live { ui, hash, open, w, h } => Shape::Live {

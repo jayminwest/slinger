@@ -363,13 +363,16 @@ list of them, applied in order as one undo step: all of them apply, or none
 do. An arrow bound to an item the operations move or resize (`move`, or a
 `set` that changes its box) follows in the same step, as with `canvas_edit`,
 when `by` may change it and no operation touches the arrow itself: a client
-that places the arrows (the app does) sends a `set` for each. Ids, items and units are as in the canvas file (`docs/design/canvas-file.md`):
+that places the arrows (the app does) sends a `set` for each. A `move` or
+`remove` of a folded box (`docs/design/fold.md`), or a `set` that moves its top
+left and leaves it folded, carries every item it holds, at any depth, in the
+same step; items the operations name themselves are left to them. Ids, items and units are as in the canvas file (`docs/design/canvas-file.md`):
 item ids `i<n>`, page ids `p<n>`, and positions and lengths as integers in
 tenths of a unit.
 
 | `op` | fields |
 |---|---|
-| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000`. A `text` without `w` or `h` gets a frame that fits its words (the rule is in `docs/design/canvas-file.md`); a given size is kept. A `text`'s optional `size` (40 to 4000 tenths; missing, 240) is the size of its characters; outside that range it is `invalid`. An arrow's `from` or `to` may be `$n` (`$0`, `$1`, ...): the item that `made[n]` of this same request names, made by an `add` before it, so items and the arrows between them are added in one step |
+| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000`. A `text` without `w` or `h` gets a frame that fits its words (the rule is in `docs/design/canvas-file.md`); a given size is kept. A `text`'s optional `size` (40 to 4000 tenths; missing, 240) is the size of its characters; outside that range it is `invalid`. An arrow's `from` or `to` may be `$n` (`$0`, `$1`, ...): the item that `made[n]` of this same request names, made by an `add` before it, so items and the arrows between them are added in one step; so may an id in a box's `fold.items` |
 | `remove` | `ids`: list of item ids. Ids already gone are fine |
 | `move` | `ids`, `dx`, `dy` |
 | `set` | `id`, `fields`: item fields to replace, laid over the item's current ones. New `text` without `w` or `h` reads the missing one as 0, so the frame fits the new words (at the text's `size`) by the same rule; `"size": null` puts a text back to the usual 240 |

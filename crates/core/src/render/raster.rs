@@ -72,7 +72,7 @@ impl Raster {
                 let points: Vec<Point> = points.iter().map(|&p| self.at(p)).collect();
                 (vec![points], width * SCALE / 2.0, *colour)
             }
-            Shape::Box { frame, colour } => {
+            Shape::Box { frame, colour, .. } => {
                 (vec![corners(self, *frame)], LINE_WIDTH * SCALE / 2.0, *colour)
             }
             Shape::Arrow { from, to, colour } => {

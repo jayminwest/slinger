@@ -53,7 +53,7 @@ fn small() -> (Board, Vec<ItemId>) {
     ];
     let agent = Author::Agent("claude".into());
     let frame = Rect::new(160.0, 20.0, 200.0, 80.0);
-    b.add(agent.clone(), Shape::Box { frame, colour: BLUE });
+    b.add(agent.clone(), Shape::Box { frame, colour: BLUE, fold: None });
     let text = "Hello, ink: 0.35 scale".into();
     let frame = Rect::new(170.0, 30.0, 180.0, 60.0);
     b.add(agent.clone(), Shape::Text { text, frame, colour: Colour::BLACK, size: 24.0 });

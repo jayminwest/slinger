@@ -114,7 +114,7 @@ fn every_kind_of_shape_has_a_bounding_box() {
     let s = add(&mut c, &user, stroke(&[(10.0, 10.0), (30.0, 50.0), (20.0, 5.0)]));
     assert_eq!(c.item(s).unwrap().bounds(), Rect::new(9.0, 4.0, 22.0, 47.0));
     let frame = Rect::new(1.0, 2.0, 3.0, 4.0);
-    let b = add(&mut c, &user, Shape::Box { frame, colour: Colour::rgb(255, 0, 0) });
+    let b = add(&mut c, &user, Shape::Box { frame, colour: Colour::rgb(255, 0, 0), fold: None });
     assert_eq!(c.item(b).unwrap().bounds(), frame);
     let arrow = Shape::Arrow {
         from: End::free(Point::new(50.0, 0.0)),
@@ -145,7 +145,7 @@ fn add_rejects_a_missing_page_a_missing_target_and_shapes_that_cannot_be_drawn()
         stroke(&[]),
         stroke(&[(f64::NAN, 0.0)]),
         Shape::Stroke { points: vec![Point::default()], colour: Colour::BLACK, width: 0.0 },
-        Shape::Box { frame: Rect::new(0.0, 0.0, -1.0, 1.0), colour: Colour::BLACK },
+        Shape::Box { frame: Rect::new(0.0, 0.0, -1.0, 1.0), colour: Colour::BLACK, fold: None },
         Shape::Text {
             text: "t".into(),
             frame: Rect::new(f64::INFINITY, 0.0, 1.0, 1.0),
@@ -208,7 +208,7 @@ fn move_shifts_every_kind_of_shape() {
     let frame = add(
         &mut c,
         &user,
-        Shape::Box { frame: Rect::new(0.0, 0.0, 2.0, 2.0), colour: Colour::BLACK },
+        Shape::Box { frame: Rect::new(0.0, 0.0, 2.0, 2.0), colour: Colour::BLACK, fold: None },
     );
     let arrow = add(
         &mut c,

@@ -51,6 +51,13 @@ canvas/      pages of items, changed only by operations. Build (Canvas::new),
              text; Shape::shown, the crop or the whole page. The core never
              reads a PDF. `drawn` puts pdf items first: they are the paper
              under every other kind, for the render and every hit test.
+canvas/fold.rs  folded boxes (docs/design/fold.md): Fold (open size, the
+             ids held directly) on Shape::Box. The one rule for "hidden"
+             (holders): visible, holder, hidden, contents (open: wholly
+             inside by geometry; folded: the list), held (any depth) and
+             in_the_way (what blocks an unfold). drawn, and so every geometry
+             query and the render, shows only visible items; items() is all.
+             geometry::miniature is the frame a box folds to.
 canvas/delta.rs  what is new after the last sling (R1): an op log and a
              marker (ops applied before it) in; the items new, changed or
              removed against the canvas at the marker out. Compares the two
@@ -94,6 +101,10 @@ canvas/file/ the canvas file (docs/design/canvas-file.md): a versioned, append-o
              refits the bound ends of the arrows `by` may change, in the
              same step. The author rule stays in Canvas (may_change),
              checked first.
+             fold.rs: Log::fold and Log::unfold (a `set` of the box, one
+             step; unfold into a taken room is `conflict`), and
+             Log::carried: a move or remove of a folded box (canvas_apply,
+             edit, remove) carries what it holds, before Log::followed.
 packet/      what an agent reads from a page (docs/design/packet.md). Index::new takes a
              canvas page, the clusters of the user's ink and what changed, and gives
              the `new`, `made` and `page` lines in reading order, plus the render list:

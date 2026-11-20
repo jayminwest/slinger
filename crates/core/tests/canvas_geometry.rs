@@ -19,7 +19,7 @@ fn stroke(points: &[(f64, f64)], width: f64) -> Shape {
 }
 
 fn frame(x: f64, y: f64, w: f64, h: f64) -> Shape {
-    Shape::Box { frame: Rect::new(x, y, w, h), colour: Colour::BLACK }
+    Shape::Box { frame: Rect::new(x, y, w, h), colour: Colour::BLACK, fold: None }
 }
 
 fn text(x: f64, y: f64, w: f64, h: f64) -> Shape {

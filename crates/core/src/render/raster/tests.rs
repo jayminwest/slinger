@@ -71,8 +71,11 @@ fn a_stroke_that_turns_back_on_itself_is_laid_down_once() {
 
 #[test]
 fn a_box_is_an_outline_with_a_white_inside() {
-    let r =
-        drawn(vec![Shape::Box { frame: Rect::new(20.0, 20.0, 60.0, 60.0), colour: Colour::BLACK }]);
+    let r = drawn(vec![Shape::Box {
+        frame: Rect::new(20.0, 20.0, 60.0, 60.0),
+        colour: Colour::BLACK,
+        fold: None,
+    }]);
     // The edges fall on the line between two pixels, so each pixel is half covered.
     assert_eq!(r.pixel(7, 17), [128, 128, 128], "left edge");
     assert_eq!(r.pixel(6, 17), [128, 128, 128], "left edge");

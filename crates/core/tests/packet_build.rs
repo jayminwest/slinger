@@ -127,7 +127,11 @@ fn small() -> (Vec<Op>, PageId, u64) {
     let mut log = vec![add(stroke(0.0, Colour::BLACK), 0), add(stroke(30.0, Colour::BLACK), 0)];
     let marker = log.len() as u64;
     log.push(add(stroke(600.0, Colour::rgb(255, 0, 0)), 60));
-    let frame = Shape::Box { frame: Rect::new(-10.0, -10.0, 100.0, 60.0), colour: Colour::BLACK };
+    let frame = Shape::Box {
+        frame: Rect::new(-10.0, -10.0, 100.0, 60.0),
+        colour: Colour::BLACK,
+        fold: None,
+    };
     log.push(add(frame, 60));
     let arrow = Shape::Arrow {
         from: End::on(Point::new(600.0, 0.0), ItemId::new(3)),

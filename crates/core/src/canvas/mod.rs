@@ -15,6 +15,7 @@
 mod delta;
 pub mod file;
 mod find;
+mod fold;
 mod geometry;
 mod history;
 mod item;
@@ -25,8 +26,9 @@ use std::collections::BTreeMap;
 
 pub(crate) use delta::replay;
 pub use delta::{Changes, Marker, changes_since};
-pub use geometry::GAP;
+pub use fold::Fold;
 pub(crate) use geometry::ink_gap;
+pub use geometry::{GAP, MINIATURE, miniature};
 pub(crate) use history::Rebuild;
 pub use history::{History, Step, Walked};
 pub use item::{
@@ -238,9 +240,11 @@ impl Canvas {
     /// The items on a page in the order they are drawn: the `pdf` items
     /// first (they are the paper under everything), then the rest, each
     /// group in item order. The render and every hit test use this order.
+    /// Items hidden in a folded box are not drawn ([`Canvas::visible`]).
     pub fn drawn(&self, page: PageId) -> impl Iterator<Item = &Item> {
-        let paper = |i: &&Item| matches!(i.shape, Shape::Pdf { .. });
-        self.items(page).filter(paper).chain(self.items(page).filter(move |i| !paper(i)))
+        let (paper, rest): (Vec<&Item>, Vec<&Item>) =
+            self.visible(page).partition(|i| matches!(i.shape, Shape::Pdf { .. }));
+        paper.into_iter().chain(rest)
     }
 
     /// The item with this id, if it is on the canvas.

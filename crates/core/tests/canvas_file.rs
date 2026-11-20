@@ -67,7 +67,7 @@ fn shape(rng: &mut Rng, items: &[ItemId]) -> Shape {
             colour: colour(rng),
             size: [24.0, 36.5, 4.0][rng.below(3)],
         },
-        2 => Shape::Box { frame: frame(rng), colour: colour(rng) },
+        2 => Shape::Box { frame: frame(rng), colour: colour(rng), fold: None },
         3 => Shape::Live {
             frame: frame(rng),
             ui: rng.pick(&["pick-slot", "a"]).to_string(),
@@ -215,7 +215,7 @@ fn the_stored_v1_fixture_still_decodes() {
     let black = Colour::BLACK;
     assert_eq!(
         item(2).shape(),
-        &Shape::Box { frame: Rect::new(180.0, 700.0, 90.0, 60.0), colour: black }
+        &Shape::Box { frame: Rect::new(180.0, 700.0, 90.0, 60.0), colour: black, fold: None }
     );
     let text = item(3);
     assert_eq!(text.author(), &Author::Agent("scout".into()));

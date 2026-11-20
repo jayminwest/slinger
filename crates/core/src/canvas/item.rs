@@ -3,6 +3,7 @@
 
 use std::fmt;
 
+use super::Fold;
 use crate::{Error, Result};
 
 /// The size of a text item's characters, in canvas units, when it gives
@@ -220,8 +221,9 @@ pub enum Shape {
     /// Text laid out inside `frame`, `size` canvas units a character cell
     /// ([`TEXT_SIZE`] unless it says otherwise, within [`TEXT_SIZES`]).
     Text { text: String, frame: Rect, colour: Colour, size: f64 },
-    /// A rectangle outline.
-    Box { frame: Rect, colour: Colour },
+    /// A rectangle outline. `fold` is set while it is folded
+    /// (docs/design/fold.md): `frame` is then the miniature on the page.
+    Box { frame: Rect, colour: Colour, fold: Option<Fold> },
     /// A straight arrow from one end to the other.
     Arrow { from: End, to: End, colour: Colour },
     /// A live item (docs/design/live-items.md): an agent UI drawn in
@@ -345,7 +347,10 @@ impl Shape {
                 }
                 frame.check("the text frame")
             }
-            Shape::Box { frame, .. } => frame.check("the box"),
+            Shape::Box { frame, fold, .. } => {
+                frame.check("the box")?;
+                fold.as_ref().map_or(Ok(()), Fold::check)
+            }
             Shape::Button { frame } => {
                 frame.check("the button")?;
                 if frame.w <= 0.0 || frame.h <= 0.0 {

@@ -143,6 +143,7 @@ mod tests {
         let shape = crate::canvas::Shape::Box {
             frame: crate::canvas::Rect::default(),
             colour: crate::canvas::Colour::BLACK,
+            fold: None,
         };
         let op = Op {
             by: crate::canvas::Author::User,

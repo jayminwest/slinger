@@ -274,7 +274,7 @@ fn draw(n: &Node, own: Place) -> Option<Shape> {
 fn rectangle(n: &Node, own: Place) -> Vec<Shape> {
     let (w, h) = (n.num("w", 0.0), n.num("h", 0.0) + n.num("growY", 0.0));
     let frame = own.rect(w, h);
-    let mut out = vec![Shape::Box { frame, colour: n.colour("color") }];
+    let mut out = vec![Shape::Box { frame, colour: n.colour("color"), fold: None }];
     if !plain(n.props).trim().is_empty() {
         out.push(label(n, own, "labelColor", w, Some(frame)));
     }
