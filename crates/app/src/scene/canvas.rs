@@ -66,9 +66,9 @@ pub enum Shape {
     /// (`scene::select`, `scene::shapes`): `frame` filled with `fill`, if
     /// any, under its outline `width` wide, dashed when `dashed`.
     Panel { frame: Rect, fill: Option<Fill>, width: f64, dashed: bool },
-    /// The caret of a text being typed, also chrome: a bar `width` wide
-    /// after the last character of `text` set `size` high in `frame`.
-    Caret { frame: Rect, text: String, size: f64, width: f64 },
+    /// The caret of a text being typed, also chrome: a bar filling `frame`
+    /// ([`crate::scene::editor`] places it).
+    Caret { frame: Rect },
 }
 
 /// The paint inside a [`Shape::Panel`]: `colour` at `alpha` (0 to 1), over
@@ -156,17 +156,9 @@ pub enum Mark {
         width: f64,
         dashed: bool,
     },
-    /// A bar `width` wide, as tall as a line, after the last character of
-    /// `text` laid out like a [`Mark::Text`] from `at`: only the layout
-    /// knows where that character ends.
+    /// A text's caret: a bar filling `frame`.
     Caret {
-        at: Point,
-        column: f64,
-        text: String,
-        size: f64,
-        line: f64,
-        zoom: f64,
-        width: f64,
+        frame: Rect,
     },
 }
 
@@ -347,13 +339,11 @@ impl Shape {
             Self::Text { frame, .. }
             | Self::Live { frame, .. }
             | Self::Button { frame, .. }
-            | Self::Pdf { frame, .. } => Some(*frame),
+            | Self::Pdf { frame, .. }
+            | Self::Caret { frame } => Some(*frame),
             Self::Box { frame, width } | Self::Panel { frame, width, .. } => {
                 Some(frame.outset(width / 2.0))
             }
-            // The text's frame holds every character, and the bar may stand
-            // just past it.
-            Self::Caret { frame, width, .. } => Some(frame.outset(*width)),
             Self::Arrow { from, to, width, .. } => {
                 Rect::around([*from, *to]).map(|r| r.outset(width / 2.0 + HEAD_LENGTH))
             }
@@ -383,9 +373,7 @@ impl Shape {
             Self::Panel { frame, fill, width, dashed } => {
                 Self::Panel { frame: shift(frame), fill: *fill, width: *width, dashed: *dashed }
             }
-            Self::Caret { frame, text, size, width } => {
-                Self::Caret { frame: shift(frame), text: text.clone(), size: *size, width: *width }
-            }
+            Self::Caret { frame } => Self::Caret { frame: shift(frame) },
         }
     }
 
@@ -449,16 +437,7 @@ impl Shape {
                 width: width * zoom,
                 dashed: *dashed,
             },
-            // The caret is in a canvas text being typed, in its rows.
-            Self::Caret { frame, text, size, width } => Mark::Caret {
-                at: view.to_screen(Point { x: frame.x, y: frame.y }),
-                column: glyphs::UNWRAPPED,
-                text: text.clone(),
-                size: size * glyphs::FONT,
-                line: *size,
-                zoom,
-                width: width * zoom,
-            },
+            Self::Caret { frame } => Mark::Caret { frame: view.rect_to_screen(*frame) },
         }
     }
 }

@@ -126,3 +126,29 @@ fn unpasted(chord: Chord, shared: &Shared, canvases: &Canvases, tools: &Tools) -
     }
     paste
 }
+
+/// Hands `chord` to what takes keys before the keymap: the open key overlay
+/// in `shared` (every key), the page menu (escape), the sling's entry, the
+/// text being typed (its caret keys), then a pop-up ([`picked`]). False
+/// when none took it.
+pub fn taken(
+    chord: Chord,
+    shared: &mut Shared,
+    canvases: &mut Canvases,
+    tools: &mut Tools,
+    settings: &Settings,
+) -> bool {
+    shared.overlay.key(chord, &settings.config.keys)
+        || shared.menu.key(chord)
+        || canvases.sling_key(chord)
+        || canvases.edit_key(chord)
+        || tools.key(chord) && picked(tools, canvases)
+}
+
+/// A colour picked from the pop-up recolours the selection. Always true.
+pub fn picked(tools: &mut Tools, canvases: &mut Canvases) -> bool {
+    if let Some(colour) = tools.picked() {
+        canvases.recolour(colour);
+    }
+    true
+}

@@ -3,10 +3,13 @@
 //! user sees it ([`Ink::shown`]); each finished text or shape goes to the
 //! [`Ink`] as one [`Change`], so one `canvas_apply` and one undo step.
 //!
-//! - Text: a tap places it and the keyboard types it ([`Shapes::typed`]);
-//!   a paste goes in at its end ([`Shapes::pasted`]); escape or a press
-//!   outside ends it. While it is typed it shows a caret
-//!   after its last character, a dashed frame around it, and under that how
+//! - Text: a tap places it and the keyboard types it ([`Shapes::typed`])
+//!   at its caret ([`crate::scene::editor`]), which a tap that opens it
+//!   leaves at its end; a paste goes in at the caret ([`Shapes::pasted`]);
+//!   the caret keys move it ([`Shapes::key`]), and a press inside puts it
+//!   there, a drag or a shift-press selecting; escape or a press
+//!   outside ends it. While it is typed it shows its caret and selection,
+//!   a dashed frame around it, and under that how
 //!   to end it. A press outside with any other tool
 //!   also starts that tool's gesture: the first gesture after a text is
 //!   never lost. A tap with the text tool on a text,
@@ -27,10 +30,12 @@
 use std::borrow::Cow;
 use std::collections::HashSet;
 
+use crate::commands::Chord;
 use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect};
 use crate::mirror::{LINE_WIDTH, TEXT_SIZE};
-use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::canvas::{Fill, Item, ItemId, Shape};
+use crate::scene::editor::{Editing, Editor};
 use crate::scene::glyphs;
 use crate::scene::ink::{Change, Ink, on_server};
 use crate::scene::paste;
@@ -44,7 +49,7 @@ pub const DOUBLE_TAP: f64 = 0.4;
 pub const REACH: f64 = 8.0;
 /// The least drag, in screen points, that makes a box or an arrow.
 pub const MIN_DRAG: f64 = 4.0;
-/// The width of the caret after the text being edited, of the dashed frame
+/// The width of the caret in the text being edited, of the dashed frame
 /// around it, and how far out the frame lies, in screen points.
 const CARET: f64 = 2.0;
 const FRAME_LINE: f64 = 1.0;
@@ -63,6 +68,10 @@ const EDITING: ItemId = ItemId(u64::MAX - 3);
 const CARET_ID: ItemId = ItemId(u64::MAX - 9);
 const FRAME_ID: ItemId = ItemId(u64::MAX - 10);
 const HINT_ID: ItemId = ItemId(u64::MAX - 11);
+/// The first of the ids of the selection's boxes in the text being typed,
+/// one a row, counting down; and how strongly they tint what is under them.
+const SELECTED: u64 = u64::MAX - (1 << 16);
+const SELECTED_ALPHA: f64 = 0.3;
 
 /// One press of the pen: where on the canvas, when (seconds, the pen's
 /// clock) and at what zoom.
@@ -71,6 +80,9 @@ pub struct Press {
     pub at: Point,
     pub when: f64,
     pub zoom: f64,
+    /// Whether shift was held: inside the text being typed, the selection
+    /// runs to the press.
+    pub shift: bool,
 }
 
 /// A box or an arrow under the pen, from where it went down to where it is.
@@ -85,40 +97,15 @@ struct Drag {
     zoom: f64,
 }
 
-/// A text being typed.
-#[derive(Debug, Clone, PartialEq)]
-struct Editing {
-    canvas: String,
-    page: String,
-    /// The text's top left, in canvas units.
-    at: Point,
-    text: String,
-    colour: Rgb,
-    /// The text's size: an edited text's own, a new one's [`TEXT_SIZE`].
-    size: f64,
-    /// The column it wraps in: an edited text's own, so an agent's
-    /// paragraph keeps its rows; [`glyphs::UNWRAPPED`] for a new one.
-    column: f64,
-    /// The text item edited and its text before; `None` for a new text.
-    item: Option<(ItemId, String)>,
-}
-
-impl Editing {
-    /// The box its glyphs fill in its column, in the core's rows: the caret,
-    /// the dashed frame and a press inside follow the glyphs. The file
-    /// stores its own frame.
-    fn frame(&self) -> Rect {
-        glyphs::rows_frame(self.at, &self.text, self.size, self.column)
-    }
-}
-
-/// The box or arrow under the pen, the text being typed, the last press,
+/// The box or arrow under the pen, the text being typed (and whether the
+/// pen, down inside it, is selecting its characters), the last press,
 /// and the edit a double tap with the select tool or the lasso asks for
 /// once the pen lifts where it went down, within the reach there.
 #[derive(Debug, Default)]
 pub struct Shapes {
     drag: Option<(String, String, Drag)>,
     editing: Option<Editing>,
+    selecting: bool,
     last: Option<(String, String, Press)>,
     waiting: Option<(Editing, Point, f64)>,
 }
@@ -148,9 +135,11 @@ impl Shapes {
                 && press.when - last.when <= DOUBLE_TAP
                 && distance(press.at, last.at) <= reach
         });
-        if let Some(editing) = &self.editing {
+        if let Some(editing) = &mut self.editing {
             let here = editing.canvas == canvas && editing.page == page;
             if here && editing.frame().outset(reach).contains(press.at) {
+                editing.place(press.at, press.shift);
+                self.selecting = true;
                 return true;
             }
             self.end(ink);
@@ -167,7 +156,7 @@ impl Shapes {
                 canvas: canvas.to_string(),
                 page: page.to_string(),
                 at: Point { x: frame.x, y: frame.y },
-                text: text.clone(),
+                editor: Editor::new(text.clone()),
                 colour: item.colour,
                 size: *size,
                 column: column.unwrap_or(glyphs::UNWRAPPED),
@@ -189,7 +178,7 @@ impl Shapes {
                     canvas: canvas.to_string(),
                     page: page.to_string(),
                     at: snap(Point { x: press.at.x, y: press.at.y - half }),
-                    text: String::new(),
+                    editor: Editor::default(),
                     colour,
                     size: TEXT_SIZE,
                     column: glyphs::UNWRAPPED,
@@ -220,9 +209,14 @@ impl Shapes {
         still
     }
 
-    /// The pen moved to `at` while down. Returns false when no box or arrow
-    /// is under it.
+    /// The pen moved to `at` while down: a box or an arrow goes with it, or,
+    /// after a press inside the text being typed, the selection runs to it.
+    /// Returns false when none of them is under it.
     pub fn drag(&mut self, at: Point) -> bool {
+        if let Some(editing) = self.editing.as_mut().filter(|_| self.selecting) {
+            editing.place(at, true);
+            return true;
+        }
         let Some((_, _, drag)) = &mut self.drag else { return false };
         drag.to = at;
         true
@@ -231,10 +225,13 @@ impl Shapes {
     /// The pen lifted, at `at` if it said where, over `items`: a box or an
     /// arrow that went far enough goes to `ink` as one change, an arrow's
     /// end bound to the item it landed on. Returns false when no box or
-    /// arrow was under the pen.
+    /// arrow, and no selecting inside the text being typed, was under the pen.
     pub fn up(&mut self, at: Option<Point>, items: &[Cow<'_, Item>], ink: &mut Ink) -> bool {
         if let Some(at) = at {
             self.drag(at);
+        }
+        if std::mem::take(&mut self.selecting) {
+            return true;
         }
         let Some((canvas, page, drag)) = self.drag.take() else { return false };
         if distance(drag.from, drag.to) * drag.zoom < MIN_DRAG {
@@ -260,36 +257,48 @@ impl Shapes {
         self.editing.as_ref().map(|e| (e.canvas.as_str(), e.page.as_str()))
     }
 
-    /// Typed `text` goes into the text being edited: delete takes the last
-    /// character back, return starts a line, escape ends the text (to
-    /// `ink`). Other control and function keys do nothing. Returns false,
-    /// and nothing changes, when no text is being edited.
+    /// Typed `text` goes into the text being edited at its caret, in place
+    /// of its selection: delete deletes back, return starts a line, escape
+    /// ends the text (to `ink`). Other control and function keys do
+    /// nothing ([`Editor::typed`]). Returns false, and nothing changes,
+    /// when no text is being edited.
     pub fn typed(&mut self, text: &str, ink: &mut Ink) -> bool {
         let Some(editing) = &mut self.editing else { return false };
-        for c in text.chars() {
-            match c {
-                '\u{1b}' => {
-                    self.end(ink);
-                    return true;
-                }
-                '\u{7f}' | '\u{8}' => {
-                    editing.text.pop();
-                }
-                '\r' | '\n' => editing.text.push('\n'),
-                // The arrow and function keys are in this private range.
-                c if c.is_control() || ('\u{f700}'..='\u{f8ff}').contains(&c) => {}
-                c => editing.text.push(c),
+        match text.split_once('\u{1b}') {
+            Some((before, _)) => {
+                editing.editor.typed(before);
+                self.end(ink);
             }
+            None => editing.editor.typed(text),
         }
         true
     }
 
-    /// Pasted `text` goes into the text being edited at its end, each line
-    /// end starting a line ([`paste::plain`]). Returns false, and nothing
-    /// changes, when no text is being edited.
+    /// A key of the text being typed: its caret, selection and delete keys
+    /// ([`Editor::key`]). Returns false when no text is being typed, or the
+    /// key is not one of them.
+    pub fn key(&mut self, chord: Chord) -> bool {
+        self.editing.as_mut().is_some_and(|editing| editing.key(chord))
+    }
+
+    /// The characters selected in the text being typed, if any; with `cut`,
+    /// they are taken out of it.
+    pub fn copy(&mut self, cut: bool) -> Option<String> {
+        let editor = &mut self.editing.as_mut()?.editor;
+        if cut { editor.cut() } else { editor.selected().map(str::to_string) }
+    }
+
+    /// Whether characters are selected in the text being typed.
+    pub fn selects(&self) -> bool {
+        self.editing.as_ref().is_some_and(|e| e.editor.selection().is_some())
+    }
+
+    /// Pasted `text` goes into the text being edited at its caret, in place
+    /// of its selection, each line end starting a line ([`paste::plain`]).
+    /// Returns false, and nothing changes, when no text is being edited.
     pub fn pasted(&mut self, text: &str) -> bool {
         let Some(editing) = &mut self.editing else { return false };
-        editing.text.push_str(&paste::plain(text));
+        editing.editor.insert(&paste::plain(text));
         true
     }
 
@@ -298,10 +307,11 @@ impl Shapes {
     /// new text and an unchanged edit make none. Returns false when no text
     /// was being edited.
     pub fn end(&mut self, ink: &mut Ink) -> bool {
+        self.selecting = false;
         let Some(editing) = self.editing.take() else { return false };
-        let blank = editing.text.trim().is_empty();
+        let blank = editing.editor.text().trim().is_empty();
         let (frame, size, column) = (editing.frame(), editing.size, Some(editing.column));
-        let shape = Shape::Text { frame, text: editing.text, size, column };
+        let shape = Shape::Text { frame, text: editing.editor.text().to_string(), size, column };
         let (canvas, page) = (editing.canvas, editing.page);
         match editing.item {
             None if blank => {}
@@ -337,12 +347,18 @@ impl Shapes {
             if let Some((id, _)) = &editing.item {
                 items.retain(|i| i.id != *id);
             }
-            let (frame, text, size) = (editing.frame(), editing.text.clone(), editing.size);
+            let (frame, text, size) = (editing.frame(), editing.editor.text(), editing.size);
+            let (caret, selected) = editing.marks(CARET / zoom);
+            let fill = Some(Fill { colour: theme.focus, alpha: SELECTED_ALPHA });
+            for (n, frame) in (0..).zip(selected) {
+                let shape = Shape::Panel { frame, fill, width: 0.0, dashed: false };
+                let id = ItemId(SELECTED - n);
+                items.push(Cow::Owned(Item { id, colour: theme.focus, shape }));
+            }
             let column = Some(editing.column);
-            let shape = Shape::Text { frame, text: text.clone(), size, column };
+            let shape = Shape::Text { frame, text: text.to_string(), size, column };
             items.push(Cow::Owned(Item { id: EDITING, colour: editing.colour, shape }));
-            let width = CARET / zoom;
-            let shape = Shape::Caret { frame, text, size, width };
+            let shape = Shape::Caret { frame: caret };
             items.push(Cow::Owned(Item { id: CARET_ID, colour: theme.focus, shape }));
             let around = frame.outset(FRAME_PAD / zoom);
             let shape =

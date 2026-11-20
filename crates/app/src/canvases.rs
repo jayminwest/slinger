@@ -300,7 +300,7 @@ impl Canvases {
         let viewport = self.view(pane).viewport;
         let at = to_canvas(viewport, frame, pen.at);
         let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
-        let press = Press { at, when: pen.when, zoom: viewport.zoom() };
+        let press = Press { at, when: pen.when, zoom: viewport.zoom(), shift: pen.shift };
         let here = (canvas, shown.as_str());
         let grabs = self.select.grabs(here, at, viewport.zoom(), &items);
         if let Some(button) = button::under(&items, at).filter(|_| !grabs && tool != Tool::Eraser) {

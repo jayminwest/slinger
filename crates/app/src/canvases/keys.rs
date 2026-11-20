@@ -1,9 +1,11 @@
 //! What the keys do on the canvas panes: typed and pasted text go to a
-//! page command's question or the text being typed, and delete and escape
+//! page command's question or the text being typed, the caret keys to the
+//! text being typed, and delete and escape
 //! act on the selection from any pane that shows its page; a colour picked
 //! recolours it.
 
 use super::{Canvases, canvas_of, find, wanted};
+use crate::commands::Chord;
 use crate::config::Rgb;
 use crate::layout::PaneId;
 use crate::mirror::Mirror;
@@ -32,6 +34,18 @@ impl Canvases {
             return true;
         }
         let used = self.shapes.typed(text, &mut self.ink);
+        if used {
+            self.send();
+        }
+        used
+    }
+
+    /// A key of the text being typed: its caret, selection and delete keys
+    /// ([`crate::scene::editor`]), which come before the keymap. False when
+    /// no canvas text is being typed (or the sling's entry, or a page
+    /// command's question, has the keys), or the key is not one of them.
+    pub fn edit_key(&mut self, chord: Chord) -> bool {
+        let used = !self.typing() && !self.asks.asking() && self.shapes.key(chord);
         if used {
             self.send();
         }

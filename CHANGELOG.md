@@ -11,6 +11,15 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a canvas text being typed has a real caret. The arrow keys move
+  it (alt by words, cmd to a row's ends or the text's start and end), shift
+  selects, delete and forward delete (alt by words, cmd to the row's start)
+  take the selection or what is beside the caret, cmd+A selects the whole
+  text, and cut and copy take the selected characters. Typing, a paste and
+  dictation go in at the caret. A press inside the text puts the caret
+  there; a drag or a shift-press selects. While a text is typed these keys
+  are its own, before your key bindings.
+
 - **App:** run outside its `.app` (a bare `slinger-app` from a shell), the
   app says once, when you cancel a file panel, to run slinger.app to reach
   Downloads, Desktop and Documents: macOS lets the panel show those folders

@@ -277,30 +277,19 @@ fn chrome_scales_with_the_zoom_and_moves_like_an_item() {
     let tint = Some(Fill { colour: INK, alpha: 0.07 });
     let panel =
         Shape::Panel { frame: rect(10.0, 10.0, 20.0, 10.0), fill: tint, width: 1.0, dashed: true };
-    let caret = Shape::Caret {
-        frame: rect(10.0, 30.0, 48.0, 31.2),
-        text: "Hi".into(),
-        size: 24.0,
-        width: 1.0,
-    };
+    let caret = Shape::Caret { frame: rect(30.0, 30.0, 1.0, 24.0) };
     assert_eq!(panel.bounds(), Some(rect(9.5, 9.5, 21.0, 11.0)), "half the line outside");
-    assert_eq!(caret.bounds(), Some(rect(9.0, 29.0, 50.0, 33.2)), "a bar past the last character");
+    assert_eq!(caret.bounds(), Some(rect(30.0, 30.0, 1.0, 24.0)), "the bar");
     let by = pt(5.0, -5.0);
     assert_eq!(panel.moved(by).bounds(), Some(rect(14.5, 4.5, 21.0, 11.0)));
-    assert_eq!(caret.moved(by).bounds(), Some(rect(14.0, 24.0, 50.0, 33.2)));
+    assert_eq!(caret.moved(by).bounds(), Some(rect(35.0, 25.0, 1.0, 24.0)));
 
     let view = Viewport::default().zoom_about(pt(0.0, 0.0), 2.0);
     let scene = at(&[item(1, panel), item(2, caret)], view, None);
     let Mark::Panel { frame, fill, width, dashed } = scene.draws[0].mark else { panic!() };
     assert_eq!((frame, fill, width, dashed), (rect(20.0, 20.0, 40.0, 20.0), tint, 2.0, true));
-    let Mark::Caret { at, column, ref text, size, line, zoom, width } = scene.draws[1].mark else {
-        panic!()
-    };
-    // Laid out as the canvas text it is in: in its rows, a size apart.
-    assert_eq!(
-        (at, column, text.as_str(), size, line, zoom, width),
-        (pt(20.0, 60.0), glyphs::UNWRAPPED, "Hi", 24.0 * glyphs::FONT, 24.0, 2.0, 2.0)
-    );
+    let Mark::Caret { frame } = scene.draws[1].mark else { panic!() };
+    assert_eq!(frame, rect(60.0, 60.0, 2.0, 48.0), "on the screen, at the zoom");
 }
 
 /// slinger-f66a97: a canvas text draws in the core's rows for its stored
