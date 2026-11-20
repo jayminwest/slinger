@@ -110,6 +110,41 @@ impl Editor {
         self.goal = None;
     }
 
+    /// Selects from `a` to `b`, the caret at `b`.
+    fn select(&mut self, a: usize, b: usize) {
+        self.place(a, false);
+        self.place(b, true);
+    }
+
+    /// Selects the word at `index` (a double tap): the run of word
+    /// clusters, or of other clusters on its line, it is in or beside; a
+    /// word beside it wins over a space.
+    fn select_word(&mut self, index: usize) {
+        let class = |g: &str| {
+            if g == "\n" {
+                0
+            } else if word(g) {
+                1
+            } else {
+                2
+            }
+        };
+        let ahead = self.text[index..].graphemes(true).next();
+        let behind = self.text[..index].graphemes(true).next_back();
+        let of = match (behind, ahead) {
+            (Some(b), a) if word(b) && !a.is_some_and(word) => Some(class(b)),
+            (_, Some(a)) if a != "\n" => Some(class(a)),
+            (b, _) => b.filter(|&b| b != "\n").map(class),
+        };
+        // An empty line has no word: the caret only goes there.
+        let Some(of) = of else { return self.place(index, false) };
+        let back = self.text[..index].grapheme_indices(true).rev();
+        let start = back.take_while(|&(_, g)| class(g) == of).last().map_or(index, |(i, _)| i);
+        let rest = &self.text[index..];
+        let end = rest.grapheme_indices(true).find(|&(_, g)| class(g) != of);
+        self.select(start, index + end.map_or(rest.len(), |(i, _)| i));
+    }
+
     /// Deletes the selection, else from the caret to `to`.
     fn delete(&mut self, to: usize) {
         let (a, b) = self.selection().unwrap_or((to.min(self.caret), to.max(self.caret)));
@@ -306,6 +341,21 @@ impl Editing {
     pub fn place(&mut self, at: Point, extend: bool) {
         let index = self.laid().index_at(at);
         self.editor.place(index, extend);
+    }
+
+    /// The `taps`th quick press in a row inside the text, at the canvas
+    /// point `at`: the first places the caret ([`Editing::place`], `shift`
+    /// extending), the second selects the word there, a third or more the
+    /// row.
+    pub fn tap(&mut self, at: Point, shift: bool, taps: u8) {
+        let laid = self.laid();
+        let index = laid.index_at(at);
+        let row = laid.rows()[laid.row_of(index)];
+        match taps {
+            0 | 1 => self.editor.place(index, shift),
+            2 => self.editor.select_word(index),
+            _ => self.editor.select(row.start, row.end),
+        }
     }
 
     /// The caret, `width` canvas units wide, and the boxes the selection

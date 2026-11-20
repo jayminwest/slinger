@@ -19,6 +19,8 @@ bullet with the area in bold.
   dictation go in at the caret. A press inside the text puts the caret
   there; a drag or a shift-press selects. While a text is typed these keys
   are its own, before your key bindings.
+- **App:** in a canvas text being typed, a double tap (or double click)
+  selects the word under it, and a triple tap the row.
 - **App:** pan without a right button. Hold space and drag (mouse,
   trackpad or pen) to pan the pane under the press; the pointer is a hand.
   A middle-button drag pans as a right-button drag does. While you type a

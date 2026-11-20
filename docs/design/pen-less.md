@@ -205,6 +205,8 @@ a wrapped line's rows are separate rows):
 | cmd+v, dictation (Flick pastes) | replaces the selection, else goes in at the caret |
 | typing, return | replaces the selection, else goes in at the caret; return starts a line |
 | escape, a press outside | ends the text, as today |
+| double tap inside | selects the word there (or the run of spaces or punctuation); a drag after it keeps the word (slinger-ed74af) |
+| triple tap inside | selects the row there |
 
 - A **word** is a run of alphanumeric characters or `_`. The caret, delete
   and a press inside the text move by grapheme cluster (a ZWJ emoji, a

@@ -7,7 +7,8 @@
 //!   at its caret ([`crate::scene::editor`]), which a tap that opens it
 //!   leaves at its end; a paste goes in at the caret ([`Shapes::pasted`]);
 //!   the caret keys move it ([`Shapes::key`]), and a press inside puts it
-//!   there, a drag or a shift-press selecting; escape or a press
+//!   there, a drag or a shift-press selecting (a double tap selects a
+//!   word, a triple tap a row); escape or a press
 //!   outside ends it. While it is typed it shows its caret and selection,
 //!   a dashed frame around it, and under that how
 //!   to end it. A press outside with any other tool
@@ -107,6 +108,8 @@ pub struct Shapes {
     drag: Option<(String, String, Drag)>,
     editing: Option<Editing>,
     selecting: bool,
+    /// How many quick presses in a row landed inside the text being typed.
+    taps: u8,
     last: Option<(String, String, Press)>,
     waiting: Option<(Editing, Point, f64)>,
     size: Option<f64>,
@@ -142,6 +145,7 @@ impl Shapes {
         let reach = REACH / press.zoom;
         self.waiting = None;
         let last = self.last.replace((canvas.to_string(), page.to_string(), press));
+        let taps = std::mem::take(&mut self.taps);
         let double = last.is_some_and(|(c, p, last)| {
             c == canvas
                 && p == page
@@ -151,7 +155,8 @@ impl Shapes {
         if let Some(editing) = &mut self.editing {
             let here = editing.canvas == canvas && editing.page == page;
             if here && editing.frame().outset(reach).contains(press.at) {
-                editing.place(press.at, press.shift);
+                self.taps = if double { taps.saturating_add(1) } else { 1 };
+                editing.tap(press.at, press.shift, self.taps);
                 self.selecting = true;
                 return true;
             }
@@ -223,11 +228,14 @@ impl Shapes {
     }
 
     /// The pen moved to `at` while down: a box or an arrow goes with it, or,
-    /// after a press inside the text being typed, the selection runs to it.
-    /// Returns false when none of them is under it.
+    /// after a press inside the text being typed, the selection runs to it
+    /// (after a double or triple tap it keeps the word or row). Returns
+    /// false when none of them is under it.
     pub fn drag(&mut self, at: Point) -> bool {
         if let Some(editing) = self.editing.as_mut().filter(|_| self.selecting) {
-            editing.place(at, true);
+            if self.taps < 2 {
+                editing.place(at, true);
+            }
             return true;
         }
         let Some((_, _, drag)) = &mut self.drag else { return false };

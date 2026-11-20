@@ -194,3 +194,37 @@ fn the_caret_moves_and_deletes_by_whole_grapheme_clusters() {
     assert_eq!(laid.index_at(Point { x: 20.0, y: 0.0 }), 0, "a press snaps out of a cluster");
     assert_eq!(laid.index_at(Point { x: 30.0, y: 0.0 }), family.len());
 }
+
+/// `text` being typed at the origin, size 10, in `column`.
+fn typing(text: &str, column: f64) -> Editing {
+    glyphs::set_measure(fixed);
+    Editing {
+        canvas: "main".to_string(),
+        page: "p1".to_string(),
+        at: Point { x: 0.0, y: 0.0 },
+        colour: Rgb { r: 0, g: 0, b: 0 },
+        size: SIZE,
+        column,
+        item: None,
+        editor: Editor::new(text.to_string()),
+    }
+}
+
+#[test]
+fn a_double_tap_selects_a_word_and_a_triple_tap_a_row() {
+    let mut e = typing("one, two\n\nthree", glyphs::UNWRAPPED);
+    let tap = |e: &mut Editing, x: f64, y: f64, taps: u8| {
+        e.tap(Point { x, y }, false, taps);
+        shown(&e.editor)
+    };
+    assert_eq!(tap(&mut e, 12.0, 2.0, 1), "o|ne, two\n\nthree");
+    assert_eq!(tap(&mut e, 12.0, 2.0, 2), "[one], two\n\nthree");
+    assert_eq!(tap(&mut e, 30.0, 2.0, 2), "[one], two\n\nthree", "at a word's end, that word");
+    assert_eq!(tap(&mut e, 42.0, 2.0, 2), "one[, ]two\n\nthree", "between words, the gap");
+    assert_eq!(tap(&mut e, 999.0, 2.0, 2), "one, [two]\n\nthree", "past the row, its last word");
+    assert_eq!(tap(&mut e, 5.0, 12.0, 2), "one, two\n|\nthree", "an empty line: the caret");
+    assert_eq!(tap(&mut e, 12.0, 22.0, 3), "one, two\n\n[three]");
+    assert_eq!(tap(&mut e, 12.0, 2.0, 4), "[one, two]\n\nthree", "and on");
+    let mut e = typing("one two three", SEVEN);
+    assert_eq!(tap(&mut e, 12.0, 12.0, 3), "one two [three]", "a wrapped row, not the line");
+}
