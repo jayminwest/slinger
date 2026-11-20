@@ -19,7 +19,7 @@ use crate::layout::{PaneId, Point, Rect};
 use crate::panes::{self, Panes};
 use crate::scene::ink::Pen;
 use crate::scene::pages::menu::List;
-use crate::scene::paste::{self, Clip, Edit, Keyboard};
+use crate::scene::paste::{self, Clip, Edit};
 use crate::scene::sidebar::Row;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::sling::{CANCEL, Profile, SEND};
@@ -27,6 +27,9 @@ use crate::scene::taps::{Tap, Target};
 use crate::scene::tools::{Kind, Tools};
 use crate::scene::{self, Label, Scene, cursor, status, title};
 use crate::shared::Shared;
+
+mod items;
+pub use items::keyboard;
 
 /// Runs `command` (not `quit` or `reload-config`) on the focused pane of
 /// `shared`: a picker opens its pop-up there; a pane command, and an
@@ -220,7 +223,7 @@ pub fn open_pdf(
 /// Runs a selection command (`sling`, `dictate`: the entry; `sling-now`) when the focused pane
 /// of `shared` laid in `area` shows its canvas; false when it does not. `leave-feedback` opens its entry
 /// there, with the pen's tool in `tools`, listing the open notes; `show-all-feedback` the same, listing
-/// the resolved ones too. Any other command goes on (true).
+/// the resolved ones too. An item command is [`items::run`]'s. Any other command goes on (true).
 pub fn selection(
     canvases: &mut Canvases,
     shared: &Shared,
@@ -240,7 +243,7 @@ pub fn selection(
         Command::ClearSelection => canvases.clear_selection(panes, panes.focus()),
         Command::Sling | Command::Dictate => canvases.sling_command(command, panes, area),
         Command::SlingNow => canvases.sling_now_command(panes, area, Profile::Running),
-        _ => true,
+        c => items::run(c, shared, canvases, area),
     }
 }
 
@@ -305,17 +308,6 @@ pub fn unpasted(clip: Option<&Clip>, shared: &Shared, canvases: &Canvases, tools
     let typing = shared.palette.is_open() || canvases.editing();
     let page = !shared.modal() && canvases.can_paste(&Clip::default(), &shared.panes);
     tools.flash().say(paste::unpasted(clip, typing, page).into(), Instant::now());
-}
-
-/// Which view has the keyboard ([`Keyboard`]): an open entry's field; the
-/// window while one of the app's own texts takes typing; else the view
-/// the last press of `shared` left it with.
-pub fn keyboard(shared: &Shared, canvases: &Canvases) -> Keyboard {
-    match (canvases.typing(), shared.palette.is_open() || canvases.editing()) {
-        (true, _) => Keyboard::Entry,
-        (false, true) => Keyboard::Window,
-        (false, false) => shared.keyboard,
-    }
 }
 
 /// The canvas pane of `panes` laid in `area` under `at`, a point in the
@@ -420,7 +412,7 @@ pub fn view(
     scene.labels.extend(sling.labels);
     scene.pills.extend(sling.pill);
     let pen = (tools.tool(), tools.colour());
-    canvases.set_pen_width(tools.width().points());
+    canvases.set_pen(tools);
     let keys = &settings.config.keys;
     let collapsed = !sidebar.is_open();
     let mut footers = canvases.footers(&shared.panes, area, theme, pen, keys, collapsed);

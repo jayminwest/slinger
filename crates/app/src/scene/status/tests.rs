@@ -14,7 +14,7 @@ const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
 const PANE: Rect = Rect { x: 100.0, y: 0.0, width: 1000.0, height: 400.0 };
 
 fn pen(tool: Tool, state: State) -> Pen {
-    Pen { tool, colour: RED, width: 16.0, state }
+    Pen { tool, colour: RED, width: 16.0, size: 24.0, state }
 }
 
 /// A canvas pane's footer: the pen, page "ideas · 2/3", 100%, and another pane.
@@ -152,11 +152,29 @@ fn the_swatch_picks_a_colour_and_is_a_line_as_thick_as_the_pen_up_to_a_square() 
 }
 
 #[test]
+fn with_the_text_tool_the_width_bars_give_way_to_the_size_which_picks_a_size() {
+    let keys = Keymap::default();
+    let footer = canvas(PANE, &keys, pen(Tool::Text, State::Idle), false);
+    assert_eq!(said(&footer)[0], "Size 24");
+    assert_eq!(
+        taps(&footer)[..3],
+        [run(Command::PickColour), run(Command::PickSize), run(Command::PickTool)]
+    );
+    assert_eq!(footer.marks.len(), 1, "the swatch alone: no width bars");
+    assert!(footer.tips.iter().all(|&(_, c)| c != Command::PickSize), "it has words, so no tip");
+    let small = canvas(PANE, &keys, Pen { size: 12.0, ..pen(Tool::Text, State::Typing) }, false);
+    assert_eq!(said(&small)[0], "Size 12");
+    let other = canvas(PANE, &keys, pen(Tool::Box, State::Idle), false);
+    assert!(!said(&other).iter().any(|s| s.starts_with("Size")), "only the text tool's");
+    assert_eq!(taps(&other)[1], run(Command::PickWidth));
+}
+
+#[test]
 fn the_state_follows_the_tool_and_an_unbound_key_says_nothing() {
     let mut keys = Keymap::default();
     let typing = canvas(PANE, &keys, pen(Tool::Text, State::Typing), false);
     let text_key = keys.chord(Command::ToolText).map(Chord::glyphs).unwrap_or_default();
-    assert_eq!(said(&typing)[..2], [format!("Text {text_key}"), "· typing".into()]);
+    assert_eq!(said(&typing)[1..3], [format!("Text {text_key}"), "· typing".into()]);
     keys.bind(Command::ToolLasso, None);
     keys.bind(Command::ShowKeys, None);
     let selected = canvas(PANE, &keys, pen(Tool::Lasso, State::Idle), false);

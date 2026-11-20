@@ -139,6 +139,27 @@ pub enum Command {
     /// Open the feedback entry, as `leave-feedback` does, listing every
     /// recent note, the resolved ones with how they were resolved.
     ShowAllFeedback,
+    /// Open the text size pop-up at the pen: the size a new text starts at.
+    PickSize,
+    /// Make a new text's size the next of the text sizes, or the one
+    /// before, without a pop-up. At either end it stays.
+    SizeUp,
+    SizeDown,
+    /// Select every item on the focused pane's page; in a text field or
+    /// an agent UI's page, its own select all.
+    SelectAll,
+    /// Select the next item on the focused pane's page in reading order,
+    /// or the one before, alone, and bring it into view.
+    NextItem,
+    PreviousItem,
+    /// Move the selection a step that way, in one undo step.
+    NudgeLeft,
+    NudgeRight,
+    NudgeUp,
+    NudgeDown,
+    /// Copy the selection beside itself, in one undo step; the copy is
+    /// the selection.
+    Duplicate,
 }
 
 /// How many commands there are.
@@ -146,7 +167,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 63] = [
+    pub const ALL: [(Command, &str); 74] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -210,6 +231,17 @@ impl Command {
         (Command::ExportUi, "export-ui"),
         (Command::ShowFeedbackFile, "show-feedback-file"),
         (Command::ShowAllFeedback, "show-all-feedback"),
+        (Command::PickSize, "pick-size"),
+        (Command::SizeUp, "size-up"),
+        (Command::SizeDown, "size-down"),
+        (Command::SelectAll, "select-all"),
+        (Command::NextItem, "next-item"),
+        (Command::PreviousItem, "previous-item"),
+        (Command::NudgeLeft, "nudge-left"),
+        (Command::NudgeRight, "nudge-right"),
+        (Command::NudgeUp, "nudge-up"),
+        (Command::NudgeDown, "nudge-down"),
+        (Command::Duplicate, "duplicate"),
     ];
 
     /// The command called `name` in the config file.
@@ -259,7 +291,9 @@ impl Chord {
     /// and `key` is the character the key types with no modifier but shift.
     /// A letter matches in either case.
     pub const fn new(mods: u8, key: char) -> Chord {
-        Chord { mods: mods & (SHIFT | CTRL | ALT | CMD), key: key.to_ascii_lowercase() }
+        // Shift+tab comes as the back-tab character.
+        let key = if key == '\u{19}' { '\t' } else { key.to_ascii_lowercase() };
+        Chord { mods: mods & (SHIFT | CTRL | ALT | CMD), key }
     }
 
     /// The key, lowercase: `'k'` for `cmd+shift+k`.
@@ -393,6 +427,17 @@ impl Default for Keymap {
             None,
             None,
             None,
+            on(CMD | SHIFT, 'a'),
+            on(ALT | SHIFT, '}'),
+            on(ALT | SHIFT, '{'),
+            on(CMD, 'a'),
+            on(0, '\t'),
+            on(SHIFT, '\t'),
+            on(0, LEFT),
+            on(0, RIGHT),
+            on(0, UP),
+            on(0, DOWN),
+            on(CMD, 'j'),
         ])
     }
 }

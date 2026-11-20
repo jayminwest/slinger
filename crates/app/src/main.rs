@@ -474,7 +474,7 @@ fn pointer(
         Event::Press(pen) => {
             tools.set_eraser_end(pen.eraser);
             let tool = (tools.tool(), tools.colour());
-            canvases.set_pen_width(tools.width().points());
+            canvases.set_pen(tools);
             pane_at(panes, area, pen.at).is_some_and(|u| canvases.pen_down(panes, u, pen, tool))
         }
         Event::Drag(pen) => {

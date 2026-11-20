@@ -45,7 +45,6 @@ pub enum Native {
     Cut,
     Copy,
     Paste,
-    SelectAll,
     Minimise,
 }
 
@@ -56,7 +55,6 @@ impl Native {
             Native::Cut => "Cut",
             Native::Copy => "Copy",
             Native::Paste => "Paste",
-            Native::SelectAll => "Select all",
             Native::Minimise => "Minimise",
         }
     }
@@ -68,7 +66,6 @@ impl Native {
             Native::Cut => 'x',
             Native::Copy => 'c',
             Native::Paste => 'v',
-            Native::SelectAll => 'a',
             Native::Minimise => 'm',
         };
         Some(Chord::new(CMD, key))
@@ -103,9 +100,16 @@ const BAR: [(&str, &[Action]); 8] = [
             N(Native::Cut),
             N(Native::Copy),
             N(Native::Paste),
-            N(Native::SelectAll),
+            R(Command::SelectAll),
             R(Command::DeleteSelection),
             R(Command::ClearSelection),
+            R(Command::Duplicate),
+            R(Command::NextItem),
+            R(Command::PreviousItem),
+            R(Command::NudgeLeft),
+            R(Command::NudgeRight),
+            R(Command::NudgeUp),
+            R(Command::NudgeDown),
         ],
     ),
     (
@@ -121,10 +125,13 @@ const BAR: [(&str, &[Action]); 8] = [
             R(Command::CropPdf),
             R(Command::WidthUp),
             R(Command::WidthDown),
+            R(Command::SizeUp),
+            R(Command::SizeDown),
             R(Command::PickColour),
             R(Command::PickShape),
             R(Command::PickTool),
             R(Command::PickWidth),
+            R(Command::PickSize),
             R(Command::Sling),
             R(Command::SlingNow),
             R(Command::Dictate),

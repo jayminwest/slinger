@@ -94,7 +94,7 @@ struct Editing {
     at: Point,
     text: String,
     colour: Rgb,
-    /// The text's size: an edited text's own, a new one's [`TEXT_SIZE`].
+    /// The text's size: an edited text's own, a new one's [`Shapes::set_size`].
     size: f64,
     /// The column it wraps in: an edited text's own, so an agent's
     /// paragraph keeps its rows; [`glyphs::UNWRAPPED`] for a new one.
@@ -113,17 +113,30 @@ impl Editing {
 }
 
 /// The box or arrow under the pen, the text being typed, the last press,
-/// and the edit a double tap with the select tool or the lasso asks for
-/// once the pen lifts where it went down, within the reach there.
+/// the edit a double tap with the select tool or the lasso asks for
+/// once the pen lifts where it went down, within the reach there, and the
+/// size a new text starts at ([`TEXT_SIZE`] until one is set).
 #[derive(Debug, Default)]
 pub struct Shapes {
     drag: Option<(String, String, Drag)>,
     editing: Option<Editing>,
     last: Option<(String, String, Press)>,
     waiting: Option<(Editing, Point, f64)>,
+    size: Option<f64>,
 }
 
 impl Shapes {
+    /// The size, in canvas units, the next text the text tool places starts
+    /// at. A text being typed keeps its own.
+    pub fn set_size(&mut self, size: f64) {
+        self.size = Some(size);
+    }
+
+    /// The size, in canvas units, the next text the text tool places starts at.
+    pub fn size(&self) -> f64 {
+        self.size.unwrap_or(TEXT_SIZE)
+    }
+
     /// The pen went down on `page` of `canvas`, over `items`, with `tool`
     /// in `colour`. A press outside a text being typed ends it, to `ink`, then
     /// goes on as below; only the text tool's single tap is used up by
@@ -183,15 +196,15 @@ impl Shapes {
         let arrow = match tool {
             Tool::Text => {
                 // The tap is at the middle of the first line's left end.
-                let half =
-                    glyphs::rows_frame(press.at, "", TEXT_SIZE, glyphs::UNWRAPPED).height / 2.0;
+                let size = self.size.unwrap_or(TEXT_SIZE);
+                let half = glyphs::rows_frame(press.at, "", size, glyphs::UNWRAPPED).height / 2.0;
                 self.editing = Some(Editing {
                     canvas: canvas.to_string(),
                     page: page.to_string(),
                     at: snap(Point { x: press.at.x, y: press.at.y - half }),
                     text: String::new(),
                     colour,
-                    size: TEXT_SIZE,
+                    size,
                     column: glyphs::UNWRAPPED,
                     item: None,
                 });

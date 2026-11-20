@@ -1,9 +1,11 @@
-//! The pen's current tool, colour and width, and the pop-up at the pen that
-//! changes them (SPEC section 11). Pure: `main` hands in where the pen is,
+//! The pen's current tool, colour and width, the size a new text starts at,
+//! and the pop-up at the pen that changes them (SPEC section 11). Pure: `main` hands in where the pen is,
 //! presses and keys, and reads back the [`Tool`], the colour, the width and
 //! the labels to draw. A canvas pane reads [`Tools::tool`], [`Tools::colour`]
 //! and [`Tools::width`] to know what the pen does. The width is the pen's
-//! line alone: boxes and arrows keep their one line width.
+//! line alone: boxes and arrows keep their one line width. The text size
+//! ([`Tools::size`], one of [`SIZES`]) is a new text's alone: a text being
+//! typed or edited keeps its own.
 //!
 //! A tablet pen's eraser end erases whatever tool is chosen: while it is
 //! the end in use ([`Tools::set_eraser_end`]), [`Tools::tool`] is the eraser
@@ -26,9 +28,8 @@
 use std::time::Instant;
 
 use crate::commands::{Chord, Command, Keymap};
-use crate::config::{Config, Palette, Press, Rgb, Theme, Width, Widths};
+use crate::config::{Config, Palette, Press, Rgb, Width, Widths};
 use crate::layout::{self, Point, Rect};
-use crate::scene::Label;
 use crate::scene::flash::Flash;
 
 /// What the pen does on the canvas.
@@ -65,7 +66,7 @@ impl Tool {
     }
 }
 
-/// The four pop-ups.
+/// The five pop-ups.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     /// The palette's colours.
@@ -76,16 +77,19 @@ pub enum Kind {
     Tool,
     /// The pen's widths.
     Width,
+    /// The text sizes ([`SIZES`]).
+    Size,
 }
 
 impl Kind {
-    /// The pop-up a command opens: `pick-colour` to `pick-width`.
+    /// The pop-up a command opens: `pick-colour` to `pick-size`.
     pub fn opened_by(command: Command) -> Option<Kind> {
         match command {
             Command::PickColour => Some(Kind::Colour),
             Command::PickShape => Some(Kind::Shape),
             Command::PickTool => Some(Kind::Tool),
             Command::PickWidth => Some(Kind::Width),
+            Command::PickSize => Some(Kind::Size),
             _ => None,
         }
     }
@@ -93,6 +97,14 @@ impl Kind {
 
 const SHAPES: [Tool; 2] = [Tool::Box, Tool::Arrow];
 const TOOLS: [Tool; 5] = [Tool::Pen, Tool::Eraser, Tool::Lasso, Tool::Text, Tool::Select];
+
+/// The sizes a new text can start at, in canvas points, smallest first:
+/// small, the one every text started at before sizes could be picked
+/// (the app's start), then larger headings.
+pub const SIZES: [u16; 6] = [12, 16, 24, 36, 48, 72];
+
+/// The size a new text starts at when the app starts: the core's default.
+const START_SIZE: usize = 2;
 
 /// An open pop-up: what it offers, where its cells are, and which is lit.
 #[derive(Debug, Clone, PartialEq)]
@@ -119,6 +131,8 @@ pub struct Tools {
     palette: Palette,
     width: Width,
     widths: Widths,
+    /// The index in [`SIZES`] of a new text's size.
+    size: usize,
     pen: Option<Point>,
     popup: Option<Popup>,
     flash: Flash,
@@ -143,6 +157,7 @@ impl Tools {
             palette,
             width,
             widths,
+            size: START_SIZE,
             pen: None,
             popup: None,
             flash,
@@ -183,6 +198,12 @@ impl Tools {
     pub fn follow(&self, keys: &Keymap, now: Instant) {
         self.flash.follow(self.tool, keys, now);
         self.flash.follow_width(self.width, keys, now);
+        self.flash.follow_size(self.size(), keys, now);
+    }
+
+    /// The size a new text starts at, in canvas points.
+    pub fn size(&self) -> u16 {
+        SIZES[self.size]
     }
 
     /// The pen's line width.
@@ -222,9 +243,19 @@ impl Tools {
     /// Runs a tool command (`tool-pen` to `tool-select`, `crop-pdf`): the tool it names
     /// is what the pen does now. An open tool or shape pop-up closes, since
     /// its lit cell no longer matches. `width-up` and `width-down` step the
-    /// width along the list, and close an open width pop-up. False for any
-    /// other command.
+    /// width along the list, and close an open width pop-up; `size-up` and
+    /// `size-down` do the same for the text size. False for any other command.
     pub fn command(&mut self, command: Command) -> bool {
+        if matches!(command, Command::SizeUp | Command::SizeDown) {
+            self.size = match command {
+                Command::SizeUp => (self.size + 1).min(SIZES.len() - 1),
+                _ => self.size.saturating_sub(1),
+            };
+            if self.open_kind() == Some(Kind::Size) {
+                self.popup = None;
+            }
+            return true;
+        }
         if matches!(command, Command::WidthUp | Command::WidthDown) {
             let widths = self.widths.widths();
             let at = widths.iter().position(|&w| w == self.width).unwrap_or(0);
@@ -308,12 +339,14 @@ impl Tools {
             Kind::Shape => (SHAPES.len(), layout::WORD),
             Kind::Tool => (TOOLS.len(), layout::WORD),
             Kind::Width => (self.widths.widths().len(), layout::WORD),
+            Kind::Size => (SIZES.len(), layout::WORD),
         };
         let lit = match kind {
             Kind::Colour => self.palette.colours().iter().position(|&c| c == self.colour),
             Kind::Shape => SHAPES.iter().position(|&t| t == self.tool),
             Kind::Tool => TOOLS.iter().position(|&t| t == self.tool),
             Kind::Width => self.widths.widths().iter().position(|&w| w == self.width),
+            Kind::Size => Some(self.size),
         };
         let centre = Point { x: within.x + within.width / 2.0, y: within.y + within.height / 2.0 };
         let place = layout::popup(self.pen.unwrap_or(centre), count, cell, within);
@@ -382,67 +415,10 @@ impl Tools {
             Kind::Shape => self.tool = SHAPES[i],
             Kind::Tool => self.tool = TOOLS[i],
             Kind::Width => self.width = self.widths.widths()[i],
+            Kind::Size => self.size = i,
         }
     }
-
-    /// The open pop-up as labels in `theme`'s colours, to draw on top of
-    /// everything else: a panel with a border, then each cell. A colour is
-    /// a swatch, with a ring when lit; a word is lit by swapping its colours;
-    /// a width is a line that wide in the pen's colour, framed when lit.
-    pub fn labels(&self, theme: &Theme) -> Vec<Label> {
-        let Some(popup) = &self.popup else { return Vec::new() };
-        let fill = |frame: Rect, colour: Rgb| Label {
-            text: String::new(),
-            colour,
-            fill: Some(colour),
-            frame,
-        };
-        let panel = popup.place.panel;
-        let mut labels = vec![fill(panel, theme.muted), fill(panel.outset(-1.0), theme.background)];
-        for (i, &cell) in popup.place.cells.iter().enumerate() {
-            let lit = i == popup.lit;
-            let word = |tool: Tool| Label {
-                text: tool.name().to_string(),
-                colour: if lit { theme.background } else { theme.text },
-                fill: lit.then_some(theme.text),
-                frame: cell,
-            };
-            match popup.kind {
-                Kind::Colour => {
-                    if lit {
-                        labels.push(fill(cell.outset(2.0), theme.text));
-                    }
-                    labels.push(fill(cell, self.palette.colours()[i]));
-                }
-                Kind::Shape => labels.push(word(SHAPES[i])),
-                Kind::Tool => labels.push(word(TOOLS[i])),
-                Kind::Width => {
-                    if lit {
-                        labels.push(fill(cell, theme.text));
-                        labels.push(fill(cell.outset(-1.0), theme.background));
-                    }
-                    labels.push(fill(line(cell, self.widths.widths()[i]), self.colour));
-                }
-            }
-        }
-        labels
-    }
 }
-
-/// A line `width` wide across the middle of `cell`, inside its edges: as
-/// wide as the cell leaves room for, at least one point.
-fn line(cell: Rect, width: Width) -> Rect {
-    let high = width.points().clamp(1.0, cell.height - 2.0 * LINE_INSET);
-    Rect {
-        x: cell.x + LINE_INSET,
-        y: cell.y + (cell.height - high) / 2.0,
-        width: cell.width - 2.0 * LINE_INSET,
-        height: high,
-    }
-}
-
-/// The room between a width's line and the edges of its cell, in points.
-const LINE_INSET: f64 = 4.0;
 
 const ESCAPE: Chord = Chord::new(0, '\u{1b}');
 const RETURN: Chord = Chord::new(0, '\r');
@@ -462,6 +438,8 @@ const DIGITS: [Chord; Palette::MAX] = [
     Chord::new(0, '8'),
     Chord::new(0, '9'),
 ];
+
+mod labels;
 
 #[cfg(test)]
 mod tests;

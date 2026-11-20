@@ -1,5 +1,6 @@
+use super::labels::LINE_INSET;
 use super::*;
-use crate::config::Widths;
+use crate::config::{Theme, Widths};
 
 const WITHIN: Rect = Rect { x: 0.0, y: 0.0, width: 440.0, height: 160.0 };
 const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
@@ -453,4 +454,32 @@ fn with_pointer_press_tool_the_mouse_draws_with_the_pen_and_a_reload_changes_it(
 fn before_any_tablet_event_the_device_is_the_mouse() {
     let tools = Tools::new(rgb_palette());
     assert_eq!((tools.tool(), tools.chosen()), (Tool::Select, Tool::Pen));
+}
+
+#[test]
+fn a_new_text_s_size_starts_at_24_and_steps_picks_and_flashes() {
+    let mut tools = tools();
+    assert_eq!(tools.size(), 24, "the size every text started at");
+    let keys = Keymap::default();
+    let now = Instant::now();
+    tools.follow(&keys, now);
+    assert_eq!(tools.flash().pill(WITHIN, &T, now), None, "the start does not flash");
+    tools.open(Kind::Size, WITHIN);
+    assert_eq!(lit(&tools), 2, "the current size is lit");
+    let words: Vec<String> = tools.labels(&T).into_iter().skip(2).map(|l| l.text).collect();
+    assert_eq!(words, ["12", "16", "24", "36", "48", "72"], "each size as its number");
+    assert!(tools.command(Command::SizeUp));
+    assert_eq!((tools.size(), tools.open_kind()), (36, None), "a size pop-up closes");
+    tools.follow(&keys, now);
+    let pill = tools.flash().pill(WITHIN, &T, now).unwrap();
+    assert_eq!(pill.label.text, "Text size 36 ⇧⌘A");
+    for _ in 0..5 {
+        tools.command(Command::SizeUp);
+    }
+    assert_eq!(tools.size(), 72, "the last stays");
+    tools.open(Kind::Size, WITHIN);
+    assert!(tools.key(key("1")));
+    assert!(tools.command(Command::SizeDown));
+    assert_eq!(tools.size(), 12, "the first stays");
+    assert_eq!((tools.tool(), tools.width().text()), (Tool::Pen, "2".into()), "a size keeps both");
 }
