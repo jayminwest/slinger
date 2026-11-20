@@ -314,3 +314,5 @@ fn function_keys_are_f1_to_f20_exactly_and_print_as_such() {
         assert_eq!(Chord::new(CMD | SHIFT, key).glyphs(), format!("⇧⌘F{n}"));
     }
 }
+
+mod golden;

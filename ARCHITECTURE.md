@@ -841,9 +841,13 @@ config.rs    the config file's format: text in, a typed config or an error
              with the pen tool (select, or the tool). Pure.
 commands.rs  key commands: the closed list of commands, the chord parser
              (`chord`: key names and `Chord::parse`) and the keymap from a
-             chord to a command (and a command to its live chord). `registry` gives each command a title and a
-             group and prints a chord in macOS glyphs: the key overlay,
-             the palette and the menu bar read it (SPEC D21). `menu` lays
+             chord to a command (and a command to its live chord). `table`
+             holds each command's name, title, group and default chord in
+             one row, in the enum's order (the build checks it);
+             `Command::ALL`, `title`, `group` and `Keymap::default` read
+             it. `registry` names the groups and prints a chord in macOS
+             glyphs: the key overlay, the palette and the menu bar read
+             them (SPEC D21). `menu` lays
              the menu bar out: each menu's role (the app's, Window, Help
              or plain), its items and separators, macOS's own items
              (About, Services, Hide, Hide Others, Show All, Minimize, Zoom,
@@ -1622,12 +1626,15 @@ undo or redo key goes to it as undo: or redo: (platform/menu.rs).
 An open pop-up at the pen takes its own keys first (escape, return, space,
 the arrows, 1 to 9); any other key goes to the keymap. These keys act only
 inside a pop-up a command opened, so they are not commands themselves.
-A new command adds a variant and a name to `Command::ALL` in
-`commands.rs`, a title and a group in `commands/registry.rs`, an item in
-one menu of `commands/menu.rs` (a test holds it), an arm in
-`commands/able.rs`'s `can` (the match has no `_`), an arm in
-`main`'s match, and a line in the example file (with its default chord, if
-it has one).
+A new command adds a variant in `commands.rs`, its row (name, title,
+group, default chord) in `commands/table.rs`, an item in one menu of
+`commands/menu.rs` (a test holds it), an arm in `commands/able.rs`'s `can`
+(the match has no `_`) with its entry in `commands/able/tests.rs`, its
+handler, and a line in the example file (with its default chord, if it has
+one). `commands/tests/golden.txt` records every command's facts, the
+example's `[keys]` lines, the menu bar and the context menus:
+`SLINGER_BLESS=1 cargo test -p slinger-app golden` writes it again, and
+the diff shows what the change did.
 ## Boundaries
 
 - Dependencies point inward. Front ends depend on the core. The core never
