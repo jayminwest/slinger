@@ -46,10 +46,13 @@ asks for long point arrays): per stroke it is heavier than the real board.
 - Apple M2 Ultra, 24 cores, 192 GB. macOS (Darwin 25.6). Release builds
   (`--release`: fat LTO, `codegen-units = 1`).
 - Other agents were working in sibling worktrees at the same time. The
-  script prints the load before and after the daemon runs. Scale 1: load
-  3.3 then 2.8 (1 min), no `rustc` running. Scale 5: 2.3 then 2.1, no `rustc`
-  running. Under a heavy build load, expect the medians to rise. Compare the
-  big and small rows of one run, not runs from different times.
+  script prints the load before and after the daemon runs. The tables below
+  are the quietest run of each scale. Scale 1: load 3.3 then 2.8 (1 min),
+  no `rustc` running. Scale 5: 2.3 then 2.1, no `rustc` running. Two more
+  scale-1 runs (load 6.4 and 4.1) and one more scale-5 run (load 5.1) are in
+  "Spread between runs". The `SLINGER_TRACE` rows come from the last run of
+  each scale, after lane a's trace reached `main`. Compare the big and small
+  rows of one run, not runs from different times.
 - Each row is timed from one Unix-socket request to its reply (Python
   `time.perf_counter`), which includes the JSON encode and decode on both
   sides. A drive request that does nothing costs 0.0-0.1 ms.
@@ -100,10 +103,54 @@ timed here.
 | pen sample, samples 1900-2000 of one 2000-sample stroke | 0.1 | 0.4 / 0.5 | 1.6 / 10.4 |
 | pen sample, zoomed out to 17% (marks in view: 27 / 104 / 460) | 0.1 | 0.6 / 0.6 | 2.6 / 3.3 |
 
-Switch runs: 10 at scale 1 and 4 at scale 5, for each direction. Pen: 100
+The switch rows above are timed from outside, by polling: each round is a
+tick and then a scene, about 1-40 ms apart. So they are an upper bound, by
+up to one round. Switch runs: 10 at scale 1 and 4 at scale 5, for each direction. Pen: 100
 samples a row. The `small` column is from the scale-1 run; the scale-5 run's
 small rows agree (switch part 5.1 ms, pen 0.1 ms) but for the tap to the
 title (837.8 ms), which depends on where the `Watch` poll was when the tap came.
+
+### The switch by `SLINGER_TRACE=switch`
+
+These come from the app's own trace line (slinger-9fd400), from the last run
+of each scale. Each phase is the time since the phase before it, starting at
+the pick. Lines with whole milliseconds. The runs are 10 (scale 1) and 4
+(scale 5) for each direction.
+
+| phase | to small (scale-1 run) | to big, scale 1 | to big, scale 5 |
+|---|---|---|---|
+| pick to `watch` (the `Watch` reads the wanted name) | 958.5 / 967 | 989.5 / 997 | 982 / 993 |
+| `watch` to `layout` (the daemon's layout came; `layout` to `taken` was 0-1 ms in every run) | 1 / 2 | 1 / 1 | 2 / 3 |
+| `taken` to `shown` (a `Follower`'s `canvas_show` came) | 4 / 4 | 34 / 34 | 168 / 178 |
+| `shown` to `heard` (the main thread took the page) | 7.5 / 11 | 0 / 1 | 0 / 0 |
+| `heard` to `drawn` (the scene was handed to the platform) | 0 / 1 | 4 / 8 | 23 / 45 |
+
+In the scale-5 run, the small canvas's `taken` to `shown` was 7.5 ms, and
+pick to `watch` was 799 ms. That depends only on where the `Watch`'s
+1-second sleep was when the tap came.
+
+### Spread between runs
+
+The same rows from every run, as medians in ms. Scale 1: runs A, B and C,
+with 1-minute loads of 3.3, 6.4 and 4.1. Scale 5: runs A and B, with loads
+of 2.3 and 5.1. Run A of each scale is the one in the tables above. Run C
+(scale 1) and run B (scale 5) were taken after merging `main`, with the
+trace.
+
+| row | scale 1: A / B / C | scale 5: A / B |
+|---|---|---|
+| `canvas_show` big, first | 104.9 / 82.5 / 83.7 | 596.2 / 592.2 |
+| `canvas_show` big p1, warm | 22.5 / 26.3 / 23.4 | 306.1 / 280.7 |
+| `sling_backdrops` big p4 | 283.7 / 320.6 / 325.9 | 1306.3 / 1306.6 |
+| `canvas_apply` big, add a stroke | 4.7 / 14.5 / 4.5 | 5.2 / 4.5 |
+| `canvas_apply` big, lasso move | 8.4 / 21.9 / 7.1 | 18.8 / 18.6 |
+| `canvas_read` big, 2 lines new | 507.7 / 592.5 / 563.3 | 2383.3 / 2533.5 |
+| `sling_send` big, one new stroke | 511.8 / 585.1 / 541.3 | 2545.6 / 2607.3 |
+| switch to big, title to final outline | 41.6 / 42.9 / 40.7 | 197.9 / 197.1 |
+| pen sample on big, zoom as opened, first 100 | 0.4 / 0.4 / 0.6 | 1.7 / 1.8 |
+
+Most rows move by 10-20% with the load. `canvas_apply` moves by 3x at load
+6.4 (run B): it waits on `fsync`, which the other lanes' builds share.
 
 ### What grows with file size
 
@@ -127,11 +174,14 @@ title (837.8 ms), which depends on where the `Watch` poll was when the tap came.
   its time in `Log::carried`, and 34% in the `Canvas::held` scan under it.
   `Canvas::held` filters every item, and runs for each moved or removed id. This is a finding of this measurement, not of the
   seed. Adding a stroke stays flat (about 5 ms, which is mostly the fsync).
-- **The workspace switch** takes about 1 s at every size. That is the app's
-  `Watch` poll, which asks the daemon for the layout once a second
-  (`crates/app/src/backend.rs`, `EVERY`), not storage. The canvas's own part,
-  from the new title to the settled outline, grows from 11 ms (small) to
-  42 ms (5.7 MB) to 198 ms (28.9 MB).
+- **The workspace switch** takes about 1 s at every size. The trace puts
+  almost all of it before `watch`: the app's `Watch` asks the daemon for the
+  layout once a second (`crates/app/src/backend.rs`, `EVERY`), and a pick
+  waits for the next round. That is not storage. The canvas's own part is
+  the `Follower`'s `canvas_show` (`taken` to `shown`), plus building the
+  first scene (`heard` to `drawn`). It grows from 4 + 0 ms (small) to
+  34 + 4 ms (5.7 MB) to 168 + 23 ms (28.9 MB). That agrees with the warm
+  `canvas_show` rows and with the polled "title to final outline" rows.
 - **A pen sample's scene rebuild** grows mostly with the page's items, less
   with the marks in view: 0.1 ms (129 items), 0.4 ms (2 197), 1.6-1.7 ms
   (10 212). Zooming out to 460 marks in view gives 2.3-2.6 ms. Within one
@@ -143,10 +193,6 @@ title (837.8 ms), which depends on where the `Watch` poll was when the tap came.
 
 ## Not taken
 
-- **The switch by `SLINGER_TRACE=switch`** (slinger-9fd400, lane a). It was not
-  on `main` when this was measured. The switch here is timed from outside,
-  by polling, with each poll a tick and a scene, about 1-40 ms apart. So the
-  switch rows are an upper bound by up to one poll.
 - **AppKit paint time per frame.** A driven window times the dispatch, which
   includes the scene build, not the `drawRect` that follows. Taking it needs
   Instruments or a trace inside `platform`.
@@ -158,8 +204,8 @@ title (837.8 ms), which depends on where the `Watch` poll was when the tap came.
 - **The owner's real canvases.** They hold private data and are not on this
   machine. Scale 5 (28.9 MB) is at the low end of 10-15x the largest
   local board. No scale above 5 was run.
-- **Repeat runs.** Each scale was run once (with 8-20 samples per row). The
-  spread between runs at different loads was not measured.
+- **A quiet machine.** Every run had other agents' work beside it (load
+  2.1-6.4 on 24 cores). No run was taken with the machine idle.
 
 ## How to measure again
 

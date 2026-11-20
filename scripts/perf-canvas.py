@@ -221,7 +221,7 @@ def drive(bins, sock, runs):
     """Times a driven window: a workspace switch and pen samples."""
     with open("config.toml", "w") as f:
         f.write(f'[daemon]\nsocket = "{sock}"\n[workspace]\nname = "small"\n')
-    env = dict(os.environ, SLINGER_CONFIG=os.path.abspath("config.toml"))
+    env = dict(os.environ, SLINGER_CONFIG=os.path.abspath("config.toml"), SLINGER_TRACE="switch")
     log = open("app.log", "w")
     app = subprocess.Popen([os.path.join(bins, "slinger-app"), "--drive", "a.sock"],
                            env=env, stdout=log, stderr=log)
@@ -310,6 +310,21 @@ def drive(bins, sock, runs):
                 timed[to][1].append(done)
                 timed[to][2].append(done - titled)
                 count[to] = n
+        log.flush()
+        with open("app.log") as f:
+            traced = re.findall(r"^switch (\w+): (.*)$", f.read(), re.M)
+        for to in ("big", "small"):
+            # Each phase's own time: from the one before it (the pick, first).
+            phases = {}
+            for name, line in traced:
+                if name != to:
+                    continue
+                before = ("pick", 0.0)
+                for phase, ms in re.findall(r"(\w+) \+(\d+)ms", line):
+                    phases.setdefault(f"{before[0]} to {phase}", []).append(float(ms) - before[1])
+                    before = (phase, float(ms))
+            for phase, samples in phases.items():
+                rows.append(f"| app switch to {to}, SLINGER_TRACE=switch: {phase} | {summary(samples)} | |")
         for to in ("big", "small"):
             rows.append(f"| app switch to {to}: tap to its title | {summary(timed[to][0])} | polled: a tick and a scene a round |")
             rows.append(f"| app switch to {to}: tap to the final outline ({count[to]} marks in view) | {summary(timed[to][1])} | |")
