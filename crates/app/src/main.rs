@@ -23,6 +23,7 @@ mod backend;
 mod canvases;
 mod commands;
 mod config;
+mod drive;
 mod layout;
 mod mirror;
 mod panes;
@@ -60,14 +61,20 @@ fn main() -> ExitCode {
     let settings = backend::Settings::load(backend::ConfigFiles::locate());
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
-        [] => window(settings),
+        [] => window(settings, None),
+        // A driven window never falls back to the user's own daemon.
+        ["--drive", _] if settings.config.socket.is_none() || settings.problem.is_some() => {
+            fail("a driven window needs a config that names its daemon's socket", Some(USAGE))
+        }
+        ["--drive", socket] => window(settings, Some(Path::new(socket))),
         ["--preview", reference, ref more @ ..] => preview(&settings, reference, more),
         _ => fail(USAGE, None),
     }
 }
 
 /// What to type, said when the arguments are not these.
-const USAGE: &str = "usage: slinger-app [--preview UI [--data JSON] [--as item] [--background]]";
+const USAGE: &str =
+    "usage: slinger-app [--preview UI [--data JSON] [--as item] [--background] | --drive SOCKET]";
 
 /// Writes `message` and its `hint` to stderr; the exit code for a failure.
 fn fail(message: &str, hint: Option<&str>) -> ExitCode {
@@ -136,17 +143,19 @@ fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
 
 /// The window onto the daemon: the panes of its workspace, the sidebar and
 /// the pen.
-fn window(mut settings: Settings) -> ExitCode {
+fn window(mut settings: Settings, drive: Option<&Path>) -> ExitCode {
     let mut socket = settings.socket();
-    let last = platform::remembered_workspace();
+    // A driven window keeps nothing and takes nothing the app kept.
+    let own = drive.is_none();
+    let last = platform::remembered_workspace().filter(|_| own);
     let watch = Watch::start(socket.clone(), settings.config.workspace.clone(), last.clone());
     let mut shown = settings.config.sidebar;
-    let open = Shown::starts_open(shown, platform::remembered_sidebar());
+    let open = Shown::starts_open(shown, platform::remembered_sidebar().filter(|_| own));
     let mut sidebar = Sidebar::new(open).preferring(last);
     sidebar.show(settings.config.workspace.clone());
     let mut tools = Tools::configured(&settings.config);
     let mut shared = Shared::default();
-    let mut canvases = canvases(&socket);
+    let mut canvases = canvases(&socket, own);
     let first = view(&settings, &mut shared, &tools, &sidebar, &mut canvases);
     // The workspace the config names, to tell when an edit changes it; a
     // tap on another in the sidebar shows that one until it does.
@@ -163,7 +172,7 @@ fn window(mut settings: Settings) -> ExitCode {
     // workspace. Only a split, a close or a resize asks the daemon here.
     // Any pen or mouse press first focuses the pane under it; one an agent
     // UI's page takes still draws the new focus.
-    let step = move |event, sidebar: &mut Sidebar| {
+    let mut step = move |event, sidebar: &mut Sidebar| {
         let routed =
             route(event, &mut shared, &mut canvases, &mut tools, &settings, &socket, sidebar);
         let force = match routed {
@@ -203,7 +212,17 @@ fn window(mut settings: Settings) -> ExitCode {
         }
         Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases))
     };
-    match platform::run(&first, platform::Kept::Window, remembering(step, sidebar)) {
+    let ran = match drive {
+        None => platform::run(&first, platform::Kept::Window, remembering(step, sidebar)),
+        Some(at) => {
+            if let Err(e) = drive::listen(at, platform::drive::ask) {
+                return fail(&format!("{}: {e}", at.display()), None);
+            }
+            let answer = platform::drive::watching(&first, move |event| step(event, &mut sidebar));
+            platform::run(&first, platform::Kept::Driven, answer)
+        }
+    };
+    match ran {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => fail(&e.to_string(), None),
     }
@@ -211,9 +230,9 @@ fn window(mut settings: Settings) -> ExitCode {
 
 /// The canvases of the window, through the daemon on `socket`, keeping
 /// the strokes not yet written on disk ([`backend::Unsent`]).
-fn canvases(socket: &Path) -> Canvases {
+fn canvases(socket: &Path, keep: bool) -> Canvases {
     let canvases = Canvases::new(control::Client::new(socket)).rendering(platform::pdf::backdrop);
-    backend::Unsent::locate().into_iter().fold(canvases, Canvases::keeping)
+    backend::Unsent::locate().filter(|_| keep).into_iter().fold(canvases, Canvases::keeping)
 }
 
 /// `step` with `sidebar`, which it may open or collapse or show another

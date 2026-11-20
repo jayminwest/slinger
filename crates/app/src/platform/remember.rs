@@ -15,6 +15,9 @@ pub enum Kept {
     Window,
     Preview,
     Background,
+    /// A window an agent drives (`slinger-app --drive`): never shown, always
+    /// the same size, and nothing kept.
+    Driven,
 }
 
 impl Kept {
@@ -23,6 +26,7 @@ impl Kept {
         match self {
             Self::Window => "slinger window",
             Self::Preview | Self::Background => "slinger preview",
+            Self::Driven => "slinger driven",
         }
     }
 
@@ -30,7 +34,7 @@ impl Kept {
     /// and active. A run in the background does none of it: its window is
     /// never on a screen, so it takes no focus from the user's work.
     pub(super) const fn front(self) -> bool {
-        !matches!(self, Self::Background)
+        !matches!(self, Self::Background | Self::Driven)
     }
 }
 
@@ -40,6 +44,9 @@ const SIDEBAR: &str = "sidebar open";
 /// Puts `window` where the `kept` frame was last left, if it was ever saved
 /// (`AppKit` keeps it on a screen), and saves its frame there from now on.
 pub(super) fn frame(window: &NSWindow, kept: Kept) {
+    if kept == Kept::Driven {
+        return;
+    }
     let name = NSString::from_str(kept.name());
     window.setFrameUsingName(&name);
     window.setFrameAutosaveName(&name);

@@ -28,6 +28,7 @@
 
 mod canvas;
 mod chrome;
+pub mod drive;
 mod entry;
 mod files;
 mod input;
@@ -83,6 +84,7 @@ impl std::fmt::Display for NotMainThread {
 }
 
 /// What the app hears.
+#[derive(Debug, PartialEq)]
 pub enum Event {
     /// The timer: twice a second.
     Tick,
