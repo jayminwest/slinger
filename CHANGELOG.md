@@ -475,6 +475,12 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Install:** one way in on a Mac: `scripts/bundle.sh --install`, then
+  open slinger. The app starts slingerd, which writes its log to
+  `slingerd.log` in the data directory; to update, install again, reopen
+  the app and accept "Restart slingerd". The README's quick start and
+  `docs/service.md` ("Running it", which keeps the service-manager notes
+  for a host with no app) now say so.
 - **Canvas:** moving or erasing a selection on a large canvas is faster: a
   lasso move of 8 strokes on a 29 MB canvas takes about 13 ms, from 24 ms.
 - **Workspaces:** each pane now has an id that stays while it is open,

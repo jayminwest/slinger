@@ -41,9 +41,10 @@ guide comes from the `slinger` binary you run, so it fits that binary.
   failure has `error`, `code` and `hint`.
 - Exit codes: 0 ok, 1 error, 2 usage, 3 not found, 4 conflict, 5 invalid,
   6 the daemon does not answer. `slinger` finds a running daemon on any
-  socket, so on 6 pass the hint on to the user (start `slingerd`, or
-  retry or restart one that did not reply in time); do not start or restart
-  it yourself unless the user asks. `slinger daemon info` says which build
+  socket, so on 6 pass the hint on to the user (on a Mac, opening
+  slinger.app starts `slingerd`; or retry or restart one that did not
+  reply in time); do not start or restart it yourself unless the user
+  asks. `slinger daemon info` says which build
   answers, and where its log is; `slinger daemon stop` is for the user to ask
   for, as a restart is.
 - `slinger <command> --help` gives the full help of one command.

@@ -15,7 +15,8 @@ crates/daemon slingerd: owns the IO the core leaves out (socket, signals, startu
               record's SQLite file) and serves the core. A thin main over its library.
               No domain logic.
 crates/app    slinger-app: the macOS app. Control-socket requests -> a scene -> one window.
-              Does not link the core.
+              Does not link the core. The bundled app starts the slingerd beside it
+              when none answers, and stays a client of its socket.
 xtask         quality gates. Not shipped.
 ```
 
