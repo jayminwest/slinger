@@ -139,6 +139,12 @@ pub enum Command {
     /// Open the feedback entry, as `leave-feedback` does, listing every
     /// recent note, the resolved ones with how they were resolved.
     ShowAllFeedback,
+    /// Open the text size pop-up at the pen: the size a new text starts at.
+    PickSize,
+    /// Make a new text's size the next of the text sizes, or the one
+    /// before, without a pop-up. At either end it stays.
+    SizeUp,
+    SizeDown,
     /// Select every item on the focused pane's page; in a text field or
     /// an agent UI's page, its own select all.
     SelectAll,
@@ -161,7 +167,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 71] = [
+    pub const ALL: [(Command, &str); 74] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -225,6 +231,9 @@ impl Command {
         (Command::ExportUi, "export-ui"),
         (Command::ShowFeedbackFile, "show-feedback-file"),
         (Command::ShowAllFeedback, "show-all-feedback"),
+        (Command::PickSize, "pick-size"),
+        (Command::SizeUp, "size-up"),
+        (Command::SizeDown, "size-down"),
         (Command::SelectAll, "select-all"),
         (Command::NextItem, "next-item"),
         (Command::PreviousItem, "previous-item"),
@@ -418,6 +427,9 @@ impl Default for Keymap {
             None,
             None,
             None,
+            on(CMD | SHIFT, 'a'),
+            on(ALT | SHIFT, '}'),
+            on(ALT | SHIFT, '{'),
             on(CMD, 'a'),
             on(0, '\t'),
             on(SHIFT, '\t'),

@@ -671,7 +671,8 @@ scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
              opens it over the agent with a row per profile (the running
              one ✓) and no commands. Pure.
 scene/flash.rs  the flash: a new tool (from its command or a pop-up) shows
-             `<Tool> <key>` (a new width: `Width <n> <pick-width key>`),
+             `<Tool> <key>` (a new width: `Width <n> <pick-width key>`;
+             a new text size: `Text size <n> <pick-size key>`),
              reload-config its title and key, a saved note "Feedback saved",
              a page command what it did (scene/pages.rs's words) and a
              zoom its level,
@@ -960,13 +961,16 @@ scene/dictation.rs  the dictation into the open entry: start, then stop, one
              failed (Flick not running, or its refusal) and what to do, under
              the entry; an answer overtaken by the entry closing is ignored.
              Pure.
-scene/tools.rs  the pen's tool, colour and width, and the pop-up at the pen (colour,
-             shape, tool, width) that changes them: opens (at the focused
+scene/tools.rs  the pen's tool, colour and width, a new text's size, and the
+             pop-up at the pen (colour, shape, tool, width, size) that changes them: opens (at the focused
              pane's centre until the pen or pointer has been in the window),
              picks by pen or key, closes. The tool commands pick a tool without it, and
-             `width-up`/`width-down` step the width. The width is the pen's
-             line alone: boxes and arrows keep one line width. Canvases
-             hold it for new strokes (`set_pen_width`). While a tablet pen's
+             `width-up`/`width-down` step the width, `size-up`/`size-down`
+             the size (one of `SIZES`, 24 at the start). The width is the pen's
+             line alone: boxes and arrows keep one line width. The size is
+             a new text's alone: a text being typed or edited keeps its own.
+             Canvases hold both (`set_pen`): the width for new strokes, the
+             size for the text tool's next text (`Shapes::set_size`). While a tablet pen's
              eraser end is in use the tool is the eraser (footer, cursor,
              gesture); the chosen tool (menu check, flash, pop-up) comes
              back with the tip. Pure.
