@@ -94,6 +94,15 @@ fn a_read_in_a_box_is_its_direct_contents_with_a_folded_box_as_one_line() {
     assert_eq!(line(&p, "t2").text.as_deref(), Some("Monday: what ships\nmore"));
     let inner = packet(&log, Some("i4"), 9);
     assert_eq!(ids(&inner.page), ["c5"]);
+    // The header names the box, as the packet does, however the read named it.
+    assert_eq!(
+        (p.header.inside.as_deref(), inner.header.inside.as_deref()),
+        (Some("b1"), Some("b4"))
+    );
+    assert!(inner.text().starts_with("slinger-packet 1 canvas=folds page="), "{}", inner.text());
+    assert!(inner.text().lines().next().unwrap().contains(" in=b4 from="), "{}", inner.text());
+    assert_eq!(Packet::read(&inner.text()).unwrap().header, inner.header);
+    assert_eq!(packet(&log, None, 9).header.inside, None);
     // An open box reads too: what lies inside it.
     let (mut open, _) = Log::create("open").unwrap();
     add(&mut open, json!({"kind": "box", "x": 0, "y": 0, "w": 1000, "h": 1000}));

@@ -445,7 +445,7 @@ operation is a valid packet with nothing new. `select` takes ids as the
 file (`i12`) or a packet (`c12`, `t12`) writes them, and keeps only those
 items in the `page` section. `in` names a box (`b4` or `i4`) and reads what
 it holds directly, open or folded, as if it were the page, on the box's own
-page (docs/design/fold.md); a `page` that is not the box's page, or a box
+page (docs/design/fold.md), its header naming the box (`in=b4`); a `page` that is not the box's page, or a box
 that is not there, is `not_found`, and an item that is not a box is
 `invalid`. The text, without `at`, is stored as a blob,
 so the same page gives the same id; each image is a blob too. The daemon

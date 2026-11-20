@@ -133,13 +133,14 @@ character writes each UTF-8 byte of that character as `%XX` (upper-case hex),
 so `page=Page%201` is the page "Page 1". Every other character is itself.
 
 **Header fields**, in this order: `canvas` (canvas id), `page` (page name),
-`from`, `to` (the canvas op range this packet covers; `from` is the first op
+`in` (only in a packet read `--in` a box: the box's packet id, `b4`, however
+the read named it; slinger-69683e), `from`, `to` (the canvas op range this packet covers; `from` is the first op
 after the last sling's `to`, so R1 is "ops in from..=to"), `scale` (the
 render scale, `0.35`), `tokens` (about how many tokens the packet costs a
 model, text and images, by `Packet::tokens` below; the count includes the
 field itself but not `at`, so it is the cost of the packet as slung;
 slinger-0bc20b), then `at` (see Delivery). `version` is `1`; a reader
-that predates `tokens` skips it.
+that predates `tokens` or `in` skips it.
 
 **Sections**, always in this order, each always present, even when empty:
 
@@ -198,7 +199,8 @@ names the outermost folded box that holds it.
 the first line of the first text it holds directly, in reading order, cut as
 in `page`: `b4 box 180,700 240x160 folded=7 "Monday: what ships"`. A packet
 read `--in` a box is the packet of what the box holds directly, open or
-folded, as if it were the page; the box's own line is not in it.
+folded, as if it were the page; the box's own line is not in it, and the
+header names the box: `slinger-packet 1 canvas=idea page=p1 in=b4 from=…`.
 
 **Fields** (order as listed; each only when it applies):
 
