@@ -96,8 +96,9 @@ impl Canvases {
     /// pane of `panes` there and its frame, if any: on a handle of the
     /// selection with the lasso or the select tool, that pane's pointer is
     /// the handle's resize cursor ([`Canvases::handle_cursor`]) until the
-    /// pointer next moves, so also while the pen drags the handle. Returns
-    /// whether that changed.
+    /// pointer next moves, so also while the pen drags the handle; on the
+    /// right edge of the text being typed, with any tool, it is the left
+    /// and right resize cursor. Returns whether that changed.
     pub fn hover_handle(
         &mut self,
         panes: &Panes,
@@ -106,6 +107,11 @@ impl Canvases {
         tool: Tool,
     ) -> bool {
         let handle = self.at_selection(panes, under, at, tool, Select::handle_cursor).flatten();
+        let handle = handle.or_else(|| {
+            let edge = self
+                .at_pane(panes, under, at, |c, here, at, zoom, _| c.shapes.on_edge(here, at, zoom));
+            edge.unwrap_or(false).then_some(Cursor::ResizeLeftRight)
+        });
         let handle = handle.zip(under).map(|(cursor, (pane, _))| (pane, cursor));
         std::mem::replace(&mut self.handle, handle) != handle
     }
@@ -130,16 +136,33 @@ impl Canvases {
         tool: Tool,
         ask: impl FnOnce(&Select, (&str, &str), Point, f64, &[Cow<'_, Item>]) -> R,
     ) -> Option<R> {
-        let (pane, frame) = under?;
         let moves = matches!(tool, Tool::Lasso | Tool::Select);
-        let canvas = canvas_of(panes, pane).filter(|_| moves)?;
+        self.at_pane(panes, under.filter(|_| moves), at, |c, here, at, zoom, items| {
+            ask(&c.select, here, at, zoom, items)
+        })
+    }
+
+    /// What `ask` says at `at`, a point in the window, over `under`, the
+    /// canvas pane of `panes` there and its frame: it is handed these
+    /// canvases, the canvas and page the pane shows, the canvas point, the
+    /// zoom and the items the pane shows. `None` off every canvas pane or
+    /// before its page arrives.
+    fn at_pane<R>(
+        &self,
+        panes: &Panes,
+        under: Option<(PaneId, Rect)>,
+        at: Point,
+        ask: impl FnOnce(&Self, (&str, &str), Point, f64, &[Cow<'_, Item>]) -> R,
+    ) -> Option<R> {
+        let (pane, frame) = under?;
+        let canvas = canvas_of(panes, pane)?;
         let open = find(&self.open, canvas, wanted(&self.views, pane, canvas));
         let shown = open.and_then(|o| o.mirror.as_ref()).map(Mirror::page)?;
         let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v.viewport);
         let viewport = view.unwrap_or_else(crate::layout::Viewport::start);
         let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
         let at = to_canvas(viewport, frame, at);
-        Some(ask(&self.select, (canvas, shown), at, viewport.zoom(), &items))
+        Some(ask(self, (canvas, shown), at, viewport.zoom(), &items))
     }
 
     /// The canvas, the page and the canvas point under `at`, a point in the

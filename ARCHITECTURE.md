@@ -505,6 +505,14 @@ mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              (tenths of a point) and a crop, when it has one, inside them;
              it is written with no colour, and a `set` clears a crop or
              name it has not. `add_pdf`: an opened page's `add`.
+mirror/fold.rs  folded boxes (docs/design/fold.md): a box whose object has
+             `fold` hides what it lists, by the core's rule read again from
+             the objects `canvas_show` gives (no new reply); the hidden
+             items are kept apart, so `items()` is what the page shows.
+             Each folded box's miniature (what it holds, scaled, a folded
+             box inside as its own miniature, pen lines thinned) is made
+             once per feed change, not per frame; `inside` draws the same
+             into any frame (a dragged box, a peek at full size). Pure.
 mirror/clip.rs  the selection's items on the clipboard: their file objects
              as a JSON array, as a carry writes them (no id, maker, time
              or page; an end bound to an item copied with it as `$n`), and
@@ -584,6 +592,15 @@ canvases/paging.rs  the canvas commands on a pane: pan, zoom (in, out, to
              through the ink's queue; each pane's page line; `save`, which
              flashes where the pane's canvas is saved (canvases/status.rs
              knows each pane's canvas file, from `canvas_show`'s `path`).
+canvases/fold.rs  `fold` (cmd+alt+f) and the pen's fold mark (a box's top
+             right corner turned down: every folded box's, and an open
+             box's while it alone is selected): each fold or unfold is a
+             `Change::Fold` in the ink's queue, sent as `canvas_fold` or
+             `canvas_unfold` (one undo step). An unfold whose room is taken
+             (`conflict`, `Answer::Peek`) shows the box as a peek, pane
+             state: escape or a press outside closes it, a press inside
+             does nothing. `drawn` adds each pane's miniatures, marks and
+             peek to what it draws.
 canvases/seek.rs  `find` (cmd+f) and `find-next` (cmd+g): the entry for the
              words, `canvas_find` on the daemon (the search is the core's),
              and the jump: the pane turns to the text's page and centres it.
@@ -723,8 +740,12 @@ scene/editor.rs  the canvas text being typed (docs/design/pen-less.md 2A):
              the key before the keymap while a text is typed. A press
              inside places the caret, a drag or shift-press selects; copy
              and cut take the selected characters. `Editing`: where the
-             text is and how it is set; its caret bar and selection boxes
-             are scene items (`Shape::Caret` is a plain bar). Pure.
+             text is and how it is set, and the column it wraps in (a new
+             text's holds 48 characters, glyphs::NEW_COLUMN; a drag of its
+             frame's right edge sets it, `widen`, on half a cell so it never
+             reads back as unwrapped, glyphs::column); its caret bar and
+             selection boxes are scene items (`Shape::Caret` is a plain
+             bar). Pure.
 scene/paste.rs  the clipboard as the app sees it (`Clip`: plain text, a
              canvas's items) and the edits no text field takes (`Edit`:
              cut, copy, paste); pasted text made fit to type: line ends as
@@ -878,14 +899,16 @@ scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
              text and typed keys (and a paste, at its end) go into it until
              escape or a press outside
              (while typed it shows a focus-colour caret, a dashed muted frame
-             and a hint under it: `label`, chrome's 11 pt line),
+             out to its column, whose right edge a drag moves (`on_edge`;
+             canvases/drag.rs shows the left-right cursor over it), and a
+             hint under it: `label`, chrome's 11 pt line),
              which with any tool but the text tool also starts that tool's
              gesture (the text tool on a text, or a double tap with any tool but
              the pen, edits it; with the lasso or the select tool the edit
              waits for a lift where the pen went down, as the second press
              may drag the selection); a drag makes a box or an arrow, whose ends
              bind to the items they land on. An arrow bound to a moved item
-             follows it (`follow`): the move's change carries the arrow's
+             follows it (`follow`, shapes/bind.rs): the move's change carries the arrow's
              new ends, so it is still one `canvas_apply`. Each text, shape
              or edit is one change. Pure.
 scene/select/hit.rs  which items an eraser's path touches, which items a
@@ -955,7 +978,10 @@ scene/overlay.rs  the key overlay (`show-keys`): open or closed, its
              that do not fit. Its rounded panel lists Command::ALL by Group
              in up to three columns (as many as fit 220 pt each, the groups
              cut in order so the tallest is shortest), each row 28 pt with
-             a chip of the live key from the Keymap. Line (a label, its font, its corners and edge)
+             a chip of the live key from the Keymap. After the groups,
+             scene/overlay/fixed.rs adds the fixed keys that are not
+             commands (a typed text's caret keys, the held pans) as rows
+             with no target. Line (a label, its font, its corners and edge)
              is shared with the palette. Pure.
 scene/palette.rs  the command palette (`show-commands`): open or closed,
              what is typed and the selected row. Typing is scene-drawn: it
@@ -1352,6 +1378,7 @@ Each boundary has something that fails when it is broken:
 | Panes open, close, resize and list through the socket, each change records `pane_moved`, closing a pane already gone succeeds, the layout survives a restart; the app follows another client's change | `crates/daemon/src/tests/pane.rs` through a real socket, and `crates/app/src/backend.rs` |
 | An agent opens a UI with data; each reply is recorded and reaches its running session as one JSON line, in order; a reply for a stopped session stays in the record; a refused open records nothing; replies are bounded | `crates/daemon/src/tests/showing.rs`, with a stand-in for Claude Code, and `crates/core/src/ui/showing.rs` |
 | A canvas page reads every kind from the canvas file and follows each feed operation | `crates/app/src/mirror/tests.rs` |
+| A folded box hides what it holds and draws it as its miniature; `fold` and the fold mark fold and unfold through the daemon; an unfold into a taken room peeks until escape or a press outside, writing nothing | `crates/app/src/mirror/fold/tests.rs`, `crates/app/src/canvases/fold/tests.rs`, and `crates/app/src/tests/fold.rs` against a real daemon |
 | A live item is one `add` line an old reader skips whole; a put beside an item is one undo step; the packet says it as text | `crates/core/tests/canvas_live.rs` |
 | An agent opens a UI as a live item: a refused open records nothing; the item, the showing and its data come back; one undo step | `crates/daemon/src/tests/live.rs`, through a real socket |
 | A live item's page shows over its box, follows a pan and a zoom, and takes presses until it is selected | `crates/app/src/scene/live/tests.rs`, and `crates/app/src/canvases/live/tests.rs` against a real daemon |

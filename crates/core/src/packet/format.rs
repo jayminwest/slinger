@@ -30,6 +30,8 @@ pub struct Header {
     pub canvas: String,
     /// The page's name.
     pub page: String,
+    /// The box a packet read `--in` a box reads (`b4`); `None` for the page.
+    pub inside: Option<String>,
     /// The canvas ops the packet covers: `from..=to`. Nothing new when `from > to`.
     pub from: u64,
     pub to: u64,
@@ -84,6 +86,9 @@ impl Packet {
         };
         field("canvas", &h.canvas);
         field("page", &h.page);
+        if let Some(inside) = &h.inside {
+            field("in", inside);
+        }
         field("from", &h.from.to_string());
         field("to", &h.to.to_string());
         field("scale", &h.scale.to_string());
@@ -203,8 +208,8 @@ fn header(line: &str) -> Result<Header> {
     if version.parse::<u64>().ok() != Some(VERSION) {
         return Err(Error::UnsupportedVersion { version: version.to_string() });
     }
-    let (mut canvas, mut page, mut from, mut to, mut scale, mut tokens, mut at) =
-        (None, None, None, None, None, None, None);
+    let (mut canvas, mut page, mut inside, mut from, mut to, mut scale, mut tokens, mut at) =
+        (None, None, None, None, None, None, None, None);
     for token in words {
         let bad = || invalid(format!("the header field `{token}` cannot be read"));
         let (key, value) = token.split_once('=').ok_or_else(bad)?;
@@ -212,6 +217,7 @@ fn header(line: &str) -> Result<Header> {
         match key {
             "canvas" => canvas = Some(value),
             "page" => page = Some(value),
+            "in" => inside = Some(value),
             "from" => from = Some(value.parse().map_err(|_| bad())?),
             "to" => to = Some(value.parse().map_err(|_| bad())?),
             "scale" => scale = Some(value.parse().map_err(|_| bad())?),
@@ -224,6 +230,7 @@ fn header(line: &str) -> Result<Header> {
     Ok(Header {
         canvas: canvas.ok_or_else(|| missing("canvas"))?,
         page: page.ok_or_else(|| missing("page"))?,
+        inside,
         from: from.ok_or_else(|| missing("from"))?,
         to: to.ok_or_else(|| missing("to"))?,
         scale: scale.ok_or_else(|| missing("scale"))?,

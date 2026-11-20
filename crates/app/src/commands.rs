@@ -84,8 +84,7 @@ pub enum Command {
     RenamePage,
     /// Remove the focused pane's page, asking once when it has items.
     RemovePage,
-    /// Undo the user's last step on the focused pane's canvas; an agent's
-    /// steps are its own.
+    /// Undo the user's last step on the focused pane's canvas; an agent's steps are its own.
     Undo,
     Redo,
     /// Speak the sling's prompt: Flick's dictation starts (opening the
@@ -136,8 +135,7 @@ pub enum Command {
     /// Save the agent UI the focused pane shows, the version it shows, as
     /// a file in a folder the user picks, and show it in the Finder.
     ExportUi,
-    /// Show the daemon's feedback file, where `leave-feedback` saves
-    /// notes, in the Finder.
+    /// Show the daemon's feedback file, where `leave-feedback` saves notes, in the Finder.
     ShowFeedbackFile,
     /// Open the feedback entry, as `leave-feedback` does, listing every
     /// recent note, the resolved ones with how they were resolved.
@@ -148,8 +146,8 @@ pub enum Command {
     /// before, without a pop-up. At either end it stays.
     SizeUp,
     SizeDown,
-    /// Select every item on the focused pane's page; in a text field or
-    /// an agent UI's page, its own select all.
+    /// Select every item on the focused pane's page; in a text field or an agent UI's page,
+    /// its own select all.
     SelectAll,
     /// Select the next item on the focused pane's page in reading order,
     /// or the one before, alone, and bring it into view.
@@ -160,12 +158,10 @@ pub enum Command {
     NudgeRight,
     NudgeUp,
     NudgeDown,
-    /// Copy the selection beside itself, in one undo step; the copy is
-    /// the selection.
+    /// Copy the selection beside itself, in one undo step; the copy is the selection.
     Duplicate,
-    /// Find typed text on the focused pane's canvas: an entry asks for the
-    /// words, and the pane turns to the first text that holds them, on its
-    /// page or a page after it, centred.
+    /// Find typed text on the focused pane's canvas: an entry asks for the words, and the
+    /// pane turns to the first text that holds them, on its page or a page after it, centred.
     Find,
     /// Go to the next text that holds the last find's words, round to the
     /// first; with no find yet, as `find`.
@@ -173,6 +169,8 @@ pub enum Command {
     /// Start a new text without a tap: under the text being typed, which
     /// ends; else at the pointer over the pane, or under the last text ended.
     NewText,
+    /// Fold each selected box to a miniature, or unfold a folded one.
+    Fold,
     /// Move the selection a point that way, in one undo step.
     NudgeLeftFine,
     NudgeRightFine,
@@ -185,7 +183,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 81] = [
+    pub const ALL: [(Command, &str); 82] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -263,6 +261,7 @@ impl Command {
         (Command::Find, "find"),
         (Command::FindNext, "find-next"),
         (Command::NewText, "new-text"),
+        (Command::Fold, "fold"),
         (Command::NudgeLeftFine, "nudge-left-fine"),
         (Command::NudgeRightFine, "nudge-right-fine"),
         (Command::NudgeUpFine, "nudge-up-fine"),
@@ -398,6 +397,7 @@ impl Default for Keymap {
             on(CMD, 'f'),
             on(CMD, 'g'),
             on(CTRL, '\r'),
+            on(CMD | ALT, 'f'),
             on(SHIFT, LEFT),
             on(SHIFT, RIGHT),
             on(SHIFT, UP),

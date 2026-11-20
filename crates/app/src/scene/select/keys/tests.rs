@@ -43,14 +43,15 @@ fn selected(select: &Select) -> Vec<u64> {
 }
 
 #[test]
-fn each_nudge_and_duplicate_command_is_keyed_and_no_other() {
+fn each_nudge_duplicate_and_fold_command_is_keyed_and_no_other() {
     assert_eq!(Keyed::of(Command::SelectAll), Some(Keyed::All));
     assert_eq!(Keyed::of(Command::PreviousItem), Some(Keyed::Step(false)));
     assert_eq!(Keyed::of(Command::NudgeUp), Some(Keyed::Nudge(0.0, -NUDGE)));
     assert_eq!(Keyed::of(Command::Duplicate), Some(Keyed::Duplicate));
     let keyed = Command::ALL.iter().filter(|(c, _)| Keyed::of(*c).is_some()).count();
+    assert_eq!(Keyed::of(Command::Fold), Some(Keyed::Fold));
     assert_eq!(Keyed::of(Command::NudgeLeftFine), Some(Keyed::Nudge(-FINE, 0.0)));
-    assert_eq!(keyed, 12);
+    assert_eq!(keyed, 13);
     assert_eq!(Keyed::of(Command::DeleteSelection), None);
 }
 

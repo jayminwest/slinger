@@ -381,3 +381,26 @@ fn a_lone_drawing_apart_from_the_writing_does_not_size_the_page() {
     let placed = log.put(&scout(), AT, "i8", &Put::Text("frame".into())).unwrap();
     assert_eq!(look_of(&log, &placed.item).1, 3020);
 }
+
+#[test]
+fn marks_hidden_in_a_folded_box_do_not_set_the_look_of_the_page() {
+    // slinger-b1bdca: a folded box's hidden texts outvoted the page's ink.
+    let mut ops = note();
+    ops.push(bx(20_000, 0, 5000, 6000));
+    for n in 0..9 {
+        ops.push(json!({ "op": "add", "item": { "page": "p1", "kind": "text", "x": 20_100,
+            "y": 100 + 600 * n, "text": "a", "size": 480, "color": "#0000ff" } }));
+    }
+    ops.push(bx(9000, 0, 100, 100));
+    let mut log = log_of(&json!(ops));
+    log.fold(&Author::User, AT, "i8", None).unwrap();
+    let placed = log.put(&scout(), AT, "b18", &Put::Text("page".into())).unwrap();
+    assert_eq!(
+        look_of(&log, &placed.item),
+        ("#cc0000".into(), 620),
+        "the page shows only the note"
+    );
+    // Beside a hidden text, it is that text that counts.
+    let placed = log.put(&scout(), AT, "t9", &Put::Text("inside".into())).unwrap();
+    assert_eq!(look_of(&log, &placed.item), ("#0000ff".into(), 480));
+}

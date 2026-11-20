@@ -126,6 +126,9 @@ pub enum Change {
     /// The user's last step on the canvas undone, or redone when `redo`.
     /// Steps are per author, so an agent's items are never undone by it.
     Step { canvas: String, redo: bool },
+    /// Box `id` folded to its miniature, or opened again when `open`
+    /// (docs/design/fold.md): `canvas_fold` or `canvas_unfold`, one step.
+    Fold { canvas: String, page: String, id: ItemId, open: bool },
 }
 
 /// An item carried to another page: as it will draw there (under its old
@@ -161,7 +164,8 @@ impl Change {
             | Change::Reshape { canvas, .. }
             | Change::Carry { canvas, .. }
             | Change::Page { canvas, .. }
-            | Change::Step { canvas, .. } => canvas,
+            | Change::Step { canvas, .. }
+            | Change::Fold { canvas, .. } => canvas,
         }
     }
 
@@ -184,7 +188,8 @@ impl Change {
             | Change::Put { page, .. }
             | Change::Set { page, .. }
             | Change::Reshape { page, .. }
-            | Change::Carry { page, .. } => Some(page),
+            | Change::Carry { page, .. }
+            | Change::Fold { page, .. } => Some(page),
             Change::Page { .. } | Change::Step { .. } => None,
         }
     }
@@ -201,6 +206,9 @@ pub enum Answer {
     Made { seq: u64, ids: Vec<ItemId> },
     /// A new page written, under that number: its id.
     NewPage { seq: u64, page: String },
+    /// An unfold not written: its old room is taken, so the box shows as
+    /// a peek ([`Change::Fold`]).
+    Peek,
     /// Not reached: send it again.
     Unreachable(Problem),
     /// Refused: drop it.
@@ -383,6 +391,10 @@ impl Ink {
                 }
                 self.problem = None;
                 return renamed;
+            }
+            Answer::Peek => {
+                self.pending[at].state = State::Sent(0);
+                self.problem = None;
             }
             Answer::Applied(seq) | Answer::NewPage { seq, .. } => {
                 self.pending[at].state = State::Sent(seq);

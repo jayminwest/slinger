@@ -11,11 +11,24 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a typed text wraps. A new text wraps at 48 characters, and
+  while you type it its dashed frame shows that column; drag the frame's
+  right edge (the pointer shows a left-right arrow) to make the column
+  narrower or wider, for a new text or one you edit. Texts typed before
+  keep running on one line until you drag their edge. Agents see the
+  same rows.
+- **App:** the key overlay (cmd+/) also lists the keys that are not
+  commands: under "Typing a text", the caret keys of a text you are typing
+  (arrows, word and row jumps, selection, deletes, the emacs keys, double
+  and triple tap), and under "Pointer", the pans by space-drag and the
+  middle or right button and the zoom at the pointer. The README has a
+  "Without a pen" section, and config.example.toml names these fixed keys.
 - **Agents:** a folded box is one line in what an agent reads,
   `b4 box … folded=7 "its first text"`, and what it holds makes no lines;
   new ink in it puts the box's line under the new things with `new=`.
   `slinger canvas read <ID> --in b4` reads what a box holds, open or folded,
   and `slinger canvas crop <ID> --item b4` of a folded box shows it open.
+  Such a packet's header names the box: `in=b4`.
 - **Agents:** `slinger canvas find` finds texts inside folded boxes too,
   and names the folded box that hides each (`i7 in i4`).
 - **Agents:** an `add` in `slinger canvas apply` may name a folded box with
@@ -30,6 +43,14 @@ bullet with the area in bold.
   its old room, each as one undo step. When something now lies in that
   room, unfold changes nothing and exits 4, naming what is in the way. An
   agent folds only the boxes it made.
+- **App:** fold a box. Select it and press opt+cmd+F (or Edit > Fold or
+  unfold box), or tap its fold mark, the top right corner turned down,
+  which shows on a box selected alone. The box shrinks to a miniature
+  that still shows what it holds and gives up its room; the same key or a
+  tap on the miniature's mark opens it again in place. When something now
+  lies in its old room, it opens as a peek over the page instead: escape
+  or a tap outside closes it, and nothing is moved. Each fold and unfold
+  is one undo step.
 
 - **App:** a canvas text being typed has a real caret. The arrow keys move
   it (alt by words, cmd to a row's ends or the text's start and end), shift
@@ -494,6 +515,8 @@ bullet with the area in bold.
 
 - **App:** while a live item's page on a canvas has the keyboard, delete
   goes to the page; it no longer deletes the selected canvas items.
+- **Agents:** a reply that leaves out its colour and size no longer takes
+  them from writing hidden in a folded box; it matches what the page shows.
 - **App:** the caret in a canvas text moves, and delete deletes, by what
   reads as one character: an emoji joined from several (a family, a skin
   tone), a letter with its accents, a flag. It no longer stops inside one.
