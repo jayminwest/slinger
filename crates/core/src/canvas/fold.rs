@@ -59,6 +59,19 @@ impl Canvas {
         self.holders(page).get(&item).copied()
     }
 
+    /// The outermost folded box that holds `item`, at any depth: the one
+    /// the page shows in its place. `None` for an item that is not hidden.
+    #[must_use]
+    pub fn outermost(&self, item: ItemId) -> Option<ItemId> {
+        let page = self.item(item)?.page;
+        let holders = self.holders(page);
+        let mut up = *holders.get(&item)?;
+        while let Some(&next) = holders.get(&up) {
+            up = next;
+        }
+        Some(up)
+    }
+
     /// Whether a folded box holds `item`, at any depth.
     #[must_use]
     pub fn hidden(&self, item: ItemId) -> bool {
@@ -99,6 +112,16 @@ impl Canvas {
             false
         };
         self.items(page).map(Item::id).filter(|&id| under(id)).collect()
+    }
+
+    /// A folded box as it stands open: its open frame and no fold. `None`
+    /// for an open box or any other item. What a crop of the box draws.
+    #[must_use]
+    pub fn opened(&self, of: ItemId) -> Option<Item> {
+        let item = self.item(of)?;
+        let Shape::Box { frame, colour, fold: Some(fold) } = &item.shape else { return None };
+        let frame = Rect::new(frame.x, frame.y, fold.open.0, fold.open.1);
+        Some(Item { shape: Shape::Box { frame, colour: *colour, fold: None }, ..item.clone() })
     }
 
     /// The items in the way of a folded box's unfold, in item order: those

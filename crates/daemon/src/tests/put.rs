@@ -49,10 +49,7 @@ fn a_put_after_a_sling_to_the_agent_lands_a_reply_in_the_record() {
     idea(&client);
     let packet = client.canvas_read(slinger_control::PacketAsk {
         canvas: "idea".into(),
-        page: None,
-        after: None,
-        select: Vec::new(),
-        out: None,
+        ..slinger_control::PacketAsk::default()
     });
     let sling = |agent: &str| {
         let tags = NewTags {

@@ -148,14 +148,14 @@ fn the_packet_names_the_page_under_new_ink_and_leaves_the_rest_out() {
         "name": "paper.pdf" } });
     log.apply(&Author::User, AT, &below).unwrap();
     log.apply(&Author::User, AT, &stroke(1000, 1000)).unwrap();
-    let packet = log.packet("paper.pdf", None, 0, &[], &[]).unwrap();
+    let packet = log.packet("paper.pdf", None, None, 0, &[], &[]).unwrap();
     let text = packet.text();
     assert!(text.contains("c3 ink 99,99 43x3 colour=red strokes=1 over=d1 img=c3.png\n"), "{text}");
     let page = format!("d1 pdf 0,0 1600x2071 pdfpage=1 name=paper.pdf blob={}\n", hash());
     assert!(text.contains(&format!("# page\n{page}")), "{text}");
     assert!(!text.contains("d2 pdf"), "no ink on page 2, so no line: {text}");
     assert_eq!(packet.images.len(), 1, "a PDF page is never an image");
-    let picked = log.packet("paper.pdf", None, 0, &["d2".into()], &[]).unwrap();
+    let picked = log.packet("paper.pdf", None, None, 0, &["d2".into()], &[]).unwrap();
     let text = picked.text();
     assert!(text.contains("d1 pdf") && text.contains("d2 pdf"), "{text}");
     assert_eq!(picked.selected, ["d2"]);
@@ -172,7 +172,7 @@ fn a_snippet_says_its_crop_and_an_agent_s_goes_in_made() {
         "crop": [720, 1800, 3000, 1200], "name": "paper.pdf" } });
     let scout = Author::Agent("scout".into());
     log.apply(&scout, AT, &snippet).unwrap();
-    let text = log.packet("paper.pdf", None, 0, &[], &[]).unwrap().text();
+    let text = log.packet("paper.pdf", None, None, 0, &[], &[]).unwrap().text();
     let line = format!(
         "# made\nd2 pdf 2400,300 600x240 by=scout pdfpage=3 crop=72,180,300,120 name=paper.pdf blob={}\n",
         hash()
@@ -221,12 +221,13 @@ fn the_words_under_new_ink_end_its_line() {
     let said = words(&[("under", 1000, 950), ("the line below", 1000, 1200), ("x\"y", 1100, 950)]);
     let area = rect_tenths(area.area);
     let under = backdrop("i1", area, rgb.clone(), Some(&said)).unwrap();
-    let text = log.packet("paper.pdf", None, 0, &[], std::slice::from_ref(&under)).unwrap().text();
+    let text =
+        log.packet("paper.pdf", None, None, 0, &[], std::slice::from_ref(&under)).unwrap().text();
     let line = "c2 ink 99,99 43x3 colour=red strokes=1 over=d1 img=c2.png \"under x\\\"y\"\n";
     assert!(text.contains(line), "{text}");
     let read = Packet::read(&text).unwrap();
     assert_eq!(read.new[0].text.as_deref(), Some("under x\"y"));
-    let again = log.packet("paper.pdf", None, 2, &[], &[under]).unwrap().text();
+    let again = log.packet("paper.pdf", None, None, 2, &[], &[under]).unwrap().text();
     assert!(!again.contains("under"), "a page line never carries words: {again}");
 
     let short = backdrop("d1", area, rgb[1..].to_vec(), None).unwrap_err();
@@ -243,6 +244,6 @@ fn ink_drawn_after_the_areas_were_asked_shows_on_white() {
     let rgb = vec![0; (area.width * area.height * 3) as usize];
     let under = backdrop("i1", rect_tenths(area.area), rgb, None).unwrap();
     log.apply(&Author::User, AT, &stroke(9000, 9000)).unwrap();
-    let packet = log.packet("paper.pdf", None, 0, &[], &[under]).unwrap();
+    let packet = log.packet("paper.pdf", None, None, 0, &[], &[under]).unwrap();
     assert_eq!(packet.images.len(), 2, "both clusters have an image, the late one on white");
 }

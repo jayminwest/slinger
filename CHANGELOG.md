@@ -11,6 +11,15 @@ bullet with the area in bold.
 
 ### Added
 
+- **Agents:** a folded box is one line in what an agent reads,
+  `b4 box … folded=7 "its first text"`, and what it holds makes no lines;
+  new ink in it puts the box's line under the new things with `new=`.
+  `slinger canvas read <ID> --in b4` reads what a box holds, open or folded,
+  and `slinger canvas crop <ID> --item b4` of a folded box shows it open.
+- **Agents:** `slinger canvas find` finds texts inside folded boxes too,
+  and names the folded box that hides each (`i7 in i4`).
+- **Agents:** an `add` in `slinger canvas apply` may name a folded box with
+  `in`: the new item joins it, and the box's open size grows to hold it.
 - **App:** start a text without a tap. New text (`new-text`, ctrl+return,
   Edit menu and the command palette) ends the text you are typing and
   starts the next half a line under it, so notes follow one another from
