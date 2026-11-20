@@ -14,6 +14,7 @@ use crate::scene::paste::Edit;
 use crate::scene::tools::Tool;
 
 mod able;
+mod broken;
 mod bundle;
 mod close;
 mod drive;
