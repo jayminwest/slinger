@@ -11,6 +11,16 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** slinger.app holds `slingerd` and `slinger` beside the app, and
+  `scripts/bundle.sh --install` links `~/.local/bin/slingerd` and
+  `~/.local/bin/slinger` to them instead of copying a second set (it
+  replaces copies left by an older install). The bundle's build number
+  (About slinger) now counts commits.
+- **App:** slinger.app has an icon in the Dock, Finder and Spotlight (a
+  placeholder: a stroke slung to the top right).
+- **Daemon:** a `slingerd` started through a link finds the `slinger`
+  beside the program the link points to, for its agents' hooks.
+
 - **CLI:** `slinger daemon info` shows which slingerd answers: its version
   and build (the commit it was built from), pid, executable, socket, data
   directory, the Claude Code it would run and its log file.

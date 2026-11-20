@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- A placeholder mark, drawn by an agent (slinger-d8fb56): a pen stroke
+       slung to the top right, on the app's dark paper (#1e1e1e) in its
+       text (#e6e6e6) and focus (#4c9aff) colours (crates/app/src/config/theme.rs).
+       scripts/icon.sh turns it into crates/app/slinger.icns. -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#1e1e1e"/>
+  <path d="M 270 730 C 330 480, 500 385, 680 362" fill="none" stroke="#e6e6e6" stroke-width="110" stroke-linecap="round"/>
+  <path d="M 830 343 L 630 240 L 657 490 Z" fill="#4c9aff" stroke="#4c9aff" stroke-width="44" stroke-linejoin="round"/>
+</svg>

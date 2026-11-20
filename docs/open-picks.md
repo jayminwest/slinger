@@ -30,6 +30,10 @@ Choices an agent made and shipped that the owner has not confirmed. An agent tha
 - [ ] add the crop tool to the tool pop-up (pick-tool) for pen-only use; the design asks only for the registry and a key (slinger-0e6e66)
 - [ ] confirm reader mode defaults: zoom commands (cmd +/-/0) do nothing as well as pinch; a page of a PDF's canvas with no pdf items pans and zooms freely (slinger-387fb4)
 
+## Launcher (plan pl-ac18df)
+
+- [ ] app icon (slinger-d8fb56): a placeholder drawn by an agent, crates/app/icon/slinger.svg (a light stroke slung to the top right ending in a blue arrowhead, on the dark paper #1e1e1e); replace the SVG and run scripts/icon.sh for real art (slinger-d8fb56)
+
 ## Agent sessions, workspaces and the rest
 
 - [ ] slings left waiting for a listener that went away stay queued while later slings start a process (7ef062f); should starting the agent hand them to it? Also: after stop-agent the next sling starts the agent again; confirm (follow-up of 38ddde) (slinger-7e2d5f)

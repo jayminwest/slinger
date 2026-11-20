@@ -25,6 +25,9 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 
 ## Launcher (plan pl-ac18df)
 
+- [ ] `scripts/bundle.sh --install` (checked with scratch SLINGER_APP_DIR and HOME only): `ls -l ~/.local/bin/slinger ~/.local/bin/slingerd` are links into /Applications/slinger.app; `slinger --version` runs through the link; an agent session's hooks still find slinger (`slinger daemon info` names the bundled one); About slinger shows the version and the build number (slinger-0d265b)
+- [ ] after `scripts/bundle.sh --install` the icon shows in the Dock, cmd+tab, Finder and Spotlight and reads at the smallest size (macOS may cache the old one: `touch /Applications/slinger.app`) (slinger-d8fb56)
+
 - [ ] from a slingerd that the bundled app started (once slinger-5e8b60 lands; until then `env -i HOME=$HOME USER=$USER SHELL=$SHELL PATH=/usr/bin:/bin:/usr/sbin:/sbin slingerd` with no --claude), start an agent and sling once: Claude Code is found, its hooks report, its Bash tool finds git/cargo/sd, its MCP servers load (slinger-be3082)
 
 ## Agent sessions, workspaces and the rest

@@ -184,8 +184,20 @@ fn warn_broken(workspaces: &Workspaces, err: &mut dyn Write) -> io::Result<()> {
 /// The `slinger` installed beside this `slingerd`, else the name alone, to
 /// look up on `PATH`.
 fn beside_me() -> PathBuf {
-    let beside = std::env::current_exe().ok().and_then(|me| Some(me.parent()?.join(SLINGER)));
-    beside.filter(|p| p.is_file()).unwrap_or_else(|| SLINGER.into())
+    std::env::current_exe().ok().and_then(|me| beside(&me)).unwrap_or_else(|| SLINGER.into())
+}
+
+/// The `slinger` beside the program at `me`. macOS names a program run
+/// through a link by the link (`~/.local/bin/slingerd`, which `--install`
+/// points into slinger.app), so the folder the link resolves to is asked
+/// first, then the link's own.
+fn beside(me: &Path) -> Option<PathBuf> {
+    let resolved = std::fs::canonicalize(me).ok();
+    [resolved.as_deref(), Some(me)]
+        .into_iter()
+        .flatten()
+        .filter_map(|p| Some(p.parent()?.join(SLINGER)))
+        .find(|p| p.is_file())
 }
 
 /// The directory the record goes in: `given`, else the default. Absolute,

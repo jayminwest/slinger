@@ -33,8 +33,10 @@ Build and open the macOS app (it shows the daemon's answer):
 
 ```bash
 scripts/bundle.sh && open target/slinger.app
-scripts/bundle.sh --install   # the app to /Applications, slingerd and slinger to ~/.local/bin
+scripts/bundle.sh --install   # the app to /Applications; links slingerd and slinger in ~/.local/bin to it
 ```
+
+The bundle holds `slingerd` and `slinger` beside the app, so one install holds one copy of each: `--install` replaces whatever is at `~/.local/bin/slingerd` and `~/.local/bin/slinger` (a copy from an older install, or a link) with a link into `/Applications/slinger.app`. It stops and starts nothing; a running daemon keeps its build until it is restarted.
 
 Run the bundle, not the bare `slinger-app` binary (from `cargo run`, a shell or ssh), whenever the app reads your files: opening a workspace, a PDF or a drawing, or exporting a UI. macOS gives folder access (Desktop, Documents, Downloads) to the bundle, which says why it asks. A bare binary gets none of its own, so its open panel can show those folders empty or refuse them.
 

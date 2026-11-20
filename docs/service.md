@@ -1309,8 +1309,9 @@ not open, and an agent with no session.
 ## Running it as a system service
 
 The repo ships no launchd or systemd unit. On macOS `scripts/bundle.sh
---install` puts the app in `/Applications` and `slingerd` and `slinger` in
-`~/.local/bin`, for a unit to run. To add one, run `slingerd` (the default
+--install` puts the app in `/Applications`, with `slingerd` and `slinger`
+inside it (`slinger.app/Contents/MacOS`), and links `~/.local/bin/slingerd`
+and `~/.local/bin/slinger` to those, for a unit to run. To add one, run `slingerd` (the default
 socket and data directory, or a `--socket <PATH>` and a `--data-dir <PATH>`
 that lasts) as the user who owns the data, restart it on
 failure, and stop it with SIGTERM. The daemon does not fork and does not
