@@ -9,7 +9,6 @@
 mod outline;
 
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -172,7 +171,7 @@ fn stroke(points: &Value, pen: impl Fn(Point, f64) -> Pen) -> Result<Ask, String
     Ok(Ask::Send(events.into_iter().map(|e| (e, None)).collect()))
 }
 
-/// Listens on `socket` (a file there is replaced) on a thread of its own
+/// Listens on `socket` (a file there is replaced; a path of any length) on a thread of its own
 /// and hands each request to `hand`, which answers what the window said.
 ///
 /// # Errors
@@ -184,7 +183,7 @@ pub fn listen(
 ) -> std::io::Result<()> {
     // A socket left by a run that ended is in the way of the new one.
     let _ = std::fs::remove_file(socket);
-    let listener = UnixListener::bind(socket)?;
+    let listener = slinger_control::bind_socket(socket)?;
     let start = Instant::now();
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {

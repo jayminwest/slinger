@@ -60,7 +60,9 @@ bullet with the area in bold.
   a canvas text or an entry such as Find or Feedback), pen and mouse
   events, scrolls, the space bar held for a pan, and commands, then reads back what the window
   shows as text (`drive scene`) or as a PNG (`drive shot`). It never
-  touches your clipboard, your saved window or your own daemon. See
+  touches your clipboard, your saved window or your own daemon. Every
+  point is written `X,Y` or `X Y`, `slinger drive <op> --help` says what
+  each op takes, and a socket path of any length works. See
   `slinger guide`.
 - **App:** undo and redo while you type a canvas text. Cmd+Z and
   Shift+Cmd+Z (and Undo and Redo in the Edit menu) step through the text's
