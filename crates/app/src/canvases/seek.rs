@@ -1,7 +1,8 @@
 //! `find` and `find-next` on a canvas pane: the entry that asks for the
 //! words, the daemon's `canvas_find` over every page of the pane's canvas,
-//! and the jump: the pane turns to the text's page and centres it, and the
-//! flash says which of how many it is. Which text is next is
+//! and the jump: the pane turns to the text's page and centres it, the
+//! text is the selection (so the item keys act from it), and the flash
+//! says which of how many it is. Which text is next is
 //! [`crate::scene::pages::find`]'s; the search is the daemon's.
 
 use serde_json::Value;
@@ -83,9 +84,10 @@ impl Canvases {
         self.found = Some(Last { canvas, text, item: hit.map(|h| h.item) });
     }
 
-    /// Turns `pane`, laid at `frame`, to `hit`'s page of `canvas` and
-    /// centres the text in what its footer leaves of it.
+    /// Turns `pane`, laid at `frame`, to `hit`'s page of `canvas`, centres
+    /// the text in what its footer leaves of it and selects it alone.
     fn jump(&mut self, pane: PaneId, frame: Rect, canvas: &str, hit: &Hit) {
+        self.select.only((canvas, &hit.page), hit.item);
         let frame = crate::scene::status::content(frame);
         let view = self.view(pane);
         view.page = Some((canvas.to_string(), hit.page.clone()));

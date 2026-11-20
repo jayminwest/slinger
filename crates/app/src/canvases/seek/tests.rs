@@ -8,6 +8,7 @@ use crate::commands::{Chord, Command};
 use crate::config::Config;
 use crate::layout::{Point, Rect, WINDOW};
 use crate::panes::{Kind, Pane, Panes};
+use crate::scene::select::Keyed;
 use crate::scene::status;
 
 /// A canvas `main` with a second page, `Two`: "plan A" and "other" on the
@@ -94,5 +95,43 @@ fn find_next_with_no_find_yet_asks_and_a_pane_with_no_canvas_says_so() {
         canvases.command(&ui, (ui.focus(), WINDOW.rect()), Command::Find);
         assert!(!canvases.typing());
         assert_eq!(canvases.said().as_deref(), Some("No canvas in this pane to find on"));
+    });
+}
+
+#[test]
+fn the_text_a_find_goes_to_is_the_selection_and_next_item_goes_on_from_it() {
+    with_daemon(|daemon| {
+        written(daemon);
+        let panes = Panes::new(Pane { kind: Kind::Canvas, name: "main".into() });
+        let (pane, frame) = (panes.focus(), WINDOW.rect());
+        let mut canvases = Canvases::new(daemon.clone());
+        shown(&mut canvases, &panes);
+        let selected = |canvases: &Canvases| {
+            let s = canvases.selection().expect("a selection");
+            assert_eq!(s.ids.len(), 1, "the text alone");
+            (s.page.clone(), s.ids[0])
+        };
+
+        canvases.command(&panes, (pane, frame), Command::Find);
+        answer(&mut canvases, "other");
+        let (on, other) = selected(&canvases);
+        assert_eq!(on, "p1");
+        canvases.command(&panes, (pane, frame), Command::Find);
+        answer(&mut canvases, "plan");
+        let (on, planned) = selected(&canvases);
+        assert_eq!(on, "p1");
+        assert_ne!(planned, other);
+
+        // Next item steps on from the found text, in reading order.
+        assert!(canvases.keyed(&panes, (pane, frame), Keyed::Step(true)));
+        assert_eq!(selected(&canvases), ("p1".into(), other));
+
+        // Find next goes to the second page and selects the text there.
+        canvases.command(&panes, (pane, frame), Command::FindNext);
+        let (on, there) = selected(&canvases);
+        assert_eq!(on, "p2");
+        assert!(there != planned && there != other);
+        shown(&mut canvases, &panes);
+        assert_eq!(selected(&canvases), ("p2".into(), there), "kept once the page shows");
     });
 }
