@@ -106,6 +106,9 @@ pub(super) struct Views {
     workspace: Option<String>,
     shown: Shown,
     parked: Vec<(Option<String>, Shown)>,
+    /// The shown workspace was closed: its views go when the window
+    /// leaves it, not to `parked`.
+    closed: bool,
 }
 
 impl Deref for Views {
@@ -135,13 +138,17 @@ impl Views {
         let workspace = workspace.map(str::to_string);
         let left = std::mem::replace(&mut self.workspace, workspace);
         let shown = std::mem::replace(&mut self.shown, back);
-        self.parked.push((left, shown));
+        if !std::mem::take(&mut self.closed) {
+            self.parked.push((left, shown));
+        }
         true
     }
 
-    /// Forgets the views parked under `workspace`, closed.
+    /// Forgets the views of `workspace`, closed: at once when parked; when
+    /// shown, once the window leaves it, as they are still drawn till then.
     pub(super) fn forget(&mut self, workspace: &str) {
         self.parked.retain(|(w, _)| w.as_deref() != Some(workspace));
+        self.closed |= self.workspace.as_deref() == Some(workspace);
     }
 
     /// Pane `pane`'s view, a new one if it has none.
@@ -193,8 +200,9 @@ impl super::Canvases {
         self.views.copy(from, to);
     }
 
-    /// Forgets the panes' views of `workspace`, closed while not shown:
-    /// open again, it shows them as the daemon kept them.
+    /// Forgets the panes' views of `workspace`, closed (the shown one's
+    /// once the window leaves it): open again, it shows them as the daemon
+    /// kept them.
     pub fn forget(&mut self, workspace: &str) {
         self.views.forget(workspace);
     }

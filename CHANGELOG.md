@@ -697,6 +697,11 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a workspace closed while the window showed it comes back, when
+  opened again, as slingerd kept it (where each pane looked and which pane
+  had focus when it closed), not as the window last held it in memory.
+  Closing the last open workspace takes the window back to its empty start
+  instead of leaving the closed canvas on screen.
 - **App:** with no workspace open (the last one closed, or none at launch)
   the window's title says "slinger" instead of naming the last canvas.
 - **App:** sling-now (alt+return, or Sling) on a PDF opened beside the

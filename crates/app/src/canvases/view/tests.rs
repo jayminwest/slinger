@@ -59,6 +59,26 @@ fn a_workspace_closed_while_parked_comes_back_with_new_views() {
 }
 
 #[test]
+fn the_shown_workspace_closed_keeps_its_views_until_the_window_leaves_it() {
+    let mut views = Views::default();
+    views.within(Some("b"));
+    panned(&mut views, 1, "notes", 20.0);
+    views.within(Some("a"));
+    panned(&mut views, 1, "main", 40.0);
+    let a = origin(&mut views, 1);
+    views.forget("a");
+    assert_eq!(origin(&mut views, 1), a, "still drawn: it stays");
+    views.within(Some("b"));
+    assert_ne!(origin(&mut views, 1), a, "b's own");
+    views.within(Some("a"));
+    assert_eq!(origin(&mut views, 1), origin(&mut Views::default(), 1), "a starts new");
+    panned(&mut views, 1, "main", 40.0);
+    views.within(Some("b"));
+    views.within(Some("a"));
+    assert_eq!(origin(&mut views, 1), a, "open again, it parks as before");
+}
+
+#[test]
 fn keep_forgets_the_panes_that_closed_only() {
     let mut views = Views::default();
     panned(&mut views, 1, "main", 10.0);

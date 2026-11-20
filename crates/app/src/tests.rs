@@ -27,6 +27,7 @@ mod keyboard;
 mod launch;
 mod pointer;
 mod reload;
+mod reopen;
 mod secondary;
 mod size;
 mod sling_box;
