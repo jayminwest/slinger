@@ -449,6 +449,8 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Canvas:** moving or erasing a selection on a large canvas is faster: a
+  lasso move of 8 strokes on a 29 MB canvas takes about 13 ms, from 24 ms.
 - **App:** a tap on a workspace shows it at once (about 20 ms, from one
   to two seconds), and what an agent draws or a page that comes shows at
   once too: the window no longer waits for its timer or a one-second round

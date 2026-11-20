@@ -456,3 +456,41 @@ fn an_add_in_an_open_box_adds_plainly_and_a_bad_in_fails() {
     let fold = log.canvas().item(id(&b)).unwrap().shape().fold().unwrap().clone();
     assert_eq!(fold.items.last(), Some(&id(&w.made[0])));
 }
+
+/// The ids each line of `bytes` names, in line order.
+fn lines(bytes: &str) -> Vec<ItemId> {
+    let named =
+        |l: &str| serde_json::from_str::<Value>(l).unwrap()["ids"].as_array().unwrap().clone();
+    bytes.lines().flat_map(named).map(|i| id(i.as_str().unwrap())).collect()
+}
+
+#[test]
+fn a_move_or_erase_of_several_ids_carries_each_folded_box_after_it_and_each_item_once() {
+    let (mut log, _) = Log::create("c").unwrap();
+    let outer = boxed(&mut log, 0, 0, 8000, 8000);
+    let inner = boxed(&mut log, 1000, 1000, 2000, 2000);
+    let deep = ink(&mut log, 1500, 1500);
+    let loose = ink(&mut log, 5000, 5000);
+    let side = boxed(&mut log, 20_000, 0, 4000, 4000);
+    let kept = ink(&mut log, 20_500, 500);
+    let (a, b) = (ink(&mut log, 30_000, 0), ink(&mut log, 40_000, 0));
+    for folded in [&inner, &outer, &side] {
+        log.fold(&Author::User, AT, folded, None).unwrap();
+    }
+    let xs = |log: &Log| log.canvas().items(P1).map(|i| i.bounds().x).collect::<Vec<_>>();
+    let before = xs(&log);
+    let lasso = json!({"op": "move", "ids": [a, outer, loose, side, b], "dx": 100, "dy": 0});
+    let w = log.apply(&Author::User, AT, &lasso).unwrap();
+    let carried = ids(&[&a, &outer, &inner, &deep, &loose, &side, &kept, &b]);
+    assert_eq!(lines(&w.bytes), carried, "named items in place, each box's held after it");
+    let moved: Vec<f64> = xs(&log).iter().zip(&before).map(|(x, b)| x - b).collect();
+    assert_eq!(moved, [10.0; 8], "every item moved once");
+
+    let w =
+        log.apply(&Author::User, AT, &json!({"op": "remove", "ids": [b, side, outer]})).unwrap();
+    assert_eq!(lines(&w.bytes), ids(&[&b, &side, &kept, &outer, &inner, &deep, &loose]));
+    assert_eq!(log.canvas().items(P1).map(Item::id).collect::<Vec<_>>(), ids(&[&a]));
+    log.undo(&Author::User, AT);
+    assert_eq!(log.canvas().items(P1).count(), 8);
+    assert_eq!(shown(&log), ids(&[&outer, &side, &a, &b]));
+}
