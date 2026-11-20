@@ -104,6 +104,7 @@ fn run(pick: Pick) -> Option<PathBuf> {
     app.setMainMenu(Some(&editing(mtm)));
     let chosen = panel.runModal() == NSModalResponseOK;
     app.setMainMenu(menus.as_deref());
+    super::menu::register(mtm);
     if !chosen {
         return None;
     }

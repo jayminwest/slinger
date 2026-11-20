@@ -40,6 +40,7 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 
 - [ ] (bundle) the ✕ on a sidebar row closes that workspace without switching, with the pen and with the mouse; the ✕ does not crowd a long name; closing the shown one shows another; opt+cmd+W still closes the shown one (driven window checked: other row, shown row, broken row, running stand-in agent ended) (slinger-9cd9d6)
 - [ ] (bundle) open each menu with and without a selection, on an agent UI pane, with one pane and one page: the right items are grey and none is grey that would work; a greyed item's key still does what it did (delete with nothing selected goes on, cmd+W with one pane keeps it); Cut, Copy and Paste still grey as before; an item's state is right the moment the menu opens, and a menu held open while the selection changes stays open (`commands::able` tests and route-level tests in tests/able.rs passed; a driven window has no menu bar) (slinger-8f04db)
+- [ ] (bundle) cmd+H hides and a Dock click shows; Hide Others and Show All; the Services submenu fills; ctrl+cmd+F and the green button enter and leave full screen and the item's title follows; Window lists the window and Minimize and Zoom work; the Help menu's search field finds menu items; all of it still works after an open panel (shift+cmd+O) has come and gone; no item shows twice (macOS adds its own full-screen or tab items to some menus) (menu tests passed: order, separators, roles, keys; a driven window has no menu bar) (slinger-13f921)
 
 ## Agent sessions, workspaces and the rest
 

@@ -810,8 +810,13 @@ commands.rs  key commands: the closed list of commands, the chord parser
              chord to a command (and a command to its live chord). `registry` gives each command a title and a
              group and prints a chord in macOS glyphs: the key overlay,
              the palette and the menu bar read it (SPEC D21). `menu` lays
-             the menu bar out: each menu's items, the key each shows, the
-             check mark on the pen's tool and which items are grey;
+             the menu bar out: each menu's role (the app's, Window, Help
+             or plain), its items and separators, macOS's own items
+             (About, Services, Hide, Hide Others, Show All, Minimize, Zoom,
+             Enter Full Screen, Bring All to Front: macOS's titles, each
+             usual key shown only while the keymap leaves it free), the key
+             each shows, the check mark on the pen's tool and which items
+             are grey;
              `same_layout` says two bars differ only in that. `able` is the
              one enabled predicate: `can(command, &Facts)`, one exhaustive
              match, false only where the command would now do nothing or
@@ -1348,8 +1353,14 @@ platform/menu.rs  makes the menu bar a scene's menus say, again when they
              which the menu target's validateMenuItem: reads by the item's
              tag, as a menu opens and before an item's key fires. A command item chosen by its key goes to main as that
              key press, so the keymap runs it once; chosen with the pointer,
-             as Event::Command. Cut, copy, paste, select all, minimise and
-             about go along the responder chain. An undo or redo key main
+             as Event::Command. Cut, copy, paste, select all, about, hide,
+             hide others, show all, minimize, zoom, full screen and bring
+             all to front go along the responder chain with macOS's own
+             selectors. A separator is NSMenuItem's; the Services item
+             holds an empty submenu given to setServicesMenu:, and the
+             menus whose role is Window and Help go to setWindowsMenu: and
+             setHelpMenu: (by role, never by title), again after an open
+             panel puts the bar back (platform/panel.rs). An undo or redo key main
              passes on (the entry has it) goes on as undo: or redo: along
              the responder chain, to the field's own undo.
 platform/keys.rs  a key press as a chord and the text it types (none with

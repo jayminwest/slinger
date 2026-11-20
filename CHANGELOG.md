@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** the standard Mac menu items: Services, Hide slinger (cmd+H),
+  Hide Others, Show All and Quit slinger in the app menu; Minimize, Zoom,
+  Enter Full Screen (ctrl+cmd+F) and Bring All to Front in the Window
+  menu, which now lists the window. The Help menu has macOS's search field.
+
 - **App:** menu bar items grey out when their command cannot act now:
   Delete, Duplicate and the nudges with nothing selected, Close pane and
   the focus commands with one pane, Next page with one page, Step out
