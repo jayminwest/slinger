@@ -13,8 +13,9 @@ bullet with the area in bold.
 
 - **Agents:** an agent can check the app itself. `slinger-app --drive
   <SOCKET>` starts the real app as a window that is never shown, on a
-  daemon of the agent's own, and `slinger drive` sends it keys, typing, pen
-  and mouse events, scrolls and commands, then reads back what the window
+  daemon of the agent's own, and `slinger drive` sends it keys, typing (into
+  a canvas text or an entry such as Find or Feedback), pen and mouse
+  events, scrolls, the space bar held for a pan, and commands, then reads back what the window
   shows as text (`drive scene`) or as a PNG (`drive shot`). It never
   touches your clipboard, your saved window or your own daemon. See
   `slinger guide`.

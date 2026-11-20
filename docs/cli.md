@@ -67,7 +67,7 @@ a "did you mean" suggestion.
 | `feedback ls [--all] [--limit N]` | One line per note, newest first: `ts`, text and, with `--all`, `resolved` and its note for a resolved one, separated by tabs. `--limit` defaults to 20. `--json`: `path`, `entries` |
 | `feedback resolve <TS> [NOTE]...` | Nothing. `--json`: `path`, `resolves`, `ts`, `note` |
 | `feedback path` | The feedback file's path. `--json`: `path` |
-| `drive [--app PATH] key <CHORD> [--text TEXT]`, `drive type <TEXT>...`, `drive press\|drag\|lift <X> <Y> [--tablet] [--shift] [--touch] [--eraser]`, `drive stroke <X,Y>... [--tablet] [--shift] [--touch] [--eraser]`, `drive move <X> <Y>`, `drive scroll <X> <Y> <DX> <DY>`, `drive zoom <X> <Y> <FACTOR>`, `drive run <NAME>`, `drive copy`, `drive cut`, `drive paste [TEXT]...`, `drive drop <X> <Y> <FILE>`, `drive tick` | `taken` or `passed` for each event, separated by spaces. `--json`: `said` |
+| `drive [--app PATH] key <CHORD> [--text TEXT]`, `drive type <TEXT>...`, `drive press\|drag\|lift <X> <Y> [--tablet] [--shift] [--touch] [--eraser]`, `drive stroke <X,Y>... [--tablet] [--shift] [--touch] [--eraser]`, `drive move <X> <Y>`, `drive scroll <X> <Y> <DX> <DY>`, `drive zoom <X> <Y> <FACTOR>`, `drive space [--up]`, `drive run <NAME>`, `drive copy`, `drive cut`, `drive paste [TEXT]...`, `drive drop <X> <Y> <FILE>`, `drive tick` | `taken` or `passed` for each event, separated by spaces. `--json`: `said` |
 | `drive [--app PATH] scene [--debug]` | What the driven window shows, one line per thing: its kind, its place `x,y wxh`, its colour and its text. `--json`: `said` |
 | `drive [--app PATH] shot <FILE>`, `drive clip`, `drive resize <W> <H>` | The PNG's path; the text last cut or copied; nothing. `--json`: `said` |
 | `guide` | The guide for agents: the ideas and the common tasks, then every command with its arguments and what it does. Needs no daemon. `--json`: `guide`, `commands` (`name`, `usage`, `about`) |
@@ -109,7 +109,10 @@ request, one line of JSON, and prints what the window said
 (`crates/app/src/drive.rs` reads the line). A request becomes the events
 the app hears for real input, with points in the window's points from its
 top left. A key the app passes on types its `--text` (by default its own
-character, and nothing with cmd or ctrl held). `drive run` takes a
+character, and nothing with cmd or ctrl held); while an entry (Find, the
+sling's prompt, Feedback) holds the keyboard, that text goes into its
+field. `drive space` holds the space bar down, as for a pan with the
+pointer, until `drive space --up`. `drive run` takes a
 command's name as the config file has it. `drive paste` with no text
 pastes what the driven window last cut or copied, which never touches the
 user's clipboard. No app on the socket exits 6 (`unavailable`); a request
