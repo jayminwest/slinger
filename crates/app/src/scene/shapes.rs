@@ -132,6 +132,11 @@ impl Shapes {
         self.size = Some(size);
     }
 
+    /// The size, in canvas units, the next text the text tool places starts at.
+    pub fn size(&self) -> f64 {
+        self.size.unwrap_or(TEXT_SIZE)
+    }
+
     /// The pen went down on `page` of `canvas`, over `items`, with `tool`
     /// in `colour`. A press outside a text being typed ends it, to `ink`, then
     /// goes on as below; only the text tool's single tap is used up by
