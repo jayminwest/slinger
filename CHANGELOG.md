@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** start a text without a tap. New text (`new-text`, ctrl+return,
+  Edit menu and the command palette) ends the text you are typing and
+  starts the next half a line under it, so notes follow one another from
+  the keyboard. With no text being typed it starts one at the pointer, or,
+  with the pointer off the pane, under the last text you ended there.
 - **App:** a canvas text being typed has a real caret. The arrow keys move
   it (alt by words, cmd to a row's ends or the text's start and end), shift
   selects, delete and forward delete (alt by words, cmd to the row's start)
