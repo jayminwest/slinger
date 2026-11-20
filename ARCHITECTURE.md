@@ -545,7 +545,18 @@ backend/watch.rs  the Watch: its thread, which waits on a condvar for a poke
              (want, follow, drop) or one second; its round (`round`: UIs,
              layout, agents, told to a sink, so a test records the order);
              and the layout sent with the time it read the wanted name and
-             the time it sent it (trace.rs).
+             the time it sent it (trace.rs). A layout is news only when its
+             arrangement changed (`arrangement`: workspace, tree, ids,
+             targets, ratios; not the kept views or focus), so the app's
+             own `pane_view` saves never come back as layout news.
+backend/views.rs  the Saver: the window hands it the shown workspace's
+             looks when they change (never waits); a thread of its own
+             sends one `pane_view` with only the changed panes and focus
+             300 ms after the last looks, at once when looks of another
+             workspace come (a switch) and on `flush` (quit, waited on at
+             most 500 ms). A failed send is tried with the next looks and is
+             otherwise dropped; a daemon without the verb leaves the app as
+             it was. Built over a send function, so tests count requests.
 backend/sling.rs  the Slinger: each sling as one `sling_send` (canvas, page,
              the selected ids, the prompt) on a thread of its own, and the
              daemon's answer back (`Heard`). The daemon picks the agent.
@@ -645,7 +656,15 @@ canvases/view.rs  each canvas pane's view: page, viewport, trail, reader
              A new view is unplaced (`placed`) until its page first comes,
              when it opens with `Viewport::opening`, or the user pans or
              zooms; a split copies the source's view, placed
-             (`Canvases::split_view`).
+             (`Canvases::split_view`). A pane with no view in memory takes
+             the view the daemon kept for it (`Pane.view`, `View::learn`)
+             when it is of the pane's canvas: page, origin and zoom
+             (`Viewport::kept`), placed, so no fit runs; a view in memory
+             always wins. The box trail is not kept.
+canvases/looks.rs  where the shown workspace's panes look (`looks`: each
+             placed canvas view by pane id, its page once come, origin and
+             zoom; the focused pane's id), handed to backend/views.rs at
+             the end of every `show` and flushed on Event::Quitting.
 canvases/live.rs  the live items' pages: each showing a pane draws fetched
              once on a thread of its own, put over its item; a press on an
              item whose page shows goes to the page unless it grabs the
@@ -1263,6 +1282,8 @@ platform/event.rs  what the app hears (Event) and answers (Step), and
              waker: the post any thread calls to queue Event::Wake on the
              main dispatch queue, which the run loop serves in its common
              modes (during a stroke, a drag or a live resize too).
+             Event::Quitting comes as the window closes, before the app
+             terminates (the red button, cmd+Q or Step::Quit).
 platform/window.rs  makes the window (its style, smallest size and
              delegate) and puts it at its saved frame.
 platform/drive.rs  the driven window on the main thread: runs each ask from
@@ -1584,6 +1605,7 @@ Each boundary has something that fails when it is broken:
 | a button on the page (put through the daemon); a tap slings what is new with no selection, the reply lands beside the note, a typed prompt goes with a tap, a failure shows under the button, the eraser over it slings nothing | `crates/app/src/canvases/button/tests.rs` against a real daemon and a stand-in for Claude Code |
 | A follower shows the page, hands on each change, wakes the main thread with each, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
 | Two wakes post once, a teller wakes after its news is in the channel, Event::Wake runs the news path | `crates/app/src/backend/wake.rs`, `crates/app/src/tests/wake.rs` |
+| A pane's page, pan and zoom and the focus go to the daemon (one request per burst, only what changed, at once on a switch, bounded at quit) and a new window opens each pane there with no fit; a kept view of another canvas is ignored and a view in memory wins; the app's own saves are no layout news | `crates/app/src/backend/views/tests.rs`, `crates/app/src/canvases/view/tests.rs`, `crates/app/src/shared/tests.rs`, `crates/app/src/backend/watch.rs` and `crates/app/src/tests/views.rs` against a real daemon |
 | A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |
 | Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |
 | Ink not yet written is selected, moved and erased at once; each change goes in turn by the ids the daemon made, one undo step each | `crates/app/src/scene/ink/tests.rs`, and `crates/app/src/canvases/tests.rs` against a real daemon |

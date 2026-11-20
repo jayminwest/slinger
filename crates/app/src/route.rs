@@ -81,6 +81,10 @@ pub fn route(
         }
         (Ask::Step(step), _) => step,
         (Ask::Not, Event::Tick | Event::Wake) => return Routed::News(false),
+        (Ask::Not, Event::Quitting) => {
+            canvases.quitting(&shared.panes);
+            Step::Stay
+        }
         (Ask::Not, Event::Reply(line)) => match shared.reply(&line, socket) {
             Ok(false) => Step::Stay,
             Ok(true) => Step::Draw(view(settings, shared, tools, sidebar, canvases)),

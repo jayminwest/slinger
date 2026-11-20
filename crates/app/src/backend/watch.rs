@@ -9,7 +9,7 @@ use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
-use slinger_control::{Client, PaneKind, PaneLayout};
+use slinger_control::{Client, Pane, PaneKind, PaneLayout, PaneTree};
 
 use super::wake::Wake;
 use super::{Problem, panes, ui, workspaces};
@@ -102,7 +102,27 @@ fn load(daemon: &Client, layout: &PaneLayout) -> Vec<(String, Result<Shown, Prob
     names.into_iter().map(|name| (name.to_string(), ui::fetch(daemon, name))).collect()
 }
 
-/// What a round remembers: the last layout and the last agents told.
+/// `layout` as the window arranges it: its workspace and its panes, by
+/// id, what each shows and their splits, with no kept view or focus. The
+/// app's own `pane_view` changes only those, so it is not layout news.
+fn arrangement(layout: &PaneLayout) -> PaneLayout {
+    fn bare(tree: &PaneTree) -> PaneTree {
+        match tree {
+            PaneTree::Pane(pane) => PaneTree::Pane(Pane { view: None, ..pane.clone() }),
+            PaneTree::Split { split, ratio, first, second } => PaneTree::Split {
+                split: *split,
+                ratio: *ratio,
+                first: Box::new(bare(first)),
+                second: Box::new(bare(second)),
+            },
+        }
+    }
+    let workspace = layout.workspace.clone();
+    PaneLayout { workspace, layout: bare(&layout.layout), pane: None, event: None, focus: None }
+}
+
+/// What a round remembers: the last layout told, as arranged, and the last
+/// agents told.
 #[derive(Default)]
 struct Last {
     drawn: Option<Result<PaneLayout, Problem>>,
@@ -121,13 +141,14 @@ fn round(
     tell: &mut impl FnMut(Told) -> bool,
 ) -> bool {
     let layout = panes::layout(daemon, wanted, last);
-    if told.drawn.as_ref() != Some(&layout) {
+    let arranged = layout.as_ref().map(arrangement).map_err(Clone::clone);
+    if told.drawn.as_ref() != Some(&arranged) {
         if let Ok(now) = &layout
             && !tell(Told::Uis(load(daemon, now)))
         {
             return false;
         }
-        told.drawn = Some(layout.clone());
+        told.drawn = Some(arranged);
         if !tell(Told::Layout(layout, Stamps { watch, layout: Instant::now() })) {
             return false;
         }
@@ -372,6 +393,30 @@ mod tests {
             assert!(round(d, wanted, Instant::now(), &mut told, &mut tell));
             assert!(round(d, wanted, Instant::now(), &mut told, &mut tell), "nothing new");
             assert_eq!(order, ["uis", "layout", "agents"]);
+        });
+    }
+
+    #[test]
+    fn a_pane_view_sent_from_elsewhere_is_no_layout_news() {
+        with_socket(|socket| {
+            let d = &Client::new(socket);
+            let _dir = open_notes(d);
+            let asked = (socket.to_path_buf(), Some("notes".into()), None);
+            let watch = Watch::every(Duration::from_millis(20), asked, &Wake::none());
+            crate::backend::testing::wait_until(|| watch.layout().is_some());
+            let view =
+                control::PaneView { canvas: "notes".into(), page: None, x: 5.0, y: 5.0, zoom: 2.0 };
+            let kept = d.pane_view("notes", &[control::PaneViewed { id: 1, view }], Some(1));
+            assert!(kept.unwrap().layout.panes()[0].view.is_some(), "the daemon keeps it");
+            for _ in 0..10 {
+                watch.poke();
+                std::thread::sleep(Duration::from_millis(30));
+            }
+            assert!(watch.layout().is_none(), "no layout news");
+            d.pane_open("notes", control::PaneKind::Canvas, "notes", None, false).unwrap();
+            crate::backend::testing::wait_until(|| {
+                watch.layout().is_some_and(|(l, _)| l.unwrap().layout.panes()[0].view.is_some())
+            });
         });
     }
 

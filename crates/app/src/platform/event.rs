@@ -52,6 +52,9 @@ pub enum Event {
     Tick,
     /// A backend thread has news ([`waker`]).
     Wake,
+    /// The app is about to quit: its window closed (the red button, or a
+    /// [`Step::Quit`]). The answer may wait a moment, never long.
+    Quitting,
     /// A key press.
     Key(Chord),
     /// The text a key press types, when its [`Event::Key`] was passed on:

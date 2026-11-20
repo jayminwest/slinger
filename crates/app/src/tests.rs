@@ -26,6 +26,7 @@ mod split;
 mod start;
 mod step;
 mod undo;
+mod views;
 mod wake;
 
 /// The window's state, as `window` keeps it, with no watch.

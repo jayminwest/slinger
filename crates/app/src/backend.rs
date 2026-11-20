@@ -37,6 +37,7 @@ mod sling;
 pub(crate) mod testing;
 pub mod ui;
 mod unsent;
+mod views;
 pub mod wake;
 mod watch;
 
@@ -48,6 +49,7 @@ pub use follow::{Follower, News};
 pub use outbox::{Outbox, run};
 pub use sling::{Heard, Render, Slinger};
 pub use unsent::Unsent;
+pub use views::{Looks, Saver};
 pub use wake::{Teller, Wake};
 pub use watch::Watch;
 
