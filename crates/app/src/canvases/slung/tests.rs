@@ -98,7 +98,7 @@ fn one_tap_slings_the_selection_with_the_config_s_words_and_the_pill_follows_the
             .iter()
             .map(|t| t.1)
             .collect();
-        assert_eq!(taps, [Tap::Idle, Tap::Idle, runs[2]], "one sling at a time");
+        assert_eq!(taps, runs, "a sling while one is out goes, as cmd+return's does");
         assert_eq!(canvases.said().as_deref(), Some("Slung to scout"));
 
         daemon.canvas_put("notes", "scout", "c1", Put::Text("a reply".into())).unwrap();

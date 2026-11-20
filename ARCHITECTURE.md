@@ -1173,7 +1173,8 @@ scene/sling.rs  the sling (SPEC section 6): the one-line entry under the
              opened again. Pure. `sling/buttons.rs`: the three buttons
              beside a selection's box, ➤ Sling (`sling-now`), + prompt
              (`sling`) and Delete (`delete-selection`), each a 28 pt target
-             inside the pane; while a sling is out, Delete alone.
+             inside the pane, never moving; they work while a sling is
+             out, as `sling-now` does (the agent takes it as it works).
              `sling/pen.rs`: the pen's buttons beside every entry's box
              (the prompt's, a note's, a new name's), ✓ Sling, ✓ Save or ✓
              Rename (Tap::Send, as return), Dictate (`dictate`; ● Stop while

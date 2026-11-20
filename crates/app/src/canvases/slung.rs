@@ -175,9 +175,9 @@ impl Canvases {
     }
 
     /// What the window draws for the sling over the canvas panes of
-    /// `panes` laid in `area`, in `theme`'s colours: "➤ Sling" and "+
-    /// prompt" beside the selection while no sling is out, "Delete" beside
-    /// it, the pen's buttons beside the open entry, the "✓" that resolves
+    /// `panes` laid in `area`, in `theme`'s colours: "➤ Sling", "+
+    /// prompt" and "Delete" beside the selection while no entry is open and
+    /// no sling waits for the daemon's answer, the pen's buttons beside the open entry, the "✓" that resolves
     /// each recent note under a note's, and the pill; their labels (the
     /// buttons' first), tap targets, and the
     /// answer's panel.
@@ -186,7 +186,7 @@ impl Canvases {
         let idle = self.sling.canvas().is_none() && !self.typing();
         let selected = self.selection_in(panes, area).filter(|(s, ..)| idle && !s.ids.is_empty());
         if let Some((_, around, within)) = selected {
-            (labels, targets) = buttons::buttons(around, within, theme, self.slung.out());
+            (labels, targets) = buttons::buttons(around, within, theme);
         }
         let (pen, tapped) = self.entry_buttons(theme);
         let (ticks, ticked) = self.notes.ticks(theme);
