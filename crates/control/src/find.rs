@@ -4,9 +4,16 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{Client, RemoteError, Request};
+use crate::{Client, RemoteError};
 
-/// The reply to [`crate::Request::CanvasFind`].
+/// `canvas_find`: the text items whose words hold `text`, on every page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CanvasFindAsk {
+    pub canvas: String,
+    pub text: String,
+}
+
+/// The reply to `canvas_find`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CanvasFound {
     /// Each text item that holds the phrase, as `canvas_show` gives an
@@ -24,20 +31,19 @@ impl Client {
     /// `not_found` for a canvas that is not there, and `unavailable` when
     /// the daemon does not answer.
     pub fn canvas_find(&self, canvas: &str, text: &str) -> Result<Vec<Value>, RemoteError> {
-        let reply: CanvasFound =
-            self.call(&Request::CanvasFind { canvas: canvas.into(), text: text.into() })?;
-        Ok(reply.found)
+        Ok(self.call(CanvasFindAsk { canvas: canvas.into(), text: text.into() })?.found)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::Request;
     use crate::wire::request_line;
+    use crate::{CanvasFindAsk, Request};
 
     #[test]
     fn a_find_reads_back_as_itself() {
-        let want = Request::CanvasFind { canvas: "main".into(), text: "plan B".into() };
+        let want =
+            Request::CanvasFind(CanvasFindAsk { canvas: "main".into(), text: "plan B".into() });
         let line = request_line(&want).unwrap();
         assert_eq!(
             line,

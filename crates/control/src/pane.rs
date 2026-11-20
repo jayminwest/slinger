@@ -1,42 +1,56 @@
 //! The pane verbs: their requests, replies and client methods
 //! (docs/service.md, "Panes"). The server keeps each workspace's panes;
 //! the app, the CLI and agents change them with these verbs alone.
-//!
-//! [`crate::Request`] carries them as one variant, [`PaneAsk`].
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Client, RemoteError, Request};
+use crate::{Client, RemoteError};
 
-/// A pane request, as a client writes it and the daemon reads it.
+/// `pane_list`: the panes of a workspace.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneListAsk {
+    pub workspace: String,
+}
+
+/// `pane_open`: open a pane that shows `target`, beside pane number
+/// `beside` (to its right, or below it with `below`), or beside the whole
+/// window.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneOpenAsk {
+    pub workspace: String,
+    pub kind: PaneKind,
+    pub target: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub beside: Option<u32>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub below: bool,
+}
+
+/// `pane_close`: close pane number `pane`. One that is already gone
+/// succeeds.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneCloseAsk {
+    pub workspace: String,
+    pub pane: u32,
+}
+
+/// `pane_resize`: move the border after pane number `pane` (on its right,
+/// or below it) so its split gives its first side `ratio`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "op", rename_all = "snake_case")]
-pub enum PaneAsk {
-    /// The panes of a workspace.
-    PaneList { workspace: String },
-    /// Open a pane that shows `target`, beside pane number `beside` (to
-    /// its right, or below it with `below`), or beside the whole window.
-    PaneOpen {
-        workspace: String,
-        kind: PaneKind,
-        target: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        beside: Option<u32>,
-        #[serde(default, skip_serializing_if = "is_false")]
-        below: bool,
-    },
-    /// Close pane number `pane`. One that is already gone succeeds.
-    PaneClose { workspace: String, pane: u32 },
-    /// Move the border after pane number `pane` (on its right, or below
-    /// it) so its split gives its first side `ratio`.
-    PaneResize { workspace: String, pane: u32, ratio: f64 },
-    /// Keep where the panes named by id look, and which pane has the focus.
-    PaneView {
-        workspace: String,
-        views: Vec<PaneViewed>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        focus: Option<u32>,
-    },
+pub struct PaneResizeAsk {
+    pub workspace: String,
+    pub pane: u32,
+    pub ratio: f64,
+}
+
+/// `pane_view`: keep where the panes named by id look, and which pane has
+/// the focus.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaneViewAsk {
+    pub workspace: String,
+    pub views: Vec<PaneViewed>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focus: Option<u32>,
 }
 
 /// What a pane shows.
@@ -150,7 +164,7 @@ impl Client {
     /// `not_found` for a workspace that is not open, and `unavailable` when
     /// the daemon does not answer.
     pub fn pane_list(&self, workspace: &str) -> Result<PaneLayout, RemoteError> {
-        self.call(&Request::Pane(PaneAsk::PaneList { workspace: workspace.into() }))
+        self.call(PaneListAsk { workspace: workspace.into() })
     }
 
     /// Opens a pane on `workspace` that shows the canvas or UI `target`,
@@ -171,7 +185,7 @@ impl Client {
         below: bool,
     ) -> Result<PaneLayout, RemoteError> {
         let (workspace, target) = (workspace.into(), target.into());
-        self.call(&Request::Pane(PaneAsk::PaneOpen { workspace, kind, target, beside, below }))
+        self.call(PaneOpenAsk { workspace, kind, target, beside, below })
     }
 
     /// Closes pane number `pane` of `workspace`; the pane beside it takes
@@ -182,7 +196,7 @@ impl Client {
     ///
     /// As [`Client::pane_list`].
     pub fn pane_close(&self, workspace: &str, pane: u32) -> Result<PaneLayout, RemoteError> {
-        self.call(&Request::Pane(PaneAsk::PaneClose { workspace: workspace.into(), pane }))
+        self.call(PaneCloseAsk { workspace: workspace.into(), pane })
     }
 
     /// Moves the border after pane number `pane` of `workspace` (on its
@@ -200,7 +214,7 @@ impl Client {
         pane: u32,
         ratio: f64,
     ) -> Result<PaneLayout, RemoteError> {
-        self.call(&Request::Pane(PaneAsk::PaneResize { workspace: workspace.into(), pane, ratio }))
+        self.call(PaneResizeAsk { workspace: workspace.into(), pane, ratio })
     }
 
     /// Keeps where the panes of `workspace` named in `views` look, each by
@@ -221,7 +235,7 @@ impl Client {
         focus: Option<u32>,
     ) -> Result<PaneLayout, RemoteError> {
         let (workspace, views) = (workspace.into(), views.to_vec());
-        self.call(&Request::Pane(PaneAsk::PaneView { workspace, views, focus }))
+        self.call(PaneViewAsk { workspace, views, focus })
     }
 }
 
@@ -241,16 +255,18 @@ mod tests {
 
     #[test]
     fn a_pane_request_reads_back_as_itself_by_its_own_op() {
-        let open = |beside, below| PaneAsk::PaneOpen {
-            workspace: "w".into(),
-            kind: PaneKind::Ui,
-            target: "board".into(),
-            beside,
-            below,
+        let open = |beside, below| {
+            Request::PaneOpen(PaneOpenAsk {
+                workspace: "w".into(),
+                kind: PaneKind::Ui,
+                target: "board".into(),
+                beside,
+                below,
+            })
         };
         for (ask, line) in [
             (
-                PaneAsk::PaneList { workspace: "w".into() },
+                Request::PaneList(PaneListAsk { workspace: "w".into() }),
                 r#"{"v":1,"op":"pane_list","workspace":"w"}"#,
             ),
             (
@@ -262,25 +278,33 @@ mod tests {
                 r#"{"v":1,"op":"pane_open","workspace":"w","kind":"ui","target":"board","beside":2,"below":true}"#,
             ),
             (
-                PaneAsk::PaneClose { workspace: "w".into(), pane: 3 },
+                Request::PaneClose(PaneCloseAsk { workspace: "w".into(), pane: 3 }),
                 r#"{"v":1,"op":"pane_close","workspace":"w","pane":3}"#,
             ),
             (
-                PaneAsk::PaneResize { workspace: "w".into(), pane: 1, ratio: 0.3 },
+                Request::PaneResize(PaneResizeAsk { workspace: "w".into(), pane: 1, ratio: 0.3 }),
                 r#"{"v":1,"op":"pane_resize","workspace":"w","pane":1,"ratio":0.3}"#,
             ),
             (
-                PaneAsk::PaneView { workspace: "w".into(), views: vec![viewed()], focus: Some(3) },
+                Request::PaneView(PaneViewAsk {
+                    workspace: "w".into(),
+                    views: vec![viewed()],
+                    focus: Some(3),
+                }),
                 r#"{"v":1,"op":"pane_view","workspace":"w","views":[{"id":3,"canvas":"notes","page":"p2","x":-10.5,"y":4.0,"zoom":0.5}],"focus":3}"#,
             ),
             (
-                PaneAsk::PaneView { workspace: "w".into(), views: vec![], focus: None },
+                Request::PaneView(PaneViewAsk {
+                    workspace: "w".into(),
+                    views: vec![],
+                    focus: None,
+                }),
                 r#"{"v":1,"op":"pane_view","workspace":"w","views":[]}"#,
             ),
         ] {
-            assert_eq!(request_line(&Request::Pane(ask.clone())).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
-            assert_eq!(read, Some(Request::Pane(ask)), "{line}");
+            assert_eq!(read, Some(ask), "{line}");
         }
         for line in [
             r#"{"v":1,"op":"pane_open","workspace":"w","kind":"browser","target":"x"}"#,
