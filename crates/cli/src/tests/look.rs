@@ -70,3 +70,22 @@ fn crop_needs_one_of_item_and_box_and_unknown_ids_are_not_found() {
     );
     assert!(runs[4].err.contains("item i9 not found"), "{}", runs[4].err);
 }
+
+#[test]
+fn find_prints_page_item_and_text_per_match_and_nothing_for_none() {
+    let texts = r#"[{"op":"page.add","name":"Two"},
+{"op":"add","item":{"page":"p2","kind":"text","x":0,"y":0,"text":"plan\nB"}},
+{"op":"add","item":{"page":"p1","kind":"text","x":0,"y":0,"text":"The plan"}}]"#;
+    let runs = cli_each(&[
+        &["canvas", "create", "main"],
+        &["canvas", "apply", "main", texts],
+        &["canvas", "find", "main", "PLAN"],
+        &["canvas", "find", "main", "nowhere"],
+        &["canvas", "find", "main", "plan b", "--json"],
+        &["canvas", "find", "nope", "plan"],
+    ]);
+    assert_eq!(runs[2].out, "p1\ti2\tThe plan\np2\ti1\tplan\\nB\n");
+    assert_eq!((runs[3].code, runs[3].out.as_str()), (exit::OK, ""));
+    assert_eq!(json(&runs[4])["found"][0]["id"], "i1");
+    assert_eq!(runs[5].code, exit::NOT_FOUND);
+}

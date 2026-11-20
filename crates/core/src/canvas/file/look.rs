@@ -1,5 +1,6 @@
 //! What an agent asks a canvas for when the packet is not enough (SPEC R5,
-//! R6): an image of one item or one box, and the raw points of ink.
+//! R6): an image of one item or one box, and the raw points of ink; and
+//! the text items that hold a phrase, on every page ([`Log::find`]).
 //!
 //! Ids are the file's (`i12`) or the packet's (`c12`, `t12`, `b12`, `a12`):
 //! the number is the item's, so every letter names that item, except that
@@ -78,6 +79,18 @@ impl Log {
                 }
                 Ok(whole)
             })
+            .collect()
+    }
+
+    /// The text items whose words hold `phrase`, page by page in reading
+    /// order ([`crate::canvas::Canvas::find`]), each as `canvas show` gives
+    /// an item, its page included. A phrase of no words finds nothing.
+    #[must_use]
+    pub fn find(&self, phrase: &str) -> Vec<Value> {
+        let canvas = self.canvas();
+        let found = canvas.find(phrase).into_iter().filter_map(|i| canvas.item(i));
+        found
+            .map(|item| serde_json::from_str(&json::whole_item(item)).unwrap_or_default())
             .collect()
     }
 

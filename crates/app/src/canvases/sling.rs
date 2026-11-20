@@ -36,7 +36,7 @@ impl Canvases {
         if self.notes.is_typing() {
             return false;
         }
-        self.asks.cancel_rename();
+        self.asks.cancel_entry();
         let selected = self.selection_in(panes, area).map(|(s, a, w)| (s.clone(), a, w));
         let Some((selection, around, within)) = selected.or_else(|| self.button_in(panes, area))
         else {
@@ -68,12 +68,12 @@ impl Canvases {
     /// Whether an entry is open (the sling's, the feedback's or a page's new
     /// name's): it takes the keys.
     pub fn typing(&self) -> bool {
-        self.sling.is_typing() || self.notes.is_typing() || self.asks.renaming()
+        self.sling.is_typing() || self.notes.is_typing() || self.asks.entering()
     }
 
     /// Closes whichever entry is open: one shows at a time.
     pub(super) fn close_entries(&mut self) {
-        if self.sling.cancel() | self.notes.cancel() | self.asks.cancel_rename() {
+        if self.sling.cancel() | self.notes.cancel() | self.asks.cancel_entry() {
             self.entry_closed();
         }
     }
@@ -96,7 +96,7 @@ impl Canvases {
         if let Some(closed) = self.feedback_key(chord) {
             return closed;
         }
-        if self.asks.renaming() {
+        if self.asks.entering() {
             let answer = match Key::of(chord) {
                 Key::Send => "\r",
                 Key::Cancel => "\u{1b}",
@@ -105,6 +105,7 @@ impl Canvases {
             if let Some((canvas, op)) = self.asks.typed(answer) {
                 self.change_pages(canvas, op);
             }
+            self.seek_sought();
             self.entry_closed();
             return true;
         }
@@ -124,7 +125,7 @@ impl Canvases {
     /// The entry's text is now `text`. Nothing more to draw (false): the
     /// entry shows it already.
     pub fn sling_typed(&mut self, text: &str) -> bool {
-        if self.asks.renaming() {
+        if self.asks.entering() {
             self.asks.named(text);
         } else if !self.feedback_typed(text) {
             self.sling.typed(text);

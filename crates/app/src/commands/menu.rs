@@ -106,6 +106,8 @@ const BAR: [(&str, &[Action]); 8] = [
             N(Native::SelectAll),
             R(Command::DeleteSelection),
             R(Command::ClearSelection),
+            R(Command::Find),
+            R(Command::FindNext),
         ],
     ),
     (

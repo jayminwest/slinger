@@ -113,6 +113,8 @@ impl Command {
             Command::ExportUi => "Export agent UI…",
             Command::ShowFeedbackFile => "Show feedback file in Finder",
             Command::ShowAllFeedback => "Show all feedback…",
+            Command::Find => "Find text…",
+            Command::FindNext => "Find next",
         }
     }
 
@@ -151,7 +153,9 @@ impl Command {
             | Command::Redo
             | Command::ToggleGrid
             | Command::Save
-            | Command::ShowCanvasFile => Group::Canvas,
+            | Command::ShowCanvasFile
+            | Command::Find
+            | Command::FindNext => Group::Canvas,
             Command::OpenPdf
             | Command::OpenWorkspace
             | Command::CloseWorkspace

@@ -254,7 +254,9 @@ impl Panes {
             | Command::RestartAgent
             | Command::ExportUi
             | Command::ShowFeedbackFile
-            | Command::ShowAllFeedback => {}
+            | Command::ShowAllFeedback
+            | Command::Find
+            | Command::FindNext => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),
