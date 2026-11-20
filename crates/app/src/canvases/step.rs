@@ -349,6 +349,13 @@ impl Canvases {
     }
 }
 
+impl Steps {
+    /// The panes are another workspace's: a first tap waits no more.
+    pub(super) fn switched(&mut self) {
+        self.tapped = None;
+    }
+}
+
 impl super::View {
     /// Keeps `n` steps of the trail ([`Trail::keep`]) while it shows
     /// `page` of `canvas`; a trail on another page is let go.

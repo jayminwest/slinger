@@ -92,7 +92,7 @@ impl Canvas {
         let place = holders.get(&of);
         let taken = |i: &&Item| match fold {
             Some(_) => holders.get(&i.id) == Some(&of),
-            None => i.id != of && holders.get(&i.id) == place && inside(i.bounds(), *frame),
+            None => i.id != of && holders.get(&i.id) == place && inside(covered(i), *frame),
         };
         self.items(*page).filter(taken).map(Item::id).collect()
     }
@@ -236,6 +236,19 @@ pub(crate) fn held_in(holders: &HashMap<ItemId, ItemId>, of: ItemId) -> Vec<Item
     // Ids rise, so id order is item order.
     held.sort_unstable();
     held
+}
+
+/// What `item` covers for a box's contents: its bounds, but a text only as
+/// wide as the rows it draws. A text's frame is the column it wraps in, as
+/// wide as a typed text's 48 characters however short its rows, so a box
+/// drawn around a short text would leave it out (slinger-2c7eec).
+fn covered(item: &Item) -> Rect {
+    match &item.shape {
+        Shape::Text { text, frame, size, .. } => {
+            Rect { w: crate::render::text_drawn_width(text, frame.w, *size), ..*frame }
+        }
+        shape => shape.bounds(),
+    }
 }
 
 /// Whether `r` lies wholly inside `frame`, edges included.
