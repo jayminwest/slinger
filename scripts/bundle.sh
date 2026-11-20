@@ -25,7 +25,9 @@ esac
 
 [ "$(uname -s)" = Darwin ] || { echo "✗ bundle.sh builds a macOS app; this is $(uname -s)" >&2; exit 1; }
 
-fail() { echo "✗ $*" >&2; exit 1; }
+# A bundle that failed a check is removed, so none is left half made.
+partial=
+fail() { echo "✗ $*" >&2; [ -z "$partial" ] || rm -rf "$partial"; exit 1; }
 
 target="${CARGO_TARGET_DIR:-target}"
 app="$target/slinger.app"
@@ -33,16 +35,21 @@ programs=(slinger-app slingerd slinger)
 helpers=(slingerd slinger)
 # Remove the old bundle first, so a failed build leaves none behind.
 rm -rf "$app"
+partial=$app
 cargo build --release --locked "${programs[@]/#/--bin=}"
 
 version=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
 # The build number grows with each commit; without git it is the version.
 build=$(git rev-list --count HEAD 2>/dev/null || echo "$version")
-mkdir -p "$app/Contents/MacOS"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 for program in "${programs[@]}"; do
   [ -f "$target/release/$program" ] || fail "no $target/release/$program after the build"
   cp "$target/release/$program" "$app/Contents/MacOS/$program"
 done
+# The icon is committed; scripts/icon.sh rebuilds it from its source.
+icon=crates/app/slinger.icns
+[ -s "$icon" ] || fail "no app icon at $icon (scripts/icon.sh makes it)"
+cp "$icon" "$app/Contents/Resources/slinger.icns"
 # The plist names the bundle and says why it reads the folders macOS guards
 # (Desktop, Documents, Downloads), which the open panel shows.
 sed -e "s/@VERSION@/$version/g" -e "s/@BUILD@/$build/g" crates/app/Info.plist >"$app/Contents/Info.plist"
@@ -54,6 +61,7 @@ for program in "${helpers[@]}"; do
 done
 codesign --force --sign - "$app" 2>/dev/null || fail "could not sign $app"
 codesign --verify --strict "$app" || fail "$app does not pass 'codesign --verify --strict'"
+partial=
 
 if $install; then
   apps="${SLINGER_APP_DIR:-/Applications}"

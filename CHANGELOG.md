@@ -16,6 +16,8 @@ bullet with the area in bold.
   `~/.local/bin/slinger` to them instead of copying a second set (it
   replaces copies left by an older install). The bundle's build number
   (About slinger) now counts commits.
+- **App:** slinger.app has an icon in the Dock, Finder and Spotlight (a
+  placeholder: a stroke slung to the top right).
 - **Daemon:** a `slingerd` started through a link finds the `slinger`
   beside the program the link points to, for its agents' hooks.
 
