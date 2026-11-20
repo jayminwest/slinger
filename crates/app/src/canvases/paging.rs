@@ -92,7 +92,7 @@ impl Canvases {
     /// became of the last sling, once, for the flash.
     pub fn said(&mut self) -> Option<String> {
         let zoomed = self.zoomed.take();
-        let slung = self.slung.flash();
+        let slung = self.flow.flash();
         self.asks.said().or(zoomed).or(slung)
     }
 

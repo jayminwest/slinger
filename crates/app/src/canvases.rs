@@ -9,7 +9,8 @@
 //! to the clipboard, not the canvas); what they change goes the same way, in turn
 //! with the strokes. The sling sends the selection ([`sling`]) once the ink
 //! before it is in, and what became of it shows on the canvas ([`slung`]);
-//! its prompt can be spoken ([`dictation`]). Runs on the
+//! [`flow`] owns the sling, what became of it, its spoken prompt, the
+//! feedback entry and the agents slings go to. Runs on the
 //! main thread and never waits: the followers, the outbox, the slinger and
 //! Flick's thread do.
 //!
@@ -44,7 +45,7 @@ use std::rc::Rc;
 
 use slinger_control::Client;
 
-use crate::backend::{Flick, Follower, Outbox, Problem, Saver, Slinger, Wake, run};
+use crate::backend::{Follower, Outbox, Problem, Saver, Wake, run};
 use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Point, Rect, Size};
 use crate::mirror::Mirror;
@@ -56,17 +57,15 @@ use crate::scene::ink::{Ink, Pen};
 use crate::scene::pages::Pages;
 use crate::scene::select::Select;
 use crate::scene::shapes::{Press, Shapes};
-use crate::scene::sidebar::Agent;
-use crate::scene::sling::Sling;
-use crate::scene::slung::Slung;
 use crate::scene::tools::Tool;
 use crate::scene::{CanvasPane, canvas};
 use crate::trace::Paged;
 use find::{canvas_of, find, matches, pane_shown, to_canvas, wanted};
+use flow::SlingFlow;
 use view::{View, Views};
 
-mod dictation;
 mod feedback;
+mod flow;
 mod profile;
 mod sling;
 mod slung;
@@ -82,16 +81,9 @@ pub struct Canvases {
     shapes: Shapes,
     crop: Crop,
     outbox: Outbox,
-    sling: Sling,
-    slinger: Slinger,
-    /// What became of the last sling.
-    slung: Slung,
-    /// The words a sling the user wrote none for sends.
-    prompt: String,
-    /// Speaking the sling's prompt through Flick.
-    voice: dictation::Voice,
-    /// The feedback being left.
-    notes: feedback::Notes,
+    /// The sling, what became of it, its dictation, the feedback entry and
+    /// the agents slings go to ([`flow`]).
+    flow: SlingFlow,
     /// The pane the pen draws in, and its frame in the window, while down.
     pen: Option<(PaneId, Rect)>,
     /// When the oldest pen event no scene has shown yet happened.
@@ -104,9 +96,6 @@ pub struct Canvases {
     turning: Vec<(u64, PaneId, String)>,
     lives: live::Lives,
     pdfs: pdf::Pdfs,
-    /// Each open workspace's canvas and its agent, as the sidebar last
-    /// heard: for the buttons, the footers and `sling-now`.
-    agents: Option<Vec<(String, Option<Agent>)>>,
     /// What to flash once: a pane's new zoom ("Zoom 150%"), the grid's
     /// toggle or where `save` said the canvas went.
     zoomed: Option<String>,
@@ -154,15 +143,13 @@ impl Canvases {
     /// backend thread's news wakes the main thread with `wake`. Strokes not
     /// yet written are kept nowhere until [`Canvases::keeping`].
     pub fn waking(daemon: Client, wake: Wake) -> Self {
-        let (outbox, slinger) =
-            (Outbox::start(daemon.clone(), &wake), Slinger::start(daemon.clone(), None, &wake));
-        let (ink, select, sling) = (Ink::named(run()), Select::default(), Sling::default());
+        let (outbox, flow) =
+            (Outbox::start(daemon.clone(), &wake), SlingFlow::start(&daemon, &wake));
+        let (ink, select) = (Ink::named(run()), Select::default());
         let (open, views) = (Vec::new(), Views::default());
         let (shapes, asks, turning) = (Shapes::default(), Pages::default(), Vec::new());
         let (pen, unshown, lives) = (None, None, live::Lives::start(daemon.clone(), &wake));
         let pdfs = pdf::Pdfs::start(daemon.clone(), crate::backend::pdf::cache(), &wake);
-        let voice = dictation::Voice::new(Flick::socket(), &wake);
-        let notes = feedback::Notes::new(daemon.clone(), &wake);
         Self {
             open,
             views,
@@ -171,12 +158,7 @@ impl Canvases {
             shapes,
             crop: Crop::default(),
             outbox,
-            sling,
-            slinger,
-            slung: Slung::default(),
-            prompt: crate::config::Prompt::default().text().to_string(),
-            voice,
-            notes,
+            flow,
             pen,
             unshown,
             asks,
@@ -184,7 +166,6 @@ impl Canvases {
             turning,
             lives,
             pdfs,
-            agents: None,
             zoomed: None,
             paper: Paper::default(),
             kept: None,
@@ -201,8 +182,7 @@ impl Canvases {
     /// instead, from the start.
     pub fn reconnect(&mut self, daemon: Client) {
         self.outbox.reconnect(daemon.clone());
-        self.slinger.reconnect(daemon.clone());
-        self.notes.reconnect(daemon.clone());
+        self.flow.reconnect(&daemon);
         self.saver.reconnect(daemon.clone());
         self.lives = live::Lives::start(daemon.clone(), &self.wake);
         self.pdfs = pdf::Pdfs::start(daemon.clone(), crate::backend::pdf::cache(), &self.wake);
@@ -263,7 +243,7 @@ impl Canvases {
             return true;
         }
         self.close_entries();
-        self.slung.pressed();
+        self.flow.pressed();
         let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
         if self.lives.under(&items, at, viewport.zoom()) && !grabs {
             return false;
@@ -411,7 +391,7 @@ impl Canvases {
             let items = self.select.shown(here, items, zoom, theme);
             let items = self.shapes.shown(here, items, zoom, theme);
             let items = self.crop.shown(here, items, zoom, theme);
-            let status = slung::agent_in(self.agents.as_deref(), here.0).and_then(|a| a.status);
+            let status = self.flow.agent_of(here.0).and_then(|a| a.status);
             let items = button::shown(items, status);
             let mut items = fold::drawn(items, mirror, marks, theme);
             items.extend(within.map(|w| Cow::Owned(step::room(w.room, theme.muted))));

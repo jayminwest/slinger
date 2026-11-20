@@ -1,10 +1,11 @@
 //! The sling from the window: what the user is slinging
 //! ([`crate::scene::sling`]) tied to the selection it sends and the ink it
-//! waits for, and to the thread that sends it ([`crate::backend::Slinger`]).
-//! Runs on the main thread and never waits.
+//! waits for, and the `sling` and `dictate` commands. The sling itself, the
+//! thread that sends it and the dictation are [`super::flow`]'s; this
+//! hands it the pages and the ink. Runs on the main thread and never waits.
 
 use super::{Canvases, pane_shown};
-use crate::backend::{Render, Slinger};
+use crate::backend::Render;
 use crate::commands::{Chord, Command, Keymap};
 use crate::config::Theme;
 use crate::layout::{Point, Rect, Viewport};
@@ -20,8 +21,7 @@ impl Canvases {
     /// now on (`platform::pdf::backdrop`); without it, ink goes on white.
     #[must_use]
     pub fn rendering(mut self, render: Render) -> Self {
-        let pdfs = crate::backend::pdf::cache();
-        self.slinger = Slinger::start(self.daemon.clone(), Some((render, pdfs)), &self.wake);
+        self.flow.rendering(&self.daemon, render, &self.wake);
         self
     }
 
@@ -34,7 +34,7 @@ impl Canvases {
     /// entry's caret is the only one, and the text is on the page the sling
     /// waits for (slinger-cd5a58).
     pub fn open_sling(&mut self, panes: &Panes, area: Rect) -> bool {
-        if self.notes.is_typing() {
+        if self.flow.noting() {
             return false;
         }
         self.asks.cancel_entry();
@@ -42,7 +42,7 @@ impl Canvases {
             return false;
         };
         let inside = self.sling_box(panes.focus(), &selection);
-        let opened = self.sling.open((&selection, inside), around, within);
+        let opened = self.flow.open((&selection, inside), around, within);
         if opened && self.shapes.end(&mut self.ink) {
             self.send();
         }
@@ -61,21 +61,39 @@ impl Canvases {
         around: Rect,
         within: Rect,
     ) -> bool {
-        let sent = self.sling.send_now(of, prompt, around, within);
+        let sent = self.flow.send_now(of, prompt, around, within);
         self.poll_sling();
         sent
+    }
+
+    /// The `sling` and `dictate` commands on the focused pane of `panes`
+    /// laid in `area`. `sling` opens the entry at the selection. `dictate`
+    /// opens it too when no entry is open, then starts Flick's dictation
+    /// into the open entry (the sling's, the feedback's or a new name's),
+    /// or stops the one going, after which Flick types what it heard into
+    /// the entry. False when no entry is open and the sling's cannot open
+    /// (no selection there, or a sling on its way).
+    pub fn sling_command(&mut self, command: Command, panes: &Panes, area: Rect) -> bool {
+        if command != Command::Dictate {
+            return self.open_sling(panes, area);
+        }
+        if !self.typing() && !self.open_sling(panes, area) {
+            return false;
+        }
+        self.flow.dictate();
+        true
     }
 
     /// Whether an entry is open (the sling's, the feedback's or a page's new
     /// name's): it takes the keys.
     pub fn typing(&self) -> bool {
-        self.sling.is_typing() || self.notes.is_typing() || self.asks.entering()
+        self.flow.typing() || self.asks.entering()
     }
 
     /// Closes whichever entry is open: one shows at a time.
     pub(super) fn close_entries(&mut self) {
-        if self.sling.cancel() | self.notes.cancel() | self.asks.cancel_entry() {
-            self.entry_closed();
+        if self.flow.cancel() | self.asks.cancel_entry() {
+            self.flow.entry_closed();
         }
     }
 
@@ -84,7 +102,7 @@ impl Canvases {
     /// for any other key, which is the entry's own and goes on to it, and
     /// for every key while it is closed.
     pub fn sling_key(&mut self, chord: Chord) -> bool {
-        if let Some(closed) = self.feedback_key(chord) {
+        if let Some(closed) = self.flow.feedback_key(chord) {
             return closed;
         }
         if self.asks.entering() {
@@ -97,20 +115,10 @@ impl Canvases {
                 self.change_pages(canvas, op);
             }
             self.seek_sought();
-            self.entry_closed();
+            self.flow.entry_closed();
             return true;
         }
-        let closed = match self.sling.key(chord) {
-            Some(Key::Send) => {
-                self.sling.send();
-                self.poll_sling();
-                true
-            }
-            Some(Key::Cancel) => self.sling.cancel(),
-            Some(Key::Type) | None => return false,
-        };
-        self.entry_closed();
-        closed
+        self.flow.sling_key(chord, &self.open, &self.ink)
     }
 
     /// The entry's text is now `text`. Nothing more to draw (false): the
@@ -118,8 +126,8 @@ impl Canvases {
     pub fn sling_typed(&mut self, text: &str) -> bool {
         if self.asks.entering() {
             self.asks.named(text);
-        } else if !self.feedback_typed(text) {
-            self.sling.typed(text);
+        } else {
+            self.flow.typed(text);
         }
         false
     }
@@ -127,7 +135,7 @@ impl Canvases {
     /// Whether `at`, a point in the window, is on the open entry: a press
     /// there is the entry's.
     pub fn sling_covers(&self, at: Point) -> bool {
-        self.sling.covers(at) || self.notes.covers(at) || self.asks.covers(at)
+        self.flow.covers(at) || self.asks.covers(at)
     }
 
     /// Lays the sling over `scene` in `theme`'s colours: its entry, to the
@@ -136,15 +144,7 @@ impl Canvases {
     /// place while that is open, and the feedback's lines; whichever entry
     /// shows, with `keys`' dictate key; and what dictation says.
     pub fn show_sling(&self, scene: &mut Scene, theme: &Theme, keys: &Keymap, sidebar: &Sidebar) {
-        let agent = self.sling.canvas().and_then(|canvas| sidebar.agent(canvas));
-        let dictate = keys.chord(Command::Dictate);
-        let entry = self.sling.entry(theme, agent, dictate);
-        let (note, lines) = self.notes.shown(theme);
-        let other = note.or_else(|| self.asks.entry(theme)).map(|e| e.dictated(dictate));
-        scene.entry = other.or(entry).map(Box::new);
-        scene.labels.extend(self.sling.labels(theme));
-        scene.labels.extend(lines);
-        scene.labels.extend(self.dictation_labels(theme));
+        self.flow.show(scene, (theme, keys), sidebar, &self.asks);
     }
 
     /// Takes the daemon's answers to the sling and the feedback, and what
@@ -152,14 +152,7 @@ impl Canvases {
     /// of its canvas is in the daemon. Returns whether anything shown
     /// changed.
     pub(super) fn poll_sling(&mut self) -> bool {
-        let changed = self.poll_feedback() | self.poll_slung();
-        let (ink, sling) = (&self.ink, &mut self.sling);
-        // A lost daemon would hold the ink, and the sling, for ever: the
-        // sling goes and says so.
-        if let Some(ask) = sling.ready(|c| ink.settled(c) || ink.problem().is_some()) {
-            self.going(ask);
-        }
-        changed
+        self.flow.poll(&self.open, &self.ink)
     }
 
     /// The selection, when the focused pane of `panes` laid in `area` shows
@@ -264,7 +257,7 @@ mod tests {
         let theme = Config::default().theme;
         wait_until(|| {
             canvases.poll();
-            !canvases.typing() && canvases.sling.labels(&theme).is_empty()
+            !canvases.typing() && canvases.flow.sling().labels(&theme).is_empty()
         });
     }
 
@@ -414,10 +407,10 @@ mod tests {
         assert!(!canvases.takes(cmd('k'), &keys), "the palette's key too");
         let listening = ["● Flick is listening: dictate again when done"];
         assert_eq!(texts(&shown(canvases, panes)), listening);
-        wait_until(|| canvases.poll_dictation());
+        wait_until(|| canvases.flow.poll_dictation());
         assert!(canvases.sling_command(Command::Dictate, panes, area), "again: stop");
         assert_eq!(texts(&shown(canvases, panes)), ["Flick is writing it down…"]);
-        wait_until(|| canvases.poll_dictation());
+        wait_until(|| canvases.flow.poll_dictation());
         assert_eq!(shown(canvases, panes).labels.len(), 0);
     }
 
@@ -430,7 +423,7 @@ mod tests {
             user_stroke(daemon, "notes");
             daemon.session_start("notes").unwrap();
             let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
-            canvases.listen_to(socket.clone());
+            canvases.flow.listen_to(socket.clone());
             let area = WINDOW.rect();
             assert!(!canvases.sling_command(Command::Dictate, &panes, area), "nothing selected");
             select_the_stroke(&mut canvases, &panes);
@@ -465,11 +458,11 @@ mod tests {
             user_stroke(daemon, "notes");
             daemon.session_start("notes").unwrap();
             let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
-            canvases.listen_to(flick.path().join("flick.sock"));
+            canvases.flow.listen_to(flick.path().join("flick.sock"));
             select_the_stroke(&mut canvases, &panes);
 
             assert!(canvases.sling_command(Command::Dictate, &panes, WINDOW.rect()));
-            wait_until(|| canvases.poll_dictation());
+            wait_until(|| canvases.flow.poll_dictation());
             let failed = shown(&canvases, &panes);
             assert!(failed.entry.is_some(), "the entry stays open");
             let lines = texts(&failed);
@@ -477,7 +470,7 @@ mod tests {
                 lines,
                 ["✗ Flick is not running", "start Flick to dictate, or type the prompt"]
             );
-            assert!(!canvases.poll_dictation(), "said once");
+            assert!(!canvases.flow.poll_dictation(), "said once");
 
             assert!(!canvases.sling_typed("typed instead"));
             assert!(canvases.sling_key(Chord::new(0, '\r')));

@@ -154,7 +154,7 @@ fn one_tap_on_a_canvas_with_no_agent_says_so_and_sends_nothing() {
         canvases.agents(Some(agents(None)));
         assert!(canvases.sling_now_command(&panes, WINDOW.rect(), Profile::Running));
         assert_eq!(canvases.said().as_deref(), Some(NO_AGENT));
-        assert_eq!(canvases.sling.canvas(), None, "nothing on its way");
+        assert_eq!(canvases.flow.sling().canvas(), None, "nothing on its way");
     });
 }
 
@@ -169,7 +169,7 @@ fn a_blank_prompt_takes_the_config_s_words() {
     let mut canvases = Canvases::new(Client::new("/nonexistent/x.sock"));
     let config = crate::config::parse("[sling]\nprompt = \"Answer in one line.\"\n").unwrap();
     canvases.set_prompt(&config.resolve().prompt);
-    assert_eq!(canvases.prompt, "Answer in one line.");
+    assert_eq!(canvases.flow.prompt(), "Answer in one line.");
 }
 
 /// slinger-6b258e: a PDF opened beside the workspace's canvas is no
