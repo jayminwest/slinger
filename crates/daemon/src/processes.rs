@@ -16,7 +16,12 @@
 //! the file of ids, since Claude Code keeps a conversation per working
 //! directory. Each process gets the hooks the core makes
 //! ([`slinger_core::session::hooks`]), so it reports its status and the files
-//! it writes through the CLI.
+//! it writes through the CLI at `--slinger` (default: beside slingerd).
+//! A process gets `SLINGER_AGENT` and `SLINGER_SOCKET`, is written to under
+//! one lock and read by a thread of its own, so a pipe never fills. A start
+//! under another profile replaces the running process; a send for one
+//! profile reaches only a process under it (`conflict` otherwise). Dropping
+//! one closes its input, waits `GRACE`, then kills it.
 
 use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Read, Write};

@@ -2,7 +2,9 @@
 //! clock and the build label that `slinger_core::feedback` leaves out. Each
 //! note and each resolution is one line, appended with one write to a file
 //! opened for appending, so a crash or a second writer never harms the
-//! lines before it.
+//! lines before it. With no `--feedback`, the file is `feedback.jsonl` in
+//! the checkout the daemon was built from, else the data directory. The
+//! time's offset comes from `date +%z`; the build from `control::stamp`.
 
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};

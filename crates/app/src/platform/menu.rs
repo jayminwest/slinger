@@ -17,6 +17,13 @@
 //! popup's subject, which always runs the command as [`Event::Picked`]
 //! with that subject; they are grey or on as the popup says, never asked
 //! again. The target goes with the menu: nothing of a popup outlives it.
+//! It pops at its point (flipped to the content view) after the scene is
+//! drawn and the answer's borrow is dropped: `AppKit` runs the menu's own
+//! loop there, and a pick dispatches from inside it. Its items are made by
+//! the bar's own `made`, with auto-enabling off.
+//!
+//! The Window and Help menus and the Services item are set again after an
+//! open panel puts the bar back (`panel`).
 //!
 //! A command item is grey where the newest model says (`Item::enabled`):
 //! `AppKit` asks the target (`validateMenuItem:`) as a menu opens and

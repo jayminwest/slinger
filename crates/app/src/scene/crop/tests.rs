@@ -1,3 +1,5 @@
+//! A crop box maps to page points inside the page.
+
 use super::*;
 use crate::config::Rgb;
 

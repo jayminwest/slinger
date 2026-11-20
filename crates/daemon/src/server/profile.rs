@@ -1,6 +1,7 @@
 //! `profile_list`, `profile_set` and `profile_remove`: a workspace agent's
 //! profiles as they cross the socket. The core checks a profile and changes
-//! the workspace; the file is written whole before the reply.
+//! the workspace; the file is written whole before the reply. A `dir` must
+//! be there, and is kept with its links resolved.
 
 use slinger_control::{
     self as control, ProfileListAsk, ProfileRemoveAsk, ProfileSetAsk, Profiles, RemoteError,

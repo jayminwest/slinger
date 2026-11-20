@@ -1,3 +1,6 @@
+//! A live item's page against a real daemon: it shows over its box and
+//! follows the pane.
+
 use std::fs;
 
 use slinger_control::UiOpen;

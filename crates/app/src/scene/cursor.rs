@@ -7,6 +7,10 @@
 //! handle of the selection, and while one is dragged, it is the resize
 //! cursor along the diagonal through that corner ([`over_handle`]). With
 //! space held for a pan, it is a hand ([`crate::scene::hand::Hand::cursor`]).
+//!
+//! Per tool: the pen is a ring in its colour, the eraser a ring its width,
+//! the lasso and the shapes cross hairs, text an I-beam, and the select
+//! tool and an open pop-up the arrow.
 
 use crate::config::{Rgb, Theme};
 use crate::layout::{Axis, Point};

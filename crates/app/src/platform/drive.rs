@@ -3,7 +3,7 @@
 //! the last scene drawn is kept to say as text; the window's content is
 //! drawn into a PNG, on a screen or not; a cut or a copy is kept here,
 //! never on the user's clipboard; and a context menu is kept to say and to
-//! pick from, never popped.
+//! pick from, never popped (any input but a tick closes it).
 
 use std::cell::RefCell;
 use std::ffi::c_void;

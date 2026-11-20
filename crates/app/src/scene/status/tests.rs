@@ -1,3 +1,7 @@
+//! Every footer button is at least 28 pt square and none overlap; a narrow
+//! footer drops whole groups, the lowest rank first; the sidebar button
+//! sits in the same spot open or collapsed.
+
 use super::*;
 use crate::commands::{CMD, Chord};
 use crate::layout::Point;

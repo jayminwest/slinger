@@ -1,3 +1,9 @@
+//! The button against a real daemon and a stand-in for Claude Code: the
+//! `sling` entry opens beside a page's button; a tap slings what is new with
+//! no selection, the reply lands beside the note, a typed prompt goes with
+//! a tap, a failure shows under the button, and the eraser over it slings
+//! nothing.
+
 use slinger_control::{CanvasOps, Client, EventFilter, Put};
 
 use super::*;

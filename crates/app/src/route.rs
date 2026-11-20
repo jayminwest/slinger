@@ -5,6 +5,18 @@
 //! hand's ([`hand`]) before anything else; then the right and middle
 //! buttons' events ([`button`]): a pan goes on as the scroll it makes, and
 //! a context click pops the menu for what it was on (`window::context`).
+//!
+//! A pen or mouse press first focuses the pane under it (its content or
+//! its footer; not a touch, a divider, or under the key overlay or the
+//! palette), then does its work there; a press an agent UI's page takes
+//! still draws the new focus (`Step::Through`). A press on a footer's or
+//! the sidebar's button goes no further; the lift on it runs it. A menu bar
+//! item chosen with the pointer is `Event::Command` and a context menu's
+//! pick is `Event::Picked`: both run alike (what is open closes first)
+//! unless `context::carried` says the command acts on its subject, which
+//! makes it `Ask::On`, run on that subject. The app keeps no memory of the
+//! last popup: a menu closed with no pick leaves nothing a later command
+//! could act on.
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};

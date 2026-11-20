@@ -1,3 +1,7 @@
+//! The sidebar's offer to restart a daemon of another build: both builds
+//! named, the agents a restart ends counted, a dismissed offer hidden for
+//! that daemon only; an old daemon says how to stop it and offers none.
+
 use std::path::PathBuf;
 
 use super::*;

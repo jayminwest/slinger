@@ -6,6 +6,11 @@
 //! right after a stroke undoes that stroke; and `save`, which says where
 //! the pane's canvas is saved. The decisions are
 //! `scene::pages`'s; this module finds the pane's canvas and page.
+//!
+//! Undo and redo are the daemon's (`canvas_undo`, `canvas_redo`, per
+//! author, sent as `user`), so the user's undo never takes back an agent's
+//! item. They show when the feed brings them; a reply that wrote no line
+//! (nothing to undo) has nothing to wait for.
 
 use super::{Canvases, canvas_of, step};
 use crate::commands::Command;

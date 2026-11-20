@@ -1,3 +1,6 @@
+//! Select all, next and previous item in reading order, a nudge as one move
+//! with bound arrows following, and where a duplicate lands.
+
 use super::*;
 use crate::config::Rgb;
 use crate::scene::canvas::Shape;

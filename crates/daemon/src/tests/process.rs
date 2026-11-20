@@ -1,6 +1,12 @@
 //! An agent's process through the real socket, with a stand-in for Claude
 //! Code that speaks its stream format: start, sends, the session id across a
 //! restart, a process that dies, and a daemon stop that ends it.
+//!
+//! A resume that fails drops the id and the next start is new; a fresh start
+//! ends the running process and begins a new session; a stop mid-turn ends
+//! the agent's `working`. A session starts with exactly the limits its
+//! workspace sets (defaults, a profile's rules, the agent's `dirs` and
+//! `tools`, `user_config = false`).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

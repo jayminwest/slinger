@@ -4,7 +4,9 @@
 //! ([`delete`]) and clear-selection clears them ([`clear`]), or, with
 //! nothing selected, steps the pane out of the box it is in. The one place that decides it: a caret inside a canvas
 //! text (slinger-ea308d) takes its keys here, and so does a page a press
-//! went on to, a live item's on a canvas (slinger-479dea). Also
+//! went on to, a live item's on a canvas (slinger-479dea); there the key
+//! goes on (select all to a field or a page as `selectAll:`, delete to a
+//! live item's page). Also
 //! `step-in-beside` ([`beside`]): the selected box, in a new pane; and a
 //! split ([`split`]), whose new pane copies the source pane's view.
 

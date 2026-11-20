@@ -6,11 +6,13 @@
 //! cut, copy, paste, select all): the app's own commands cannot run then, and
 //! their keys (⇧⌘D, ⇧⌘O, ⌘1 to ⌘8...) would shadow the panel's own (go to
 //! the Desktop, to Documents, change the view). The app's menu bar comes
-//! back as it was when the panel closes.
+//! back as it was when the panel closes. An agent UI's reply while the
+//! panel is up is refused: the app is busy.
 //!
 //! What the panel may show is macOS's to say: the panel runs in a process of
 //! its own, and reads the Desktop, Documents and Downloads folders as the
-//! app's bundle (`Info.plist` says why it asks). A bare `slinger-app` run
+//! app's bundle (`crates/app/Info.plist`, which `scripts/bundle.sh` puts in
+//! it, says why it asks). A bare `slinger-app` run
 //! from a shell has no bundle, so macOS asks on behalf of what started it
 //! (a terminal, or `sshd` for a run over ssh), which may never be allowed in.
 //! The first panel cancelled in such a run flashes so (slinger-a25c27).

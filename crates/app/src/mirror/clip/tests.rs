@@ -1,3 +1,6 @@
+//! Copy and paste through the mirror; a crop's snippet goes as one `pdf`
+//! object and pastes back as that crop.
+
 use serde_json::json;
 use slinger_control::CanvasPage;
 

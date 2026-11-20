@@ -1,5 +1,6 @@
 //! A canvas's change feed: the stored lines after a point, read back from the
-//! file as written, and a wait for the next change.
+//! file as written, and a wait for the next change, which a change or
+//! `Canvases::stop` (called when `serve` stops) ends.
 
 use std::os::unix::fs::FileExt;
 use std::sync::PoisonError;

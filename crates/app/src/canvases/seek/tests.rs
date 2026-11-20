@@ -1,3 +1,6 @@
+//! Find against a real daemon takes the pane to each text that holds the
+//! words, centred, page by page; find-next goes round.
+
 use serde_json::json;
 use slinger_control::{CanvasFold, CanvasOps, Client, FoldAsk};
 

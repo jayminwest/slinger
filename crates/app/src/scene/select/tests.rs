@@ -1,3 +1,7 @@
+//! An erase, a move and a delete are one change each and show at once; a
+//! lasso selects what it holds whole; the selection clears. In reader mode
+//! the select tool and the lasso never take a page.
+
 use super::*;
 use crate::config::Rgb;
 

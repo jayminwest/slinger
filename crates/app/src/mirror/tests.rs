@@ -1,3 +1,6 @@
+//! A canvas page reads every kind from the canvas file and follows each
+//! feed operation.
+
 use std::borrow::Cow;
 
 use serde_json::json;

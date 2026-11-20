@@ -2,6 +2,15 @@
 //! ([`subject_at`]) and the menu that offers ([`commands::context`]); and
 //! a pick that carries its subject ([`on`]): a workspace row's agent
 //! commands and a divider's grow and shrink.
+//!
+//! What a click is on, in this order: a workspace's row in the sidebar (its
+//! ✕ too; by folder) or the rest of the sidebar, a divider (the pane before
+//! it, by its stable id, and its share), then in the pane its footer, the
+//! text being typed, an item or the selection
+//! (`Canvases::context_at`, which selects first by Finder's rule), or the
+//! empty canvas; nothing on an agent UI's page. A row's menu greys by that
+//! row's workspace and agent, not the shown one's. A row's close goes
+//! through `window::close_workspace` with the row's folder.
 
 use std::path::Path;
 

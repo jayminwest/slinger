@@ -2,6 +2,8 @@
 //! canvas. It needs no blob and no `ui put`: a `canvas apply` of one `add`
 //! places it. The model's rules, the canvas file's bytes, the packet's text
 //! line and a crop.
+//!
+//! An agent puts beside the button but cannot remove it.
 #![cfg(test)]
 
 use serde_json::json;

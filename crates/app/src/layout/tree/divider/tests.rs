@@ -1,3 +1,6 @@
+//! A pen grabs a divider within 8 points of it; a drag sets its split's
+//! share, held in limits.
+
 use super::*;
 
 const AREA: Rect = Rect { x: 0.0, y: 0.0, width: 800.0, height: 600.0 };

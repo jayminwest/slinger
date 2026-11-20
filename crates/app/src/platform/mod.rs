@@ -24,6 +24,12 @@
 //! `event` holds what the app hears and answers, and [`waker`], which any
 //! thread calls to have the main thread look at the news ([`Event::Wake`]).
 //!
+//! A scroll with cmd or ctrl held is a zoom about the pointer, as a pinch
+//! is. Space with no modifier says [`Event::Space`] down (and each repeat)
+//! and up, and the window losing the keys says it up. The cursor is set
+//! again from the view under the pointer on each move and when the window
+//! becomes key. The text layout also measures texts for `scene::glyphs`.
+//!
 //! Threading rule: `AppKit` runs on the main thread only. Each function here
 //! that touches `AppKit` takes a `MainThreadMarker`, which only the main thread
 //! can make, so the compiler holds the rule. Blocking work (files, sockets)

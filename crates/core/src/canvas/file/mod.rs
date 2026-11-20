@@ -15,7 +15,12 @@
 //!   an agent (`look`), puts an agent's answer beside an item (`put`) and
 //!   lets the agent change or remove it (`edit`). It folds and unfolds a
 //!   box (`fold`), and a move or an erase of a folded box carries what it
-//!   holds.
+//!   holds. [`Log::import`] stores a whole canvas (an import) as a new file
+//!   that replays to it, ids, makers and times included. `Log::packet`
+//!   builds a page's packet with its op range in the file's line numbers.
+//!   A canvas id ([`check_id`]) never names a path. An arrow added in a
+//!   request may name an item an `add` before it makes (`$n`, its place in
+//!   `made`).
 //! - [`Synthetic`] makes a large canvas file of realistic shape, for measuring.
 //! - [`snap`] rounds an operation to what the file can hold. Apply the
 //!   snapped op, so the canvas in memory is the one the file rebuilds.

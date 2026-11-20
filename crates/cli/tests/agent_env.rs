@@ -1,6 +1,8 @@
 //! The calling agent's name from `SLINGER_AGENT` and the socket from
 //! `SLINGER_SOCKET`, through the real `slinger` binary: each run gets an
 //! environment of its own, which in-process tests cannot have.
+//!
+//! An agent verb with neither `--agent` nor `SLINGER_AGENT` exits 2.
 
 use std::path::Path;
 use std::process::{Command, Output};

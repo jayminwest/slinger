@@ -1,5 +1,9 @@
 //! What an agent asks a canvas for beyond the packet (`Log::crop`,
 //! `Log::strokes`): an id or a box in, images or points out.
+//!
+//! A crop is limited in size, an empty box is a white image and an unknown
+//! id is `not_found`. Find takes the texts that hold the words, ignoring
+//! case and spacing, on every page.
 #![cfg(test)]
 
 use serde_json::{Value, json};

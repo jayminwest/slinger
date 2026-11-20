@@ -4,8 +4,11 @@
 //! open (`open_pdf`), and what it
 //! shows (`view`), and where its panes are: the canvas pane under a point
 //! (`pane_at`), the focused pane (`focus`) and whether a press grabs the
-//! selection (`grabs`). Split from `main.rs`, which
-//! routes the events here.
+//! selection (`grabs`). Also the shown workspace's agent for `start-agent`,
+//! `stop-agent` and `restart-agent` (`agent`), what the `show-…` commands
+//! reveal in the Finder (`finder`), an agent UI saved for `export-ui`
+//! (`export_ui`, named as `ui_export` names it) and why a paste took nothing
+//! (`unpasted`). Split from `main.rs`, which routes the events here.
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;

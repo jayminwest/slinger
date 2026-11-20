@@ -1,3 +1,5 @@
+//! Find goes page by page from the shown one; find-next goes round.
+
 use super::*;
 
 fn pages() -> Vec<Page> {

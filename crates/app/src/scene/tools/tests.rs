@@ -1,3 +1,5 @@
+//! With the pen tool a mouse press selects and a tablet press draws.
+
 use super::labels::LINE_INSET;
 use super::*;
 use crate::config::{Theme, Widths};

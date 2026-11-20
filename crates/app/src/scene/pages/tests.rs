@@ -1,3 +1,6 @@
+//! Page commands turn, name and remove pages; removing a page with items
+//! asks once.
+
 use super::*;
 use crate::layout::Axis;
 

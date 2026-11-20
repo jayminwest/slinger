@@ -1,3 +1,6 @@
+//! Reader mode fits a PDF's canvas to the pane's width and scrolls up and
+//! down only.
+
 use std::fs;
 use std::path::Path;
 

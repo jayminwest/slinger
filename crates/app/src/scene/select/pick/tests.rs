@@ -1,3 +1,7 @@
+//! The select tool picks the topmost item under a press, a drawn box
+//! selects what it touches, shift adds or takes out, a drag moves the
+//! selection.
+
 use super::*;
 use crate::config::{Rgb, Theme};
 use crate::scene::canvas::Shape;

@@ -1,3 +1,6 @@
+//! A live item's page shows over its box, follows a pan and a zoom, and
+//! takes presses until it is selected.
+
 use std::rc::Rc;
 
 use super::*;

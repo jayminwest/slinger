@@ -7,7 +7,8 @@
 //! its number, 1 for the first in order. Each pane's [`PaneId`] is the id
 //! the server gives it, which stays while it is open, so what the window
 //! keeps per pane (its view) stays with it when others open or close. Focus
-//! is the window's own.
+//! is the window's own, kept per workspace (`Shared::follow`): on the same
+//! pane, else the pane at its number; back in a workspace, where it was.
 
 use slinger_control::{PaneKind, PaneSplit, PaneTree, PaneView};
 

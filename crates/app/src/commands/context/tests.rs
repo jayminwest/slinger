@@ -1,3 +1,7 @@
+//! Which context menu a click pops: the empty canvas, a footer, an agent UI
+//! pane's footer (never its page); an item's kind's or the selection's; a
+//! text being typed offers cut, copy and paste. Items grey by `able::can`.
+
 use super::*;
 use crate::commands::Chord;
 

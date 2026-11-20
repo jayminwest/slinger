@@ -9,6 +9,10 @@
 //! never turns to noise and the dots that stay do not move. Which dots a
 //! repaint draws is [`Grid::dots`]: only those inside the box `platform`
 //! repaints, so a pen stroke's small repaint draws a few dots. Pure.
+//!
+//! The dots are a quiet mix of the background and the muted colour.
+//! Whether the grid shows is [`Paper`]'s; a new paper repaints the whole
+//! pane ([`Scene::on`]).
 
 use super::canvas::Scene;
 use super::style::mix;

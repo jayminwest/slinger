@@ -1,5 +1,9 @@
 //! How an agent answers on a canvas: free space beside an item
 //! (`Canvas::free_beside`) and the put that uses it (`Log::put`).
+//!
+//! A put covers nothing: right of the item, else below, left, above, else
+//! further right. It takes a colour and a place; ink goes where any put
+//! goes; an arrow takes no place.
 #![cfg(test)]
 
 use serde_json::{Value, json};

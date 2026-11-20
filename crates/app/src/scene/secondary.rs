@@ -9,7 +9,8 @@
 //! press, so a click does not nudge the canvas by its jitter; then it pans
 //! the whole way so far at once, so the canvas does not lag the pointer.
 //! A press that once left the slop is a pan to its lift, even if it comes
-//! back. The middle button only pans.
+//! back. The middle button only pans. A new press replaces one whose lift
+//! was lost.
 
 use crate::layout::Point;
 

@@ -1,4 +1,6 @@
 //! The store against a real SQLite file in a temporary directory.
+//!
+//! The record is append-only and keeps every field it does not know.
 
 use std::path::PathBuf;
 

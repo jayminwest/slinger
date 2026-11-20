@@ -6,6 +6,12 @@
 //! [`run`] is the whole program: argv in, exit code out. [`Server`] is the
 //! socket alone, for tests and for other hosts of the same protocol.
 //! [`Store`] is this machine's record on disk.
+//!
+//! While `serve` runs, the data directory names the socket
+//! (`control::name_socket`), so a client given none finds the daemon on any
+//! path. SIGHUP is caught and ignored. [`run_with`] takes the [`Redirect`]
+//! the binary applies to the `--log` file; [`run`] leaves stderr alone, so
+//! an in-process test keeps its own.
 
 mod canvases;
 mod feedback;

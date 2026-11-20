@@ -1,5 +1,8 @@
 //! `slinger drive` against a stand-in for the driven app: a socket that
 //! takes one request line and answers it.
+//!
+//! Every op takes a point as `X,Y` or `X Y`, and the socket path may be of
+//! any length.
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;

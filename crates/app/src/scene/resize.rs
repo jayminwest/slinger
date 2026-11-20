@@ -2,7 +2,9 @@
 //! between two panes grabs it, each drag moves it and the panes beside it
 //! resize at once, and the lift lets go and says what to tell the server.
 //! The pointer within reach of a divider, or holding one, is the resize
-//! cursor across it ([`Dividers::cursor`]). Pure: where a divider is and the
+//! cursor across it ([`Dividers::cursor`]). The lift sends `pane_resize`
+//! once, so the workspace keeps the size; `grow-pane` and `shrink-pane`
+//! send the same. Pure: where a divider is and the
 //! share a point gives its split are `layout`'s ([`crate::layout::Divider`]).
 
 use crate::layout::{Axis, Divider, Point, Rect};

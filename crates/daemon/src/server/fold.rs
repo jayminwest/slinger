@@ -1,5 +1,7 @@
 //! The fold verbs as they cross the socket: `canvas_fold` and
-//! `canvas_unfold`. The core decides what a fold takes and who may.
+//! `canvas_unfold`. The core decides what a fold takes and who may. The
+//! reply is a `CanvasEdited` (the box's frame now), which a client may read
+//! as a `CanvasChange`.
 
 use slinger_control::{CanvasEdited, CanvasFold, CanvasFoldAsk, CanvasUnfoldAsk, RemoteError};
 use slinger_core::canvas::file::Placed;

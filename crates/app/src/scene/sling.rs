@@ -25,6 +25,8 @@
 //! typing (a tap on a "Sling" button). A sling with nothing selected sends
 //! what is new on its page. One that fails closes, and says why where the
 //! pen tapped ([`crate::scene::slung`]): the pen cannot press escape.
+//! Every entry ends its one row of keys with the live dictate key
+//! ([`Entry::dictated`]): a second row aligned right drew over the first.
 
 use crate::backend::Problem;
 use crate::commands::{CMD, CTRL, Chord};

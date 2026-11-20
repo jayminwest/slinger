@@ -1,5 +1,7 @@
 //! A canvas file held open (`canvas::file::Log`), through its public interface:
 //! requests in, the bytes to append out, and the file they make read back.
+//!
+//! A request sent again under its `once` key is applied once.
 #![cfg(test)]
 
 use serde_json::{Value, json};

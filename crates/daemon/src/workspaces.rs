@@ -9,7 +9,9 @@
 //! directory too, in `<slug>/`. Definition files are read on every request,
 //! so an edit to one shows at once. Each file stands alone: one the daemon
 //! cannot use is listed as [`Broken`], with its error, and every verb on
-//! that workspace fails with that error; the others serve as before.
+//! that workspace fails with that error; the others serve as before, and a
+//! new one may not take the name or canvas a broken file states
+//! (`workspace::check_reserved`).
 
 mod disk;
 

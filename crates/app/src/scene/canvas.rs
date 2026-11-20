@@ -5,7 +5,9 @@
 //! the size of the page.
 //!
 //! Pen lines are smoothed here, not in `platform` ([`smooth`]): the line
-//! keeps a constant width, its ends and no corners or bumps.
+//! keeps a constant width, its ends and no corners or bumps. Paint is cut
+//! off at the pane's edges ([`Scene::clip`]). Chrome over a page adds two shapes
+//! no server item has: a panel (a box with a fill) and a text's caret.
 
 use std::collections::HashMap;
 use std::f64::consts::FRAC_PI_6;

@@ -1,3 +1,8 @@
+//! An opened PDF against a real daemon: a canvas named after its file, one
+//! item per page stacked 1600 units wide; a PDF that cannot be read makes
+//! nothing; a blob is fetched once, and fetches of it at once each get it
+//! whole.
+
 use std::fs;
 
 use serde_json::json;

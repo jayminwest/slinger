@@ -1,6 +1,7 @@
 //! Request in, reply out: one arm per verb. Each arm hands the verb's request
 //! to its handler, which calls the core and returns the verb's own reply type
 //! ([`Verb::Reply`]), so no handler can answer with another verb's reply.
+//! The reply is written with its keys sorted.
 
 use serde_json::Value;
 use slinger_control::{RemoteError, Request, Verb};

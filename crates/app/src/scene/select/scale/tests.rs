@@ -1,3 +1,8 @@
+//! A drag of a corner handle scales the selection about the opposite corner
+//! in one change; a text's size scales evenly within its range, bound arrows
+//! follow, no side turns over, shift keeps the shape, and a pdf item keeps
+//! its aspect.
+
 use super::*;
 use crate::config::{Rgb, Theme};
 use crate::scene::select::BOX;

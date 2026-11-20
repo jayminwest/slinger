@@ -1,5 +1,8 @@
 //! The first gesture after a text being typed ends reaches the daemon, for
 //! every tool (slinger-a77a12).
+//!
+//! Ink not yet written is selected, moved and erased through a real daemon;
+//! the page menu turns the pane to the page tapped.
 
 use super::*;
 use crate::backend::testing::{user_stroke, wait_until};

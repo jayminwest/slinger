@@ -1,5 +1,7 @@
 //! `canvas_read` through the real socket: the packet of new ink, stored as
 //! blobs and written into a directory, and the last sling as its marker.
+//!
+//! The stored packet text has no `at`.
 
 use std::fs;
 use std::path::Path;

@@ -1,3 +1,5 @@
+//! A folded box hides what it holds and draws it as its miniature.
+
 use serde_json::{Value, json};
 use slinger_control::{CanvasFeed, CanvasPage};
 

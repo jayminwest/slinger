@@ -4,7 +4,9 @@
 //! event into a chord, and a [`Keymap`] turns the chord into a command.
 //! `table` gives each command its name, title, group and default chord in
 //! one row; `registry` the groups and a chord's glyphs for the surfaces that
-//! list them; `menu` lays them out as the menu bar.
+//! list them; `menu` lays them out as the menu bar; `able` says whether a
+//! command can act now (the bar and the context menus grey by it);
+//! `context` builds the context menus.
 
 pub mod able;
 mod chord;

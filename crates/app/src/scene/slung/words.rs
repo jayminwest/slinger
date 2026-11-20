@@ -1,6 +1,7 @@
 //! The pill's words: how long the agent has worked, what the sling costs,
 //! the way to its items, and its answer in lines that fit the panel under
-//! the pill.
+//! the pill. The pill is as wide as its words measure, and the answer's
+//! lines wrap, as [`crate::scene::glyphs`] measures them.
 
 use std::time::Duration;
 

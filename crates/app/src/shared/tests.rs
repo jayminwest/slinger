@@ -1,3 +1,7 @@
+//! Focus follows a press and comes back to its pane per workspace (or the
+//! focus the daemon kept); a press on a button is its alone and only the
+//! lift on it taps it; the open page menu takes every press.
+
 use slinger_control::{Pane as Shown, PaneKind, PaneSplit, PaneTree};
 
 use super::*;

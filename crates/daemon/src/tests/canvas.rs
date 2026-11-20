@@ -1,5 +1,8 @@
 //! Canvases through the real socket: files that survive a restart, one
 //! writer that numbers concurrent changes without a gap, and damage on disk.
+//!
+//! A `canvas_apply` sent again under its `once` key is applied once and
+//! answered the same.
 
 use std::collections::BTreeSet;
 

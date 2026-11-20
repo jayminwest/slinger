@@ -1,3 +1,7 @@
+//! An opened PDF: its canvas id from the file's name, one whole-page item
+//! per page stacked centred on a column 1600 wide; an item draws its crop
+//! or whole page, under every other item.
+
 use std::borrow::Cow;
 
 use super::*;

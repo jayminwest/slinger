@@ -1,3 +1,6 @@
+//! A press on a button goes no further, and only the lift on the same
+//! button taps it.
+
 use super::*;
 
 const T: Theme = Theme {

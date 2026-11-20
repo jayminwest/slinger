@@ -2,6 +2,9 @@
 //! [`Chord`] and the text it types; and for a cut, copy or paste no text
 //! field takes, the clipboard as a [`Clip`]: its plain text, and a
 //! canvas's items under a type of the app's own, which other apps leave be.
+//! The window's `cut:`, `copy:` and `paste:` (`Event::Edit`, greyed when
+//! the app answers `Event::Can` with a pass) read and write it here;
+//! Flick's dictation pastes, so it lands there too.
 
 use objc2::MainThreadMarker;
 use objc2_app_kit::{

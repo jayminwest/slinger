@@ -6,7 +6,8 @@
 //! with its label, after one mark for the status of the agent of the
 //! canvas's workspace: the sidebar's mark and colour (working, blocked,
 //! done; a ring when the agent has said nothing, or there is none). A tap
-//! on it slings what is new on its page (`canvases::button`).
+//! on it slings what is new on its page (`canvases::button`). Which button
+//! is under a point is [`under`]'s.
 
 use std::borrow::Cow;
 

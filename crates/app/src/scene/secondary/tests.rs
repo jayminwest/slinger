@@ -1,3 +1,6 @@
+//! A right or middle drag past the slop pans; a right click pans nothing;
+//! the middle button never clicks.
+
 use super::*;
 
 fn p(x: f64, y: f64) -> Point {

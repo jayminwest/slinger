@@ -7,6 +7,11 @@
 //! disk before the caller answers. The core decides what each change writes
 //! ([`Log`]); this module only reads, appends and syncs. A change wakes the
 //! clients that wait on that canvas's feed ([`Canvases::changes`]).
+//!
+//! A failed write closes the canvas; the next request reads the file again.
+//! Opening cuts a torn last line. A new canvas's file (empty or imported) is
+//! written aside and renamed into place whole. Crops render under the
+//! canvas's lock.
 
 mod feed;
 mod read;
