@@ -8,6 +8,7 @@
 
 mod outline;
 
+use std::ffi::CStr;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -15,7 +16,9 @@ use std::time::Instant;
 use serde_json::{Value, json};
 
 pub use self::outline::outline;
-use crate::commands::{Chord, Command, SHIFT};
+use crate::commands::{
+    Chord, Command, DELETE, DOWN, END, FORWARD_DELETE, HOME, LEFT, RIGHT, SHIFT, UP,
+};
 use crate::layout::{Point, Size};
 use crate::scene::Scene;
 use crate::scene::ink::Pen;
@@ -57,6 +60,44 @@ pub fn shown(last: &mut Scene, typed: Option<String>, step: &Step) {
             }
         }
     }
+}
+
+/// What a key's text does in an entry's field that holds the keyboard.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Field<'a> {
+    /// Goes in as typed.
+    Insert(&'a str),
+    /// Runs the field editor's command of this name, as the key does.
+    Command(&'static CStr),
+    /// Nothing: the key types no character and the field has no command for it.
+    Nothing,
+}
+
+/// The field editor's command for each key that types no character.
+const FIELD_COMMANDS: [(char, &CStr); 8] = [
+    (DELETE, c"deleteBackward:"),
+    (FORWARD_DELETE, c"deleteForward:"),
+    (LEFT, c"moveLeft:"),
+    (RIGHT, c"moveRight:"),
+    (UP, c"moveUp:"),
+    (DOWN, c"moveDown:"),
+    (HOME, c"moveToBeginningOfLine:"),
+    (END, c"moveToEndOfLine:"),
+];
+
+/// What `text`, a passed-on key's, does in an entry's field: delete or an
+/// arrow runs its command, never a control character typed in
+/// (slinger-02f671).
+pub fn into_field(text: &str) -> Field<'_> {
+    let mut chars = text.chars();
+    if let (Some(c), None) = (chars.next(), chars.next())
+        && let Some((_, command)) = FIELD_COMMANDS.iter().find(|(key, _)| *key == c)
+    {
+        return Field::Command(command);
+    }
+    // Control characters, and the code points macOS gives function keys.
+    let typeless = |c: char| c.is_control() || ('\u{f700}'..='\u{f8ff}').contains(&c);
+    if text.is_empty() || text.chars().any(typeless) { Field::Nothing } else { Field::Insert(text) }
 }
 
 /// Seconds between the points of a `stroke`.
@@ -223,6 +264,19 @@ mod tests {
         let esc = sent(r#"{"op":"key","chord":"escape","text":"\u001b"}"#);
         assert_eq!(esc[0].1.as_deref(), Some("\u{1b}"));
         assert_eq!(sent(r#"{"op":"type","text":"Hi\n"}"#).len(), 3);
+    }
+
+    #[test]
+    fn a_key_that_types_no_character_runs_the_field_s_command() {
+        assert_eq!(into_field("a"), Field::Insert("a"));
+        assert_eq!(into_field("\u{7f}"), Field::Command(c"deleteBackward:"));
+        assert_eq!(into_field("\u{f728}"), Field::Command(c"deleteForward:"));
+        assert_eq!(into_field("\u{f702}"), Field::Command(c"moveLeft:"));
+        for nothing in ["", "\t", "a\u{7f}", "\u{f704}"] {
+            assert_eq!(into_field(nothing), Field::Nothing, "{nothing:?}");
+        }
+        let delete = sent(r#"{"op":"key","chord":"delete"}"#);
+        assert_eq!(into_field(delete[0].1.as_deref().unwrap()), Field::Command(c"deleteBackward:"));
     }
 
     #[test]

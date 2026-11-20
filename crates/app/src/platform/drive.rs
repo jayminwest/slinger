@@ -9,14 +9,14 @@ use std::ffi::c_void;
 use std::path::Path;
 use std::sync::mpsc;
 
-use objc2::runtime::AnyClass;
+use objc2::runtime::{AnyClass, Sel};
 use objc2::{MainThreadMarker, msg_send};
 use objc2_app_kit::{NSBitmapImageFileType, NSWindow};
 use objc2_foundation::{NSDictionary, NSSize, NSString};
 
 use super::event::{_dispatch_main_q, dispatch_async_f};
 use super::{Event, STATE, Step, dispatch};
-use crate::drive::{self, Ask};
+use crate::drive::{self, Ask, Field};
 use crate::scene::Scene;
 use crate::scene::paste::{Clip, Edit};
 
@@ -120,17 +120,29 @@ fn answer(ask: Ask, mtm: MainThreadMarker) -> Result<String, String> {
 
 /// Types `text` into the entry's field when it holds `window`'s keyboard,
 /// as a key press does through the field editor: the app passes typing on
-/// to it, and a driven window gets no key events from the system.
+/// to it, and a driven window gets no key events from the system. A key
+/// that types no character runs its command instead ([`drive::into_field`]).
 fn into_field(window: &NSWindow, text: &str) -> bool {
     let Some(class) = AnyClass::get(c"NSTextView") else { return false };
     let Some(editor) = window.firstResponder() else { return false };
     // SAFETY: `isKindOfClass:` takes any class.
     let editing: bool = unsafe { msg_send![&*editor, isKindOfClass: class] };
-    if editing {
-        // SAFETY: an `NSTextView` (the field editor) answers `insertText:` with a string.
-        let () = unsafe { msg_send![&*editor, insertText: &*NSString::from_str(text)] };
+    if !editing {
+        return false;
     }
-    editing
+    match drive::into_field(text) {
+        // SAFETY: an `NSTextView` (the field editor) answers `insertText:` with a string.
+        Field::Insert(text) => unsafe {
+            let () = msg_send![&*editor, insertText: &*NSString::from_str(text)];
+        },
+        // SAFETY: `doCommandBySelector:` takes any selector; one the field
+        // editor does not know only beeps.
+        Field::Command(name) => unsafe {
+            let () = msg_send![&*editor, doCommandBySelector: Sel::register(name)];
+        },
+        Field::Nothing => return false,
+    }
+    true
 }
 
 /// Draws the content of `window` into a PNG at `path`.
