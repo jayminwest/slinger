@@ -65,6 +65,7 @@ pub const TYPING: Fixed = Fixed {
         row("Cut line end, put back", Keys::Text("ctrl+k ctrl+y")),
         row("Select a word, a row", Keys::Words("2 or 3 taps")),
         row("Copy, cut selected text", Keys::Words("⌘C ⌘X")),
+        row("Undo, redo its edits", Keys::Words("⌘Z ⇧⌘Z")),
         row("Set where it wraps", Keys::Words("drag right edge")),
         row("End the text", Keys::Words("⎋ or tap out")),
     ],

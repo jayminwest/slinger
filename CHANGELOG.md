@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** undo and redo while you type a canvas text. Cmd+Z and
+  Shift+Cmd+Z (and Undo and Redo in the Edit menu) step through the text's
+  own edits, as a Mac text field does: a run of typing is one step, a run of
+  deletes another, a paste or a cut one each. Once the text ends, undo
+  takes back the whole text from the canvas, as before.
 - **App:** a typed text wraps. A new text wraps at 48 characters, and
   while you type it its dashed frame shows that column; drag the frame's
   right edge (the pointer shows a left-right arrow) to make the column
@@ -43,6 +48,8 @@ bullet with the area in bold.
   starts the next half a line under it, so notes follow one another from
   the keyboard. With no text being typed it starts one at the pointer, or,
   with the pointer off the pane, under the last text you ended there.
+  With the pointer on a text, it opens that text to edit, as a tap with
+  the text tool does. The hint under a text you type names its key.
 - **CLI:** `slinger canvas fold <ID> <ITEM>` folds a box to a miniature that
   keeps what lies inside it, and `slinger canvas unfold` opens it again in
   its old room, each as one undo step. When something now lies in that

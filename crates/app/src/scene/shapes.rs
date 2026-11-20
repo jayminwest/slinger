@@ -21,7 +21,8 @@
 //!   when the pen lifts where it went down ([`Shapes::tapped`]). The edit
 //!   is one change when it ends: an `add`, a `set`, or a `remove` when it
 //!   was emptied.
-//!   A text also starts from the keyboard ([`Shapes::start`], [`start`]).
+//!   A text also starts from the keyboard ([`Shapes::start`], [`start`]),
+//!   or opens there as a tap opens it ([`Shapes::start_at`]).
 //! - Box: a drag from corner to corner.
 //! - Arrow: a drag from start to end. An end that lands on an item binds to
 //!   it ([`target`]), and when that item moves the end follows ([`follow`]),
@@ -37,7 +38,7 @@ use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect};
 use crate::mirror::{LINE_WIDTH, TEXT_SIZE};
 use crate::scene::canvas::{Fill, Item, ItemId, Shape};
-use crate::scene::editor::{Editing, Editor};
+use crate::scene::editor::Editing;
 use crate::scene::glyphs;
 use crate::scene::ink::{Change, Ink, on_server};
 use crate::scene::paste;
@@ -108,8 +109,8 @@ struct Drag {
 /// the last press,
 /// the edit a double tap with the select tool or the lasso asks for
 /// once the pen lifts where it went down, within the reach there, and the
-/// size a new text starts at ([`TEXT_SIZE`] until one is set), and where
-/// the last text ended ([`start`]).
+/// size a new text starts at ([`TEXT_SIZE`] until one is set), where
+/// the last text ended, and the `new-text` key the hint names ([`start`]).
 #[derive(Debug, Default)]
 pub struct Shapes {
     drag: Option<(String, String, Drag)>,
@@ -122,6 +123,7 @@ pub struct Shapes {
     last: Option<(String, String, Press)>,
     waiting: Option<(Editing, Point, f64)>,
     size: Option<f64>,
+    next: Option<Chord>,
 }
 
 impl Shapes {
@@ -195,18 +197,7 @@ impl Shapes {
         }
         let edits = tool == Tool::Text || (double && tool != Tool::Pen);
         if let Some(item) = text_at(items, press.at, reach).filter(|_| edits) {
-            let Shape::Text { frame, text, size, column } = &item.shape else { return true };
-            let column = column.unwrap_or(glyphs::UNWRAPPED);
-            let editing = Editing {
-                canvas: canvas.to_string(),
-                page: page.to_string(),
-                at: Point { x: frame.x, y: frame.y },
-                editor: Editor::new(text.clone()),
-                colour: item.colour,
-                size: *size,
-                column,
-                item: Some((item.id, text.clone(), *size, column)),
-            };
+            let Some(editing) = start::edit((canvas, page), item) else { return true };
             if matches!(tool, Tool::Select | Tool::Lasso) {
                 self.waiting = Some((editing, press.at, reach));
                 return false;
@@ -310,8 +301,8 @@ impl Shapes {
     /// Typed `text` goes into the text being edited at its caret, in place
     /// of its selection: delete deletes back, return starts a line, escape
     /// ends the text (to `ink`). Other control and function keys do
-    /// nothing ([`Editor::typed`]). Returns false, and nothing changes,
-    /// when no text is being edited.
+    /// nothing ([`Editor::typed`](super::editor::Editor::typed)). Returns
+    /// false, and nothing changes, when no text is being edited.
     pub fn typed(&mut self, text: &str, ink: &mut Ink) -> bool {
         let Some(editing) = &mut self.editing else { return false };
         match text.split_once('\u{1b}') {
@@ -325,10 +316,16 @@ impl Shapes {
     }
 
     /// A key of the text being typed: its caret, selection and delete keys
-    /// ([`Editor::key`]). Returns false when no text is being typed, or the
-    /// key is not one of them.
+    /// ([`Editor::key`](super::editor::Editor::key)). Returns false when no
+    /// text is being typed, or the key is not one of them.
     pub fn key(&mut self, chord: Chord) -> bool {
         self.editing.as_mut().is_some_and(|editing| editing.key(chord))
+    }
+
+    /// Undoes the last edit of the text being typed, or with `redo` redoes
+    /// one. False when no text is being typed or it has no such step.
+    pub fn undo(&mut self, redo: bool) -> bool {
+        self.editing.as_mut().is_some_and(|editing| editing.editor.undo(redo))
     }
 
     /// The characters selected in the text being typed, if any; with `cut`,
@@ -417,7 +414,7 @@ impl Shapes {
                 Shape::Panel { frame: around, fill: None, width: FRAME_LINE / zoom, dashed: true };
             items.push(Cow::Owned(Item { id: FRAME_ID, colour: theme.muted, shape }));
             let under = Point { x: around.x, y: around.y + around.height + HINT_GAP / zoom };
-            let hint = label(HINT_ID, HINT.to_string(), theme.muted, under, zoom);
+            let hint = label(HINT_ID, self.hint(), theme.muted, under, zoom);
             items.push(Cow::Owned(hint));
         }
         items

@@ -219,7 +219,7 @@
 #remove-page = "cmd+shift+delete"
 # Undo the last thing you did on the focused pane's canvas (a stroke, an erase, a move,
 # a text, a page), or redo what you undid. An agent's items are its own: your undo never
-# takes them back.
+# takes them back. While you type a text, they undo and redo its edits first.
 #undo = "cmd+z"
 #redo = "cmd+shift+z"
 # Speak the sling's prompt through Flick's dictation (Flick must be running, with
