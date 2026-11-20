@@ -309,6 +309,7 @@ impl PageMenu {
                 Tap::Pages
                 | Tap::Profiles
                 | Tap::Workspace(_)
+                | Tap::Close(_)
                 | Tap::Slung
                 | Tap::Send
                 | Tap::Cancel

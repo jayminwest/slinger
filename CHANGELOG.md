@@ -11,6 +11,13 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** every workspace in the sidebar has a ✕ that closes it, shown or
+  not, without switching to it first. Closing the shown one shows another;
+  closing any other leaves the window as it is. The flash names the
+  workspace closed and the agent the close ended; if slingerd cannot close
+  it, the row stays and the flash says why. close-workspace (opt+cmd+W)
+  still closes the shown one.
+
 - **App:** each pane opens on the page, pan and zoom you left it at, and
   the focus comes back to the pane that had it: after a workspace switch,
   a relaunch of the app or a restart of slingerd. The app saves where you

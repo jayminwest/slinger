@@ -5,7 +5,7 @@
 //! hand's ([`hand`]) before anything else.
 
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::canvases::Canvases;
@@ -15,6 +15,7 @@ use crate::layout::Rect;
 use crate::panes::Panes;
 use crate::scene::paste::Keyboard;
 use crate::scene::sidebar::Sidebar;
+use crate::scene::taps::Tap;
 use crate::scene::tools::{Picked, Resize, Tools};
 use crate::shared::Shared;
 use crate::window::{grabs, pane_at, run, tap, view};
@@ -25,12 +26,36 @@ pub enum Routed {
     /// Answer the window this.
     Answer(Step),
     /// A tap in the sidebar or `open-workspace` showed the workspace
-    /// named, or `close-workspace` the first (`None`): watch it, then answer.
+    /// named, or a close of the shown one (`close-workspace`, its row's ✕)
+    /// the first (`None`): watch it, then answer.
     Watch(Option<String>, Step),
     /// Look at the news (a wake or a tick); `true` draws whether or not there is any.
     News(bool),
     /// `start-slingerd` or `restart-daemon`: for the launcher, then draw.
     Launch(Command),
+}
+
+/// The workspace a tap, an open or a close leaves shown, for the watch to
+/// follow: one named, the first (`None`), or none to follow. A close names
+/// its workspace by folder: a row's ✕ its row's, `close-workspace` the
+/// shown one's.
+#[expect(clippy::option_option, reason = "what Routed::Watch takes, or no watch")]
+fn shows(
+    asked: Ask,
+    socket: &Path,
+    sidebar: &mut Sidebar,
+    tools: &mut Tools,
+    (shared, canvases): (&mut Shared, &mut Canvases),
+) -> Option<Option<String>> {
+    let dir = match asked {
+        Ask::Open(dir) => return window::open_workspace(&dir, socket, sidebar, tools).map(Some),
+        Ask::Tap((_, Tap::Close(i))) => sidebar.dir(i),
+        Ask::Tap(target) => return tap(target, canvases, shared, sidebar).map(Some),
+        _ => sidebar.shown_dir(),
+    };
+    let closed =
+        |d: &PathBuf| window::close_workspace(d, socket, sidebar, tools, (shared, canvases));
+    dir.filter(closed).map(|_| None)
 }
 
 /// Routes `event` as the window's answer does, all but the news a tick
@@ -91,11 +116,7 @@ pub fn route(
             Err(why) => Step::Refuse(why),
         },
         (asked @ (Ask::Tap(_) | Ask::Open(_) | Ask::Run(Command::CloseWorkspace)), _) => {
-            let shown = match asked {
-                Ask::Open(dir) => window::open_workspace(&dir, socket, sidebar, tools).map(Some),
-                Ask::Tap(target) => tap(target, canvases, shared, sidebar).map(Some),
-                _ => window::close_workspace(socket, sidebar, tools).then_some(None),
-            };
+            let shown = shows(asked, socket, sidebar, tools, (shared, canvases));
             let step = Step::Draw(view(settings, shared, tools, sidebar, canvases));
             return match shown {
                 Some(name) => Routed::Watch(name, step),

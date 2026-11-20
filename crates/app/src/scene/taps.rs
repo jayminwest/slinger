@@ -34,6 +34,9 @@ pub enum Tap {
     Profile(usize),
     /// Shows the panes of the sidebar's workspace with this index.
     Workspace(usize),
+    /// Closes the sidebar's workspace with this index, shown or not: its
+    /// row's ✕.
+    Close(usize),
     /// The pill that says what became of the last sling, or the answer
     /// under it ([`crate::scene::slung`]).
     Slung,

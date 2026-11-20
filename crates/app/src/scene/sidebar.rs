@@ -16,19 +16,19 @@
 //! it starts or after the daemon comes back, is where it starts counting:
 //! no notice for what was already so.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::backend::Problem;
-use crate::commands::Command;
 use crate::config::{Rgb, Theme};
 use crate::layout::Rect;
-use crate::scene::taps::{Tap, Target};
-use crate::scene::{Label, status, style};
+use crate::scene::taps::Target;
+use crate::scene::{Label, style};
 
 mod agent;
 pub mod broken;
 pub mod launched;
 pub mod notice;
+mod rows;
 
 pub use agent::{Agent, Process, Status};
 pub use broken::Broken;
@@ -45,6 +45,17 @@ pub struct Workspace {
     pub dir: PathBuf,
     /// Why the daemon cannot use its file, if it cannot.
     pub broken: Option<Broken>,
+}
+
+impl Workspace {
+    /// What the sidebar calls it: its name, or its folder's for a broken
+    /// file that names none.
+    pub fn title(&self) -> String {
+        match self.name.as_str() {
+            "" => self.dir.file_name().unwrap_or_default().to_string_lossy().into(),
+            name => name.into(),
+        }
+    }
 }
 
 /// The sidebar's width, in points, when it is open.
@@ -243,13 +254,25 @@ impl Sidebar {
         })
     }
 
-    /// Takes the workspace the window shows out of the list, and shows the
-    /// first usable: the directory of the one taken, to close it by. `None`
-    /// when no workspace shows.
-    pub fn close(&mut self) -> Option<PathBuf> {
-        let at = self.at();
-        self.shown = None;
-        Some(self.workspaces.as_mut()?.remove(at?).dir)
+    /// The directory of the workspace with index `index` in the list: what
+    /// closes it, whatever its file holds. `None` past the last.
+    pub fn dir(&self, index: usize) -> Option<PathBuf> {
+        Some(self.workspaces.as_ref()?.get(index)?.dir.clone())
+    }
+
+    /// Takes the workspace in `dir` out of the list, after the daemon closed
+    /// it: the workspace taken, and whether the window showed it (then the
+    /// first usable shows, as at the start). `None` when it was not listed.
+    pub fn closed(&mut self, dir: &Path) -> Option<(Workspace, bool)> {
+        let shown = self.at();
+        let list = self.workspaces.as_mut()?;
+        let at = list.iter().position(|w| w.dir == dir)?;
+        let gone = list.remove(at);
+        let was = shown == Some(at);
+        if was {
+            self.shown = None;
+        }
+        Some((gone, was))
     }
 
     /// The directory of the workspace the window shows: what its agent's
@@ -279,166 +302,6 @@ impl Sidebar {
                 .or_else(|| at(&|w| w.broken.is_none())),
         }
     }
-
-    /// The rows and the workspaces' targets.
-    fn laid(&self, theme: &Theme, window: Rect) -> (Vec<Row>, Vec<Target>) {
-        if !self.open {
-            return (Vec::new(), Vec::new());
-        }
-        let heading = Font { size: Some(11.0), bold: false, spacing: 1.0 };
-        let mut lines = vec![Line::new(HEADING.into(), theme.muted, heading)];
-        match (&self.workspaces, &self.problem) {
-            _ if let Some(daemon) = self.daemon() => {
-                let line = |(t, c, run)| Line { run, ..Line::new(t, c, Font::PLAIN) };
-                lines.extend(daemon.sidebar(theme).into_iter().map(line));
-            }
-            (_, Some(problem)) => {
-                lines.push(Line::new(format!("✗ {problem}"), theme.error, Font::PLAIN));
-            }
-            (None, None) => return (Vec::new(), Vec::new()),
-            (Some(list), None) if list.is_empty() => {
-                lines.push(Line::new("no open workspaces".into(), theme.muted, Font::PLAIN));
-            }
-            (Some(list), None) => {
-                let at = self.at();
-                for (i, workspace) in list.iter().enumerate() {
-                    let shown = at == Some(i);
-                    lines.extend(
-                        block(workspace, shown, theme)
-                            .into_iter()
-                            .map(|line| Line { workspace: Some(i), ..line }),
-                    );
-                }
-            }
-        }
-        let bottom = window.y + window.height - status::HEIGHT;
-        let right = window.x + WIDTH.min(window.width) - PAD;
-        let label = |text: String, colour, x: f64, y, right: f64| Label {
-            text,
-            colour,
-            fill: None,
-            frame: Rect { x, y, width: (right - x).max(0.0), height: ROW },
-        };
-        let (mut rows, mut lit) = (Vec::new(), None::<(f64, f64)>);
-        let mut targets: Vec<Target> = Vec::new();
-        let wide = WIDTH.min(window.width) - style::HAIRLINE;
-        let mut y = window.y + PAD;
-        for line in lines {
-            y += line.gap;
-            if y + ROW > bottom {
-                break;
-            }
-            let mut x = window.x + PAD;
-            if line.under {
-                if let Some((mark, colour)) = line.mark {
-                    let label = label(mark.into(), colour, x, y, x + MARK);
-                    rows.push(Row { label, font: Font::PLAIN });
-                }
-                x += MARK;
-            }
-            rows.push(Row { label: label(line.text, line.colour, x, y, right), font: line.font });
-            if line.shown {
-                lit = Some((lit.map_or(y, |(top, _)| top), y + ROW));
-            }
-            let tap = line.run.map(Tap::Run).or(line.workspace.map(Tap::Workspace));
-            match (tap, targets.last_mut()) {
-                (Some(t), Some((frame, at))) if *at == t => frame.height = y + ROW - frame.y,
-                (Some(t), _) => {
-                    targets.push((Rect { x: window.x, y, width: wide, height: ROW }, t));
-                }
-                (None, _) => {}
-            }
-            y += ROW;
-        }
-        if let Some((top, end)) = lit {
-            let frame =
-                Rect { x: window.x, y: top, width: WIDTH.min(window.width), height: end - top };
-            let fill = Label {
-                text: String::new(),
-                colour: theme.text,
-                fill: Some(lighter(theme)),
-                frame,
-            };
-            rows.insert(0, Row { label: fill, font: Font::PLAIN });
-        }
-        (rows, targets)
-    }
-}
-
-/// One line of the sidebar before it is placed.
-struct Line {
-    /// Whether it is under a workspace's name: set in by a mark's width.
-    under: bool,
-    /// A status mark and its colour, in that space.
-    mark: Option<(&'static str, Rgb)>,
-    text: String,
-    colour: Rgb,
-    font: Font,
-    /// Space above it.
-    gap: f64,
-    /// Whether it belongs to the workspace the window shows.
-    shown: bool,
-    /// The index of the workspace it belongs to, if any.
-    workspace: Option<usize>,
-    /// The command a tap on it runs, rather than show its workspace.
-    run: Option<Command>,
-}
-
-impl Line {
-    fn new(text: String, colour: Rgb, font: Font) -> Self {
-        Self {
-            under: false,
-            mark: None,
-            text,
-            colour,
-            font,
-            gap: 0.0,
-            shown: false,
-            workspace: None,
-            run: None,
-        }
-    }
-
-    /// A line under a workspace's name, without a mark.
-    fn under(text: String, colour: Rgb) -> Self {
-        Self { under: true, ..Line::new(text, colour, Font::PLAIN) }
-    }
-}
-
-/// A workspace's lines: its name (its folder's for a broken file that
-/// names none), then why a broken one cannot be used, or its agent and
-/// status, a blocked agent's note, and while the window shows it and its
-/// agent does not run, "Start agent".
-fn block(workspace: &Workspace, shown: bool, theme: &Theme) -> Vec<Line> {
-    let font = Font { bold: shown, ..Font::PLAIN };
-    let mut name = workspace.name.clone();
-    if name.is_empty() {
-        name = workspace.dir.file_name().unwrap_or_default().to_string_lossy().into();
-    }
-    let mut lines = vec![Line { gap: GAP, ..Line::new(name, theme.text, font) }];
-    match (&workspace.broken, &workspace.agent) {
-        (Some(broken), _) => lines.extend(broken.lines(shown, theme)),
-        (None, None) => lines.push(Line::under("no agent".into(), theme.muted)),
-        (None, Some(agent)) => {
-            let text = match agent.status {
-                Some(status) => format!("{} · {}", agent.label(), status.word()),
-                None => agent.label(),
-            };
-            let mark = Some(mark(agent.status, theme));
-            lines.push(Line { under: true, mark, ..Line::new(text, theme.muted, Font::PLAIN) });
-            if let (Some(Status::Blocked), Some(note)) = (agent.status, &agent.note) {
-                lines.push(Line::under(note.clone(), theme.muted));
-            }
-            if shown && agent.status == Some(Status::Stopped) {
-                let start = Line::under(START.into(), theme.focus);
-                lines.push(Line { run: Some(Command::StartAgent), ..start });
-            }
-        }
-    }
-    for line in &mut lines {
-        line.shown = shown;
-    }
-    lines
 }
 
 /// The shown workspace's row and each pane's footer: the background, a

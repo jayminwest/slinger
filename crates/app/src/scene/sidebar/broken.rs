@@ -7,14 +7,15 @@
 //! (slinger-a57147): a tap on it shows it, wider, in the panes' area. Every
 //! verb on it fails, so it shows no agent.
 
-use super::{Line, MARK, PAD, WIDTH};
+use super::rows::Line;
+use super::{MARK, PAD, WIDTH};
 use crate::commands::Command;
 use crate::config::Theme;
 use crate::layout::Point;
 use crate::scene::{glyphs, slung};
 
 /// The size of the sidebar's plain text: the system's.
-const TEXT: f64 = 13.0;
+pub(super) const TEXT: f64 = 13.0;
 /// The close line's text.
 pub const CLOSE: &str = "Close workspace";
 /// The most lines the message, the field and the hint each take.

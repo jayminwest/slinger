@@ -451,9 +451,13 @@ window.rs    runs a command on the focused pane, does a tap on a button that
              opens its profile menu and a profile slings under it, a
              workspace shows its panes), opens the folder `open-workspace`
              chose as a workspace (workspace_open: backend/agents.rs) and
-             shows it, or flashes why not, closes the shown one for
-             `close-workspace` (workspace_close by its folder) and shows the
-             first, or flashes why not, starts, stops or restarts the
+             shows it, or flashes why not, closes a workspace by its folder
+             (window/workspace.rs: the shown one for `close-workspace`, any
+             row's for its ✕; workspace_close first, then the row leaves,
+             "Closed <name>" flashes with the agent the daemon ended, and a
+             workspace not shown drops its parked views and kept focus; only
+             closing the shown one makes the watch follow the first; a
+             failure leaves the row and flashes why), starts, stops or restarts the
              shown one's agent for `start-agent`, `stop-agent` and
              `restart-agent` (`agent`: session_start, session_stop or
              session_start `fresh` by its folder, backend/agents.rs) and
@@ -860,7 +864,9 @@ scene/taps.rs  the footers' and the sidebar's buttons as last drawn: the
              one under the pen lights, a press arms it and goes no further
              (no ink, no gesture), and the lift on it taps it (`Tap`: run
              a command, open the page menu, turn to a page, open the
-             profile menu, sling under a profile, show a workspace); a
+             profile menu, sling under a profile, show a workspace, close
+             a workspace by its row's ✕: `Close(index)`, resolved to its
+             folder at the tap); a
              lift off it does nothing. Pure.
 scene/pages/menu.rs  the page menu: a tap on a footer's page name opens it
              above the name, one 28 pt row per page (the shown one ✓ and
@@ -961,9 +967,15 @@ scene/sidebar.rs  the agents' statuses (SPEC D17): the open workspaces and
              running` (hollow, muted), one slingerd never started (no
              session id) shows what its hooks said, and one with a message
              pending is working though no hook said so (`Status::of`). `agents`: each
-             workspace's agent. `close`: takes the shown workspace out of
-             the list for `close-workspace`; `shown_dir`: its folder, which
-             the agent commands and `show-workspace-folder` go to. Under the
+             workspace's agent. Each workspace's name line ends in a muted
+             ✕, a 28 pt target listed before its row's (`Tap::Close`); the
+             name's label ends before it. `dir`: a row's folder, what closes
+             it; `closed`: takes a row out once the daemon closed it, and
+             whether it was the shown one (then the first usable shows);
+             `shown_dir`: the shown one's folder, which `close-workspace`,
+             the agent commands and `show-workspace-folder` go to. The
+             layout (`laid`, `Line`, `block`) is in scene/sidebar/rows.rs.
+             Under the
              shown workspace's agent that does not run, "Start agent" (a tap
              runs `start-agent`). Pure.
 scene/sidebar/agent.rs  an agent as the sidebar shows it: its `Status`,
