@@ -19,7 +19,8 @@ use crate::scene::tools::{Tool, Tools};
 impl Canvases {
     /// The pen's line width, in canvas units, and a new text's size, from
     /// `tools`: new strokes take the width, and the footers show it; a text
-    /// the text tool places starts at the size.
+    /// the text tool places starts at the size, which the footers show
+    /// while the text tool is chosen.
     pub fn set_pen(&mut self, tools: &Tools) {
         self.ink.set_width(tools.width().points());
         self.shapes.set_size(f64::from(tools.size()));
@@ -77,7 +78,13 @@ impl Canvases {
             let agent = self.agent_of(&pane.name);
             let (label, profiles) = agent.map(|a| (a.label(), !a.profiles.is_empty())).unzip();
             let shows = Shows {
-                pen: Some(Pen { tool, colour, width: self.ink.width(), state }),
+                pen: Some(Pen {
+                    tool,
+                    colour,
+                    width: self.ink.width(),
+                    size: self.shapes.size(),
+                    state,
+                }),
                 centre: &centre,
                 pages: !centre.is_empty(),
                 zoom: Some(zoom.unwrap_or_else(crate::layout::Viewport::start).percent()),

@@ -13,8 +13,9 @@
 //! - left, the pen: the sidebar's button while it is collapsed (in the
 //!   pane at the window's bottom left, where the open sidebar's own
 //!   "◧ Hide sidebar" sits: [`strip`]); the swatch (the pen's colour and
-//!   width) picks a colour, the bars pick a width, the tool's name (bold,
-//!   with its key) picks a tool; what the pane is doing (`· typing`,
+//!   width) picks a colour, the bars pick a width (with the text tool, the
+//!   size a new text starts at, "Size 24", picks a size instead), the
+//!   tool's name (bold, with its key) picks a tool; what the pane is doing (`· typing`,
 //!   `· N selected`); undo and redo.
 //! - middle, the page: the previous page, its name and where it is among
 //!   the pages (a tap opens the page menu), the next page. Centred in the
@@ -37,7 +38,7 @@
 //! right's pane buttons and keys. Groups of buttons sit [`cells::GAP`]
 //! apart, the parts at least [`cells::SPACE`]. A narrow pane drops whole
 //! groups, the least needed first (the rank in brackets; higher stays
-//! longer): zoom (30), the pane buttons (35), the width (40), the overlay's
+//! longer): zoom (30), the pane buttons (35), the width or size (40), the overlay's
 //! key (50), undo and redo (55), the page (60), the palette's key (70),
 //! the agent (80); the tool, the state, "➤ Sling" and the sidebar's button
 //! stay. Every command a
@@ -95,6 +96,8 @@ pub struct Pen {
     pub colour: Rgb,
     /// The pen's line width, in points.
     pub width: f64,
+    /// The size a new text starts at, in canvas units.
+    pub size: f64,
     pub state: State,
 }
 
@@ -180,7 +183,7 @@ pub fn footer(frame: Rect, theme: &Theme, keys: &Keymap, shows: &Shows) -> Foote
         }
         units.extend([
             Unit::new(Side::Left, 90, vec![Cell::mark(swatch, Command::PickColour)]),
-            Unit::new(Side::Left, 40, vec![Cell::mark(Face::Widths, Command::PickWidth)]),
+            Unit::new(Side::Left, 40, vec![width(pen, theme)]),
             Unit::new(Side::Left, 90, vec![Cell::words(name, Some(Tap::Run(Command::PickTool)))]),
         ]);
         let state = match pen.state {
@@ -241,6 +244,16 @@ pub fn footer(frame: Rect, theme: &Theme, keys: &Keymap, shows: &Shows) -> Foote
         }
     }
     build(frame, theme, units)
+}
+
+/// The pen's width button, its bars; with the text tool, the size a new
+/// text starts at ("Size 24"), which picks a size.
+fn width(pen: Pen, theme: &Theme) -> Cell {
+    if pen.tool == Tool::Text {
+        let size = Run { text: format!("Size {}", pen.size), colour: theme.muted, bold: false };
+        return Cell::words(vec![size], Some(Tap::Run(Command::PickSize)));
+    }
+    Cell::mark(Face::Widths, Command::PickWidth)
 }
 
 /// The open sidebar's foot, at `frame` (its bottom, as high as a footer):

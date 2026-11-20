@@ -16,7 +16,9 @@ bullet with the area in bold.
   48 and 72 points; Bigger text (`size-up`, alt+shift+]) and Smaller text
   (`size-down`, alt+shift+[) step through them, and a new size flashes. The
   text tool's next text starts at that size (24 until you pick another); a
-  text you are typing or editing keeps its own.
+  text you are typing or editing keeps its own. While the text tool is
+  chosen, the footer shows the size ("Size 24") where the width bars sit;
+  a tap there picks a size.
 
 - **App:** run outside its `.app` (a bare `slinger-app` from a shell), the
   app says once, when you cancel a file panel, to run slinger.app to reach
