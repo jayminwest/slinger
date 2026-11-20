@@ -9,6 +9,7 @@
 //! clients that wait on that canvas's feed ([`Canvases::changes`]).
 
 mod feed;
+mod read;
 
 use std::collections::HashMap;
 use std::fs::{self, DirBuilder, File};
@@ -19,12 +20,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
 use serde_json::Value;
-use slinger_core::canvas::file::{
-    Edit, How, Log, Placed, Put, Shown, Written, check_id, parse_author,
-};
+use slinger_core::canvas::file::{Edit, How, Log, Placed, Put, Written, check_id, parse_author};
 use slinger_core::canvas::{Author, Canvas, Time};
-use slinger_core::packet::{Area, Packet};
-use slinger_core::render::{Backdrop, Image};
 
 /// A canvas file's name ends in this.
 const EXTENSION: &str = "canvas";
@@ -185,78 +182,6 @@ impl Canvases {
             .collect();
         ids.sort();
         Ok(ids)
-    }
-
-    /// One page of a canvas (see [`Log::show`]) and the number of the next
-    /// line the canvas will write.
-    ///
-    /// # Errors
-    ///
-    /// `not_found` for a canvas or page that is not there, and the errors of
-    /// reading the file.
-    pub fn show(&self, id: &str, page: Option<&str>) -> Result<(Shown, u64)> {
-        self.with(id, |log| Ok((log.show(page)?, log.next())))
-    }
-
-    /// The packet of one page, or of what the box `inside` holds (see
-    /// [`Log::packet`]): the lines after `after` are new, and the images of
-    /// new ink are drawn over `under`.
-    ///
-    /// # Errors
-    ///
-    /// `not_found` for a canvas, page or box that is not there, `invalid`
-    /// for a selected id that is not one or an `inside` that is not a box,
-    /// and the errors of reading the file.
-    pub fn packet(
-        &self,
-        id: &str,
-        page: Option<&str>,
-        inside: Option<&str>,
-        after: u64,
-        select: &[String],
-        under: &[Backdrop],
-    ) -> Result<Packet> {
-        self.with(id, |log| Ok(log.packet(id, page, inside, after, select, under)?))
-    }
-
-    /// The areas of PDF pages under the new ink of one page (see
-    /// [`Log::backdrops`]).
-    ///
-    /// # Errors
-    ///
-    /// `not_found` for a canvas or page that is not there, and the errors
-    /// of reading the file.
-    pub fn backdrops(&self, id: &str, page: Option<&str>, after: u64) -> Result<Vec<Area>> {
-        self.with(id, |log| Ok(log.backdrops(page, after)?))
-    }
-
-    /// Images of what `of` names on a canvas, named after `name` (see
-    /// [`Log::crop`]).
-    ///
-    /// # Errors
-    ///
-    /// The errors of [`Log::crop`] and of reading the file.
-    pub fn crop(&self, id: &str, of: &str, name: &str) -> Result<Vec<Image>> {
-        self.with(id, |log| Ok(log.crop(of, name)?))
-    }
-
-    /// The strokes `item` names on a canvas (see [`Log::strokes`]).
-    ///
-    /// # Errors
-    ///
-    /// The errors of [`Log::strokes`] and of reading the file.
-    pub fn strokes(&self, id: &str, item: &str) -> Result<Vec<Value>> {
-        self.with(id, |log| Ok(log.strokes(item)?))
-    }
-
-    /// The text items on a canvas that hold `phrase` (see [`Log::find`]).
-    ///
-    /// # Errors
-    ///
-    /// `not_found` for a canvas that is not there, and the errors of
-    /// reading the file.
-    pub fn find(&self, id: &str, phrase: &str) -> Result<Vec<Value>> {
-        self.with(id, |log| Ok(log.find(phrase)))
     }
 
     /// Applies `ops` as `by` (`user` or `agent:<name>`) and returns what it

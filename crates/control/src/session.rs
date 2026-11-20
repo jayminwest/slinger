@@ -44,11 +44,14 @@ pub enum SessionAsk {
     SessionSend { workspace: String, text: String },
     /// Send a canvas's new ink and a prompt to the agent of its workspace.
     SlingSend(SlingAsk),
-    /// The areas of PDF pages under the new ink a `sling_send` would draw.
+    /// The areas of PDF pages under the new ink a `sling_send` would draw;
+    /// with `in`, a sling of that box.
     SlingBackdrops {
         canvas: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         page: Option<String>,
+        #[serde(default, rename = "in", skip_serializing_if = "Option::is_none")]
+        inside: Option<String>,
     },
     /// Take the next sling that waits for a listener of a workspace's
     /// agent. With `wait`, the reply waits up to that many milliseconds for
@@ -423,8 +426,16 @@ mod tests {
                 r#"{"v":1,"op":"sling_send","canvas":"c","prompt":"","backdrops":[{"item":"i3","area":[0,10,200,300],"image":"/t/1.rgb","words":"/t/1.json"}]}"#,
             ),
             (
-                SessionAsk::SlingBackdrops { canvas: "c".into(), page: None },
+                SessionAsk::SlingBackdrops { canvas: "c".into(), page: None, inside: None },
                 r#"{"v":1,"op":"sling_backdrops","canvas":"c"}"#,
+            ),
+            (
+                SessionAsk::SlingBackdrops {
+                    canvas: "c".into(),
+                    page: None,
+                    inside: Some("b4".into()),
+                },
+                r#"{"v":1,"op":"sling_backdrops","canvas":"c","in":"b4"}"#,
             ),
             (
                 SessionAsk::SlingSend(SlingAsk { canvas: "c".into(), ..SlingAsk::default() }),

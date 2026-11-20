@@ -5,7 +5,7 @@
 
 use super::Log;
 use super::json::{tenths, units};
-use crate::canvas::{ItemId, Marker, Rect};
+use crate::canvas::{ItemId, Marker, PageId, Rect};
 use crate::packet::{Area, Ask, Packet, backdrops, build};
 use crate::render::{Backdrop, Word};
 use crate::{Error, Result};
@@ -39,12 +39,7 @@ impl Log {
         select: &[String],
         under: &[Backdrop],
     ) -> Result<Packet> {
-        let inside = inside.map(item).transpose()?;
-        let holder = inside.and_then(|b| self.canvas().item(b));
-        let page = match (holder, page) {
-            (Some(b), None) => b.page(),
-            _ => self.page(page)?.id(),
-        };
+        let (page, inside) = self.scope(page, inside)?;
         let selection = select.iter().map(|s| item(s)).collect::<Result<Vec<_>>>()?;
         let ask = Ask {
             canvas: id,
@@ -62,23 +57,42 @@ impl Log {
         Ok(packet)
     }
 
-    /// The areas of `pdf` items under the new ink of a page's packet (see
-    /// [`Log::packet`] for `page` and `after`, and [`backdrops`]).
+    /// The areas of `pdf` items under the new ink of a page's packet, or
+    /// of a box's (see [`Log::packet`] for `page`, `inside` and `after`, and
+    /// [`backdrops`]): with `inside`, only the ink the box holds.
     ///
     /// # Errors
     ///
-    /// [`Error::NotFound`] for a page that is not there.
-    pub fn backdrops(&self, page: Option<&str>, after: u64) -> Result<Vec<Area>> {
-        let page = self.page(page)?.id();
+    /// As [`Log::packet`]: [`Error::NotFound`] for a page or a box that is
+    /// not there, [`Error::Invalid`] for an `inside` that is not a box.
+    pub fn backdrops(
+        &self,
+        page: Option<&str>,
+        inside: Option<&str>,
+        after: u64,
+    ) -> Result<Vec<Area>> {
+        let (page, inside) = self.scope(page, inside)?;
         let ask = Ask {
             canvas: "",
             page,
             since: self.since(after),
             selection: &[],
             backdrops: &[],
-            inside: None,
+            inside,
         };
         backdrops(self.applied().0, &ask)
+    }
+
+    /// The page a packet reads and the box it reads inside: the box's own
+    /// page when `inside` names a box and `page` is not given.
+    fn scope(&self, page: Option<&str>, inside: Option<&str>) -> Result<(PageId, Option<ItemId>)> {
+        let inside = inside.map(item).transpose()?;
+        let holder = inside.and_then(|b| self.canvas().item(b));
+        let page = match (holder, page) {
+            (Some(b), None) => b.page(),
+            _ => self.page(page)?.id(),
+        };
+        Ok((page, inside))
     }
 
     /// The op marker after the file's line `after`. Ops and lines differ
