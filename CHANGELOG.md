@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a typed text wraps. A new text wraps at 48 characters, and
+  while you type it its dashed frame shows that column; drag the frame's
+  right edge (the pointer shows a left-right arrow) to make the column
+  narrower or wider, for a new text or one you edit. Texts typed before
+  keep running on one line until you drag their edge. Agents see the
+  same rows.
 - **App:** a canvas text being typed has a real caret. The arrow keys move
   it (alt by words, cmd to a row's ends or the text's start and end), shift
   selects, delete and forward delete (alt by words, cmd to the row's start)

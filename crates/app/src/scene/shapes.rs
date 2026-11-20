@@ -9,7 +9,8 @@
 //!   the caret keys move it ([`Shapes::key`]), and a press inside puts it
 //!   there, a drag or a shift-press selecting; escape or a press
 //!   outside ends it. While it is typed it shows its caret and selection,
-//!   a dashed frame around it, and under that how
+//!   a dashed frame around it out to the column it wraps in, whose right
+//!   edge a drag moves ([`Editing::widen`]), and under that how
 //!   to end it. A press outside with any other tool
 //!   also starts that tool's gesture: the first gesture after a text is
 //!   never lost. A tap with the text tool on a text,
@@ -28,7 +29,6 @@
 //! tap and makes nothing.
 
 use std::borrow::Cow;
-use std::collections::HashSet;
 
 use crate::commands::Chord;
 use crate::config::{Rgb, Theme};
@@ -40,6 +40,9 @@ use crate::scene::glyphs;
 use crate::scene::ink::{Change, Ink, on_server};
 use crate::scene::paste;
 use crate::scene::tools::Tool;
+
+mod bind;
+pub use bind::{follow, follow_by, target};
 
 /// Two presses this close in time, in seconds, are a double tap...
 pub const DOUBLE_TAP: f64 = 0.4;
@@ -98,7 +101,9 @@ struct Drag {
 }
 
 /// The box or arrow under the pen, the text being typed (and whether the
-/// pen, down inside it, is selecting its characters), the last press,
+/// pen, down inside it, is selecting its characters, or, down on its
+/// frame's right edge, how far right of the column's edge it went down),
+/// the last press,
 /// the edit a double tap with the select tool or the lasso asks for
 /// once the pen lifts where it went down, within the reach there, and the
 /// size a new text starts at ([`TEXT_SIZE`] until one is set).
@@ -107,6 +112,7 @@ pub struct Shapes {
     drag: Option<(String, String, Drag)>,
     editing: Option<Editing>,
     selecting: bool,
+    widening: Option<f64>,
     last: Option<(String, String, Press)>,
     waiting: Option<(Editing, Point, f64)>,
     size: Option<f64>,
@@ -150,7 +156,12 @@ impl Shapes {
         });
         if let Some(editing) = &mut self.editing {
             let here = editing.canvas == canvas && editing.page == page;
-            if here && editing.frame().outset(reach).contains(press.at) {
+            if here && on_edge(editing, press.at, press.zoom) {
+                let bounds = editing.bounds();
+                self.widening = Some(press.at.x - (bounds.x + bounds.width));
+                return true;
+            }
+            if here && editing.bounds().outset(reach).contains(press.at) {
                 editing.place(press.at, press.shift);
                 self.selecting = true;
                 return true;
@@ -165,6 +176,7 @@ impl Shapes {
         let edits = tool == Tool::Text || (double && tool != Tool::Pen);
         if let Some(item) = text_at(items, press.at, reach).filter(|_| edits) {
             let Shape::Text { frame, text, size, column } = &item.shape else { return true };
+            let column = column.unwrap_or(glyphs::UNWRAPPED);
             let editing = Editing {
                 canvas: canvas.to_string(),
                 page: page.to_string(),
@@ -172,8 +184,8 @@ impl Shapes {
                 editor: Editor::new(text.clone()),
                 colour: item.colour,
                 size: *size,
-                column: column.unwrap_or(glyphs::UNWRAPPED),
-                item: Some((item.id, text.clone())),
+                column,
+                item: Some((item.id, text.clone(), column)),
             };
             if matches!(tool, Tool::Select | Tool::Lasso) {
                 self.waiting = Some((editing, press.at, reach));
@@ -187,16 +199,8 @@ impl Shapes {
                 // The tap is at the middle of the first line's left end.
                 let size = self.size.unwrap_or(TEXT_SIZE);
                 let half = glyphs::rows_frame(press.at, "", size, glyphs::UNWRAPPED).height / 2.0;
-                self.editing = Some(Editing {
-                    canvas: canvas.to_string(),
-                    page: page.to_string(),
-                    at: snap(Point { x: press.at.x, y: press.at.y - half }),
-                    editor: Editor::default(),
-                    colour,
-                    size,
-                    column: glyphs::UNWRAPPED,
-                    item: None,
-                });
+                let at = snap(Point { x: press.at.x, y: press.at.y - half });
+                self.editing = Some(Editing::new(canvas, page, at, colour, size));
                 return true;
             }
             Tool::Box => false,
@@ -222,10 +226,16 @@ impl Shapes {
         still
     }
 
-    /// The pen moved to `at` while down: a box or an arrow goes with it, or,
-    /// after a press inside the text being typed, the selection runs to it.
-    /// Returns false when none of them is under it.
+    /// The pen moved to `at` while down: a box or an arrow goes with it;
+    /// after a press inside the text being typed, the selection runs to it;
+    /// after one on its frame's right edge, the edge goes with it and sets
+    /// the column the text wraps in ([`Editing::widen`]). Returns false
+    /// when none of them is under it.
     pub fn drag(&mut self, at: Point) -> bool {
+        if let Some((editing, off)) = self.editing.as_mut().zip(self.widening) {
+            editing.widen(at.x - off);
+            return true;
+        }
         if let Some(editing) = self.editing.as_mut().filter(|_| self.selecting) {
             editing.place(at, true);
             return true;
@@ -238,12 +248,13 @@ impl Shapes {
     /// The pen lifted, at `at` if it said where, over `items`: a box or an
     /// arrow that went far enough goes to `ink` as one change, an arrow's
     /// end bound to the item it landed on. Returns false when no box or
-    /// arrow, and no selecting inside the text being typed, was under the pen.
+    /// arrow, and no selecting inside the text being typed or drag of its
+    /// frame's edge, was under the pen.
     pub fn up(&mut self, at: Option<Point>, items: &[Cow<'_, Item>], ink: &mut Ink) -> bool {
         if let Some(at) = at {
             self.drag(at);
         }
-        if std::mem::take(&mut self.selecting) {
+        if std::mem::take(&mut self.selecting) | self.widening.take().is_some() {
             return true;
         }
         let Some((canvas, page, drag)) = self.drag.take() else { return false };
@@ -263,6 +274,13 @@ impl Shapes {
     /// Whether a text is being typed: keys go to it first.
     pub fn editing(&self) -> bool {
         self.editing.is_some()
+    }
+
+    /// Whether `at`, on `page` of `canvas` at `zoom`, is on the right edge
+    /// of the frame of the text being typed: a drag there sets its column.
+    pub fn on_edge(&self, (canvas, page): (&str, &str), at: Point, zoom: f64) -> bool {
+        let here = |e: &&Editing| e.canvas == canvas && e.page == page;
+        self.editing.as_ref().filter(here).is_some_and(|e| on_edge(e, at, zoom))
     }
 
     /// The canvas and page of the text being typed, if any.
@@ -320,8 +338,9 @@ impl Shapes {
     /// new text and an unchanged edit make none. Returns false when no text
     /// was being edited.
     pub fn end(&mut self, ink: &mut Ink) -> bool {
-        self.selecting = false;
+        (self.selecting, self.widening) = (false, None);
         let Some(editing) = self.editing.take() else { return false };
+        let changed = editing.changed();
         let blank = editing.editor.text().trim().is_empty();
         let (frame, size, column) = (editing.frame(), editing.size, Some(editing.column));
         let shape = Shape::Text { frame, text: editing.editor.text().to_string(), size, column };
@@ -329,9 +348,9 @@ impl Shapes {
         match editing.item {
             None if blank => {}
             None => ink.push(Change::Put { canvas, page, colour: editing.colour, shape }),
-            Some((id, _)) if blank => ink.push(Change::Remove { canvas, page, ids: vec![id] }),
-            Some((_, before)) if matches!(&shape, Shape::Text { text, .. } if *text == before) => {}
-            Some((id, _)) => ink.push(Change::Set { canvas, page, id, shape }),
+            Some((id, ..)) if blank => ink.push(Change::Remove { canvas, page, ids: vec![id] }),
+            Some(_) if !changed => {}
+            Some((id, ..)) => ink.push(Change::Set { canvas, page, id, shape }),
         }
         true
     }
@@ -357,7 +376,7 @@ impl Shapes {
             items.push(Cow::Owned(Item { id: PREVIEW, colour: drag.colour, shape }));
         }
         if let Some(editing) = self.editing.as_ref().filter(|e| here(&e.canvas, &e.page)) {
-            if let Some((id, _)) = &editing.item {
+            if let Some((id, ..)) = &editing.item {
                 items.retain(|i| i.id != *id);
             }
             let (frame, text, size) = (editing.frame(), editing.editor.text(), editing.size);
@@ -373,7 +392,7 @@ impl Shapes {
             items.push(Cow::Owned(Item { id: EDITING, colour: editing.colour, shape }));
             let shape = Shape::Caret { frame: caret };
             items.push(Cow::Owned(Item { id: CARET_ID, colour: theme.focus, shape }));
-            let around = frame.outset(FRAME_PAD / zoom);
+            let around = editing.bounds().outset(FRAME_PAD / zoom);
             let shape =
                 Shape::Panel { frame: around, fill: None, width: FRAME_LINE / zoom, dashed: true };
             items.push(Cow::Owned(Item { id: FRAME_ID, colour: theme.muted, shape }));
@@ -400,45 +419,12 @@ pub fn label_height(zoom: f64) -> f64 {
     LABEL_SIZE * LABEL_LINE / zoom
 }
 
-/// The topmost server item of `items` an arrow's end at `at` binds to: one
-/// whose box, `reach` canvas units bigger, holds the end. Arrows are not
-/// bound to.
-pub fn target(items: &[Cow<'_, Item>], at: Point, reach: f64) -> Option<ItemId> {
-    let bindable = items.iter().filter(|i| on_server(i.id));
-    let bindable = bindable.filter(|i| !matches!(i.shape, Shape::Arrow { .. }));
-    let mut found =
-        bindable.filter(|i| i.shape.bounds().is_some_and(|b| b.outset(reach).contains(at)));
-    found.next_back().map(|i| i.id)
-}
-
-/// The arrows of `items` that follow a move of the items `ids` by `by`, as
-/// they are after it: each arrow not moved itself with an end bound to a
-/// moved item, that end moved by `by`.
-pub fn follow(items: &[Cow<'_, Item>], ids: &[ItemId], by: Point) -> Vec<Item> {
-    follow_by(items, ids, |p| Point { x: p.x + by.x, y: p.y + by.y })
-}
-
-/// As [`follow`], with each bound end put where `map` says: a move, or a
-/// resize of the selection.
-pub fn follow_by(
-    items: &[Cow<'_, Item>],
-    ids: &[ItemId],
-    map: impl Fn(Point) -> Point,
-) -> Vec<Item> {
-    let moved: HashSet<&ItemId> = ids.iter().collect();
-    let on = |end: Option<ItemId>| end.is_some_and(|id| moved.contains(&id));
-    let mut follows = Vec::new();
-    for item in items.iter().filter(|i| !moved.contains(&i.id)) {
-        let Shape::Arrow { from, to, width, bound } = &item.shape else { continue };
-        if !on(bound[0]) && !on(bound[1]) {
-            continue;
-        }
-        let shift = |p: Point, end| if on(end) { map(p) } else { p };
-        let (from, to) = (shift(*from, bound[0]), shift(*to, bound[1]));
-        let shape = Shape::Arrow { from, to, width: *width, bound: *bound };
-        follows.push(Item { id: item.id, colour: item.colour, shape });
-    }
-    follows
+/// Whether `at` is on the right edge of the dashed frame `editing` shows
+/// at `zoom`: from its glyphs' frame out past the dash, level with it.
+fn on_edge(editing: &Editing, at: Point, zoom: f64) -> bool {
+    let (around, near) = (editing.bounds().outset(FRAME_PAD / zoom), FRAME_PAD / zoom);
+    let edge = Rect { x: around.x + around.width - near, width: 2.0 * near, ..around };
+    edge.contains(at)
 }
 
 /// The topmost server text of `items` within `reach` of `at`.
