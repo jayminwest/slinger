@@ -623,6 +623,9 @@ bullet with the area in bold.
   workspace, in at most three lines; the panes show both, wider.
 - **App:** a broken workspace's error in the sidebar no longer loses
   its last word: each line now wraps to the room its text really has.
+- **App:** tapping a workspace whose file is broken and names no
+  workspace shows why its file is broken where the panes go, rather than
+  leaving an 'open workspace not found' notice there.
 - **App:** once the slingerd that slinger.app started answers, the sidebar
   lists the workspaces at once; before, it could take up to a second more.
 - **Workspaces:** closing a workspace ends its agent's running process.

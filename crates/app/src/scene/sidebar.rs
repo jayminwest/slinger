@@ -231,13 +231,16 @@ impl Sidebar {
     }
 
     /// Shows the workspace with index `index` in the list (the window
-    /// shows its panes): its name, for the panes to ask for; `None` past
-    /// the last, and for a broken file that names none.
+    /// shows its panes): what the panes ask for, its name, or its directory
+    /// for a broken file that names none, so the daemon says why that file
+    /// is broken (slinger-7e27ff); `None` past the last.
     pub fn pick(&mut self, index: usize) -> Option<String> {
         let workspace = self.workspaces.as_ref()?.get(index)?;
-        let name = Some(workspace.name.clone()).filter(|n| !n.is_empty());
         self.shown = Some(Shown::Dir(workspace.dir.clone()));
-        name
+        Some(match workspace.name.as_str() {
+            "" => workspace.dir.to_string_lossy().into_owned(),
+            name => name.to_string(),
+        })
     }
 
     /// Takes the workspace the window shows out of the list, and shows the

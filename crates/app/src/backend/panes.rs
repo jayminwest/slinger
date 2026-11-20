@@ -149,6 +149,21 @@ mod tests {
     }
 
     #[test]
+    fn a_broken_file_that_names_none_asked_by_its_directory_says_why() {
+        with_daemon(|d| {
+            let notes = super::super::tests::open_notes(d);
+            std::fs::write(notes.path().join("slinger-workspace.toml"), "name = = \"notes\"\n")
+                .unwrap();
+            let dir = d.workspace_list().unwrap().remove(0).dir;
+            let by_name = layout(d, Some("notes"), None).unwrap_err().message;
+            assert_eq!(by_name, "open workspace \"notes\" not found", "it names none now");
+            // What a tap on its sidebar row asks for (slinger-7e27ff).
+            let by_dir = layout(d, dir.to_str(), None).unwrap_err().message;
+            assert!(by_dir.contains("extra `=`"), "its file's error: {by_dir}");
+        });
+    }
+
+    #[test]
     fn no_daemon_is_a_problem_that_says_how_to_start_it() {
         let problem = layout(&Client::new("/nonexistent/x.sock"), None, None).unwrap_err();
         assert!(problem.hint.unwrap().starts_with("start it with '"));
