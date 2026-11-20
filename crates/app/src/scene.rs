@@ -45,6 +45,7 @@ pub mod palette;
 pub mod paste;
 pub mod pdf;
 pub mod resize;
+pub mod secondary;
 pub mod select;
 pub mod shapes;
 pub mod sidebar;

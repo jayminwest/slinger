@@ -73,6 +73,16 @@ fn drive_sends_one_request_and_prints_what_the_window_said() {
     let (_, got) = asked(&["copy"], &taken);
     assert_eq!(got, json!({ "op": "copy" }));
 
+    let (_, got) = asked(&["press", "5,6", "--button", "right"], &taken);
+    assert_eq!(
+        (&got["op"], &got["button"], &got["control"]),
+        (&json!("press"), &json!("right"), &json!(false))
+    );
+    let (_, got) = asked(&["lift", "5,6", "--control"], &taken);
+    assert_eq!((&got["button"], &got["control"]), (&json!("left"), &json!(true)));
+    let (_, got) = asked(&["drag", "5,6", "--button", "middle"], &taken);
+    assert_eq!(got["button"], "middle");
+
     let (_, got) = asked(&["shot", "w.png"], &taken);
     assert!(Path::new(got["path"].as_str().unwrap()).is_absolute(), "{got}");
 }

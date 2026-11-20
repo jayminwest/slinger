@@ -23,6 +23,7 @@ use crate::layout::{Point, Size};
 use crate::scene::Scene;
 use crate::scene::ink::Pen;
 use crate::scene::paste::{Clip, Edit};
+use crate::scene::secondary::{Button, Phase};
 use crate::{Event, Step};
 
 /// What a request asks of the window.
@@ -155,9 +156,17 @@ fn event(op: &str, ask: &Value, when: f64) -> Result<Event, String> {
     Ok(match op {
         "tick" => Event::Tick,
         "move" => Event::Moved(at(ask)?),
-        "press" => Event::Press(pen(ask, at(ask)?, when)),
-        "drag" => Event::Drag(pen(ask, at(ask)?, when)),
-        "lift" => Event::Lift(pen(ask, at(ask)?, when)),
+        "press" | "drag" | "lift" => {
+            let (at, pen) = (at(ask)?, pen(ask, at(ask)?, when));
+            match (button(ask)?, op) {
+                (Some(button), "press") => Event::Button { button, phase: Phase::Down, at },
+                (Some(button), "drag") => Event::Button { button, phase: Phase::Drag, at },
+                (Some(button), _) => Event::Button { button, phase: Phase::Up, at },
+                (None, "press") => Event::Press(pen),
+                (None, "drag") => Event::Drag(pen),
+                (None, _) => Event::Lift(pen),
+            }
+        }
         "scroll" => Event::Scroll { at: at(ask)?, dx: num(ask, "dx")?, dy: num(ask, "dy")? },
         "zoom" => Event::Zoom { at: at(ask)?, factor: num(ask, "factor")? },
         "space" => Event::Space(flag("down")),
@@ -172,6 +181,19 @@ fn event(op: &str, ask: &Value, when: f64) -> Result<Event, String> {
         }
         _ => return Err(format!("no op {op:?}")),
     })
+}
+
+/// The button `ask` names (`"button": "right"` or `"middle"`), or the
+/// secondary one for a left press with `"control": true`, as macOS takes a
+/// ctrl+click; `None` for the left button (a pen event).
+fn button(ask: &Value) -> Result<Option<Button>, String> {
+    let control = ask["control"].as_bool().unwrap_or(false);
+    match ask["button"].as_str() {
+        None | Some("left") => Ok(control.then_some(Button::Secondary)),
+        Some("right") => Ok(Some(Button::Secondary)),
+        Some("middle") => Ok(Some(Button::Middle)),
+        Some(other) => Err(format!("no button {other:?}: left, right or middle")),
+    }
 }
 
 /// The press of `chord` ("cmd+j") and the `text` it types when passed on:
@@ -296,6 +318,22 @@ mod tests {
             Event::Lift(pen(3.0, 4.0, 5.0 + 2.0 * STEP)),
         ];
         assert_eq!(events, want.map(|e| (e, None)));
+    }
+
+    #[test]
+    fn a_right_middle_or_control_press_is_a_button_s() {
+        let at = Point { x: 1.0, y: 2.0 };
+        let button = |button, phase| [(Event::Button { button, phase, at }, None)];
+        let right = sent(r#"{"op":"press","x":1,"y":2,"button":"right"}"#);
+        assert_eq!(right, button(Button::Secondary, Phase::Down));
+        let control = sent(r#"{"op":"drag","x":1,"y":2,"control":true}"#);
+        assert_eq!(control, button(Button::Secondary, Phase::Drag));
+        let middle = sent(r#"{"op":"lift","x":1,"y":2,"button":"middle"}"#);
+        assert_eq!(middle, button(Button::Middle, Phase::Up));
+        let left = sent(r#"{"op":"press","x":1,"y":2,"button":"left"}"#);
+        assert!(matches!(left[0].0, Event::Press(_)), "the left button is the pen's");
+        let wrong = parse(r#"{"op":"press","x":1,"y":2,"button":"fourth"}"#, 0.0);
+        assert!(wrong.unwrap_err().contains("no button"));
     }
 
     #[test]

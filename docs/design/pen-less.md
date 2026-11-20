@@ -87,6 +87,14 @@ Shared by 1A and 1B (slinger-9c9553 builds it either way):
   typed, no entry open, no pop-up, palette, key overlay or page menu open.
   Otherwise space types a space, as now.
 - **Middle button drag**: pans as the right-button drag does today.
+- **The right button** (since slinger-f32672): a drag past a 4 pt slop
+  pans, the whole way at once, so a click does not nudge the canvas; a
+  right click that stays inside it is the context click (it focuses the
+  pane under it; slinger-d1532a opens a menu there). A ctrl+click, a
+  two-finger trackpad click and a tablet button set to right click are the
+  same click, and a ctrl+drag pans. The decision is pure:
+  `crates/app/src/scene/secondary.rs`. A right press over an open entry's
+  field, an agent UI's page or a live item's page stays with that view.
 
 ## Question 2: the editor for a canvas text
 

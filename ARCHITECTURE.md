@@ -442,7 +442,12 @@ main.rs      wires the modules below. The only caller of platform. With
              mouse press first focuses the pane under it (its content or its
              footer; not a touch, a divider, or under the key overlay or the
              palette), then does its work there; a press an agent UI's page
-             takes still draws the new focus (Step::Through). A press on
+             takes still draws the new focus (Step::Through). A right or
+             middle button's event goes to window/button.rs (`pressed`),
+             after the hand: a press over an open entry's field, an agent
+             UI's page or a live item's page goes on to it; a drag past the
+             slop routes on as the Event::Scroll it makes; a right click
+             moves the pointer there and focuses the pane under it. A press on
              a footer's or the sidebar's button goes no further; the lift
              on it runs it.
 window.rs    reads the window's Facts for `able::can` (window/facts.rs)
@@ -487,9 +492,10 @@ shared.rs    the window's panes as the server keeps them for its workspace,
              the window's size, the agent UIs the panes show and their notes,
              the footers' and the sidebar's tap targets (scene/taps.rs), and
              the key overlay, the command palette and the page menu over
-             them: it routes a press and its lift to the first of those
-             that takes it, follows the server's layout and sends the pane
-             commands.
+             them, the hand and the right or middle press under way
+             (scene/secondary.rs): it routes a press and its lift to the
+             first of those that takes it, follows the server's layout and
+             sends the pane commands.
 trace.rs     a workspace switch's timing line (SLINGER_TRACE=switch, read
              once by main.rs, which writes the line to stderr): from a pick
              (a sidebar tap, open-workspace, close-workspace, the config's
@@ -787,8 +793,8 @@ canvases/dictation.rs  the `dictate` command: opens the sling's entry when
 drive.rs     a driven window's requests (`slinger-app --drive SOCKET`, which
              `slinger drive` sends): one line of JSON per connection in, one
              line out. `parse` turns a request into the events platform hands
-             in for real input (a key and the text it types, the pen, a
-             scroll, a pinch, a command, a paste, a drop, a tick), or an ask
+             in for real input (a key and the text it types, the pen, the
+             right or middle button or a ctrl+press, a scroll, a pinch, a command, a paste, a drop, a tick), or an ask
              for the scene, a PNG, a resize or the window's own clipboard; a
              thread reads and writes the socket and hands each ask to the
              main thread (platform/drive.rs). Pure but for the socket;
@@ -1268,6 +1274,11 @@ scene/hand.rs  space held for a pan: taken only while nothing takes typed
              drag, to the lift; the open hand while held, the closed hand
              during a pan. `route` hands it space, presses, drags and lifts
              before anything else. Pure.
+scene/secondary.rs  the right and middle buttons: a press, then a drag
+             past the slop (4 pt) pans by the whole way so far and then by
+             each move, to the lift; a right lift that never left the slop
+             is a context click at the press point; the middle button never
+             clicks; a new press replaces a lost one. Pure.
 layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
              about a point or to a level, limits, the level as people read it,
              how far a scroll zooms; the canvas has no edge; a pane's view
@@ -1292,8 +1303,9 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              a tablet pen's eraser end did (mouse coalescing off: every
              point); `input` does this. A scroll with cmd or ctrl held is a
              zoom about the pointer, as a pinch. A right- or middle-button
-             drag is a scroll at its press point, so it pans as two fingers
-             do. A tablet proximity event says the pen came or left and which
+             press, drag and lift is an Event::Button, raw (a left press
+             with control held, and its drags and lift, the secondary
+             button's, as macOS defines ctrl+click). A tablet proximity event says the pen came or left and which
              end is near (Event::Proximity); a pen event's subtype says a
              tablet made it (Pen::tablet). Space with no modifier says
              Event::Space down (and each repeat) and up, and the window
@@ -1660,6 +1672,7 @@ Each boundary has something that fails when it is broken:
 | The item keys act on the focused page through the window's routing (cmd+A, tab, shift+tab, an arrow, cmd+J reach the daemon); a text being typed or an open entry keeps them | `crates/app/src/tests/items.rs`, against a real daemon |
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
 | With the pen tool a mouse press selects and a tablet press draws; space held turns a drag into a pan with no tool, and types in a text being typed | `crates/app/src/scene/tools/tests.rs`, `crates/app/src/scene/hand.rs`, and `crates/app/src/tests/pointer.rs` against a real daemon |
+| A right or middle drag past the slop pans as the same scroll does; a right click pans nothing and focuses the pane under it; the middle button never clicks; a right press on an open entry goes on to its field | `crates/app/src/scene/secondary/tests.rs`, and `crates/app/src/tests/secondary.rs` against a real daemon |
 | A pen grabs a divider within 8 points of it; a drag sets its split's share, held in limits | `crates/app/src/layout/tree/divider/tests.rs`, `crates/app/src/scene/resize.rs` |
 | The outbox writes strokes in order as the user; a lost daemon is unreachable, a missing canvas refused; a move and a removal are one undo step each and reach an agent's items; an undo sent after a stroke undoes it and never an agent's item; page changes are written | `crates/app/src/backend/outbox.rs`, against a real daemon |
 | Page commands turn, name and remove pages; removing a page with items asks once | `crates/app/src/scene/pages/tests.rs` |

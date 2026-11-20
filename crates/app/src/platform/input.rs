@@ -7,9 +7,10 @@
 //!   [`Event::Zoom`] about the pointer, as a pinch there would be: a mouse
 //!   has no pinch. A scroll away from the user (as the hand moved, natural
 //!   scrolling or not) zooms in ([`scroll_zoom`]).
-//! - A right- or middle-button drag is an [`Event::Scroll`] by how far the
-//!   pointer moved, at the point it was pressed, so it pans what a
-//!   two-finger scroll there would, and keeps to that pane.
+//! - A right- or middle-button press, drag or lift is an [`Event::Button`],
+//!   raw: the app decides a pan from a context click. A left press with
+//!   control held is the secondary button's, and so are the drags and the
+//!   lift after it, as macOS defines ctrl+click; that is the one state kept.
 //! - A tablet pen's end is known from its proximity events (the pen came
 //!   near the tablet, or left): each says [`Event::Proximity`], and each
 //!   pen event after it carries it ([`Pen::eraser`]). `AppKit` names the
@@ -42,6 +43,7 @@ use crate::commands::Chord;
 use crate::layout::{Point, scroll_zoom};
 use crate::scene::cursor::Cursor;
 use crate::scene::ink::Pen;
+use crate::scene::secondary::{Button, Phase};
 
 /// Space with no modifier: held, a drag pans ([`Event::Space`]).
 const SPACE: Chord = Chord::new(0, ' ');
@@ -54,16 +56,16 @@ const ZOOMS: NSEventModifierFlags =
 thread_local! {
     /// Whether the tablet pen near the tablet has its eraser end down.
     static ERASER: Cell<bool> = const { Cell::new(false) };
-    /// The right- or middle-button drag under way, if any: where it was
-    /// pressed and where it was last, in the window from its top left.
-    static RIGHT: Cell<Option<(Point, Point)>> = const { Cell::new(None) };
+    /// Whether the left press under way went down with control held: it,
+    /// its drags and its lift are the secondary button's.
+    static CONTROL: Cell<bool> = const { Cell::new(false) };
     /// The scene's cursor over a divider between panes, if any.
     pub(super) static DIVIDER: Cell<Option<Cursor>> = const { Cell::new(None) };
 }
 
 /// Hands `event`, sent to `window`, to the app as an [`Event`]. True when
-/// the app used it, so it goes no further; moves, proximity, key ups and
-/// right- or middle-button presses always go on.
+/// the app used it, so it goes no further; moves, proximity and key ups
+/// always go on.
 pub(super) fn send(window: &NSWindow, event: &NSEvent, mtm: MainThreadMarker) -> bool {
     let kind = event.r#type();
     let at = || point(window, event);
@@ -98,7 +100,24 @@ pub(super) fn send(window: &NSWindow, event: &NSEvent, mtm: MainThreadMarker) ->
             chord(event).is_some_and(|chord| dispatch(Event::Key(chord), mtm))
                 || typed(event).is_some_and(|text| dispatch(Event::Text(text), mtm))
         }
-        NSEventType::LeftMouseDown => dispatch(Event::Press(pen(window, event)), mtm),
+        // Each left press says afresh whether control makes it secondary:
+        // a lift `AppKit` swallowed leaves nothing behind.
+        NSEventType::LeftMouseDown => {
+            let control = event.modifierFlags().contains(NSEventModifierFlags::Control);
+            CONTROL.set(control);
+            let event = if control {
+                button(Button::Secondary, Phase::Down, at())
+            } else {
+                Event::Press(pen(window, event))
+            };
+            dispatch(event, mtm)
+        }
+        NSEventType::LeftMouseDragged if CONTROL.get() => {
+            dispatch(button(Button::Secondary, Phase::Drag, at()), mtm)
+        }
+        NSEventType::LeftMouseUp if CONTROL.replace(false) => {
+            dispatch(button(Button::Secondary, Phase::Up, at()), mtm)
+        }
         NSEventType::LeftMouseDragged => dispatch(Event::Drag(pen(window, event)), mtm),
         NSEventType::LeftMouseUp => dispatch(Event::Lift(pen(window, event)), mtm),
         NSEventType::OtherMouseDown
@@ -109,18 +128,13 @@ pub(super) fn send(window: &NSWindow, event: &NSEvent, mtm: MainThreadMarker) ->
             false
         }
         NSEventType::RightMouseDown | NSEventType::OtherMouseDown => {
-            RIGHT.set(Some((at(), at())));
-            false
+            dispatch(button(which(kind), Phase::Down, at()), mtm)
         }
         NSEventType::RightMouseDragged | NSEventType::OtherMouseDragged => {
-            let Some((from, last)) = RIGHT.get() else { return false };
-            let now = at();
-            RIGHT.set(Some((from, now)));
-            dispatch(Event::Scroll { at: from, dx: now.x - last.x, dy: now.y - last.y }, mtm)
+            dispatch(button(which(kind), Phase::Drag, at()), mtm)
         }
         NSEventType::RightMouseUp | NSEventType::OtherMouseUp => {
-            RIGHT.set(None);
-            false
+            dispatch(button(which(kind), Phase::Up, at()), mtm)
         }
         NSEventType::ScrollWheel => {
             let unit = if event.hasPreciseScrollingDeltas() { 1.0 } else { WHEEL_LINE };
@@ -213,6 +227,21 @@ pub(super) fn became_key(window: &NSWindow) {
         }
     }
     cursor(window, window.mouseLocationOutsideOfEventStream());
+}
+
+/// A right or middle button's event.
+fn button(button: Button, phase: Phase, at: Point) -> Event {
+    Event::Button { button, phase, at }
+}
+
+/// The button of a right- or middle-button event of `kind`.
+fn which(kind: NSEventType) -> Button {
+    match kind {
+        NSEventType::RightMouseDown
+        | NSEventType::RightMouseDragged
+        | NSEventType::RightMouseUp => Button::Secondary,
+        _ => Button::Middle,
+    }
 }
 
 /// Where a pen or mouse event is in `window`'s content, from the top left.

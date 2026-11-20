@@ -3,8 +3,9 @@
 //! exposes safe functions and makes no decisions: `input` turns a key press into
 //! a [`Chord`](crate::commands::Chord), a pen or mouse event into a
 //! [`Pen`](crate::scene::ink::Pen) (every point: mouse
-//! coalescing is off), a trackpad scroll, a right- or middle-button drag or a
-//! pinch into a pan or a zoom, and a tablet pen's proximity into its end and
+//! coalescing is off), a right- or middle-button event (or a ctrl+press) into an
+//! [`Event::Button`], a trackpad scroll or a pinch into a pan or a zoom, and a
+//! tablet pen's proximity into its end and
 //! device, and hands them on, and keeps the pointer's cursor; and it draws what a
 //! [`Scene`] says. A canvas view says how long after its pen event it painted new
 //! ink (SPEC O2). Each canvas pane is a view of its own (`canvas`) that lives as
