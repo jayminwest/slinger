@@ -7,8 +7,7 @@
 //! the pane's canvas is saved. The decisions are
 //! `scene::pages`'s; this module finds the pane's canvas and page.
 
-use super::{Canvases, canvas_of, find, pane_shown, step, wanted};
-use crate::backend::Follower;
+use super::{Canvases, canvas_of, step};
 use crate::commands::Command;
 use crate::config::{Canvas, Theme};
 use crate::layout::{self, PaneId, Point, Rect, Size, Viewport};
@@ -83,7 +82,7 @@ impl Canvases {
         pane: PaneId,
     ) -> Option<(String, Vec<Page>, String)> {
         let canvas = canvas_of(panes, pane)?;
-        let open = find(&self.open, canvas, wanted(&self.views, pane, canvas))?;
+        let open = self.follow.shown(canvas, pane)?;
         let mirror = open.mirror.as_ref()?;
         Some((canvas.to_string(), mirror.pages().to_vec(), mirror.page().to_string()))
     }
@@ -127,9 +126,9 @@ impl Canvases {
     /// happens while its page is on its way.
     fn fit(&mut self, panes: &Panes, (pane, frame): (PaneId, Rect)) {
         let Some(canvas) = canvas_of(panes, pane) else { return };
-        let open = find(&self.open, canvas, wanted(&self.views, pane, canvas));
+        let open = self.follow.shown(canvas, pane);
         let Some(mirror) = open.and_then(|o| o.mirror.as_ref()) else { return };
-        let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v);
+        let view = self.follow.views().iter().find(|(p, _)| *p == pane).map(|(_, v)| v);
         let trail = view.map(|v| v.trail.on((canvas, mirror.page()))).unwrap_or_default();
         let (items, within, _) = step::shown_in(mirror, &self.ink, canvas, &trail);
         let fit = step::content(&items, within.as_ref());
@@ -154,7 +153,7 @@ impl Canvases {
         let op = PageOp::Add { name: pages::new_name(&list) };
         self.asks.changed(&list, &op);
         let key = self.ink.push_keyed(Change::Page { canvas: canvas.clone(), op });
-        self.turning.push((key, pane, canvas));
+        self.follow.turn_when(key, pane, canvas);
         self.send();
     }
 
@@ -178,7 +177,7 @@ impl Canvases {
             self.asks.kept_last();
             return;
         }
-        let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane).len();
+        let items = self.follow.pane_shown(&self.ink, panes, pane).len();
         if let Some((canvas, op)) = self.asks.remove(pane, &canvas, shown, items) {
             self.change_pages(canvas, op);
         }
@@ -187,41 +186,16 @@ impl Canvases {
     /// Sends `op` on `canvas` in its turn, and flashes what it does. The
     /// panes on a page it removes go to the page beside it at once.
     pub(super) fn change_pages(&mut self, canvas: String, op: PageOp) {
-        let mut open = self.open.iter().filter(|o| o.canvas == canvas);
+        let mut open = self.follow.open().iter().filter(|o| o.canvas == canvas);
         let list = open.find_map(|o| o.mirror.as_ref()).map(|m| m.pages().to_vec());
         let list = list.unwrap_or_default();
         self.asks.changed(&list, &op);
         if let PageOp::Remove { page } = &op {
             let next = pages::after_remove(&list, page);
-            self.leave(&canvas, page, next.map(str::to_string).as_deref());
+            self.follow.leave(&canvas, page, next.map(str::to_string).as_deref());
         }
         self.ink.push(Change::Page { canvas, op });
         self.send();
-    }
-
-    /// Page `gone` of `canvas` was removed (the feed says so): the panes
-    /// on it go to `next`, and its follower follows that page instead (the
-    /// first page, for one that followed the first).
-    pub(super) fn gone(&mut self, canvas: &str, gone: &str, next: Option<&str>) {
-        self.leave(canvas, gone, next);
-        let on = |o: &&mut super::Open| {
-            o.canvas == canvas && o.mirror.as_ref().is_some_and(|m| m.page() == gone)
-        };
-        for open in self.open.iter_mut().filter(on) {
-            open.asked = open.asked.as_ref().and(next.map(str::to_string));
-            let (daemon, asked) = (self.daemon.clone(), open.asked.clone());
-            open.follower = Follower::start(daemon, canvas.to_string(), asked, &self.wake);
-        }
-    }
-
-    /// The panes that asked for page `gone` of `canvas` show `next` (the
-    /// first page without one) instead.
-    fn leave(&mut self, canvas: &str, gone: &str, next: Option<&str>) {
-        for (_, view) in self.views.iter_mut() {
-            if view.page.as_ref().is_some_and(|(c, p)| c == canvas && p == gone) {
-                view.page = next.map(|n| (canvas.to_string(), n.to_string()));
-            }
-        }
     }
 
     /// Undoes the user's last step on the canvas `pane` shows, or redoes

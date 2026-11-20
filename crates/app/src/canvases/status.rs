@@ -75,11 +75,11 @@ impl Canvases {
                 }
                 _ => State::Idle,
             };
-            let trail = self.trail_of(panes, id);
+            let trail = self.follow.trail_of(panes, id);
             let out = !trail.is_empty();
             let centre = page.map(|(_, list, at)| pages::line(&list, &at) + &trail);
             let centre = centre.unwrap_or_default();
-            let zoom = self.views.iter().find(|(p, _)| *p == id).map(|(_, v)| v.viewport);
+            let zoom = self.follow.views().iter().find(|(p, _)| *p == id).map(|(_, v)| v.viewport);
             let agent = self.flow.agent_of(&pane.name);
             let (label, profiles) = agent.map(|a| (a.label(), !a.profiles.is_empty())).unzip();
             let shows = Shows {
@@ -132,7 +132,7 @@ impl Canvases {
         pane: PaneId,
     ) -> Option<(&'a str, Option<&'a str>)> {
         let canvas = canvas_of(panes, pane)?;
-        let mut open = self.open.iter().filter(|o| o.canvas == canvas);
+        let mut open = self.follow.open().iter().filter(|o| o.canvas == canvas);
         Some((canvas, open.find_map(|o| o.file.as_deref())))
     }
 

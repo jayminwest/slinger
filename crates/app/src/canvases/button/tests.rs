@@ -157,7 +157,7 @@ fn placed_with_no_agent(canvases: &mut Canvases, panes: &Panes, daemon: &Client)
     // The button the daemon holds: wait for it to be heard.
     wait_until(|| {
         canvases.poll();
-        let mirrors = canvases.open.iter().filter_map(|o| o.mirror.as_ref());
+        let mirrors = canvases.follow.open().iter().filter_map(|o| o.mirror.as_ref());
         let mut items = mirrors.flat_map(crate::mirror::Mirror::items);
         items.any(|i| matches!(i.shape, crate::scene::canvas::Shape::Button { .. }))
     });

@@ -684,13 +684,22 @@ mirror/clip.rs  the selection's items on the clipboard: their file objects
              back as a carry's items for a page, centred on a point, an
              arrow still bound to the items pasted before it; plain text
              alone reads as one text item (`text_items`). Pure.
-canvases.rs  the canvas panes: one follower and mirror per page shown, each
-             pane's view (canvases/view.rs); the pen's ink, the eraser's and
+canvases.rs  the canvas panes: what each pane shows (canvases/follow.rs);
+             the pen's ink, the eraser's and
              lasso's work and the text, box and arrow tools' over each page,
              and the outbox they share. A selection no pane shows clears.
              A press on a canvas closes the open entry (the sling's, the
              feedback's, a page's new name's), but one on a button sends
              the sling's.
+canvases/follow.rs  `Follow`, the one owner of what each pane shows: one
+             follower and mirror per page shown (`Open`), each pane's view
+             (canvases/view.rs), the panes waiting for a page they added,
+             the unfolds on their way and the peek (follow/fold.rs), the
+             last tap on a miniature and what the pen and the text being
+             typed join (follow/step.rs), and the Lives, Pdfs and Saver
+             threads, which it starts. Its fields are private to follow/;
+             the canvases ask it for a pane's page and view and hand it the
+             ink where a join or a page let go needs it.
 canvases/view.rs  each canvas pane's view: page, viewport, trail, reader
              column and last scene (kept on screen until a page of the same
              canvas turned to arrives), by pane id and per workspace. A
@@ -706,17 +715,17 @@ canvases/view.rs  each canvas pane's view: page, viewport, trail, reader
              when it is of the pane's canvas: page, origin and zoom
              (`Viewport::kept`), placed, so no fit runs; a view in memory
              always wins. The box trail is not kept.
-canvases/looks.rs  where the shown workspace's panes look (`looks`: each
+canvases/follow/looks.rs  where the shown workspace's panes look (`looks`: each
              placed canvas view by pane id, its page once come, origin and
              zoom; the focused pane's id), handed to backend/views.rs at
              the end of every `show` and flushed on Event::Quitting.
-canvases/live.rs  the live items' pages: each showing a pane draws fetched
+canvases/follow/live.rs  the live items' pages: each showing a pane draws fetched
              once on a thread of its own, put over its item; a press on an
              item whose page shows goes to the page unless it grabs the
              selection, or the item is under 48 points wide on the screen.
              A view kept off the screen (scene/live/away.rs) due to close
              draws the window again.
-canvases/pdf.rs  the `open-pdf` command (cmd+o: the open panel, a PDF or
+canvases/follow/pdf.rs  the `open-pdf` command (cmd+o: the open panel, a PDF or
              a tldraw file, then
              backend/pdf.rs's `open` on a thread, one at a time; a failure
              is a problem until the next open) and each pdf item's file:
@@ -1725,7 +1734,7 @@ Each boundary has something that fails when it is broken:
 | A pane steps into a box and shows only what it holds; escape steps out; a stroke drawn inside a folded box joins it on the daemon; `step-in-beside` splits and steps the new pane in | `crates/app/src/mirror/step/tests.rs`, `crates/app/src/canvases/step/tests.rs`, `crates/app/src/scene/ink/tests.rs`, and `crates/app/src/tests/step.rs` against a real daemon |
 | A live item is one `add` line an old reader skips whole; a put beside an item is one undo step; the packet says it as text | `crates/core/tests/canvas_live.rs` |
 | An agent opens a UI as a live item: a refused open records nothing; the item, the showing and its data come back; one undo step | `crates/daemon/src/tests/live.rs`, through a real socket |
-| A live item's page shows over its box, follows a pan and a zoom, and takes presses until it is selected | `crates/app/src/scene/live/tests.rs`, and `crates/app/src/canvases/live/tests.rs` against a real daemon |
+| A live item's page shows over its box, follows a pan and a zoom, and takes presses until it is selected | `crates/app/src/scene/live/tests.rs`, and `crates/app/src/canvases/follow/live/tests.rs` against a real daemon |
 | A button is one `add` line that needs an area; the packet says it as a `u` line; an agent puts beside it but cannot remove it | `crates/core/tests/canvas_button.rs` |
 | A workspace's new canvas starts empty; the `sling` entry opens beside a page's button | `crates/daemon/src/tests/workspace.rs`, `crates/app/src/canvases/button/tests.rs` |
 | The button's mark and colour follow its agent's status (none, working, blocked, done), scale with the canvas and repaint on a change | `crates/app/src/scene/button/tests.rs` |

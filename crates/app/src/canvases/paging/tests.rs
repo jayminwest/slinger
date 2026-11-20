@@ -46,7 +46,7 @@ fn page(canvases: &Canvases, panes: &Panes, pane: PaneId) -> Option<(String, usi
 
 /// How many pages of `notes` are followed.
 fn followed(canvases: &Canvases) -> usize {
-    canvases.open.iter().filter(|o| o.canvas == "notes").count()
+    canvases.follow.open().iter().filter(|o| o.canvas == "notes").count()
 }
 
 /// The kinds of the items on `page` of `notes`.

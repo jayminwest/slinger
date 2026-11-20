@@ -17,7 +17,7 @@
 //! - The crop tool's lift puts its snippet of a PDF there
 //!   ([`Canvases::cropped`]); the canvas does not change.
 
-use super::{Canvases, canvas_of, find, wanted};
+use super::{Canvases, canvas_of, find};
 use crate::config::Rgb;
 use crate::layout::{PaneId, Point, Rect, Viewport};
 use crate::mirror::{Mirror, clip};
@@ -39,7 +39,7 @@ impl Canvases {
     /// over it, so ink not yet written is copied too (slinger-8e4112).
     fn holds_selection(&self) -> bool {
         let Some(selection) = self.selection() else { return false };
-        let open = find(&self.open, &selection.canvas, Some(&selection.page));
+        let open = find(self.follow.open(), &selection.canvas, Some(&selection.page));
         let Some(mirror) = open.and_then(|o| o.mirror.as_ref()) else { return false };
         let items = self.ink.shown(&selection.canvas, mirror.page(), mirror.items());
         selection.ids.iter().all(|id| items.iter().any(|i| i.id == *id))
@@ -60,7 +60,7 @@ impl Canvases {
             return Some(Clip::new(text, None));
         }
         let selection = self.selection()?;
-        let open = find(&self.open, &selection.canvas, Some(&selection.page));
+        let open = find(self.follow.open(), &selection.canvas, Some(&selection.page));
         let ink = (selection.canvas.as_str(), &self.ink);
         let clip = open.and_then(|o| o.mirror.as_ref())?.copied(ink, &selection.ids)?;
         if cut {
@@ -91,7 +91,7 @@ impl Canvases {
         let Some(frame) = placed.map(|(_, _, frame)| crate::scene::status::content(frame)) else {
             return false;
         };
-        let view = self.views.iter().find(|(p, _)| *p == focus);
+        let view = self.follow.views().iter().find(|(p, _)| *p == focus);
         let viewport = view.map_or_else(Viewport::start, |(_, v)| v.viewport);
         let centre = viewport.to_canvas(Point { x: frame.width / 2.0, y: frame.height / 2.0 });
         let page = mirror.page().to_string();
@@ -116,7 +116,7 @@ impl Canvases {
         let change =
             Change::Carry { canvas: canvas.clone(), page: page.clone(), items, gone: vec![] };
         let key = self.ink.push_keyed(change);
-        self.added_in(key, to, (&canvas, &page));
+        self.follow.added_in((key, &mut self.ink), to, (&canvas, &page));
         self.select.pasted(key, &canvas, &page);
         self.send();
         true
@@ -133,7 +133,7 @@ impl Canvases {
     fn focused_page(&self, panes: &Panes) -> Option<(&str, &Mirror)> {
         let pane = panes.focus();
         let canvas = canvas_of(panes, pane)?;
-        let open = find(&self.open, canvas, wanted(&self.views, pane, canvas))?;
+        let open = self.follow.shown(canvas, pane)?;
         Some((open.canvas.as_str(), open.mirror.as_ref()?))
     }
 }

@@ -5,6 +5,7 @@ use slinger_control::UiOpen;
 use super::*;
 use crate::backend::testing::{user_stroke, wait_until};
 use crate::backend::tests::{open_notes, with_daemon};
+use crate::canvases::Canvases;
 use crate::config::{Config, Rgb};
 use crate::layout::{CANVAS_MARGIN, Rect, WINDOW};
 use crate::panes::{Kind, Pane, Panes};

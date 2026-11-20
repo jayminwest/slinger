@@ -15,14 +15,12 @@
 
 use std::borrow::Cow;
 
-use super::{Canvases, canvas_of, find, wanted};
+use super::Canvases;
 use crate::layout::{PaneId, Point, Rect, Viewport};
 use crate::mirror::{Inside, LINE_WIDTH, Mirror};
 use crate::panes::Panes;
 use crate::scene::canvas::{Item, ItemId, Shape};
-use crate::scene::ink::{Change, Ink};
-use crate::scene::select::Selection;
-use crate::scene::shapes::DOUBLE_TAP;
+use crate::scene::ink::Ink;
 
 /// The draw id of the dashed frame round the room a pane is inside: below
 /// a peek's paper ([`super::fold`]).
@@ -60,7 +58,7 @@ impl Trail {
 
     /// Keeps the first `n` steps; the view goes back to what it was before
     /// the first one left, if any.
-    fn keep(&mut self, n: usize, viewport: &mut Viewport) {
+    pub(super) fn keep(&mut self, n: usize, viewport: &mut Viewport) {
         if let Some(left) = self.steps.get(n) {
             *viewport = left.back;
         }
@@ -83,28 +81,6 @@ pub struct Boxed {
     page: String,
     id: ItemId,
     folded: bool,
-}
-
-/// What stepping keeps besides each pane's trail: the last tap on a
-/// miniature, and what the pen and the text being typed join.
-#[derive(Debug, Default)]
-pub(super) struct Steps {
-    tapped: Option<(PaneId, ItemId, f64)>,
-    /// The pen's gesture in a pane inside a folded box.
-    pen: Option<Joining>,
-    /// The text being typed in a pane inside a folded box, and where it
-    /// started (a text starting elsewhere is another).
-    typing: Option<(Joining, Option<Point>)>,
-}
-
-/// Adds that join folded box `inside` on `page` of `canvas`: those queued
-/// from the ink's `mark` on.
-#[derive(Debug, Clone)]
-struct Joining {
-    mark: u64,
-    canvas: String,
-    page: String,
-    inside: ItemId,
 }
 
 /// The page `mirror` holds as a pane stepped into `trail` shows it, `ink`
@@ -160,7 +136,7 @@ impl Canvases {
     /// step into: of the boxes selected, the largest.
     pub fn step_target(&self, panes: &Panes, pane: PaneId) -> Option<Boxed> {
         let s = self.selection().filter(|_| self.shows_selection(panes, pane))?;
-        let mirror = find(&self.open, &s.canvas, Some(&s.page))?.mirror.as_ref()?;
+        let mirror = self.follow.mirror(&s.canvas, &s.page)?;
         let area = |id: &ItemId| match mirror.item(*id)?.shape {
             Shape::Box { frame, .. } => Some(frame.width * frame.height),
             _ => None,
@@ -176,8 +152,7 @@ impl Canvases {
     /// Turns `pane` to the page of `target` and steps it into the box,
     /// its view starting at the box's top left; the selection is let go.
     pub fn step_into(&mut self, pane: PaneId, target: Boxed) {
-        let open = find(&self.open, &target.canvas, Some(&target.page));
-        let mirror = open.and_then(|o| o.mirror.as_ref());
+        let mirror = self.follow.mirror(&target.canvas, &target.page);
         let frame = mirror.and_then(|m| match m.item(target.id)?.shape {
             Shape::Box { frame, .. } => Some(m.room(target.id).unwrap_or(frame)),
             _ => None,
@@ -199,85 +174,13 @@ impl Canvases {
     /// Steps `pane` of `panes` out of the box it is in, one level, back to
     /// the view it had. False when it is in none.
     pub fn step_out(&mut self, panes: &Panes, pane: PaneId) -> bool {
-        let n = self.depth(panes, pane);
-        n > 0 && {
-            let view = self.view(pane);
-            view.trail.keep(n - 1, &mut view.viewport);
-            true
-        }
+        self.follow.step_out(panes, pane)
     }
 
     /// Whether `pane` of `panes` is stepped into a box on the page it
     /// shows: what a step out takes it out of.
     pub fn inside(&self, panes: &Panes, pane: PaneId) -> bool {
-        self.depth(panes, pane) > 0
-    }
-
-    /// How many boxes deep `pane` of `panes` is on the page it shows.
-    fn depth(&self, panes: &Panes, pane: PaneId) -> usize {
-        let Some(canvas) = canvas_of(panes, pane) else { return 0 };
-        let open = find(&self.open, canvas, wanted(&self.views, pane, canvas));
-        let Some(mirror) = open.and_then(|o| o.mirror.as_ref()) else { return 0 };
-        let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v);
-        view.map_or(0, |v| v.trail.on((canvas, mirror.page())).len())
-    }
-
-    /// The trail of `pane` of `panes` as its footer says it after the
-    /// page's line: " › " and each box's name; empty outside any box.
-    pub(super) fn trail_of(&self, panes: &Panes, pane: PaneId) -> String {
-        let Some(canvas) = canvas_of(panes, pane) else { return String::new() };
-        let open = find(&self.open, canvas, wanted(&self.views, pane, canvas));
-        let Some(mirror) = open.and_then(|o| o.mirror.as_ref()) else { return String::new() };
-        let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v);
-        let trail = view.map(|v| v.trail.on((canvas, mirror.page()))).unwrap_or_default();
-        let mut line = String::new();
-        for n in 1..=trail.len() {
-            let (inside, held) = mirror.step(&trail[..n]);
-            let Some(inside) = inside.filter(|_| held == n) else { break };
-            line.push_str(" › ");
-            line.push_str(&mirror.named(&inside));
-        }
-        line
-    }
-
-    /// The folded box what is written in `pane` on `page` of `canvas`
-    /// joins, if any: the innermost folded box of its trail.
-    pub(super) fn joins_in(&self, pane: PaneId, here: (&str, &str)) -> Option<ItemId> {
-        let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v)?;
-        let mirror = find(&self.open, here.0, Some(here.1))?.mirror.as_ref()?;
-        mirror.step(&view.trail.on(here)).0?.joins()
-    }
-
-    /// The box a sling of `selection` from `pane` is of (docs/design/fold.md,
-    /// "Sling a box"): a box selected alone, else the innermost box the
-    /// pane is stepped into on the selection's page, if any.
-    pub(super) fn sling_box(&self, pane: PaneId, selection: &Selection) -> Option<ItemId> {
-        let here = (selection.canvas.as_str(), selection.page.as_str());
-        let mirror = find(&self.open, here.0, Some(here.1))?.mirror.as_ref()?;
-        let boxed = |id| mirror.item(id).is_some_and(|i| matches!(i.shape, Shape::Box { .. }));
-        if let [id] = selection.ids[..]
-            && boxed(id)
-        {
-            return Some(id);
-        }
-        let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v)?;
-        mirror.step(&view.trail.on(here)).0?.innermost()
-    }
-
-    /// The folded box whose miniature a press at `at` on `items` (`page`
-    /// of `canvas` as a pane shows it) is on, the topmost, if any.
-    pub(super) fn miniature_under(
-        &self,
-        (canvas, page): (&str, &str),
-        at: Point,
-        items: &[Cow<'_, Item>],
-    ) -> Option<ItemId> {
-        let mirror = find(&self.open, canvas, Some(page))?.mirror.as_ref()?;
-        let on = |i: &&Cow<'_, Item>| match i.shape {
-            Shape::Box { frame, .. } => mirror.box_folded(i.id) == Some(true) && holds(frame, at),
-            _ => false,
-        };
-        items.iter().rev().find(on).map(|i| i.id)
+        self.follow.depth(panes, pane) > 0
     }
 
     /// A press in `pane` on `page` of `canvas` at time `when`, on the
@@ -291,85 +194,10 @@ impl Canvases {
         when: f64,
         mini: Option<ItemId>,
     ) -> bool {
-        let last = self.steps.tapped.take();
-        let Some(id) = mini else { return false };
-        let again = last.is_some_and(|(p, b, t)| p == pane && b == id && when - t <= DOUBLE_TAP);
-        if !again {
-            self.steps.tapped = Some((pane, id, when));
-            return false;
-        }
+        let Some(id) = self.follow.tapped(pane, when, mini) else { return false };
         let (canvas, on) = (here.0.to_string(), here.1.to_string());
         self.step_into(pane, Boxed { canvas, page: on, id, folded: true });
         true
-    }
-
-    /// The pen went down in `pane` on `page` of `canvas`: what it adds
-    /// until it lifts joins the folded box the pane is inside, if any.
-    pub(super) fn pen_in(&mut self, pane: PaneId, here: (&str, &str)) {
-        let mark = self.ink.mark();
-        self.steps.pen = self.joins_in(pane, here).map(|inside| Joining {
-            mark,
-            canvas: here.0.to_string(),
-            page: here.1.to_string(),
-            inside,
-        });
-    }
-
-    /// The pen lifted: its strokes, boxes and arrows join the box it went
-    /// down inside, if any. A text is the text's ([`Canvases::typed_in`]).
-    pub(super) fn pen_joined(&mut self) {
-        let Some(j) = self.steps.pen.take() else { return };
-        let text = |c: &Change| matches!(c, Change::Put { shape: Shape::Text { .. }, .. });
-        self.ink.join(j.mark, (&j.canvas, &j.page), j.inside, |c| !text(c));
-    }
-
-    /// After a press or a new text: a text that started now (`typed` in a
-    /// pane, or under a text) joins the box the pane is inside (or the
-    /// one that text joins) when it ends; one that ended joins its own.
-    pub(super) fn typed_in(&mut self, typed: Typed) {
-        let at = self.shapes.typing_frame().map(|f| Point { x: f.x, y: f.y });
-        if at.is_some() && self.steps.typing.as_ref().is_some_and(|(_, was)| *was == at) {
-            return;
-        }
-        self.text_joined();
-        let Some((canvas, on)) = self.shapes.typing_on() else { return };
-        let (canvas, on) = (canvas.to_string(), on.to_string());
-        let inside = match typed {
-            Typed::In(pane) => self.joins_in(pane, (&canvas, &on)),
-            Typed::Under(joined) => joined,
-        };
-        let mark = self.ink.mark();
-        let joining = |inside| Joining { mark, canvas, page: on, inside };
-        self.steps.typing = inside.map(|inside| (joining(inside), at));
-    }
-
-    /// What was queued from key `mark` on `here`, a page of a canvas (a
-    /// paste, a duplicate, a carry), joins the folded box `pane` is inside
-    /// there, if any.
-    pub(super) fn added_in(&mut self, mark: u64, pane: PaneId, here: (&str, &str)) {
-        if let Some(inside) = self.joins_in(pane, here) {
-            let carry = |c: &Change| matches!(c, Change::Carry { .. });
-            self.ink.join(mark, here, inside, carry);
-        }
-    }
-
-    /// The text that joins a box ended: its `add` joins it.
-    pub(super) fn text_joined(&mut self) {
-        let Some((j, _)) = self.steps.typing.take() else { return };
-        let text = |c: &Change| matches!(c, Change::Put { shape: Shape::Text { .. }, .. });
-        self.ink.join(j.mark, (&j.canvas, &j.page), j.inside, text);
-    }
-
-    /// The box the text being typed joins, if any.
-    pub(super) fn typing_in(&self) -> Option<ItemId> {
-        self.steps.typing.as_ref().map(|(j, _)| j.inside)
-    }
-}
-
-impl Steps {
-    /// The panes are another workspace's: a first tap waits no more.
-    pub(super) fn switched(&mut self) {
-        self.tapped = None;
     }
 }
 
@@ -386,7 +214,7 @@ impl super::View {
 }
 
 /// Whether `r` holds `p`, edges included.
-fn holds(r: Rect, p: Point) -> bool {
+pub(super) fn holds(r: Rect, p: Point) -> bool {
     p.x >= r.x && p.y >= r.y && p.x <= r.x + r.width && p.y <= r.y + r.height
 }
 

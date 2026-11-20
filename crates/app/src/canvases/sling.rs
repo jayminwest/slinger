@@ -4,7 +4,7 @@
 //! thread that sends it and the dictation are [`super::flow`]'s; this
 //! hands it the pages and the ink. Runs on the main thread and never waits.
 
-use super::{Canvases, pane_shown};
+use super::Canvases;
 use crate::backend::Render;
 use crate::commands::{Chord, Command, Keymap};
 use crate::config::Theme;
@@ -41,7 +41,7 @@ impl Canvases {
         let Some((selection, around, within)) = self.sling_target(panes, area, false) else {
             return false;
         };
-        let inside = self.sling_box(panes.focus(), &selection);
+        let inside = self.follow.sling_box(panes.focus(), &selection);
         let opened = self.flow.open((&selection, inside), around, within);
         if opened && self.shapes.end(&mut self.ink) {
             self.send();
@@ -118,7 +118,7 @@ impl Canvases {
             self.flow.entry_closed();
             return true;
         }
-        self.flow.sling_key(chord, &self.open, &self.ink)
+        self.flow.sling_key(chord, self.follow.open(), &self.ink)
     }
 
     /// The entry's text is now `text`. Nothing more to draw (false): the
@@ -152,7 +152,7 @@ impl Canvases {
     /// of its canvas is in the daemon. Returns whether anything shown
     /// changed.
     pub(super) fn poll_sling(&mut self) -> bool {
-        self.flow.poll(&self.open, &self.ink)
+        self.flow.poll(self.follow.open(), &self.ink)
     }
 
     /// The selection, when the focused pane of `panes` laid in `area` shows
@@ -166,9 +166,8 @@ impl Canvases {
         let placed = panes.place(area).into_iter().find(|(id, _, _)| *id == pane);
         let frame =
             crate::scene::status::content(placed.filter(|_| self.shows_selection(panes, pane))?.2);
-        let bounds =
-            self.select.bounds(&pane_shown(&self.open, &self.views, &self.ink, panes, pane))?;
-        let view = self.views.iter().find(|(p, _)| *p == pane);
+        let bounds = self.select.bounds(&self.follow.pane_shown(&self.ink, panes, pane))?;
+        let view = self.follow.views().iter().find(|(p, _)| *p == pane);
         let on = view.map_or_else(Viewport::start, |(_, v)| v.viewport).rect_to_screen(bounds);
         Some((selection, Rect { x: on.x + frame.x, y: on.y + frame.y, ..on }, frame))
     }

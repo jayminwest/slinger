@@ -21,7 +21,7 @@ impl Canvases {
     /// launch's `main`), not those of the workspace asked for, so what
     /// following them says is not shown under its problem (slinger-77724d).
     pub fn asking<'a>(&'a self, layout: Option<&'a Problem>) -> impl Iterator<Item = &'a Problem> {
-        let open = self.open.iter().filter_map(|o| o.problem.as_ref());
+        let open = self.follow.problems();
         let open = open.filter(move |_| layout.is_none());
         layout.into_iter().chain(open).chain(self.ink.problem())
     }
@@ -30,6 +30,6 @@ impl Canvases {
     /// file, or reading a PDF.
     pub fn own_problems(&self) -> impl Iterator<Item = &Problem> {
         let kept = self.kept.as_ref().and_then(super::kept::Kept::problem);
-        kept.into_iter().chain(self.pdfs.problem())
+        kept.into_iter().chain(self.follow.pdf_problem())
     }
 }

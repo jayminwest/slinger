@@ -47,7 +47,7 @@ impl Canvases {
             let Some(&key) = keys.get(&old) else { continue };
             let Some((_, change)) = self.ink.unsent().find(|(k, _)| *k == key) else { continue };
             let canvas = change.canvas().to_string();
-            self.turning.push((key, PaneId::numbered(pane), canvas));
+            self.follow.turn_when(key, PaneId::numbered(pane), canvas);
         }
         // Saved again under this run's keys at the first poll.
         self.kept = Some(Kept { file, saved: Vec::new(), problem });
@@ -62,8 +62,7 @@ impl Canvases {
         if self.ink.unsent().eq(kept.saved.iter().map(|(key, change)| (*key, change))) {
             return;
         }
-        let turning: Vec<_> =
-            self.turning.iter().map(|(key, pane, _)| (*key, pane.number())).collect();
+        let turning = self.follow.turnings();
         kept.problem = kept.file.save(&self.ink.kept(), &turning).err();
         kept.saved = self.ink.unsent().map(|(key, change)| (key, change.clone())).collect();
     }

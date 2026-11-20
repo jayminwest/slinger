@@ -17,13 +17,13 @@
 
 use std::borrow::Cow;
 
-use super::{Canvases, find};
+use super::Canvases;
 use crate::commands::Chord;
 use crate::config::Theme;
 use crate::layout::{PaneId, Point, Rect};
 use crate::mirror::{LINE_WIDTH, Mirror};
 use crate::scene::canvas::{Fill, Item, ItemId, Shape};
-use crate::scene::ink::{Answer, Change};
+use crate::scene::ink::Change;
 
 /// The draw ids of fold marks: this plus the box's id. Above every item's
 /// id, below the ink's own ([`crate::scene::ink::PENDING`]).
@@ -35,26 +35,6 @@ const MARK_SIZE: f64 = 12.0;
 /// How near a box's corner, in screen points, a press is the selection's
 /// handle's and not the mark's: half a handle.
 const CORNER: f64 = 4.5;
-/// The escape key.
-const ESCAPE: Chord = Chord::new(0, '\u{1b}');
-
-/// The unfolds on their way, and the peek shown, if any.
-#[derive(Debug, Default)]
-pub(super) struct Folds {
-    /// Each unfold sent, by its key in the ink: the peek it shows if its
-    /// room is taken.
-    unfolding: Vec<(u64, Peek)>,
-    peek: Option<Peek>,
-}
-
-/// A folded box shown as a peek in a pane.
-#[derive(Debug, Clone, PartialEq)]
-struct Peek {
-    pane: PaneId,
-    canvas: String,
-    page: String,
-    id: ItemId,
-}
 
 impl Canvases {
     /// Folds each box of the selection on `page` of `canvas`, or unfolds it
@@ -64,8 +44,7 @@ impl Canvases {
         let Some(s) = self.select.selection().filter(|s| (&*s.canvas, &*s.page) == here) else {
             return false;
         };
-        let mirror = find(&self.open, here.0, Some(here.1)).and_then(|o| o.mirror.as_ref());
-        let Some(mirror) = mirror else { return false };
+        let Some(mirror) = self.follow.mirror(here.0, here.1) else { return false };
         let boxes: Vec<(ItemId, bool)> =
             s.ids.iter().filter_map(|&id| Some((id, mirror.box_folded(id)?))).collect();
         self.fold_boxes(pane, here, &boxes)
@@ -84,7 +63,7 @@ impl Canvases {
             let fold = Change::Fold { canvas: canvas.clone(), page: on.clone(), id, open };
             let key = self.ink.push_keyed(fold);
             if open {
-                self.folds.unfolding.push((key, Peek { pane, canvas, page: on, id }));
+                self.follow.unfolding(key, pane, (canvas, on), id);
             }
         }
         !boxes.is_empty() && {
@@ -103,7 +82,7 @@ impl Canvases {
         (at, zoom): (Point, f64),
         items: &[Cow<'_, Item>],
     ) -> Option<(ItemId, bool)> {
-        let mirror = find(&self.open, here.0, Some(here.1))?.mirror.as_ref()?;
+        let mirror = self.follow.mirror(here.0, here.1)?;
         let on = |i: &&Cow<'_, Item>| match i.shape {
             Shape::Box { frame, .. } => {
                 mirror.box_folded(i.id).is_some() && on_mark(frame, at, zoom)
@@ -114,44 +93,10 @@ impl Canvases {
         Some((id, mirror.box_folded(id)?))
     }
 
-    /// The daemon's `answer` to the change sent under `key`: an unfold
-    /// whose room is taken shows as a peek.
-    pub(super) fn fold_answered(&mut self, key: u64, answer: &Answer) {
-        let Some(at) = self.folds.unfolding.iter().position(|(k, _)| *k == key) else { return };
-        let (_, peek) = self.folds.unfolding.remove(at);
-        if matches!(answer, Answer::Peek) {
-            self.folds.peek = Some(peek);
-        }
-    }
-
     /// Escape closes the peek. False when there is none, or `chord` is
     /// not escape.
     pub fn peek_key(&mut self, chord: Chord) -> bool {
-        chord == ESCAPE && self.peeked().is_some() && self.folds.peek.take().is_some()
-    }
-
-    /// A press at `at`, a canvas point in `pane`, while a peek shows: one
-    /// outside it closes it, one inside does nothing. False, and the press
-    /// goes on, when no peek shows.
-    pub(super) fn peek_press(&mut self, pane: PaneId, at: Point) -> bool {
-        let Some((peek, room)) = self.peeked() else { return false };
-        if peek.pane != pane || !contains(room, at) {
-            self.folds.peek = None;
-        }
-        true
-    }
-
-    /// The box `pane` shows as a peek on `page` of `canvas`, if any.
-    pub(super) fn peek_in(&self, pane: PaneId, here: (&str, &str)) -> Option<ItemId> {
-        let (peek, _) = self.peeked()?;
-        (peek.pane == pane && (&*peek.canvas, &*peek.page) == here).then_some(peek.id)
-    }
-
-    /// The peek, and its room, while its box is still folded on a page followed.
-    fn peeked(&self) -> Option<(&Peek, Rect)> {
-        let peek = self.folds.peek.as_ref()?;
-        let mirror = find(&self.open, &peek.canvas, Some(&peek.page))?.mirror.as_ref()?;
-        Some((peek, mirror.room(peek.id)?))
+        self.follow.peek_key(chord)
     }
 }
 
@@ -170,7 +115,7 @@ fn side(frame: Rect) -> f64 {
 }
 
 /// Whether `r` holds `p`, edges included.
-fn contains(r: Rect, p: Point) -> bool {
+pub(super) fn contains(r: Rect, p: Point) -> bool {
     p.x >= r.x && p.y >= r.y && p.x <= r.x + r.width && p.y <= r.y + r.height
 }
 

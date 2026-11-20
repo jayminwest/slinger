@@ -4,7 +4,6 @@
 use crate::backend::testing::wait_until;
 use crate::backend::tests::{open_notes, with_store};
 use crate::canvases::Canvases;
-use crate::canvases::find::pane_shown;
 use crate::commands::Command;
 use crate::config::Config;
 use crate::layout::{Point, Rect, Size, Viewport, WINDOW};
@@ -70,7 +69,7 @@ fn a_page_whose_items_are_far_from_the_origin_opens_with_them_in_view_once() {
             let scene = canvases.show(&panes, WINDOW.rect(), &theme).remove(0).scene;
             assert_eq!(scene.viewport, panned.scene.viewport, "a change moves nothing");
             let c = &canvases;
-            pane_shown(&c.open, &c.views, &c.ink, &panes, panes.focus()).len() == 2
+            c.follow.pane_shown(&c.ink, &panes, panes.focus()).len() == 2
         });
 
         let pane = (panes.focus(), WINDOW.rect());

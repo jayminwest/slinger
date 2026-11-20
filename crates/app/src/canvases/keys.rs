@@ -6,7 +6,7 @@
 //! selected texts ([`Canvases::resize`]). Select all, next and previous
 //! item, nudge, duplicate and fold act on the focused pane's page ([`Keyed`]).
 
-use super::{Canvases, canvas_of, find, pane_shown, wanted};
+use super::{Canvases, canvas_of, find, wanted};
 use crate::commands::{CMD, Chord, Command, Keymap};
 use crate::config::Rgb;
 use crate::layout::{PaneId, Point, Rect, Size};
@@ -91,8 +91,8 @@ impl Canvases {
     /// Whether `pane` of `panes` shows the selection's page.
     pub fn shows_selection(&self, panes: &Panes, pane: PaneId) -> bool {
         let Some(s) = self.selection() else { return false };
-        let asked = wanted(&self.views, pane, &s.canvas);
-        let open = find(&self.open, &s.canvas, asked).and_then(|o| o.mirror.as_ref());
+        let asked = wanted(self.follow.views(), pane, &s.canvas);
+        let open = find(self.follow.open(), &s.canvas, asked).and_then(|o| o.mirror.as_ref());
         let showing = asked.or(open.map(Mirror::page));
         canvas_of(panes, pane) == Some(&s.canvas) && showing == Some(&s.page)
     }
@@ -112,7 +112,7 @@ impl Canvases {
     /// when there is no selection, or none of it changes.
     pub fn recolour(&mut self, colour: Rgb) -> bool {
         let Some(s) = self.select.selection() else { return false };
-        let open = find(&self.open, &s.canvas, Some(&s.page)).and_then(|o| o.mirror.as_ref());
+        let open = self.follow.mirror(&s.canvas, &s.page);
         let Some(mirror) = open else { return false };
         let items = self.ink.shown(&s.canvas, &s.page, mirror.items());
         self.select.recolour(colour, &items, &mut self.ink) && {
@@ -129,7 +129,7 @@ impl Canvases {
             return true;
         }
         let Some(s) = self.select.selection() else { return false };
-        let open = find(&self.open, &s.canvas, Some(&s.page)).and_then(|o| o.mirror.as_ref());
+        let open = self.follow.mirror(&s.canvas, &s.page);
         let Some(mirror) = open else { return false };
         let items = self.ink.shown(&s.canvas, &s.page, mirror.items());
         let resized = self.select.resize(resize, &items, &mut self.ink);
@@ -152,14 +152,14 @@ impl Canvases {
     /// False, and the key goes on, when there is nothing to act on.
     pub fn keyed(&mut self, panes: &Panes, (pane, frame): (PaneId, Rect), keyed: Keyed) -> bool {
         let Some(canvas) = canvas_of(panes, pane) else { return false };
-        let open = find(&self.open, canvas, wanted(&self.views, pane, canvas));
+        let open = self.follow.shown(canvas, pane);
         let Some(on_page) = open.and_then(|o| o.mirror.as_ref()).map(|m| m.page().to_string())
         else {
             return false;
         };
         let viewport = self.view(pane).viewport;
         let shown = self.shows_selection(panes, pane);
-        let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
+        let items = self.follow.pane_shown(&self.ink, panes, pane);
         let here = (canvas, on_page.as_str());
         let zoom = viewport.zoom();
         match keyed {
@@ -189,7 +189,7 @@ impl Canvases {
                 drop(items);
                 let ink = (canvas, &self.ink);
                 let ids = self.selection().map(|s| s.ids.clone()).unwrap_or_default();
-                let open = find(&self.open, canvas, Some(&on_page)).and_then(|o| o.mirror.as_ref());
+                let open = self.follow.mirror(canvas, &on_page);
                 let Some(items) = open.and_then(|m| m.copied(ink, &ids)?.items) else {
                     return false;
                 };
