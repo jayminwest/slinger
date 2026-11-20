@@ -319,7 +319,7 @@ fn corner(r: Rect, far: bool) -> Point {
     if far { Point::new(r.x + r.w, r.y + r.h) } else { Point::new(r.x, r.y) }
 }
 
-fn grown(r: Rect, by: f64) -> Rect {
+pub(super) fn grown(r: Rect, by: f64) -> Rect {
     Rect::new(r.x - by, r.y - by, r.w + 2.0 * by, r.h + 2.0 * by)
 }
 

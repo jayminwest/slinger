@@ -49,7 +49,7 @@ pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Reply, RemoteError> {
     let under = under(&ask.backdrops)?;
     let mut packet = store
         .canvases()
-        .packet(&ask.canvas, ask.page.as_deref(), None, after, &ask.select, &under)
+        .packet(&ask.canvas, ask.page.as_deref(), ask.inside.as_deref(), after, &ask.select, &under)
         .map_err(|e| drawn(&e))?;
     // The packet is stored as it is here: without `at`.
     let text = packet.text();

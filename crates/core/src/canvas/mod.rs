@@ -170,7 +170,11 @@ impl Canvas {
             }
             Action::Edit { item, shape } => {
                 self.check_shape(&shape, Some(item))?;
-                let found = self.changeable(item, &by)?;
+                let found = if self.joins(item, &shape, &by) {
+                    self.items.get_mut(&item).ok_or_else(|| gone(item))?
+                } else {
+                    self.changeable(item, &by)?
+                };
                 found.shape = shape;
                 Ok(Applied::Changed)
             }

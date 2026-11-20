@@ -38,6 +38,9 @@ pub struct Put {
     /// Size the text's characters, in tenths like --at and --box: 40 to 4000 (default: the size of the user's writing beside it, else 240); only with --text
     #[arg(long = "size", value_name = "TENTHS")]
     text_size: Option<i64>,
+    /// Put it in this box, among what it holds (b4; --beside may be the box): the answer to a sling of the box
+    #[arg(long = "in", value_name = "BOX")]
+    inside: Option<String>,
     #[arg(long, value_name = "NAME", help = AGENT_HELP)]
     agent: Option<String>,
 }
@@ -60,6 +63,7 @@ pub fn put(args: &Put, daemon: &control::Client, env: &Env) -> anyhow::Result<Ou
         color: args.color.clone(),
         at: args.at,
         text_size: args.text_size,
+        inside: args.inside.clone(),
     })?;
     let human = format!("{}\t{},{},{},{}", placed.item, placed.x, placed.y, placed.w, placed.h);
     Ok(Output::new(serde_json::to_value(placed)?, human))

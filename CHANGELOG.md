@@ -31,6 +31,11 @@ bullet with the area in bold.
   Such a packet's header names the box: `in=b4`.
 - **Agents:** `slinger canvas find` finds texts inside folded boxes too,
   and names the folded box that hides each (`i7 in i4`).
+- **Agents:** sling a box: `slinger sling send <ID> --in b4` sends only
+  what the box holds, and the agent's note asks for the answer in it.
+  `slinger canvas put <ID> --beside c12 --in b4` puts the answer in the box,
+  among what it holds, and an answer in a folded box joins it, the user's
+  box too.
 - **Agents:** an `add` in `slinger canvas apply` may name a folded box with
   `in`: the new item joins it, and the box's open size grows to hold it.
 - **App:** start a text without a tap. New text (`new-text`, ctrl+return,

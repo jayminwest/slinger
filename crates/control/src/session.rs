@@ -401,12 +401,13 @@ mod tests {
                 SessionAsk::SlingSend(SlingAsk {
                     canvas: "c".into(),
                     page: Some("p1".into()),
+                    inside: Some("b4".into()),
                     select: vec!["c4".into(), "t9".into()],
                     prompt: "why?".into(),
                     profile: Some("dev".into()),
                     backdrops: vec![],
                 }),
-                r#"{"v":1,"op":"sling_send","canvas":"c","page":"p1","select":["c4","t9"],"prompt":"why?","profile":"dev"}"#,
+                r#"{"v":1,"op":"sling_send","canvas":"c","page":"p1","in":"b4","select":["c4","t9"],"prompt":"why?","profile":"dev"}"#,
             ),
             (
                 SessionAsk::SlingSend(SlingAsk {

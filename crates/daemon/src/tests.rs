@@ -30,6 +30,7 @@ mod read;
 mod session;
 mod showing;
 mod sling;
+mod sling_box;
 mod sling_pdf;
 mod touched;
 mod workspace;

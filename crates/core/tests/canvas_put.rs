@@ -191,7 +191,12 @@ fn a_put_beside_nothing_or_of_nothing_fails_and_changes_nothing() {
 #[test]
 fn a_put_takes_a_colour_and_a_place_and_ink_goes_where_any_put_goes() {
     let mut log = log_of(&bx(0, 0, 1000, 500));
-    let yellow = How { colour: Some("#ffd400".into()), at: Some([-300, 900]), text_size: None };
+    let yellow = How {
+        colour: Some("#ffd400".into()),
+        at: Some([-300, 900]),
+        text_size: None,
+        inside: None,
+    };
     let placed = log.put_how(&scout(), AT, "i1", &Put::Text("yes".into()), &yellow).unwrap();
     assert_eq!(placed.frame[..2], [-300, 900], "the corner where the agent said");
     let item = log.canvas().item(ItemId::new(2)).unwrap();
