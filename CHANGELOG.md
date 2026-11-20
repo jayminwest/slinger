@@ -310,7 +310,8 @@ bullet with the area in bold.
   tool chosen, a mouse or trackpad press selects and moves items, as the
   select tool does; the tablet pen draws exactly as before. Every other
   tool (text, box, arrow, lasso, eraser, crop) works with the mouse as
-  chosen. The footer and the pointer show what a press will do.
+  chosen. The footer and the pointer show what a press will do. To draw
+  with the mouse again, set `[pointer] press = "tool"` in the config.
 
 - **CLI:** `slinger` finds the running `slingerd` on any socket, not only on
   the default one: the daemon names its socket in its data directory while

@@ -13,8 +13,9 @@
 //! The pen tool is the tablet's (docs/design/pen-less.md, pick 1B): while
 //! the device last seen is a mouse or a trackpad ([`Tools::set_device`]),
 //! the pen tool chosen acts as the select tool, so a mouse never draws a
-//! stray line. Every other tool does with the mouse what it does with the
-//! pen, and a tablet press always gets the chosen tool.
+//! stray line, unless `[pointer] press = "tool"` ([`Press`]). Every other
+//! tool does with the mouse what it does with the pen, and a tablet press
+//! always gets the chosen tool.
 //!
 //! A pop-up opens from a key command where the pen or pointer last was, or
 //! at the focused pane's centre before either has been in the window. The
@@ -25,7 +26,7 @@
 use std::time::Instant;
 
 use crate::commands::{Chord, Command, Keymap};
-use crate::config::{Palette, Rgb, Theme, Width, Widths};
+use crate::config::{Config, Palette, Press, Rgb, Theme, Width, Widths};
 use crate::layout::{self, Point, Rect};
 use crate::scene::Label;
 use crate::scene::flash::Flash;
@@ -110,6 +111,8 @@ pub struct Tools {
     eraser_end: bool,
     /// Whether the device last seen is a tablet pen, not a mouse or a trackpad.
     tablet: bool,
+    /// What a mouse press does with the pen tool.
+    press: Press,
     colour: Rgb,
     /// A colour picked from the pop-up and not yet taken ([`Tools::picked`]).
     picked: Option<Rgb>,
@@ -134,6 +137,7 @@ impl Tools {
             tool: Tool::Pen,
             eraser_end: false,
             tablet: false,
+            press: Press::default(),
             colour,
             picked: None,
             palette,
@@ -151,6 +155,22 @@ impl Tools {
         self.width = widths.widths()[0];
         self.widths = widths;
         self
+    }
+
+    /// The pen as `config` sets it up: its palette, its widths and what a
+    /// mouse press does with the pen tool.
+    pub fn configured(config: &Config) -> Self {
+        let mut tools = Self::new(config.palette.clone()).with_widths(config.widths.clone());
+        tools.press = config.press;
+        tools
+    }
+
+    /// A reloaded `config`: its palette ([`Tools::set_palette`]), its widths
+    /// ([`Tools::set_widths`]) and what a mouse press does with the pen tool.
+    pub fn set_config(&mut self, config: &Config) {
+        self.set_palette(config.palette.clone());
+        self.set_widths(config.widths.clone());
+        self.press = config.press;
     }
 
     /// The flash that names a new tool ([`Tools::chosen`]) or width.
@@ -171,12 +191,12 @@ impl Tools {
     }
 
     /// What a press does: the eraser while the pen's eraser end is in use;
-    /// the select tool for a mouse or a trackpad with the pen tool chosen;
-    /// else the chosen tool.
+    /// the select tool for a mouse or a trackpad with the pen tool chosen
+    /// (unless [`Press::Tool`]); else the chosen tool.
     pub fn tool(&self) -> Tool {
         match self.tool {
             _ if self.eraser_end => Tool::Eraser,
-            Tool::Pen if !self.tablet => Tool::Select,
+            Tool::Pen if !self.tablet && self.press == Press::Select => Tool::Select,
             tool => tool,
         }
     }

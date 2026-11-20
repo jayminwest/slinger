@@ -439,6 +439,17 @@ fn a_mouse_selects_with_the_pen_tool_and_gets_every_other_tool_as_chosen() {
 }
 
 #[test]
+fn with_pointer_press_tool_the_mouse_draws_with_the_pen_and_a_reload_changes_it() {
+    let tool = crate::config::parse("[pointer]\npress = \"tool\"\n").unwrap().resolve();
+    let mut tools = Tools::configured(&tool);
+    assert_eq!(tools.tool(), Tool::Pen, "the mouse draws");
+    tools.set_config(&Config::default());
+    assert_eq!(tools.tool(), Tool::Select, "the default again: it selects");
+    tools.set_config(&tool);
+    assert_eq!(tools.tool(), Tool::Pen);
+}
+
+#[test]
 fn before_any_tablet_event_the_device_is_the_mouse() {
     let tools = Tools::new(rgb_palette());
     assert_eq!((tools.tool(), tools.chosen()), (Tool::Select, Tool::Pen));

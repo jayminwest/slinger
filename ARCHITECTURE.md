@@ -593,8 +593,9 @@ config.rs    the config file's format: text in, a typed config or an error
              point: no float parsing, for the size budget), and
              `config/canvas.rs` the `[canvas]` paper (plain or dots, the
              grid's spacing in hundredths of a point), `config/sling.rs`
-             `[sling] prompt`, the words a sling with nothing typed sends.
-             Pure.
+             `[sling] prompt`, the words a sling with nothing typed sends,
+             `config/pointer.rs` `[pointer] press`, what a mouse press does
+             with the pen tool (select, or the tool). Pure.
 commands.rs  key commands: the closed list of commands, the chord parser and
              the keymap from a chord to a command (and a command to its
              live chord). `registry` gives each command a title and a
@@ -960,7 +961,8 @@ scene/tools.rs  the pen's tool, colour and width, and the pop-up at the pen (col
              back with the tip. The pen tool is the tablet's
              (docs/design/pen-less.md 1B): while the device last seen
              (`set_device`: a proximity event, each press) is a mouse or a
-             trackpad, it acts as the select tool. Pure.
+             trackpad, it acts as the select tool, unless the config's
+             `[pointer] press = "tool"`. Pure.
 scene/hand.rs  space held for a pan: taken only while nothing takes typed
              text; a press with it held pans the pane under it with each
              drag, to the lift; the open hand while held, the closed hand

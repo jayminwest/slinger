@@ -144,8 +144,7 @@ fn window(mut settings: Settings) -> ExitCode {
     let open = Shown::starts_open(shown, platform::remembered_sidebar());
     let mut sidebar = Sidebar::new(open).preferring(last);
     sidebar.show(settings.config.workspace.clone());
-    let widths = settings.config.widths.clone();
-    let mut tools = Tools::new(settings.config.palette.clone()).with_widths(widths);
+    let mut tools = Tools::configured(&settings.config);
     let mut shared = Shared::default();
     let mut canvases = canvases(&socket);
     let first = view(&settings, &mut shared, &tools, &sidebar, &mut canvases);
@@ -185,8 +184,7 @@ fn window(mut settings: Settings) -> ExitCode {
             return Step::Stay;
         }
         if reloaded {
-            tools.set_palette(settings.config.palette.clone());
-            tools.set_widths(settings.config.widths.clone());
+            tools.set_config(&settings.config);
             if settings.config.sidebar != shown {
                 shown = settings.config.sidebar;
                 sidebar.set_open(Shown::starts_open(shown, Some(sidebar.is_open())));
