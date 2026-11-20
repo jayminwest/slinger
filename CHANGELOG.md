@@ -59,7 +59,7 @@ bullet with the area in bold.
   agent folds only the boxes it made.
 - **App:** fold a box. Select it and press opt+cmd+F (or Edit > Fold or
   unfold box), or tap its fold mark, the top right corner turned down,
-  which shows on a box selected alone. The box shrinks to a miniature
+  which every box shows. The box shrinks to a miniature
   that still shows what it holds and gives up its room; the same key or a
   tap on the miniature's mark opens it again in place. When something now
   lies in its old room, it opens as a peek over the page instead: escape

@@ -603,8 +603,7 @@ canvases/paging.rs  the canvas commands on a pane: pan, zoom (in, out, to
              flashes where the pane's canvas is saved (canvases/status.rs
              knows each pane's canvas file, from `canvas_show`'s `path`).
 canvases/fold.rs  `fold` (cmd+alt+f) and the pen's fold mark (a box's top
-             right corner turned down: every folded box's, and an open
-             box's while it alone is selected): each fold or unfold is a
+             right corner turned down, on every box, open or folded): each fold or unfold is a
              `Change::Fold` in the ink's queue, sent as `canvas_fold` or
              `canvas_unfold` (one undo step). An unfold whose room is taken
              (`conflict`, `Answer::Peek`) shows the box as a peek, pane

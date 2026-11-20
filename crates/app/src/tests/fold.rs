@@ -155,9 +155,7 @@ fn a_press_on_a_box_s_fold_mark_folds_it_and_one_on_the_miniature_s_unfolds_it()
         put_box(daemon);
         let config = tempfile::tempdir().unwrap();
         let mut w = world(daemon, config.path());
-        settle(&mut w, |d| has(d, 1));
-        assert!(!has(&draws(&mut w), MARK + 1), "an open box shows no mark");
-        select_all(&mut w, 1);
+        settle(&mut w, |d| has(d, MARK + 1));
         w.key(Chord::new(CMD, '1'), "1");
         let strokes = count(daemon, "stroke");
         for (folded, when) in [(true, 10.0), (false, 20.0)] {

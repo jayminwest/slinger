@@ -435,8 +435,7 @@ impl Canvases {
         for (id, pane, frame) in placed {
             let open = find(&self.open, &pane.name, wanted(&self.views, id, &pane.name));
             let mirror = open.and_then(|o| o.mirror.as_ref());
-            let marks = mirror.map(|m| (&*pane.name, m.page()));
-            let marks = marks.map_or((None, None), |h| (self.marked(h), self.peek_in(id, h)));
+            let marks = mirror.and_then(|m| self.peek_in(id, (&*pane.name, m.page())));
             let screen = Size { width: frame.width, height: frame.height };
             let at = self.views.iter().position(|(p, _)| *p == id);
             let at = at.unwrap_or_else(|| {

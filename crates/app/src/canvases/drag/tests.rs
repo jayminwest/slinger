@@ -333,7 +333,8 @@ fn an_arrow_carried_with_the_items_it_joins_stays_bound_to_them_on_their_new_pag
         wait_until(|| {
             scenes(&mut canvases, &panes);
             p2 = canvases.pages_of(&panes, right).map(|(_, _, page)| page).filter(|p| p != "p1");
-            p2.is_some() && drawn(&mut canvases, &panes, left).len() == 3
+            // The stroke, the box with its fold mark, and the arrow.
+            p2.is_some() && drawn(&mut canvases, &panes, left).len() == 4
         });
         let p2 = p2.unwrap();
 

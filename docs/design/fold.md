@@ -348,7 +348,9 @@ folds through `canvas_fold`, not a raw `set`, so the contents rule is the core's
   pane state.
 - The fold mark and the key (step 5, picked in slinger-1350e7, owner to
   confirm in slinger-03095f): the mark is the box's top right corner turned
-  down, on every folded box and on an open box selected alone; a press on
+  down, on every box, open or folded (slinger-125f94; at first an open box showed
+  it only while selected alone, which made a fold harder than an unfold
+  with the pen); a press on
   it with any tool but the eraser folds or unfolds that box (the
   selection's corner handle keeps the corner itself). `fold` (opt+cmd+F)
   folds or unfolds each selected box. A peek closes on escape or a press

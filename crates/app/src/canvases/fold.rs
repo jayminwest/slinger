@@ -7,14 +7,13 @@
 //! does nothing else). A press inside does nothing: a peek writes nothing.
 //!
 //! The pen's way is the **fold mark**: the top right corner of a box,
-//! turned down. Every folded box shows it, and so does an open box while
-//! it alone is selected. A press on it with any tool but the eraser folds
-//! or unfolds that box, and does nothing else; the selection's corner
-//! handle, right at the corner, still takes a press there.
+//! turned down. Every box shows it, open or folded (slinger-125f94): a fold is as
+//! near the pen as an unfold. A press on it with any tool but the eraser
+//! folds or unfolds that box, and does nothing else; the selection's
+//! corner handle, right at the corner, still takes a press there.
 //!
 //! What a pane draws for its folded boxes is [`drawn`]: each one's
-//! miniature and fold mark, the mark of the box selected, and the peek
-//! over everything.
+//! miniature, every box's fold mark, and the peek over everything.
 
 use std::borrow::Cow;
 
@@ -105,25 +104,14 @@ impl Canvases {
         items: &[Cow<'_, Item>],
     ) -> Option<(ItemId, bool)> {
         let mirror = find(&self.open, here.0, Some(here.1))?.mirror.as_ref()?;
-        let marked = self.marked(here);
         let on = |i: &&Cow<'_, Item>| match i.shape {
             Shape::Box { frame, .. } => {
-                let shows = mirror.box_folded(i.id) == Some(true) || marked == Some(i.id);
-                shows && on_mark(frame, at, zoom)
+                mirror.box_folded(i.id).is_some() && on_mark(frame, at, zoom)
             }
             _ => false,
         };
         let id = items.iter().rev().find(on)?.id;
         Some((id, mirror.box_folded(id)?))
-    }
-
-    /// The open box selected alone on `page` of `canvas`, which shows its
-    /// fold mark, if any.
-    pub(super) fn marked(&self, (canvas, page): (&str, &str)) -> Option<ItemId> {
-        let s = self.select.selection().filter(|s| s.canvas == canvas && s.page == page)?;
-        let [id] = s.ids.as_slice() else { return None };
-        let mirror = find(&self.open, canvas, Some(page))?.mirror.as_ref()?;
-        (mirror.box_folded(*id) == Some(false)).then_some(*id)
     }
 
     /// The daemon's `answer` to the change sent under `key`: an unfold
@@ -187,14 +175,14 @@ fn contains(r: Rect, p: Point) -> bool {
 }
 
 /// `items`, a pane's page as shown from `mirror`, with each folded box's
-/// miniature and fold mark after it, the mark of the open box `marked`,
+/// miniature after it, the fold mark of each of its boxes, open or folded,
 /// and the box `peek` names, if any, over everything at full size in its
 /// old room on `theme`'s paper. A box shown away from where the server has
 /// it (dragged, resized) draws its miniature where it shows.
 pub(super) fn drawn<'a>(
     items: Vec<Cow<'a, Item>>,
     mirror: &'a Mirror,
-    (marked, peek): (Option<ItemId>, Option<ItemId>),
+    peek: Option<ItemId>,
     theme: &Theme,
 ) -> Vec<Cow<'a, Item>> {
     let mut out = Vec::with_capacity(items.len());
@@ -206,7 +194,7 @@ pub(super) fn drawn<'a>(
         };
         let Some(mini) = mirror.miniature(id) else {
             out.push(item);
-            if marked == Some(id) {
+            if mirror.box_folded(id) == Some(false) {
                 out.push(Cow::Owned(Item { id: ItemId(MARK + id.0), colour, shape: mark(frame) }));
             }
             continue;
@@ -233,7 +221,7 @@ pub(super) fn drawn<'a>(
     out
 }
 
-/// A folded box's mark: its top right corner turned down, as a line.
+/// A box's fold mark: its top right corner turned down, as a line.
 fn mark(frame: Rect) -> Shape {
     let d = side(frame);
     let (right, top) = (frame.x + frame.width, frame.y);
