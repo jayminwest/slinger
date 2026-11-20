@@ -265,10 +265,12 @@
 # the Help menu run it.
 #show-all-feedback = ""
 # The size a new text starts at (the text tool's next tap): 12, 16, 24, 36, 48 or 72
-# points, each shown as its number; 24 when the app starts. A text being typed, or one you
-# edit, keeps its own size: resize it with the select tool. A new size flashes.
+# points, each shown as its number; 24 when the app starts. A new size flashes. While a
+# text is typed, these three resize it instead, and with texts selected, those (one undo
+# step); a size picked is a new text's too.
 #pick-size = "cmd+shift+a"
-# The next text size, or the one before; at either end it stays.
+# The next text size, or the one before; at either end it stays. A text typed or selected
+# steps from its own size, and these keys resize the text being typed rather than type.
 #size-up = "alt+shift+}"
 #size-down = "alt+shift+{"
 # Act on the focused pane's items from the keyboard. These act only while no text takes the
@@ -295,3 +297,8 @@
 # Go to the next text that holds the last find's words, after the last back to the first;
 # with no find yet, as find.
 #find-next = "cmd+g"
+# Start a new text without a tap. While a text is being typed it ends, and the next starts
+# half a line under it, so notes chain; else the new text starts at the pointer over a
+# canvas pane, or, with the pointer elsewhere, under the last text ended on the focused
+# pane's page, or at its centre.
+#new-text = "ctrl+return"

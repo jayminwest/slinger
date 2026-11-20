@@ -23,6 +23,8 @@ objc2-core-graphics.workspace = true
 objc2-foundation.workspace = true
 objc2-web-kit.workspace = true
 serde_json.workspace = true
+# The caret moves by grapheme cluster (slinger-459ce9).
+unicode-segmentation.workspace = true
 
 [dev-dependencies]
 # Tests run the app's backend against a real daemon on a real socket.

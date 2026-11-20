@@ -16,7 +16,9 @@ pub(super) const ID_LETTERS: [char; 8] = ['i', 'c', 't', 'b', 'a', 'l', 'u', 'd'
 
 impl Log {
     /// The packet of one page of this canvas, `id`: the page `page` names by
-    /// id (`p<n>`) or name, or the first. The lines numbered above `after`
+    /// id (`p<n>`) or name, or the first. With `inside` (a box's id, `b4` or
+    /// `i4`), the packet of what that box holds, open or folded, on its page
+    /// ([`Ask::inside`]); `page`, when given too, must be the box's. The lines numbered above `after`
     /// are new; `after` 0 makes everything new, and one at or past the last
     /// line makes nothing new (B4). `select`, when not empty, narrows the
     /// `page` section (see [`Ask::selection`]); its ids are the file's
@@ -25,17 +27,24 @@ impl Log {
     ///
     /// # Errors
     ///
-    /// [`Error::NotFound`] for a page that is not there, and
-    /// [`Error::Invalid`] for a selected id that is not an item id.
+    /// [`Error::NotFound`] for a page or a box that is not there, and
+    /// [`Error::Invalid`] for a selected id that is not an item id, or an
+    /// `inside` that is not a box.
     pub fn packet(
         &self,
         id: &str,
         page: Option<&str>,
+        inside: Option<&str>,
         after: u64,
         select: &[String],
         under: &[Backdrop],
     ) -> Result<Packet> {
-        let page = self.page(page)?.id();
+        let inside = inside.map(item).transpose()?;
+        let holder = inside.and_then(|b| self.canvas().item(b));
+        let page = match (holder, page) {
+            (Some(b), None) => b.page(),
+            _ => self.page(page)?.id(),
+        };
         let selection = select.iter().map(|s| item(s)).collect::<Result<Vec<_>>>()?;
         let ask = Ask {
             canvas: id,
@@ -43,6 +52,7 @@ impl Log {
             since: self.since(after),
             selection: &selection,
             backdrops: under,
+            inside,
         };
         let mut packet = build(self.applied().0, &ask)?;
         let last = self.next().saturating_sub(1);
@@ -60,8 +70,14 @@ impl Log {
     /// [`Error::NotFound`] for a page that is not there.
     pub fn backdrops(&self, page: Option<&str>, after: u64) -> Result<Vec<Area>> {
         let page = self.page(page)?.id();
-        let ask =
-            Ask { canvas: "", page, since: self.since(after), selection: &[], backdrops: &[] };
+        let ask = Ask {
+            canvas: "",
+            page,
+            since: self.since(after),
+            selection: &[],
+            backdrops: &[],
+            inside: None,
+        };
         backdrops(self.applied().0, &ask)
     }
 

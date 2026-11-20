@@ -10,6 +10,11 @@
 //! on the page with that id or name. Images follow `render`'s rules, so a crop
 //! is at the packet's scale and large ones come as tiles. A crop is at most
 //! [`MAX_CROP`] units a side, so no request can ask for a flood of tiles.
+//!
+//! Folded boxes (docs/design/fold.md): a crop of a folded box draws it
+//! open, with what it holds; a crop of a box of the page draws what the
+//! page shows. `c<n>` on a hidden stroke names its cluster among what the
+//! same folded box holds.
 
 use serde_json::Value;
 
@@ -35,10 +40,19 @@ impl Log {
     /// [`MAX_CROP`], and `not_found` for an item or page that is not there.
     pub fn crop(&self, of: &str, name: &str) -> Result<Vec<Image>> {
         if !of.contains(',') {
+            let canvas = self.canvas();
             let items = self.resolve(of)?;
-            let frame = self.canvas().bounds_of(items.iter().copied()).unwrap_or_default();
+            if let [one] = items[..]
+                && let Some(opened) = canvas.opened(one)
+            {
+                let held = canvas.contents(one).into_iter().filter_map(|i| canvas.item(i));
+                let frame = held.map(Item::bounds).fold(opened.bounds(), render::union);
+                fits(frame.w + 2.0 * MARGIN, frame.h + 2.0 * MARGIN, "crop part of it with a box")?;
+                return Ok(render::open(canvas, one, name));
+            }
+            let frame = canvas.bounds_of(items.iter().copied()).unwrap_or_default();
             fits(frame.w + 2.0 * MARGIN, frame.h + 2.0 * MARGIN, "crop part of it with a box")?;
-            return Ok(render::items(self.canvas(), &items, name));
+            return Ok(render::items(canvas, &items, name));
         }
         let (page, area) = of.rsplit_once(':').map_or((None, of), |(p, a)| (Some(p), a));
         let numbers: Vec<i64> = area.split(',').map_while(|n| n.trim().parse().ok()).collect();
@@ -84,13 +98,24 @@ impl Log {
 
     /// The text items whose words hold `phrase`, page by page in reading
     /// order ([`crate::canvas::Canvas::find`]), each as `canvas show` gives
-    /// an item, its page included. A phrase of no words finds nothing.
+    /// an item, its page included. A text hidden in a folded box also has
+    /// `folded`: the outermost folded box that holds it (`i4`), what the
+    /// page shows in its place. A phrase of no words finds nothing.
     #[must_use]
     pub fn find(&self, phrase: &str) -> Vec<Value> {
         let canvas = self.canvas();
         let found = canvas.find(phrase).into_iter().filter_map(|i| canvas.item(i));
         found
-            .map(|item| serde_json::from_str(&json::whole_item(item)).unwrap_or_default())
+            .map(|item| {
+                let mut whole: Value =
+                    serde_json::from_str(&json::whole_item(item)).unwrap_or_default();
+                if let (Some(fields), Some(b)) =
+                    (whole.as_object_mut(), canvas.outermost(item.id()))
+                {
+                    fields.insert("folded".into(), json::item_id(b).into());
+                }
+                whole
+            })
             .collect()
     }
 
@@ -110,7 +135,12 @@ impl Log {
         if !id.starts_with('c') || !is_ink(item) || *item.author() != Author::User {
             return Ok(vec![item.id()]);
         }
-        let mut clusters = cluster(canvas, canvas.items(item.page()).map(Item::id));
+        // The strokes in the same place: held by the same folded box, or shown.
+        let place = match canvas.holder(item.id()) {
+            Some(holder) => canvas.contents(holder),
+            None => canvas.visible(item.page()).map(Item::id).collect(),
+        };
+        let mut clusters = cluster(canvas, place);
         let found = clusters.iter().position(|c| c.contains(&item.id()));
         Ok(found.map_or_else(|| vec![item.id()], |c| clusters.swap_remove(c)))
     }

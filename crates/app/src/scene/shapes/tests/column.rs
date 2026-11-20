@@ -98,3 +98,46 @@ fn a_drag_of_an_unwrapped_text_s_edge_gives_it_a_column_as_one_set() {
     };
     assert_eq!((id, text.as_str(), *column), (&ItemId(2), "plan", Some(2.5 * 12.0)));
 }
+
+/// A text started from the keyboard (`new-text`, [`Shapes::start`]) wraps
+/// in a new text's column too.
+#[test]
+fn a_text_started_from_the_keyboard_wraps_in_a_new_text_s_column() {
+    let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
+    shapes.start(HERE, pt(40.0, 100.0), RED, &mut ink);
+    let words = "word ".repeat(12);
+    shapes.typed(words.trim_end(), &mut ink);
+    assert_eq!(rows(&shapes).lines().count(), 2, "48 cells a row");
+    shapes.typed("\u{1b}", &mut ink);
+    let [Change::Put { shape: Shape::Text { column, .. }, .. }] = &changes(&mut ink)[..] else {
+        panic!()
+    };
+    assert_eq!(*column, NEW);
+}
+
+/// An edit that changes only the text's size is a `set`, and so is one
+/// that changes only its column (above); a resize keeps the column about
+/// as wide, on half a cell of the new size.
+#[test]
+fn an_edit_of_only_the_size_is_one_set() {
+    let items = page();
+    let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
+    assert!(down(&mut shapes, &mut ink, Tool::Text, (310.0, 10.0), 0.0, &items));
+    assert!(shapes.resize(Resize::Up));
+    shapes.typed("\u{1b}", &mut ink);
+    let [Change::Set { id, shape: Shape::Text { text, size, column, .. }, .. }] =
+        &changes(&mut ink)[..]
+    else {
+        panic!()
+    };
+    assert_eq!((id, text.as_str(), *size), (&ItemId(2), "plan", 36.0));
+    assert_eq!(*column, Some(glyphs::UNWRAPPED), "an unwrapped text stays so");
+
+    assert!(down(&mut shapes, &mut ink, Tool::Text, (10.0, 212.0), 1.0, &[]));
+    assert!(shapes.resize(Resize::Up));
+    shapes.typed("hi\u{1b}", &mut ink);
+    let [Change::Put { shape: Shape::Text { column, .. }, .. }] = &changes(&mut ink)[..] else {
+        panic!()
+    };
+    assert_eq!(*column, Some(32.5 * 18.0), "582 is 32 cells of 18 and a third");
+}

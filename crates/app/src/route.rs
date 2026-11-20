@@ -13,7 +13,7 @@ use crate::commands::{Chord, Command};
 use crate::layout::Rect;
 use crate::scene::paste::Keyboard;
 use crate::scene::sidebar::Sidebar;
-use crate::scene::tools::Tools;
+use crate::scene::tools::{Picked, Resize, Tools};
 use crate::shared::Shared;
 use crate::window::{run, tap, view};
 use crate::{Ask, Event, Settings, Step, asked, pen, window};
@@ -192,10 +192,13 @@ pub fn taken(
         || tools.key(chord) && picked(tools, canvases)
 }
 
-/// A colour picked from the pop-up recolours the selection. Always true.
+/// A colour picked from the pop-up recolours the selection; a size
+/// resizes the text being typed or the selected texts. Always true.
 pub fn picked(tools: &mut Tools, canvases: &mut Canvases) -> bool {
-    if let Some(colour) = tools.picked() {
-        canvases.recolour(colour);
+    match tools.picked() {
+        Some(Picked::Colour(colour)) => _ = canvases.recolour(colour),
+        Some(Picked::Size(size)) => _ = canvases.resize(Resize::To(size)),
+        None => {}
     }
     true
 }

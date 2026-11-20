@@ -190,7 +190,15 @@ kind (`t12`, `b9`, `a13`, `l14`, `u15` for a button: `b` is a box's, and
 `d16` for a `pdf` item). A cluster's id is `c` plus the item number of its
 earliest stroke, so it stays the same across packets while that stroke does,
 and no two lines in a packet share a number. An arrow end bound to a stroke
-names the stroke's cluster.
+names the stroke's cluster; one bound to an item hidden in a folded box
+names the outermost folded box that holds it.
+
+**Folded boxes** (docs/design/fold.md): a folded box is one `box` line with
+`folded`, and what it holds makes no line in any section. Its quoted text is
+the first line of the first text it holds directly, in reading order, cut as
+in `page`: `b4 box 180,700 240x160 folded=7 "Monday: what ships"`. A packet
+read `--in` a box is the packet of what the box holds directly, open or
+folded, as if it were the page; the box's own line is not in it.
 
 **Fields** (order as listed; each only when it applies):
 
@@ -206,11 +214,14 @@ names the stroke's cluster.
 | `crop` | pdf | the part of the page shown, `x,y,w,h` in whole PDF points from the page's top left, when it is not the whole page |
 | `name` | pdf | the PDF's file name, when known |
 | `blob` | pdf | the PDF's blob id (`slinger blob get` fetches the file) |
+| `folded` | box | the box is folded (docs/design/fold.md): how many lines what it holds would make in a packet of its own (`canvas read --in`); its box is the miniature |
+| `new` | box | a folded box that holds new strokes of the user's, at any depth: how many. Its line goes in `new`, with no image |
 | `in` | any | the id of the smallest other box that contains this item's box |
 | `over` | ink | the ids of the `pdf` items whose frame the cluster's box overlaps, comma-separated, in drawing order |
 | `img` | ink in `new` | image file names, comma-separated, tiles in reading order |
 
-The quoted text is last. On `text` lines: the full text in `new` and
+The quoted text is last. On a folded `box` line: its first text's first
+line, as above. On `text` lines: the full text in `new` and
 `made`, the first 80 characters plus `…` in `page`. On an `ink` line in
 `new` over a PDF: the PDF's words under the ink, when the sling came with
 backdrops (below); `page` ink lines never carry words.

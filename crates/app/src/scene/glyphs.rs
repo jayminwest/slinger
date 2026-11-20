@@ -22,6 +22,8 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
+use unicode_segmentation::UnicodeSegmentation;
+
 use crate::layout::{Point, Rect, Size};
 
 /// Lays `text` out `size` points high, broken only at its line ends, and
@@ -144,7 +146,7 @@ pub fn layout(text: &str, size: f64, column: f64) -> Vec<Row> {
 /// A canvas text set from its top left `at`, `size` high in its `column`,
 /// as its rows ([`layout`]) and their glyphs in the [`FONT`]: where a caret
 /// at a byte index stands, which index a point is nearest, and the boxes a
-/// selection fills. Indices are on `char` boundaries.
+/// selection fills. Indices are on grapheme cluster boundaries.
 pub struct Laid<'a> {
     text: &'a str,
     at: Point,
@@ -182,7 +184,7 @@ impl<'a> Laid<'a> {
     pub fn index_in(&self, row: usize, x: f64) -> usize {
         let Row { start, end } = self.rows[row.min(self.rows.len() - 1)];
         let line = &self.text[start..end];
-        let mut stops: Vec<usize> = line.char_indices().map(|(i, _)| start + i).collect();
+        let mut stops: Vec<usize> = line.grapheme_indices(true).map(|(i, _)| start + i).collect();
         stops.push(end);
         let width = |i: usize| self.x_in(Row { start, end }, i);
         // The first stop at or right of `x`: widths grow along the row.
