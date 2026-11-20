@@ -2,6 +2,10 @@
 
 Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/slinger.app`) or real hardware. First check what a driven window can show (`slinger drive`; `slinger guide` says how). An agent that ships something only a person can check adds one line here, with the commit, under the right heading. It does not file a seed. The owner ticks a line or deletes it. Each line keeps the id of the seed it came from; `sd show <id>` gives its history.
 
+## Switching and views (slinger-eaa98b)
+
+- [ ] (bundle) `open target/slinger.app --env SLINGER_TRACE=switch --stderr <file>`, tap between two workspaces ten times, paste the lines in slinger-eaa98b: the baseline in the shown window (a driven window measured 818 to 1925 ms to drawn, of which under 5 ms was the daemon) (slinger-9fd400)
+
 ## Fold and boxes (plan pl-f130a2)
 
 - [ ] in the bundle: fold, peek, step in, split to compare, nest, move and sling boxes, with the pen and with the keyboard (slinger-03095f)
@@ -17,6 +21,10 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 
 - [ ] sling over a PDF in the real app: backdrop and words line up with the ink in a live sling, on rotated pages and on cropped pdf items (only unit tests and one rendered image were checked) (slinger-9fd6f0)
 - [ ] crop-pdf in the real app: cmd+8, drag on a PDF page in reader mode shows the dashed box; cmd+V on an ordinary canvas shows the cropped region at the right aspect; select moves and resizes it keeping aspect; a crop of a pasted snippet maps correctly (slinger-7105bd)
+
+## Launcher (plan pl-ac18df)
+
+- [ ] from a slingerd that the bundled app started (once slinger-5e8b60 lands; until then `env -i HOME=$HOME USER=$USER SHELL=$SHELL PATH=/usr/bin:/bin:/usr/sbin:/sbin slingerd` with no --claude), start an agent and sling once: Claude Code is found, its hooks report, its Bash tool finds git/cargo/sd, its MCP servers load (slinger-be3082)
 
 ## Agent sessions, workspaces and the rest
 

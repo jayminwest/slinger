@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use slinger_control::{CanvasFeed, CanvasPage, Client, RemoteError};
 
@@ -26,8 +26,9 @@ const RETRY: Duration = Duration::from_secs(1);
 /// What a follower heard, in order.
 #[derive(Debug)]
 pub enum News {
-    /// The page, whole: replaces any copy held.
-    Shown(CanvasPage),
+    /// The page, whole: replaces any copy held; and when it came (for the
+    /// switch's trace, [`crate::trace`]).
+    Shown(CanvasPage, Instant),
     /// The operations after the page, or after the last news.
     Changed(CanvasFeed),
     /// The daemon did not answer, or refused; the follower starts over.
@@ -91,7 +92,7 @@ fn follow(
         let mut after = match daemon.canvas_show(canvas, page) {
             Ok(shown) => {
                 let after = shown.next.saturating_sub(1);
-                if send.send(News::Shown(shown)).is_err() {
+                if send.send(News::Shown(shown, Instant::now())).is_err() {
                     return;
                 }
                 after
@@ -116,8 +117,6 @@ fn follow(
 
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
-
     use serde_json::json;
     use slinger_control::CanvasOps;
 
@@ -140,8 +139,10 @@ mod tests {
     fn shows_the_page_then_hands_on_each_change() {
         with_daemon(|daemon| {
             daemon.canvas_create("main").unwrap();
+            let asked = Instant::now();
             let follower = Follower::start(daemon.clone(), "main".into(), None);
-            let News::Shown(page) = next(&follower) else { panic!("not shown") };
+            let News::Shown(page, came) = next(&follower) else { panic!("not shown") };
+            assert!(asked <= came && came <= Instant::now(), "stamped when it came");
             assert_eq!((page.page.as_str(), page.next, page.items.len()), ("p1", 1, 0));
             let item = json!({"page": "p1", "kind": "box", "x": 0, "y": 0, "w": 10, "h": 10});
             let ops = json!({"op": "add", "item": item});
@@ -167,7 +168,7 @@ mod tests {
             let News::Problem(problem) = next(&follower) else { panic!("no problem") };
             assert!(problem.hint.is_some());
             daemon.canvas_create("nothing").unwrap();
-            assert!(matches!(next(&follower), News::Shown(_)), "it did not try again");
+            assert!(matches!(next(&follower), News::Shown(..)), "it did not try again");
         });
         let gone = Follower::start(Client::new("/nonexistent/x.sock"), "main".into(), None);
         let News::Problem(problem) = next(&gone) else { panic!("no problem") };

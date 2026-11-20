@@ -13,7 +13,8 @@ use tempfile::TempDir;
 
 use super::Daemon;
 use super::session::open_with_agent;
-use crate::processes::Processes;
+use crate::Server;
+use crate::processes::{Processes, Search};
 use crate::store::SLINGER;
 
 /// The stand-in for Claude Code (`tests/claude`, which says what it does).
@@ -287,6 +288,56 @@ fn the_cli_the_hooks_run_comes_first_on_the_agents_path() {
     let path = wait_lines(&home.path().join("path.txt"), 1);
     assert_eq!(path, [format!("/opt/slinger/bin:{daemons}")]);
     processes.stop("scout");
+}
+
+/// A daemon on the record in `data` that runs `claude`, else the Claude
+/// Code `search` finds.
+fn start_with_search(data: &Path, claude: Option<PathBuf>, search: Search) -> Daemon {
+    let (socket_dir, socket) = super::socket_path();
+    let server = Server::bind(&socket).unwrap();
+    let stopper = server.stopper();
+    let store = super::open(data).with_search(claude, search);
+    let thread = std::thread::spawn(move || server.serve(&store));
+    Daemon { socket, socket_dir, stopper, thread, data: None }
+}
+
+#[test]
+fn with_no_claude_given_it_is_looked_for_at_each_start_and_a_given_one_wins() {
+    let (data, projects, home) =
+        (TempDir::new().unwrap(), TempDir::new().unwrap(), TempDir::new().unwrap());
+    // A PATH without claude, and a home that has none yet.
+    let bare = home.path().join("bin");
+    std::fs::create_dir(&bare).unwrap();
+    let search = Search::new(Some(bare.clone().into()), Some(home.path().to_owned()), None);
+    let daemon = start_with_search(data.path(), None, search.clone());
+    let client = daemon.client();
+    let notes = open_with_agent(&client, &projects, "notes", "scout");
+    let err = client.session_start("notes").unwrap_err();
+    assert_eq!(err.code(), "not_found", "{err}");
+    let local = home.path().join(".local/bin/claude");
+    assert!(err.to_string().starts_with("Claude Code was not found in: "), "{err}");
+    assert!(err.to_string().contains(&local.display().to_string()), "{err}");
+    let hint = "install Claude Code, or start slingerd with --claude <PATH>";
+    assert_eq!(err.hint(), Some(hint));
+
+    // Installed after the daemon started: the next start finds it, and the
+    // agent gets the search's PATH. A link to the stand-in, not a new
+    // executable (see fake_claude).
+    std::fs::create_dir_all(local.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink(fake_claude(), &local).unwrap();
+    client.session_start("notes").unwrap();
+    assert_eq!(wait_lines(&notes.join("path.txt"), 1), [bare.display().to_string()]);
+    let mut processes = Processes::new(PathBuf::from("unused"), data.path().join("ids.json"));
+    processes.set_program(None);
+    processes.set_search(search.clone());
+    assert_eq!(processes.claude(), Some(local.clone()), "the path it would run now");
+    daemon.stop();
+
+    // A given program wins over the search.
+    std::fs::remove_file(&local).unwrap();
+    let daemon = start_with_search(data.path(), Some(fake_claude()), search);
+    daemon.client().session_start("notes").unwrap();
+    daemon.stop();
 }
 
 #[test]

@@ -4,6 +4,7 @@
 //! Space held, and the press, drags and lift of a pan with it, are the
 //! hand's ([`hand`]) before anything else.
 
+use std::io::{self, Write};
 use std::path::Path;
 use std::time::Instant;
 
@@ -11,12 +12,13 @@ use crate::canvases::Canvases;
 use crate::commands::menu::Native;
 use crate::commands::{Chord, Command};
 use crate::layout::Rect;
+use crate::panes::Panes;
 use crate::scene::paste::Keyboard;
 use crate::scene::sidebar::Sidebar;
 use crate::scene::tools::{Picked, Resize, Tools};
 use crate::shared::Shared;
-use crate::window::{run, tap, view};
-use crate::{Ask, Event, Settings, Step, asked, pen, window};
+use crate::window::{grabs, pane_at, run, tap, view};
+use crate::{Ask, Event, Settings, Step, asked, window};
 
 /// What the window does with an event once [`route`] has taken it.
 pub enum Routed {
@@ -214,4 +216,95 @@ pub fn picked(tools: &mut Tools, canvases: &mut Canvases) -> bool {
         None => {}
     }
     true
+}
+
+/// Hands a press on a divider between panes (with no pop-up open, and not
+/// grabbing the selection: [`grabs`]), and the
+/// drag and lift after it, to the panes of `shared` laid in `area`, which
+/// resize; a moved divider goes to the daemon on `socket`. A resized window
+/// lays its panes out again. A move goes to the pop-ups (where one
+/// opens) and lights the button, or the open overlay's or menu's row, under the pen. The open
+/// key overlay scrolls with a drag or a scroll, and with the palette and the page menu takes
+/// every other pen, mouse or trackpad event and typed text; a drag after a press on a button is
+/// the button's. Any other event goes on to [`pointer`]. False when nothing used it.
+fn pen(
+    event: &Event,
+    tools: &mut Tools,
+    canvases: &mut Canvases,
+    shared: &mut Shared,
+    area: Rect,
+    socket: &Path,
+) -> bool {
+    let free = tools.open_kind().is_none();
+    match *event {
+        Event::Resized(size) => std::mem::replace(&mut shared.size, size) != size,
+        Event::Moved(at) => {
+            tools.moved(at);
+            shared.hover(at) | window::divider(shared, canvases, tools, area, at)
+        }
+        Event::Drag(pen) if shared.drag(pen.at) => true,
+        Event::Scroll { dy, .. } if shared.scroll(dy) => true,
+        Event::Lift(_) | Event::Zoom { .. } | Event::Text(_) if shared.modal() => true,
+        Event::Press(pen)
+            if free
+                && !grabs(canvases, &shared.panes, tools, area, pen)
+                && shared.dividers.down(&shared.panes, area, pen.at) =>
+        {
+            true
+        }
+        Event::Drag(pen) if shared.dividers.drag(&mut shared.panes, pen.at) => true,
+        Event::Lift(pen) if shared.dividers.held() => {
+            let moved = shared.dividers.up(&mut shared.panes, pen.at);
+            shared.resized(moved, socket);
+            true
+        }
+        _ => pointer(event, tools, canvases, &shared.panes, area),
+    }
+}
+
+/// Hands a pen or mouse press, drag or lift to the pop-up at the pen, then to
+/// the canvas pane of `panes` laid in `area` under it, where the tool draws,
+/// erases, selects, places text or draws a shape; typed text to the text being
+/// typed (the sling's open entry keeps its presses and keys); a scroll or a
+/// pinch pans or zooms. The pen's eraser end, near or pressed, erases with
+/// any tool. False when nothing used it, and for a paint.
+/// A lift writes the stroke's delay log.
+fn pointer(
+    event: &Event,
+    tools: &mut Tools,
+    canvases: &mut Canvases,
+    panes: &Panes,
+    area: Rect,
+) -> bool {
+    match *event {
+        Event::Painted(delay) => {
+            canvases.painted(delay);
+            false
+        }
+        Event::Press(pen) if canvases.sling_covers(pen.at) => false,
+        Event::Typed(ref text) => canvases.sling_typed(text),
+        // A text being typed takes the keys that type, which come back as text.
+        Event::Text(ref text) => canvases.typed(text),
+        Event::Proximity { near, eraser } => tools.set_eraser_end(eraser) | tools.set_device(near),
+        Event::Press(pen) if tools.press(pen.at) => picked(tools, canvases),
+        Event::Press(pen) => {
+            tools.set_eraser_end(pen.eraser);
+            let tool = (tools.tool(), tools.colour());
+            canvases.set_pen(tools);
+            pane_at(panes, area, pen.at).is_some_and(|u| canvases.pen_down(panes, u, pen, tool))
+        }
+        Event::Drag(pen) => {
+            tools.moved(pen.at);
+            canvases.pen_drag(panes, pen, pane_at(panes, area, pen.at))
+        }
+        Event::Lift(pen) => {
+            let ended = canvases.pen_up(panes, pen, pane_at(panes, area, pen.at));
+            if let Some(line) = canvases.delay_log() {
+                // Nothing can be done if stderr is closed.
+                let _ = writeln!(io::stderr(), "{line}");
+            }
+            ended
+        }
+        _ => window::gesture(canvases, panes, area, event),
+    }
 }

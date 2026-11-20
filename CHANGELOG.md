@@ -11,6 +11,18 @@ bullet with the area in bold.
 
 ### Added
 
+- **Daemon:** a daemon you did not start from a terminal finds Claude Code
+  and gives its agents your tools. Without `--claude`, slingerd looks for
+  `claude` at each session start on your login shell's `PATH` and in the
+  usual places (`~/.local/bin`, `~/.claude/local`, Homebrew,
+  `/usr/local/bin`, nix profiles), and every agent gets that `PATH`, so its
+  hooks, MCP servers and Bash calls find git and the rest. Not found, a
+  start says where it looked and how to fix it.
+- **Daemon:** `slingerd --log <FILE>` writes the daemon's warnings and
+  every agent's stderr to a file, with a line as it starts and as it stops,
+  so a daemon nobody started from a terminal still has a log. A log over
+  1 MiB is moved aside to `<FILE>.1` at start. The daemon now ignores
+  SIGHUP: closing the terminal you started it from no longer stops it.
 - **Agents:** an agent can check the app itself. `slinger-app --drive
   <SOCKET>` starts the real app as a window that is never shown, on a
   daemon of the agent's own, and `slinger drive` sends it keys, typing, pen
@@ -552,6 +564,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Workspaces:** closing a workspace ends its agent's running process.
+  Before, the process ran on with no way to reach, stop or list it. An
+  agent another open workspace still names keeps running; reopening the
+  workspace and slinging again resumes the agent's conversation.
 - **App:** a trackpad works on a canvas. Its presses and drags did nothing
   there: the Mac marks them as touches, and slinger took every touch for a
   palm on a tablet display. A touch is now a palm only while a tablet pen
