@@ -9,10 +9,13 @@
 //! folds only a box it made, and moves or erases a folded box only when it
 //! may change every item carried.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::{Log, Placed, Written, json};
-use crate::canvas::{Action, Author, Canvas, Fold, ItemId, Point, Rect, Shape, Time, miniature};
+use crate::canvas::fold::held_in;
+use crate::canvas::{
+    Action, Author, Canvas, Fold, Item, ItemId, PageId, Point, Rect, Shape, Time, miniature,
+};
 use crate::{Error, Result};
 
 impl Log {
@@ -102,9 +105,12 @@ impl Log {
     /// ([`Canvas::held`]). An edit of a folded box that moves its top left
     /// and leaves it folded is a move too. Items `actions` name themselves
     /// are left to them. Undo and redo never come through here: they apply
-    /// the lines as they were.
+    /// the lines as they were. Only a folded box holds anything, so a move
+    /// of plain items costs nothing more, and each page's holders are worked
+    /// out once, however many boxes move.
     pub(super) fn carried(&self, actions: Vec<Action>) -> Vec<Action> {
         let canvas = self.canvas();
+        let mut pages: HashMap<PageId, HashMap<ItemId, ItemId>> = HashMap::new();
         let mut named: HashSet<ItemId> = actions.iter().filter_map(named_item).collect();
         let mut out = Vec::with_capacity(actions.len());
         for action in actions {
@@ -119,7 +125,10 @@ impl Log {
             };
             out.push(action);
             let Some((item, by)) = carries else { continue };
-            for m in canvas.held(item) {
+            let folded = canvas.item(item).filter(|i| i.shape().fold().is_some());
+            let Some(page) = folded.map(Item::page) else { continue };
+            let holders = pages.entry(page).or_insert_with(|| canvas.holders(page));
+            for m in held_in(holders, item) {
                 if named.insert(m) {
                     out.push(match by {
                         Some(by) => Action::Move { item: m, by },

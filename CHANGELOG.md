@@ -468,6 +468,8 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Canvas:** moving or erasing a selection on a large canvas is faster: a
+  lasso move of 8 strokes on a 29 MB canvas takes about 13 ms, from 24 ms.
 - **Workspaces:** each pane now has an id that stays while it is open,
   whatever opens, closes or resizes around it, and across a daemon restart:
   `slinger pane list --json` and every pane reply carry it as `id`. Panes are
