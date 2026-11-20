@@ -7,11 +7,11 @@
 //! the pane's canvas is saved. The decisions are
 //! `scene::pages`'s; this module finds the pane's canvas and page.
 
-use super::{Canvases, canvas_of, find, pane_shown, wanted};
+use super::{Canvases, canvas_of, find, pane_shown, step, wanted};
 use crate::backend::Follower;
 use crate::commands::Command;
 use crate::config::{Canvas, Theme};
-use crate::layout::{self, PaneId, Point, Rect, Viewport};
+use crate::layout::{self, PaneId, Point, Rect, Size, Viewport};
 use crate::panes::{Kind, Panes};
 use crate::scene::Label;
 use crate::scene::ink::Change;
@@ -44,7 +44,7 @@ impl Canvases {
             Command::PanRight => self.pan(pane, -PAN_STEP, 0.0),
             Command::PanUp => self.pan(pane, 0.0, PAN_STEP),
             Command::PanDown => self.pan(pane, 0.0, -PAN_STEP),
-            Command::ZoomIn | Command::ZoomOut | Command::ZoomReset
+            Command::ZoomIn | Command::ZoomOut | Command::ZoomReset | Command::ZoomToFit
                 if canvas_of(panes, pane).is_none() =>
             {
                 self.zoomed = Some(NO_CANVAS.to_string());
@@ -52,6 +52,7 @@ impl Canvases {
             Command::ZoomIn => self.zoom(pane, centre, ZOOM_STEP),
             Command::ZoomOut => self.zoom(pane, centre, 1.0 / ZOOM_STEP),
             Command::ZoomReset => self.zoomed_to(pane, |view| view.zoom_to(centre, 1.0)),
+            Command::ZoomToFit => self.fit(panes, (pane, frame)),
             Command::NextPage | Command::PreviousPage => {
                 self.turn(panes, pane, command == Command::NextPage);
             }
@@ -108,14 +109,34 @@ impl Canvases {
     }
 
     /// Moves `pane`'s view where `to` takes it, and flashes its zoom; a
-    /// view in reader mode keeps its zoom ([`super::reader`]).
+    /// view in reader mode keeps its zoom ([`super::reader`]). A view with
+    /// no place yet is placed where it starts first.
     fn zoomed_to(&mut self, pane: PaneId, to: impl FnOnce(Viewport) -> Viewport) {
         let view = self.view(pane);
         if view.reader.is_some() {
             return;
         }
+        view.placed = true;
         view.viewport = to(view.viewport);
         self.zoomed = Some(view.viewport.zoom_label());
+    }
+
+    /// Fits `pane` of `panes`, laid at `frame`, to what its page shows
+    /// (the room of the box it is inside), as a first show does
+    /// ([`View::place`](super::View)), and flashes its zoom. Nothing
+    /// happens while its page is on its way.
+    fn fit(&mut self, panes: &Panes, (pane, frame): (PaneId, Rect)) {
+        let Some(canvas) = canvas_of(panes, pane) else { return };
+        let open = find(&self.open, canvas, wanted(&self.views, pane, canvas));
+        let Some(mirror) = open.and_then(|o| o.mirror.as_ref()) else { return };
+        let view = self.views.iter().find(|(p, _)| *p == pane).map(|(_, v)| v);
+        let trail = view.map(|v| v.trail.on((canvas, mirror.page()))).unwrap_or_default();
+        let (items, within, _) = step::shown_in(mirror, &self.ink, canvas, &trail);
+        let fit = step::content(&items, within.as_ref());
+        drop(items);
+        let screen = status::content(frame);
+        let size = Size { width: screen.width, height: screen.height };
+        self.zoomed_to(pane, |_| fit.map_or_else(Viewport::start, |c| Viewport::fitting(c, size)));
     }
 
     /// Turns `pane` to the next page, or the previous one.

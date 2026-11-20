@@ -22,6 +22,7 @@ mod launch;
 mod pointer;
 mod size;
 mod sling_box;
+mod split;
 mod start;
 mod step;
 mod undo;
@@ -257,10 +258,17 @@ fn a_crop_s_lift_copies_a_snippet_that_pastes_as_a_cropped_pdf_item() {
             "w": 12240, "h": 15840, "hash": hash, "pdfpage": 1, "pagesize": [6120, 7920]});
         let ops = serde_json::json!({"op": "add", "item": item});
         let (canvas, by) = ("notes".to_string(), "user".to_string());
-        daemon.canvas_apply(control::CanvasOps { canvas, by, ops, once: None }).unwrap();
         let config = tempfile::tempdir().unwrap();
+        // Opened empty, so the view stays at the start, 100%: not fitted to the PDF.
         let mut w = world(daemon, config.path());
+        daemon.canvas_apply(control::CanvasOps { canvas, by, ops, once: None }).unwrap();
         assert_eq!(count(daemon, "pdf"), 1);
+        wait_until(|| {
+            w.send(Event::Tick);
+            w.send(Event::Command(Command::SelectAll));
+            w.canvases.selection().is_some_and(|s| s.ids.len() == 1)
+        });
+        w.send(Event::Command(Command::ClearSelection));
         w.key(Chord::new(CMD, '8'), "8");
         assert_eq!(w.tools.tool(), Tool::CropPdf);
         let mut route = |event| {

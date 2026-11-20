@@ -26,9 +26,10 @@ pub enum Command {
     PickTool,
     /// Open the width pop-up (`[pen] widths`) at the pen.
     PickWidth,
-    /// Split the focused pane; the new pane, on the right, shows the same.
+    /// Split the focused pane; the new pane, on the right, shows the same,
+    /// at the same place (page, pan, zoom, box).
     SplitRight,
-    /// Split the focused pane; the new pane, below, shows the same.
+    /// Split the focused pane; the new pane, below, shows the same place.
     SplitDown,
     /// Close the focused pane. The last pane stays.
     ClosePane,
@@ -190,6 +191,9 @@ pub enum Command {
     /// Stop slingerd and start the bundled one: what the offer for a
     /// slingerd of another build runs (a bundled app only: `crate::launch`).
     RestartDaemon,
+    /// Zoom and pan the focused pane's canvas so all its page shows (the
+    /// room, inside a box), at 100% or less.
+    ZoomToFit,
 }
 
 /// How many commands there are.
@@ -197,7 +201,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 87] = [
+    pub const ALL: [(Command, &str); 88] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -285,6 +289,7 @@ impl Command {
         (Command::StepOut, "step-out"),
         (Command::StartSlingerd, "start-slingerd"),
         (Command::RestartDaemon, "restart-daemon"),
+        (Command::ZoomToFit, "zoom-to-fit"),
     ];
 
     /// The command called `name` in the config file.
@@ -426,6 +431,7 @@ impl Default for Keymap {
             on(CMD | ALT, 'o'),
             None,
             None,
+            on(CMD, '9'),
         ])
     }
 }

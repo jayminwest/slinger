@@ -55,6 +55,9 @@ pub fn run(
         Command::ToggleSidebar => sidebar.set_open(!sidebar.is_open()),
         Command::DismissNotice => sidebar.dismiss(),
         Command::StepInBeside => return items::beside(canvases, shared, area, socket),
+        Command::SplitRight | Command::SplitDown => {
+            items::split(command, canvases, shared, area, socket);
+        }
         Command::StartAgent | Command::StopAgent | Command::RestartAgent => {
             agent(command, socket, sidebar, tools);
         }

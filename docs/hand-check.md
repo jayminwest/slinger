@@ -8,6 +8,8 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 - [ ] (bundle) an agent's `slinger canvas put` appears with no half-second step, also while a pen stroke or a divider drag is under way; the trace's taken and heard come a few ms after layout and shown; the app idles at no more CPU than before. Driven window after slinger-1e161b: drawn mean 990 ms (945-1035), of which the watch's wait ~970 ms (step 3's); taken and heard 0-35 ms after layout and shown; a `canvas apply` showed in the scene 24-26 ms later (slinger-1e161b)
 - [ ] (bundle) with SLINGER_TRACE=switch: tap between two workspaces ten times; 'drawn' is under about 50 ms warm; paste the ten lines in slinger-eaa98b beside the baseline. Driven window after slinger-2c5d60: drawn mean 18 ms (11-27), watch +0 ms, layout +0 ms, taken 4-12 ms (slinger-2c5d60)
 - [ ] (bundle) zoom in on workspace A, tap B: B is not zoomed and never shows A's ink, even for a frame; tap A: it is where you left it; split, pan the right pane, close the left: the right one keeps its place. A driven window passed this (scene and PNG); the bundle is for a frame of the old canvas the scene cannot show (slinger-0e5e42)
+- [ ] (bundle) Canvas menu > Zoom to fit is there beside Zoom to 100% and runs; a canvas whose ink is far from the origin opens with it in view, cmd+9 after a pan brings it back and inside a box fits the box (a driven window and tests passed these) (slinger-ff9dbe)
+- [ ] (bundle) on page 3, zoomed in, split right and split down: both halves show the same place; step in beside, then escape, shows the source's place (tests and a driven window passed this; the bundle is for the footer buttons and the menu) (slinger-64b4d4)
 
 ## Pen-less use and text (plan pl-c5e2a3)
 

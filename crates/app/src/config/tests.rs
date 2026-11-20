@@ -154,7 +154,7 @@ fn every_error_names_its_line_and_has_a_hint() {
 }
 
 /// The default chords, each written out, in [`Command::ALL`]'s order.
-const DEFAULT_KEYS: [&str; 87] = [
+const DEFAULT_KEYS: [&str; 88] = [
     "cmd+q",
     "cmd+r",
     "cmd+shift+c",
@@ -242,6 +242,7 @@ const DEFAULT_KEYS: [&str; 87] = [
     "cmd+alt+o",
     "",
     "",
+    "cmd+9",
 ];
 
 #[test]

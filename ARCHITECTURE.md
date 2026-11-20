@@ -642,6 +642,10 @@ canvases/view.rs  each canvas pane's view: page, viewport, trail, reader
              and draws nothing until its page comes. Another workspace's
              views are parked and come back as left; a switch ends what was
              under way in a pane (the pen, a page question, a first tap).
+             A new view is unplaced (`placed`) until its page first comes,
+             when it opens with `Viewport::opening`, or the user pans or
+             zooms; a split copies the source's view, placed
+             (`Canvases::split_view`).
 canvases/live.rs  the live items' pages: each showing a pane draws fetched
              once on a thread of its own, put over its item; a press on an
              item whose page shows goes to the page unless it grabs the
@@ -698,7 +702,7 @@ canvases/drag.rs  the pen's drag and lift on the canvas panes: a drag of the
              cursor. The selection is of a page, so every pane on its page
              shows it.
 canvases/paging.rs  the canvas commands on a pane: pan, zoom (in, out, to
-             100%; a pinch and a cmd- or ctrl-scroll come here too, and each
+             100%, to fit the page or the room of the box it is inside; a pinch and a cmd- or ctrl-scroll come here too, and each
              zoom flashes its level, "Zoom 150%"), `toggle-grid` (the
              dotted grid on every canvas pane, flashing "Dotted grid
              on/off"; the config's `[canvas]` is its start), the page
@@ -1103,7 +1107,9 @@ window/items.rs  who holds the keyboard (`keyboard`), and so whether the
              item commands and delete-selection act on the focused pane's
              items: only while the window has it and no text of the app
              takes typing; else the key goes on (select all to a field or a
-             page as `selectAll:`, delete to a live item's page).
+             page as `selectAll:`, delete to a live item's page). Also
+             `split`, the one path of split-right and split-down, which
+             copies the source pane's view into the new one.
 scene/select/carry.rs  a drag of the selection goes by the canvas pane
              under the pen, read through that pane's own view, at every pen
              event and at the lift: over a pane on the same page the items
@@ -1218,7 +1224,10 @@ scene/hand.rs  space held for a pan: taken only while nothing takes typed
 layout.rs    geometry: sizes in, rectangles out, the canvas viewport (pan, zoom
              about a point or to a level, limits, the level as people read it,
              how far a scroll zooms; the canvas has no edge; a pane's view
-             starts with the origin in by a margin; reader mode's fit to
+             starts with the origin in by a margin; `fitting`, the view
+             that shows a box of the canvas at 100% or less; `opening`, where
+             a view with no place first opens: the start when that shows all
+             the content, else fitted; reader mode's fit to
              a column's width, scrolled no further than its ends) and where a pop-up
              opens (at the pen, kept inside the window; each cell at least
              28 pt high, what a pen taps). Pure. 100% coverage floor.

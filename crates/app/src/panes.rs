@@ -259,6 +259,7 @@ impl Panes {
             | Command::ZoomIn
             | Command::ZoomOut
             | Command::ZoomReset
+            | Command::ZoomToFit
             | Command::NextPage
             | Command::DeleteSelection
             | Command::ClearSelection

@@ -201,7 +201,9 @@ lie wholly inside the box's frame, edges included.
   (one tap is left to selecting it); `step-out` (opt+cmd+O), the footer's ⤴,
   or escape. Escape takes, in order: the key overlay, the page menu, the
   sling entry, the text being typed, a peek, a pop-up, the selection, and
-  only then steps out one box. `step-in-beside` (opt+shift+cmd+I) splits.
+  only then steps out one box. `step-in-beside` (opt+shift+cmd+I) splits;
+  the new pane starts where the source looks (slinger-64b4d4), so stepping
+  out of it shows the source's place.
 - What a paste or a duplicate adds in a pane inside a folded box, and a
   selection carried (dragged) into such a pane from another page, joins the
   box as a stroke drawn there does (slinger-cd04ab). A drag within one page

@@ -272,6 +272,8 @@ fn the_zoom_keys_are_on_command_and_the_pane_keys_on_option() {
     assert_eq!(keys.command(Chord::new(CMD | SHIFT, '+')), Some(Command::ZoomIn));
     assert_eq!(keys.command(Chord::new(CMD, '-')), Some(Command::ZoomOut));
     assert_eq!(keys.command(Chord::new(CMD, '0')), Some(Command::ZoomReset));
+    assert_eq!(keys.command(Chord::new(CMD, '9')), Some(Command::ZoomToFit));
+    assert_eq!(Command::named("zoom-to-fit"), Some(Command::ZoomToFit));
     assert_eq!(keys.command(Chord::new(ALT, '=')), Some(Command::GrowPane));
     assert_eq!(keys.command(Chord::new(ALT, '-')), Some(Command::ShrinkPane));
     assert_eq!(keys.command(Chord::new(ALT, '≠')), None, "never the typed character");

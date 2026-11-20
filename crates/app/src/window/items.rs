@@ -5,7 +5,8 @@
 //! nothing selected, steps the pane out of the box it is in. The one place that decides it: a caret inside a canvas
 //! text (slinger-ea308d) takes its keys here, and so does a page a press
 //! went on to, a live item's on a canvas (slinger-479dea). Also
-//! `step-in-beside` ([`beside`]): the selected box, in a new pane.
+//! `step-in-beside` ([`beside`]): the selected box, in a new pane; and a
+//! split ([`split`]), whose new pane copies the source pane's view.
 
 use std::path::Path;
 
@@ -74,7 +75,24 @@ pub fn beside(canvases: &mut Canvases, shared: &mut Shared, area: Rect, socket: 
     let Some(target) = canvases.step_target(&shared.panes, shared.panes.focus()) else {
         return false;
     };
-    shared.command(Command::SplitRight, area, socket);
+    split(Command::SplitRight, canvases, shared, area, socket);
     canvases.step_into(shared.panes.focus(), target);
     true
+}
+
+/// Splits the focused pane of `shared` laid in `area` (through the daemon
+/// on `socket` for a workspace) with `command`, split-right or
+/// split-down: the new pane, which takes focus, shows what the source
+/// shows, where it looks ([`Canvases::split_view`]). A split that did not
+/// happen leaves the focus, and copies nothing.
+pub fn split(
+    command: Command,
+    canvases: &mut Canvases,
+    shared: &mut Shared,
+    area: Rect,
+    socket: &Path,
+) {
+    let source = shared.panes.focus();
+    shared.command(command, area, socket);
+    canvases.split_view(source, shared.panes.focus());
 }

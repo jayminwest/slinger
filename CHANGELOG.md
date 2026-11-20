@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** Zoom to fit (cmd+9, the palette or the Canvas menu) zooms and
+  pans the focused pane so its whole page shows, at 100% or less; inside a
+  box it fits the box. A canvas a pane has not shown before opens the same
+  way when its ink lies out of the first view, instead of at the empty
+  origin.
+
 - **Daemon:** slingerd keeps where each pane of each workspace looks (its
   page, pan and zoom) and which pane has the focus, in
   `workspaces/views.json` in its data directory, through the new `pane_view`
@@ -486,6 +492,9 @@ bullet with the area in bold.
 
 ### Changed
 
+- **App:** a split pane starts where the pane it came from looks: the same
+  page, pan, zoom and box, instead of the first page at 100%. Step into box
+  beside, then escape, shows that place too.
 - **Install:** one way in on a Mac: `scripts/bundle.sh --install`, then
   open slinger. The app starts slingerd, which writes its log to
   `slingerd.log` in the data directory; to update, install again, reopen

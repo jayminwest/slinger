@@ -29,7 +29,7 @@ use crate::scene::shapes::DOUBLE_TAP;
 const ROOM: ItemId = ItemId((1 << 60) - 2);
 
 /// The boxes a pane is inside, outermost first, on one page.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(super) struct Trail {
     here: Option<(String, String)>,
     steps: Vec<Step>,
@@ -126,6 +126,12 @@ pub(super) fn shown_in<'a>(
     (items, inside, n)
 }
 
+/// What a pane shows of its page, to fit it: the room of the box it is
+/// inside, if any, else the extent of `items`, the page as it shows it.
+pub(super) fn content(items: &[Cow<'_, Item>], within: Option<&Inside>) -> Option<Rect> {
+    within.map(|w| w.room).or_else(|| crate::scene::canvas::extent(items.iter().map(AsRef::as_ref)))
+}
+
 /// The page `mirror` holds with what folded boxes hide too, `ink` laid
 /// over it: what a selection may hold while a pane is inside a folded box.
 pub(super) fn present<'a>(mirror: &'a Mirror, ink: &Ink, canvas: &str) -> Vec<Cow<'a, Item>> {
@@ -187,6 +193,7 @@ impl Canvases {
         let back = view.viewport;
         view.trail.steps.push(Step { id: target.id, folded: target.folded, back });
         view.viewport = back.at(Point { x: frame.x, y: frame.y });
+        view.placed = true;
     }
 
     /// Steps `pane` of `panes` out of the box it is in, one level, back to

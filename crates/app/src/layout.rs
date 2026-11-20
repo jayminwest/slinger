@@ -106,6 +106,41 @@ impl Viewport {
         Self { origin, ..Self::default() }
     }
 
+    /// A view that shows `content`, a canvas box, on a screen of `size`:
+    /// at the zoom where the content and [`CANVAS_MARGIN`] on each side fit
+    /// both ways, never above 100% and held at [`MIN_ZOOM`], with the
+    /// content's top left [`CANVAS_MARGIN`] points in ([`Viewport::at`]).
+    /// Content of no size, or a size or content that is not finite or not
+    /// positive, gives [`Viewport::start`].
+    pub fn fitting(content: Rect, size: Size) -> Self {
+        let values = [content.x, content.y, content.width, content.height, size.width, size.height];
+        let sized = content.width >= 0.0 && content.height >= 0.0;
+        let some = content.width > 0.0 || content.height > 0.0;
+        let screen = size.width > 0.0 && size.height > 0.0;
+        if !(values.iter().all(|v| v.is_finite()) && sized && some && screen) {
+            return Self::start();
+        }
+        let across = (size.width - 2.0 * CANVAS_MARGIN) / content.width;
+        let down = (size.height - 2.0 * CANVAS_MARGIN) / content.height;
+        let zoom = across.min(down).clamp(MIN_ZOOM, 1.0);
+        Self { origin: Point { x: 0.0, y: 0.0 }, zoom }.at(Point { x: content.x, y: content.y })
+    }
+
+    /// Where a view first opens on `content` (`None`: a page with nothing
+    /// on it) on a screen of `size`: [`Viewport::start`] when that shows
+    /// all of it, so what was drawn near the origin opens where it was
+    /// drawn; else [`Viewport::fitting`].
+    pub fn opening(content: Option<Rect>, size: Size) -> Self {
+        let start = Self::start();
+        let shown = start.visible(size);
+        let corners =
+            |c: Rect| [Point { x: c.x, y: c.y }, Point { x: c.x + c.width, y: c.y + c.height }];
+        match content {
+            Some(c) if !corners(c).iter().all(|&p| shown.contains(p)) => Self::fitting(c, size),
+            _ => start,
+        }
+    }
+
     /// Screen points per canvas point.
     pub fn zoom(self) -> f64 {
         self.zoom

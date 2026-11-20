@@ -25,14 +25,19 @@ pub(super) struct View {
     pub(super) reader: Option<(Rect, Size)>,
     /// The boxes it is inside ([`super::step`]).
     pub(super) trail: Trail,
+    /// Whether it has a place: false for a new view until its page first
+    /// comes ([`View::place`]) or the user moves it. A view kept elsewhere
+    /// that comes back is placed.
+    pub(super) placed: bool,
 }
 
 impl Default for View {
-    /// A new pane's view: at the start, on the first page, nothing drawn.
+    /// A new pane's view: at the start, on the first page, nothing drawn,
+    /// not placed.
     fn default() -> Self {
-        let trail = Trail::default();
-        let viewport = Viewport::start();
-        Self { canvas: None, viewport, page: None, last: None, reader: None, trail }
+        let (trail, viewport) = (Trail::default(), Viewport::start());
+        let (page, last, reader) = (None, None, None);
+        Self { canvas: None, viewport, page, last, reader, trail, placed: false }
     }
 }
 
@@ -46,6 +51,24 @@ impl View {
         if self.canvas.is_none() {
             self.canvas = Some(canvas.to_string());
         }
+    }
+
+    /// Places a view that has no place yet, once, with its page come, where
+    /// it opens on `content` (what the page shows, or the room of the box
+    /// it is inside) on a screen of `size` ([`Viewport::opening`]). A view
+    /// in reader mode keeps its column's place.
+    pub(super) fn place(&mut self, content: Option<Rect>, size: Size) {
+        if !std::mem::replace(&mut self.placed, true) && self.reader.is_none() {
+            self.viewport = Viewport::opening(content, size);
+        }
+    }
+
+    /// The view of a pane split off this one: the same canvas, page, place
+    /// and boxes, placed, with nothing drawn yet (its frame differs).
+    fn copied(&self) -> Self {
+        let (canvas, page, trail) = (self.canvas.clone(), self.page.clone(), self.trail.clone());
+        let (viewport, reader) = (self.viewport, self.reader);
+        Self { canvas, viewport, page, last: None, reader, trail, placed: true }
     }
 
     /// Whether it may be the view of `canvas`: it is, or it has not learnt
@@ -106,6 +129,15 @@ impl Views {
         &mut self.shown[at].1
     }
 
+    /// Gives pane `to` a copy of pane `from`'s view ([`View::copied`]); one
+    /// with no view yet keeps its own.
+    pub(super) fn copy(&mut self, from: PaneId, to: PaneId) {
+        let copied = self.shown.iter().find(|(p, _)| *p == from).map(|(_, v)| v.copied());
+        if let Some(view) = copied.filter(|_| from != to) {
+            *self.get(to) = view;
+        }
+    }
+
     /// Forgets the views of the panes not in `panes`.
     pub(super) fn keep(&mut self, panes: &[PaneId]) {
         self.shown.retain(|(id, _)| panes.contains(id));
@@ -126,6 +158,15 @@ impl Views {
             }
             None => {}
         }
+    }
+}
+
+impl super::Canvases {
+    /// Pane `to`, split off pane `from`, shows what `from` shows, where it
+    /// looks: the same page, pan, zoom and boxes. After that each moves on
+    /// its own.
+    pub fn split_view(&mut self, from: PaneId, to: PaneId) {
+        self.views.copy(from, to);
     }
 }
 

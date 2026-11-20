@@ -329,6 +329,12 @@ fn grown(old: &Draw, new: &Draw) -> Option<Rect> {
     Rect::around(points.chain([from])).map(|r| r.outset(width / 2.0 + 1.0))
 }
 
+/// The canvas box `items` cover, as a pane shows them: the union of their
+/// bounds; `None` for a page with nothing on it.
+pub fn extent<'a>(items: impl IntoIterator<Item = &'a Item>) -> Option<Rect> {
+    items.into_iter().filter_map(|i| i.shape.bounds()).reduce(Rect::union)
+}
+
 impl Shape {
     /// The canvas box the shape's ink covers; `None` when it has no ink.
     pub fn bounds(&self) -> Option<Rect> {

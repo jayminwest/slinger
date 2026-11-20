@@ -257,6 +257,8 @@ fn a_zoom_reaches_the_scene_and_flashes_its_level() {
         let ui = Panes::new(Pane { kind: Kind::Ui, name: "board".into() });
         assert!(canvases.command(&ui, (ui.focus(), WINDOW.rect()), Command::ZoomIn));
         assert_eq!(canvases.said().as_deref(), Some("No canvas in this pane to zoom"));
+        assert!(canvases.command(&ui, (ui.focus(), WINDOW.rect()), Command::ZoomToFit));
+        assert_eq!(canvases.said().as_deref(), Some("No canvas in this pane to zoom"));
     });
 }
 

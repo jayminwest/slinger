@@ -71,6 +71,8 @@ fn a_turn_finds_the_panes_view_of_that_canvas_shown_or_parked() {
     assert_eq!(views.get(pane(1)).page, Some(("main".into(), "p2".into())), "a's, parked");
 }
 
+mod fit;
+
 mod shown {
     use slinger_control::{Pane as Shown, PaneKind, PaneSplit, PaneTree};
 
@@ -150,4 +152,19 @@ mod shown {
             assert_eq!(canvases.view(pane(2)).viewport, Viewport::start());
         });
     }
+}
+
+#[test]
+fn a_copy_takes_the_page_and_the_place_and_none_from_a_pane_with_no_view() {
+    let mut views = Views::default();
+    panned(&mut views, 1, "main", 40.0);
+    views.get(pane(1)).page = Some(("main".into(), "p3".into()));
+    views.copy(pane(1), pane(2));
+    assert_eq!(origin(&mut views, 2), origin(&mut views, 1));
+    let copy = views.get(pane(2));
+    assert!(copy.placed && copy.last.is_none(), "placed, nothing drawn yet");
+    assert_eq!(copy.page, Some(("main".into(), "p3".into())));
+    views.copy(pane(9), pane(2));
+    views.copy(pane(2), pane(2));
+    assert_eq!(views.get(pane(2)).page, Some(("main".into(), "p3".into())), "kept");
 }
