@@ -102,17 +102,7 @@ impl Canvas {
     #[must_use]
     pub fn held(&self, of: ItemId) -> Vec<ItemId> {
         let Some(page) = self.item(of).map(Item::page) else { return Vec::new() };
-        let holders = self.holders(page);
-        let under = |mut id: ItemId| {
-            while let Some(&up) = holders.get(&id) {
-                if up == of {
-                    return true;
-                }
-                id = up;
-            }
-            false
-        };
-        self.items(page).map(Item::id).filter(|&id| under(id)).collect()
+        held_in(&self.holders(page), of)
     }
 
     /// A folded box as it stands open: its open frame and no fold. `None`
@@ -227,6 +217,25 @@ impl Canvas {
         }
         held
     }
+}
+
+/// [`Canvas::held`] from `holders`, one page's [`Canvas::holders`]: it looks
+/// only at the held items, not at the page, so a caller that carries several
+/// boxes works the page out once.
+pub(crate) fn held_in(holders: &HashMap<ItemId, ItemId>, of: ItemId) -> Vec<ItemId> {
+    let under = |mut id: ItemId| {
+        while let Some(&up) = holders.get(&id) {
+            if up == of {
+                return true;
+            }
+            id = up;
+        }
+        false
+    };
+    let mut held: Vec<ItemId> = holders.keys().copied().filter(|&id| under(id)).collect();
+    // Ids rise, so id order is item order.
+    held.sort_unstable();
+    held
 }
 
 /// Whether `r` lies wholly inside `frame`, edges included.
