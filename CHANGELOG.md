@@ -535,6 +535,7 @@ bullet with the area in bold.
   resize the text, as it does when you move or nudge it.
 - **App:** while a live item's page on a canvas has the keyboard, delete
   goes to the page; it no longer deletes the selected canvas items.
+  Escape goes to the page too; it no longer clears the canvas selection.
 - **Agents:** a reply that leaves out its colour and size no longer takes
   them from writing hidden in a folded box; it matches what the page shows.
 - **App:** the caret in a canvas text moves, and delete deletes, by what
