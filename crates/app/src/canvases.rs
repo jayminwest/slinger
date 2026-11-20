@@ -27,6 +27,7 @@ mod fold;
 mod kept;
 mod keys;
 mod live;
+mod news;
 mod paging;
 mod pdf;
 mod reader;
@@ -39,16 +40,16 @@ use std::rc::Rc;
 
 use slinger_control::Client;
 
-use crate::backend::{Flick, Follower, News, Outbox, Problem, Slinger, run};
+use crate::backend::{Flick, Follower, Outbox, Problem, Slinger, run};
 use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Point, Rect, Size, Viewport};
-use crate::mirror::{Applied, Mirror};
+use crate::mirror::Mirror;
 use crate::panes::{Kind, Panes};
 use crate::scene::crop::Crop;
 use crate::scene::cursor::Cursor;
 use crate::scene::grid::Paper;
-use crate::scene::ink::{Answer, Ink, Pen};
-use crate::scene::pages::{self, Pages};
+use crate::scene::ink::{Ink, Pen};
+use crate::scene::pages::Pages;
 use crate::scene::select::Select;
 use crate::scene::shapes::{Press, Shapes};
 use crate::scene::sidebar::Agent;
@@ -56,6 +57,7 @@ use crate::scene::sling::Sling;
 use crate::scene::slung::Slung;
 use crate::scene::tools::Tool;
 use crate::scene::{CanvasPane, canvas};
+use crate::trace::Paged;
 use find::{canvas_of, find, matches, pane_shown, to_canvas, wanted};
 
 mod dictation;
@@ -128,6 +130,8 @@ struct Open {
     problem: Option<Problem>,
     /// The canvas's file, as the daemon last said.
     file: Option<String>,
+    /// When its page came, for the switch's trace.
+    paged: Option<Paged>,
 }
 
 /// One canvas pane: where it looks, the page it shows (by canvas and page
@@ -205,84 +209,6 @@ impl Canvases {
         self.pdfs = pdf::Pdfs::start(daemon.clone(), crate::backend::pdf::cache());
         self.daemon = daemon;
         self.open.clear();
-    }
-
-    /// Takes in what the followers heard and what the daemon said to the
-    /// ink, and sends the next stroke. Returns whether anything a pane
-    /// shows changed.
-    pub fn poll(&mut self) -> bool {
-        let mut changed = false;
-        let mut lost = Vec::new();
-        for open in &mut self.open {
-            for news in open.follower.news() {
-                changed = true;
-                match news {
-                    News::Shown(page) => {
-                        (open.heard, open.file) = (page.next.saturating_sub(1), page.path.clone());
-                        (open.mirror, open.problem) = (Some(Mirror::new(&page)), None);
-                    }
-                    News::Problem(problem) => open.problem = Some(problem),
-                    News::Changed(feed) => {
-                        open.heard = feed.next.saturating_sub(1);
-                        let Some(mirror) = &mut open.mirror else { continue };
-                        if mirror.apply(&feed) == Applied::Gone {
-                            let next = pages::after_remove(mirror.pages(), mirror.page());
-                            let next = next.map(str::to_string);
-                            lost.push((open.canvas.clone(), mirror.page().to_string(), next));
-                        }
-                    }
-                }
-            }
-        }
-        for (canvas, page, next) in lost {
-            self.gone(&canvas, &page, next.as_deref());
-        }
-        let (sent, dictated, came) = (self.send(), self.poll_dictation(), self.lives.poll());
-        self.poll_sling() || sent || changed || dictated || came | self.pdfs.poll()
-    }
-
-    /// Takes the daemon's answers to the ink (a pane that asked for a new
-    /// page turns to it), lets go of the changes every page followed of
-    /// their canvas now holds, and hands the next change to the outbox.
-    /// Returns whether there were answers.
-    fn send(&mut self) -> bool {
-        if !self.shapes.editing() {
-            self.text_joined();
-        }
-        let answers = self.outbox.answers();
-        let answered = !answers.is_empty();
-        for (key, answer) in answers {
-            if let Some(at) = self.turning.iter().position(|(k, ..)| *k == key) {
-                if let Answer::NewPage { page, .. } = &answer {
-                    let (_, pane, canvas) = self.turning.remove(at);
-                    self.view(pane).page = Some((canvas, page.clone()));
-                } else if matches!(answer, Answer::Refused(_)) {
-                    self.turning.remove(at);
-                }
-            }
-            if let Answer::Made { ids, .. } = &answer {
-                self.select.made(key, ids);
-            }
-            self.fold_answered(key, &answer);
-            let renamed = self.ink.answered(key, answer);
-            self.select.renamed(&renamed);
-        }
-        // Every page of a canvas hears the same numbers: the slowest decides.
-        let mut heard: Vec<(&str, u64)> = Vec::new();
-        for open in self.open.iter().filter(|o| o.mirror.is_some()) {
-            match heard.iter_mut().find(|(c, _)| *c == open.canvas) {
-                Some((_, upto)) => *upto = (*upto).min(open.heard),
-                None => heard.push((&open.canvas, open.heard)),
-            }
-        }
-        for (canvas, upto) in heard {
-            self.ink.heard(canvas, upto);
-        }
-        if let Some((key, change)) = self.ink.next() {
-            self.outbox.send(key, self.ink.once(key), change, self.ink.joins(key));
-        }
-        self.keep();
-        answered
     }
 
     /// What is wrong with any canvas followed, or with sending the ink.
@@ -422,8 +348,18 @@ impl Canvases {
                 let follower =
                     Follower::start(self.daemon.clone(), (*canvas).to_string(), page.clone());
                 let (canvas, asked) = ((*canvas).to_string(), page.clone());
-                let (mirror, problem, file) = (None, None, None);
-                self.open.push(Open { canvas, asked, follower, mirror, heard: 0, problem, file });
+                let (mirror, problem, file, paged) = (None, None, None, None);
+                let heard = 0;
+                self.open.push(Open {
+                    canvas,
+                    asked,
+                    follower,
+                    mirror,
+                    heard,
+                    problem,
+                    file,
+                    paged,
+                });
             }
         }
         self.views.retain(|(id, _)| placed.iter().any(|(p, _, _)| p == id));

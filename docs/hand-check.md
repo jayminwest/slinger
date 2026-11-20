@@ -2,6 +2,10 @@
 
 Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/slinger.app`) or real hardware. First check what a driven window can show (`slinger drive`; `slinger guide` says how). An agent that ships something only a person can check adds one line here, with the commit, under the right heading. It does not file a seed. The owner ticks a line or deletes it. Each line keeps the id of the seed it came from; `sd show <id>` gives its history.
 
+## Switching and views (slinger-eaa98b)
+
+- [ ] (bundle) `open target/slinger.app --env SLINGER_TRACE=switch --stderr <file>`, tap between two workspaces ten times, paste the lines in slinger-eaa98b: the baseline in the shown window (a driven window measured 818 to 1925 ms to drawn, of which under 5 ms was the daemon) (slinger-9fd400)
+
 ## Fold and boxes (plan pl-f130a2)
 
 - [ ] in the bundle: fold, peek, step in, split to compare, nest, move and sling boxes, with the pen and with the keyboard (slinger-03095f)
