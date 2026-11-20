@@ -123,6 +123,10 @@ after a restart resumes the conversation (see "Sessions").
 
 The open workspaces are listed in `workspaces/open.json`, and a workspace
 with no root keeps its file in `workspaces/<id>/` (see "Workspaces" below).
+`workspaces/views.json` keeps where each pane of each workspace looks, and
+which pane has the focus, keyed by the directory of the workspace's file and
+the pane's id (see "Panes"). It stays when a workspace closes, so opening it
+again restores them. A missing or unreadable file is no views.
 
 Canvases live beside the record, one file per canvas:
 `canvases/<id>.canvas`, in the format of `docs/design/canvas-file.md`. The
@@ -236,10 +240,11 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `workspace_list` | none | `workspaces`: list of workspaces, sorted by name; a broken one has `error` |
 | `workspace_show` | `workspace`: a name, or the absolute directory of its file | `workspace` |
 | `workspace_close` | `workspace`: as `workspace_show` | `dir`: the directory of its file |
-| `pane_list` | `workspace`: as `workspace_show` | `workspace`: its name, `layout`: the pane tree |
+| `pane_list` | `workspace`: as `workspace_show` | `workspace`: its name, `layout`: the pane tree (each canvas pane with its kept `view`, if any), `focus`: the id of the pane that has the focus (optional) |
 | `pane_open` | `workspace`, `kind`: `canvas` or `ui`, `target`: canvas id or UI name, `beside`: a pane number (optional), `below`: bool (default `false`) | `workspace`, `layout`, `pane`: the new pane's number, `event`: the `pane_moved` appended |
 | `pane_close` | `workspace`, `pane`: a pane number | `workspace`, `layout`, `event`: the `pane_moved` appended (absent when nothing changed) |
 | `pane_resize` | `workspace`, `pane`: a pane number, `ratio`: number | `workspace`, `layout`, `event`: the `pane_moved` appended (absent when nothing changed) |
+| `pane_view` | `workspace`, `views`: list of `{id, canvas, page, x, y, zoom}` (`page` optional), `focus`: a pane id (optional) | as `pane_list` |
 | `canvas_read` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `in`: a box's id (optional: read what it holds), `after`: number (optional, default the last sling's), `select`: list of item ids (optional), `out`: absolute path of a directory (optional) | `packet`: blob id of the text, `dir`: the directory written, `text`: the packet with `at`, `images`: list of `{name, id}` |
 | `canvas_crop` | `canvas`: canvas id, `of`: an item id or a box, `path`: absolute path of a PNG file | `images`: list of `{path, x, y, width, height}` |
 | `canvas_strokes` | `canvas`: canvas id, `item`: an item id | `strokes`: list of stroke items with `points` |
@@ -590,7 +595,7 @@ across a daemon restart, and is never given again in that workspace. A
 client keys what it keeps per pane by the id. The verbs still name a pane
 by its number. A reply from a daemon older than ids has no `id`; read it as 0.
 
-`layout` is a tree: a pane, `{pane, id, kind, target}`, or a split,
+`layout` is a tree: a pane, `{pane, id, kind, target, view}`, or a split,
 `{split, ratio, first, second}`, where `split` is `row` (side by side) or
 `column` (stacked) and `ratio` (0.1 to 0.9) is the first side's share. A
 workspace whose layout is unset, or one this daemon cannot read, has one
@@ -611,6 +616,31 @@ the grow and shrink keys run. A pane that is not there, the last pane (no
 divider comes after it), or a share the split already has changes nothing
 and succeeds with no `event`. A workspace that is not open is `not_found`.
 
+The server also keeps where each pane looks, on this machine, so a window
+opens again where it was left. **`pane_view`** keeps the views it names, each
+by pane id: `canvas` and `page` (optional: the first page) are what the pane
+shows, `x` and `y` the canvas point at its top left, and `zoom` its scale (1
+is 100%). With `focus` it keeps which pane has the focus. The panes' other
+views stay. A number that is not finite, or a zoom of 0 or less, is
+`invalid`, with a hint, and keeps nothing. A view for a pane that is not
+there, or not on the canvas the pane shows, and a focus on a pane that is
+not there, are left out and the verb succeeds. It replies as `pane_list`. A
+daemon older than it answers `bad_request`.
+
+Every pane reply gives a canvas pane the `view` kept for it, only when that
+view is of the canvas the pane shows now, and gives the reply `focus`, the
+kept focus, when that pane is there. A pane with no `view` has none kept: a
+client places it itself (the app fits the content). `pane_open` beside a
+canvas pane gives the new pane that pane's view when both show the same
+canvas. A change drops the views and the focus of the panes it closed. Views
+are kept in the data directory (`workspaces/views.json`, see "Data
+directory"), never in the workspace's file or a canvas file, and a view
+change appends no event: they change as often as a pane pans. Each change
+is written whole and synced before the reply, one at a time; a call that
+changes nothing writes nothing. The daemon does not coalesce calls: a client
+sends a view once it has settled (the app waits 300 ms after the last pan or
+zoom), not on every frame.
+
 Each change is written to the workspace's file, whole, before the reply, and
 appends one `pane_moved` event tagged with the workspace, from `slingerd`:
 the pane it opened (`canvas:notes`) with its frame, the pane before the
@@ -621,6 +651,8 @@ left.
 ```json
 { "v": 1, "op": "pane_open", "workspace": "notes", "kind": "canvas", "target": "board", "beside": 1 }
 { "ok": true, "workspace": "notes", "layout": { "split": "row", "ratio": 0.5, "first": { "pane": 1, "id": 1, "kind": "canvas", "target": "notes" }, "second": { "pane": 2, "id": 2, "kind": "canvas", "target": "board" } }, "pane": 2, "event": 7 }
+{ "v": 1, "op": "pane_view", "workspace": "notes", "views": [{ "id": 2, "canvas": "board", "page": "p2", "x": -120, "y": 40, "zoom": 0.5 }], "focus": 2 }
+{ "ok": true, "workspace": "notes", "layout": { "split": "row", "ratio": 0.5, "first": { "pane": 1, "id": 1, "kind": "canvas", "target": "notes" }, "second": { "pane": 2, "id": 2, "kind": "canvas", "target": "board", "view": { "canvas": "board", "page": "p2", "x": -120.0, "y": 40.0, "zoom": 0.5 } } }, "focus": 2 }
 ```
 
 #### The change feed

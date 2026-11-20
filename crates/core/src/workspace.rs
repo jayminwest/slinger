@@ -3,11 +3,13 @@
 //!
 //! This module owns the definition file's format (`docs/workspace.md`). No
 //! other module knows it is TOML. It does no file IO: callers read and write
-//! the bytes and hand the text here. [`panes`] owns the layout's text.
+//! the bytes and hand the text here. [`panes`] owns the layout's text, and
+//! [`view`] the panes' views, which the server keeps outside the file.
 
 pub mod panes;
 pub mod profile;
 mod rules;
+pub mod view;
 
 use serde::{Deserialize, Serialize};
 

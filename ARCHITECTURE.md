@@ -198,6 +198,13 @@ workspace/panes.rs  a workspace's panes (SPEC section 7): the tree of panes
              `next`; version 1, no ids, still read with ids 1..n; ids are
              repaired, never refused). Workspace::panes reads it (one pane on
              the canvas when unset or unreadable), set_panes stores version 2.
+workspace/view.rs  where each pane looks: `PaneView` (canvas, page, the
+             canvas point at the top left, zoom) and `Views` (the focus and
+             a view per pane id) with the rules (`set` refuses a number that
+             is not finite or a zoom of 0 or less; `keep` drops gone panes;
+             `copy`; `view_of` gives a view only for the canvas the pane
+             shows), and `Kept`, the text of the daemon's views file by
+             workspace directory (unreadable text is no views).
 workspace/profile.rs  an agent's profiles (`[[agent.profile]]`): a name,
              a working directory and permission rules, each rule checked
              against the tools it knows (an unknown one is refused, never
@@ -287,15 +294,24 @@ workspaces.rs the open workspaces: the list of directories that hold their
              it for the workspace tag of each event it appends. `panes`
              changes a workspace's layout under the list's lock and writes
              the file whole when it changed; `edit` does the same for any
-             change the core makes (the profiles).
+             change the core makes (the profiles). It holds the panes'
+             kept views (`views()`); workspaces/disk.rs writes its files
+             whole and synced.
+views.rs     where the panes look: `workspaces/views.json` (the core's
+             `view::Kept`), read on first use and kept in memory; `change`
+             writes it whole and synced when the views changed, one at a
+             time. Never the workspace's file, never the record.
 server/profile.rs  `profile_list`, `profile_set`, `profile_remove`: the core
              checks the profile, a `dir` must be there (kept with its links
              resolved), and `Workspaces::edit` writes the file.
-server/pane.rs  `pane_list`, `pane_open`, `pane_close`, `pane_resize`: the canvas or UI a
+server/pane.rs  `pane_list`, `pane_open`, `pane_close`, `pane_resize`, `pane_view`: the canvas or UI a
              pane shows must exist; the core changes the layout; each change
              appends its `pane_moved`, tagged with the workspace. The reply
-             gives each pane its number and its core id. `open` is
-             shared with `ui_open`.
+             gives each pane its number, its core id and its kept view (for
+             the canvas it shows), and the kept focus. A change drops gone
+             panes' views; an open beside a pane on the same canvas copies
+             its view. `pane_view` keeps views and focus, appends nothing.
+             `open` is shared with `ui_open`.
 server/showing.rs  `ui_open`, `ui_shown`, `ui_reply`: an open checks all
              before it appends `ui_opened` and opens the pane, or, on a
              canvas, appends it under the canvas's lock once the put will go
@@ -1542,6 +1558,7 @@ Each boundary has something that fails when it is broken:
 | Only `platform/pdf.rs` reads a PDF (CoreGraphics, PDFKit or a PDF crate); the core, the daemon, control and the CLI never parse one | `check:layers` rule `pdf-lives-in-platform-pdf` |
 | A layout reads back as written; a closed pane's space goes to its sibling | the tests of `crates/core/src/workspace/panes.rs`, `crates/app/src/layout/tree.rs` and `crates/app/src/panes.rs` |
 | Panes open, close, resize and list through the socket, each change records `pane_moved`, closing a pane already gone succeeds, the layout survives a restart; the app follows another client's change | `crates/daemon/src/tests/pane.rs` through a real socket, and `crates/app/src/backend.rs` |
+| Each pane's kept view and the focus come back in every pane reply and after a restart; a close drops a gone pane's, an open beside a pane on the same canvas copies it; a view of another canvas or a gone pane is left out; `pane_view` writes neither the workspace file nor the record | `crates/core/src/workspace/view/tests.rs`, `crates/daemon/src/tests/pane_view.rs` through a real socket |
 | An agent opens a UI with data; each reply is recorded and reaches its running session as one JSON line, in order; a reply for a stopped session stays in the record; a refused open records nothing; replies are bounded | `crates/daemon/src/tests/showing.rs`, with a stand-in for Claude Code, and `crates/core/src/ui/showing.rs` |
 | A canvas page reads every kind from the canvas file and follows each feed operation | `crates/app/src/mirror/tests.rs` |
 | A folded box hides what it holds and draws it as its miniature; `fold` and the fold mark fold and unfold through the daemon; an unfold into a taken room peeks until escape or a press outside, writing nothing | `crates/app/src/mirror/fold/tests.rs`, `crates/app/src/canvases/fold/tests.rs`, and `crates/app/src/tests/fold.rs` against a real daemon |

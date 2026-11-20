@@ -19,6 +19,7 @@ mod sessions;
 mod store;
 #[cfg(test)]
 mod tests;
+mod views;
 mod workspaces;
 
 use std::ffi::OsString;
