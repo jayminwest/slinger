@@ -1,9 +1,13 @@
+use slinger_control::Client;
+
 use super::*;
 use crate::backend::testing::{fake_flick, ready, user_stroke, wait_until};
 use crate::backend::tests::{open_notes, with_store};
+use crate::commands::Chord;
 use crate::commands::Command;
 use crate::commands::Keymap;
 use crate::config::Config;
+use crate::layout::Point;
 use crate::layout::WINDOW;
 use crate::panes::{Kind, Pane};
 use crate::scene::Scene;
@@ -97,7 +101,7 @@ fn resolves_it_with_its_tick(canvases: &mut Canvases, panes: &Panes, daemon: &Cl
 /// Opening the entry again lists the note saved under it.
 fn opens_listing_it(canvases: &mut Canvases, panes: &Panes) {
     assert!(open(canvases, panes));
-    wait_until(|| canvases.poll_feedback());
+    wait_until(|| canvases.flow.poll_feedback());
     let lines: Vec<_> = shown(canvases, panes).labels.into_iter().map(|l| l.text).collect();
     assert_eq!(lines.len(), 2, "{lines:?}");
     assert!(lines[0] == "Recent feedback" && lines[1].ends_with(" · the pen lags"), "{lines:?}");
@@ -141,7 +145,7 @@ fn escape_cancels_and_a_lost_daemon_opens_the_entry_again() {
     canvases.sling_typed("slow");
     assert!(canvases.sling_key(RETURN));
     assert!(!open(&mut canvases, &panes), "saving");
-    wait_until(|| canvases.poll_feedback());
+    wait_until(|| canvases.flow.poll_feedback());
     let scene = shown(&canvases, &panes);
     assert_eq!(scene.entry.map(|e| e.text), Some("slow".into()));
     assert!(scene.labels[0].text.starts_with("✗ "), "{:?}", scene.labels);
@@ -210,7 +214,7 @@ fn tap(canvases: &mut Canvases, target: Target) {
 /// Flick on `socket`.
 fn arrived(daemon: &Client, socket: &std::path::Path) -> (Canvases, Panes) {
     let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
-    canvases.listen_to(socket.to_path_buf());
+    canvases.flow.listen_to(socket.to_path_buf());
     let theme = Config::default().theme;
     wait_until(|| {
         canvases.poll();
@@ -243,9 +247,9 @@ fn the_pen_dictates_a_note_and_saves_it_with_the_buttons_beside_its_entry() {
         let lines = shown(&canvases, &panes).labels;
         assert_eq!(lines[0].text, "● Flick is listening: dictate again when done");
         assert!(lines[0].frame.y > entry.frame.y + entry.frame.height, "under the note's box");
-        wait_until(|| canvases.poll_dictation());
+        wait_until(|| canvases.flow.poll_dictation());
         assert!(canvases.sling_command(Command::Dictate, &panes, area), "again: stop");
-        wait_until(|| canvases.poll_dictation());
+        wait_until(|| canvases.flow.poll_dictation());
         assert_eq!(buttons(&canvases, &panes).0[1], DICTATE);
         assert_eq!(*heard.lock().unwrap(), [r#"["dictation","start"]"#, r#"["dictation","stop"]"#]);
         // Flick types what it heard into the focused field, the note's.

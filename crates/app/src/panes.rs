@@ -247,85 +247,6 @@ impl Panes {
     /// not about panes do nothing.
     pub fn command(&mut self, command: Command, area: Rect) {
         match command {
-            Command::Quit
-            | Command::ReloadConfig
-            | Command::PickColour
-            | Command::PickShape
-            | Command::PickTool
-            | Command::PickWidth
-            | Command::WidthUp
-            | Command::WidthDown
-            | Command::PickSize
-            | Command::SizeUp
-            | Command::SizeDown
-            | Command::ToggleSidebar
-            | Command::DismissNotice
-            | Command::SlingNow
-            | Command::PanLeft
-            | Command::PanRight
-            | Command::PanUp
-            | Command::PanDown
-            | Command::ZoomIn
-            | Command::ZoomOut
-            | Command::ZoomReset
-            | Command::ZoomToFit
-            | Command::NextPage
-            | Command::DeleteSelection
-            | Command::ClearSelection
-            | Command::ToolPen
-            | Command::ToolEraser
-            | Command::ToolLasso
-            | Command::ToolText
-            | Command::ToolBox
-            | Command::ToolArrow
-            | Command::ToolSelect
-            | Command::CropPdf
-            | Command::Sling
-            | Command::PreviousPage
-            | Command::NewPage
-            | Command::RenamePage
-            | Command::RemovePage
-            | Command::Undo
-            | Command::Redo
-            | Command::Dictate
-            | Command::ShowKeys
-            | Command::ShowCommands
-            | Command::LeaveFeedback
-            | Command::ToggleGrid
-            | Command::Save
-            | Command::ShowCanvasFile
-            | Command::OpenPdf
-            | Command::OpenWorkspace
-            | Command::CloseWorkspace
-            | Command::ShowWorkspaceFolder
-            | Command::StartAgent
-            | Command::StopAgent
-            | Command::RestartAgent
-            | Command::ExportUi
-            | Command::ReloadUi
-            | Command::ShowFeedbackFile
-            | Command::ShowAllFeedback
-            | Command::SelectAll
-            | Command::NextItem
-            | Command::PreviousItem
-            | Command::NudgeLeft
-            | Command::NudgeRight
-            | Command::NudgeUp
-            | Command::NudgeDown
-            | Command::NudgeLeftFine
-            | Command::NudgeRightFine
-            | Command::NudgeUpFine
-            | Command::NudgeDownFine
-            | Command::Duplicate
-            | Command::Find
-            | Command::FindNext
-            | Command::NewText
-            | Command::Fold
-            | Command::StepIn
-            | Command::StepInBeside
-            | Command::StepOut
-            | Command::StartSlingerd
-            | Command::RestartDaemon => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),
@@ -336,6 +257,7 @@ impl Panes {
             Command::FocusDown => self.focus_toward(Direction::Down, area),
             Command::GrowPane => self.grow(1.0),
             Command::ShrinkPane => self.grow(-1.0),
+            _ => {}
         }
     }
 }

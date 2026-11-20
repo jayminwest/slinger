@@ -1,0 +1,416 @@
+# commands: index name | title | group | default chord
+0 quit | Quit slinger | Window | ⌘Q
+1 reload-config | Reload config | Window | ⌘R
+2 pick-colour | Pick a colour | Pop-ups | ⇧⌘C
+3 pick-shape | Pick a shape | Pop-ups | ⇧⌘S
+4 pick-tool | Pick a tool | Pop-ups | ⇧⌘T
+5 pick-width | Pick a width | Pop-ups | ⇧⌘W
+6 split-right | Split right | Panes | ⌘D
+7 split-down | Split down | Panes | ⇧⌘D
+8 close-pane | Close pane | Panes | ⌘W
+9 focus-next | Focus next pane | Panes | ⌃⇥
+10 focus-left | Focus pane left | Panes | ⌥⌘←
+11 focus-right | Focus pane right | Panes | ⌥⌘→
+12 focus-up | Focus pane up | Panes | ⌥⌘↑
+13 focus-down | Focus pane down | Panes | ⌥⌘↓
+14 grow-pane | Grow pane | Panes | ⌥=
+15 shrink-pane | Shrink pane | Panes | ⌥-
+16 toggle-sidebar | Show or hide sidebar | Window | ⌘B
+17 dismiss-notice | Dismiss notice | Window | ⌘.
+18 pan-left | Pan left | Canvas | ⌥←
+19 pan-right | Pan right | Canvas | ⌥→
+20 pan-up | Pan up | Canvas | ⌥↑
+21 pan-down | Pan down | Canvas | ⌥↓
+22 zoom-in | Zoom in | Canvas | ⌘=
+23 zoom-out | Zoom out | Canvas | ⌘-
+24 zoom-reset | Zoom to 100% | Canvas | ⌘0
+25 next-page | Next page | Pages | ⌘]
+26 delete-selection | Delete selection | Canvas | ⌫
+27 clear-selection | Select nothing | Canvas | ⎋
+28 tool-pen | Pen | Tools | ⌘1
+29 tool-eraser | Eraser | Tools | ⌘2
+30 tool-lasso | Lasso | Tools | ⌘3
+31 tool-text | Text | Tools | ⌘4
+32 tool-box | Box | Tools | ⌘5
+33 tool-arrow | Arrow | Tools | ⌘6
+34 tool-select | Select | Tools | ⌘7
+35 width-up | Thicker pen | Tools | ⌥]
+36 width-down | Thinner pen | Tools | ⌥[
+37 sling | Sling selection | Sling | ⌘↩
+38 previous-page | Previous page | Pages | ⌘[
+39 new-page | New page | Pages | ⌘N
+40 rename-page | Rename page | Pages | ⇧⌘R
+41 remove-page | Remove page | Pages | ⇧⌘⌫
+42 undo | Undo | Canvas | ⌘Z
+43 redo | Redo | Canvas | ⇧⌘Z
+44 dictate | Dictate prompt | Sling | ⇧⌘↩
+45 show-keys | Show keys | Window | ⌘/
+46 show-commands | Show commands | Window | ⌘K
+47 leave-feedback | Leave feedback… | Window | ⇧⌘F
+48 toggle-grid | Dotted grid | Canvas | ⌘'
+49 sling-now | Sling now | Sling | ⌥↩
+50 save | Save | Canvas | ⌘S
+51 show-canvas-file | Show canvas file in Finder | Canvas | ⌥⌘R
+52 open-pdf | Open PDF or tldraw… | File | ⌘O
+53 crop-pdf | Crop PDF | Tools | ⌘8
+54 open-workspace | Open workspace… | File | ⇧⌘O
+55 close-workspace | Close workspace | File | ⌥⌘W
+56 show-workspace-folder | Show workspace folder in Finder | File | -
+57 start-agent | Start agent | Sling | ⌥⌘A
+58 stop-agent | Stop agent | Sling | ⌥⌘.
+59 restart-agent | Restart agent in a new conversation | Sling | ⌥⇧⌘A
+60 export-ui | Export agent UI… | File | -
+61 show-feedback-file | Show feedback file in Finder | Window | -
+62 show-all-feedback | Show all feedback… | Window | -
+63 pick-size | Pick a text size | Pop-ups | ⇧⌘A
+64 size-up | Bigger text | Tools | ⌥⇧}
+65 size-down | Smaller text | Tools | ⌥⇧{
+66 select-all | Select all | Canvas | ⌘A
+67 next-item | Select next item | Canvas | ⇥
+68 previous-item | Select previous item | Canvas | ⇧⇥
+69 nudge-left | Nudge left | Canvas | ←
+70 nudge-right | Nudge right | Canvas | →
+71 nudge-up | Nudge up | Canvas | ↑
+72 nudge-down | Nudge down | Canvas | ↓
+73 duplicate | Duplicate | Canvas | ⌘J
+74 find | Find text… | Canvas | ⌘F
+75 find-next | Find next | Canvas | ⌘G
+76 new-text | New text | Canvas | ⌃↩
+77 fold | Fold or unfold box | Canvas | ⌥⌘F
+78 nudge-left-fine | Nudge left a point | Canvas | ⇧←
+79 nudge-right-fine | Nudge right a point | Canvas | ⇧→
+80 nudge-up-fine | Nudge up a point | Canvas | ⇧↑
+81 nudge-down-fine | Nudge down a point | Canvas | ⇧↓
+82 step-in | Step into box | Canvas | ⌥⌘I
+83 step-in-beside | Step into box beside | Canvas | ⌥⇧⌘I
+84 step-out | Step out of box | Canvas | ⌥⌘O
+85 start-slingerd | Start slingerd | Window | -
+86 restart-daemon | Restart slingerd | Window | -
+87 zoom-to-fit | Zoom to fit | Canvas | ⌘9
+88 reload-ui | Reload agent UI | File | -
+# config.example.toml [keys]
+#quit = "cmd+q"
+#reload-config = "cmd+r"
+#pick-colour = "cmd+shift+c"
+#pick-shape = "cmd+shift+s"
+#pick-tool = "cmd+shift+t"
+#pick-width = "cmd+shift+w"
+#split-right = "cmd+d"
+#split-down = "cmd+shift+d"
+#close-pane = "cmd+w"
+#focus-next = "ctrl+tab"
+#focus-left = "cmd+alt+left"
+#focus-right = "cmd+alt+right"
+#focus-up = "cmd+alt+up"
+#focus-down = "cmd+alt+down"
+#grow-pane = "alt+="
+#shrink-pane = "alt+-"
+#toggle-sidebar = "cmd+b"
+#dismiss-notice = "cmd+."
+#pan-left = "alt+left"
+#pan-right = "alt+right"
+#pan-up = "alt+up"
+#pan-down = "alt+down"
+#zoom-in = "cmd+="
+#zoom-out = "cmd+-"
+#zoom-reset = "cmd+0"
+#zoom-to-fit = "cmd+9"
+#next-page = "cmd+]"
+#delete-selection = "delete"
+#clear-selection = "escape"
+#tool-pen = "cmd+1"
+#tool-eraser = "cmd+2"
+#tool-lasso = "cmd+3"
+#tool-text = "cmd+4"
+#tool-box = "cmd+5"
+#tool-arrow = "cmd+6"
+#tool-select = "cmd+7"
+#crop-pdf = "cmd+8"
+#width-up = "alt+]"
+#width-down = "alt+["
+#sling = "cmd+return"
+#sling-now = "alt+return"
+#previous-page = "cmd+["
+#new-page = "cmd+n"
+#rename-page = "cmd+shift+r"
+#remove-page = "cmd+shift+delete"
+#undo = "cmd+z"
+#redo = "cmd+shift+z"
+#dictate = "cmd+shift+return"
+#show-keys = "cmd+/"
+#show-commands = "cmd+k"
+#leave-feedback = "cmd+shift+f"
+#toggle-grid = "cmd+'"
+#save = "cmd+s"
+#show-canvas-file = "cmd+alt+r"
+#open-pdf = "cmd+o"
+#open-workspace = "cmd+shift+o"
+#close-workspace = "cmd+alt+w"
+#show-workspace-folder = ""
+#start-agent = "cmd+alt+a"
+#stop-agent = "cmd+alt+."
+#restart-agent = "cmd+alt+shift+a"
+#export-ui = ""
+#reload-ui = ""
+#show-feedback-file = ""
+#show-all-feedback = ""
+#pick-size = "cmd+shift+a"
+#size-up = "alt+shift+}"
+#size-down = "alt+shift+{"
+#select-all = "cmd+a"
+#next-item = "tab"
+#previous-item = "shift+tab"
+#nudge-left = "left"
+#nudge-right = "right"
+#nudge-up = "up"
+#nudge-down = "down"
+#nudge-left-fine = "shift+left"
+#nudge-right-fine = "shift+right"
+#nudge-up-fine = "shift+up"
+#nudge-down-fine = "shift+down"
+#duplicate = "cmd+j"
+#find = "cmd+f"
+#find-next = "cmd+g"
+#new-text = "ctrl+return"
+#fold = "cmd+alt+f"
+#step-in = "cmd+alt+i"
+#step-in-beside = "cmd+alt+shift+i"
+#step-out = "cmd+alt+o"
+#start-slingerd = ""
+#restart-daemon = ""
+# menu bar (checked: tool-pen; every command can act)
+slinger App
+  native About | About slinger | -
+  --- |  | -
+  run ReloadConfig | Reload config | ⌘R
+  --- |  | -
+  native Services | Services | -
+  --- |  | -
+  native Hide | Hide slinger | ⌘H
+  native HideOthers | Hide Others | ⌥⌘H
+  native ShowAll | Show All | -
+  --- |  | -
+  run Quit | Quit slinger | ⌘Q
+File Plain
+  run OpenWorkspace | Open workspace… | ⇧⌘O
+  run CloseWorkspace | Close workspace | ⌥⌘W
+  run ShowWorkspaceFolder | Show workspace folder in Finder | -
+  run OpenPdf | Open PDF or tldraw… | ⌘O
+  run Save | Save | ⌘S
+  run ShowCanvasFile | Show canvas file in Finder | ⌥⌘R
+  run ExportUi | Export agent UI… | -
+  run ReloadUi | Reload agent UI | -
+  run NewPage | New page | ⌘N
+  run RenamePage | Rename page | ⇧⌘R
+  run RemovePage | Remove page | ⇧⌘⌫
+  run NextPage | Next page | ⌘]
+  run PreviousPage | Previous page | ⌘[
+Edit Plain
+  run Undo | Undo | ⌘Z
+  run Redo | Redo | ⇧⌘Z
+  native Cut | Cut | ⌘X
+  native Copy | Copy | ⌘C
+  native Paste | Paste | ⌘V
+  run NewText | New text | ⌃↩
+  run SelectAll | Select all | ⌘A
+  run DeleteSelection | Delete selection | -
+  run ClearSelection | Select nothing | -
+  run Duplicate | Duplicate | ⌘J
+  run Fold | Fold or unfold box | ⌥⌘F
+  run StepIn | Step into box | ⌥⌘I
+  run StepInBeside | Step into box beside | ⌥⇧⌘I
+  run StepOut | Step out of box | ⌥⌘O
+  run NextItem | Select next item | -
+  run PreviousItem | Select previous item | -
+  run NudgeLeft | Nudge left | -
+  run NudgeRight | Nudge right | -
+  run NudgeUp | Nudge up | -
+  run NudgeDown | Nudge down | -
+  run NudgeLeftFine | Nudge left a point | -
+  run NudgeRightFine | Nudge right a point | -
+  run NudgeUpFine | Nudge up a point | -
+  run NudgeDownFine | Nudge down a point | -
+  run Find | Find text… | ⌘F
+  run FindNext | Find next | ⌘G
+Tools Plain
+  run ToolPen | Pen | ⌘1 checked
+  run ToolEraser | Eraser | ⌘2
+  run ToolLasso | Lasso | ⌘3
+  run ToolText | Text | ⌘4
+  run ToolBox | Box | ⌘5
+  run ToolArrow | Arrow | ⌘6
+  run ToolSelect | Select | ⌘7
+  run CropPdf | Crop PDF | ⌘8
+  run WidthUp | Thicker pen | -
+  run WidthDown | Thinner pen | -
+  run SizeUp | Bigger text | -
+  run SizeDown | Smaller text | -
+  run PickColour | Pick a colour | ⇧⌘C
+  run PickShape | Pick a shape | ⇧⌘S
+  run PickTool | Pick a tool | ⇧⌘T
+  run PickWidth | Pick a width | ⇧⌘W
+  run PickSize | Pick a text size | ⇧⌘A
+  run Sling | Sling selection | ⌘↩
+  run SlingNow | Sling now | -
+  run Dictate | Dictate prompt | ⇧⌘↩
+  run StartAgent | Start agent | ⌥⌘A
+  run StopAgent | Stop agent | ⌥⌘. grey
+  run RestartAgent | Restart agent in a new conversation | ⌥⇧⌘A
+Canvas Plain
+  run ZoomIn | Zoom in | ⌘=
+  run ZoomOut | Zoom out | ⌘-
+  run ZoomReset | Zoom to 100% | ⌘0
+  run ZoomToFit | Zoom to fit | ⌘9
+  run PanLeft | Pan left | -
+  run PanRight | Pan right | -
+  run PanUp | Pan up | -
+  run PanDown | Pan down | -
+  run ToggleGrid | Dotted grid | ⌘'
+Pane Plain
+  run SplitRight | Split right | ⌘D
+  run SplitDown | Split down | ⇧⌘D
+  run ClosePane | Close pane | ⌘W
+  run FocusNext | Focus next pane | ⌃⇥
+  run FocusLeft | Focus pane left | ⌥⌘←
+  run FocusRight | Focus pane right | ⌥⌘→
+  run FocusUp | Focus pane up | ⌥⌘↑
+  run FocusDown | Focus pane down | ⌥⌘↓
+  run GrowPane | Grow pane | -
+  run ShrinkPane | Shrink pane | -
+Window Window
+  native Minimise | Minimize | ⌘M
+  native Zoom | Zoom | -
+  native FullScreen | Enter Full Screen | ⌃⌘F
+  --- |  | -
+  run ToggleSidebar | Show or hide sidebar | ⌘B
+  run DismissNotice | Dismiss notice | ⌘.
+  run StartSlingerd | Start slingerd | -
+  run RestartDaemon | Restart slingerd | - grey
+  --- |  | -
+  native BringAllToFront | Bring All to Front | -
+Help Help
+  run ShowKeys | Show keys | ⌘/
+  run ShowCommands | Show commands | ⌘K
+  run LeaveFeedback | Leave feedback… | ⇧⌘F
+  run ShowAllFeedback | Show all feedback… | -
+  run ShowFeedbackFile | Show feedback file in Finder | -
+# context menus (checked: tool-pen; nothing can act)
+Canvas
+  native Paste | Paste | ⌘V
+  run NewText | New text | ⌃↩ grey
+  run SelectAll | Select all | ⌘A
+  --- |  | -
+  run SlingNow | Sling now | - grey
+  --- |  | -
+  run ZoomReset | Zoom to 100% | ⌘0 grey
+  run ToggleGrid | Dotted grid | ⌘'
+  --- |  | -
+  run NewPage | New page | ⌘N grey
+  run StepOut | Step out of box | ⌥⌘O grey
+Pane { ui: false }
+  run SplitRight | Split right | ⌘D
+  run SplitDown | Split down | ⇧⌘D
+  run ClosePane | Close pane | ⌘W grey
+Pane { ui: true }
+  run ReloadUi | Reload agent UI | - grey
+  run ExportUi | Export agent UI… | - grey
+  --- |  | -
+  run SplitRight | Split right | ⌘D
+  run SplitDown | Split down | ⇧⌘D
+  run ClosePane | Close pane | ⌘W grey
+Item { kind: Stroke }
+  run Sling | Sling selection | ⌘↩ grey
+  --- |  | -
+  native Cut | Cut | ⌘X
+  native Copy | Copy | ⌘C
+  run Duplicate | Duplicate | ⌘J grey
+  run DeleteSelection | Delete selection | - grey
+  --- |  | -
+  run PickColour | Pick a colour | ⇧⌘C
+Item { kind: Text }
+  run Sling | Sling selection | ⌘↩ grey
+  --- |  | -
+  native Cut | Cut | ⌘X
+  native Copy | Copy | ⌘C
+  run Duplicate | Duplicate | ⌘J grey
+  run DeleteSelection | Delete selection | - grey
+  --- |  | -
+  run PickColour | Pick a colour | ⇧⌘C
+  run PickSize | Pick a text size | ⇧⌘A
+  run SizeUp | Bigger text | -
+  run SizeDown | Smaller text | -
+Item { kind: Box }
+  run Sling | Sling selection | ⌘↩ grey
+  --- |  | -
+  native Cut | Cut | ⌘X
+  native Copy | Copy | ⌘C
+  run Duplicate | Duplicate | ⌘J grey
+  run DeleteSelection | Delete selection | - grey
+  --- |  | -
+  run PickColour | Pick a colour | ⇧⌘C
+  --- |  | -
+  run Fold | Fold or unfold box | ⌥⌘F grey
+  run StepIn | Step into box | ⌥⌘I grey
+  run StepInBeside | Step into box beside | ⌥⇧⌘I grey
+Item { kind: Arrow }
+  run Sling | Sling selection | ⌘↩ grey
+  --- |  | -
+  native Cut | Cut | ⌘X
+  native Copy | Copy | ⌘C
+  run Duplicate | Duplicate | ⌘J grey
+  run DeleteSelection | Delete selection | - grey
+  --- |  | -
+  run PickColour | Pick a colour | ⇧⌘C
+Item { kind: Pdf }
+  run Sling | Sling selection | ⌘↩ grey
+  --- |  | -
+  native Cut | Cut | ⌘X
+  native Copy | Copy | ⌘C
+  run Duplicate | Duplicate | ⌘J grey
+  run DeleteSelection | Delete selection | - grey
+  --- |  | -
+  run PickColour | Pick a colour | ⇧⌘C
+  --- |  | -
+  run CropPdf | Crop PDF | ⌘8
+  run ShowCanvasFile | Show canvas file in Finder | ⌥⌘R grey
+Item { kind: Live }
+  run Sling | Sling selection | ⌘↩ grey
+  run DeleteSelection | Delete selection | - grey
+Selection { boxed: false }
+  run Sling | Sling selection | ⌘↩ grey
+  --- |  | -
+  native Cut | Cut | ⌘X
+  native Copy | Copy | ⌘C
+  run Duplicate | Duplicate | ⌘J grey
+  run DeleteSelection | Delete selection | - grey
+  --- |  | -
+  run PickColour | Pick a colour | ⇧⌘C
+  run ClearSelection | Select nothing | - grey
+Selection { boxed: true }
+  run Sling | Sling selection | ⌘↩ grey
+  --- |  | -
+  native Cut | Cut | ⌘X
+  native Copy | Copy | ⌘C
+  run Duplicate | Duplicate | ⌘J grey
+  run DeleteSelection | Delete selection | - grey
+  --- |  | -
+  run Fold | Fold or unfold box | ⌥⌘F grey
+  run PickColour | Pick a colour | ⇧⌘C
+  run ClearSelection | Select nothing | - grey
+Typing
+  native Cut | Cut | ⌘X
+  native Copy | Copy | ⌘C
+  native Paste | Paste | ⌘V
+Workspace { dir: "/w" }
+  run CloseWorkspace | Close workspace | ⌥⌘W grey
+  run ShowWorkspaceFolder | Show workspace folder in Finder | - grey
+  --- |  | -
+  run StartAgent | Start agent | ⌥⌘A grey
+  run StopAgent | Stop agent | ⌥⌘. grey
+  run RestartAgent | Restart agent in a new conversation | ⌥⇧⌘A grey
+Divider { before: PaneId(1), ratio: 0.5 }
+  run GrowPane | Grow pane | - grey
+  run ShrinkPane | Shrink pane | - grey
+Sidebar
+  run OpenWorkspace | Open workspace… | ⇧⌘O
+  run ToggleSidebar | Show or hide sidebar | ⌘B

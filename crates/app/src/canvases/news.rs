@@ -46,7 +46,7 @@ impl Canvases {
         for (canvas, page, next) in lost {
             self.gone(&canvas, &page, next.as_deref());
         }
-        let (sent, dictated, came) = (self.send(), self.poll_dictation(), self.lives.poll());
+        let (sent, dictated, came) = (self.send(), self.flow.poll_dictation(), self.lives.poll());
         self.poll_sling() || sent || changed || dictated || came | self.pdfs.poll()
     }
 

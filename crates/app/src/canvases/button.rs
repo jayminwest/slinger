@@ -31,9 +31,8 @@ impl Canvases {
         viewport: Viewport,
         frame: Rect,
     ) -> bool {
-        if self.sling.is_typing() {
-            self.sling.send();
-            self.entry_closed();
+        if self.flow.slinging() {
+            self.flow.send(Profile::Running);
             self.poll_sling();
             return true;
         }
