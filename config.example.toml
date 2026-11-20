@@ -255,3 +255,10 @@
 # with when it was resolved and its note, and no "✓". No key by default: the palette and
 # the Help menu run it.
 #show-all-feedback = ""
+# The size a new text starts at (the text tool's next tap): 12, 16, 24, 36, 48 or 72
+# points, each shown as its number; 24 when the app starts. A text being typed, or one you
+# edit, keeps its own size: resize it with the select tool. A new size flashes.
+#pick-size = "cmd+shift+a"
+# The next text size, or the one before; at either end it stays.
+#size-up = "alt+shift+}"
+#size-down = "alt+shift+{"
