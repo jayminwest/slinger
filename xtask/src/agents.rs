@@ -1,5 +1,7 @@
 //! check:agents: every repo path that AGENTS.md names in backticks exists, so the
-//! agent instructions never point at something that is gone.
+//! agent instructions never point at something that is gone. Paths under
+//! `target/` are build outputs: a fresh checkout has none, so they are not
+//! checked for existence (they are still counted and listed by `referenced_paths`).
 
 use std::path::Path;
 
@@ -11,16 +13,31 @@ const EXTENSIONS: &[&str] = &[".md", ".json", ".yml", ".yaml", ".toml", ".rs", "
 pub fn check(root: &Path) -> Result<String, Vec<String>> {
     let doc = files::read(root, DOC)?;
     let paths = referenced_paths(&doc);
-    let errors: Vec<String> = paths
-        .iter()
-        .filter(|p| !root.join(p).exists())
+    let built = paths.iter().filter(|p| is_build_output(p)).count();
+    let errors: Vec<String> = missing(&paths, |p| root.join(p).exists())
         .map(|p| format!("{DOC}: path `{p}` does not exist"))
         .collect();
     if errors.is_empty() {
-        Ok(format!("check:agents: {} paths ok", paths.len()))
+        Ok(format!(
+            "check:agents: {} paths ok, {built} build outputs under target/ not checked",
+            paths.len() - built
+        ))
     } else {
         Err(errors)
     }
+}
+
+/// The source paths among `paths` that do not exist. A build output is never
+/// missing: whether it exists depends on what was built, not on the repo.
+fn missing<'a>(
+    paths: &'a [String],
+    exists: impl Fn(&str) -> bool + 'a,
+) -> impl Iterator<Item = &'a String> + 'a {
+    paths.iter().filter(move |p| !is_build_output(p) && !exists(p))
+}
+
+fn is_build_output(path: &str) -> bool {
+    path == "target" || path.starts_with("target/")
 }
 
 /// Backticked tokens that look like repo paths: they contain `/` or end in a
@@ -63,5 +80,13 @@ mod tests {
     fn skips_urls_globs_and_ellipses() {
         let doc = "`https://x.dev/a` `src/**/*.rs` `docs/...` `#[expect(lint)]`";
         assert_eq!(referenced_paths(doc), NONE);
+    }
+
+    #[test]
+    fn a_build_output_is_not_missing_but_a_source_path_still_is() {
+        let paths = ["target/slinger.app", "target", "targets/x.md", "docs/gone.md", "src/lib.rs"]
+            .map(String::from);
+        let gone: Vec<_> = missing(&paths, |p| p == "src/lib.rs").collect();
+        assert_eq!(gone, ["targets/x.md", "docs/gone.md"]);
     }
 }
