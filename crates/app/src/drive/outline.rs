@@ -5,6 +5,8 @@
 
 use std::fmt::Write;
 
+use crate::commands::context::Popup;
+use crate::commands::menu::Action;
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Draw, Mark};
@@ -89,6 +91,26 @@ pub fn outline(scene: &Scene) -> String {
     }
     if let Some(flash) = &scene.flash {
         say(label("flash", &flash.label));
+    }
+    out
+}
+
+/// The context menu a driven window would pop ([`crate::commands::context`]),
+/// a line each: `menu x,y`, then each item's title in quotes, its key and
+/// `grey` where it cannot act; a separator is `---`. `drive pick` chooses
+/// an item by its title.
+pub fn menu(popup: &Popup) -> String {
+    let mut out = format!("menu {}\n", point(popup.at));
+    for item in &popup.items {
+        let line = if item.action == Action::Separator {
+            "---".to_string()
+        } else {
+            let key = item.key.map(|k| format!(" {}", k.glyphs())).unwrap_or_default();
+            let grey = if item.enabled { "" } else { " grey" };
+            format!("{}{key}{grey}", quoted(item.title))
+        };
+        // Writing to a string cannot fail.
+        let _ = writeln!(out, "  {line}");
     }
     out
 }

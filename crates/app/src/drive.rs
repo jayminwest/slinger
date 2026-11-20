@@ -15,7 +15,9 @@ use std::time::Instant;
 
 use serde_json::{Value, json};
 
-pub use self::outline::outline;
+pub use self::outline::{menu, outline};
+use crate::commands::context::Popup;
+use crate::commands::menu::Action;
 use crate::commands::{
     Chord, Command, DELETE, DOWN, END, FORWARD_DELETE, HOME, LEFT, RIGHT, SHIFT, UP,
 };
@@ -23,6 +25,7 @@ use crate::layout::{Point, Size};
 use crate::scene::Scene;
 use crate::scene::ink::Pen;
 use crate::scene::paste::{Clip, Edit};
+use crate::scene::secondary::{Button, Phase};
 use crate::{Event, Step};
 
 /// What a request asks of the window.
@@ -43,6 +46,9 @@ pub enum Ask {
     Paste,
     /// The text the driven window last cut or copied.
     Clip,
+    /// Choose the item of this title in the context menu the window would
+    /// have popped, as a pick in the real menu does.
+    Pick(String),
 }
 
 /// Keeps `last`, the scene a driven window shows, up to date with `step`,
@@ -100,6 +106,22 @@ pub fn into_field(text: &str) -> Field<'_> {
     if text.is_empty() || text.chars().any(typeless) { Field::Nothing } else { Field::Insert(text) }
 }
 
+/// What choosing the item titled `title` in `popup`, the context menu a
+/// driven window would have popped, does: the item's action; else why
+/// it cannot (no menu, no such item, a grey one).
+pub fn pick(popup: Option<&Popup>, title: &str) -> Result<Action, String> {
+    let popup = popup.ok_or("no context menu is open: a right click opens one")?;
+    let mut named = popup.items.iter().filter(|i| i.action != Action::Separator);
+    let Some(item) = named.clone().find(|i| i.title == title) else {
+        let titles: Vec<&str> = named.by_ref().map(|i| i.title).collect();
+        return Err(format!("no item {title:?} in the menu: {}", titles.join(", ")));
+    };
+    if !item.enabled {
+        return Err(format!("{title:?} is grey: it cannot act now"));
+    }
+    Ok(item.action)
+}
+
 /// Seconds between the points of a `stroke`.
 const STEP: f64 = 0.01;
 
@@ -115,6 +137,7 @@ pub fn parse(line: &str, when: f64) -> Result<Ask, String> {
         "key" => Ok(Ask::Send(vec![key(text(&ask, "chord")?, ask["text"].as_str())?])),
         "type" => Ok(Ask::Send(text(&ask, "text")?.chars().map(typed).collect())),
         "clip" => Ok(Ask::Clip),
+        "pick" => Ok(Ask::Pick(text(&ask, "title")?.to_string())),
         "paste" if ask["text"].is_null() => Ok(Ask::Paste),
         "stroke" => stroke(&ask["points"], |at, i| pen(&ask, at, when + STEP * i)),
         _ => Ok(Ask::Send(vec![(event(op, &ask, when)?, None)])),
@@ -155,9 +178,17 @@ fn event(op: &str, ask: &Value, when: f64) -> Result<Event, String> {
     Ok(match op {
         "tick" => Event::Tick,
         "move" => Event::Moved(at(ask)?),
-        "press" => Event::Press(pen(ask, at(ask)?, when)),
-        "drag" => Event::Drag(pen(ask, at(ask)?, when)),
-        "lift" => Event::Lift(pen(ask, at(ask)?, when)),
+        "press" | "drag" | "lift" => {
+            let (at, pen) = (at(ask)?, pen(ask, at(ask)?, when));
+            match (button(ask)?, op) {
+                (Some(button), "press") => Event::Button { button, phase: Phase::Down, at },
+                (Some(button), "drag") => Event::Button { button, phase: Phase::Drag, at },
+                (Some(button), _) => Event::Button { button, phase: Phase::Up, at },
+                (None, "press") => Event::Press(pen),
+                (None, "drag") => Event::Drag(pen),
+                (None, _) => Event::Lift(pen),
+            }
+        }
         "scroll" => Event::Scroll { at: at(ask)?, dx: num(ask, "dx")?, dy: num(ask, "dy")? },
         "zoom" => Event::Zoom { at: at(ask)?, factor: num(ask, "factor")? },
         "space" => Event::Space(flag("down")),
@@ -172,6 +203,19 @@ fn event(op: &str, ask: &Value, when: f64) -> Result<Event, String> {
         }
         _ => return Err(format!("no op {op:?}")),
     })
+}
+
+/// The button `ask` names (`"button": "right"` or `"middle"`), or the
+/// secondary one for a left press with `"control": true`, as macOS takes a
+/// ctrl+click; `None` for the left button (a pen event).
+fn button(ask: &Value) -> Result<Option<Button>, String> {
+    let control = ask["control"].as_bool().unwrap_or(false);
+    match ask["button"].as_str() {
+        None | Some("left") => Ok(control.then_some(Button::Secondary)),
+        Some("right") => Ok(Some(Button::Secondary)),
+        Some("middle") => Ok(Some(Button::Middle)),
+        Some(other) => Err(format!("no button {other:?}: left, right or middle")),
+    }
 }
 
 /// The press of `chord` ("cmd+j") and the `text` it types when passed on:
@@ -296,6 +340,46 @@ mod tests {
             Event::Lift(pen(3.0, 4.0, 5.0 + 2.0 * STEP)),
         ];
         assert_eq!(events, want.map(|e| (e, None)));
+    }
+
+    #[test]
+    fn a_right_middle_or_control_press_is_a_button_s() {
+        let at = Point { x: 1.0, y: 2.0 };
+        let button = |button, phase| [(Event::Button { button, phase, at }, None)];
+        let right = sent(r#"{"op":"press","x":1,"y":2,"button":"right"}"#);
+        assert_eq!(right, button(Button::Secondary, Phase::Down));
+        let control = sent(r#"{"op":"drag","x":1,"y":2,"control":true}"#);
+        assert_eq!(control, button(Button::Secondary, Phase::Drag));
+        let middle = sent(r#"{"op":"lift","x":1,"y":2,"button":"middle"}"#);
+        assert_eq!(middle, button(Button::Middle, Phase::Up));
+        let left = sent(r#"{"op":"press","x":1,"y":2,"button":"left"}"#);
+        assert!(matches!(left[0].0, Event::Press(_)), "the left button is the pen's");
+        let wrong = parse(r#"{"op":"press","x":1,"y":2,"button":"fourth"}"#, 0.0);
+        assert!(wrong.unwrap_err().contains("no button"));
+    }
+
+    #[test]
+    fn a_menu_says_its_items_and_a_pick_by_title_runs_one_that_can_act() {
+        use crate::commands::Keymap;
+        use crate::commands::able::Facts;
+        use crate::commands::context::{Subject, items};
+        let facts = Facts { panes: 1, canvas: true, pages: 1, ..Facts::default() };
+        let items =
+            items(Subject::Pane { ui: false }, &Keymap::default(), Command::ToolPen, &facts);
+        let popup = Popup { at: Point { x: 10.0, y: 20.0 }, items };
+        let said = menu(&popup);
+        assert_eq!(said.lines().next(), Some("menu 10,20"));
+        assert!(said.contains("  \"Split right\" ⌘D\n"), "{said}");
+        assert!(said.contains("\"Close pane\" ⌘W grey"), "{said}");
+        assert_eq!(pick(Some(&popup), "Split down"), Ok(Action::Run(Command::SplitDown)));
+        assert!(pick(Some(&popup), "Close pane").unwrap_err().contains("grey"));
+        let none = pick(Some(&popup), "Fly").unwrap_err();
+        assert!(none.contains("Split right, Split down, Close pane"), "{none}");
+        assert!(pick(None, "Split down").unwrap_err().contains("no context menu"));
+        assert_eq!(
+            parse(r#"{"op":"pick","title":"New text"}"#, 0.0),
+            Ok(Ask::Pick("New text".into()))
+        );
     }
 
     #[test]

@@ -11,6 +11,23 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a right click (or a ctrl+click, or a two-finger click) opens a
+  menu where it lands: on the empty canvas Paste, New text, Select all,
+  Sling now, Zoom to 100%, Dotted grid, New page and Step out of box; on a
+  pane's footer Split right, Split down and Close pane (and Export agent
+  UI… on an agent UI's footer). Each item shows its key and is grey when it
+  cannot act; a pick acts on the pane you clicked, and New text starts at
+  the click. `slinger drive scene` lists the menu a driven window would
+  open and `slinger drive pick <TITLE>` chooses an item.
+
+- **App:** a right click (also a ctrl+click, a two-finger trackpad click or
+  a tablet button set to right click) no longer nudges the canvas: only a
+  right drag past a few points pans, as before. A right click focuses the
+  pane under it. A middle drag pans too, and a ctrl+drag. Over an agent
+  UI's page or a live item's page the right button is still the page's;
+  elsewhere the app takes it, so WebKit's own menu (Reload, Back) no longer
+  opens over a canvas.
+
 - **App:** the standard Mac menu items: Services, Hide slinger (cmd+H),
   Hide Others, Show All and Quit slinger in the app menu; Minimize, Zoom,
   Enter Full Screen (ctrl+cmd+F) and Bring All to Front in the Window

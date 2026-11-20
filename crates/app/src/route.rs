@@ -2,7 +2,9 @@
 //! tests hand their events in through it): an event goes to the open
 //! palette or overlay, a command, a tap, the pen, or on to the focused view.
 //! Space held, and the press, drags and lift of a pan with it, are the
-//! hand's ([`hand`]) before anything else.
+//! hand's ([`hand`]) before anything else; then the right and middle
+//! buttons' events ([`button`]): a pan goes on as the scroll it makes, and
+//! a context click pops the menu for what it was on (`window::context`).
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -18,6 +20,7 @@ use crate::scene::sidebar::Sidebar;
 use crate::scene::taps::Tap;
 use crate::scene::tools::{Picked, Resize, Tools};
 use crate::shared::Shared;
+use crate::window::button::Pressed;
 use crate::window::{grabs, pane_at, run, tap, view};
 use crate::{Ask, Event, Settings, Step, asked, window};
 
@@ -83,6 +86,15 @@ pub fn route(
         Some(false) => return Routed::Answer(Step::Stay),
         None => {}
     }
+    let event = match button(event, shared, canvases, area) {
+        Ok(event) => event,
+        Err(Pressed::Click(at)) => {
+            let step = window::context::clicked(at, settings, shared, canvases, tools, sidebar);
+            return Routed::Answer(step);
+        }
+        Err(Pressed::Pass) => return Routed::Answer(Step::Pass),
+        Err(_) => return Routed::Answer(Step::Stay),
+    };
     // A press focuses the pane under it first, so the press works there.
     // The app takes it, and the window the keyboard, unless it goes on;
     // then the view under it has the keyboard, but for an open entry's.
@@ -205,6 +217,22 @@ fn hand(
         }),
         Event::Lift(_) if hand.lift() => Some(true),
         _ => None,
+    }
+}
+
+/// A right or middle button's `event` ([`window::button::pressed`]):
+/// `Ok` with the event to route on (any other event, or a pan's scroll),
+/// else what it came to: taken, a pass or a context click.
+fn button(
+    event: Event,
+    shared: &mut Shared,
+    canvases: &Canvases,
+    area: Rect,
+) -> Result<Event, Pressed> {
+    let Event::Button { button, phase, at } = event else { return Ok(event) };
+    match window::button::pressed((button, phase, at), shared, canvases, area) {
+        Pressed::On(event) => Ok(event),
+        pressed => Err(pressed),
     }
 }
 

@@ -78,6 +78,23 @@ fn drive_sends_one_request_and_prints_what_the_window_said() {
 }
 
 #[test]
+fn drive_sends_the_button_control_and_a_menu_pick() {
+    let taken = json!({ "ok": true, "said": "taken" });
+    let (_, got) = asked(&["press", "5,6", "--button", "right"], &taken);
+    assert_eq!(
+        (&got["op"], &got["button"], &got["control"]),
+        (&json!("press"), &json!("right"), &json!(false))
+    );
+    let (_, got) = asked(&["lift", "5,6", "--control"], &taken);
+    assert_eq!((&got["button"], &got["control"]), (&json!("left"), &json!(true)));
+    let (_, got) = asked(&["drag", "5,6", "--button", "middle"], &taken);
+    assert_eq!(got["button"], "middle");
+
+    let (_, got) = asked(&["pick", "New", "text"], &taken);
+    assert_eq!(got, json!({ "op": "pick", "title": "New text" }));
+}
+
+#[test]
 fn drive_fails_loudly_with_no_app_a_refusal_or_a_bad_point() {
     let none = drive(None, &["tick"]);
     assert_eq!(none.code, exit::USAGE);

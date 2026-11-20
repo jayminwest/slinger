@@ -1,8 +1,9 @@
 //! The driven window's side (`slinger-app --drive`, slinger-338dfc): a request from the driver's thread runs on the main
 //! thread, where its events go in as the window's own do ([`dispatch`]);
 //! the last scene drawn is kept to say as text; the window's content is
-//! drawn into a PNG, on a screen or not; and a cut or a copy is kept here,
-//! never on the user's clipboard.
+//! drawn into a PNG, on a screen or not; a cut or a copy is kept here,
+//! never on the user's clipboard; and a context menu is kept to say and to
+//! pick from, never popped.
 
 use std::cell::RefCell;
 use std::ffi::c_void;
@@ -16,6 +17,8 @@ use objc2_foundation::{NSDictionary, NSSize, NSString};
 
 use super::event::{_dispatch_main_q, dispatch_async_f};
 use super::{Event, STATE, Step, dispatch};
+use crate::commands::context::Popup;
+use crate::commands::menu::{Action, Native};
 use crate::drive::{self, Ask, Field};
 use crate::scene::Scene;
 use crate::scene::paste::{Clip, Edit};
@@ -25,6 +28,9 @@ thread_local! {
     static LAST: RefCell<Option<Box<Scene>>> = const { RefCell::new(None) };
     /// What the driven window last cut or copied, in place of the clipboard.
     static CLIP: RefCell<Clip> = RefCell::new(Clip::default());
+    /// The context menu the driven window would have popped, until the
+    /// next event closes it, as a click outside a real one does.
+    static MENU: RefCell<Option<Popup>> = const { RefCell::new(None) };
 }
 
 /// A request and where its answer goes.
@@ -42,7 +48,15 @@ pub fn watching(
             Event::Typed(text) => Some(text.clone()),
             _ => None,
         };
-        let step = answer(event);
+        // A driven window never pops a menu: it would hold the main thread
+        // until a person closed it. It keeps the menu to say and pick from.
+        let step = match answer(event) {
+            Step::Menu(popup, scene) => {
+                MENU.set(Some(popup));
+                Step::Draw(scene)
+            }
+            step => step,
+        };
         LAST.with_borrow_mut(|last| {
             if let Some(last) = last {
                 drive::shown(last, typed, &step);
@@ -88,6 +102,10 @@ fn answer(ask: Ask, mtm: MainThreadMarker) -> Result<String, String> {
     let state = STATE.get().ok_or("the app is not running")?;
     match ask {
         Ask::Send(events) => {
+            // Any input closes the menu, as a click outside a real one does; the timer does not.
+            if events.iter().any(|(event, _)| *event != Event::Tick) {
+                MENU.take();
+            }
             let mut said = Vec::new();
             for (event, text) in events {
                 let mut took = dispatch(event, mtm);
@@ -104,8 +122,27 @@ fn answer(ask: Ask, mtm: MainThreadMarker) -> Result<String, String> {
                 let scene = scene.as_ref()?;
                 Some(if debug { format!("{scene:#?}") } else { crate::drive::outline(scene) })
             })
+            .map(|said| {
+                said + &MENU.with_borrow(|m| m.as_ref().map(drive::menu)).unwrap_or_default()
+            })
             .ok_or_else(|| "no scene yet".to_string()),
+        Ask::Pick(title) => {
+            let action = drive::pick(MENU.take().as_ref(), &title)?;
+            let event = match action {
+                Action::Run(command) => Event::Command(command),
+                Action::Native(Native::Paste) => {
+                    Event::Edit(Edit::Paste(CLIP.with_borrow(Clone::clone)))
+                }
+                Action::Native(Native::Copy) => Event::Edit(Edit::Copy),
+                Action::Native(Native::Cut) => Event::Edit(Edit::Cut),
+                _ => {
+                    return Err(format!("{title:?} is macOS's own: a driven window cannot run it"));
+                }
+            };
+            Ok(if dispatch(event, mtm) { "taken" } else { "passed" }.to_string())
+        }
         Ask::Paste => {
+            MENU.take();
             let took = dispatch(Event::Edit(Edit::Paste(CLIP.with_borrow(Clone::clone))), mtm);
             Ok(if took { "taken" } else { "passed" }.to_string())
         }

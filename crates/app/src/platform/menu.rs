@@ -12,6 +12,10 @@
 //! keys) goes to the field as `undo:`, `redo:` or `selectAll:` along the
 //! responder chain, so it acts on the typing there.
 //!
+//! A context menu ([`pop`]) is made from its popup's items the same way;
+//! its command items send `pick:`, which always runs the command, and are
+//! grey or on as the popup says, never asked again.
+//!
 //! A command item is grey where the newest model says (`Item::enabled`):
 //! `AppKit` asks the target (`validateMenuItem:`) as a menu opens and
 //! before an item's key fires it. A model that changes only in that
@@ -25,12 +29,14 @@ use objc2::runtime::{NSObjectProtocol, Sel};
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSControlStateValueOn, NSEventModifierFlags, NSEventType, NSMenu, NSMenuItem,
+    NSView,
 };
-use objc2_foundation::{NSObject, NSString};
+use objc2_foundation::{NSObject, NSPoint, NSString};
 
 use super::keys::chord;
 use super::{Event, dispatch};
 use crate::commands::Command;
+use crate::commands::context::Popup;
 use crate::commands::menu::{Action, Item, Menu, Native, Role, same_layout};
 
 define_class!(
@@ -60,6 +66,15 @@ define_class!(
                 // SAFETY: `undo:` and `redo:` take a sender; with no target
                 // they go to the first responder that answers them.
                 unsafe { app.sendAction_to_from(action, None, Some(item)) };
+            }
+        }
+
+        /// A context menu's command item: its command, however it was
+        /// chosen (the pointer, or return in the open menu).
+        #[unsafe(method(pick:))]
+        fn pick(&self, item: &NSMenuItem) {
+            if let Some(&(command, _)) = usize::try_from(item.tag()).ok().and_then(|i| Command::ALL.get(i)) {
+                dispatch(Event::Command(command), self.mtm());
             }
         }
 
@@ -156,6 +171,30 @@ pub(super) fn register(mtm: MainThreadMarker) {
             app.setServicesMenu(Some(services));
         }
     });
+}
+
+/// Pops `popup` over `view` (the window's content) at its point and
+/// waits while it is open: `AppKit` runs the menu's own loop. Each item is
+/// on or grey as the popup says, a native one always on (a paste that goes
+/// nowhere flashes why, as its key does). A pick reaches the app from
+/// inside that loop, as an [`Event::Command`] or a native edit.
+pub(super) fn pop(popup: &Popup, view: &NSView, mtm: MainThreadMarker) {
+    // SAFETY: `NSObject`'s `init` on a fresh allocation.
+    let target: Retained<Target> = unsafe { msg_send![Target::alloc(mtm), init] };
+    let menu = NSMenu::new(mtm);
+    menu.setAutoenablesItems(false);
+    for item in &popup.items {
+        let made = made(item, &target, &mut Roles::default(), mtm);
+        if let Action::Run(_) = item.action {
+            // SAFETY: `Target` answers `pick:` with the item.
+            unsafe { made.setAction(Some(sel!(pick:))) };
+        }
+        made.setEnabled(item.enabled);
+        menu.addItem(&made);
+    }
+    // The content view's origin is at its bottom left.
+    let at = NSPoint::new(popup.at.x, view.frame().size.height - popup.at.y);
+    menu.popUpMenuPositioningItem_atLocation_inView(None, at, Some(view));
 }
 
 /// Whether `command`'s item in `menus` is on; an item not there is.

@@ -28,6 +28,8 @@ use crate::scene::tools::{Kind, Tools};
 use crate::scene::{self, Label, Scene, cursor, status, title};
 use crate::shared::Shared;
 
+pub mod button;
+pub mod context;
 mod facts;
 mod items;
 pub mod launched;

@@ -19,7 +19,8 @@ use slinger_control::Client;
 use super::Canvases;
 use crate::backend::{Problem, Wake, ui::fetch};
 use crate::config::Theme;
-use crate::layout::Point;
+use crate::layout::{PaneId, Point, Rect};
+use crate::panes::Panes;
 use crate::scene::canvas::{Item, Shape};
 use crate::scene::live::{Away, Shows};
 use crate::scene::{Notes, Scene, live};
@@ -83,6 +84,17 @@ impl Lives {
 }
 
 impl Canvases {
+    /// Whether `at`, a point in the window over `under`, the canvas pane
+    /// of `panes` there and its frame, is on a live item whose page shows
+    /// and takes presses, and not on the selection a press there would
+    /// grab: a right press there is the page's.
+    pub fn page_under(&self, panes: &Panes, under: Option<(PaneId, Rect)>, at: Point) -> bool {
+        self.at_pane(panes, under, at, |c, here, at, zoom, items| {
+            c.lives.under(items, at, zoom) && !c.select.grabs(here, at, zoom, items)
+        })
+        .unwrap_or(false)
+    }
+
     /// Puts the page of each live item `scene`'s canvas panes draw over it,
     /// with its note from `notes` in `theme`'s colours, keeps the views of
     /// those just gone off the screen, and asks for each page not yet asked

@@ -6,7 +6,7 @@
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
-use clap::{Args, Subcommand};
+use clap::{Args, Subcommand, ValueEnum};
 use serde_json::{Value, json};
 
 use slinger_control::RemoteError;
@@ -43,6 +43,25 @@ struct Pen {
     eraser: bool,
 }
 
+/// Which mouse button, and whether control was held; the left with none.
+#[derive(Args)]
+struct Mouse {
+    /// The button: right (a context click, or a drag that pans) or middle (a drag that pans)
+    #[arg(long, value_enum, default_value_t = Which::Left)]
+    button: Which,
+    /// Control was held: a left press is the right button's, as macOS takes a ctrl+click
+    #[arg(long)]
+    control: bool,
+}
+
+/// A mouse button.
+#[derive(Clone, Copy, ValueEnum)]
+enum Which {
+    Left,
+    Right,
+    Middle,
+}
+
 /// The help of a point: either form, as `drive scene` prints it.
 const AT: &str = "The point, from the window's top left, as X,Y or X Y";
 
@@ -62,12 +81,14 @@ enum Op {
         #[arg(required = true, num_args = 1..)]
         text: Vec<String>,
     },
-    /// Press the pen or the mouse button at a point of the window, from its top left
+    /// Press the pen or a mouse button at a point of the window, from its top left
     Press {
         #[arg(help = AT, value_name = "X,Y", num_args = 1..=2, required = true, allow_negative_numbers = true)]
         at: Vec<String>,
         #[command(flatten)]
         pen: Pen,
+        #[command(flatten)]
+        mouse: Mouse,
     },
     /// Move the pen or the mouse to a point while it is down
     Drag {
@@ -75,13 +96,17 @@ enum Op {
         at: Vec<String>,
         #[command(flatten)]
         pen: Pen,
+        #[command(flatten)]
+        mouse: Mouse,
     },
-    /// Lift the pen, or let the mouse button up, at a point
+    /// Lift the pen, or let a mouse button up, at a point
     Lift {
         #[arg(help = AT, value_name = "X,Y", num_args = 1..=2, required = true, allow_negative_numbers = true)]
         at: Vec<String>,
         #[command(flatten)]
         pen: Pen,
+        #[command(flatten)]
+        mouse: Mouse,
     },
     /// Press at the first point, drag through the others and lift at the last
     Stroke {
@@ -132,6 +157,12 @@ enum Op {
     },
     /// Print the text the driven window last cut or copied
     Clip,
+    /// Choose an item of the context menu a right click opened, by its title as `drive scene` prints it
+    Pick {
+        /// The item's title, such as New text; the words are joined with a space
+        #[arg(required = true, num_args = 1..)]
+        title: Vec<String>,
+    },
     /// Drop a file on the window at a point (X,Y FILE or X Y FILE)
     #[command(override_usage = "slinger drive drop [OPTIONS] X,Y FILE | X Y FILE")]
     Drop {
@@ -179,6 +210,7 @@ impl Drive {
             Op::Cut => "drive cut",
             Op::Paste { .. } => "drive paste",
             Op::Clip => "drive clip",
+            Op::Pick { .. } => "drive pick",
             Op::Drop { .. } => "drive drop",
             Op::Tick => "drive tick",
             Op::Scene { .. } => "drive scene",
@@ -205,16 +237,23 @@ impl Drive {
 impl Op {
     /// The request line's object (crates/app/src/drive.rs reads it).
     fn request(&self) -> anyhow::Result<Value> {
-        let penned = |op: &str, at: &[String], pen: &Pen| -> anyhow::Result<Value> {
+        let penned = |op: &str, at: &[String], pen: &Pen, mouse: &Mouse| -> anyhow::Result<Value> {
             let [x, y] = numbers(at)?;
-            Ok(with(json!({ "op": op, "x": x, "y": y }), pen))
+            let mut request = with(json!({ "op": op, "x": x, "y": y }), pen);
+            let button = match mouse.button {
+                Which::Left => "left",
+                Which::Right => "right",
+                Which::Middle => "middle",
+            };
+            (request["button"], request["control"]) = (json!(button), json!(mouse.control));
+            Ok(request)
         };
         Ok(match self {
             Self::Key { chord, text } => json!({ "op": "key", "chord": chord, "text": text }),
             Self::Type { text } => json!({ "op": "type", "text": text.join(" ") }),
-            Self::Press { at, pen } => penned("press", at, pen)?,
-            Self::Drag { at, pen } => penned("drag", at, pen)?,
-            Self::Lift { at, pen } => penned("lift", at, pen)?,
+            Self::Press { at, pen, mouse } => penned("press", at, pen, mouse)?,
+            Self::Drag { at, pen, mouse } => penned("drag", at, pen, mouse)?,
+            Self::Lift { at, pen, mouse } => penned("lift", at, pen, mouse)?,
             Self::Stroke { points, pen } => {
                 let flat =
                     split(points).filter(|n| n.len() % 2 == 0).ok_or_else(|| wrong(points))?;
@@ -240,6 +279,7 @@ impl Op {
             Self::Paste { text } if text.is_empty() => json!({ "op": "paste" }),
             Self::Paste { text } => json!({ "op": "paste", "text": text.join(" ") }),
             Self::Clip => json!({ "op": "clip" }),
+            Self::Pick { title } => json!({ "op": "pick", "title": title.join(" ") }),
             Self::Drop { args } => {
                 let mut args = args.clone();
                 let file = args.pop().map(PathBuf::from).unwrap_or_default();

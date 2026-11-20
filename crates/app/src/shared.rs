@@ -2,7 +2,8 @@
 //! goes with them: the window's size, the agent UIs, the notes, the
 //! divider under the pen, the footers' and the sidebar's tap targets, the
 //! key overlay, the command palette and the page menu over them, and the
-//! hand that space holds for a pan.
+//! hand that space holds for a pan, and the right or middle press under
+//! way.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -19,6 +20,7 @@ use crate::scene::pages::menu::PageMenu;
 use crate::scene::palette::Palette;
 use crate::scene::paste::Keyboard;
 use crate::scene::resize::Dividers;
+use crate::scene::secondary::Secondary;
 use crate::scene::taps::{Taps, Took};
 use crate::scene::{Notes, Uis};
 use crate::ui;
@@ -53,6 +55,9 @@ pub struct Shared {
     pub keyboard: Keyboard,
     /// Space held for a pan, and the pan under way ([`crate::route`]).
     pub hand: Hand,
+    /// The right or middle press under way: a pan or a context click
+    /// ([`crate::route`]).
+    pub secondary: Secondary,
     /// The pane each workspace left had focus on, in this run.
     pub focused: Vec<(String, layout::PaneId)>,
 }
@@ -80,6 +85,7 @@ impl Default for Shared {
             taps,
             keyboard,
             hand: Hand::default(),
+            secondary: Secondary::default(),
             focused: Vec::new(),
         }
     }

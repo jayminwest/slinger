@@ -152,7 +152,7 @@ impl Canvases {
     /// canvases, the canvas and page the pane shows, the canvas point, the
     /// zoom and the items the pane shows. `None` off every canvas pane or
     /// before its page arrives.
-    fn at_pane<R>(
+    pub(super) fn at_pane<R>(
         &self,
         panes: &Panes,
         under: Option<(PaneId, Rect)>,

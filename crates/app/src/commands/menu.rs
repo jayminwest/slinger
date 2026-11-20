@@ -285,7 +285,21 @@ const BAR: [(&str, Role, &[Action]); 8] = [
 /// command of the pen's tool), each command's item grey where `facts` say
 /// it cannot act.
 pub fn bar(keys: &Keymap, checked: Command, facts: &Facts) -> Vec<Menu> {
-    let item = |action| match action {
+    let menu = |&(title, role, actions): &(_, _, &[Action])| Menu {
+        title,
+        role,
+        items: actions.iter().map(|&action| item(action, keys, checked, facts)).collect(),
+    };
+    BAR.iter().map(menu).collect()
+}
+
+/// The item for `action`, the one way every menu (the bar, a context
+/// menu) makes one: a command's title, its key in `keys` unless it types,
+/// a check mark on `checked`, grey where `facts` say it cannot act; a
+/// native item's macOS title and its usual key while the keymap leaves it
+/// free, always on.
+pub fn item(action: Action, keys: &Keymap, checked: Command, facts: &Facts) -> Item {
+    match action {
         Action::Run(command) => Item {
             title: command.title(),
             action,
@@ -301,13 +315,7 @@ pub fn bar(keys: &Keymap, checked: Command, facts: &Facts) -> Vec<Menu> {
             enabled: true,
         },
         Action::Separator => Item { title: "", action, key: None, checked: false, enabled: true },
-    };
-    let menu = |&(title, role, actions): &(_, _, &[Action])| Menu {
-        title,
-        role,
-        items: actions.iter().copied().map(item).collect(),
-    };
-    BAR.iter().map(menu).collect()
+    }
 }
 
 /// Whether the bars `a` and `b` differ at most in which items are grey:

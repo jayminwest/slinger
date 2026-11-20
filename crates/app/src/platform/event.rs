@@ -7,11 +7,13 @@ use std::ffi::c_void;
 use objc2::MainThreadMarker;
 
 use super::dispatch;
+use crate::commands::context::Popup;
 use crate::commands::{Chord, Command};
 use crate::layout::{Point, Size};
 use crate::scene::Scene;
 use crate::scene::ink::Pen;
 use crate::scene::paste::{Clip, Edit};
+use crate::scene::secondary::{Button, Phase};
 
 unsafe extern "C" {
     /// The main thread's queue, which `AppKit`'s run loop serves in its
@@ -74,7 +76,13 @@ pub enum Event {
     Drag(Pen),
     /// The pen lifted, or the mouse button came up.
     Lift(Pen),
-    /// A two-finger scroll (a mouse wheel, a right-button drag) over a point in the window:
+    /// The right (secondary) or middle button went down, dragged or came
+    /// up at a point in the window; a press with control held is the
+    /// secondary button's, its drags and lift too, as macOS defines
+    /// ctrl+click. The app decides a pan from a context click
+    /// ([`crate::scene::secondary`]).
+    Button { button: Button, phase: Phase, at: Point },
+    /// A two-finger scroll (a mouse wheel) over a point in the window:
     /// drag what is under it by `dx`, `dy` points.
     Scroll { at: Point, dx: f64, dy: f64 },
     /// A pinch, or a scroll with command or control held, over a point in
@@ -116,6 +124,9 @@ pub enum Step {
     Quit,
     /// Put this on the clipboard, and draw.
     Copy(Clip, Box<Scene>),
+    /// Draw, then pop this context menu at its point; a pick comes back as
+    /// the [`Event::Command`] (or the edit) its item runs.
+    Menu(Popup, Box<Scene>),
     /// The reply cannot go on, and why.
     Refuse(String),
 }
