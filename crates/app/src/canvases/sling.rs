@@ -21,7 +21,7 @@ impl Canvases {
     #[must_use]
     pub fn rendering(mut self, render: Render) -> Self {
         let pdfs = crate::backend::pdf::cache();
-        self.slinger = Slinger::start(self.daemon.clone(), Some((render, pdfs)));
+        self.slinger = Slinger::start(self.daemon.clone(), Some((render, pdfs)), &self.wake);
         self
     }
 

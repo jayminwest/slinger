@@ -43,7 +43,7 @@ use std::time::Instant;
 
 use slinger_control::{self as control, PaneKind::Canvas};
 
-use crate::backend::{Settings, Watch};
+use crate::backend::{Settings, Wake, Watch};
 use crate::canvases::Canvases;
 use crate::commands::Command;
 use crate::config::Shown;
@@ -130,9 +130,12 @@ fn preview(settings: &Settings, reference: &str, more: &[&str]) -> ExitCode {
             }
         }
         Event::Key(chord) if keys.command(chord) == Some(Command::Quit) => Step::Quit,
-        Event::Tick | Event::Moved(_) | Event::Painted(_) | Event::Typed(_) | Event::Edit(_) => {
-            Step::Stay
-        }
+        Event::Tick
+        | Event::Wake
+        | Event::Moved(_)
+        | Event::Painted(_)
+        | Event::Typed(_)
+        | Event::Edit(_) => Step::Stay,
         _ => Step::Pass,
     };
     match platform::run(&scene, kept, answer) {
@@ -148,31 +151,34 @@ fn window(mut settings: Settings, drive: Option<&Path>) -> ExitCode {
     // A driven window keeps nothing and takes nothing the app kept.
     let own = drive.is_none();
     let last = platform::remembered_workspace().filter(|_| own);
-    let watch = Watch::start(socket.clone(), settings.config.workspace.clone(), last.clone());
+    let wake = Wake::new(platform::waker());
+    let wanted = settings.config.workspace.clone();
+    let watch = Watch::start(socket.clone(), wanted, last.clone(), &wake);
     let mut shown = settings.config.sidebar;
     let open = Shown::starts_open(shown, platform::remembered_sidebar().filter(|_| own));
     let mut sidebar = Sidebar::new(open).preferring(last);
     sidebar.show(settings.config.workspace.clone());
     let mut tools = Tools::configured(&settings.config);
     let mut shared = Shared::default();
-    let mut canvases = canvases(&socket, own);
+    let mut canvases = canvases(&socket, own, wake.clone());
     let mut trace = Trace::new(std::env::var("SLINGER_TRACE").ok().as_deref());
     let first = view(&settings, &mut shared, &tools, &sidebar, &mut canvases);
     // The workspace the config names, to tell when an edit changes it; a
     // tap on another in the sidebar shows that one until it does.
     let mut named = settings.config.workspace.clone();
     // Runs on the main thread for each key press, menu item, pen, mouse or
-    // trackpad event, paint of new ink, cut, copy or paste, and tick of the window's timer. The
-    // open command palette, then the open key overlay, takes every key and
-    // press (the palette's run and a menu item's go as a key's); then the
-    // sling's entry, then a pop-up, takes its keys first; a press on a
-    // divider between panes drags it; the pen draws with the pen tool on a
-    // canvas pane. A tick stats the two config files and takes the watch's news of the
-    // agents and the panes and what the canvases' followers heard; the watch
-    // and the followers follow an edit that moves the socket or the
-    // workspace. Only a split, a close or a resize asks the daemon here.
-    // Any pen or mouse press first focuses the pane under it; one an agent
-    // UI's page takes still draws the new focus.
+    // trackpad event, paint of new ink, cut, copy or paste, wake and tick
+    // of the window's timer. The open command palette, then the open key
+    // overlay, takes every key and press (the palette's run and a menu
+    // item's go as a key's); then the sling's entry, then a pop-up, takes
+    // its keys first; a press on a divider between panes drags it; the pen
+    // draws with the pen tool on a canvas pane. A wake (a backend thread's
+    // news) or a tick stats the two config files and takes the watch's
+    // news of the agents and the panes and what the canvases' followers
+    // heard; the watch and the followers follow an edit that moves the
+    // socket or the workspace. Only a split, a close or a resize asks the
+    // daemon here. Any pen or mouse press first focuses the pane under it;
+    // one an agent UI's page takes still draws the new focus.
     let mut step = move |event, sidebar: &mut Sidebar| {
         let routed =
             route(event, &mut shared, &mut canvases, &mut tools, &settings, &socket, sidebar);
@@ -185,6 +191,8 @@ fn window(mut settings: Settings, drive: Option<&Path>) -> ExitCode {
             }
             Routed::News(force) => force,
         };
+        // Before the channels are drained: news sent from here on wakes again.
+        wake.taken();
         let heard = watch.latest().is_some_and(|now| sidebar.update(now));
         let moved = watch
             .layout()
@@ -255,9 +263,11 @@ fn canvas_panes(layout: Option<&control::PaneLayout>) -> Option<(&str, bool)> {
 }
 
 /// The canvases of the window, through the daemon on `socket`, keeping
-/// the strokes not yet written on disk ([`backend::Unsent`]).
-fn canvases(socket: &Path, keep: bool) -> Canvases {
-    let canvases = Canvases::new(control::Client::new(socket)).rendering(platform::pdf::backdrop);
+/// the strokes not yet written on disk ([`backend::Unsent`]), their threads'
+/// news woken by `wake`.
+fn canvases(socket: &Path, keep: bool, wake: Wake) -> Canvases {
+    let daemon = control::Client::new(socket);
+    let canvases = Canvases::waking(daemon, wake).rendering(platform::pdf::backdrop);
     backend::Unsent::locate().filter(|_| keep).into_iter().fold(canvases, Canvases::keeping)
 }
 

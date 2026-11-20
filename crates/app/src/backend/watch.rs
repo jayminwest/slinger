@@ -2,12 +2,13 @@
 //! of each agent UI they show, asked of the daemon on a thread of its own.
 
 use std::path::PathBuf;
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use slinger_control::{Client, PaneKind, PaneLayout};
 
+use super::wake::{Teller, Wake};
 use super::{Problem, panes, ui, workspaces};
 use crate::scene::sidebar::Workspace;
 use crate::trace::Stamps;
@@ -49,12 +50,18 @@ impl Watch {
     /// Starts asking the daemon on `socket`. The thread ends after the
     /// watch is dropped, at its next answer that differs from the last.
     /// The panes are those of `wanted`, else of `last` (see [`panes::layout`]).
-    pub fn start(socket: PathBuf, wanted: Option<String>, last: Option<String>) -> Self {
+    /// Each answer wakes the main thread.
+    pub fn start(
+        socket: PathBuf,
+        wanted: Option<String>,
+        last: Option<String>,
+        wake: &Wake,
+    ) -> Self {
         let socket = Arc::new(Mutex::new(socket));
         let wanted = Arc::new(Mutex::new(wanted));
-        let (agents, news) = mpsc::channel();
-        let (panes, layouts) = mpsc::channel();
-        let (uis, codes) = mpsc::channel();
+        let (agents, news) = wake.channel();
+        let (panes, layouts) = wake.channel();
+        let (uis, codes) = wake.channel();
         let (theirs, their_wanted) = (Arc::clone(&socket), Arc::clone(&wanted));
         std::thread::spawn(move || {
             let (mut heard, mut drawn) = (None, None);
@@ -114,7 +121,7 @@ impl Watch {
 }
 
 /// Sends `now` when it differs from `last`; false once nobody listens.
-fn tell<T: Clone + PartialEq>(to: &Sender<T>, last: &mut Option<T>, now: T) -> bool {
+fn tell<T: Clone + PartialEq>(to: &Teller<T>, last: &mut Option<T>, now: T) -> bool {
     if last.as_ref() == Some(&now) {
         return true;
     }
@@ -141,7 +148,7 @@ mod tests {
 
     #[test]
     fn a_watch_hears_a_status_change_and_follows_a_new_socket() {
-        let watch = Watch::start(PathBuf::from("/nonexistent/x.sock"), None, None);
+        let watch = Watch::start(PathBuf::from("/nonexistent/x.sock"), None, None, &Wake::none());
         let deadline = Instant::now() + Duration::from_secs(10);
         let lost = loop {
             if let Some(answer) = watch.latest() {
@@ -166,7 +173,8 @@ mod tests {
         with_socket(|socket| {
             let d = &Client::new(socket);
             let _dir = open_notes(d);
-            let watch = Watch::start(socket.to_path_buf(), Some("nope".into()), None);
+            let watch =
+                Watch::start(socket.to_path_buf(), Some("nope".into()), None, &Wake::none());
             let deadline = Instant::now() + Duration::from_secs(10);
             let count = || {
                 assert!(Instant::now() < deadline, "timed out");
@@ -187,7 +195,8 @@ mod tests {
         with_socket(|socket| {
             let d = &Client::new(socket);
             let _dir = open_notes(d);
-            let watch = Watch::start(socket.to_path_buf(), Some("nope".into()), None);
+            let watch =
+                Watch::start(socket.to_path_buf(), Some("nope".into()), None, &Wake::none());
             let deadline = Instant::now() + Duration::from_secs(10);
             let picked = loop {
                 assert!(Instant::now() < deadline, "timed out");

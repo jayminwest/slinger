@@ -403,7 +403,8 @@ main.rs      wires the modules below. The only caller of platform. With
              start unless the config names the daemon's socket, so it never
              falls back to the user's daemon. It routes
              each event (route.rs, which the window's answer and the tests
-             both call; the answer adds a tick's news): keys, the pen, the
+             both call; the answer adds the news a wake or a tick brings):
+             keys, the pen, the
              mouse, the trackpad. A pen or
              mouse press first focuses the pane under it (its content or its
              footer; not a touch, a divider, or under the key overlay or the
@@ -462,9 +463,17 @@ backend.rs   the app's IO: the one module that talks to the daemon, and the
              profile each runs under and the names of its profiles
              (workspace_list, session_list: backend/agents.rs) and for the window's workspace's
              panes (pane_list: the config's, else the first open one) every
-             second on a thread of its own, and the window's timer takes the
+             second on a thread of its own, and the main thread takes the
              news without blocking. When the layout changes it fetches the
-             code of each agent UI the panes show first.
+             code of each agent UI the panes show first. Every backend
+             thread (the Watch, each Follower, the Outbox, the Slinger, the
+             Noter, Flick's, the live pages' and the PDFs') sends its news on
+             a Teller (backend/wake.rs), which wakes the main thread.
+backend/wake.rs  Wake and Teller, pure: a Teller's send puts the news in its
+             channel and then wakes the main thread through the post
+             platform::waker gives, unless a wake is pending; the main
+             thread clears the mark (Wake::taken) before it drains, so a
+             send racing the drain posts again. Wake::none for tests.
              Its Follower keeps one canvas page coming: `canvas_show`,
              then the change feed. Its Outbox sends the pen's changes
              (`canvas_apply`, one each: a stroke's, text's, box's or
@@ -1149,6 +1158,10 @@ platform/    draws a scene, turns a key press into a chord (and, when the app
              layout::SMALLEST) and says its new size as Event::Resized; main
              lays the scene out again at it. All unsafe, objc2 and AppKit
              code. No decisions.
+platform/event.rs  what the app hears (Event) and answers (Step), and
+             waker: the post any thread calls to queue Event::Wake on the
+             main dispatch queue, which the run loop serves in its common
+             modes (during a stroke, a drag or a live resize too).
 platform/window.rs  makes the window (its style, smallest size and
              delegate) and puts it at its saved frame.
 platform/drive.rs  the driven window on the main thread: runs each ask from
@@ -1247,10 +1260,14 @@ The app reads `config.toml` and merges `config.local.toml` (the machine's
 overlay) over it. A main-thread timer stats both files twice a second and,
 on a change, rereads them and draws a new scene. The agents' statuses and
 the workspace's panes come from `backend::Watch`'s one thread, so a daemon
-that is slow to answer never holds up the window; the timer takes its
+that is slow to answer never holds up the window. Each backend thread's
+news wakes the main thread (Event::Wake, backend/wake.rs), which takes the
 latest answers and draws only when the scene changed. A pane opened from a
 terminal shows within a second, and a daemon that cannot be reached shows
-as the problem. The same timer drains the canvas followers.
+as the problem. The timer is a clock, not the way news comes: it fades the
+flash and the notice, ticks the sling's pill, retries a missed PDF, and is
+the backstop for a wake that came while the answer ran (dispatch drops
+such an event; the pending mark stays until the next look).
 The release profile builds the app at `opt-level = "z"`. A file
 with an error keeps the last good config, and the window shows the file,
 the line and what to fix.
@@ -1457,7 +1474,8 @@ Each boundary has something that fails when it is broken:
 | A workspace's new canvas starts empty; the `sling` entry opens beside a page's button | `crates/daemon/src/tests/workspace.rs`, `crates/app/src/canvases/button/tests.rs` |
 | The button's mark and colour follow its agent's status (none, working, blocked, done), scale with the canvas and repaint on a change | `crates/app/src/scene/button/tests.rs` |
 | a button on the page (put through the daemon); a tap slings what is new with no selection, the reply lands beside the note, a typed prompt goes with a tap, a failure shows under the button, the eraser over it slings nothing | `crates/app/src/canvases/button/tests.rs` against a real daemon and a stand-in for Claude Code |
-| A follower shows the page, hands on each change, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
+| A follower shows the page, hands on each change, wakes the main thread with each, and retries a lost daemon | `crates/app/src/backend/follow.rs`, against a real daemon |
+| Two wakes post once, a teller wakes after its news is in the channel, Event::Wake runs the news path | `crates/app/src/backend/wake.rs`, `crates/app/src/tests/wake.rs` |
 | A canvas scene draws only what is visible and repaints only what changed | `crates/app/src/scene/canvas/tests.rs` |
 | Ink shows from the pen until the feed brings it; strokes go one at a time in the order drawn, a failed one again first | `crates/app/src/scene/ink/tests.rs` |
 | Ink not yet written is selected, moved and erased at once; each change goes in turn by the ids the daemon made, one undo step each | `crates/app/src/scene/ink/tests.rs`, and `crates/app/src/canvases/tests.rs` against a real daemon |

@@ -5,6 +5,7 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 ## Switching and views (slinger-eaa98b)
 
 - [ ] (bundle) `open target/slinger.app --env SLINGER_TRACE=switch --stderr <file>`, tap between two workspaces ten times, paste the lines in slinger-eaa98b: the baseline in the shown window (a driven window measured 818 to 1925 ms to drawn, of which under 5 ms was the daemon) (slinger-9fd400)
+- [ ] (bundle) an agent's `slinger canvas put` appears with no half-second step, also while a pen stroke or a divider drag is under way; the trace's taken and heard come a few ms after layout and shown; the app idles at no more CPU than before. Driven window after slinger-1e161b: drawn mean 990 ms (945-1035), of which the watch's wait ~970 ms (step 3's); taken and heard 0-35 ms after layout and shown; a `canvas apply` showed in the scene 24-26 ms later (slinger-1e161b)
 
 ## Fold and boxes (plan pl-f130a2)
 

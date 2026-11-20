@@ -444,6 +444,9 @@ bullet with the area in bold.
 
 ### Changed
 
+- **App:** what an agent draws, a page that comes, and a workspace you
+  switch to show at once: the window no longer waits up to half a second
+  for its timer before it shows news from the daemon.
 - **App:** a mouse or trackpad no longer draws stray lines. With the pen
   tool chosen, a mouse or trackpad press selects and moves items, as the
   select tool does; the tablet pen draws exactly as before. Every other

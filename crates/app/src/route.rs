@@ -27,7 +27,7 @@ pub enum Routed {
     /// A tap in the sidebar or `open-workspace` showed the workspace
     /// named, or `close-workspace` the first (`None`): watch it, then answer.
     Watch(Option<String>, Step),
-    /// Look at the news (a tick); `true` draws whether or not there is any.
+    /// Look at the news (a wake or a tick); `true` draws whether or not there is any.
     News(bool),
 }
 
@@ -78,7 +78,7 @@ pub fn route(
             }
         }
         (Ask::Step(step), _) => step,
-        (Ask::Not, Event::Tick) => return Routed::News(false),
+        (Ask::Not, Event::Tick | Event::Wake) => return Routed::News(false),
         (Ask::Not, Event::Reply(line)) => match shared.reply(&line, socket) {
             Ok(false) => Step::Stay,
             Ok(true) => Step::Draw(view(settings, shared, tools, sidebar, canvases)),

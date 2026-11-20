@@ -40,7 +40,7 @@ use std::rc::Rc;
 
 use slinger_control::Client;
 
-use crate::backend::{Flick, Follower, Outbox, Problem, Slinger, run};
+use crate::backend::{Flick, Follower, Outbox, Problem, Slinger, Wake, run};
 use crate::config::{Rgb, Theme};
 use crate::layout::{PaneId, Point, Rect, Size, Viewport};
 use crate::mirror::Mirror;
@@ -116,6 +116,8 @@ pub struct Canvases {
     /// The last tap on a miniature, and what the pen and the text being
     /// typed join ([`step`]).
     steps: step::Steps,
+    /// Wakes the main thread when a backend thread has news.
+    wake: Wake,
 }
 
 /// One canvas page followed: the page asked for (`None`: the first), as
@@ -155,18 +157,25 @@ impl Default for View {
 }
 
 impl Canvases {
-    /// None followed yet; [`Canvases::show`] starts following. Strokes not
-    /// yet written are kept nowhere until [`Canvases::keeping`].
+    /// None followed yet, and news waits for the timer: a test's.
+    #[cfg(test)]
     pub fn new(daemon: Client) -> Self {
+        Self::waking(daemon, Wake::none())
+    }
+
+    /// None followed yet; [`Canvases::show`] starts following. Every
+    /// backend thread's news wakes the main thread with `wake`. Strokes not
+    /// yet written are kept nowhere until [`Canvases::keeping`].
+    pub fn waking(daemon: Client, wake: Wake) -> Self {
         let (outbox, slinger) =
-            (Outbox::start(daemon.clone()), Slinger::start(daemon.clone(), None));
+            (Outbox::start(daemon.clone(), &wake), Slinger::start(daemon.clone(), None, &wake));
         let (ink, select, sling) = (Ink::named(run()), Select::default(), Sling::default());
         let (open, views) = (Vec::new(), Vec::new());
         let (shapes, asks, turning) = (Shapes::default(), Pages::default(), Vec::new());
-        let (pen, unshown, lives) = (None, None, live::Lives::start(daemon.clone()));
-        let pdfs = pdf::Pdfs::start(daemon.clone(), crate::backend::pdf::cache());
-        let voice = dictation::Voice::new(Flick::socket());
-        let notes = feedback::Notes::new(daemon.clone());
+        let (pen, unshown, lives) = (None, None, live::Lives::start(daemon.clone(), &wake));
+        let pdfs = pdf::Pdfs::start(daemon.clone(), crate::backend::pdf::cache(), &wake);
+        let voice = dictation::Voice::new(Flick::socket(), &wake);
+        let notes = feedback::Notes::new(daemon.clone(), &wake);
         Self {
             daemon,
             open,
@@ -196,6 +205,7 @@ impl Canvases {
             handle: None,
             folds: fold::Folds::default(),
             steps: step::Steps::default(),
+            wake,
         }
     }
 
@@ -205,8 +215,8 @@ impl Canvases {
         self.outbox.reconnect(daemon.clone());
         self.slinger.reconnect(daemon.clone());
         self.notes.reconnect(daemon.clone());
-        self.lives = live::Lives::start(daemon.clone());
-        self.pdfs = pdf::Pdfs::start(daemon.clone(), crate::backend::pdf::cache());
+        self.lives = live::Lives::start(daemon.clone(), &self.wake);
+        self.pdfs = pdf::Pdfs::start(daemon.clone(), crate::backend::pdf::cache(), &self.wake);
         self.daemon = daemon;
         self.open.clear();
     }
@@ -345,8 +355,8 @@ impl Canvases {
         self.open.retain(|o| shown.iter().any(|(c, p)| matches(o, c, p.as_deref())));
         for (canvas, page) in &shown {
             if find(&self.open, canvas, page.as_deref()).is_none() {
-                let follower =
-                    Follower::start(self.daemon.clone(), (*canvas).to_string(), page.clone());
+                let (daemon, wake) = (self.daemon.clone(), &self.wake);
+                let follower = Follower::start(daemon, (*canvas).to_string(), page.clone(), wake);
                 let (canvas, asked) = ((*canvas).to_string(), page.clone());
                 let (mirror, problem, file, paged) = (None, None, None, None);
                 let heard = 0;
