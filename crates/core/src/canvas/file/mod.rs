@@ -13,7 +13,9 @@
 //!   stored lines after a point, and [`lines`] reads them as they are. It
 //!   also crops images of an item or a box and gives a stroke's points, for
 //!   an agent (`look`), puts an agent's answer beside an item (`put`) and
-//!   lets the agent change or remove it (`edit`).
+//!   lets the agent change or remove it (`edit`). It folds and unfolds a
+//!   box (`fold`), and a move or an erase of a folded box carries what it
+//!   holds.
 //! - [`snap`] rounds an operation to what the file can hold. Apply the
 //!   snapped op, so the canvas in memory is the one the file rebuilds.
 //!
@@ -37,6 +39,7 @@
 //! and replay skips it. Fields this reader does not know are ignored.
 
 mod edit;
+mod fold;
 mod json;
 mod log;
 mod look;

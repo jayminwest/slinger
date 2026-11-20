@@ -1,6 +1,8 @@
 //! Geometry queries on a page: the item under a point, the items inside a
 //! lasso, the items an eraser touches, the items a box touches, the box
-//! around a set of items, and free space beside an item. Pure: no drawing and no input. The app asks them as
+//! around a set of items, and free space beside an item; and the frame a
+//! box folds to ([`miniature`]). Items hidden in a folded box are not on
+//! the page for any query. Pure: no drawing and no input. The app asks them as
 //! the pen moves; the packet asks them for what the user selected.
 //!
 //! Every query takes canvas units, answers in drawing order (first drawn
@@ -129,6 +131,24 @@ impl Canvas {
                 .unwrap_or(a)
         })
     }
+}
+
+/// The longest side of a folded box's miniature, in canvas units.
+pub const MINIATURE: std::ops::RangeInclusive<f64> = 80.0..=320.0;
+
+/// The frame a box of frame `open` folds to (docs/design/fold.md): the
+/// same top left and proportions, its longer side a quarter of `open`'s,
+/// within [`MINIATURE`] but never longer than `open`'s. A frame with no
+/// area, or one that is not a number, stays as it is.
+#[must_use]
+pub fn miniature(open: Rect) -> Rect {
+    let long = open.w.max(open.h);
+    if !(long.is_finite() && open.w > 0.0 && open.h > 0.0) {
+        return open;
+    }
+    let side = (long / 4.0).clamp(*MINIATURE.start(), *MINIATURE.end()).min(long);
+    let k = side / long;
+    Rect::new(open.x, open.y, open.w * k, open.h * k)
 }
 
 /// A shape as the queries see it.

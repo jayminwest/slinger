@@ -20,7 +20,7 @@ fn boxes(frames: &[Rect]) -> (Canvas, PageId) {
     let mut c = Canvas::new();
     let page = c.pages().next().unwrap().id();
     for &frame in frames {
-        let shape = Shape::Box { frame, colour: Colour::BLACK };
+        let shape = Shape::Box { frame, colour: Colour::BLACK, fold: None };
         c.apply(Op { by: Author::User, at: AT, action: Action::Add { page, shape } }).unwrap();
     }
     (c, page)

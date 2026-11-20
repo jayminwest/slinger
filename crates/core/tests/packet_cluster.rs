@@ -278,7 +278,7 @@ fn ids_that_are_not_strokes_are_skipped() {
         at: Time(p.clock),
         action: Action::Add {
             page: p.on,
-            shape: Shape::Box { frame: Rect::new(0.0, 0.0, 50.0, 50.0), colour: BLACK },
+            shape: Shape::Box { frame: Rect::new(0.0, 0.0, 50.0, 50.0), colour: BLACK, fold: None },
         },
     };
     let Applied::Added(frame) = p.canvas.apply(op).unwrap() else { panic!("not added") };

@@ -95,7 +95,7 @@ impl Log {
         let written = if new == shape {
             Written::default()
         } else {
-            let actions = self.followed(by, vec![Action::Edit { item, shape: new }]);
+            let actions = self.followed(by, self.carried(vec![Action::Edit { item, shape: new }]));
             self.step(by, at, actions)?
         };
         let frame = self.canvas().item(item).map(Item::bounds).unwrap_or_default();
@@ -177,7 +177,9 @@ impl Log {
             Err(Error::NotFound { .. }) => return Ok(Written::default()),
             found => found?,
         };
-        self.step(by, at, items.into_iter().map(|item| Action::Remove { item }).collect())
+        let actions = items.into_iter().map(|item| Action::Remove { item }).collect();
+        let actions = self.carried(actions);
+        self.step(by, at, actions)
     }
 }
 

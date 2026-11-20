@@ -75,7 +75,7 @@ fn text(body: &str, at: [f64; 4]) -> Shape {
 }
 
 fn frame(x: f64, y: f64, w: f64, h: f64) -> Shape {
-    Shape::Box { frame: Rect::new(x, y, w, h), colour: BLACK }
+    Shape::Box { frame: Rect::new(x, y, w, h), colour: BLACK, fold: None }
 }
 
 fn arrow(from: End, to: End) -> Shape {

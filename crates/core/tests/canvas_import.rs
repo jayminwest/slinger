@@ -62,7 +62,7 @@ fn ids_makers_times_arrow_ends_and_a_removed_first_page_survive() {
         panic!("no arrow")
     };
     let frame = Rect::new(20.0, 0.0, 5.5, 3.0);
-    let bx = Shape::Box { frame, colour: Colour::rgb(200, 0, 0) };
+    let bx = Shape::Box { frame, colour: Colour::rgb(200, 0, 0), fold: None };
     let Applied::Added(b) =
         apply(&mut canvas, Author::User, Action::Add { page: notes, shape: bx })
     else {

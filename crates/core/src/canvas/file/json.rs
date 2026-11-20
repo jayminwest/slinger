@@ -9,7 +9,9 @@
 use serde_json::{Map, Value};
 
 use super::time;
-use crate::canvas::{Author, Colour, End, Item, ItemId, PageId, Point, Rect, Shape, TEXT_SIZE};
+use crate::canvas::{
+    Author, Colour, End, Fold, Item, ItemId, PageId, Point, Rect, Shape, TEXT_SIZE,
+};
 
 /// A JSON object, as read.
 pub(super) type Fields = Map<String, Value>;
@@ -159,8 +161,12 @@ pub(super) fn shape(o: Obj, s: &Shape) -> Obj {
                 size => o.int("size", size),
             }
         }
-        Shape::Box { frame, colour: c } => {
-            rect(o.str("kind", "box").str("color", &colour(*c)), *frame)
+        Shape::Box { frame, colour: c, fold } => {
+            let o = rect(o.str("kind", "box").str("color", &colour(*c)), *frame);
+            match fold {
+                Some(f) => o.raw("fold", &fold_object(f)),
+                None => o,
+            }
         }
         Shape::Arrow { from, to, colour: c } => {
             let mut o =
@@ -191,6 +197,23 @@ pub(super) fn shape(o: Obj, s: &Shape) -> Obj {
             }
         }
     }
+}
+
+/// A folded box's `fold`: its open size and the ids it holds.
+fn fold_object(f: &Fold) -> String {
+    let items = Value::from_iter(f.items.iter().map(|i| item_id(*i))).to_string();
+    let (w, h) = f.open;
+    Obj::new().int("w", tenths(w)).int("h", tenths(h)).raw("items", &items).end()
+}
+
+/// Reads [`fold_object`]; absent or `null` is an open box.
+fn read_fold(m: &Fields) -> Result<Option<Fold>, Bad> {
+    let f = match m.get("fold") {
+        None | Some(Value::Null) => return Ok(None),
+        Some(f) => f.as_object().ok_or("`fold` is not an object")?,
+    };
+    let open = (units(int(f, "w")?), units(int(f, "h")?));
+    Ok(Some(Fold { open, items: ids(f, "items")? }))
 }
 
 /// An `add` operation's item object.
@@ -246,6 +269,7 @@ pub(super) fn fields(s: &Shape) -> Fields {
         Shape::Arrow { .. } => &["from", "to"],
         Shape::Text { .. } => &["size"],
         Shape::Pdf { .. } => &["crop", "name"],
+        Shape::Box { .. } => &["fold"],
         _ => &[],
     };
     for &key in optional {
@@ -303,7 +327,7 @@ pub(super) fn read_shape(m: &Fields) -> Result<Option<Shape>, Bad> {
         }
         "box" => {
             let frame = Rect::new(at("x")?, at("y")?, at("w")?, at("h")?);
-            Shape::Box { frame, colour }
+            Shape::Box { frame, colour, fold: read_fold(m)? }
         }
         _ => {
             let points = parse_pts(m)?;

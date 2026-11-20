@@ -39,10 +39,21 @@ impl Log {
         ops: &Value,
         once: &str,
     ) -> Result<Written> {
+        self.once(Some(once), |log| log.apply(by, at, ops))
+    }
+
+    /// `change`, under the key `once` as [`Log::apply_once`] says; with no
+    /// key, `change` as it is.
+    pub(super) fn once(
+        &mut self,
+        once: Option<&str>,
+        change: impl FnOnce(&mut Self) -> Result<Written>,
+    ) -> Result<Written> {
+        let Some(once) = once else { return change(self) };
         if let Some((_, seq, made)) = self.onces.0.iter().find(|(key, ..)| key == once) {
             return Ok(Written { bytes: String::new(), seq: seq.clone(), made: made.clone() });
         }
-        let written = self.apply(by, at, ops)?;
+        let written = change(self)?;
         if self.onces.0.len() == ONCES {
             self.onces.0.pop_front();
         }
