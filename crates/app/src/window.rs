@@ -243,6 +243,11 @@ pub fn selection(
         Command::ClearSelection => canvases.clear_selection(panes, panes.focus()),
         Command::Sling | Command::Dictate => canvases.sling_command(command, panes, area),
         Command::SlingNow => canvases.sling_now_command(panes, area, Profile::Running),
+        Command::NewText => {
+            let under = tools.pointer().and_then(|at| pane_at(panes, area, at));
+            let pane = under.unwrap_or_else(|| focus(panes, area));
+            canvases.new_text(panes, pane, tools.pointer(), tools.colour())
+        }
         c => items::run(c, shared, canvases, area),
     }
 }

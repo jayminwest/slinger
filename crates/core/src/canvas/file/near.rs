@@ -6,6 +6,8 @@
 //! and [`TEXT_SIZE`](crate::canvas::TEXT_SIZE). The user's marks are the
 //! user's strokes and text items; a stroke counts with its whole cluster
 //! (`packet::cluster`), so `i12` and `c12` on the same note look the same.
+//! Marks hidden in a folded box are not on the page: only what the page
+//! shows counts, or, beside a hidden item, what the same folded box holds.
 //!
 //! The colour is the one most of those marks have (the earliest on a tie).
 //! The size is the median of their sizes: a text's own size, and for each
@@ -35,17 +37,25 @@ pub(super) fn look(
     beside: &[ItemId],
 ) -> (Option<Colour>, Option<f64>) {
     let mine = |i: &&Item| *i.author() == Author::User && is_mark(i);
+    // The marks in the same place as what the put goes beside: held by the
+    // same folded box, or shown on the page; never those a fold hides.
+    let place: Vec<&Item> = match beside.first().and_then(|&id| canvas.holder(id)) {
+        Some(holder) => {
+            canvas.contents(holder).into_iter().filter_map(|i| canvas.item(i)).collect()
+        }
+        None => canvas.visible(page).collect(),
+    };
     let named: Vec<&Item> = beside.iter().filter_map(|&id| canvas.item(id)).filter(mine).collect();
     let marks: Vec<&Item> =
-        if named.is_empty() { canvas.items(page).filter(mine).collect() } else { named };
+        if named.is_empty() { place.iter().copied().filter(mine).collect() } else { named };
     let strokes = marks.iter().filter(|i| matches!(i.shape(), Shape::Stroke { .. }));
     let clusters = if strokes.clone().next().is_none() {
         Vec::new()
     } else {
         // A stroke's cluster as the packet sees it: clustered with the
-        // whole page, kept when it holds a mark.
+        // whole place, kept when it holds a mark.
         let wanted: BTreeSet<ItemId> = strokes.map(|i| i.id()).collect();
-        let all = canvas.items(page).filter(mine).map(Item::id);
+        let all = place.iter().copied().filter(mine).map(Item::id);
         cluster(canvas, all).into_iter().filter(|c| c.iter().any(|s| wanted.contains(s))).collect()
     };
     let mut seen: Vec<&Item> = marks.iter().copied().filter(|i| !is_stroke(i)).collect();

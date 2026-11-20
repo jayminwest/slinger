@@ -35,7 +35,7 @@ a "did you mean" suggestion.
 | `canvas apply <ID> <OPS\|-> [--agent NAME]` | The ids the operations made, one per line. `--json`: `seq`, `made` |
 | `canvas schema` | The item kinds and operations `canvas apply` takes, one per line: section (`unit`, `item`, `kind` or `op`), name and fields, separated by tabs. Needs no daemon. `--json`: `units`, `item`, `kinds`, `ops` (each name to its fields) |
 | `canvas undo <ID> [--agent NAME]`, `canvas redo <ID> [--agent NAME]` | Nothing. `--json`: `seq`, `made` |
-| `canvas read <ID> [--page PAGE] [--after NUMBER] [--select IDS] [--out DIR]` | The packet's text (`docs/design/packet.md`), its header naming the directory that holds the images (`at=`). `--json`: `packet`, `dir`, `text`, `images` |
+| `canvas read <ID> [--page PAGE] [--in BOX] [--after NUMBER] [--select IDS] [--out DIR]` | The packet's text (`docs/design/packet.md`), its header naming the directory that holds the images (`at=`). `--json`: `packet`, `dir`, `text`, `images` |
 | `canvas import <FILE> [--name ID]` | The new canvas's id, then one count per line, tab separated: `pages`, each item kind, and `skipped` with each tldraw shape type. `--json`: `canvas`, `pages`, `items`, `skipped` |
 | `workspace open [DIR] [--name NAME]` | The workspace's name. `--json`: `workspace`, `new` |
 | `workspace list` | One line per open workspace, by name: name, canvas and directory, separated by tabs. A workspace whose file is broken has `-` for what its file does not say and a fourth field, `✗` and the error. `--json`: `workspaces` (a broken one with `error`: `code`, `message`, `hint`, `file`, `field`) |
@@ -196,6 +196,9 @@ of the ink drawn after operation `--after` (default: the canvas's last
 sling), an index of what is new, and an outline of the rest of the page.
 The images are in the directory the header's `at=` names: `--out`, or
 slingerd's own. `--select c42,t12` keeps only those items in the outline.
+A folded box is one line, `b4 box … folded=7 "its first text"`; `--in b4`
+reads what a box holds, open or folded, as if it were the page, and its
+header says so (`in=b4`).
 A read changes nothing. The packet is stored as a blob (`packet` in
 `--json`), and so is each image (`images`), for `blob get`. A canvas or
 page that is not there exits 3 (`not_found`), an id that is not one exits
@@ -216,7 +219,8 @@ the `next` of `--json`. An `--after` the canvas has not reached exits 5
 (`invalid`).
 
 `canvas crop` writes an image of one item or one box at the packet's scale
-(`docs/service.md`, "Crops and strokes"). `--item` takes an id from `canvas
+(`docs/service.md`, "Crops and strokes"). A folded box's `--item` draws it
+open, with what it holds. `--item` takes an id from `canvas
 show` (`i12`) or from a packet (`c12` is the whole cluster). `--box` is in
 tenths of a unit, like every canvas command, on the first page unless
 `--page` names another. The image goes to `--out` (default `<ITEM>.png` or
@@ -231,7 +235,9 @@ there exits 3 (`not_found`).
 
 `canvas find` matches the words of text items on every page, ignoring case
 and spacing (a line break counts as a space), not ink or a PDF's words. A
-`TEXT` of no words finds nothing.
+`TEXT` of no words finds nothing. A text hidden in a folded box is found
+too: its item id is followed by ` in <BOX>`, the outermost folded box that
+holds it (`folded` in `--json`); read it with `canvas read --in <BOX>`.
 
 `status set` is an agent verb: it acts as the calling agent, named by
 `--agent <NAME>` or else by the `SLINGER_AGENT` environment variable, so a

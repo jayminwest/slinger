@@ -12,7 +12,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::format::{Header, Packet};
 use super::{Index, cluster, words};
-use crate::canvas::{Canvas, Changes, Item, ItemId, Marker, Op, PageId, changes_since, replay};
+use crate::canvas::{
+    Canvas, Changes, Item, ItemId, Marker, Op, PageId, Shape, changes_since, replay,
+};
 use crate::render::Backdrop;
 use crate::{Error, Result, render};
 
@@ -34,6 +36,10 @@ pub struct Ask<'a> {
     /// is drawn over the ones that meet it, and the words near a cluster's
     /// ink end its line. Empty: ink on white, no words.
     pub backdrops: &'a [Backdrop],
+    /// A box on the page to read as if it were the page (`canvas read
+    /// --in`): its direct contents ([`Canvas::contents`]), open or folded,
+    /// without the box's own line. `None` reads the page.
+    pub inside: Option<ItemId>,
 }
 
 /// What a packet and its backdrops are read from: the canvas the log
@@ -56,10 +62,35 @@ impl Read {
         let page_name = page.name().to_string();
         let delta = changes_since(log, ask.since);
         let changed: BTreeSet<ItemId> = delta.new.iter().chain(&delta.changed).copied().collect();
-        let clusters = cluster(&canvas, canvas.items(ask.page).map(Item::id));
-        let index = Index::new(&canvas, ask.page, &clusters, |id| changed.contains(&id));
+        let (clusters, index) = {
+            let items = scope(&canvas, ask)?;
+            let clusters = cluster(&canvas, items.iter().map(|i| i.id()));
+            let changed = |id| changed.contains(&id);
+            let index = Index::of(&canvas, ask.page, items, &clusters, &changed);
+            (clusters, index)
+        };
         Ok(Self { canvas, page_name, delta, clusters, index })
     }
+}
+
+/// The items a packet reads: what the page shows, or what the box
+/// `ask.inside` holds directly.
+fn scope<'c>(canvas: &'c Canvas, ask: &Ask<'_>) -> Result<Vec<&'c Item>> {
+    let Some(inside) = ask.inside else { return Ok(canvas.visible(ask.page).collect()) };
+    let found = canvas.item(inside).filter(|i| i.page() == ask.page);
+    let Some(item) = found else {
+        return Err(Error::NotFound {
+            what: format!("box b{} on page p{}", inside.get(), ask.page.get()),
+            hint: Some("pass a box's id from the page's packet or 'slinger canvas show'".into()),
+        });
+    };
+    if !matches!(item.shape(), Shape::Box { .. }) {
+        return Err(Error::Invalid {
+            message: format!("i{} is not a box", inside.get()),
+            hint: Some("read inside a box: pass its id (b4 or i4)".into()),
+        });
+    }
+    Ok(canvas.contents(inside).into_iter().filter_map(|i| canvas.item(i)).collect())
 }
 
 /// The packet of `ask.page` on the canvas that `log` builds.
@@ -105,6 +136,7 @@ pub fn build(log: &[Op], ask: &Ask<'_>) -> Result<Packet> {
     let header = Header {
         canvas: ask.canvas.to_string(),
         page: page_name,
+        inside: ask.inside.map(|b| format!("b{}", b.get())),
         from: delta.from.0 + 1,
         to: delta.to.0,
         scale: render::SCALE,

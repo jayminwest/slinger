@@ -14,6 +14,8 @@
 //!   `move`, with the arrows bound to it following, as a drag's lift does.
 //! - Duplicate: a copy of the selection lands [`DUPLICATE`] screen points
 //!   down and right of it, as a paste lands, and is the selection once there.
+//! - Resize: a size command with texts selected (and none being typed)
+//!   gives each its size ([`Resize`]), as one `set`, top left kept.
 //! - One item: a find's jump selects the text it went to alone
 //!   ([`Select::only`]), as next-item does, so the keys above act from it.
 
@@ -22,9 +24,11 @@ use std::borrow::Cow;
 use super::{Select, Selection, bounds, takes};
 use crate::commands::Command;
 use crate::layout::{Point, Rect, Size, Viewport};
-use crate::scene::canvas::{Item, ItemId};
+use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::glyphs;
 use crate::scene::ink::{Change, Ink, on_server};
 use crate::scene::shapes;
+use crate::scene::tools::Resize;
 
 /// How far a nudge moves the selection, in screen points.
 pub const NUDGE: f64 = 10.0;
@@ -134,6 +138,33 @@ impl Select {
         let (canvas, page, ids) = (canvas.clone(), page.clone(), ids.clone());
         ink.push(Change::Move { canvas, page, ids, by, follow });
         true
+    }
+
+    /// Gives each selected text of `items` (its page as shown) the size
+    /// `resize` makes of its own, laid out again from its top left in its
+    /// column, as one change to `ink`. False when the selection holds no
+    /// text, or the pen is down: the command sets a new text's size.
+    pub fn resize(&self, resize: Resize, items: &[Cow<'_, Item>], ink: &mut Ink) -> bool {
+        let Some(Selection { canvas, page, ids }) = self.selection.as_ref() else { return false };
+        let texts = items.iter().filter(|i| ids.contains(&i.id) && self.gesture.is_none());
+        let mut held = false;
+        let mut changed = Vec::new();
+        for item in texts {
+            let Shape::Text { frame, text, size, column } = &item.shape else { continue };
+            held = true;
+            let to = resize.of(*size);
+            if to.total_cmp(size).is_ne() {
+                let at = Point { x: frame.x, y: frame.y };
+                let frame = glyphs::rows_frame(at, text, to, column.unwrap_or(glyphs::UNWRAPPED));
+                let shape = Shape::Text { frame, text: text.clone(), size: to, column: *column };
+                changed.push(Item { shape, ..item.as_ref().clone() });
+            }
+        }
+        if !changed.is_empty() {
+            let (canvas, page) = (canvas.clone(), page.clone());
+            ink.push(Change::Reshape { canvas, page, items: changed });
+        }
+        held
     }
 
     /// Where the duplicate of the selection over `items` (its page as

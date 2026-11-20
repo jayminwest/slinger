@@ -22,6 +22,8 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
+use unicode_segmentation::UnicodeSegmentation;
+
 use crate::layout::{Point, Rect, Size};
 
 /// Lays `text` out `size` points high, broken only at its line ends, and
@@ -30,6 +32,8 @@ pub type Measure = fn(text: &str, size: f64) -> Size;
 
 /// The column of a text that does not wrap.
 pub const UNWRAPPED: f64 = 1e7;
+/// How many characters a row of a new typed text holds ([`column`]).
+pub const NEW_COLUMN: f64 = 48.0;
 /// The estimate's width of a character, and height of a line, as a part of
 /// the text's size: about the system font's.
 const CHAR_WIDTH: f64 = 0.55;
@@ -76,6 +80,17 @@ pub fn rows(text: &str, size: f64, column: f64) -> String {
     let rows: Vec<&str> =
         layout(text, size, column).iter().map(|r| &text[r.start..r.end]).collect();
     rows.join("\n")
+}
+
+/// The column a text of `size` wraps in when it is about `width` wide (a
+/// typed text's, as the user drags it): as many whole cells as fit, at
+/// least one, and half a cell more. The rows are those of the whole
+/// cells, and the half keeps the stored width off every whole number of
+/// cells, so the column never reads back as a text that does not wrap
+/// (one as wide as its longest line, docs/design/canvas-file.md).
+pub fn column(width: f64, size: f64) -> f64 {
+    let cell = size * CELL;
+    ((width / cell).floor().max(1.0) + 0.5) * cell
 }
 
 /// One of the core's rows of a text: the byte range of its characters. The
@@ -131,7 +146,7 @@ pub fn layout(text: &str, size: f64, column: f64) -> Vec<Row> {
 /// A canvas text set from its top left `at`, `size` high in its `column`,
 /// as its rows ([`layout`]) and their glyphs in the [`FONT`]: where a caret
 /// at a byte index stands, which index a point is nearest, and the boxes a
-/// selection fills. Indices are on `char` boundaries.
+/// selection fills. Indices are on grapheme cluster boundaries.
 pub struct Laid<'a> {
     text: &'a str,
     at: Point,
@@ -169,7 +184,7 @@ impl<'a> Laid<'a> {
     pub fn index_in(&self, row: usize, x: f64) -> usize {
         let Row { start, end } = self.rows[row.min(self.rows.len() - 1)];
         let line = &self.text[start..end];
-        let mut stops: Vec<usize> = line.char_indices().map(|(i, _)| start + i).collect();
+        let mut stops: Vec<usize> = line.grapheme_indices(true).map(|(i, _)| start + i).collect();
         stops.push(end);
         let width = |i: usize| self.x_in(Row { start, end }, i);
         // The first stop at or right of `x`: widths grow along the row.

@@ -11,6 +11,33 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a typed text wraps. A new text wraps at 48 characters, and
+  while you type it its dashed frame shows that column; drag the frame's
+  right edge (the pointer shows a left-right arrow) to make the column
+  narrower or wider, for a new text or one you edit. Texts typed before
+  keep running on one line until you drag their edge. Agents see the
+  same rows.
+- **App:** the key overlay (cmd+/) also lists the keys that are not
+  commands: under "Typing a text", the caret keys of a text you are typing
+  (arrows, word and row jumps, selection, deletes, the emacs keys, double
+  and triple tap), and under "Pointer", the pans by space-drag and the
+  middle or right button and the zoom at the pointer. The README has a
+  "Without a pen" section, and config.example.toml names these fixed keys.
+- **Agents:** a folded box is one line in what an agent reads,
+  `b4 box … folded=7 "its first text"`, and what it holds makes no lines;
+  new ink in it puts the box's line under the new things with `new=`.
+  `slinger canvas read <ID> --in b4` reads what a box holds, open or folded,
+  and `slinger canvas crop <ID> --item b4` of a folded box shows it open.
+  Such a packet's header names the box: `in=b4`.
+- **Agents:** `slinger canvas find` finds texts inside folded boxes too,
+  and names the folded box that hides each (`i7 in i4`).
+- **Agents:** an `add` in `slinger canvas apply` may name a folded box with
+  `in`: the new item joins it, and the box's open size grows to hold it.
+- **App:** start a text without a tap. New text (`new-text`, ctrl+return,
+  Edit menu and the command palette) ends the text you are typing and
+  starts the next half a line under it, so notes follow one another from
+  the keyboard. With no text being typed it starts one at the pointer, or,
+  with the pointer off the pane, under the last text you ended there.
 - **CLI:** `slinger canvas fold <ID> <ITEM>` folds a box to a miniature that
   keeps what lies inside it, and `slinger canvas unfold` opens it again in
   its old room, each as one undo step. When something now lies in that
@@ -33,6 +60,12 @@ bullet with the area in bold.
   dictation go in at the caret. A press inside the text puts the caret
   there; a drag or a shift-press selects. While a text is typed these keys
   are its own, before your key bindings.
+- **App:** in a canvas text being typed, a double tap (or double click)
+  selects the word under it, and a triple tap the row.
+- **App:** a canvas text being typed takes a Mac's emacs keys: ctrl+A and
+  ctrl+E go to the line's start and end, ctrl+B, F, P and N move, ctrl+H
+  and D delete, ctrl+K cuts to the line's end and ctrl+Y puts it back,
+  ctrl+T swaps two characters and ctrl+O starts a line after the caret.
 - **App:** pan without a right button. Hold space and drag (mouse,
   trackpad or pen) to pan the pane under the press; the pointer is a hand.
   A middle-button drag pans as a right-button drag does. While you type a
@@ -59,8 +92,10 @@ bullet with the area in bold.
   (`pick-size`, cmd+shift+a) opens a pop-up at the pen with 12, 16, 24, 36,
   48 and 72 points; Bigger text (`size-up`, alt+shift+]) and Smaller text
   (`size-down`, alt+shift+[) step through them, and a new size flashes. The
-  text tool's next text starts at that size (24 until you pick another); a
-  text you are typing or editing keeps its own. While the text tool is
+  text tool's next text starts at that size (24 until you pick another).
+  While you type a text, the same commands resize it (its own size steps
+  to the next on the list; those two keys resize rather than type); with
+  texts selected they resize those, in one undo step. While the text tool is
   chosen, the footer shows the size ("Size 24") where the width bars sit;
   a tap there picks a size.
 
@@ -474,6 +509,11 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** a reply that leaves out its colour and size no longer takes
+  them from writing hidden in a folded box; it matches what the page shows.
+- **App:** the caret in a canvas text moves, and delete deletes, by what
+  reads as one character: an emoji joined from several (a family, a skin
+  tone), a letter with its accents, a flag. It no longer stops inside one.
 - **App:** a paste that has nowhere to go says why in a flash instead of
   only beeping: nothing on the clipboard the app can paste, no text for the
   text you are typing, or nothing focused that takes a paste.

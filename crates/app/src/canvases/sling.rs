@@ -12,7 +12,7 @@ use crate::panes::Panes;
 use crate::scene::Scene;
 use crate::scene::select::Selection;
 use crate::scene::sidebar::Sidebar;
-use crate::scene::sling::{Key, Profile, edits};
+use crate::scene::sling::{Key, Profile};
 
 impl Canvases {
     /// Renders the page under new ink with `render` for every sling from
@@ -76,16 +76,6 @@ impl Canvases {
         if self.sling.cancel() | self.notes.cancel() | self.asks.cancel_entry() {
             self.entry_closed();
         }
-    }
-
-    /// Whether a key no command took is a text's: while the entry is open,
-    /// every key a text field uses ([`edits`]) and every key `keys` binds
-    /// to nothing, but its `dictate` chord; and a key that types while a
-    /// text is being typed. So cmd+Q still quits with the entry open.
-    pub fn takes(&self, chord: Chord, keys: &Keymap) -> bool {
-        let bound = keys.command(chord);
-        let field = bound.is_none() || bound != Some(Command::Dictate) && edits(chord);
-        self.typing() && field || self.editing() && chord.types()
     }
 
     /// A key press while the entry is open: return sends and escape

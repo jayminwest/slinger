@@ -604,6 +604,10 @@ canvases/fold.rs  `fold` (cmd+alt+f) and the pen's fold mark (a box's top
 canvases/seek.rs  `find` (cmd+f) and `find-next` (cmd+g): the entry for the
              words, `canvas_find` on the daemon (the search is the core's),
              and the jump: the pane turns to the text's page and centres it.
+canvases/start.rs  `new-text` (ctrl+return): a text started without a
+             tap, chained half a line under the one being typed (which
+             ends), else at the pointer over the pane, under the last text
+             ended on its page, or at its centre (scene/shapes/start.rs).
 canvases/sling.rs  the sling from the window: opens the entry at the
              focused pane's selection, sends it once the ink of its canvas
              is written (`Ink::settled`), takes the answer. `sling_now` is
@@ -736,8 +740,12 @@ scene/editor.rs  the canvas text being typed (docs/design/pen-less.md 2A):
              the key before the keymap while a text is typed. A press
              inside places the caret, a drag or shift-press selects; copy
              and cut take the selected characters. `Editing`: where the
-             text is and how it is set; its caret bar and selection boxes
-             are scene items (`Shape::Caret` is a plain bar). Pure.
+             text is and how it is set, and the column it wraps in (a new
+             text's holds 48 characters, glyphs::NEW_COLUMN; a drag of its
+             frame's right edge sets it, `widen`, on half a cell so it never
+             reads back as unwrapped, glyphs::column); its caret bar and
+             selection boxes are scene items (`Shape::Caret` is a plain
+             bar). Pure.
 scene/paste.rs  the clipboard as the app sees it (`Clip`: plain text, a
              canvas's items) and the edits no text field takes (`Edit`:
              cut, copy, paste); pasted text made fit to type: line ends as
@@ -891,14 +899,16 @@ scene/shapes.rs  the text, box and arrow tools (SPEC D6): a tap places a
              text and typed keys (and a paste, at its end) go into it until
              escape or a press outside
              (while typed it shows a focus-colour caret, a dashed muted frame
-             and a hint under it: `label`, chrome's 11 pt line),
+             out to its column, whose right edge a drag moves (`on_edge`;
+             canvases/drag.rs shows the left-right cursor over it), and a
+             hint under it: `label`, chrome's 11 pt line),
              which with any tool but the text tool also starts that tool's
              gesture (the text tool on a text, or a double tap with any tool but
              the pen, edits it; with the lasso or the select tool the edit
              waits for a lift where the pen went down, as the second press
              may drag the selection); a drag makes a box or an arrow, whose ends
              bind to the items they land on. An arrow bound to a moved item
-             follows it (`follow`): the move's change carries the arrow's
+             follows it (`follow`, shapes/bind.rs): the move's change carries the arrow's
              new ends, so it is still one `canvas_apply`. Each text, shape
              or edit is one change. Pure.
 scene/select/hit.rs  which items an eraser's path touches, which items a
@@ -966,7 +976,10 @@ scene/overlay.rs  the key overlay (`show-keys`): open or closed, its
              that do not fit. Its rounded panel lists Command::ALL by Group
              in up to three columns (as many as fit 220 pt each, the groups
              cut in order so the tallest is shortest), each row 28 pt with
-             a chip of the live key from the Keymap. Line (a label, its font, its corners and edge)
+             a chip of the live key from the Keymap. After the groups,
+             scene/overlay/fixed.rs adds the fixed keys that are not
+             commands (a typed text's caret keys, the held pans) as rows
+             with no target. Line (a label, its font, its corners and edge)
              is shared with the palette. Pure.
 scene/palette.rs  the command palette (`show-commands`): open or closed,
              what is typed and the selected row. Typing is scene-drawn: it
@@ -1381,6 +1394,7 @@ Each boundary has something that fails when it is broken:
 | The select tool picks the topmost item under a press, a drawn box selects what it touches, shift adds or takes out, a drag moves the selection | `crates/app/src/scene/select/pick/tests.rs` |
 | A drag of a corner handle scales the selection about the opposite corner in one change, a text's size scales evenly within its range, bound arrows follow, no side turns over, shift keeps the shape | `crates/app/src/scene/select/scale/tests.rs` |
 | Select all, next and previous item in reading order, a nudge of the selection as one move with bound arrows following, and where a duplicate lands | `crates/app/src/scene/select/keys/tests.rs` |
+| `new-text` chains a text under the one being typed and else starts one at the pointer | `crates/app/src/scene/shapes/start/tests.rs`, and `crates/app/src/tests/start.rs` against a real daemon |
 | The item keys act on the focused page through the window's routing (cmd+A, tab, shift+tab, an arrow, cmd+J reach the daemon); a text being typed or an open entry keeps them | `crates/app/src/tests/items.rs`, against a real daemon |
 | A selection dragged into a pane on another canvas is added there and removed here, one step each, the removal only after the add; one dropped outside every pane moves nothing | `crates/app/src/scene/select/carry/tests.rs` |
 | With the pen tool a mouse press selects and a tablet press draws; space held turns a drag into a pan with no tool, and types in a text being typed | `crates/app/src/scene/tools/tests.rs`, `crates/app/src/scene/hand.rs`, and `crates/app/src/tests/pointer.rs` against a real daemon |

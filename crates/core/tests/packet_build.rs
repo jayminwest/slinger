@@ -60,7 +60,7 @@ fn board() -> (Vec<Op>, Vec<PageId>) {
 }
 
 fn ask(page: PageId, since: u64) -> Ask<'static> {
-    Ask { canvas: "idea", page, since: Marker(since), selection: &[], backdrops: &[] }
+    Ask { canvas: "idea", page, since: Marker(since), selection: &[], backdrops: &[], inside: None }
 }
 
 #[test]
@@ -232,6 +232,7 @@ fn the_stored_v1_packet_keeps_decoding() {
     let header = Header {
         canvas: "idea".into(),
         page: "fable-5.2".into(),
+        inside: None,
         from: 41,
         to: 58,
         scale: 0.35,

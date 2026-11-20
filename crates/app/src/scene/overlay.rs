@@ -11,7 +11,9 @@
 //! pen lifts on the row it went down on (the row under the pen lights up,
 //! and more when pressed); a drag, a scroll or the arrow keys scroll rows
 //! that do not fit; a press outside the panel or on its ✕ closes it, as
-//! escape or the `show-keys` key do.
+//! escape or the `show-keys` key do. After the groups come the fixed keys
+//! ([`fixed`]): the caret keys of a typed text and the pans, rows with no
+//! target.
 
 use crate::commands::{Chord, Command, Group, Keymap};
 use crate::config::{Rgb, Theme};
@@ -19,6 +21,9 @@ use crate::layout::{Point, Rect, Size};
 use crate::scene::Label;
 use crate::scene::palette::Taken;
 use crate::scene::style;
+
+pub mod fixed;
+use fixed::Fixed;
 
 /// A panel over the dimmed window, drawn over everything else.
 #[derive(Debug, Clone, PartialEq)]
@@ -127,9 +132,38 @@ fn commands(group: Group) -> impl Iterator<Item = Command> {
     Command::ALL.into_iter().map(|(c, _)| c).filter(move |c| c.group() == group)
 }
 
-/// How tall a group is: its heading and a row per command.
-fn tall(group: Group) -> f64 {
-    HEADING + commands(group).map(|_| ROW).sum::<f64>()
+/// A heading and its rows: a group's commands, or fixed keys.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Section {
+    Commands(Group),
+    Fixed(&'static Fixed),
+}
+
+impl Section {
+    /// Every section, in order: the groups, then the fixed keys.
+    fn all() -> Vec<Section> {
+        let groups = Group::ALL.into_iter().map(Section::Commands);
+        groups.chain(fixed::ALL.into_iter().map(Section::Fixed)).collect()
+    }
+
+    fn title(self) -> &'static str {
+        match self {
+            Section::Commands(group) => group.title(),
+            Section::Fixed(fixed) => fixed.title,
+        }
+    }
+
+    fn rows(self) -> usize {
+        match self {
+            Section::Commands(group) => commands(group).count(),
+            Section::Fixed(fixed) => fixed.rows.len(),
+        }
+    }
+}
+
+/// How tall a section is: its heading and its rows.
+fn tall(section: Section) -> f64 {
+    HEADING + ROW * f64::from(u32::try_from(section.rows()).unwrap_or(u32::MAX))
 }
 
 /// How many columns fit across `width` with `gap` between two: the most,
@@ -143,8 +177,8 @@ fn columns(width: f64, gap: f64) -> u32 {
 /// `groups`, in order, cut into at most `n` runs, a column each, so the
 /// tallest column is as short as it can be (the earliest cut on a tie):
 /// the tallest's height, and the columns.
-fn split(groups: &[Group], n: u32) -> (f64, Vec<Vec<Group>>) {
-    let high = |run: &[Group]| run.iter().map(|&g| tall(g) + GROUP_GAP).sum::<f64>() - GROUP_GAP;
+fn split(groups: &[Section], n: u32) -> (f64, Vec<Vec<Section>>) {
+    let high = |run: &[Section]| run.iter().map(|&g| tall(g) + GROUP_GAP).sum::<f64>() - GROUP_GAP;
     let whole = (high(groups), vec![groups.to_vec()]);
     if n <= 1 {
         return whole;
@@ -168,9 +202,11 @@ struct Place {
     /// How far the rows are scrolled, and the most they can be.
     scroll: f64,
     most: f64,
-    /// Each group's heading and each command's row, where they are now.
-    headings: Vec<(Group, Rect)>,
+    /// Each section's heading, each command's row and each fixed row,
+    /// where they are now.
+    headings: Vec<(Section, Rect)>,
     rows: Vec<(Command, Rect)>,
+    fixed: Vec<(&'static fixed::Row, Rect)>,
 }
 
 /// The panel in a window of `size`, centred, as tall as its rows or the
@@ -181,7 +217,7 @@ fn place(size: Size, scroll: f64) -> Place {
     let (pad, gap) = if width < 600.0 { (NARROW_PAD, NARROW_GAP) } else { (PAD, GAP) };
     let across = (width - 2.0 * pad).max(0.0);
     let n = columns(across, gap);
-    let (content, runs) = split(&Group::ALL, n);
+    let (content, runs) = split(&Section::all(), n);
     let room = (size.height - 2.0 * MARGIN).max(0.0);
     let height = (2.0 * PAD_Y + HEADER + UNDER_HEADER + content).min(room);
     let (x, y) = ((size.width - width) / 2.0, (size.height - height) / 2.0);
@@ -193,20 +229,24 @@ fn place(size: Size, scroll: f64) -> Place {
     let most = (content - body.height).max(0.0);
     let scroll = scroll.clamp(0.0, most);
     let column = ((body.width - gap * f64::from(n - 1)) / f64::from(n)).max(0.0);
-    let (mut headings, mut rows) = (Vec::new(), Vec::new());
-    for (x, groups) in (0_u32..).map(|i| body.x + f64::from(i) * (column + gap)).zip(runs) {
+    let (mut headings, mut rows, mut fixed) = (Vec::new(), Vec::new(), Vec::new());
+    for (x, sections) in (0_u32..).map(|i| body.x + f64::from(i) * (column + gap)).zip(runs) {
         let mut y = body.y - scroll;
-        for group in groups {
-            headings.push((group, Rect { x, y, width: column, height: HEADING }));
+        for section in sections {
+            headings.push((section, Rect { x, y, width: column, height: HEADING }));
             y += HEADING;
-            for command in commands(group) {
-                rows.push((command, Rect { x, y, width: column, height: ROW }));
+            let mut next = || {
                 y += ROW;
+                Rect { x, y: y - ROW, width: column, height: ROW }
+            };
+            match section {
+                Section::Commands(group) => rows.extend(commands(group).map(|c| (c, next()))),
+                Section::Fixed(keys) => fixed.extend(keys.rows.iter().map(|r| (r, next()))),
             }
             y += GROUP_GAP;
         }
     }
-    Place { panel, close, body, scroll, most, headings, rows }
+    Place { panel, close, body, scroll, most, headings, rows, fixed }
 }
 
 impl Place {
@@ -391,12 +431,22 @@ impl KeyOverlay {
         let pressed = self.held.filter(|h| !h.dragged).map(|h| (h.last, style::selected(theme)));
         let lit = pressed.or(self.pointer.map(|p| (p, style::hover(theme))));
         let lit = lit.and_then(|(at, fill)| Some((place.row_at(at)?, fill)));
-        for &(group, frame) in &place.headings {
+        for &(section, frame) in &place.headings {
             if place.shows(frame) {
-                let heading = group.title().to_uppercase();
+                let heading = section.title().to_uppercase();
                 lines.push(Line::text(heading, theme.muted, frame, 11.0, Align::Left));
             }
-            let rows = place.rows.iter().filter(|(c, f)| c.group() == group && place.shows(*f));
+            if let Section::Fixed(keys) = section {
+                let rows = place.fixed.iter().filter(|(r, _)| keys.rows.contains(*r));
+                for &(row, frame) in rows.filter(|(_, f)| place.shows(*f)) {
+                    lines.extend(labels(row.title, Some(row.keys.shown()), theme, frame));
+                }
+                continue;
+            }
+            let rows = place
+                .rows
+                .iter()
+                .filter(|(c, f)| Section::Commands(c.group()) == section && place.shows(*f));
             for &(command, frame) in rows {
                 if let Some((_, fill)) = lit.filter(|(c, _)| *c == command) {
                     let reach =
@@ -421,10 +471,14 @@ impl KeyOverlay {
 /// A command's row in `frame`: its title, then its key's chip at the
 /// right, or "no key".
 fn row(command: Command, keys: &Keymap, theme: &Theme, frame: Rect) -> Vec<Line> {
-    let key = keys.chord(command).map(Chord::glyphs);
+    labels(command.title(), keys.chord(command).map(Chord::glyphs), theme, frame)
+}
+
+/// A row in `frame`: `title`, then `key`'s chip at the right, or "no key".
+fn labels(title: &str, key: Option<String>, theme: &Theme, frame: Rect) -> Vec<Line> {
     let wide = key.as_deref().map_or(chip_width(NO_KEY), chip_width).min(frame.width / 2.0);
     let name = Rect { width: (frame.width - wide - 8.0).max(0.0), ..frame };
-    let mut lines = vec![Line::text(command.title().into(), theme.text, name, 13.0, Align::Left)];
+    let mut lines = vec![Line::text(title.into(), theme.text, name, 13.0, Align::Left)];
     let y = frame.y + (frame.height - CHIP_HIGH) / 2.0;
     let chip = Rect { x: frame.x + frame.width - wide, y, width: wide, height: CHIP_HIGH };
     lines.push(match key {
