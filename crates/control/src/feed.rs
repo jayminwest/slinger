@@ -1,10 +1,6 @@
 //! The canvas change feed: the operations after a point, with a wait so a
 //! client need not poll in a tight loop. One request and one reply, as every
 //! verb; the wait only holds the reply back.
-//!
-//! A client writes the request with [`Changes`], not [`crate::Request`], so a
-//! binary that never sends it (the app, whose size budget is nearly full)
-//! carries no code for it.
 
 use std::time::Duration;
 
@@ -12,21 +8,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::client::TIMEOUT;
-use crate::{Client, RemoteError};
+use crate::{Client, RemoteError, Request};
 
 /// The longest wait the daemon holds a reply for, in milliseconds. A longer
 /// `wait` waits this long.
 pub const MAX_WAIT_MS: u64 = 60_000;
-
-/// `canvas_changes` as a client writes it: the same line as
-/// [`crate::Request::CanvasChanges`] (a test holds the two together).
-#[derive(Debug, Serialize)]
-#[serde(tag = "op", rename = "canvas_changes")]
-struct Changes<'a> {
-    canvas: &'a str,
-    after: u64,
-    wait: u64,
-}
 
 /// The reply to [`crate::Request::CanvasChanges`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,19 +43,20 @@ impl Client {
         wait: Duration,
     ) -> Result<CanvasFeed, RemoteError> {
         let wait = u64::try_from(wait.as_millis()).unwrap_or(u64::MAX).min(MAX_WAIT_MS);
-        self.call_within(&Changes { canvas, after, wait }, TIMEOUT + Duration::from_millis(wait))
+        let ask = Request::CanvasChanges { canvas: canvas.into(), after, wait };
+        self.call_within(&ask, TIMEOUT + Duration::from_millis(wait))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::Request;
     use crate::wire::request_line;
 
     #[test]
     fn a_client_writes_what_the_daemon_reads() {
-        let line = request_line(&Changes { canvas: "main", after: 6, wait: 100 }).unwrap();
+        let ask = Request::CanvasChanges { canvas: "main".into(), after: 6, wait: 100 };
+        let line = request_line(&ask).unwrap();
         assert_eq!(
             line,
             "{\"v\":1,\"op\":\"canvas_changes\",\"canvas\":\"main\",\"after\":6,\"wait\":100}\n"

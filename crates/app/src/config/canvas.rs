@@ -22,8 +22,8 @@ impl Background {
     }
 }
 
-/// The canvas points between two dots (`[canvas] grid`), held in hundredths
-/// so it parses by hand: `str::parse` costs the app binary its size budget.
+/// The canvas points between two dots (`[canvas] grid`), held in hundredths:
+/// `28.35` reads as exactly that.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Grid(u32);
 
@@ -42,15 +42,13 @@ impl Grid {
     /// From 1 to 500.
     pub(super) fn parse(value: &str) -> Option<Grid> {
         let (whole, part) = value.split_once('.').unwrap_or((value, "0"));
-        if whole.is_empty() || whole.len() > 3 || part.is_empty() || part.len() > 2 {
-            return None;
-        }
-        let digits = |text: &str| {
-            text.bytes()
-                .try_fold(0_u32, |n, c| c.is_ascii_digit().then(|| n * 10 + u32::from(c - b'0')))
+        let digits = |text: &str, most| {
+            let shaped =
+                (1..=most).contains(&text.len()) && text.bytes().all(|c| c.is_ascii_digit());
+            shaped.then(|| text.parse::<u32>().ok()).flatten()
         };
         let scale = if part.len() == 1 { 10 } else { 1 };
-        let hundredths = digits(whole)? * 100 + digits(part)? * scale;
+        let hundredths = digits(whole, 3)? * 100 + digits(part, 2)? * scale;
         (Self::LEAST..=Self::MOST).contains(&hundredths).then_some(Grid(hundredths))
     }
 }
@@ -121,5 +119,41 @@ mod tests {
         let c = base.over(top).resolve().canvas;
         assert_eq!(c.background, Background::Dots);
         assert_eq!(c.grid, Grid(2000));
+    }
+
+    /// What a grid accepts and rejects, as a table (slinger-28ed59).
+    #[test]
+    fn a_grid_accepts_and_rejects_exactly_these() {
+        for (value, hundredths) in [
+            ("4", Some(400)),
+            ("1.5", Some(150)),
+            ("28.35", Some(2835)),
+            ("50", Some(5000)),
+            ("500", Some(50_000)),
+            ("1", Some(100)),
+            ("04", Some(400)),
+            ("004", Some(400)),
+            ("1.05", Some(105)),
+            ("1.50", Some(150)),
+            ("500.00", Some(50_000)),
+            ("500.01", None),
+            ("0.99", None),
+            ("0", None),
+            ("0004", None),
+            (".5", None),
+            ("4.", None),
+            ("+4", None),
+            ("-4", None),
+            ("1e1", None),
+            (" 4", None),
+            ("4 ", None),
+            ("1.234", None),
+            ("1..5", None),
+            ("", None),
+            ("f0", None),
+            ("٤", None),
+        ] {
+            assert_eq!(Grid::parse(value), hundredths.map(Grid), "{value:?}");
+        }
     }
 }

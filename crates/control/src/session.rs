@@ -1,9 +1,7 @@
 //! The session and status verbs: their requests, replies and client methods
 //! (docs/service.md, "Sessions").
 //!
-//! [`crate::Request`] reads them as one variant, [`SessionAsk`], and does not
-//! write them: a binary that never sends one (the app) carries no code for
-//! them.
+//! [`crate::Request`] carries them as one variant, [`SessionAsk`].
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -11,7 +9,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::client::TIMEOUT;
-use crate::{Client, MAX_WAIT_MS, RemoteError, SlingAsk};
+use crate::{Client, MAX_WAIT_MS, RemoteError, Request, SlingAsk};
 
 /// A session request, as a client writes it and the daemon reads it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -198,7 +196,7 @@ impl Client {
     /// The error of a workspace file the daemon cannot read, and
     /// `unavailable` when the daemon does not answer.
     pub fn session_list(&self) -> Result<Vec<Session>, RemoteError> {
-        let reply: Sessions = self.call(&SessionAsk::SessionList)?;
+        let reply: Sessions = self.call(&Request::Session(SessionAsk::SessionList))?;
         Ok(reply.sessions)
     }
 
@@ -209,7 +207,8 @@ impl Client {
     /// `not_found` when no open workspace has that agent, and `unavailable`
     /// when the daemon does not answer.
     pub fn session_show(&self, agent: &str) -> Result<Session, RemoteError> {
-        let reply: SessionInfo = self.call(&SessionAsk::SessionShow { agent: agent.into() })?;
+        let reply: SessionInfo =
+            self.call(&Request::Session(SessionAsk::SessionShow { agent: agent.into() }))?;
         Ok(reply.session)
     }
 
@@ -227,7 +226,7 @@ impl Client {
         note: Option<&str>,
     ) -> Result<StatusSet, RemoteError> {
         let (agent, status, note) = (agent.into(), status.into(), note.map(str::to_string));
-        self.call(&SessionAsk::StatusSet { agent, status, note })
+        self.call(&Request::Session(SessionAsk::StatusSet { agent, status, note }))
     }
 
     /// Starts the process of `workspace`'s agent in its home, resuming the
@@ -270,7 +269,7 @@ impl Client {
     ) -> Result<Session, RemoteError> {
         let profile = profile.map(str::to_string);
         let ask = SessionAsk::SessionStart { workspace: workspace.into(), fresh, profile };
-        Ok(self.call::<_, SessionInfo>(&ask)?.session)
+        Ok(self.call::<SessionInfo>(&Request::Session(ask))?.session)
     }
 
     /// Ends the process of `workspace`'s agent. Stopping one that is not
@@ -281,7 +280,7 @@ impl Client {
     /// As [`Client::session_start`].
     pub fn session_stop(&self, workspace: &str) -> Result<Session, RemoteError> {
         let ask = SessionAsk::SessionStop { workspace: workspace.into() };
-        Ok(self.call::<_, SessionInfo>(&ask)?.session)
+        Ok(self.call::<SessionInfo>(&Request::Session(ask))?.session)
     }
 
     /// Delivers `text` to the running process of `workspace`'s agent as one
@@ -295,7 +294,7 @@ impl Client {
     /// the errors of [`Client::session_start`].
     pub fn session_send(&self, workspace: &str, text: &str) -> Result<Session, RemoteError> {
         let ask = SessionAsk::SessionSend { workspace: workspace.into(), text: text.into() };
-        Ok(self.call::<_, SessionInfo>(&ask)?.session)
+        Ok(self.call::<SessionInfo>(&Request::Session(ask))?.session)
     }
 
     /// Takes the next sling that waits for a listener of `workspace`'s
@@ -327,7 +326,7 @@ impl Client {
     ) -> Result<Listened, RemoteError> {
         let wait = u64::try_from(wait.as_millis()).unwrap_or(u64::MAX).min(MAX_WAIT_MS);
         let ask = SessionAsk::SessionListen { workspace: workspace.into(), wait, pid };
-        self.call_within(&ask, TIMEOUT + Duration::from_millis(wait))
+        self.call_within(&Request::Session(ask), TIMEOUT + Duration::from_millis(wait))
     }
 
     /// Reports that `agent` wrote a file. The daemon hashes it and appends a
@@ -343,7 +342,7 @@ impl Client {
             Touched::Path(path) => (Some(path.to_owned()), None),
             Touched::Hook(payload) => (None, Some(payload.to_string())),
         };
-        self.call(&SessionAsk::FileTouched { agent: agent.into(), path, hook })
+        self.call(&Request::Session(SessionAsk::FileTouched { agent: agent.into(), path, hook }))
     }
 }
 
@@ -458,7 +457,7 @@ mod tests {
                 r#"{"v":1,"op":"file_touched","agent":"a","hook":"{}"}"#,
             ),
         ] {
-            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&Request::Session(ask.clone())).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
             assert_eq!(read, Some(Request::Session(ask)), "{line}");
         }

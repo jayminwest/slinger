@@ -1,9 +1,8 @@
 //! The pen's widths (`[pen] widths`): the line widths the width pop-up
 //! offers. Pure, like the rest of `config`.
 
-/// One line width, in canvas points, held in tenths so it parses and
-/// prints by hand: `str::parse` and float formatting cost the app binary
-/// its size budget.
+/// One line width, in canvas points, held in tenths: a width the config
+/// file writes as `1.5` reads back as exactly that.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Width(u16);
 
@@ -27,20 +26,13 @@ impl Width {
     /// Parses `"4"` or `"1.5"`: digits, then at most one decimal place.
     /// Above 0, at most 50.
     fn parse(word: &str) -> Option<Width> {
-        let (whole, tenth) = match word.split_once('.') {
-            Some((whole, tenth)) => (whole, tenth),
-            None => (word, "0"),
+        let (whole, tenth) = word.split_once('.').unwrap_or((word, "0"));
+        let digits = |text: &str, most| {
+            let shaped =
+                (1..=most).contains(&text.len()) && text.bytes().all(|c| c.is_ascii_digit());
+            shaped.then(|| text.parse::<u16>().ok()).flatten()
         };
-        let digit = |c: u8| c.is_ascii_digit().then(|| u16::from(c - b'0'));
-        let tenth = match tenth.as_bytes() {
-            &[d] => digit(d)?,
-            _ => return None,
-        };
-        if whole.is_empty() || whole.len() > 2 {
-            return None;
-        }
-        let whole = whole.bytes().try_fold(0, |n, c| Some(n * 10 + digit(c)?))?;
-        let tenths = whole * 10 + tenth;
+        let tenths = digits(whole, 2)? * 10 + digits(tenth, 1)?;
         (1..=Self::MOST).contains(&tenths).then_some(Width(tenths))
     }
 }
@@ -130,5 +122,43 @@ mod tests {
         let d = Widths::default();
         assert_eq!(d, Widths::parse("2 4 8 16").unwrap());
         assert!((d.widths()[0].points() - 2.0).abs() < f64::EPSILON);
+    }
+}
+
+/// What a width accepts and rejects, as a table (slinger-28ed59).
+#[cfg(test)]
+mod table {
+    use super::Width;
+
+    #[test]
+    fn a_width_accepts_and_rejects_exactly_these() {
+        for (word, tenths) in [
+            ("4", Some(40)),
+            ("1.5", Some(15)),
+            ("50", Some(500)),
+            ("50.0", Some(500)),
+            ("0.1", Some(1)),
+            ("04", Some(40)),
+            ("09.9", Some(99)),
+            ("50.1", None),
+            ("0", None),
+            ("0.0", None),
+            (".5", None),
+            ("4.", None),
+            ("+4", None),
+            ("-4", None),
+            ("1e1", None),
+            (" 4", None),
+            ("4 ", None),
+            ("004", None),
+            ("1.25", None),
+            ("1..5", None),
+            ("1.5.0", None),
+            ("", None),
+            ("f0", None),
+            ("٤", None),
+        ] {
+            assert_eq!(Width::parse(word), tenths.map(Width), "{word:?}");
+        }
     }
 }

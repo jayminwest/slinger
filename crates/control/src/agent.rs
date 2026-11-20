@@ -1,13 +1,12 @@
 //! The agent's canvas verbs: their requests, replies and client methods
 //! (docs/service.md, "Agent canvas verbs").
 //!
-//! [`crate::Request`] reads them as one variant, [`AgentAsk`], and does not
-//! write them: a binary that never sends one (the app) carries no code for
-//! them. A new agent canvas verb is a new variant here.
+//! [`crate::Request`] carries them as one variant, [`AgentAsk`]. A new
+//! agent canvas verb is a new variant here.
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Client, RemoteError};
+use crate::{Client, RemoteError, Request};
 
 /// An agent canvas request, as a client writes it and the daemon reads it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -206,7 +205,7 @@ impl Client {
     /// for an arrow or a put that cannot be drawn, and `unavailable` when the
     /// daemon does not answer.
     pub fn canvas_put_as(&self, put: CanvasPut) -> Result<CanvasPlaced, RemoteError> {
-        self.call(&AgentAsk::CanvasPut(put))
+        self.call(&Request::Agent(AgentAsk::CanvasPut(put)))
     }
 
     /// Changes an item the agent of `edit` made.
@@ -218,7 +217,7 @@ impl Client {
     /// a change that does not fit the item, and `unavailable` when the
     /// daemon does not answer.
     pub fn canvas_edit(&self, edit: CanvasEdit) -> Result<CanvasEdited, RemoteError> {
-        self.call(&AgentAsk::CanvasEdit(edit))
+        self.call(&Request::Agent(AgentAsk::CanvasEdit(edit)))
     }
 
     /// Removes the item `item` from `canvas`, as `agent`. An item already
@@ -236,7 +235,7 @@ impl Client {
         item: &str,
     ) -> Result<CanvasRemoved, RemoteError> {
         let (canvas, agent, item) = (canvas.into(), agent.into(), item.into());
-        self.call(&AgentAsk::CanvasRemove(CanvasRemove { canvas, agent, item }))
+        self.call(&Request::Agent(AgentAsk::CanvasRemove(CanvasRemove { canvas, agent, item })))
     }
 }
 
@@ -299,7 +298,7 @@ mod tests {
             ),
         ] {
             let line = format!("{head},{tail}");
-            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&Request::Agent(ask.clone())).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
             assert_eq!(read, Some(Request::Agent(ask)), "{line}");
         }
@@ -330,7 +329,7 @@ mod tests {
             ),
         ] {
             let line = format!("{head}{line}");
-            assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
+            assert_eq!(request_line(&Request::Agent(ask.clone())).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
             assert_eq!(read, Some(Request::Agent(ask)), "{line}");
         }

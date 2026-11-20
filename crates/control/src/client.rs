@@ -4,7 +4,6 @@ use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -214,23 +213,6 @@ impl Client {
         self.call(&Request::CanvasImport { path, canvas })
     }
 
-    /// As [`Client::canvas_import`], but returns only the new canvas's id:
-    /// a binary that never reads what the import made and skipped (the app,
-    /// whose size budget is nearly full) carries no code for it.
-    ///
-    /// # Errors
-    ///
-    /// As [`Client::canvas_import`].
-    pub fn canvas_import_id(
-        &self,
-        file: &Path,
-        canvas: Option<&str>,
-    ) -> Result<String, RemoteError> {
-        let (path, canvas) = (absolute(file)?, canvas.map(str::to_string));
-        let info: CanvasInfo = self.call(&Request::CanvasImport { path, canvas })?;
-        Ok(info.canvas)
-    }
-
     /// Redoes the last step `step.by` undid on the canvas.
     ///
     /// # Errors
@@ -240,23 +222,19 @@ impl Client {
         self.call(&Request::CanvasRedo(step))
     }
 
-    /// Sends `request` (a [`Request`], or a type that writes the same line)
-    /// and reads the reply.
-    pub(crate) fn call<R: Serialize, T: DeserializeOwned>(
-        &self,
-        request: &R,
-    ) -> Result<T, RemoteError> {
+    /// Sends `request` and reads the reply.
+    pub(crate) fn call<T: DeserializeOwned>(&self, request: &Request) -> Result<T, RemoteError> {
         self.call_within(request, TIMEOUT)
     }
 
     /// [`Client::call`] for a request the daemon may take `timeout` to answer.
     ///
-    /// Only writing the request and reading the reply's type depend on the
-    /// types; the rest is [`Client::answer`], so each new pair of them does
-    /// not build another copy of the socket IO into every binary (slinger-548ea9).
-    pub(crate) fn call_within<R: Serialize, T: DeserializeOwned>(
+    /// Only reading the reply's type depends on `T`; the rest is
+    /// [`Client::answer`], so each reply type does not build another copy of
+    /// the socket IO (slinger-548ea9).
+    pub(crate) fn call_within<T: DeserializeOwned>(
         &self,
-        request: &R,
+        request: &Request,
         timeout: Duration,
     ) -> Result<T, RemoteError> {
         let line = wire::request_line(request).map_err(|e| self.unavailable(&e, timeout))?;
@@ -387,7 +365,7 @@ mod tests {
         });
         let client = Client::new(&socket);
         let err = client
-            .call_within::<_, Canvases>(&Request::CanvasList, Duration::from_millis(200))
+            .call_within::<Canvases>(&Request::CanvasList, Duration::from_millis(200))
             .unwrap_err();
         drop(done);
         assert_eq!(err.code(), "unavailable");

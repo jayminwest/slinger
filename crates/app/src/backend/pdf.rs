@@ -109,7 +109,7 @@ pub fn open(
     scratch: &Path,
 ) -> Result<String, Problem> {
     let canvas = if is_tldraw(&ask.file) {
-        first_free(&ask.file, "", &mut |id| daemon.canvas_import_id(&ask.file, Some(id)).map(drop))?
+        first_free(&ask.file, "", &mut |id| daemon.canvas_import(&ask.file, Some(id)).map(drop))?
     } else {
         pdf_canvas(daemon, sizes, &ask.file, scratch)?
     };

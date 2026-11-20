@@ -18,13 +18,6 @@ Sizes, as the app is built today:
 - **ui**: needs something new on screen: a text entry, a picker, a form.
 - **design**: needs a decision on what the user sees or does first.
 
-A new verb's call costs the app's binary about 700 bytes, unless its reply
-type is new to the app: decoding a new reply type can cost many KB (a reply
-full of maps cost about 10 KB), so read the reply into a type the app
-already decodes where you can. The binary grows in 16 KB steps against its
-ceiling (slinger-7af57c), so measure the room left in `__TEXT` before and
-after a change, not the file size.
-
 ## Not for the app
 
 These serve agents, scripts or the app's own plumbing. The person does the
@@ -66,7 +59,7 @@ same thing by drawing, or never needs to.
 | `canvas put --color` | `pick-colour` and recolouring a selection |
 | `feedback ls --all` | `show-all-feedback` (Help menu, palette; no default key): the feedback entry lists the resolved notes too, each with its resolution and no "✓"; `feedback_list` `all`, a reply the app already decodes, slinger-c57a12 |
 | `feedback path` | `show-feedback-file` (Help menu, palette; no default key): the Finder shows the file, or before the first note the flash says where notes go. Its reply (`FeedbackFile`) is new to the app, slinger-c57a12 |
-| `ui export` (the version a pane shows) | `export-ui` (File menu, palette; no default key): a folder picked, the file `<name>.v<version>.html` revealed. It writes the bytes the pane already has, so it calls no verb: about 790 bytes of `__TEXT`, slinger-401aa5 |
+| `ui export` (the version a pane shows) | `export-ui` (File menu, palette; no default key): a folder picked, the file `<name>.v<version>.html` revealed. It writes the bytes the pane already has, so it calls no verb (slinger-401aa5) |
 | `canvas fold`, `canvas unfold` | `fold` (opt+cmd+F, Edit menu, palette) on the selected boxes, and a press on a box's fold mark: a folded box draws as a miniature of what it holds; an unfold into a taken room (`conflict`) peeks. Its reply reads as `CanvasChange`, which the app already decodes, slinger-1350e7 |
 | `canvas apply` with `"in"` on an `add` | `step-in` (opt+cmd+I, two taps on a miniature), `step-out` (opt+cmd+O, escape), `step-in-beside` (opt+shift+cmd+I): what the pen or a text adds in a pane inside a folded box is sent with `in`, slinger-b1ccf1 |
 | `canvas find` | `find` (cmd+F, Edit menu, palette) and `find-next` (cmd+G): the entry for the words, then the pane turns to the text's page, centred, and selects the text (slinger-458db9). Its reply (`CanvasFound`) is a list of item objects, which the app already reads, slinger-78d1de |
@@ -93,17 +86,14 @@ Notes on the new rows:
 - **The agent's lifecycle** (`start-agent`, `stop-agent`,
   `restart-agent`) acts on the workspace the window shows. Start and
   restart reuse `session_start`, which the sling's profile menu already
-  calls, so start cost the binary about 750 bytes and no new verb;
-  `session_stop`, new to the app, cost about 700.
+  calls, so start needed no new verb; stop is `session_stop`.
 - **A plain message** reuses the sling entry's one-line text field; the
   question is whether it is a mode of the sling entry or its own command.
 - **A UI in a pane** needs a picker over `ui_list`; the pane verbs are
   already in the app.
-- **The smaller gaps** (slinger-401aa5, measured 2026-11-13 with 2544
-  bytes of `__TEXT` room before `export-ui` and 1752 after; a gap closes
-  only if 1.5 KB stays free):
+- **The smaller gaps** (slinger-401aa5):
   - *Find the feedback file*: closed by `show-feedback-file`
-    (slinger-c57a12), once the ceiling rose to 1.5 MB (slinger-9b81a8).
+    (slinger-c57a12).
   - *Resolved feedback notes*: closed by `show-all-feedback`
     (slinger-c57a12).
   - *A UI's versions*: needs a picker over `ui_list`/`ui_show` (the
