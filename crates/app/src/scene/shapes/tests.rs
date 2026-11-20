@@ -3,6 +3,7 @@ use crate::scene::canvas::Mark;
 use crate::scene::glyphs;
 use crate::scene::select::Select;
 
+mod follow;
 mod taps;
 
 const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };

@@ -19,8 +19,8 @@
 //!   select tool or the lasso the second press may be a drag of what the
 //!   first tap selected, so the edit waits for the lift, and starts only
 //!   when the pen lifts where it went down ([`Shapes::tapped`]). The edit
-//!   is one change when it ends: an `add`, a `set`, or a `remove` when it
-//!   was emptied.
+//!   is one change when it ends: an `add`, a `set` (with the arrows bound
+//!   to it when its frame moved), or a `remove` when it was emptied.
 //!   A text also starts from the keyboard ([`Shapes::start`], [`start`]),
 //!   or opens there as a tap opens it ([`Shapes::start_at`]).
 //! - Box: a drag from corner to corner.
@@ -197,7 +197,7 @@ impl Shapes {
         }
         let edits = tool == Tool::Text || (double && tool != Tool::Pen);
         if let Some(item) = text_at(items, press.at, reach).filter(|_| edits) {
-            let Some(editing) = start::edit((canvas, page), item) else { return true };
+            let Some(editing) = start::edit((canvas, page), item, items) else { return true };
             if matches!(tool, Tool::Select | Tool::Lasso) {
                 self.waiting = Some((editing, press.at, reach));
                 return false;
@@ -349,25 +349,17 @@ impl Shapes {
         true
     }
 
-    /// Ends the text being edited, as one change to `ink`: a new text's
-    /// `add`, an edited text's `set`, or its `remove` when emptied. Blank
-    /// new text and an unchanged edit make none. Returns false when no text
-    /// was being edited.
+    /// Ends the text being edited, as one change to `ink` ([`start::ended`]):
+    /// a new text's `add`, an edited text's `set` (with the arrows bound to
+    /// it following a new frame), or its `remove` when emptied. Blank new
+    /// text and an unchanged edit make none. Returns false when no text was
+    /// being edited.
     pub fn end(&mut self, ink: &mut Ink) -> bool {
         (self.selecting, self.widening) = (false, None);
         let Some(editing) = self.editing.take() else { return false };
-        let changed = editing.changed();
-        let blank = editing.editor.text().trim().is_empty();
-        let (frame, size, column) = (editing.frame(), editing.size, Some(editing.column));
-        let shape = Shape::Text { frame, text: editing.editor.text().to_string(), size, column };
-        let (canvas, page) = (editing.canvas, editing.page);
-        self.ended = Some((canvas.clone(), page.clone(), frame));
-        match editing.item {
-            None if blank => {}
-            None => ink.push(Change::Put { canvas, page, colour: editing.colour, shape }),
-            Some((id, ..)) if blank => ink.push(Change::Remove { canvas, page, ids: vec![id] }),
-            Some(_) if !changed => {}
-            Some((id, ..)) => ink.push(Change::Set { canvas, page, id, shape }),
+        self.ended = Some((editing.canvas.clone(), editing.page.clone(), editing.frame()));
+        if let Some(change) = start::ended(editing) {
+            ink.push(change);
         }
         true
     }
@@ -393,8 +385,8 @@ impl Shapes {
             items.push(Cow::Owned(Item { id: PREVIEW, colour: drag.colour, shape }));
         }
         if let Some(editing) = self.editing.as_ref().filter(|e| here(&e.canvas, &e.page)) {
-            if let Some((id, ..)) = &editing.item {
-                items.retain(|i| i.id != *id);
+            if let Some(was) = &editing.item {
+                items.retain(|i| i.id != was.id);
             }
             let (frame, text, size) = (editing.frame(), editing.editor.text(), editing.size);
             let (caret, selected) = editing.marks(CARET / zoom);

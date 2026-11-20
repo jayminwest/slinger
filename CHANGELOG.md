@@ -530,6 +530,8 @@ bullet with the area in bold.
   as wide as its longest line, and it then ran on one line as you typed.
 - **App:** an arrow bound to a selected text follows it when the size keys
   resize the text, as it does when you move or nudge it.
+- **App:** an arrow bound to a text you are typing follows the text when
+  it ends with a new size, more rows or a new column, in the same undo step.
 - **App:** while a live item's page on a canvas has the keyboard, delete
   goes to the page; it no longer deletes the selected canvas items.
 - **Agents:** a reply that leaves out its colour and size no longer takes

@@ -23,7 +23,7 @@ use crate::commands::{
 };
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
-use crate::scene::canvas::ItemId;
+use crate::scene::canvas::{Item, ItemId};
 use crate::scene::glyphs::{self, Laid};
 use undo::{History, Run};
 
@@ -366,10 +366,22 @@ pub struct Editing {
     /// before texts wrapped); a new one's holds [`glyphs::NEW_COLUMN`]
     /// characters. A drag of its frame's edge sets it ([`Editing::widen`]).
     pub column: f64,
-    /// The text item edited, and its text, size and column before; `None`
-    /// for a new text.
-    pub item: Option<(ItemId, String, f64, f64)>,
+    /// The text item edited, as it was when it opened; `None` for a new text.
+    pub item: Option<Opened>,
     pub editor: Editor,
+}
+
+/// A text item as it was when it opened to be edited: its id, text, size,
+/// column and frame, and the arrows bound to it then, which follow its new
+/// frame when it ends ([`crate::scene::shapes::follow_frames`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Opened {
+    pub id: ItemId,
+    pub text: String,
+    pub size: f64,
+    pub column: f64,
+    pub frame: Rect,
+    pub arrows: Vec<Item>,
 }
 
 impl Editing {
@@ -400,10 +412,10 @@ impl Editing {
     /// Whether ending it changes its item: a new text, or an edit of its
     /// text, its size or its column.
     pub fn changed(&self) -> bool {
-        self.item.as_ref().is_none_or(|(_, text, size, column)| {
-            text != self.editor.text()
-                || size.total_cmp(&self.size).is_ne()
-                || column.total_cmp(&self.column).is_ne()
+        self.item.as_ref().is_none_or(|was| {
+            was.text != self.editor.text()
+                || was.size.total_cmp(&self.size).is_ne()
+                || was.column.total_cmp(&self.column).is_ne()
         })
     }
 

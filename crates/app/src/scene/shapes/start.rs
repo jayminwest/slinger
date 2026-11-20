@@ -5,14 +5,14 @@
 
 use std::borrow::Cow;
 
-use super::{HINT, Shapes, snap, text_at};
+use super::{HINT, Shapes, follow_frames, snap, text_at};
 use crate::commands::Chord;
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::canvas::{Item, Shape};
-use crate::scene::editor::{Editing, Editor};
+use crate::scene::editor::{Editing, Editor, Opened};
 use crate::scene::glyphs;
-use crate::scene::ink::Ink;
+use crate::scene::ink::{Change, Ink};
 
 impl Shapes {
     /// Starts a new, empty text on `page` of `canvas` in `colour`, at the
@@ -37,7 +37,7 @@ impl Shapes {
         colour: Rgb,
         ink: &mut Ink,
     ) {
-        match text_at(items, at, reach).and_then(|item| edit((canvas, page), item)) {
+        match text_at(items, at, reach).and_then(|item| edit((canvas, page), item, items)) {
             Some(editing) => {
                 self.end(ink);
                 self.editing = Some(editing);
@@ -78,21 +78,58 @@ impl Shapes {
     }
 }
 
-/// `item`, a text on `page` of `canvas`, opened to be edited, its caret
-/// at its end; `None` when it is not a text.
-pub(super) fn edit((canvas, page): (&str, &str), item: &Item) -> Option<Editing> {
+/// `item`, a text of `items` on `page` of `canvas`, opened to be edited,
+/// its caret at its end, with the arrows of `items` bound to it; `None`
+/// when it is not a text.
+pub(super) fn edit(
+    (canvas, page): (&str, &str),
+    item: &Item,
+    items: &[Cow<'_, Item>],
+) -> Option<Editing> {
     let Shape::Text { frame, text, size, column } = &item.shape else { return None };
     let column = column.unwrap_or(glyphs::UNWRAPPED);
+    // Each bound arrow as it is: its item's frame, as yet, stays.
+    let arrows = follow_frames(items, &[(item.id, *frame, *frame)]);
+    let (id, text, size, frame) = (item.id, text.clone(), *size, *frame);
     Some(Editing {
         canvas: canvas.to_string(),
         page: page.to_string(),
         at: Point { x: frame.x, y: frame.y },
         editor: Editor::new(text.clone()),
         colour: item.colour,
-        size: *size,
+        size,
         column,
-        item: Some((item.id, text.clone(), *size, column)),
+        item: Some(Opened { id, text, size, column, frame, arrows }),
     })
+}
+
+/// The one change that ending `editing` makes: a new text's `add`, an
+/// edited text's `set`, or its `remove` when emptied; none for blank new
+/// text or an unchanged edit. An edit that moved the text's frame (a size
+/// key, typing that grows it, a column drag) takes the arrows bound to it
+/// along in the same change, so one undo step (slinger-6fe682).
+pub(super) fn ended(editing: Editing) -> Option<Change> {
+    let (changed, frame) = (editing.changed(), editing.frame());
+    let blank = editing.editor.text().trim().is_empty();
+    let (size, column) = (editing.size, Some(editing.column));
+    let shape = Shape::Text { frame, text: editing.editor.text().to_string(), size, column };
+    let (canvas, page, colour) = (editing.canvas, editing.page, editing.colour);
+    match editing.item {
+        None if blank => None,
+        None => Some(Change::Put { canvas, page, colour, shape }),
+        Some(was) if blank => Some(Change::Remove { canvas, page, ids: vec![was.id] }),
+        Some(_) if !changed => None,
+        Some(Opened { id, frame: before, arrows, .. }) => {
+            let bound: Vec<Cow<'_, Item>> = arrows.iter().map(Cow::Borrowed).collect();
+            let mut follow = follow_frames(&bound, &[(id, before, frame)]);
+            follow.retain(|arrow| !arrows.contains(arrow));
+            if follow.is_empty() {
+                return Some(Change::Set { canvas, page, id, shape });
+            }
+            follow.insert(0, Item { id, colour, shape });
+            Some(Change::Reshape { canvas, page, items: follow })
+        }
+    }
 }
 
 #[cfg(test)]
