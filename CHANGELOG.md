@@ -64,6 +64,9 @@ bullet with the area in bold.
   lies in its old room, it opens as a peek over the page instead: escape
   or a tap outside closes it, and nothing is moved. Each fold and unfold
   is one undo step.
+- **App:** find sees into folded boxes. A text a folded box hides takes a
+  find to that box, centred and selected, and the flash says the text is
+  in a folded box.
 
 - **App:** a canvas text being typed has a real caret. The arrow keys move
   it (alt by words, cmd to a row's ends or the text's start and end), shift
@@ -533,6 +536,7 @@ bullet with the area in bold.
   resize the text, as it does when you move or nudge it.
 - **App:** while a live item's page on a canvas has the keyboard, delete
   goes to the page; it no longer deletes the selected canvas items.
+  Escape goes to the page too; it no longer clears the canvas selection.
 - **Agents:** a reply that leaves out its colour and size no longer takes
   them from writing hidden in a folded box; it matches what the page shows.
 - **App:** the caret in a canvas text moves, and delete deletes, by what
