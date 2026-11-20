@@ -104,6 +104,7 @@ const BAR: [(&str, &[Action]); 8] = [
             R(Command::DeleteSelection),
             R(Command::ClearSelection),
             R(Command::Duplicate),
+            R(Command::Fold),
             R(Command::NextItem),
             R(Command::PreviousItem),
             R(Command::NudgeLeft),

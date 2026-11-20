@@ -40,6 +40,8 @@ pub enum Keyed {
     /// By this many screen points across and down.
     Nudge(f64, f64),
     Duplicate,
+    /// Fold or unfold the selected boxes (`canvases::fold`).
+    Fold,
 }
 
 impl Keyed {
@@ -54,6 +56,7 @@ impl Keyed {
             Command::NudgeUp => Keyed::Nudge(0.0, -NUDGE),
             Command::NudgeDown => Keyed::Nudge(0.0, NUDGE),
             Command::Duplicate => Keyed::Duplicate,
+            Command::Fold => Keyed::Fold,
             _ => return None,
         })
     }

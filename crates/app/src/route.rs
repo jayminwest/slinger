@@ -176,7 +176,7 @@ fn unpasted(chord: Chord, shared: &Shared, canvases: &Canvases, tools: &Tools) -
 
 /// Hands `chord` to what takes keys before the keymap: the open key overlay
 /// in `shared` (every key), the page menu (escape), the sling's entry, the
-/// text being typed (its caret keys), then a pop-up ([`picked`]). False
+/// text being typed (its caret keys), a peek (escape), then a pop-up ([`picked`]). False
 /// when none took it.
 pub fn taken(
     chord: Chord,
@@ -189,6 +189,7 @@ pub fn taken(
         || shared.menu.key(chord)
         || canvases.sling_key(chord)
         || canvases.edit_key(chord)
+        || canvases.peek_key(chord)
         || tools.key(chord) && picked(tools, canvases)
 }
 

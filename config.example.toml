@@ -295,3 +295,7 @@
 # Go to the next text that holds the last find's words, after the last back to the first;
 # with no find yet, as find.
 #find-next = "cmd+g"
+# Fold each selected box to a miniature of itself that gives up its room, or open a folded
+# one in its old room; when something now lies there, it opens as a peek over the page
+# instead, which escape or a tap outside closes. Each fold or unfold is one undo step.
+#fold = "cmd+alt+f"

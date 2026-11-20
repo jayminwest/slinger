@@ -505,6 +505,14 @@ mirror.rs    one canvas page as the server holds it: `canvas_show` in, each
              (tenths of a point) and a crop, when it has one, inside them;
              it is written with no colour, and a `set` clears a crop or
              name it has not. `add_pdf`: an opened page's `add`.
+mirror/fold.rs  folded boxes (docs/design/fold.md): a box whose object has
+             `fold` hides what it lists, by the core's rule read again from
+             the objects `canvas_show` gives (no new reply); the hidden
+             items are kept apart, so `items()` is what the page shows.
+             Each folded box's miniature (what it holds, scaled, a folded
+             box inside as its own miniature, pen lines thinned) is made
+             once per feed change, not per frame; `inside` draws the same
+             into any frame (a dragged box, a peek at full size). Pure.
 mirror/clip.rs  the selection's items on the clipboard: their file objects
              as a JSON array, as a carry writes them (no id, maker, time
              or page; an end bound to an item copied with it as `$n`), and
@@ -584,6 +592,15 @@ canvases/paging.rs  the canvas commands on a pane: pan, zoom (in, out, to
              through the ink's queue; each pane's page line; `save`, which
              flashes where the pane's canvas is saved (canvases/status.rs
              knows each pane's canvas file, from `canvas_show`'s `path`).
+canvases/fold.rs  `fold` (cmd+alt+f) and the pen's fold mark (a box's top
+             right corner turned down: every folded box's, and an open
+             box's while it alone is selected): each fold or unfold is a
+             `Change::Fold` in the ink's queue, sent as `canvas_fold` or
+             `canvas_unfold` (one undo step). An unfold whose room is taken
+             (`conflict`, `Answer::Peek`) shows the box as a peek, pane
+             state: escape or a press outside closes it, a press inside
+             does nothing. `drawn` adds each pane's miniatures, marks and
+             peek to what it draws.
 canvases/seek.rs  `find` (cmd+f) and `find-next` (cmd+g): the entry for the
              words, `canvas_find` on the daemon (the search is the core's),
              and the jump: the pane turns to the text's page and centres it.
@@ -1346,6 +1363,7 @@ Each boundary has something that fails when it is broken:
 | Panes open, close, resize and list through the socket, each change records `pane_moved`, closing a pane already gone succeeds, the layout survives a restart; the app follows another client's change | `crates/daemon/src/tests/pane.rs` through a real socket, and `crates/app/src/backend.rs` |
 | An agent opens a UI with data; each reply is recorded and reaches its running session as one JSON line, in order; a reply for a stopped session stays in the record; a refused open records nothing; replies are bounded | `crates/daemon/src/tests/showing.rs`, with a stand-in for Claude Code, and `crates/core/src/ui/showing.rs` |
 | A canvas page reads every kind from the canvas file and follows each feed operation | `crates/app/src/mirror/tests.rs` |
+| A folded box hides what it holds and draws it as its miniature; `fold` and the fold mark fold and unfold through the daemon; an unfold into a taken room peeks until escape or a press outside, writing nothing | `crates/app/src/mirror/fold/tests.rs`, `crates/app/src/canvases/fold/tests.rs`, and `crates/app/src/tests/fold.rs` against a real daemon |
 | A live item is one `add` line an old reader skips whole; a put beside an item is one undo step; the packet says it as text | `crates/core/tests/canvas_live.rs` |
 | An agent opens a UI as a live item: a refused open records nothing; the item, the showing and its data come back; one undo step | `crates/daemon/src/tests/live.rs`, through a real socket |
 | A live item's page shows over its box, follows a pan and a zoom, and takes presses until it is selected | `crates/app/src/scene/live/tests.rs`, and `crates/app/src/canvases/live/tests.rs` against a real daemon |

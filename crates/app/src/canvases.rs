@@ -23,6 +23,7 @@ mod button;
 mod clip;
 mod drag;
 mod find;
+mod fold;
 mod kept;
 mod keys;
 mod live;
@@ -105,6 +106,8 @@ pub struct Canvases {
     kept: Option<kept::Kept>,
     /// The pane the pointer is on a selection handle in, and its cursor.
     handle: Option<(PaneId, crate::scene::cursor::Cursor)>,
+    /// The unfolds on their way, and the peek shown.
+    folds: fold::Folds,
 }
 
 /// One canvas page followed: the page asked for (`None`: the first), as
@@ -178,6 +181,7 @@ impl Canvases {
             paper: Paper::default(),
             kept: None,
             handle: None,
+            folds: fold::Folds::default(),
         }
     }
 
@@ -246,6 +250,7 @@ impl Canvases {
             if let Answer::Made { ids, .. } = &answer {
                 self.select.made(key, ids);
             }
+            self.fold_answered(key, &answer);
             let renamed = self.ink.answered(key, answer);
             self.select.renamed(&renamed);
         }
@@ -303,9 +308,18 @@ impl Canvases {
         };
         let viewport = self.view(pane).viewport;
         let at = to_canvas(viewport, frame, pen.at);
+        if self.peek_press(pane, at) {
+            return true;
+        }
         let items = pane_shown(&self.open, &self.views, &self.ink, panes, pane);
         let press = Press { at, when: pen.when, zoom: viewport.zoom(), shift: pen.shift };
         let here = (canvas, shown.as_str());
+        let mark =
+            (tool != Tool::Eraser).then(|| self.mark_under(here, (at, viewport.zoom()), &items));
+        if let Some(fold) = mark.flatten() {
+            drop(items);
+            return self.fold_boxes(pane, here, &[fold]);
+        }
         let grabs = self.select.grabs(here, at, viewport.zoom(), &items);
         if let Some(button) = button::under(&items, at).filter(|_| !grabs && tool != Tool::Eraser) {
             drop(items);
@@ -395,6 +409,8 @@ impl Canvases {
         for (id, pane, frame) in placed {
             let open = find(&self.open, &pane.name, wanted(&self.views, id, &pane.name));
             let mirror = open.and_then(|o| o.mirror.as_ref());
+            let marks = mirror.map(|m| (&*pane.name, m.page()));
+            let marks = marks.map_or((None, None), |h| (self.marked(h), self.peek_in(id, h)));
             let screen = Size { width: frame.width, height: frame.height };
             let at = self.views.iter().position(|(p, _)| *p == id);
             let at = at.unwrap_or_else(|| {
@@ -424,6 +440,7 @@ impl Canvases {
             let items = self.crop.shown(here, items, zoom, theme);
             let status = slung::agent_in(self.agents.as_deref(), here.0).and_then(|a| a.status);
             let items = button::shown(items, status);
+            let items = fold::drawn(items, mirror, marks, theme);
             let items = items.iter().map(AsRef::as_ref);
             let files = |hash: &str| self.pdfs.file(hash);
             let scene = canvas::build_with(items, (view.viewport, screen), theme, last, &files);

@@ -2,8 +2,8 @@
 //! page command's question or the text being typed, the caret keys to the
 //! text being typed, and delete and escape
 //! act on the selection from any pane that shows its page; a colour picked
-//! recolours it. Select all, next and previous item, nudge and duplicate
-//! act on the focused pane's page ([`Keyed`]).
+//! recolours it. Select all, next and previous item, nudge, duplicate and
+//! fold act on the focused pane's page ([`Keyed`]).
 
 use super::{Canvases, canvas_of, find, pane_shown, wanted};
 use crate::commands::{CMD, Chord};
@@ -159,6 +159,10 @@ impl Canvases {
                     return false;
                 };
                 self.place((canvas.to_string(), on_page), &items, at)
+            }
+            Keyed::Fold => {
+                drop(items);
+                shown && self.fold_selection(pane, (canvas, &on_page))
             }
         }
     }
