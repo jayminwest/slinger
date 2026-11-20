@@ -44,6 +44,8 @@ pub enum Tap {
     /// The "✓" at the end of the recent feedback note listed with this
     /// index under the open entry: resolves it.
     Resolve(usize),
+    /// The ✕ of the offer to restart the daemon: hides it for that daemon.
+    Waive,
 }
 
 /// A target: where it takes a tap, and what the tap does.

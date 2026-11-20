@@ -53,7 +53,7 @@ impl World {
         );
         match routed {
             Routed::Answer(step) | Routed::Watch(_, step) => !matches!(step, Step::Pass),
-            Routed::Start => true,
+            Routed::Launch(_) => true,
             Routed::News(_) => {
                 w.canvases.poll();
                 view(&w.settings, &mut w.shared, &w.tools, &w.sidebar, &mut w.canvases);

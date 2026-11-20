@@ -162,3 +162,30 @@ fn asking_after_a_failure_tries_again_at_once() {
     launch.ask();
     assert!(launch.look(DOWN, t0 + secs(2)));
 }
+
+#[test]
+fn a_restart_starts_the_bundled_daemon_once_the_old_one_is_gone_despite_its_mark() {
+    let (mut launch, t0) = (Launch::new(), Instant::now());
+    assert!(!launch.look(UP, t0));
+    assert!(launch.is_up());
+    launch.restart();
+    assert!(!launch.look(UP, t0 + secs(1)), "still stopping");
+    assert!(launch.look(MARKED, t0 + secs(2)), "gone: start the bundled one");
+    assert_eq!(shown(&launch), Some(Daemon::Starting));
+    assert!(!launch.look(UP, t0 + secs(3)));
+    assert!(!launch.look(MARKED, t0 + secs(4)), "a later stop on purpose stays stopped");
+    assert_eq!(shown(&launch), Some(Daemon::Stopped));
+}
+
+#[test]
+fn a_started_daemon_still_ending_is_reaped_before_the_next_start() {
+    let (mut launch, t0) = (Launch::new(), Instant::now());
+    assert!(launch.look(DOWN, t0));
+    assert!(!launch.look(UP, t0 + secs(1)));
+    launch.restart();
+    assert!(!launch.look(MARKED, t0 + secs(2)), "its child has not exited");
+    assert!(launch.is_up());
+    launch.exited(Some(0), None, t0 + secs(3));
+    assert!(launch.look(MARKED, t0 + secs(3)), "reaped: start");
+    assert_eq!(shown(&launch), Some(Daemon::Starting));
+}

@@ -185,6 +185,7 @@ const BAR: [(&str, &[Action]); 8] = [
             R(Command::ToggleSidebar),
             R(Command::DismissNotice),
             R(Command::StartSlingerd),
+            R(Command::RestartDaemon),
             N(Native::Minimise),
         ],
     ),

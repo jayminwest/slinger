@@ -122,6 +122,7 @@ fn each_default_chord_runs_its_own_command_and_a_few_commands_have_none() {
                         | Command::ShowFeedbackFile
                         | Command::ShowAllFeedback
                         | Command::StartSlingerd
+                        | Command::RestartDaemon
                 ),
                 "{command:?} has no chord"
             ),
@@ -179,6 +180,7 @@ fn every_command_has_a_title_and_a_group_in_the_list() {
         (Command::ShowFeedbackFile, Group::Window),
         (Command::ShowAllFeedback, Group::Window),
         (Command::StartSlingerd, Group::Window),
+        (Command::RestartDaemon, Group::Window),
     ];
     for (command, group) in groups {
         assert_eq!(command.group(), group, "{command:?}");

@@ -29,6 +29,7 @@ use crate::scene::{self, Label, Scene, cursor, status, title};
 use crate::shared::Shared;
 
 mod items;
+pub mod launched;
 pub use items::keyboard;
 
 /// Runs `command` (not `quit` or `reload-config`) on the focused pane of
@@ -103,6 +104,7 @@ pub fn tap(
         Tap::Send => _ = canvases.sling_key(SEND),
         Tap::Cancel => _ = canvases.sling_key(CANCEL),
         Tap::Resolve(index) => _ = canvases.resolve_feedback(index),
+        Tap::Waive => sidebar.waive(),
         Tap::Run(_) => {}
     }
     None
@@ -422,7 +424,7 @@ pub fn view(
     let mut footers = canvases.footers(&shared.panes, area, theme, pen, keys, collapsed);
     footers.extend(sidebar.foot(size.rect()).map(|foot| status::strip(foot, theme)));
     let rows = sidebar.targets(theme, size.rect()).into_iter();
-    let mut targets = sidebar.notice_targets(area);
+    let mut targets = sidebar.notice_targets(theme, area);
     targets.extend(sling.targets);
     targets.extend(footers.iter().flat_map(|f| f.targets.clone()));
     targets.extend(rows);

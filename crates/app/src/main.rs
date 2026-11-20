@@ -78,9 +78,6 @@ fn main() -> ExitCode {
 const USAGE: &str =
     "usage: slinger-app [--preview UI [--data JSON] [--as item] [--background] | --drive SOCKET]";
 
-/// What `start-slingerd` flashes in an app that starts no daemon.
-const NOT_MANAGED: &str = "Only slinger.app starts slingerd, when its config names no socket";
-
 /// Writes `message` and its `hint` to stderr; the exit code for a failure.
 fn fail(message: &str, hint: Option<&str>) -> ExitCode {
     // Nothing can be done if stderr is closed too.
@@ -196,18 +193,15 @@ fn window(mut settings: Settings, drive: Option<&Path>) -> ExitCode {
                 return step;
             }
             Routed::News(force) => force,
-            Routed::Start => {
-                match &launcher {
-                    Some(launcher) => launcher.ask(),
-                    None => tools.flash().say(NOT_MANAGED.into(), Instant::now()),
-                }
+            Routed::Launch(command) => {
+                window::launched::run(command, launcher.as_ref(), sidebar, &mut tools);
                 return Step::Draw(view(&settings, &mut shared, &tools, sidebar, &mut canvases));
             }
         };
         // Before the channels are drained: news sent from here on wakes again.
         wake.taken();
-        let heard = watch.latest().is_some_and(|now| sidebar.update(now))
-            | launcher.as_ref().and_then(Launcher::latest).is_some_and(|s| sidebar.set_daemon(s.0));
+        let (daemon_heard, _) = window::launched::heard(launcher.as_ref(), sidebar, &mut tools);
+        let heard = watch.latest().is_some_and(|now| sidebar.update(now)) | daemon_heard;
         let moved = watch
             .layout()
             .map(|(news, stamps)| {

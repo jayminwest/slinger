@@ -9,12 +9,18 @@
 //! daemon when none answers, waits for it, says so when it does not come,
 //! and tries again. A daemon stopped on purpose (`slinger daemon stop`
 //! leaves a mark) stays stopped until the user asks: the app's own launch
-//! counts as asking, and so does `start-slingerd`.
+//! counts as asking, and so does `start-slingerd`. A daemon of another
+//! build is offered for a restart ([`skew`]), never restarted unasked:
+//! `restart-daemon` stops it and [`Launch::restart`] starts the bundled
+//! one once it is gone.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use crate::scene::daemon::Daemon;
+
+mod skew;
+pub use skew::{Build, Skew, skew};
 
 /// How long a started daemon has to answer before it did not start.
 pub const START_WAIT: Duration = Duration::from_secs(10);
@@ -115,6 +121,9 @@ pub struct Launch {
     asked: bool,
     /// A child the app started has not been reaped.
     child: bool,
+    /// The user asked for a restart and the daemon agreed to stop: `asked`
+    /// outlives its last answers, until it is gone.
+    restarting: bool,
 }
 
 impl Default for Launch {
@@ -126,15 +135,17 @@ impl Default for Launch {
 impl Launch {
     /// The app was just opened: that asks for a daemon.
     pub fn new() -> Self {
-        Self { state: State::Unknown, asked: true, child: false }
+        Self { state: State::Unknown, asked: true, child: false, restarting: false }
     }
 
     /// Takes what a look at `now` saw; true: start a daemon now.
     pub fn look(&mut self, seen: Seen, now: Instant) -> bool {
         if seen.answers {
-            (self.state, self.asked) = (State::Up, false);
+            self.state = State::Up;
+            self.asked &= self.restarting;
             return false;
         }
+        self.restarting = false;
         let waited = |since: Instant| now.saturating_duration_since(since);
         match self.state {
             State::Starting { since } if waited(since) < START_WAIT => false,
@@ -147,6 +158,9 @@ impl Launch {
                 self.state = State::Stopped;
                 false
             }
+            // The daemon it started closed its socket and is still ending:
+            // reaped first, so its exit is not taken for the next start's.
+            State::Up if self.child => false,
             _ => {
                 self.state = State::Starting { since: now };
                 // A child still running is waited for, not started again.
@@ -172,6 +186,18 @@ impl Launch {
         if matches!(self.state, State::Stopped | State::Failed { .. }) {
             self.state = State::Unknown;
         }
+    }
+
+    /// The daemon agreed to stop (`daemon_stop`) because the user asked
+    /// for a restart: once it is gone the next look starts the bundled one,
+    /// though it leaves the mark of a stop on purpose.
+    pub fn restart(&mut self) {
+        (self.asked, self.restarting) = (true, true);
+    }
+
+    /// Whether the daemon answers, as last seen.
+    pub fn is_up(&self) -> bool {
+        self.state == State::Up
     }
 
     /// What the window says of the daemon, if anything: the failure points

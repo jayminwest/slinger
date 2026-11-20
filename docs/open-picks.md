@@ -33,6 +33,7 @@ Choices an agent made and shipped that the owner has not confirmed. An agent tha
 ## Launcher (plan pl-ac18df)
 
 - [ ] launcher picks (slinger-5e8b60): the Start control for a stopped daemon is a new command `start-slingerd` (no key; Window menu, palette, and a "Start slingerd" line in the sidebar); while the launch line shows it hides every canvas problem, not only the daemon's (a kept-ink or PDF problem waits too); whether the app starts a daemon is decided once at launch (a config that later sets or drops `[daemon] socket` takes effect at the next launch); a failed start shows the first line slingerd said before its log opened (slinger-5e8b60)
+- [ ] restart-offer picks (slinger-866657): `restart-daemon` sits in the Window menu beside Start slingerd (the seed said the slinger menu); the offer is a two-row bar above the agents' notice; `dismiss-notice` hides both the agents' notice and the offer (the offer's own ✕ hides only it); an old daemon (no `daemon_info`) gets a notice that says to stop it with SIGTERM and no Restart button; builds are named by stamp, with the version only when the versions differ; a newer daemon also reads as "another build" (plan risk 3) (slinger-866657)
 - [ ] app icon (slinger-d8fb56): a placeholder drawn by an agent, crates/app/icon/slinger.svg (a light stroke slung to the top right ending in a blue arrowhead, on the dark paper #1e1e1e); replace the SVG and run scripts/icon.sh for real art (slinger-d8fb56)
 
 ## Agent sessions, workspaces and the rest
