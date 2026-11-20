@@ -1,6 +1,6 @@
 //! A text started from the keyboard (slinger-b16804): `new-text` by its
 //! default key chains a text under the one being typed, and starts one at
-//! the pointer when none is.
+//! the pointer when none is, or opens the text under the pointer.
 
 use super::*;
 use crate::commands::CTRL;
@@ -57,5 +57,13 @@ fn new_text_chains_under_the_text_being_typed_and_else_starts_at_the_pointer() {
         w.until(|_| texts(daemon).len() == 4);
         let far = texts(daemon).into_iter().find(|(t, _, _)| t == "far").unwrap();
         assert!(far.1 > chain[0].1 + 250.0 && far.2 > chain[2].2, "at the pointer: {far:?}");
+
+        // With the pointer over a text, it opens that text as a tap does (slinger-fe632e).
+        w.send(Event::Moved(Point { x: 610.0, y: 500.0 }));
+        assert!(w.send(Event::Key(new_text)));
+        w.type_in("!");
+        w.key(Chord::new(0, '\u{1b}'), "\u{1b}");
+        w.until(|_| texts(daemon).iter().any(|(t, _, _)| t == "far!"));
+        assert_eq!(texts(daemon).len(), 4, "edited, not one more");
     });
 }

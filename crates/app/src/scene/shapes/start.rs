@@ -3,10 +3,13 @@
 //! the text just ended, so notes follow one another without a tap. The
 //! hint under a typed text names that key.
 
-use super::{HINT, Shapes, snap};
+use std::borrow::Cow;
+
+use super::{HINT, Shapes, snap, text_at};
 use crate::commands::Chord;
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
+use crate::scene::canvas::{Item, Shape};
 use crate::scene::editor::{Editing, Editor};
 use crate::scene::glyphs;
 use crate::scene::ink::Ink;
@@ -30,6 +33,25 @@ impl Shapes {
             column: glyphs::UNWRAPPED,
             item: None,
         });
+    }
+
+    /// As [`Shapes::start`], except that a text of `items` within `reach`
+    /// of `at` opens to be edited, as a tap of the text tool on it does.
+    pub fn start_at(
+        &mut self,
+        (canvas, page): (&str, &str),
+        (at, reach): (Point, f64),
+        items: &[Cow<'_, Item>],
+        colour: Rgb,
+        ink: &mut Ink,
+    ) {
+        match text_at(items, at, reach).and_then(|item| edit((canvas, page), item)) {
+            Some(editing) => {
+                self.end(ink);
+                self.editing = Some(editing);
+            }
+            None => self.start((canvas, page), at, colour, ink),
+        }
     }
 
     /// Where the next text chains on, as [`Shapes::start`] takes it, with
@@ -62,6 +84,22 @@ impl Shapes {
     pub fn typing_frame(&self) -> Option<Rect> {
         self.editing.as_ref().map(Editing::frame)
     }
+}
+
+/// `item`, a text on `page` of `canvas`, opened to be edited, its caret
+/// at its end; `None` when it is not a text.
+pub(super) fn edit((canvas, page): (&str, &str), item: &Item) -> Option<Editing> {
+    let Shape::Text { frame, text, size, column } = &item.shape else { return None };
+    Some(Editing {
+        canvas: canvas.to_string(),
+        page: page.to_string(),
+        at: Point { x: frame.x, y: frame.y },
+        editor: Editor::new(text.clone()),
+        colour: item.colour,
+        size: *size,
+        column: column.unwrap_or(glyphs::UNWRAPPED),
+        item: Some((item.id, text.clone())),
+    })
 }
 
 #[cfg(test)]
