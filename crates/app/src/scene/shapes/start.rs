@@ -76,6 +76,14 @@ impl Shapes {
     pub fn typing_frame(&self) -> Option<Rect> {
         self.editing.as_ref().map(Editing::frame)
     }
+
+    /// Whether `at`, a point on `page` of `canvas`, is inside the shown
+    /// frame of the text being typed ([`Editing::bounds`]), where a press
+    /// moves its caret.
+    pub fn typing_at(&self, (canvas, page): (&str, &str), at: Point) -> bool {
+        let here = |e: &&Editing| e.canvas == canvas && e.page == page;
+        self.editing.as_ref().filter(here).is_some_and(|e| e.bounds().contains(at))
+    }
 }
 
 /// `item`, a text of `items` on `page` of `canvas`, opened to be edited,

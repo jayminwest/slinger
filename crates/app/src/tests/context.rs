@@ -10,7 +10,7 @@ use crate::scene::status;
 
 impl World {
     /// A right press and lift at `x`, `y`: the menu the window would pop.
-    fn context(&mut self, x: f64, y: f64) -> Option<Popup> {
+    pub(super) fn context(&mut self, x: f64, y: f64) -> Option<Popup> {
         let at = Point { x, y };
         let down = Event::Button { button: Button::Secondary, phase: Phase::Down, at };
         self.send(down);
@@ -32,7 +32,7 @@ impl World {
     }
 
     /// The menu `subject` offers now, by the window's facts.
-    fn offers(&self, subject: Subject) -> Vec<crate::commands::menu::Item> {
+    pub(super) fn offers(&self, subject: Subject) -> Vec<crate::commands::menu::Item> {
         let area = self.sidebar.panes(self.shared.size.rect());
         let facts =
             crate::window::facts(&self.shared, &self.canvases, &self.tools, &self.sidebar, area);
@@ -41,7 +41,7 @@ impl World {
     }
 
     /// A point on the footer of the `n`th pane, laid left to right.
-    fn footer(&self, n: usize) -> Point {
+    pub(super) fn footer(&self, n: usize) -> Point {
         let area = self.sidebar.panes(self.shared.size.rect());
         let frame = self.shared.panes.place(area)[n].2;
         let content = status::content(frame);
@@ -49,7 +49,7 @@ impl World {
     }
 }
 
-fn titles(popup: &Popup) -> Vec<&'static str> {
+pub(super) fn titles(popup: &Popup) -> Vec<&'static str> {
     popup.items.iter().filter(|i| i.action != Action::Separator).map(|i| i.title).collect()
 }
 

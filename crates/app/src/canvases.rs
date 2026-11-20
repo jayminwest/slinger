@@ -21,6 +21,7 @@
 
 mod button;
 mod clip;
+mod context;
 mod drag;
 mod find;
 mod fold;

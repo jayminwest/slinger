@@ -3,7 +3,8 @@
 //! item is the bar's ([`menu::item`]): the command's title, its live key,
 //! grey where [`able::can`](super::able::can) says it cannot act. A pick
 //! runs the command as its menu bar item does, on what the click made
-//! current (the pane it focused, the pointer it moved). `platform` only
+//! current (the pane it focused, the pointer it moved, the item it
+//! selected: Finder's rule, `Canvases::context_at`). `platform` only
 //! pops the menu a [`Popup`] says. Pure.
 
 use super::menu::{self, Action, Item, Native};
@@ -18,6 +19,26 @@ pub enum Subject {
     Canvas,
     /// A pane's footer; `ui` when the pane shows an agent UI.
     Pane { ui: bool },
+    /// One item, selected alone (Finder's rule), of this kind.
+    Item { kind: Kind },
+    /// A selection of more than one item; `boxed` when it holds a box.
+    Selection { boxed: bool },
+    /// A canvas text being typed: its own cut, copy and paste.
+    Typing,
+}
+
+/// The kind of item a context click was on: what its menu adds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    Stroke,
+    Text,
+    Box,
+    Arrow,
+    /// A PDF page the select tool takes (a snippet, or a page on a
+    /// canvas that is not the PDF's own).
+    Pdf,
+    /// A live item, its page not taking presses (not come, or too small).
+    Live,
 }
 
 /// A context menu to pop: where (in the window, from its top left) and
@@ -32,7 +53,50 @@ pub struct Popup {
 /// has them, a check on `checked`, each grey where `facts` say its command
 /// cannot act. No menu starts or ends with a separator or has two in a row.
 pub fn items(subject: Subject, keys: &Keymap, checked: Command, facts: &Facts) -> Vec<Item> {
-    let actions: &[Action] = match subject {
+    let actions = actions(subject);
+    tidy(actions.iter().map(|&action| menu::item(action, keys, checked, facts)).collect())
+}
+
+/// What any item, or a selection, offers first: sling it, the clipboard's
+/// cut and copy, duplicate and delete it.
+const ANY: [Action; 7] = [
+    R(Command::Sling),
+    S,
+    N(Native::Cut),
+    N(Native::Copy),
+    R(Command::Duplicate),
+    R(Command::DeleteSelection),
+    S,
+];
+
+/// `subject`'s actions, separators where its groups meet.
+fn actions(subject: Subject) -> Vec<Action> {
+    let extra: &[Action] = match subject {
+        Subject::Item { kind: Kind::Live } => {
+            return vec![R(Command::Sling), R(Command::DeleteSelection)];
+        }
+        Subject::Typing => return vec![N(Native::Cut), N(Native::Copy), N(Native::Paste)],
+        Subject::Item { kind: Kind::Stroke | Kind::Arrow } => &[],
+        Subject::Item { kind: Kind::Text } => {
+            &[R(Command::PickSize), R(Command::SizeUp), R(Command::SizeDown)]
+        }
+        Subject::Item { kind: Kind::Box } => {
+            &[S, R(Command::Fold), R(Command::StepIn), R(Command::StepInBeside)]
+        }
+        Subject::Item { kind: Kind::Pdf } => &[S, R(Command::CropPdf), R(Command::ShowCanvasFile)],
+        Subject::Selection { boxed } => {
+            let fold = boxed.then_some(R(Command::Fold));
+            let tail = [R(Command::PickColour), R(Command::ClearSelection)];
+            return ANY.into_iter().chain(fold).chain(tail).collect();
+        }
+        Subject::Canvas | Subject::Pane { .. } => return panes(subject).to_vec(),
+    };
+    ANY.into_iter().chain([R(Command::PickColour)]).chain(extra.iter().copied()).collect()
+}
+
+/// The actions of a pane's footer or the empty canvas.
+fn panes(subject: Subject) -> &'static [Action] {
+    match subject {
         Subject::Canvas => &[
             N(Native::Paste),
             R(Command::NewText),
@@ -56,8 +120,8 @@ pub fn items(subject: Subject, keys: &Keymap, checked: Command, facts: &Facts) -
         Subject::Pane { ui: false } => {
             &[R(Command::SplitRight), R(Command::SplitDown), R(Command::ClosePane)]
         }
-    };
-    tidy(actions.iter().map(|&action| menu::item(action, keys, checked, facts)).collect())
+        _ => &[],
+    }
 }
 
 /// `items` with no separator first, last or after another.

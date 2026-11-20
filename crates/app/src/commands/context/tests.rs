@@ -22,8 +22,22 @@ const ABLE: Facts = Facts {
     old: false,
 };
 
-const SUBJECTS: [Subject; 3] =
-    [Subject::Canvas, Subject::Pane { ui: true }, Subject::Pane { ui: false }];
+const KINDS: [Kind; 6] = [Kind::Stroke, Kind::Text, Kind::Box, Kind::Arrow, Kind::Pdf, Kind::Live];
+
+const SUBJECTS: [Subject; 12] = [
+    Subject::Canvas,
+    Subject::Pane { ui: true },
+    Subject::Pane { ui: false },
+    Subject::Item { kind: KINDS[0] },
+    Subject::Item { kind: KINDS[1] },
+    Subject::Item { kind: KINDS[2] },
+    Subject::Item { kind: KINDS[3] },
+    Subject::Item { kind: KINDS[4] },
+    Subject::Item { kind: KINDS[5] },
+    Subject::Selection { boxed: true },
+    Subject::Selection { boxed: false },
+    Subject::Typing,
+];
 
 fn titles(items: &[Item]) -> Vec<&'static str> {
     items.iter().map(|i| if i.action == Action::Separator { "-" } else { i.title }).collect()
@@ -128,4 +142,50 @@ fn tidy_drops_separators_at_the_ends_and_in_a_row() {
     let new = menu::item(R(Command::NewPage), &Keymap::default(), Command::ToolPen, &ABLE);
     assert_eq!(tidy(vec![sep, new, sep, sep, new, sep]), [new, sep, new]);
     assert_eq!(tidy(vec![sep, sep]), []);
+}
+
+/// What any item offers before what its kind adds.
+const ANY_ITEM: [&str; 8] =
+    ["Sling selection", "-", "Cut", "Copy", "Duplicate", "Delete selection", "-", "Pick a colour"];
+
+fn with_any(extra: &[&'static str]) -> Vec<&'static str> {
+    ANY_ITEM.iter().chain(extra).copied().collect()
+}
+
+#[test]
+fn each_kind_of_item_s_items_in_order() {
+    let item = |kind| titles(&of(Subject::Item { kind }));
+    assert_eq!(item(Kind::Stroke), with_any(&[]));
+    assert_eq!(item(Kind::Arrow), with_any(&[]));
+    assert_eq!(item(Kind::Text), with_any(&["Pick a text size", "Bigger text", "Smaller text"]));
+    let boxed = ["-", "Fold or unfold box", "Step into box", "Step into box beside"];
+    assert_eq!(item(Kind::Box), with_any(&boxed));
+    assert_eq!(item(Kind::Pdf), with_any(&["-", "Crop PDF", "Show canvas file in Finder"]));
+    assert_eq!(item(Kind::Live), ["Sling selection", "Delete selection"]);
+}
+
+#[test]
+fn a_selection_offers_fold_only_with_a_box_and_typing_only_the_clipboard() {
+    let tail = ["Pick a colour", "Select nothing"];
+    let plain = titles(&of(Subject::Selection { boxed: false }));
+    assert_eq!(plain, ANY_ITEM[..7].iter().chain(&tail).copied().collect::<Vec<_>>());
+    let boxed = titles(&of(Subject::Selection { boxed: true }));
+    let fold = ANY_ITEM[..7].iter().chain(&["Fold or unfold box"]).chain(&tail);
+    assert_eq!(boxed, fold.copied().collect::<Vec<_>>());
+    assert_eq!(titles(&of(Subject::Typing)), ["Cut", "Copy", "Paste"]);
+    let fold = |s| of(s).iter().any(|i| i.action == Action::Run(Command::Fold));
+    for kind in KINDS {
+        assert_eq!(fold(Subject::Item { kind }), kind == Kind::Box, "{kind:?}");
+    }
+}
+
+#[test]
+fn an_item_s_commands_grey_where_the_items_do_not_have_the_keys() {
+    let typing = Facts { items: false, ..ABLE };
+    let menu =
+        items(Subject::Item { kind: Kind::Box }, &Keymap::default(), Command::ToolPen, &typing);
+    for command in [Command::DeleteSelection, Command::Duplicate, Command::Fold] {
+        assert!(!find(&menu, command).enabled, "{command:?}");
+    }
+    assert!(find(&menu, Command::StepIn).enabled, "step-in reads the selection only");
 }
