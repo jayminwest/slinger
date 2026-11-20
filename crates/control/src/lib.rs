@@ -11,6 +11,7 @@ mod client;
 mod feed;
 mod feedback;
 mod find;
+mod fold;
 mod imported;
 mod look;
 mod packet;
@@ -39,6 +40,7 @@ pub use feedback::{
     FeedbackResolution, FeedbackResolved,
 };
 pub use find::CanvasFound;
+pub use fold::{CanvasFold, FoldAsk};
 pub use imported::CanvasImported;
 pub use look::{CanvasImage, CanvasImages, CanvasStrokes};
 pub use packet::{CanvasPacket, PacketAsk, PacketImage};
@@ -189,6 +191,10 @@ pub enum Request {
     /// read by their own `op`s and written by clients with `ProfileAsk`.
     #[serde(untagged, skip_serializing)]
     Profile(ProfileAsk),
+    /// The fold verbs (`canvas_fold`, `canvas_unfold`), read by their own
+    /// `op`s and written by clients with `FoldAsk` itself.
+    #[serde(untagged, skip_serializing)]
+    Fold(FoldAsk),
 }
 
 /// A successful answer. One variant per verb, holding that verb's reply type.
@@ -241,6 +247,7 @@ pub enum Reply {
     FeedbackResolve(FeedbackResolution),
     FeedbackPath(FeedbackFile),
     Profiles(Profiles),
+    Fold(CanvasEdited),
 }
 
 /// An event to append. The daemon sets its number, time and machine tag,
@@ -405,7 +412,9 @@ pub struct CanvasPage {
 pub struct CanvasChange {
     /// The sequence number of each operation written, in order.
     pub seq: Vec<u64>,
-    /// The ids of the items and pages it made, in order.
+    /// The ids of the items and pages it made, in order. A reply without
+    /// them (a fold's) made none.
+    #[serde(default)]
     pub made: Vec<String>,
 }
 
