@@ -67,6 +67,13 @@ def daemon(sock, request):
     return ms, reply
 
 
+def leaves(tree):
+    """The panes of a `pane_list` layout, in order."""
+    if "split" in tree:
+        return leaves(tree["first"]) + leaves(tree["second"])
+    return [tree]
+
+
 def summary(samples):
     samples = sorted(samples)
     p90 = samples[min(len(samples) - 1, int(len(samples) * 0.9))]
@@ -194,6 +201,15 @@ def main():
             row(f"sling_send {name} p1, one new stroke", samples, "daemon side only: stand-in agent")
         after = load()
 
+        # A canvas whose content does not fit at 100% first opens fitted
+        # (`Viewport::opening`, since slinger-ff9dbe). The app rows start
+        # from a fixed view instead: 100% with the origin at the top left,
+        # kept for each workspace's pane, which a new window opens on.
+        for name in ("big", "small"):
+            _, listed = daemon(sock, {"op": "pane_list", "workspace": name})
+            views = [{"id": p["id"], "canvas": name, "page": "p1", "x": 0, "y": 0, "zoom": 1}
+                     for p in leaves(listed["layout"]) if p["kind"] == "canvas"]
+            daemon(sock, {"op": "pane_view", "workspace": name, "views": views})
         app_rows = [] if args.no_app else drive(bins, sock, args.runs)
     finally:
         for proc in reversed(started):
@@ -348,8 +364,8 @@ def drive(bins, sock, runs):
             switch(to)
             go({"op": "command", "name": "tool-pen"})
             go({"op": "move", "x": 600, "y": 300})
-            pen(to, "zoom as opened")
-            pen(to, "zoom as opened, a 2000-sample stroke", 2000)
+            pen(to, "100% at the origin (the kept view)")
+            pen(to, "100% at the origin, a 2000-sample stroke", 2000)
             for _ in range(8):
                 go({"op": "command", "name": "zoom-out"})
             go({"op": "move", "x": 601, "y": 300})
@@ -357,7 +373,10 @@ def drive(bins, sock, runs):
             pen(to, f"zoomed out to {zoom.group(1) if zoom else '?'}")
             for _ in range(8):
                 go({"op": "command", "name": "zoom-in"})
-            go({"op": "move", "x": 600, "y": 300})
+            # What a first open shows when no view is kept.
+            go({"op": "command", "name": "zoom-to-fit"})
+            go({"op": "move", "x": 602, "y": 300})
+            pen(to, "fitted to the content (zoom-to-fit)")
         idle = [go({"op": "clip"})[0] for _ in range(runs)]
         rows.append(f"| drive request that does nothing (clip) | {summary(idle)} | the socket's own cost |")
     finally:
