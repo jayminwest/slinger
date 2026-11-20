@@ -171,3 +171,19 @@ fn a_blank_prompt_takes_the_config_s_words() {
     canvases.set_prompt(&config.resolve().prompt);
     assert_eq!(canvases.prompt, "Answer in one line.");
 }
+
+/// slinger-6b258e: a PDF opened beside the workspace's canvas is no
+/// workspace's canvas, so the daemon has no agent to sling it to; the
+/// flash says that, not that the workspace has no agent.
+#[test]
+fn what_a_canvas_with_no_agent_to_sling_to_flashes() {
+    let with = agents(Some(scout()));
+    let why = |agents: Option<&[(String, Option<Agent>)]>, canvas| unslingable(agents, canvas);
+    assert_eq!(why(Some(&with), "notes"), None, "its workspace has an agent");
+    assert_eq!(why(Some(&agents(None)), "notes"), Some(NO_AGENT));
+    assert_eq!(why(Some(&with), "paper.pdf"), Some(PDF));
+    assert_eq!(why(Some(&with), "my-board"), Some(NO_WORKSPACE));
+    let on_a_pdf = vec![("paper.pdf".to_string(), Some(scout()))];
+    assert_eq!(why(Some(&on_a_pdf), "paper.pdf"), None, "a workspace on the PDF's canvas");
+    assert_eq!(why(None, "paper.pdf"), None, "nothing heard: the daemon says");
+}

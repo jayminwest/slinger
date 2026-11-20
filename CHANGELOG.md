@@ -636,6 +636,12 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** sling-now (alt+return, or Sling) on a PDF opened beside the
+  workspace's canvas now says "A PDF cannot be slung: sling a crop of it"
+  (crop it, paste the crop on the workspace's canvas and sling that)
+  instead of "No agent in this workspace": a sling goes to the agent of
+  its canvas's workspace, and a PDF's canvas belongs to none. Any other
+  canvas no open workspace has says so too.
 - **CLI, daemon:** `slingerd --socket` and `slinger --socket` take a path
   of any length. A path over 103 bytes (a deep scratch folder, say) no
   longer fails with "path must be shorter than SUN_LEN"; the app reaches
