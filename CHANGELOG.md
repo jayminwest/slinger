@@ -16,6 +16,7 @@ bullet with the area in bold.
   starts the next half a line under it, so notes follow one another from
   the keyboard. With no text being typed it starts one at the pointer, or,
   with the pointer off the pane, under the last text you ended there.
+  The hint under a text you type names its key.
 - **CLI:** `slinger canvas fold <ID> <ITEM>` folds a box to a miniature that
   keeps what lies inside it, and `slinger canvas unfold` opens it again in
   its old room, each as one undo step. When something now lies in that

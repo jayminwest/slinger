@@ -103,8 +103,8 @@ struct Drag {
 /// pen, down inside it, is selecting its characters), the last press,
 /// the edit a double tap with the select tool or the lasso asks for
 /// once the pen lifts where it went down, within the reach there, and the
-/// size a new text starts at ([`TEXT_SIZE`] until one is set), and where
-/// the last text ended ([`start`]).
+/// size a new text starts at ([`TEXT_SIZE`] until one is set), where
+/// the last text ended, and the `new-text` key the hint names ([`start`]).
 #[derive(Debug, Default)]
 pub struct Shapes {
     drag: Option<(String, String, Drag)>,
@@ -116,6 +116,7 @@ pub struct Shapes {
     last: Option<(String, String, Press)>,
     waiting: Option<(Editing, Point, f64)>,
     size: Option<f64>,
+    next: Option<Chord>,
 }
 
 impl Shapes {
@@ -378,7 +379,7 @@ impl Shapes {
                 Shape::Panel { frame: around, fill: None, width: FRAME_LINE / zoom, dashed: true };
             items.push(Cow::Owned(Item { id: FRAME_ID, colour: theme.muted, shape }));
             let under = Point { x: around.x, y: around.y + around.height + HINT_GAP / zoom };
-            let hint = label(HINT_ID, HINT.to_string(), theme.muted, under, zoom);
+            let hint = label(HINT_ID, self.hint(), theme.muted, under, zoom);
             items.push(Cow::Owned(hint));
         }
         items

@@ -5,12 +5,18 @@
 //! or at the pane's centre.
 
 use super::{Canvases, canvas_of, find, to_canvas, wanted};
+use crate::commands::{Command, Keymap};
 use crate::config::Rgb;
 use crate::layout::{PaneId, Point, Rect, Size};
 use crate::panes::Panes;
 use crate::scene::select::into_view;
 
 impl Canvases {
+    /// Follows `keys`: the hint under a typed text names `new-text`'s key.
+    pub fn follow_keys(&mut self, keys: &Keymap) {
+        self.shapes.set_next(keys.chord(Command::NewText));
+    }
+
     /// Starts a new text in `colour` on the page `pane` of `panes` (laid at
     /// `frame`) shows, or chained under the text being typed on that text's
     /// page; `pointer` is where the pointer is in the window, if known. The

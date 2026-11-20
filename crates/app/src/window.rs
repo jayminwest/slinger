@@ -400,6 +400,7 @@ pub fn view(
     canvases.agents(sidebar.agents());
     canvases.follow_paper(settings.config.canvas);
     canvases.set_prompt(&settings.config.prompt);
+    canvases.follow_keys(&settings.config.keys);
     let drawn = canvases.show(&shared.panes, area, theme);
     let mut problems: Vec<&Problem> = Vec::new();
     for problem in shared.trouble.iter().chain(canvases.problems()).chain(&settings.problem) {

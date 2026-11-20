@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::commands::CTRL;
+use crate::scene::canvas::{Draw, Mark};
 
 /// Each text on the daemon's `notes` canvas: its text, `x` and `y`.
 fn texts(daemon: &control::Client) -> Vec<(String, f64, f64)> {
@@ -29,6 +30,11 @@ fn new_text_chains_under_the_text_being_typed_and_else_starts_at_the_pointer() {
         let mut w = world(daemon, config.path());
         let new_text = Chord::new(CTRL, '\r');
         w.type_word(300.0, 10.0);
+        let scene = view(&w.settings, &mut w.shared, &w.tools, &w.sidebar, &mut w.canvases);
+        let hint = "esc or a tap outside ends the text · ⌃↩ new text";
+        let named = |d: &Draw| matches!(&d.mark, Mark::Text { text, .. } if text == hint);
+        let mut draws = scene.canvases.iter().flat_map(|c| c.scene.draws.iter());
+        assert!(draws.any(named), "the hint names the live key");
         assert!(w.send(Event::Key(new_text)), "the keymap's, not the text's");
         assert!(w.canvases.editing(), "the next text is being typed");
         w.type_in("next");

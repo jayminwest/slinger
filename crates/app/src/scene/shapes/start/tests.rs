@@ -52,3 +52,13 @@ fn a_started_text_sits_where_a_tap_puts_it_and_the_next_chains_half_a_line_under
     assert_eq!(again.x, 40.0);
     assert!(again.y > at.y, "under the blank text, at the new size's line");
 }
+
+#[test]
+fn the_hint_names_the_new_text_key_when_it_has_one() {
+    let mut shapes = Shapes::default();
+    assert_eq!(shapes.hint(), "esc or a tap outside ends the text");
+    shapes.set_next(Chord::parse("ctrl+return"));
+    assert_eq!(shapes.hint(), "esc or a tap outside ends the text · ⌃↩ new text");
+    shapes.set_next(Chord::parse("cmd+shift+n"));
+    assert_eq!(shapes.hint(), "esc or a tap outside ends the text · ⇧⌘N new text");
+}

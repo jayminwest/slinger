@@ -1,8 +1,10 @@
 //! Where a new text starts (slinger-b16804): at a tap of the text tool, or
 //! from the keyboard (`new-text`) at the pointer, or chained a line under
-//! the text just ended, so notes follow one another without a tap.
+//! the text just ended, so notes follow one another without a tap. The
+//! hint under a typed text names that key.
 
-use super::{Shapes, snap};
+use super::{HINT, Shapes, snap};
+use crate::commands::Chord;
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::scene::editor::{Editing, Editor};
@@ -40,6 +42,20 @@ impl Shapes {
         let left = Point { x: frame.x, y: frame.y + frame.height };
         let line = glyphs::rows_frame(left, "", self.size(), glyphs::UNWRAPPED).height;
         Some((canvas, page, Point { x: left.x, y: left.y + line }))
+    }
+
+    /// The key `new-text` is on, if any: the hint under a typed text names it.
+    pub fn set_next(&mut self, key: Option<Chord>) {
+        self.next = key;
+    }
+
+    /// The hint under the text being typed: how it ends, and the key that
+    /// starts the next, when there is one.
+    pub(super) fn hint(&self) -> String {
+        match self.next {
+            Some(key) => format!("{HINT} · {} new text", key.glyphs()),
+            None => HINT.to_string(),
+        }
     }
 
     /// The frame of the text being typed, if any, in canvas units.
