@@ -538,8 +538,14 @@ the absolute directory of its file. A name matches what a broken file says
 too. One that is not open is `not_found`. The hint of a broken workspace's
 error says to close it by its directory, which works whatever the file
 holds.
-Closing removes the workspace from the list only: its file, its canvas and
-its agent stay.
+Closing removes the workspace from the list: its file, its canvas and its
+agent's conversation stay. Its agent's process ends, as `session_stop` ends
+it (its `working` goes, its listener's claim on a sling is released), unless
+another open workspace still names that agent: then it runs on, reachable
+through that one. Every session verb finds an agent through an open
+workspace, so the daemon never keeps a process it could no longer reach.
+Reopening the workspace shows the agent with no process; the next start or
+sling resumes its conversation.
 
 ```json
 { "v": 1, "op": "workspace_open", "dir": "/Users/me/notes" }

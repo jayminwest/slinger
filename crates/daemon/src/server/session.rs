@@ -139,6 +139,6 @@ fn wire(store: &Store, s: Session) -> Result<control::Session, RemoteError> {
     })
 }
 
-fn remote(error: &SessionError) -> RemoteError {
+pub(super) fn remote(error: &SessionError) -> RemoteError {
     RemoteError::new(error.code(), error.to_string(), error.hint())
 }
