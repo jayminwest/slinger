@@ -21,6 +21,10 @@ pub const CLOSE: &str = "Close workspace";
 const MOST: [usize; 3] = [2, 1, 3];
 /// What ends a line cut short.
 pub const CUT: &str = "…";
+/// How far in from each side of its row the text field that draws a line
+/// (an `NSTextField`'s cell) sets its text: a line wrapped to the whole row
+/// loses its last word (slinger-c19909).
+pub(super) const INSET: f64 = 2.0;
 
 /// Why the daemon cannot use a workspace's file: its error.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -37,7 +41,7 @@ impl Broken {
     /// close line and the hint (muted). The hint shows only then: the
     /// close line does what it says, and the panes show it wider.
     pub(super) fn lines(&self, shown: bool, theme: &Theme) -> Vec<Line> {
-        let room = WIDTH - 2.0 * PAD - MARK;
+        let room = WIDTH - 2.0 * PAD - MARK - 2.0 * INSET;
         let at = Point { x: 0.0, y: 0.0 };
         let fits = |line: &str| glyphs::frame(at, line, TEXT).width <= room;
         let field = self.field.as_ref().map(|f| format!("field: {f}"));

@@ -621,6 +621,8 @@ bullet with the area in bold.
   workspaces under it out of the sidebar. Its error takes at most two
   lines, cut short with "…"; the hint shows only while you show that
   workspace, in at most three lines; the panes show both, wider.
+- **App:** a broken workspace's error in the sidebar no longer loses
+  its last word: each line now wraps to the room its text really has.
 - **App:** once the slingerd that slinger.app started answers, the sidebar
   lists the workspaces at once; before, it could take up to a second more.
 - **Workspaces:** closing a workspace ends its agent's running process.

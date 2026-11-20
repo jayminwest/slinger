@@ -105,3 +105,29 @@ fn long_broken_files_never_push_the_rows_under_them_out_of_sight() {
         assert!(row.label.frame.x + fits.width <= room, "{:?} fits", row.label.text);
     }
 }
+
+/// A measure of 6 points a character, as the platform hands one in.
+fn six(text: &str, size: f64) -> crate::layout::Size {
+    let widest = text.lines().map(|l| l.chars().count()).max().unwrap_or(0);
+    crate::layout::Size { width: 6.0 * f64::from(u32::try_from(widest).unwrap()), height: size }
+}
+
+#[test]
+fn each_line_fits_its_row_less_the_field_s_inset() {
+    // 26 characters measure 157 points: inside the 160-point row, but not
+    // inside the text field that draws it (slinger-c19909).
+    glyphs::set_measure(six);
+    let mut bad = broken("bad", "bad");
+    bad.broken.as_mut().unwrap().message = "abcdefghijklmnopqrstuvwxyz expected".into();
+    let mut sidebar = heard(vec![bad]);
+    sidebar.pick(0);
+    let rows = sidebar.rows(&T, WINDOW);
+    let texts = shown(&rows);
+    assert!(texts.iter().any(|(t, _)| t.ends_with("expected")), "{texts:?}");
+    let under = rows.iter().filter(|r| r.label.frame.x > PAD && r.label.text.chars().count() > 1);
+    for row in under {
+        let glyphs = glyphs::frame(Point { x: 0.0, y: 0.0 }, &row.label.text, 13.0).width;
+        let room = row.label.frame.width - 2.0 * broken::INSET;
+        assert!(glyphs <= room, "{:?}: {glyphs} in {room}", row.label.text);
+    }
+}
