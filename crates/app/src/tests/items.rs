@@ -102,7 +102,7 @@ fn a_text_being_typed_or_an_open_entry_keeps_the_keys() {
 /// items stay (slinger-479dea), until a press the app takes gives the
 /// window the keyboard back.
 #[test]
-fn a_page_holding_the_keyboard_keeps_delete() {
+fn a_page_holding_the_keyboard_keeps_delete_and_escape() {
     with_store(None, |daemon| {
         let _home = open_notes(daemon);
         let config = tempfile::tempdir().unwrap();
@@ -118,6 +118,9 @@ fn a_page_holding_the_keyboard_keeps_delete() {
         w.shared.keyboard = Keyboard::Pressed;
         assert!(!w.send(delete()), "the key goes on to the page");
         assert!(!w.send(Event::Command(Command::DeleteSelection)), "chosen from the menu too");
+        let escape = || Event::Key(Chord::new(0, '\u{1b}'));
+        assert!(!w.send(escape()), "escape goes on to the page too");
+        assert!(!w.send(Event::Command(Command::ClearSelection)), "and Select nothing");
         assert_eq!(selected(&w), 1);
         w.shared.keyboard = Keyboard::Window;
         assert!(w.send(delete()));

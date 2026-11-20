@@ -201,22 +201,37 @@ fn words(list: &[(&str, i64, i64)]) -> Vec<u8> {
 #[test]
 fn a_sling_asks_for_the_area_of_the_page_under_each_new_cluster() {
     let (mut log, _) = log();
-    assert_eq!(log.backdrops(None, 0).unwrap(), [], "no ink, nothing to render");
+    assert_eq!(log.backdrops(None, None, 0).unwrap(), [], "no ink, nothing to render");
     log.apply(&Author::User, AT, &stroke(1000, 1000)).unwrap();
-    let [area] = log.backdrops(None, 0).unwrap().try_into().unwrap();
+    let [area] = log.backdrops(None, None, 0).unwrap().try_into().unwrap();
     assert_eq!((area.item, area.pdf_page, area.crop), (ItemId::new(1), 1, None));
     assert_eq!(rect_tenths(area.area), [825, 825, 750, 350], "the image frame ∩ the page");
     assert_eq!(rect_tenths(area.frame), [0, 0, 16000, 20706]);
     assert_eq!((area.width, area.height), (27, 13));
-    assert_eq!(log.backdrops(None, 2).unwrap(), [], "nothing new");
-    assert_eq!(log.backdrops(Some("p9"), 0).unwrap_err().code(), "not_found");
+    assert_eq!(log.backdrops(None, None, 2).unwrap(), [], "nothing new");
+    assert_eq!(log.backdrops(Some("p9"), None, 0).unwrap_err().code(), "not_found");
+}
+
+#[test]
+fn a_sling_of_a_box_asks_only_for_the_area_under_the_ink_it_holds() {
+    let (mut log, _) = log();
+    let frame = json!({ "op": "add", "item": { "page": "p1", "kind": "box", "x": 0, "y": 0,
+        "w": 4000, "h": 4000 } });
+    log.apply(&Author::User, AT, &frame).unwrap();
+    log.apply(&Author::User, AT, &stroke(1000, 1000)).unwrap();
+    log.apply(&Author::User, AT, &stroke(9000, 9000)).unwrap();
+    assert_eq!(log.backdrops(None, None, 0).unwrap().len(), 2, "the page: both strokes");
+    let [area] = log.backdrops(None, Some("b2"), 0).unwrap().try_into().unwrap();
+    assert_eq!(rect_tenths(area.area), [825, 825, 750, 350], "only the stroke in the box");
+    assert_eq!(log.backdrops(None, Some("b9"), 0).unwrap_err().code(), "not_found");
+    assert_eq!(log.backdrops(None, Some("i3"), 0).unwrap_err().code(), "invalid");
 }
 
 #[test]
 fn the_words_under_new_ink_end_its_line() {
     let (mut log, _) = log();
     log.apply(&Author::User, AT, &stroke(1000, 1000)).unwrap();
-    let [area] = log.backdrops(None, 0).unwrap().try_into().unwrap();
+    let [area] = log.backdrops(None, None, 0).unwrap().try_into().unwrap();
     let rgb = vec![200; (area.width * area.height * 3) as usize];
     let said = words(&[("under", 1000, 950), ("the line below", 1000, 1200), ("x\"y", 1100, 950)]);
     let area = rect_tenths(area.area);
@@ -240,7 +255,7 @@ fn the_words_under_new_ink_end_its_line() {
 fn ink_drawn_after_the_areas_were_asked_shows_on_white() {
     let (mut log, _) = log();
     log.apply(&Author::User, AT, &stroke(1000, 1000)).unwrap();
-    let [area] = log.backdrops(None, 0).unwrap().try_into().unwrap();
+    let [area] = log.backdrops(None, None, 0).unwrap().try_into().unwrap();
     let rgb = vec![0; (area.width * area.height * 3) as usize];
     let under = backdrop("i1", rect_tenths(area.area), rgb, None).unwrap();
     log.apply(&Author::User, AT, &stroke(9000, 9000)).unwrap();

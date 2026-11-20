@@ -41,7 +41,8 @@ bullet with the area in bold.
   what the box holds, and the agent's note asks for the answer in it.
   `slinger canvas put <ID> --beside c12 --in b4` puts the answer in the box,
   among what it holds, and an answer in a folded box joins it, the user's
-  box too.
+  box too. Over a PDF, the sling of a box renders only the page under the
+  ink the box holds (`sling_backdrops` takes `in`).
 - **Agents:** an `add` in `slinger canvas apply` may name a folded box with
   `in`: the new item joins it, and the box's open size grows to hold it.
 - **App:** start a text without a tap. New text (`new-text`, ctrl+return,
@@ -64,6 +65,9 @@ bullet with the area in bold.
   lies in its old room, it opens as a peek over the page instead: escape
   or a tap outside closes it, and nothing is moved. Each fold and unfold
   is one undo step.
+- **App:** find sees into folded boxes. A text a folded box hides takes a
+  find to that box, centred and selected, and the flash says the text is
+  in a folded box.
 
 - **App:** a canvas text being typed has a real caret. The arrow keys move
   it (alt by words, cmd to a row's ends or the text's start and end), shift
@@ -535,6 +539,7 @@ bullet with the area in bold.
   it ends with a new size, more rows or a new column, in the same undo step.
 - **App:** while a live item's page on a canvas has the keyboard, delete
   goes to the page; it no longer deletes the selected canvas items.
+  Escape goes to the page too; it no longer clears the canvas selection.
 - **Agents:** a reply that leaves out its colour and size no longer takes
   them from writing hidden in a folded box; it matches what the page shows.
 - **App:** the caret in a canvas text moves, and delete deletes, by what

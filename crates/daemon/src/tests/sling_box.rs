@@ -71,3 +71,28 @@ fn a_sling_of_a_folded_box_sends_only_its_contents_and_the_answer_lands_in_it() 
     assert_eq!(err.code(), "not_found", "{err}");
     daemon.stop();
 }
+
+#[test]
+fn the_backdrops_of_a_box_sling_are_only_under_the_ink_it_holds() {
+    let (data, projects) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_in(data.path());
+    let client = daemon.client();
+    open_with_agent(&client, &projects, "notes", "scout");
+    // A PDF page i1 under the box i2, which holds the stroke i3; i4 is outside.
+    let hash = format!("sha256:{}", "9f".repeat(32));
+    add(
+        &client,
+        &json!({ "page": "p1", "kind": "pdf", "x": 0, "y": 0, "w": 16000, "h": 20706,
+        "hash": hash, "pdfpage": 1, "pagesize": [6120, 7920], "name": "paper.pdf" }),
+    );
+    add(&client, &json!({ "page": "p1", "kind": "box", "x": 0, "y": 0, "w": 4000, "h": 2000 }));
+    add(&client, &stroke(500, 500));
+    add(&client, &stroke(9000, 500));
+    assert_eq!(client.sling_backdrops("notes", None, None).unwrap().len(), 2, "the page");
+    let [area] = client.sling_backdrops("notes", None, Some("b2")).unwrap().try_into().unwrap();
+    assert_eq!(area.item, "i1");
+    assert!(area.area[0] < 4000, "the area under the stroke in the box: {:?}", area.area);
+    let err = client.sling_backdrops("notes", None, Some("b9")).unwrap_err();
+    assert_eq!(err.code(), "not_found", "{err}");
+    daemon.stop();
+}

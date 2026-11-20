@@ -205,7 +205,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `session_stop` | `workspace`: string | `session` |
 | `session_send` | `workspace`: string, `text`: string | `session` |
 | `session_listen` | `workspace`: string, `wait`: milliseconds to hold the request open (default 0, at most 60000), `pid`: the process that works on the sling (optional) | `agent`, `sling`: `{event, canvas, dir, text}`, the oldest sling that waits (absent when none came) |
-| `sling_backdrops` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `backdrops`: list of `{item, hash, pdfpage, pagesize, crop, frame, area, width, height}`, the areas of PDF pages under the new ink (empty when none) |
+| `sling_backdrops` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `in`: a box's id (optional: a sling of the box, on its page) | `backdrops`: list of `{item, hash, pdfpage, pagesize, crop, frame, area, width, height}`, the areas of PDF pages under the new ink (empty when none) |
 | `sling_send` | `canvas`: canvas id, `page`: page id or name (optional, default the first page), `in`: a box's id (optional: a sling of the box, on its page), `select`: list of item ids (optional), `prompt`: string (default empty), `profile`: a profile's name (optional), `backdrops`: list of `{item, area, image, words}` (optional) | `event`: the `sling_sent` appended, `packet`: blob id of the text, `from`, `to`: the canvas operations it covers, `strokes`: how many of the user's strokes were new, `agent`, `session_id` (empty when a listener takes it), `deliver`: `process` or `listen`, `tokens`: about how many tokens the agent reads for it (optional) |
 | `profile_list` | `workspace`: as `workspace_show` | `workspace`: its name, `profiles`: list of `{name, dir, tools}`, in its file's order |
 | `profile_set` | `workspace`, `name`: string, `dir`: absolute path of a directory (optional), `tools`: list of permission rules (optional) | `workspace`, `profiles` |
@@ -1005,8 +1005,9 @@ show` names it (`i3`); `hash`, `pdfpage`, `pagesize` and `crop` (`null` for
 none) as stored, in tenths of a point; `frame` and `area` (the image frame ∩
 the item's frame) as `[x, y, w, h]` in tenths; `width` and `height`, the
 pixels to render (the area at the packet's scale, rounded up). Nothing new,
-or no new ink over a PDF, is an empty list; the canvas and page fail as in
-`canvas_read`. The app renders each area and passes it to `sling_send` in
+or no new ink over a PDF, is an empty list; with `in`, only the new ink the
+box holds counts, as in that box's sling. The canvas, page and box fail as
+in `canvas_read`. The app renders each area and passes it to `sling_send` in
 `backdrops`: `item` and `area` as given, `image` the absolute path of the
 raw pixels (8-bit R, G, B, rows from the top, exactly `width * height * 3`
 bytes) and `words` the absolute path of a JSON array of `{text, x, y, w,

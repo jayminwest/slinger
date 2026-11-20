@@ -226,7 +226,7 @@ fn backdrops(
     pdfs: &Path,
     dir: &Path,
 ) -> Vec<Backdrop> {
-    let areas = daemon.sling_backdrops(canvas, page).unwrap_or_default();
+    let areas = daemon.sling_backdrops(canvas, page, None).unwrap_or_default();
     if areas.is_empty() || fs::create_dir_all(dir).is_err() {
         return Vec::new();
     }

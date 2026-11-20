@@ -111,15 +111,16 @@ pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Reply, RemoteError> {
     }))
 }
 
-/// The areas of PDF pages under the new ink a sling of `canvas` would draw
-/// now, after the canvas's last sling.
+/// The areas of PDF pages under the new ink a sling of `canvas` (of the box
+/// `inside`, when given) would draw now, after the canvas's last sling.
 pub(super) fn backdrops(
     store: &Store,
     canvas: &str,
     page: Option<&str>,
+    inside: Option<&str>,
 ) -> Result<Reply, RemoteError> {
     let after = read::last_sling(store, canvas)?;
-    let areas = store.canvases().backdrops(canvas, page, after).map_err(|e| drawn(&e))?;
+    let areas = store.canvases().backdrops(canvas, page, inside, after).map_err(|e| drawn(&e))?;
     let backdrops = areas
         .into_iter()
         .map(|a| BackdropArea {
