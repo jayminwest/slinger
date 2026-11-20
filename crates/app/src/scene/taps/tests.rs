@@ -70,3 +70,14 @@ fn a_pop_up_s_answer_is_a_target_s() {
     let Took::Tap((_, tap)) = Took::from(Taken::Run(Command::ZoomIn)) else { panic!() };
     assert_eq!(tap, Tap::Run(Command::ZoomIn));
 }
+
+#[test]
+fn an_idle_target_takes_the_tap_and_never_lights() {
+    let mut taps = Taps::default();
+    taps.set(vec![(UNDO, Tap::Idle)]);
+    _ = taps.hover(at(20.0, 580.0));
+    assert_eq!(taps.lit(&T), None, "nothing to light");
+    assert!(taps.press(at(20.0, 580.0)), "the press is its: no ink, no deselect");
+    assert_eq!(taps.lit(&T), None);
+    assert_eq!(taps.lift(at(20.0, 580.0)), Took::Tap((UNDO, Tap::Idle)));
+}
