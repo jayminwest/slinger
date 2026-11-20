@@ -644,6 +644,9 @@ bullet with the area in bold.
   home and end) while a page name or another entry holds the keyboard now
   deletes or moves the caret in the field, as the key does, instead of
   typing a control character into it.
+- **App:** a second tap on "➤ Sling" beside a selection no longer deletes
+  it. While a sling is out, "➤ Sling" and "+ prompt" stay where they were,
+  greyed, and a tap on them does nothing; "Delete" never moves.
 - **App:** a workspace whose file is broken no longer pushes the
   workspaces under it out of the sidebar. Its error takes at most two
   lines, cut short with "…"; the hint shows only while you show that

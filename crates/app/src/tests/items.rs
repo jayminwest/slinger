@@ -127,3 +127,35 @@ fn a_page_holding_the_keyboard_keeps_delete_and_escape() {
         w.until(|_| boxes(daemon).is_empty());
     });
 }
+
+/// slinger-5407f3: a copy has no id until the daemon names it, so until
+/// then nothing is selected and a delete removes nothing, never the
+/// original; once named, the copy is the selection and a delete takes it.
+/// (With the backend waking the window at once, that wait is one round
+/// trip: in a driven window cmd+J then delete removed the copy 11 times
+/// in 11.)
+#[test]
+fn a_delete_right_after_a_duplicate_never_takes_the_original() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        w.drag_box(400.0, 10.0);
+        w.until(|_| boxes(daemon).len() == 1);
+        wait_until(|| {
+            w.send(Event::Tick);
+            w.send(Event::Key(Chord::new(CMD, 'a')));
+            selected(&w) == 1
+        });
+        let first = w.canvases.selection().unwrap().ids[0];
+        assert!(w.send(Event::Key(Chord::new(CMD, 'j'))));
+        assert_eq!(selected(&w), 0, "the copy is not named yet");
+        assert!(!w.send(Event::Key(Chord::new(0, DELETE))), "nothing to delete: the key goes on");
+        let copied = |w: &World| w.canvases.selection().is_some_and(|s| s.ids != [first]);
+        w.until(|w| boxes(daemon).len() == 2 && copied(w));
+        assert!(w.send(Event::Key(Chord::new(0, DELETE))));
+        w.until(|_| boxes(daemon).len() == 1);
+        let left = daemon.canvas_show("notes", None).unwrap().items;
+        assert_eq!(left[0]["id"], format!("i{}", first.0), "the original stays");
+    });
+}
