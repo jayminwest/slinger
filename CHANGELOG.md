@@ -619,6 +619,9 @@ bullet with the area in bold.
 
 - **App:** once the slingerd that slinger.app started answers, the sidebar
   lists the workspaces at once; before, it could take up to a second more.
+- **Fold:** a box drawn around short typed texts folds them. Before, it
+  folded empty and left them on the page: a box measured a text out to the
+  edge of the column it wraps in, not to the end of its words.
 - **Workspaces:** closing a workspace ends its agent's running process.
   Before, the process ran on with no way to reach, stop or list it. An
   agent another open workspace still names keeps running; reopening the

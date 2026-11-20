@@ -135,7 +135,8 @@ box, positions relative to the box's top left:
 The candidates are the items on the box's page that are **in the same place
 as the box**: visible on the page when the box is on the page, or held by the
 same folded box when it is folded inside one (stepped in). Of those, the box
-takes every item, other than itself, whose bounds (a stroke's with its width)
+takes every item, other than itself, whose bounds (a stroke's with its width;
+a text's as wide as the rows it draws, not its wrap column: slinger-2c7eec)
 lie wholly inside the box's frame, edges included.
 
 - **Across an edge:** an item that is not wholly inside stays out and stays
