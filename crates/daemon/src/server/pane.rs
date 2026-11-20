@@ -96,7 +96,7 @@ fn reply(opened: &Opened, layout: &Layout, pane: Option<u32>, event: Option<u64>
     })
 }
 
-/// The tree as it crosses the socket, each pane with its number.
+/// The tree as it crosses the socket, each pane with its number and id.
 fn wire(node: &Node, number: &mut u32) -> control::PaneTree {
     match node {
         Node::Pane(pane) => {
@@ -107,6 +107,7 @@ fn wire(node: &Node, number: &mut u32) -> control::PaneTree {
             };
             control::PaneTree::Pane(control::Pane {
                 pane: *number,
+                id: pane.id,
                 kind,
                 target: pane.target.clone(),
             })

@@ -36,10 +36,11 @@ fn open_list_and_close_print_their_results() {
     assert_eq!(
         doc["panes"],
         serde_json::json!([
-            { "pane": 1, "kind": "canvas", "target": "board" },
-            { "pane": 2, "kind": "canvas", "target": "notes" },
+            { "pane": 1, "id": 2, "kind": "canvas", "target": "board" },
+            { "pane": 2, "id": 3, "kind": "canvas", "target": "notes" },
         ])
     );
+    assert_eq!(doc["layout"]["first"]["id"], 2, "the tree carries the ids too");
 }
 
 #[test]

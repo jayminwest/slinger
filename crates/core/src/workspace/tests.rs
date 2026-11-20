@@ -300,28 +300,52 @@ fn an_event_takes_the_tag_of_its_canvas_or_agent() {
 #[test]
 fn panes_default_to_one_on_the_canvas_and_are_stored_as_text() {
     let mut ws = Workspace::named("My Notes");
-    assert_eq!(ws.panes().encode(), "canvas:my-notes");
+    assert_eq!(ws.panes().encode(), "canvas:my-notes@1");
     let mut layout = ws.panes();
     let board = panes::Pane::new(panes::Kind::Ui, "board").unwrap();
     layout.open(board, Some(1), panes::Axis::Row).unwrap();
     ws.set_panes(&layout);
     let text = ws.to_toml();
-    assert!(text.contains("[layout]\nversion = 1\npanes = \"row 0.5 canvas:my-notes ui:board\""));
+    let stored =
+        "[layout]\nversion = 2\nnext = 3\npanes = \"row 0.5 canvas:my-notes@1 ui:board@2\"";
+    assert!(text.contains(stored), "{text}");
     assert_eq!(Workspace::parse(&text).unwrap().panes(), layout);
+}
+
+#[test]
+fn a_version_one_layout_reads_with_ids_and_its_first_change_writes_version_two() {
+    let v1 = include_str!("../../fixtures/workspace/layout-v1.toml");
+    let mut ws = Workspace::parse(v1).unwrap();
+    let mut layout = ws.panes();
+    let ids: Vec<_> = layout.panes().iter().map(|p| p.id).collect();
+    assert_eq!((ids, layout.next()), (vec![1, 2, 3], 4));
+    assert!(ws.to_toml().contains("version = 1\ngutter = 4\npanes = \"row 0.6"), "unchanged");
+
+    layout.close(2).unwrap();
+    ws.set_panes(&layout);
+    let text = ws.to_toml();
+    let stored = "[layout]\nversion = 2\ngutter = 4\nnext = 4\npanes = \"row 0.6 canvas:notes@1 canvas:sketch@3\"";
+    assert!(text.contains(stored), "{text}");
+    let again = Workspace::parse(&text).unwrap();
+    assert_eq!(again.layout.version(), 2);
+    assert_eq!(again.panes(), layout);
 }
 
 #[test]
 fn a_layout_this_version_cannot_read_opens_one_pane_and_a_change_replaces_it() {
     // The fixture's layout is version 1, but its `panes` is not text.
     let fixture = Workspace::parse(FIXTURE).unwrap();
-    assert_eq!(fixture.panes().encode(), "canvas:main");
+    assert_eq!(fixture.panes().encode(), "canvas:main@1");
     let newer =
-        "version = 1\nname = \"x\"\n[layout]\nversion = 2\npanes = \"canvas:x\"\nzoom = 2\n";
+        "version = 1\nname = \"x\"\n[layout]\nversion = 3\npanes = \"canvas:x@1\"\nzoom = 2\n";
     let mut ws = Workspace::parse(newer).unwrap();
-    assert_eq!(ws.panes().encode(), "canvas:main");
+    assert_eq!(ws.panes().encode(), "canvas:main@1");
     ws.set_panes(&ws.panes());
     let text = ws.to_toml();
-    assert!(text.contains("[layout]\nversion = 1\npanes = \"canvas:main\"\n"), "{text}");
+    assert!(
+        text.contains("[layout]\nversion = 2\nnext = 2\npanes = \"canvas:main@1\"\n"),
+        "{text}"
+    );
     assert!(!text.contains("zoom"));
     let mut same = Workspace::parse(FIXTURE).unwrap();
     same.set_panes(&same.panes());

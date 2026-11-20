@@ -460,6 +460,15 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Workspaces:** each pane now has an id that stays while it is open,
+  whatever opens, closes or resizes around it, and across a daemon restart:
+  `slinger pane list --json` and every pane reply carry it as `id`. Panes are
+  still named by their number. The workspace file stores the panes as
+  `[layout]` version 2 (`canvas:main@1`, and `next`); a version 1 layout
+  still opens as it was and is written as version 2 at its first pane
+  change. An older slingerd shows one pane for a version 2 layout and
+  replaces it at its next pane change, so upgrade every machine that shares
+  a workspace file together.
 - **App:** a tap on a workspace shows it at once (about 20 ms, from one
   to two seconds), and what an agent draws or a page that comes shows at
   once too: the window no longer waits for its timer or a one-second round
