@@ -151,7 +151,7 @@ fn every_error_names_its_line_and_has_a_hint() {
 }
 
 /// The default chords, each written out, in [`Command::ALL`]'s order.
-const DEFAULT_KEYS: [&str; 74] = [
+const DEFAULT_KEYS: [&str; 76] = [
     "cmd+q",
     "cmd+r",
     "cmd+shift+c",
@@ -226,6 +226,8 @@ const DEFAULT_KEYS: [&str; 74] = [
     "up",
     "down",
     "cmd+j",
+    "cmd+f",
+    "cmd+g",
 ];
 
 #[test]
@@ -334,11 +336,11 @@ fn a_chord_bound_in_a_file_is_taken_from_the_default_command_on_it() {
 
 #[test]
 fn the_overlay_takes_a_chord_from_the_shared_file() {
-    let base = parse("[keys]\nquit = \"cmd+k\"\nreload-config = \"cmd+g\"\n").unwrap();
+    let base = parse("[keys]\nquit = \"cmd+k\"\nreload-config = \"cmd+shift+g\"\n").unwrap();
     let overlay = parse("[keys]\nreload-config = \"cmd+k\"\n").unwrap();
     let config = base.over(overlay).resolve();
     assert_eq!(command(&config, "cmd+k"), Some(Command::ReloadConfig));
-    assert_eq!(command(&config, "cmd+g"), None);
+    assert_eq!(command(&config, "cmd+shift+g"), None);
     assert_eq!(command(&config, "cmd+q"), None, "the shared file moved quit off its default");
 }
 

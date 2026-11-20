@@ -1,5 +1,6 @@
-//! `slinger canvas crop` and `slinger canvas strokes`: what an agent asks a
-//! canvas for when the packet is not enough. One request each.
+//! `slinger canvas crop`, `slinger canvas strokes` and `slinger canvas
+//! find`: what an agent asks a canvas for when the packet is not enough.
+//! One request each.
 
 use std::path::PathBuf;
 
@@ -38,6 +39,14 @@ pub struct Strokes {
     item: String,
 }
 
+/// Find text on every page: page, item and the text per match, page by page in reading order
+#[derive(Args)]
+pub struct Find {
+    canvas: String,
+    /// The words to find, ignoring case and spacing
+    text: String,
+}
+
 pub fn crop(args: &Crop, daemon: &control::Client) -> anyhow::Result<Output> {
     // clap makes sure exactly one of `--item` and `--box` is here.
     let area = args.area.clone().unwrap_or_default();
@@ -57,4 +66,16 @@ pub fn strokes(args: &Strokes, daemon: &control::Client) -> anyhow::Result<Outpu
     let strokes = daemon.canvas_strokes(&args.canvas, &args.item)?;
     let human = strokes.iter().map(ToString::to_string).collect::<Vec<_>>();
     Ok(Output::new(json!({ "strokes": strokes }), human.join("\n")))
+}
+
+pub fn find(args: &Find, daemon: &control::Client) -> anyhow::Result<Output> {
+    let found = daemon.canvas_find(&args.canvas, &args.text)?;
+    let field =
+        |item: &serde_json::Value, key: &str| item[key].as_str().unwrap_or_default().to_string();
+    let line = |item: &serde_json::Value| {
+        let text = field(item, "text").replace('\n', "\\n");
+        format!("{}\t{}\t{text}", field(item, "page"), field(item, "id"))
+    };
+    let human = found.iter().map(line).collect::<Vec<_>>();
+    Ok(Output::new(json!({ "found": found }), human.join("\n")))
 }

@@ -110,6 +110,8 @@ const BAR: [(&str, &[Action]); 8] = [
             R(Command::NudgeRight),
             R(Command::NudgeUp),
             R(Command::NudgeDown),
+            R(Command::Find),
+            R(Command::FindNext),
         ],
     ),
     (

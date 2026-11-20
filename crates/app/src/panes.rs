@@ -265,7 +265,9 @@ impl Panes {
             | Command::NudgeRight
             | Command::NudgeUp
             | Command::NudgeDown
-            | Command::Duplicate => {}
+            | Command::Duplicate
+            | Command::Find
+            | Command::FindNext => {}
             Command::SplitRight => self.split(Axis::Row),
             Command::SplitDown => self.split(Axis::Column),
             Command::ClosePane => self.close(),

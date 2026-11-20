@@ -108,7 +108,7 @@ impl Canvases {
         if self.shapes.end(&mut self.ink) {
             self.send();
         }
-        if self.sling.cancel() | self.asks.cancel_rename() {
+        if self.sling.cancel() | self.asks.cancel_entry() {
             self.entry_closed();
         }
         true

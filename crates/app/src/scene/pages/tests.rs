@@ -174,7 +174,7 @@ fn a_new_name_is_typed_in_an_entry_like_the_sling_s_in_its_pane() {
     let page = &pages(&["Page 1"])[0];
     let theme = Theme::default();
     let mut asks = Pages::default();
-    assert_eq!((asks.entry(&theme), asks.renaming()), (None, false));
+    assert_eq!((asks.entry(&theme), asks.entering()), (None, false));
     asks.rename((here, PANE), "main", page);
     let entry = asks.entry(&theme).unwrap();
     let same =
@@ -190,9 +190,41 @@ fn a_new_name_is_typed_in_an_entry_like_the_sling_s_in_its_pane() {
     asks.named("plans");
     let renamed = PageOp::Rename { page: "p1".into(), name: "plans".into() };
     assert_eq!(asks.typed("\r"), Some(("main".into(), renamed)), "return keeps the new name");
-    assert!(!asks.renaming() && !asks.cancel_rename());
+    assert!(!asks.entering() && !asks.cancel_entry());
     asks.rename((here, PANE), "main", page);
-    assert!(asks.cancel_rename() && !asks.asking(), "the old name stays");
+    assert!(asks.cancel_entry() && !asks.asking(), "the old name stays");
     asks.remove(here, "main", page, 3);
-    assert!(!asks.cancel_rename() && asks.asking(), "a removal's question is not an entry");
+    assert!(!asks.cancel_entry() && asks.asking(), "a removal's question is not an entry");
+}
+
+#[test]
+fn the_words_to_find_are_typed_in_the_same_entry_and_wait_until_taken() {
+    let (here, _) = two_panes();
+    let theme = Theme::default();
+    let mut asks = Pages::default();
+    asks.find((here, PANE), "main", "plan");
+    assert!(asks.entering() && asks.said().is_none());
+    let entry = asks.entry(&theme).unwrap();
+    assert_eq!((entry.text.as_str(), entry.done), ("plan", Some("Find")), "the last words");
+    assert!(entry.keys.label.text.ends_with("finds · esc cancels"));
+    assert_eq!(entry.frame, beside(PANE));
+    assert!(asks.covers(Point { x: entry.frame.x + 4.0, y: entry.frame.y + 4.0 }));
+    assert_eq!(asks.under(&theme, vec![("hm".into(), theme.text)]).len(), 1, "dictation's line");
+
+    asks.named("");
+    assert!(asks.pasted("the\nplan"));
+    asks.typed("s\u{7f}");
+    assert_eq!(asks.typed("\r"), None, "a find changes no page");
+    let sought = Sought { pane: (here, PANE), canvas: "main".into(), text: "the plan".into() };
+    assert_eq!(asks.sought(), Some(sought));
+    assert_eq!(asks.sought(), None, "taken once");
+    assert!(!asks.entering());
+
+    asks.find((here, PANE), "main", "");
+    asks.typed("x\u{1b}");
+    assert!(!asks.entering() && asks.sought().is_none(), "escape finds nothing");
+    asks.find((here, PANE), "main", "");
+    assert!(asks.cancel_entry() && asks.sought().is_none());
+    asks.found("“x” 1/1 · Page 1".into());
+    assert_eq!(asks.said().as_deref(), Some("“x” 1/1 · Page 1"));
 }
