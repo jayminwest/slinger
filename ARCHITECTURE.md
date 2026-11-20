@@ -811,13 +811,20 @@ canvases/feedback.rs  the `leave-feedback` command: opens the feedback
              `show-all-feedback` opens it the same way, listing the
              resolved notes too (`feedback_list` `all`). It takes the
              keys and the sling's place in the scene while open.
-canvases/dictation.rs  the `dictate` command: opens the sling's entry when
-             no entry is open, then starts or stops Flick's dictation into
-             the open one (sling, feedback, rename); the entry closing
-             cancels one going. Flick types the text into the focused
-             entry, so it reaches it as typing does. The pen's buttons
-             beside a note's or a new name's entry (scene/sling/pen.rs),
-             with the selection's in sling_marks.
+canvases/flow.rs  `SlingFlow`, the one owner of the sling's state: the
+             sling (scene/sling.rs) and its Slinger, the pill (`Slung`),
+             `[sling] prompt`, dictation (flow/voice.rs: Flick), the
+             feedback entry and its Noter (flow/notes.rs) and each
+             workspace's agent. Its fields are private to flow/; the
+             canvases hand it the pages (`Open`) and the ink a sling waits
+             for and ask it what to show. It starts the Slinger, Flick and
+             Noter threads. The `dictate` command (canvases/sling.rs) opens
+             the sling's entry when no entry is open, then starts or stops
+             Flick's dictation into the open one (sling, feedback, rename);
+             the entry closing cancels one going. Flick types the text into
+             the focused entry, so it reaches it as typing does. The pen's
+             buttons beside a note's or a new name's entry
+             (scene/sling/pen.rs), with the selection's in sling_marks.
 drive.rs     a driven window's requests (`slinger-app --drive SOCKET`, which
              `slinger drive` sends): one line of JSON per connection in, one
              line out. `parse` turns a request into the events platform hands

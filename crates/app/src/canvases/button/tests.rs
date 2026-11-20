@@ -65,7 +65,7 @@ fn recorded(canvases: &mut Canvases, daemon: &Client, n: usize) {
     wait_until(|| {
         canvases.poll();
         let slings = daemon.record_list(filter.clone()).unwrap();
-        slings.len() >= n && canvases.sling.labels(&theme).is_empty()
+        slings.len() >= n && canvases.flow.sling().labels(&theme).is_empty()
     });
 }
 
@@ -106,7 +106,7 @@ fn reply_lands_beside_the_note(canvases: &mut Canvases, panes: &Panes, daemon: &
 /// `frame`, and a tap sends what was typed there.
 fn type_beside_and_tap(canvases: &mut Canvases, panes: &Panes, frame: Rect) {
     assert!(canvases.open_sling(panes, WINDOW.rect()));
-    let entry = canvases.sling.entry(&Config::default().theme, None, None).unwrap();
+    let entry = canvases.flow.sling().entry(&Config::default().theme, None, None).unwrap();
     assert!(entry.frame.y > frame.y + frame.height, "under the button: {entry:?}");
     assert!(entry.placeholder.ends_with("about what is new (or nothing)"), "{entry:?}");
     assert!(!canvases.sling_typed("and now?"));
@@ -153,7 +153,7 @@ fn a_placed_button_shows_its_agent_s_status_and_a_tap_slings_what_is_new() {
 /// heard of it: its box.
 fn placed_with_no_agent(canvases: &mut Canvases, panes: &Panes, daemon: &Client) -> Rect {
     let frame = place(canvases, panes, daemon);
-    assert!(canvases.agent_of("notes").is_none());
+    assert!(canvases.flow.agent_of("notes").is_none());
     // The button the daemon holds: wait for it to be heard.
     wait_until(|| {
         canvases.poll();
@@ -237,7 +237,7 @@ fn the_sling_opens_beside_a_button() {
         let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
         let frame = placed_with_no_agent(&mut canvases, &panes, daemon);
         assert!(canvases.open_sling(&panes, WINDOW.rect()));
-        let entry = canvases.sling.entry(&Config::default().theme, None, None).unwrap();
+        let entry = canvases.flow.sling().entry(&Config::default().theme, None, None).unwrap();
         assert!(entry.frame.y > frame.y, "beside the button: {entry:?}");
     });
 }

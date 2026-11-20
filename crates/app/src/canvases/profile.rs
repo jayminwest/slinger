@@ -23,7 +23,7 @@ impl Canvases {
         panes: &Panes,
         pane: PaneId,
     ) -> Option<(Vec<String>, Option<usize>)> {
-        let agent = self.agent_of(canvas_of(panes, pane)?)?;
+        let agent = self.flow.agent_of(canvas_of(panes, pane)?)?;
         if agent.profiles.is_empty() {
             return None;
         }

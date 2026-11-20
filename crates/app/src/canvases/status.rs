@@ -80,7 +80,7 @@ impl Canvases {
             let centre = page.map(|(_, list, at)| pages::line(&list, &at) + &trail);
             let centre = centre.unwrap_or_default();
             let zoom = self.views.iter().find(|(p, _)| *p == id).map(|(_, v)| v.viewport);
-            let agent = self.agent_of(&pane.name);
+            let agent = self.flow.agent_of(&pane.name);
             let (label, profiles) = agent.map(|a| (a.label(), !a.profiles.is_empty())).unzip();
             let shows = Shows {
                 pen: Some(Pen {
