@@ -656,6 +656,9 @@ bullet with the area in bold.
 - **App:** tapping a workspace whose file is broken and names no
   workspace shows why its file is broken where the panes go, rather than
   leaving an 'open workspace not found' notice there.
+- **App:** while the panes show why a workspace cannot be shown (its file
+  is broken, or it is not open), a 'canvas main not found' from the panes
+  the window had before no longer shows under it.
 - **App:** a workspace no longer opens at another workspace's zoom and
   scroll, or shows its ink while its own page comes. Going back to a
   workspace finds each pane, and the focus, where you left them. Closing

@@ -13,6 +13,7 @@ use crate::scene::ink::Pen;
 use crate::scene::paste::Edit;
 use crate::scene::tools::Tool;
 
+mod broken;
 mod bundle;
 mod drive;
 mod fold;

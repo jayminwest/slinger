@@ -409,7 +409,7 @@ pub fn view(
     canvases.set_prompt(&settings.config.prompt);
     canvases.follow_keys(&settings.config.keys);
     let drawn = canvases.show(&shared.panes, area, theme);
-    let asking = shared.trouble.iter().chain(canvases.daemon_problems());
+    let asking = canvases.asking(shared.trouble.as_ref());
     let own = canvases.own_problems().chain(settings.problem.as_ref());
     let said = scene::daemon::said(sidebar.daemon(), asking, own, theme);
     let (size, uis, notes) = (shared.size, &shared.uis, &shared.notes);
