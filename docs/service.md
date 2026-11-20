@@ -1090,7 +1090,8 @@ points at both; it takes no `at`. `color` draws any of them in that colour,
 and `size` sizes a text's characters. What a put leaves out matches the
 user's writing near it: the colour and size of the user's ink or text it goes
 beside (a stroke counts with its whole cluster), else of the user's ink and
-text on that page, else black and 240. The colour is the one most of those
+text the page shows (not what a folded box hides; beside a hidden item, what
+the same folded box holds), else black and 240. The colour is the one most of those
 items have; the size is the median of a text's own size and, for a cluster
 of ink, the median height of its lines of writing. A cluster whose every
 stroke is over twice the median height of the strokes counted (a frame

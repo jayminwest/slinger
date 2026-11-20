@@ -486,6 +486,8 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Agents:** a reply that leaves out its colour and size no longer takes
+  them from writing hidden in a folded box; it matches what the page shows.
 - **App:** the caret in a canvas text moves, and delete deletes, by what
   reads as one character: an emoji joined from several (a family, a skin
   tone), a letter with its accents, a flag. It no longer stops inside one.
