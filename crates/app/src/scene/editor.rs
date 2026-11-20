@@ -262,13 +262,15 @@ pub struct Editing {
     pub at: Point,
     pub colour: Rgb,
     /// The text's size: an edited text's own, a new one's the size set
-    /// for new texts (`crate::scene::shapes::Shapes::set_size`).
+    /// for new texts (`crate::scene::shapes::Shapes::set_size`), until a
+    /// size command resizes it (`crate::scene::shapes::Shapes::resize`).
     pub size: f64,
     /// The column it wraps in: an edited text's own, so an agent's
     /// paragraph keeps its rows; [`glyphs::UNWRAPPED`] for a new one.
     pub column: f64,
-    /// The text item edited and its text before; `None` for a new text.
-    pub item: Option<(ItemId, String)>,
+    /// The text item edited, and its text and size before; `None` for a
+    /// new text.
+    pub item: Option<(ItemId, String, f64)>,
     pub editor: Editor,
 }
 
