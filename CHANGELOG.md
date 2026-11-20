@@ -11,6 +11,11 @@ bullet with the area in bold.
 
 ### Added
 
+- **Daemon:** `slingerd --log <FILE>` writes the daemon's warnings and
+  every agent's stderr to a file, with a line as it starts and as it stops,
+  so a daemon nobody started from a terminal still has a log. A log over
+  1 MiB is moved aside to `<FILE>.1` at start. The daemon now ignores
+  SIGHUP: closing the terminal you started it from no longer stops it.
 - **Agents:** an agent can check the app itself. `slinger-app --drive
   <SOCKET>` starts the real app as a window that is never shown, on a
   daemon of the agent's own, and `slinger drive` sends it keys, typing, pen

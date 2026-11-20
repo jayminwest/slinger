@@ -7,10 +7,22 @@ and agents rely on this contract. Breaking it is a breaking change.
 
 ```
 slingerd [--socket <PATH>] [--data-dir <PATH>] [--scratch] [--claude <PATH>]
-         [--slinger <PATH>] [--feedback <PATH>]
+         [--slinger <PATH>] [--feedback <PATH>] [--log <PATH>]
 ```
 
-- It says nothing on success and runs until SIGTERM or SIGINT.
+- It says nothing on success and runs until SIGTERM or SIGINT. SIGHUP is
+  ignored, so a daemon started from a terminal outlives the terminal.
+- `--log` is the file its stderr goes to: its own warnings and every
+  agent's stderr (agents inherit it). Once the daemon holds the socket and
+  the data directory, it makes the file's folder, moves a file over 1 MiB
+  aside to `<PATH>.1` (replacing an older one), opens it for appending and
+  points its stderr there. A relative path is taken from the directory
+  `slingerd` starts in. It writes one line as it starts,
+  `<local time> slingerd <version> (<build>) pid <pid>: serving <data dir>
+  on <socket>`, and `... pid <pid>: stopped` at a clean stop. An error
+  before that (a taken socket, a bad data directory) still goes to the
+  stderr it started with. A file it cannot use stops it with exit 1 and a
+  hint. Without `--log`, stderr is left as it is.
 - `--claude` is the program an agent's process runs (see "Sessions"):
   Claude Code, `claude` on `PATH` by default. `--slinger` is the CLI its
   hooks run (see "Sessions", "Hooks"): the `slinger` beside `slingerd`, else
