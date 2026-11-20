@@ -100,6 +100,12 @@ enum Op {
     },
     /// Pinch over a point: zoom by a factor about it
     Zoom { x: f64, y: f64, factor: f64 },
+    /// Hold the space bar down, as for a pan with the pointer; --up lets it go
+    Space {
+        /// Let the space bar up
+        #[arg(long)]
+        up: bool,
+    },
     /// Choose a command as its menu item does, by its name in the config file
     Run { name: String },
     /// Copy the selection to the driven window's own clipboard, never yours
@@ -138,6 +144,7 @@ impl Drive {
             Op::Move { .. } => "drive move",
             Op::Scroll { .. } => "drive scroll",
             Op::Zoom { .. } => "drive zoom",
+            Op::Space { .. } => "drive space",
             Op::Run { .. } => "drive run",
             Op::Copy => "drive copy",
             Op::Cut => "drive cut",
@@ -192,6 +199,7 @@ impl Op {
             Self::Zoom { x, y, factor } => {
                 json!({ "op": "zoom", "x": x, "y": y, "factor": factor })
             }
+            Self::Space { up } => json!({ "op": "space", "down": !up }),
             Self::Run { name } => json!({ "op": "command", "name": name }),
             Self::Copy => json!({ "op": "copy" }),
             Self::Cut => json!({ "op": "cut" }),
