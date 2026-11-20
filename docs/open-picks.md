@@ -47,6 +47,10 @@ Choices an agent made and shipped that the owner has not confirmed. An agent tha
 - [ ] a folder that already holds `<canvas>.canvas` is adopted; a header-only twin in the data dir goes to `moved/`, a twin with content stays and is reported (slinger-7c18bc)
 - [ ] canvases stay out of network file systems (smbfs, nfs, afpfs, webdav); loose and rootless canvases stay in the data directory, not `~/Documents/Slinger`; ids stay global and the header's id wins over a Finder rename (slinger-7c18bc)
 
+## Switching and views (plan pl-85bfa0)
+
+- [ ] kept views (slinger-f8f069): in the data directory (`workspaces/views.json`, as docs/design/storage.md also picks), keyed by the workspace file's directory; `pane_view` merges (named views replace, others stay), leaves out a view for a gone pane, a UI pane or another canvas, and refuses the whole call on one bad number; a UI pane gets no view; the daemon writes and fsyncs on every changing call and does not coalesce (the app must debounce); a reply shows a view only for the canvas the pane shows now (slinger-f8f069)
+
 ## Agent sessions, workspaces and the rest
 
 - [ ] a broken workspace's sidebar lines are cut short with '…': its error at 2 lines, its field at 1, and its hint at 3, shown only under the workspace the window shows (the panes show error and hint at their width); the sidebar still does not scroll, so many workspaces can still run past its foot (slinger-a57147)

@@ -57,6 +57,7 @@ Find where to work:
 slinger workspace list          # name, canvas and directory of each workspace
 slinger canvas list             # every canvas id
 slinger pane list <WORKSPACE>   # what the user's window shows
+slinger pane list <WORKSPACE> --json  # also each pane's page, pan and zoom, and the focused pane
 ```
 
 Read a canvas:

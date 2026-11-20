@@ -31,6 +31,13 @@ pub enum PaneAsk {
     /// Move the border after pane number `pane` (on its right, or below
     /// it) so its split gives its first side `ratio`.
     PaneResize { workspace: String, pane: u32, ratio: f64 },
+    /// Keep where the panes named by id look, and which pane has the focus.
+    PaneView {
+        workspace: String,
+        views: Vec<PaneViewed>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        focus: Option<u32>,
+    },
 }
 
 /// What a pane shows.
@@ -57,7 +64,7 @@ pub enum PaneSplit {
 /// its id and what it shows. The number moves as panes open and close and
 /// names the pane in the verbs; the id stays while the pane is open and is
 /// never given again in its workspace.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Pane {
     pub pane: u32,
     /// 1 or more. 0 in a reply from a daemon that has no pane ids.
@@ -65,6 +72,32 @@ pub struct Pane {
     pub id: u32,
     pub kind: PaneKind,
     pub target: String,
+    /// Where the pane was left looking, kept by `pane_view`: only on a
+    /// canvas pane, and only when it is of the canvas the pane shows. None
+    /// for a pane with no kept view (or from a daemon that keeps none).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub view: Option<PaneView>,
+}
+
+/// Where a canvas pane looks: the canvas and page it shows, the canvas
+/// point at its top left, and its zoom (1 is 100%).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaneView {
+    pub canvas: String,
+    /// The page; none for the canvas's first.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page: Option<String>,
+    pub x: f64,
+    pub y: f64,
+    pub zoom: f64,
+}
+
+/// One view `pane_view` keeps: the pane's id, and its view.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaneViewed {
+    pub id: u32,
+    #[serde(flatten)]
+    pub view: PaneView,
 }
 
 /// How the panes tile the window: a pane, or a split of the space in two,
@@ -103,6 +136,10 @@ pub struct PaneLayout {
     /// changed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub event: Option<u64>,
+    /// The id of the pane that had the focus, as `pane_view` kept it; absent
+    /// when none was kept or that pane is gone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub focus: Option<u32>,
 }
 
 impl Client {
@@ -166,6 +203,27 @@ impl Client {
     ) -> Result<PaneLayout, RemoteError> {
         self.call(&PaneAsk::PaneResize { workspace: workspace.into(), pane, ratio })
     }
+
+    /// Keeps where the panes of `workspace` named in `views` look, each by
+    /// its id, and, with `focus`, which pane has the focus; the panes'
+    /// other views stay. A view for a pane that is not there, or that does
+    /// not show the view's canvas, and a focus on a pane that is not there,
+    /// are left out and the call succeeds. Writes neither the workspace's
+    /// file nor the record. A daemon without the verb answers `bad_request`.
+    ///
+    /// # Errors
+    ///
+    /// `invalid` for a view whose numbers are not finite or whose zoom is 0
+    /// or less (none is kept), and as [`Client::pane_list`].
+    pub fn pane_view(
+        &self,
+        workspace: &str,
+        views: &[PaneViewed],
+        focus: Option<u32>,
+    ) -> Result<PaneLayout, RemoteError> {
+        let (workspace, views) = (workspace.into(), views.to_vec());
+        self.call(&PaneAsk::PaneView { workspace, views, focus })
+    }
 }
 
 #[expect(
@@ -212,6 +270,14 @@ mod tests {
                 PaneAsk::PaneResize { workspace: "w".into(), pane: 1, ratio: 0.3 },
                 r#"{"v":1,"op":"pane_resize","workspace":"w","pane":1,"ratio":0.3}"#,
             ),
+            (
+                PaneAsk::PaneView { workspace: "w".into(), views: vec![viewed()], focus: Some(3) },
+                r#"{"v":1,"op":"pane_view","workspace":"w","views":[{"id":3,"canvas":"notes","page":"p2","x":-10.5,"y":4.0,"zoom":0.5}],"focus":3}"#,
+            ),
+            (
+                PaneAsk::PaneView { workspace: "w".into(), views: vec![], focus: None },
+                r#"{"v":1,"op":"pane_view","workspace":"w","views":[]}"#,
+            ),
         ] {
             assert_eq!(request_line(&ask).unwrap(), format!("{line}\n"));
             let read = crate::read_request(&mut line.as_bytes()).unwrap();
@@ -222,10 +288,47 @@ mod tests {
             r#"{"v":1,"op":"pane_close","workspace":"w"}"#,
             r#"{"v":1,"op":"pane_list"}"#,
             r#"{"v":1,"op":"pane_resize","workspace":"w","pane":1}"#,
+            r#"{"v":1,"op":"pane_view","workspace":"w"}"#,
+            r#"{"v":1,"op":"pane_view","workspace":"w","views":[{"id":1,"canvas":"c","x":0,"y":0}]}"#,
+            r#"{"v":1,"op":"pane_view","workspace":"w","views":[{"canvas":"c","x":0,"y":0,"zoom":1}]}"#,
         ] {
             let err = crate::read_request(&mut line.as_bytes()).unwrap_err();
             assert_eq!(err.code(), "bad_request", "{line}");
         }
+    }
+
+    fn viewed() -> PaneViewed {
+        let view = PaneView {
+            canvas: "notes".into(),
+            page: Some("p2".into()),
+            x: -10.5,
+            y: 4.0,
+            zoom: 0.5,
+        };
+        PaneViewed { id: 3, view }
+    }
+
+    #[test]
+    fn a_layout_carries_each_pane_s_kept_view_and_the_focus_and_reads_without_them() {
+        let text = r#"{"workspace":"w","layout":{"split":"row","ratio":0.5,
+            "first":{"pane":1,"id":3,"kind":"canvas","target":"notes",
+                "view":{"canvas":"notes","page":"p2","x":-10.5,"y":4.0,"zoom":0.5}},
+            "second":{"pane":2,"id":4,"kind":"canvas","target":"notes"}},"focus":3}"#;
+        let reply: PaneLayout = serde_json::from_str(text).unwrap();
+        let panes = reply.layout.panes();
+        assert_eq!((panes[0].view.as_ref(), panes[1].view.as_ref()), (Some(&viewed().view), None));
+        assert_eq!(reply.focus, Some(3));
+        let line = serde_json::to_string(&reply).unwrap();
+        assert!(line.ends_with(r#""target":"notes"}},"focus":3}"#), "{line}");
+        assert!(
+            line.contains(r#""target":"notes","view":{"canvas":"notes","page":"p2","#),
+            "{line}"
+        );
+
+        let old = r#"{"workspace":"w","layout":{"pane":1,"id":1,"kind":"canvas","target":"c"}}"#;
+        let old: PaneLayout = serde_json::from_str(old).unwrap();
+        assert_eq!((old.focus, old.layout.panes()[0].view.as_ref()), (None, None));
+        assert!(!serde_json::to_string(&old).unwrap().contains("focus"));
     }
 
     #[test]
@@ -248,6 +351,7 @@ mod tests {
         let old: Pane =
             serde_json::from_str(r#"{"pane":1,"kind":"canvas","target":"main"}"#).unwrap();
         assert_eq!((old.pane, old.id), (1, 0));
+        assert_eq!(old.view, None);
         let new = Pane { id: 7, ..old };
         assert_eq!(
             serde_json::to_string(&new).unwrap(),

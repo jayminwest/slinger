@@ -49,7 +49,7 @@ pub use fold::{CanvasFold, FoldAsk};
 pub use imported::CanvasImported;
 pub use look::{CanvasImage, CanvasImages, CanvasStrokes};
 pub use packet::{CanvasPacket, PacketAsk, PacketImage};
-pub use pane::{Pane, PaneAsk, PaneKind, PaneLayout, PaneSplit, PaneTree};
+pub use pane::{Pane, PaneAsk, PaneKind, PaneLayout, PaneSplit, PaneTree, PaneView, PaneViewed};
 pub use place::{
     default_data_dir, default_socket, live_socket, name_socket, named_socket, running_socket,
     socket_name_file, unname_socket,
@@ -180,7 +180,7 @@ pub enum Request {
     /// that send them, as the session verbs are.
     #[serde(untagged, skip_serializing)]
     Agent(AgentAsk),
-    /// The pane verbs (`pane_list`, `pane_open`, `pane_close`), read by
+    /// The pane verbs (`pane_list`, `pane_open`, `pane_view`, ...), read by
     /// their own `op`s and written by clients with `PaneAsk` itself.
     #[serde(untagged, skip_serializing)]
     Pane(PaneAsk),

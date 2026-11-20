@@ -26,6 +26,7 @@ mod listen;
 mod live;
 mod look;
 mod pane;
+mod pane_view;
 mod process;
 mod profile;
 mod put;

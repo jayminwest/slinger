@@ -60,8 +60,8 @@ Each decision has an id (D1, D2, ...). Each open item has an id (O1, O2, ...). R
 
 ## 5. System
 
-- Client: the window. Panes, canvas, input. It holds no durable state.
-- Server: one per machine. It owns workspaces, canvas files, the record, and the connections to harnesses.
+- Client: the window. Panes, canvas, input. It keeps only its window chrome (frame, sidebar, last workspace) in the user defaults; the server keeps the rest.
+- Server: one per machine. It owns workspaces, canvas files, the record, and the connections to harnesses. It keeps each workspace's pane arrangement (in the workspace's file) and where each pane looks and which has the focus (in its data directory, on this machine).
 - Harness: runs agents. It connects to the server through the CLI. It reports status through hooks.
 - Agent runtime: the expected case is a remote machine. The local machine also works.
 - Session: one running agent that Slinger can reach. The server keeps a list: agent name, home directory, how to deliver a message to it, and its status. A plain Claude Code session joins the list when it starts to listen, as the "send to agent" listener does today. A cc-durable agent is reached through its inbox, which delivers once and survives a restart.

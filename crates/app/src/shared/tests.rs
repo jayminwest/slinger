@@ -8,8 +8,15 @@ const AREA: Rect = Rect { x: 0.0, y: 0.0, width: 800.0, height: 600.0 };
 
 /// Two canvas panes side by side, focus on the first, as the server sends them.
 fn two() -> Shared {
-    let leaf =
-        |pane| PaneTree::Pane(Shown { pane, id: pane, kind: PaneKind::Canvas, target: "c".into() });
+    let leaf = |pane| {
+        PaneTree::Pane(Shown {
+            pane,
+            id: pane,
+            kind: PaneKind::Canvas,
+            target: "c".into(),
+            view: None,
+        })
+    };
     let tree = PaneTree::Split {
         split: PaneSplit::Row,
         ratio: 0.5,
@@ -112,7 +119,13 @@ fn a_menu_choice_closes_the_open_layer_and_then_runs() {
 fn laid(workspace: &str, ids: &[u32]) -> PaneLayout {
     let leaf = |(at, &id): (usize, &u32)| {
         let pane = u32::try_from(at + 1).unwrap();
-        PaneTree::Pane(Shown { pane, id, kind: PaneKind::Canvas, target: workspace.into() })
+        PaneTree::Pane(Shown {
+            pane,
+            id,
+            kind: PaneKind::Canvas,
+            target: workspace.into(),
+            view: None,
+        })
     };
     let mut leaves = ids.iter().enumerate().map(leaf).rev();
     let last = leaves.next().unwrap();
@@ -122,7 +135,7 @@ fn laid(workspace: &str, ids: &[u32]) -> PaneLayout {
         first: first.into(),
         second: second.into(),
     });
-    PaneLayout { workspace: workspace.into(), layout, pane: None, event: None }
+    PaneLayout { workspace: workspace.into(), layout, pane: None, event: None, focus: None }
 }
 
 #[test]

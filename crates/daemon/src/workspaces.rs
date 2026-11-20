@@ -11,9 +11,10 @@
 //! cannot use is listed as [`Broken`], with its error, and every verb on
 //! that workspace fails with that error; the others serve as before.
 
-use std::fs::{self, DirBuilder, File};
-use std::io::{self, Write};
-use std::os::unix::fs::DirBuilderExt;
+mod disk;
+
+use std::fs::{self, File};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -23,6 +24,8 @@ use slinger_core::workspace::panes::Layout;
 use slinger_core::workspace::{self, FILE_NAME, Workspace};
 
 use crate::canvases::{CanvasError, Canvases};
+use crate::views::{self, Views};
+pub(crate) use disk::{mkdir, write_synced};
 
 /// The list of open workspaces, in the workspaces directory.
 const LIST: &str = "open.json";
@@ -144,13 +147,22 @@ pub struct Workspaces {
     machine: String,
     /// The directories of the open workspaces' files; read on first use.
     open: Mutex<Option<Vec<PathBuf>>>,
+    /// Where their panes look, kept beside the list.
+    views: Views,
 }
 
 impl Workspaces {
     /// The workspaces listed in `dir`, on `machine`. Does no IO.
     #[must_use]
     pub fn new(dir: PathBuf, machine: impl Into<String>) -> Self {
-        Self { dir, machine: machine.into(), open: Mutex::new(None) }
+        let views = Views::new(dir.join(views::FILE));
+        Self { dir, machine: machine.into(), open: Mutex::new(None), views }
+    }
+
+    /// Where the open workspaces' panes look ([`Views`]).
+    #[must_use]
+    pub fn views(&self) -> &Views {
+        &self.views
     }
 
     /// Opens the directory `dir` (absolute) as a workspace, or, with no
@@ -472,22 +484,8 @@ fn invalid(message: &str, hint: &str) -> WorkspaceError {
     slinger_core::Error::Invalid { message: message.into(), hint: Some(hint.into()) }.into()
 }
 
-fn mkdir(dir: &Path) -> Result<()> {
-    DirBuilder::new().recursive(true).mode(0o700).create(dir).map_err(failed("make", dir))
-}
-
-/// The file whole or not at all: written aside, synced, then renamed in.
-fn write_synced(path: &Path, bytes: &[u8]) -> Result<()> {
-    let name = path.file_name().map(|n| n.to_string_lossy()).unwrap_or_default();
-    let temp = path.with_file_name(format!(".{name}.new"));
-    let written =
-        File::create(&temp).and_then(|mut f| f.write_all(bytes).and_then(|()| f.sync_all()));
-    written.map_err(failed("write", &temp))?;
-    fs::rename(&temp, path).map_err(failed("write", path))
-}
-
 /// What a failed read or write of `path` becomes.
-fn failed(doing: &'static str, path: &Path) -> impl FnOnce(io::Error) -> WorkspaceError {
+pub(crate) fn failed(doing: &'static str, path: &Path) -> impl FnOnce(io::Error) -> WorkspaceError {
     let path = path.to_owned();
     move |source| WorkspaceError::Io { doing, path, source }
 }
