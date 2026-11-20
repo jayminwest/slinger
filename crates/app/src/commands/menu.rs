@@ -153,6 +153,7 @@ const BAR: [(&str, Role, &[Action]); 8] = [
             R(Command::Save),
             R(Command::ShowCanvasFile),
             R(Command::ExportUi),
+            R(Command::ReloadUi),
             R(Command::NewPage),
             R(Command::RenamePage),
             R(Command::RemovePage),

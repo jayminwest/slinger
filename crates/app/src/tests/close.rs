@@ -63,9 +63,14 @@ fn a_row_s_close_mark_closes_that_workspace_and_only_the_shown_one_changes_the_w
         let said = flashed(&w.tools, &w.settings);
         assert!(said.is_some_and(|s| s.starts_with("Closed ideas")), "the flash says so");
 
+        let title = |w: &mut World| {
+            view(&w.settings, &mut w.shared, &w.tools, &w.sidebar, &mut w.canvases).title.text
+        };
+        assert_eq!(title(&mut w), "notes");
         let shown = tap_close(&mut w, 0);
         assert_eq!(w.sidebar.shown_dir(), None, "none left to show");
         assert!(matches!(shown, Routed::Watch(None, Step::Draw(_))), "the watch follows the first");
+        assert_eq!(title(&mut w), "slinger", "no workspace open: it names none (slinger-802c67)");
         assert_eq!(open(&daemon), Vec::<String>::new());
     });
 }

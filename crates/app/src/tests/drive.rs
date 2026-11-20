@@ -32,7 +32,7 @@ fn routed(w: &mut World, event: Event) -> Step {
     );
     match routed {
         Routed::Answer(step) | Routed::Watch(_, step) => step,
-        Routed::News(_) | Routed::Launch(_) => Step::Stay,
+        Routed::News(_) | Routed::Launch(_) | Routed::Refetch => Step::Stay,
     }
 }
 

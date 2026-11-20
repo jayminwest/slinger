@@ -280,6 +280,12 @@ impl Sidebar {
         self.workspaces.as_ref()?.iter().find(|w| w.dir == dir)
     }
 
+    /// Whether the daemon said no workspace is open: an empty list, not
+    /// one still to come or lost with the daemon.
+    pub fn none_open(&self) -> bool {
+        self.workspaces.as_ref().is_some_and(Vec::is_empty)
+    }
+
     /// The directory of the workspace the window shows: what its agent's
     /// commands go to, whatever its file holds. `None` when none shows.
     pub fn shown_dir(&self) -> Option<PathBuf> {

@@ -138,6 +138,7 @@ impl Command {
             Command::StepOut => "Step out of box",
             Command::StartSlingerd => "Start slingerd",
             Command::RestartDaemon => "Restart slingerd",
+            Command::ReloadUi => "Reload agent UI",
         }
     }
 
@@ -205,7 +206,8 @@ impl Command {
             | Command::OpenWorkspace
             | Command::CloseWorkspace
             | Command::ShowWorkspaceFolder
-            | Command::ExportUi => Group::File,
+            | Command::ExportUi
+            | Command::ReloadUi => Group::File,
             Command::NextPage
             | Command::PreviousPage
             | Command::NewPage
