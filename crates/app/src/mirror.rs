@@ -9,6 +9,7 @@
 //! What it cannot draw it leaves out (an item of a kind it does not know, an
 //! operation it does not know); the server keeps those, so nothing is lost.
 //! Items keep the server's drawing order, which is the order of their ids.
+//! Items a folded box hides are kept apart from the page's ([`fold`]).
 
 use std::collections::HashMap;
 
@@ -23,6 +24,7 @@ use crate::scene::ink::{Carried, Ink};
 use crate::scene::pages::Page;
 
 pub mod clip;
+mod fold;
 mod write;
 
 use write::tenths;
@@ -51,6 +53,13 @@ pub struct Mirror {
     /// read from (to lay a `set` over). Both are in id order.
     items: Vec<Item>,
     objects: Vec<Map<String, Value>>,
+    /// The same of the items a folded box hides, and the box that holds
+    /// each directly.
+    held: Vec<Item>,
+    held_objects: Vec<Map<String, Value>>,
+    holders: HashMap<ItemId, ItemId>,
+    /// Each folded box's miniature ([`Mirror::miniature`]).
+    minis: HashMap<ItemId, Vec<Item>>,
 }
 
 /// What [`Mirror::apply`] did.
@@ -68,11 +77,14 @@ impl Mirror {
     /// The page `canvas_show` gave.
     pub fn new(shown: &CanvasPage) -> Self {
         let pages = shown.pages.iter().filter_map(page).collect();
-        let mut mirror =
-            Self { page: shown.page.clone(), pages, items: Vec::new(), objects: Vec::new() };
+        let (page, items, objects) = (shown.page.clone(), Vec::new(), Vec::new());
+        let (held, held_objects, holders, minis) =
+            (Vec::new(), Vec::new(), HashMap::new(), HashMap::new());
+        let mut mirror = Self { page, pages, items, objects, held, held_objects, holders, minis };
         for item in &shown.items {
             mirror.put(item);
         }
+        mirror.refold();
         mirror
     }
 
@@ -81,7 +93,8 @@ impl Mirror {
         &self.page
     }
 
-    /// The page's items that can be drawn, bottom first.
+    /// The page's items that can be drawn, bottom first: none a folded box
+    /// hides.
     pub fn items(&self) -> &[Item] {
         &self.items
     }
@@ -165,6 +178,9 @@ impl Mirror {
                 Applied::Gone => return Applied::Gone,
             }
         }
+        if applied == Applied::Changed {
+            self.refold();
+        }
         applied
     }
 
@@ -242,30 +258,33 @@ impl Mirror {
             return false;
         }
         let Some(read) = read(object) else { return false };
-        match self.items.binary_search_by_key(&read.id, |i| i.id) {
-            Ok(at) => (self.items[at], self.objects[at]) = (read, object.clone()),
-            Err(at) => {
-                self.items.insert(at, read);
-                self.objects.insert(at, object.clone());
-            }
+        if let Some((held, at)) = self.at(read.id) {
+            let (items, objects) = self.lists(held);
+            (items[at], objects[at]) = (read, object.clone());
+        } else {
+            let at = self.items.partition_point(|i| i.id < read.id);
+            self.items.insert(at, read);
+            self.objects.insert(at, object.clone());
         }
         true
     }
 
     fn remove(&mut self, id: ItemId) -> bool {
-        let Ok(at) = self.items.binary_search_by_key(&id, |i| i.id) else { return false };
-        self.items.remove(at);
-        self.objects.remove(at);
+        let Some((held, at)) = self.at(id) else { return false };
+        let (items, objects) = self.lists(held);
+        items.remove(at);
+        objects.remove(at);
         true
     }
 
     /// Changes the object of item `id` and reads it again; an item that no
     /// longer reads is dropped. Returns whether the item was here.
     fn change(&mut self, id: ItemId, edit: impl FnOnce(&mut Map<String, Value>)) -> bool {
-        let Ok(at) = self.items.binary_search_by_key(&id, |i| i.id) else { return false };
-        edit(&mut self.objects[at]);
-        match read(&self.objects[at]) {
-            Some(item) => self.items[at] = item,
+        let Some((held, at)) = self.at(id) else { return false };
+        let (items, objects) = self.lists(held);
+        edit(&mut objects[at]);
+        match read(&objects[at]) {
+            Some(item) => items[at] = item,
             None => {
                 self.remove(id);
             }
