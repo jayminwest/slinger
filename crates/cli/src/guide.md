@@ -93,6 +93,7 @@ slinger canvas put <CANVAS> --beside c12 --box 2400,1200 --color "#cc0000" --age
 slinger canvas put <CANVAS> --beside i7 --arrow i7 i9 --agent claude
 slinger canvas edit <CANVAS> --item i14 --text "A better answer" --agent claude
 slinger canvas remove <CANVAS> --item i14 --agent claude
+slinger canvas fold <CANVAS> b14 --agent claude     # fold your box to a miniature; unfold opens it
 ```
 
 Keep each text short: a few lines. Use more puts, each beside its subject,

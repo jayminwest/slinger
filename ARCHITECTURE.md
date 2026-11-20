@@ -365,6 +365,11 @@ server/agent.rs  `canvas_put` on the wire: the put, then `reply_landed` for the
              looked up under the sling lock so a fast reply finds its sling;
              `canvas_edit` and `canvas_remove`, which pass the agent's name
              to the core's `Log::edit` and `Log::remove`.
+server/fold.rs  `canvas_fold` and `canvas_unfold` (`FoldAsk`, written by
+             clients themselves, crates/control/src/fold.rs): the core's
+             `Log::fold` and `Log::unfold` through `Canvases::fold`; the
+             reply is a `CanvasEdited` (the box's frame now), which a client
+             may read as a `CanvasChange` (`made` defaults to empty).
 ```
 
 ### Inside the app
@@ -1325,6 +1330,7 @@ Each boundary has something that fails when it is broken:
 | A put shows with its author; after a sling it lands `reply_landed`; an unknown item is `not_found` | `crates/daemon/src/tests/put.rs`, through a real socket |
 | An agent edits and removes only its own items; removing twice succeeds twice | `crates/core/tests/canvas_edit.rs`, and `crates/daemon/src/tests/edit.rs` through a real socket |
 | An agent's move or resize (edit or apply) takes its bound arrows' ends along in one step, not another author's | `crates/core/tests/canvas_edit.rs` |
+| A box folds to its miniature and unfolds, each one undo step; an unfold into a taken room is `conflict` (exit 4) and writes nothing; an agent folds only its own box | `crates/core/tests/canvas_fold.rs`, `crates/daemon/src/tests/fold.rs` through a real socket, `crates/cli/src/tests/edit.rs` |
 | Three sends reach one process under one session id and their answers are read; a restart resumes it; a dead process makes a send `unavailable`; a daemon stop ends it; a resume that fails drops the id and the next start is new; a fresh start ends the running process and begins a new session; a stop mid-turn ends the agent's `working` | `crates/daemon/src/tests/process.rs`, with a stand-in for Claude Code |
 | A session starts with the exact limits its workspace sets: by default its roots, every built-in tool and its MCP servers, the `slinger` CLI and the rules that write files, use the web and skills without asking, and the owner's user config; a profile has only the tools its rules name; wider with the agent's `dirs` and `tools`, narrower with `user_config = false` | `crates/core/src/session/stream.rs`, and `crates/daemon/src/tests/process.rs` with a stand-in for Claude Code |
 | A profile is set, listed and removed in the workspace's file, and a bad name, rule or dir is refused loudly with nothing written; a session under one runs in its dir with its rules in place of the agent's and resumes its own conversation; a sling that names one reaches only a process under it | `crates/core/src/workspace/profile.rs`, `crates/core/src/session/stream.rs`, `crates/daemon/src/tests/profile.rs` with a stand-in for Claude Code, `crates/cli/src/tests/profile.rs` |

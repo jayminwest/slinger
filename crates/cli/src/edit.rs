@@ -1,5 +1,6 @@
 //! `slinger canvas edit` and `slinger canvas remove`: an agent changes or
-//! takes back what it put. The daemon decides what the agent may change.
+//! takes back what it put; `slinger canvas fold` and `unfold`: a box folds
+//! to a miniature and opens again. The daemon decides who may change what.
 
 use clap::{ArgGroup, Args};
 
@@ -7,7 +8,7 @@ use slinger_control as control;
 
 use crate::env::Env;
 use crate::output::Output;
-use crate::session::AGENT_HELP;
+use crate::session::{AGENT_HELP, AGENT_OR_USER_HELP};
 
 /// Change an item the agent made: its text, its text size, its size or its place; prints its id and box
 #[derive(Args)]
@@ -44,6 +45,16 @@ pub struct Remove {
     agent: Option<String>,
 }
 
+/// Which box to fold or unfold
+#[derive(Args)]
+pub struct Fold {
+    canvas: String,
+    /// The box: an id from 'canvas show' (i4) or from a packet (b4)
+    item: String,
+    #[arg(long, value_name = "NAME", help = AGENT_OR_USER_HELP)]
+    agent: Option<String>,
+}
+
 pub fn edit(args: &Edit, daemon: &control::Client, env: &Env) -> anyhow::Result<Output> {
     let edited = daemon.canvas_edit(control::CanvasEdit {
         canvas: args.canvas.clone(),
@@ -62,4 +73,24 @@ pub fn remove(args: &Remove, daemon: &control::Client, env: &Env) -> anyhow::Res
     let agent = env.calling_agent(args.agent.as_deref())?;
     let removed = daemon.canvas_remove(&args.canvas, &agent, &args.item)?;
     Ok(Output::new(serde_json::to_value(removed)?, String::new()))
+}
+
+/// Folds the box, or unfolds it when `open`. Prints nothing; `--json` gives
+/// the box and its frame now.
+pub fn fold(
+    args: &Fold,
+    open: bool,
+    daemon: &control::Client,
+    env: &Env,
+) -> anyhow::Result<Output> {
+    let ask = control::CanvasFold {
+        canvas: args.canvas.clone(),
+        item: args.item.clone(),
+        by: crate::canvas::by(env, args.agent.as_deref()),
+        once: None,
+    };
+    let ask =
+        if open { control::FoldAsk::CanvasUnfold(ask) } else { control::FoldAsk::CanvasFold(ask) };
+    let folded = daemon.canvas_fold(&ask)?;
+    Ok(Output::new(serde_json::to_value(folded)?, String::new()))
 }
