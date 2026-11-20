@@ -40,6 +40,7 @@ use crate::canvases::Canvases;
 use crate::feedback::Feedback;
 use crate::listeners::Listeners;
 use crate::lock::Lock;
+use crate::processes::Search;
 use crate::sessions::Sessions;
 use crate::workspaces::Workspaces;
 
@@ -342,7 +343,18 @@ impl Store {
     /// Runs `program` as each agent's process, in place of `claude` on `PATH`.
     #[must_use]
     pub fn with_claude(mut self, program: impl Into<PathBuf>) -> Self {
-        self.sessions.processes_mut().set_program(program.into());
+        self.sessions.processes_mut().set_program(Some(program.into()));
+        self
+    }
+
+    /// Runs `claude` as each agent's process, as written; with none, the
+    /// Claude Code that `search` finds at each start. Every agent's process
+    /// gets the search's `PATH`.
+    #[must_use]
+    pub fn with_search(mut self, claude: Option<PathBuf>, search: Search) -> Self {
+        let processes = self.sessions.processes_mut();
+        processes.set_program(claude);
+        processes.set_search(search);
         self
     }
 

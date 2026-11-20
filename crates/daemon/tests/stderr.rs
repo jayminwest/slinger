@@ -18,6 +18,8 @@ struct Daemon(Option<Child>);
 impl Daemon {
     fn start(socket: &Path, data: &Path) -> Self {
         let child = Command::new(env!("CARGO_BIN_EXE_slingerd"))
+            // No login shell to ask for a PATH: the fixed folders stand in.
+            .env_remove("SHELL")
             .arg("--socket")
             .arg(socket)
             .arg("--data-dir")

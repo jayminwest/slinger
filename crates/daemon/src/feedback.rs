@@ -62,9 +62,7 @@ impl Feedback {
     /// Notes go to `path`, made with its folder on the first note.
     #[must_use]
     pub fn new(path: PathBuf) -> Self {
-        let build =
-            feedback::build(option_env!("SLINGER_BUILD_SHA"), option_env!("SLINGER_BUILD_DIRTY"));
-        Self { path, build, lock: Mutex::new(()) }
+        Self { path, build: crate::log::build(), lock: Mutex::new(()) }
     }
 
     /// The file the notes go to.
@@ -145,7 +143,7 @@ pub fn default_file(data: &Path) -> PathBuf {
 /// Now, in Unix milliseconds, and the local UTC offset in seconds. The
 /// offset is what `date` says, so it follows the system's time zone and
 /// its daylight saving; UTC when `date` cannot say.
-fn clock() -> (i64, i32) {
+pub(crate) fn clock() -> (i64, i32) {
     let unix = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis());
     let said = Command::new("date").arg("+%z").output().ok();
     let offset = said.and_then(|out| feedback::offset(&String::from_utf8_lossy(&out.stdout)));

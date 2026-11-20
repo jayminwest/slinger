@@ -11,6 +11,7 @@ mod canvases;
 mod feedback;
 mod listeners;
 mod lock;
+pub mod log;
 mod processes;
 mod scratch;
 mod server;
@@ -21,12 +22,13 @@ mod tests;
 mod workspaces;
 
 use std::ffi::OsString;
+use std::fs::File;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use clap::error::ErrorKind;
-use signal_hook::consts::{SIGINT, SIGTERM};
+use signal_hook::consts::{SIGHUP, SIGINT, SIGTERM};
 use signal_hook::iterator::Signals;
 
 use slinger_control as control;
@@ -34,7 +36,7 @@ use slinger_control as control;
 pub use canvases::{CanvasError, Canvases};
 pub use feedback::{Feedback, FeedbackError};
 pub use listeners::{Listeners, Listening};
-pub use processes::{ProcessError, Processes, Shown};
+pub use processes::{ProcessError, Processes, Search, Shown};
 pub use server::{Server, StartError, Stopper};
 pub use sessions::{SessionError, Sessions};
 pub use store::{CLAUDE, Query, SLINGER, Store, StoreError, default_data_dir, machine_name};
@@ -50,6 +52,12 @@ const DATA_DIR_HELP: &str = "Directory that holds the record [default: $XDG_DATA
 /// Help for `--feedback`, for the same reason.
 const FEEDBACK_HELP: &str = "File that feedback notes go to [default: feedback.jsonl in the \
      checkout slingerd was built from, else in the data directory]";
+/// Help for `--claude`.
+const CLAUDE_HELP: &str = "The program each agent's process runs: Claude Code [default: claude \
+     on the login shell's PATH, else in ~/.local/bin and other usual places]";
+/// Help for `--log`.
+const LOG_HELP: &str = "File that slingerd's and its agents' stderr go to, moved aside to \
+     <PATH>.1 at start when over 1 MiB [default: stderr]";
 
 /// Exit codes, the same table as the CLI's (docs/service.md).
 mod exit {
@@ -74,28 +82,45 @@ struct Args {
     /// Let the data directory be in a temporary directory: the record may be lost
     #[arg(long)]
     scratch: bool,
-    /// The program each agent's process runs: Claude Code
-    #[arg(long, value_name = "PATH", default_value = CLAUDE)]
-    claude: PathBuf,
+    #[arg(long, value_name = "PATH", help = CLAUDE_HELP)]
+    claude: Option<PathBuf>,
     /// The slinger CLI each agent's hooks run [default: the one beside slingerd, else slinger on PATH]
     #[arg(long, value_name = "PATH")]
     slinger: Option<PathBuf>,
     #[arg(long, value_name = "PATH", help = FEEDBACK_HELP)]
     feedback: Option<PathBuf>,
+    #[arg(long, value_name = "PATH", help = LOG_HELP)]
+    log: Option<PathBuf>,
     /// Print the version
     #[arg(short = 'v', long)]
     version: bool,
 }
 
+/// What becomes of the process's stderr once a `--log` file is open: the
+/// binary points fd 2 at it; a host that runs the daemon in-process (a
+/// test) keeps its own stderr.
+pub type Redirect = fn(&File) -> io::Result<()>;
+
 /// Runs the daemon until SIGTERM or SIGINT. Returns its exit code. It says
-/// nothing on success; a failure is `✗ message` and a hint on `err`.
+/// nothing on success; a failure is `✗ message` and a hint on `err`. A
+/// `--log` file gets the daemon's own lines; the process's stderr stays.
 pub fn run<I, T>(args: I, out: &mut dyn Write, err: &mut dyn Write) -> u8
 where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
 {
+    run_with(args, out, err, |_| Ok(()))
+}
+
+/// [`run`], with `redirect` called on the `--log` file once it is open,
+/// before the daemon writes anything there or starts an agent.
+pub fn run_with<I, T>(args: I, out: &mut dyn Write, err: &mut dyn Write, redirect: Redirect) -> u8
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
     // If the report itself cannot be written, the exit code is all that is left.
-    report(Args::try_parse_from(args), out, err).unwrap_or(exit::ERROR)
+    report(Args::try_parse_from(args), out, err, redirect).unwrap_or(exit::ERROR)
 }
 
 /// A failure as `run` reports it: the exit code, the message and the hint.
@@ -105,6 +130,7 @@ fn report(
     args: Result<Args, clap::Error>,
     out: &mut dyn Write,
     err: &mut dyn Write,
+    redirect: Redirect,
 ) -> io::Result<u8> {
     let (code, message, hint) = match args {
         Ok(args) if args.version => {
@@ -115,8 +141,10 @@ fn report(
             let socket = args.socket.unwrap_or_else(control::default_socket);
             let slinger = args.slinger.unwrap_or_else(beside_me);
             let programs = (args.claude, slinger);
+            // A relative --log is from where slingerd started.
+            let log = args.log.map(|f| (std::path::absolute(&f).unwrap_or(f), redirect));
             let served = data_dir(args.data_dir, args.scratch)
-                .and_then(|dir| serve(&socket, &dir, programs, args.feedback, err));
+                .and_then(|dir| serve(&socket, &dir, programs, args.feedback, log, err));
             match served {
                 Ok(()) => return Ok(exit::OK),
                 Err(failure) => failure,
@@ -187,12 +215,16 @@ fn data_dir(given: Option<PathBuf>, scratch: bool) -> Result<PathBuf, Failure> {
 /// and `slinger` programs, writing feedback to `feedback` (by default
 /// [`feedback::default_file`]). Names each open workspace whose file it
 /// cannot use on `err`, once, before it serves. Names its socket in the data
-/// directory while it serves, so clients find it on any path.
+/// directory while it serves, so clients find it on any path. With a `log`,
+/// once the socket and the record are its own (a second daemon never moves
+/// the first one's log), it opens the file, hands it to the redirect and
+/// says it serves.
 fn serve(
     socket: &Path,
     dir: &Path,
-    (claude, slinger): (PathBuf, PathBuf),
+    (claude, slinger): (Option<PathBuf>, PathBuf),
     feedback: Option<PathBuf>,
+    log: Option<(PathBuf, Redirect)>,
     err: &mut dyn Write,
 ) -> Result<(), Failure> {
     let internal = |e: io::Error| (exit::ERROR, e.to_string(), None);
@@ -205,20 +237,41 @@ fn serve(
     let feedback = feedback.map(|f| std::path::absolute(&f).unwrap_or(f));
     let store = Store::open(dir, machine_name())
         .map_err(stored)?
-        .with_claude(claude)
+        // The login shell's PATH, read once: where Claude Code is looked
+        // for and the PATH every agent gets.
+        .with_search(claude, Search::login())
         .with_slinger(slinger)
         .with_feedback(feedback.unwrap_or_else(|| feedback::default_file(dir)));
+    let log = log.map(|(path, redirect)| logging(&path, redirect, socket, dir)).transpose()?;
     warn_broken(store.workspaces(), err).map_err(internal)?;
     // The record's lock is ours: so is the name of its socket (docs/service.md).
     control::name_socket(dir, socket).map_err(internal)?;
     let stopper = server.stopper();
-    let mut signals = Signals::new([SIGTERM, SIGINT]).map_err(internal)?;
+    // SIGHUP is caught and ignored: a closed terminal does not end the daemon.
+    let mut signals = Signals::new([SIGTERM, SIGINT, SIGHUP]).map_err(internal)?;
     std::thread::spawn(move || {
-        if signals.forever().next().is_some() {
+        if signals.forever().any(|signal| signal != SIGHUP) {
             stopper.stop();
         }
     });
     let result = server.serve(&store).map_err(internal);
     control::unname_socket(dir).map_err(internal)?;
+    if let (Some(file), Ok(())) = (&log, &result) {
+        log::say(file, "stopped").map_err(internal)?;
+    }
     result
+}
+
+/// The `--log` file at `path`, open, given to `redirect`, with the line that
+/// says this daemon serves `dir` on `socket`.
+fn logging(path: &Path, redirect: Redirect, socket: &Path, dir: &Path) -> Result<File, Failure> {
+    let failed = |e: io::Error| {
+        let hint = "pass a --log <PATH> that slingerd can write".to_string();
+        (exit::ERROR, format!("cannot use log file {}: {e}", path.display()), Some(hint))
+    };
+    let file = log::open(path).map_err(failed)?;
+    redirect(&file).map_err(failed)?;
+    let serving = format!("serving {} on {}", dir.display(), socket.display());
+    log::say(&file, &serving).map_err(failed)?;
+    Ok(file)
 }

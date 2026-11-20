@@ -24,6 +24,8 @@ impl Daemon {
         let socket = socket_dir.path().join("f.sock");
         let data = tempfile::tempdir()?;
         let child = Command::new(env!("CARGO_BIN_EXE_slingerd"))
+            // No login shell to ask for a PATH: the fixed folders stand in.
+            .env_remove("SHELL")
             .current_dir(cwd)
             .arg("--socket")
             .arg(&socket)

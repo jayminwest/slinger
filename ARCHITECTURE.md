@@ -229,7 +229,12 @@ adding fields, and the change bumps that kind's `version`.
 ```
 lib.rs       argv, startup and signals: `run`. While `serve` runs, the data
              directory names the socket (`control::name_socket`), so a client
-             given none finds the daemon on any path.
+             given none finds the daemon on any path. SIGHUP is caught and
+             ignored. `run_with` takes the `Redirect` the binary applies to
+             the `--log` file (main.rs points fd 2 at it with rustix); `run`
+             leaves stderr alone, so an in-process test keeps its own.
+log.rs       the `--log` file: rotated once at start (over 1 MiB to `.1`),
+             opened for appending, and the daemon's start and stop lines.
 server.rs    the control socket and `answer`, one arm per verb. `serve` takes the
              store, so a verb that reads or writes the record reaches it here.
              Blob and UI verbs read and write the file the client names: a
@@ -340,6 +345,12 @@ processes.rs the agents' processes, one per agent: spawned in the agent's
              messages its turn took in, so one still unanswered 2 s after a
              result with no output since was taken into that turn. The
              reader keeps the context of the last model reply (`context`).
+             `processes/program.rs` is where the program comes from: the
+             `--claude` given, else the first `claude` its `Search` finds at
+             each start (the agents' PATH, then fixed places). `Search::login`
+             reads the login shell's PATH once, in `serve`; that PATH (the
+             hooks' CLI folder first) is every agent's. Pure functions over
+             values, so no test sets the process environment.
              `processes/ids.rs` is the file of ids. A session's id is its
              process's, else its last process's key (kept after a stop),
              else the agent's own, else one of its profiles'.
