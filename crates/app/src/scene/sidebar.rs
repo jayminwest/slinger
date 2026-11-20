@@ -22,6 +22,7 @@ use crate::backend::Problem;
 use crate::commands::Command;
 use crate::config::{Rgb, Theme};
 use crate::layout::Rect;
+use crate::scene::daemon::Daemon;
 use crate::scene::taps::{Tap, Target};
 use crate::scene::{Label, status, style};
 
@@ -92,6 +93,8 @@ pub struct Sidebar {
     workspaces: Option<Vec<Workspace>>,
     /// Why there is no list.
     problem: Option<String>,
+    /// What the app says of the daemon it starts, in place of the list.
+    daemon: Option<Daemon>,
     /// The agents in the notice, oldest first, with the status each became.
     notice: Vec<notice::Noticed>,
     /// The workspace whose panes the window shows; `None`: the first usable.
@@ -113,7 +116,8 @@ enum Shown {
 impl Sidebar {
     /// An empty sidebar, open or collapsed.
     pub fn new(open: bool) -> Self {
-        Self { open, workspaces: None, problem: None, notice: Vec::new(), shown: None, last: None }
+        let (workspaces, problem, daemon, notice) = (None, None, None, Vec::new());
+        Self { open, workspaces, problem, daemon, notice, shown: None, last: None }
     }
 
     /// The sidebar, showing `last` (the workspace the window showed when the
@@ -131,6 +135,18 @@ impl Sidebar {
 
     pub fn is_open(&self) -> bool {
         self.open
+    }
+
+    /// Takes what the app now says of the daemon it starts; whether that changed.
+    pub fn set_daemon(&mut self, daemon: Option<Daemon>) -> bool {
+        let changed = self.daemon != daemon;
+        self.daemon = daemon;
+        changed
+    }
+
+    /// What the app says of the daemon it starts, if anything.
+    pub fn daemon(&self) -> Option<&Daemon> {
+        self.daemon.as_ref()
     }
 
     /// Opens or collapses the sidebar.
@@ -279,6 +295,10 @@ impl Sidebar {
         let heading = Font { size: Some(11.0), bold: false, spacing: 1.0 };
         let mut lines = vec![Line::new(HEADING.into(), theme.muted, heading)];
         match (&self.workspaces, &self.problem) {
+            _ if let Some(daemon) = &self.daemon => {
+                let line = |(t, c, run)| Line { run, ..Line::new(t, c, Font::PLAIN) };
+                lines.extend(daemon.sidebar(theme).into_iter().map(line));
+            }
             (_, Some(problem)) => {
                 lines.push(Line::new(format!("✗ {problem}"), theme.error, Font::PLAIN));
             }
@@ -327,7 +347,7 @@ impl Sidebar {
             if line.shown {
                 lit = Some((lit.map_or(y, |(top, _)| top), y + ROW));
             }
-            let tap = line.workspace.map(|i| line.run.map_or(Tap::Workspace(i), Tap::Run));
+            let tap = line.run.map(Tap::Run).or(line.workspace.map(Tap::Workspace));
             match (tap, targets.last_mut()) {
                 (Some(t), Some((frame, at))) if *at == t => frame.height = y + ROW - frame.y,
                 (Some(t), _) => {

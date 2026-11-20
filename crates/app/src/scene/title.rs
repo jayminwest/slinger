@@ -50,10 +50,15 @@ pub fn saved(
     let Some((canvas, path)) = canvas else { return NO_CANVAS.to_string() };
     let file = path.map_or_else(|| canvas.to_string(), |p| tilde(p, home));
     match (problem, settled) {
-        (Some(why), _) => format!("Not saved yet: {why}"),
+        (Some(why), _) => unsaved(why),
         (None, false) => format!("Saving to {file}"),
         (None, true) => format!("Saved to {file}"),
     }
+}
+
+/// What `save` flashes while the strokes wait, because of `why`.
+pub fn unsaved(why: &str) -> String {
+    format!("Not saved yet: {why}")
 }
 
 /// `path` with `home` written as `~`; as it is outside `home`.

@@ -154,6 +154,18 @@ write at a time, so any thread may write to it while the daemon serves.
   socket` wins; else the live named socket, else the default path. It
   watches the name, so the window follows a daemon that starts, moves or
   stops after it opened.
+- **The bundled app starts one.** slinger.app with no `[daemon] socket`
+  in its config looks at the socket about once a second and, when none
+  answers, runs the `slingerd` inside it (`Contents/MacOS/slingerd --log
+  <data dir>/slingerd.log`, no `--socket`, no `--data-dir`) in a process
+  group of its own, so it outlives the app; the window says "Starting
+  slingerd…" until it answers. Exit 4 (another daemon won the lock) is
+  waited for; any other exit, or 10 s with no answer, shows "slingerd did
+  not start" with the log, and the app tries again 30 s later. A daemon
+  that died is started again; one stopped on purpose (the `stopped` mark
+  of `daemon_stop`) is not, until the app is opened again or
+  `start-slingerd` runs. A bare `slinger-app` (`cargo run`, the tests), a
+  driven window and an app whose config names a socket never start one.
 - There is no network transport.
 
 ## Protocol

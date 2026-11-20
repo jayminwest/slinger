@@ -183,6 +183,9 @@ pub enum Command {
     StepInBeside,
     /// Step the focused pane out of the box it is in, one level.
     StepOut,
+    /// Start the bundled slingerd that was stopped on purpose (a bundled
+    /// app only: `crate::launch`).
+    StartSlingerd,
 }
 
 /// How many commands there are.
@@ -190,7 +193,7 @@ const COUNT: usize = Command::ALL.len();
 
 impl Command {
     /// Each command and its name in the config file, in declaration order.
-    pub const ALL: [(Command, &str); 85] = [
+    pub const ALL: [(Command, &str); 86] = [
         (Command::Quit, "quit"),
         (Command::ReloadConfig, "reload-config"),
         (Command::PickColour, "pick-colour"),
@@ -276,6 +279,7 @@ impl Command {
         (Command::StepIn, "step-in"),
         (Command::StepInBeside, "step-in-beside"),
         (Command::StepOut, "step-out"),
+        (Command::StartSlingerd, "start-slingerd"),
     ];
 
     /// The command called `name` in the config file.
@@ -415,6 +419,7 @@ impl Default for Keymap {
             on(CMD | ALT, 'i'),
             on(CMD | ALT | SHIFT, 'i'),
             on(CMD | ALT, 'o'),
+            None,
         ])
     }
 }
