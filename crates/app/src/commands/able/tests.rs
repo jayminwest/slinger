@@ -68,7 +68,7 @@ fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
     let selected = Facts { selected: true, ..PAGE };
     let boxed = Facts { boxed: true, steps: true, ..selected };
     let shown = Facts { workspace: true, ..PAGE };
-    vec![
+    let mut rules: Vec<(&'static [Command], Facts, Facts)> = vec![
         (
             &[
                 C::ClosePane,
@@ -157,6 +157,15 @@ fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
         (&[C::ExportUi], Facts { ui: true, ..NONE }, Facts { canvas: true, ..NONE }),
         (&[C::ExportUi], Facts { ui: true, ..NONE }, Facts { ui_pane: true, ..NONE }),
         (&[C::ReloadUi], Facts { ui_pane: true, ..NONE }, Facts { canvas: true, ..NONE }),
+    ];
+    rules.extend(daemon_rules());
+    rules
+}
+
+/// The rules of the bundled slingerd's commands.
+fn daemon_rules() -> [(&'static [Command], Facts, Facts); 3] {
+    use Command as C;
+    [
         (&[C::StartSlingerd, C::RestartDaemon], Facts { managed: true, ..NONE }, NONE),
         (&[C::StartSlingerd], Facts { managed: true, old: true, ..NONE }, NONE),
         (
