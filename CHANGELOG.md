@@ -788,6 +788,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** a bigger or smaller text size keeps a wrapped text's rows: a
+  new text stays 80 characters wide at any size, where a size change used
+  to keep it about as wide and so change how many characters a row held.
+
 - **App:** a canvas text you are typing when you quit the app is written to
   the canvas, not lost.
 

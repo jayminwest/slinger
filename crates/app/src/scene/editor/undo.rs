@@ -114,14 +114,12 @@ impl Editing {
         done
     }
 
-    /// It takes `size`, a step of its own: a wrapped text stays about as
-    /// wide, on half a cell of the new size.
+    /// It takes `size`, a step of its own: a wrapped text keeps its
+    /// column's cells ([`glyphs::resized`]), so its rows stay the same.
     pub fn resize(&mut self, size: f64) {
         let before = (self.size, self.column);
+        self.column = glyphs::resized(self.column, self.size, size);
         self.size = size;
-        if self.column < glyphs::UNWRAPPED {
-            self.column = glyphs::column(self.column, size);
-        }
         if (self.size, self.column) != before {
             self.editor.restyled(before);
         }

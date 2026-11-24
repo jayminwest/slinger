@@ -165,7 +165,7 @@ impl Select {
             let to = resize.of(*size);
             if to.total_cmp(size).is_ne() {
                 let at = Point { x: frame.x, y: frame.y };
-                let column = column.map(|c| glyphs::rewrapped(c, to));
+                let column = column.map(|c| glyphs::resized(c, *size, to));
                 let after = glyphs::rows_frame(at, text, to, column.unwrap_or(glyphs::UNWRAPPED));
                 framed.push((item.id, *frame, after));
                 let shape = Shape::Text { frame: after, text: text.clone(), size: to, column };

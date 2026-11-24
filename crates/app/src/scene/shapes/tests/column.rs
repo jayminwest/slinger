@@ -117,8 +117,8 @@ fn a_text_started_from_the_keyboard_wraps_in_a_new_text_s_column() {
 }
 
 /// An edit that changes only the text's size is a `set`, and so is one
-/// that changes only its column (above); a resize keeps the column about
-/// as wide, on half a cell of the new size.
+/// that changes only its column (above); a resize keeps the column's
+/// cells, so a new text stays 80 cells wide (slinger-5285e4).
 #[test]
 fn an_edit_of_only_the_size_is_one_set() {
     let items = page();
@@ -140,5 +140,5 @@ fn an_edit_of_only_the_size_is_one_set() {
     let [Change::Put { shape: Shape::Text { column, .. }, .. }] = &changes(&mut ink)[..] else {
         panic!()
     };
-    assert_eq!(*column, Some(53.5 * 18.0), "966 is 53 cells of 18 and two thirds");
+    assert_eq!(*column, Some(80.5 * 18.0), "80 cells of 36, as 966 was of 24");
 }
