@@ -22,13 +22,14 @@ fn rows(shapes: &Shapes) -> String {
 }
 
 #[test]
-fn a_new_text_wraps_at_its_column_of_48_characters() {
+fn a_new_text_wraps_at_its_column_of_80_characters() {
     let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
     assert!(down(&mut shapes, &mut ink, Tool::Text, (10.0, 212.0), 0.0, &[]));
-    let words = "word ".repeat(12);
+    let words = "word ".repeat(20);
     shapes.typed(words.trim_end(), &mut ink);
-    let row = "word ".repeat(9);
-    assert_eq!(rows(&shapes), format!("{}\nword word word", row.trim_end()), "48 cells a row");
+    let row = "word ".repeat(16);
+    let rest = "word word word word";
+    assert_eq!(rows(&shapes), format!("{}\n{rest}", row.trim_end()), "80 cells a row");
     shapes.typed("\u{1b}", &mut ink);
     let [Change::Put { shape: Shape::Text { frame, column, .. }, .. }] = &changes(&mut ink)[..]
     else {
@@ -49,11 +50,11 @@ fn a_drag_of_the_frame_s_right_edge_sets_the_column() {
     assert!(!shapes.on_edge(("main", "p2"), pt(x, y), 1.0), "only on its page");
 
     // Grabbed on the dash, 4 past the column, and dragged so the column is
-    // a little over seven cells of 12.
+    // a little over eight cells of 12: "one two" and the space it breaks at.
     assert!(down(&mut shapes, &mut ink, Tool::Text, (x, y), 1.0, &[]));
     assert!(shapes.editing(), "the press keeps typing");
-    assert!(shapes.drag(pt(10.0 + 7.0 * 12.0 + 3.0 + 4.0, y)));
-    assert_eq!(rows(&shapes), "one two\nthree", "seven cells a row");
+    assert!(shapes.drag(pt(10.0 + 8.0 * 12.0 + 3.0 + 4.0, y)));
+    assert_eq!(rows(&shapes), "one two\nthree", "eight cells a row");
     assert!(shapes.up(None, &[], &mut ink));
     assert!(changes(&mut ink).is_empty(), "nothing is sent while typing");
     shapes.typed(" four", &mut ink);
@@ -63,7 +64,7 @@ fn a_drag_of_the_frame_s_right_edge_sets_the_column() {
     let [Change::Put { shape: Shape::Text { column, .. }, .. }] = &changes(&mut ink)[..] else {
         panic!()
     };
-    assert_eq!(*column, Some(7.5 * 12.0));
+    assert_eq!(*column, Some(8.5 * 12.0));
 }
 
 #[test]
@@ -105,9 +106,9 @@ fn a_drag_of_an_unwrapped_text_s_edge_gives_it_a_column_as_one_set() {
 fn a_text_started_from_the_keyboard_wraps_in_a_new_text_s_column() {
     let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
     shapes.start(HERE, pt(40.0, 100.0), RED, &mut ink);
-    let words = "word ".repeat(12);
+    let words = "word ".repeat(20);
     shapes.typed(words.trim_end(), &mut ink);
-    assert_eq!(rows(&shapes).lines().count(), 2, "48 cells a row");
+    assert_eq!(rows(&shapes).lines().count(), 2, "80 cells a row");
     shapes.typed("\u{1b}", &mut ink);
     let [Change::Put { shape: Shape::Text { column, .. }, .. }] = &changes(&mut ink)[..] else {
         panic!()
@@ -139,5 +140,5 @@ fn an_edit_of_only_the_size_is_one_set() {
     let [Change::Put { shape: Shape::Text { column, .. }, .. }] = &changes(&mut ink)[..] else {
         panic!()
     };
-    assert_eq!(*column, Some(32.5 * 18.0), "582 is 32 cells of 18 and a third");
+    assert_eq!(*column, Some(53.5 * 18.0), "966 is 53 cells of 18 and two thirds");
 }

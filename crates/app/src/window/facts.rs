@@ -3,7 +3,7 @@
 //! commands' own gates ask, so the menu greys exactly what would not act.
 
 use super::{focus, items, pane_at, shown_ui};
-use crate::canvases::Canvases;
+use crate::canvases::{Boxed, Canvases};
 use crate::commands::able::Facts;
 use crate::layout::Rect;
 use crate::panes::Kind;
@@ -27,6 +27,7 @@ pub fn facts(
     let under = tools.pointer().and_then(|at| pane_at(panes, area, at));
     let new_text = canvases.page_names(panes, under.unwrap_or_else(|| focus(panes, area)).0);
     let workspace = sidebar.shown_dir().is_some();
+    let target = canvases.step_target(panes, pane);
     Facts {
         panes: panes.place(area).len(),
         canvas,
@@ -35,7 +36,8 @@ pub fn facts(
         ui_pane: panes.focused().kind == Kind::Ui,
         items: items::holds(shared, canvases),
         selected: canvases.shows_selection(panes, pane),
-        boxed: canvases.step_target(panes, pane).is_some(),
+        boxed: target.as_ref().is_some_and(Boxed::is_box),
+        steps: target.is_some(),
         inside: canvases.inside(panes, pane),
         sling: canvases.can_sling(panes, area),
         entry: canvases.typing(),

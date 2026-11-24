@@ -112,3 +112,24 @@ fn each_add_sent_from_inside_a_folded_box_says_it_goes_in() {
     assert_eq!(joined[1].get("in"), None, "a move stays as it is");
     assert_eq!(crate::mirror::joined(json!({"op": "add"}), ItemId(4))["in"], "i4");
 }
+
+/// docs/design/writing-column.md, 3A: a pane stepped into a text shows it
+/// alone in the frame of all its rows, and nothing steps further in.
+#[test]
+fn inside_a_text_a_pane_shows_it_alone_framed_whole() {
+    let long = (1..=100).map(|i| format!("row {i}")).collect::<Vec<_>>().join("\n");
+    let mut item = text("i2", 1000, 1000, &long);
+    (item["w"], item["h"]) = (9660.into(), 0.into());
+    let m = page(vec![boxed("i1", (0, 0, 20000, 30000), None), item, stroke("i3", 2000, 2000)]);
+    let trail = [(ItemId(1), false), (ItemId(2), false)];
+    let (inside, held) = m.step(&trail);
+    let inside = inside.unwrap();
+    assert_eq!(held, 2);
+    let (id, whole) = inside.text().expect("a text");
+    assert_eq!((id, whole.y, whole.height), (ItemId(2), 100.0, 100.0 * 24.0), "every row");
+    assert_eq!(inside.room, whole);
+    assert_eq!(shown(&m, &trail), [2], "the text alone");
+    assert_eq!(m.named(&inside), "row 1");
+    assert_eq!(m.step(&[(ItemId(2), false), (ItemId(1), false)]).1, 1, "nothing inside a text");
+    assert_eq!(m.step(&[(ItemId(2), true)]).1, 0, "a text is never folded");
+}

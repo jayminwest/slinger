@@ -72,6 +72,15 @@ pub fn items(canvas: &Canvas, items: &[ItemId], id: &str) -> Vec<Image> {
     over(canvas, items, id, &[])
 }
 
+/// Draws `items` that need not be on a canvas (a figure not yet placed,
+/// say) as [`items`] draws items of one: alone, on white, framed with
+/// [`MARGIN`]. Images are named after `id`; no items give no images.
+#[must_use]
+pub fn shapes(items: &[Item], id: &str) -> Vec<Image> {
+    let found: Vec<&Item> = items.iter().collect();
+    framed(&found, id, &[])
+}
+
 /// [`items`], each image drawn over the `backdrops` that meet it: white,
 /// then each backdrop in its item's draw order, cut to its item's frame,
 /// then the ink. A backdrop of an item that is not a `pdf` item on the

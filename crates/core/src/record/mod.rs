@@ -16,8 +16,8 @@ use serde_json::{Map, Value};
 
 pub use blob::BlobId;
 pub use body::{
-    AgentBlocked, AgentDone, Body, FileTouched, KINDS, NamedBlob, PaneMoved, ReplyLanded,
-    SlingSent, UiOpened, UiPut, UiReply,
+    AgentBlocked, AgentDone, Body, FigureDrawn, FileTouched, KINDS, NamedBlob, PaneMoved,
+    ReplyLanded, SlingSent, UiOpened, UiPut, UiReply,
 };
 
 use crate::{Error, Result};

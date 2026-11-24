@@ -72,6 +72,7 @@ use editing::Editing;
 use find::{canvas_of, find, to_canvas, wanted};
 use flow::SlingFlow;
 use follow::Follow;
+pub use step::Boxed;
 use view::View;
 
 mod feedback;

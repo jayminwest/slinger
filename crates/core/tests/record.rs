@@ -2,8 +2,9 @@
 
 use serde_json::{Value, json};
 use slinger_core::record::{
-    AgentBlocked, AgentDone, BlobId, Body, Event, FileTouched, KINDS, NamedBlob, PaneMoved,
-    ReplyLanded, SlingSent, Tags, UiOpened, UiPut, UiReply, VERSION, decode, encode, to_value,
+    AgentBlocked, AgentDone, BlobId, Body, Event, FigureDrawn, FileTouched, KINDS, NamedBlob,
+    PaneMoved, ReplyLanded, SlingSent, Tags, UiOpened, UiPut, UiReply, VERSION, decode, encode,
+    to_value,
 };
 
 fn tags() -> Tags {
@@ -188,4 +189,31 @@ fn showings_and_replies_are_read_typed_but_only_their_verbs_write_them() {
         assert_eq!(decode(&encode(&event)).unwrap(), event);
         assert_eq!(Body::new(kind, doc["payload"].clone()).unwrap_err().code(), "invalid");
     }
+}
+
+#[test]
+fn figure_drawn_is_read_typed_but_only_its_verbs_write_it() {
+    let script = BlobId::of(b"box(0, 0, 10, 10);");
+    let drawn = FigureDrawn {
+        canvas: "main".into(),
+        figure: "worksheet".into(),
+        page: "p1".into(),
+        script,
+        data: json!({"rate": 0.08}),
+        origin: [400, 400],
+        frame: [400, 400, 9000, 14000],
+    };
+    let tags = Tags { agent: Some("claude".into()), canvas: Some("main".into()), ..Tags::on("m") };
+    let event = Event::new(1, "slingerd", tags, Body::FigureDrawn(drawn));
+    let doc = to_value(&event);
+    assert_eq!(doc["kind"], "figure_drawn");
+    assert_eq!(
+        doc["payload"],
+        json!({"canvas": "main", "figure": "worksheet", "page": "p1", "script": script,
+            "data": {"rate": 0.08}, "origin": [400, 400], "frame": [400, 400, 9000, 14000]})
+    );
+    assert_eq!(decode(&encode(&event)).unwrap(), event);
+    assert!(!KINDS.contains(&"figure_drawn"));
+    let err = Body::new("figure_drawn", doc["payload"].clone()).unwrap_err();
+    assert_eq!(err.code(), "invalid");
 }

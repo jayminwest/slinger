@@ -7,8 +7,8 @@ use serde_json::Value;
 
 use super::{Import, Report, path};
 use crate::canvas::{
-    Action, Applied, Author, Canvas, Colour, Dash, End, ItemId, Member, Op, PageId, Point, Rect,
-    Shape, Style, TEXT_SIZE, TEXT_SIZES, Time, style::FILL_MAX_ALPHA,
+    Action, Applied, Author, Canvas, Colour, Dash, End, Heads, ItemId, Member, Op, PageId, Point,
+    Rect, Shape, Style, TEXT_SIZE, TEXT_SIZES, Time, style::FILL_MAX_ALPHA,
 };
 
 static NULL: Value = Value::Null;
@@ -21,6 +21,8 @@ struct Node<'a> {
     kind: &'a str,
     at: Point,
     rotation: f64,
+    /// tldraw's `isLocked`: the item is locked.
+    locked: bool,
     props: &'a Value,
 }
 
@@ -33,6 +35,7 @@ impl<'a> Node<'a> {
             kind: r.get("type")?.as_str()?,
             at: Point::new(num(r, "x", 0.0), num(r, "y", 0.0)),
             rotation: num(r, "rotation", 0.0),
+            locked: r.get("isLocked").and_then(Value::as_bool).unwrap_or(false),
             props: r.get("props").unwrap_or(&NULL),
         })
     }
@@ -76,6 +79,8 @@ struct Arrow {
     from: End,
     to: End,
     colour: Colour,
+    /// Its ends are swapped: tldraw's head was at its start only.
+    flipped: bool,
 }
 
 struct Builder {
@@ -182,8 +187,9 @@ impl Builder {
             return self.skip(format!("{} (damaged)", n.kind));
         };
         let style = style(n);
+        let member = Member { locked: n.locked, ..Member::default() };
         for shape in shapes {
-            let (style, member) = (style.fitted(&shape), Member::default());
+            let (style, member) = (style.fitted(&shape), member.clone());
             let add = Action::Add { page, style, member, shape: shape.clone() };
             let Some(Applied::Added(item)) = self.apply(add) else {
                 return self.skip(format!("{} (damaged)", n.kind));
@@ -194,7 +200,8 @@ impl Builder {
                 Shape::Box { .. } => self.report.boxes += 1,
                 Shape::Arrow { from, to, colour } => {
                     self.report.arrows += 1;
-                    self.arrows.insert(n.id.into(), Arrow { item, from, to, colour });
+                    let flipped = flipped(n);
+                    self.arrows.insert(n.id.into(), Arrow { item, from, to, colour, flipped });
                 }
                 // tldraw has no live items, buttons or PDFs; the mapping never makes one.
                 Shape::Live { .. } | Shape::Button { .. } | Shape::Pdf { .. } => {}
@@ -220,9 +227,9 @@ impl Builder {
             let anchor = b.get("props").and_then(|p| p.get("normalizedAnchor")).unwrap_or(&NULL);
             let at =
                 Point::new(r.x + r.w * num(anchor, "x", 0.5), r.y + r.h * num(anchor, "y", 0.5));
-            match text(b.get("props").unwrap_or(&NULL), "terminal") {
-                "start" => arrow.from = End::on(at, item),
-                "end" => arrow.to = End::on(at, item),
+            match (text(b.get("props").unwrap_or(&NULL), "terminal"), arrow.flipped) {
+                ("start", false) | ("end", true) => arrow.from = End::on(at, item),
+                ("end", false) | ("start", true) => arrow.to = End::on(at, item),
                 _ => continue,
             }
             bound.push(arrow.item);
@@ -242,11 +249,14 @@ impl Builder {
     }
 }
 
-/// A shape's `fill` and `dash` as a style. [`Style::fitted`] then keeps
-/// what each item takes: a box both, a stroke or an arrow the dash, a
-/// rectangle's label neither. tldraw's hand-drawn `draw` dash is solid; a
-/// `solid` fill (and the newer `fill` and `lined-fill`) is the shape's
-/// colour as dense a tint as a fill gets, `semi` and `pattern` half that.
+/// A shape's `fill`, `dash`, `isClosed` and arrowheads as a style.
+/// [`Style::fitted`] then keeps what each item takes: a box the fill and
+/// the dash, a stroke the dash, and the fill when closed, an arrow the dash
+/// and the heads, a rectangle's label none. tldraw's hand-drawn `draw` dash
+/// is solid; a `solid` fill (and the newer `fill` and `lined-fill`) is
+/// the shape's colour as dense a tint as a fill gets, `semi` and
+/// `pattern` half that. Any arrowhead but `none` is a head; a head at the
+/// start only is a head at the end of the arrow turned round ([`flipped`]).
 fn style(n: &Node) -> Style {
     let tint = |a: u8| Some(Colour { a, ..n.colour("color") });
     let fill = match text(n.props, "fill") {
@@ -259,7 +269,25 @@ fn style(n: &Node) -> Style {
         "dotted" => Dash::Dotted,
         _ => Dash::Solid,
     };
-    Style { fill, dash, ..Style::default() }
+    let heads = match (head(n, "arrowheadStart", "none"), head(n, "arrowheadEnd", "arrow")) {
+        (true, true) => Heads::Both,
+        (false, false) => Heads::None,
+        _ => Heads::End,
+    };
+    let closed = n.props.get("isClosed").and_then(Value::as_bool).unwrap_or(false);
+    Style { fill, dash, heads, closed }
+}
+
+/// Whether the arrowhead `key` (tldraw's default `default`) is drawn.
+fn head(n: &Node, key: &str, default: &str) -> bool {
+    let kind = text(n.props, key);
+    (if kind.is_empty() { default } else { kind }) != "none"
+}
+
+/// Whether an arrow is turned round, so its one head, at tldraw's start,
+/// is at its end.
+fn flipped(n: &Node) -> bool {
+    head(n, "arrowheadStart", "none") && !head(n, "arrowheadEnd", "arrow")
 }
 
 /// tldraw's stroke widths for its four sizes, in canvas units.
@@ -343,7 +371,9 @@ fn arrow(n: &Node, own: Place) -> Option<Shape> {
         let p = n.props.get(key)?;
         Some(End::free(own.to_page(Point::new(p.get("x")?.as_f64()?, p.get("y")?.as_f64()?))))
     };
-    Some(Shape::Arrow { from: end("start")?, to: end("end")?, colour: n.colour("color") })
+    let (from, to) = (end("start")?, end("end")?);
+    let (from, to) = if flipped(n) { (to, from) } else { (from, to) };
+    Some(Shape::Arrow { from, to, colour: n.colour("color") })
 }
 
 /// The plain text of a shape: `richText` (a document tree) or the older `text`.

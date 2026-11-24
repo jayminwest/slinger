@@ -27,6 +27,7 @@ const ABLE: Facts = Facts {
     items: true,
     selected: true,
     boxed: true,
+    steps: true,
     inside: true,
     sling: true,
     entry: false,

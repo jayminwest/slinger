@@ -19,6 +19,7 @@ mod able;
 mod broken;
 mod bundle;
 mod close;
+mod column;
 mod context;
 mod context_items;
 mod context_rows;

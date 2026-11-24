@@ -5,8 +5,8 @@
 
 use super::Log;
 use super::json::{tenths, units};
-use crate::canvas::{ItemId, Marker, PageId, Rect};
-use crate::packet::{Area, Ask, Packet, backdrops, build};
+use crate::canvas::{Address, ItemId, Marker, PageId, Rect};
+use crate::packet::{Area, Ask, Inside, Packet, backdrops, build};
 use crate::render::{Backdrop, Word};
 use crate::{Error, Result};
 
@@ -17,8 +17,10 @@ pub(super) const ID_LETTERS: [char; 8] = ['i', 'c', 't', 'b', 'a', 'l', 'u', 'd'
 impl Log {
     /// The packet of one page of this canvas, `id`: the page `page` names by
     /// id (`p<n>`) or name, or the first. With `inside` (a box's id, `b4` or
-    /// `i4`), the packet of what that box holds, open or folded, on its page
-    /// ([`Ask::inside`]); `page`, when given too, must be the box's. The lines numbered above `after`
+    /// `i4`), the packet of what that box holds, open or folded, on its page;
+    /// with a figure address (`worksheet`, `worksheet/1a-answer`), the
+    /// packet of that figure or part and what lies over it ([`Inside`]);
+    /// `page`, when given too, must be the box's or the figure's. The lines numbered above `after`
     /// are new; `after` 0 makes everything new, and one at or past the last
     /// line makes nothing new (B4). `select`, when not empty, narrows the
     /// `page` section (see [`Ask::selection`]); its ids are the file's
@@ -27,9 +29,9 @@ impl Log {
     ///
     /// # Errors
     ///
-    /// [`Error::NotFound`] for a page or a box that is not there, and
-    /// [`Error::Invalid`] for a selected id that is not an item id, or an
-    /// `inside` that is not a box.
+    /// [`Error::NotFound`] for a page, a box or a figure that is not there,
+    /// and [`Error::Invalid`] for a selected id that is not an item id, or an
+    /// `inside` that is not a box or a figure address.
     pub fn packet(
         &self,
         id: &str,
@@ -47,7 +49,7 @@ impl Log {
             since: self.since(after),
             selection: &selection,
             backdrops: under,
-            inside,
+            inside: inside.as_ref(),
         };
         let mut packet = build(self.applied().0, &ask)?;
         let last = self.next().saturating_sub(1);
@@ -78,16 +80,22 @@ impl Log {
             since: self.since(after),
             selection: &[],
             backdrops: &[],
-            inside,
+            inside: inside.as_ref(),
         };
         backdrops(self.applied().0, &ask)
     }
 
-    /// The page a packet reads and the box it reads inside: the box's own
-    /// page when `inside` names a box and `page` is not given.
-    fn scope(&self, page: Option<&str>, inside: Option<&str>) -> Result<(PageId, Option<ItemId>)> {
-        let inside = inside.map(item).transpose()?;
-        let holder = inside.and_then(|b| self.canvas().item(b));
+    /// The page a packet reads and what it reads inside: the box's own
+    /// page, or the figure's, when `inside` names one and `page` is not
+    /// given.
+    fn scope(&self, page: Option<&str>, inside: Option<&str>) -> Result<(PageId, Option<Inside>)> {
+        let inside = inside.map(within).transpose()?;
+        let first = match &inside {
+            Some(Inside::Box(b)) => Some(*b),
+            Some(Inside::Figure(address)) => self.resolve(&address.to_string())?.first().copied(),
+            None => None,
+        };
+        let holder = first.and_then(|b| self.canvas().item(b));
         let page = match (holder, page) {
             (Some(b), None) => b.page(),
             _ => self.page(page)?.id(),
@@ -137,6 +145,19 @@ pub fn rect_tenths(r: Rect) -> [i64; 4] {
 #[must_use]
 pub fn size_tenths((w, h): (f64, f64)) -> [i64; 2] {
     [w, h].map(tenths)
+}
+
+/// What `canvas read --in` names: a box's id, or a figure address.
+fn within(inside: &str) -> Result<Inside> {
+    if super::look::number(inside).is_some() {
+        return item(inside).map(Inside::Box);
+    }
+    Address::parse(inside).map(Inside::Figure).map_err(|_| Error::Invalid {
+        message: format!("{inside:?} is not a box's id or a figure address"),
+        hint: Some(
+            "read --in a box (b4), a figure (worksheet) or a part (worksheet/1a-answer)".into(),
+        ),
+    })
 }
 
 /// An item id as the file or a packet writes it.
