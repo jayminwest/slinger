@@ -130,7 +130,7 @@ mod tests {
         let colour = Rgb { r: 0, g: 0, b: 0 };
         quit.push(Change::Put { canvas: canvas.clone(), page: page.clone(), colour, shape: arrow });
         quit.push(remove(vec![ItemId(PENDING + 99)]));
-        let item = Item { id: drawn, colour, shape: Shape::Stroke { points: vec![], width: 2.0 } };
+        let item = Item::plain(drawn, colour, Shape::Stroke { points: vec![], width: 2.0 });
         let items = vec![Carried { item, object: serde_json::json!({"kind": "stroke"}) }];
         let to = Change::Carry { canvas: "other".into(), page: "p1".into(), items, gone: vec![] };
         quit.carry(to, remove(vec![drawn]));

@@ -104,7 +104,7 @@ pub fn pasted(items: &str, page: &str, centre: Point) -> Vec<Carried> {
 /// clipboard: its file object, without an id, alone in the array, and no
 /// text. `None` for a shape the file does not keep.
 pub fn snippet(shape: &Shape) -> Option<Clip> {
-    let item = Item { id: ItemId(0), colour: Rgb { r: 0, g: 0, b: 0 }, shape: shape.clone() };
+    let item = Item::plain(ItemId(0), Rgb { r: 0, g: 0, b: 0 }, shape.clone());
     let mut object = super::object(&item)?;
     object.as_object_mut()?.remove("id");
     Some(Clip::new(None, Some(Value::Array(vec![object]).to_string())))

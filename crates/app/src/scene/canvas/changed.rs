@@ -30,8 +30,8 @@ pub(super) fn changed_between(old: &[Draw], new: &[Draw]) -> Option<Rect> {
 #[expect(clippy::float_cmp, reason = "the same line's width is the same value, from one product")]
 fn grown(old: &Draw, new: &Draw) -> Option<Rect> {
     let (
-        Mark::Stroke { start: a, curves: was, width: w },
-        Mark::Stroke { start: b, curves: now, width },
+        Mark::Stroke { start: a, curves: was, width: w, .. },
+        Mark::Stroke { start: b, curves: now, width, .. },
     ) = (&old.mark, &new.mark)
     else {
         return None;

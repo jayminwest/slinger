@@ -21,8 +21,8 @@ fn page() -> Vec<Item> {
     let frame = Rect { x: 0.0, y: 0.0, width: 10.0, height: 10.0 };
     let points = vec![pt(40.0, 40.0), pt(50.0, 40.0)];
     vec![
-        Item { id: ItemId(1), colour, shape: Shape::Box { frame, width: 2.0 } },
-        Item { id: ItemId(2), colour, shape: Shape::Stroke { points, width: 2.0 } },
+        Item::plain(ItemId(1), colour, Shape::Box { frame, width: 2.0 }),
+        Item::plain(ItemId(2), colour, Shape::Stroke { points, width: 2.0 }),
     ]
 }
 

@@ -16,8 +16,9 @@
 //! `SLINGER_NVIM` is for tests and drives: `clean` starts Nvim with
 //! `--clean`, `user` with the user's config, `off` with none, whatever
 //! the config says. `SLINGER_NVIM_CLIP` names a file Nvim's clipboard reads
-//! and writes in place of the system clipboard (a driven window never
-//! touches the user's). `SLINGER_NVIM_TRACE` names a file the timings go to.
+//! and writes in place of the system clipboard; a driven window that names
+//! none uses `clip` in slinger's scratch directory, so it never touches
+//! the user's. `SLINGER_NVIM_TRACE` names a file the timings go to.
 
 use std::ffi::OsString;
 use std::io::{Read, Write};
@@ -92,12 +93,15 @@ impl Setup {
             }
         };
         let path = |name: &str| var(name).map(PathBuf::from);
+        let scratch = std::env::temp_dir().join("slinger-nvim");
+        // A driven window's copies never reach the user's clipboard.
+        let clip = path("SLINGER_NVIM_CLIP").or_else(|| (!by_config).then(|| scratch.join("clip")));
         Ok(Some(Setup {
             program,
             clean,
-            clip: path("SLINGER_NVIM_CLIP"),
+            clip,
             trace: path("SLINGER_NVIM_TRACE"),
-            scratch: std::env::temp_dir().join("slinger-nvim"),
+            scratch,
             homes: Vec::new(),
         }))
     }
@@ -109,6 +113,12 @@ impl Setup {
         let homes =
             vec![("XDG_CONFIG_HOME", dir.join("config")), ("XDG_DATA_HOME", dir.join("data"))];
         Setup { program, clean: true, clip: None, trace: None, scratch: dir.to_path_buf(), homes }
+    }
+
+    /// Nvim's clipboard is the file `clip` (a test's), not the system's.
+    #[cfg(test)]
+    pub fn clip(self, clip: PathBuf) -> Setup {
+        Setup { clip: Some(clip), ..self }
     }
 }
 

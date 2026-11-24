@@ -223,7 +223,8 @@ slinger drive shot window.png           # the window as a PNG, to look at
 A driven window types canvas texts with slinger's own editor. Start it with
 `SLINGER_NVIM=clean` (no config) or `SLINGER_NVIM=user` (yours) to have nvim
 edit them as the app does: `drive scene` then prints nvim's grid, its mode,
-cursor and rows, under a `cells` line.
+cursor and rows, under a `cells` line. nvim's copies go to the file
+`SLINGER_NVIM_CLIP` names (else `$TMPDIR/slinger-nvim/clip`), not to `drive clip`.
 
 Points are in the window's points from its top left, as `drive scene`
 prints them, written `X,Y` or `X Y`. `taken` means the app used the event, `passed` that it did

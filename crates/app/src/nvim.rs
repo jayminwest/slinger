@@ -197,9 +197,37 @@ impl Session {
         &self.grid
     }
 
+    /// Whether Nvim is in visual mode (by character, line or block): a
+    /// copy or a cut takes what it selects.
+    pub fn visual(&self) -> bool {
+        self.grid.mode_name == "visual"
+    }
+
     /// Types `keys` (Nvim's notation).
     pub fn input(&mut self, keys: &str, out: &mut Vec<u8>) {
         self.request(None, "nvim_input", vec![Value::str(keys)], out);
+    }
+
+    /// The left button's `action` (`press`, `drag` or `release`) at the
+    /// grid's cell `(row, column)`, with `shift` held or not. It goes in
+    /// with the keys, in turn.
+    pub fn mouse(
+        &mut self,
+        action: &str,
+        shift: bool,
+        (row, col): (usize, usize),
+        out: &mut Vec<u8>,
+    ) {
+        let modifier = Value::str(if shift { "S" } else { "" });
+        let args = vec![
+            Value::str("left"),
+            Value::str(action),
+            modifier,
+            Value::Int(0),
+            int(row),
+            int(col),
+        ];
+        self.request(None, "nvim_input_mouse", args, out);
     }
 
     /// Pastes `text` at the cursor, in any mode, as one undo step.

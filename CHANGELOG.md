@@ -14,7 +14,12 @@ bullet with the area in bold.
 - **App:** a canvas text you type is edited in your own nvim, drawn in the
   text's place: 80 cells wide, as tall as the text, with your colorscheme,
   modes, cursor and `:` line, and no line numbers, sign column or ruler.
-  Escape in normal mode, `:q` or a tap outside ends the text. The new
+  Escape in normal mode, `:q` or a tap outside ends the text, and
+  ctrl+return ends it and starts the next. Every key without ⌘ is nvim's;
+  ⌘Z and ⇧⌘Z are nvim's undo and redo, ⌘A selects the whole text, ⌘C and
+  ⌘X copy and cut what visual mode selects to the system clipboard, and a
+  paste or a dictation goes in at nvim's cursor as one undo step. A click
+  or a drag in the text is nvim's mouse. The key overlay lists these. The new
   `[editor] nvim` config key (`"auto"`, `"off"` or the path to nvim)
   picks which nvim; with none found, slinger's own editor types and says so.
 - **Canvas:** boxes and closed strokes take a fill, drawn as a light tint
@@ -24,6 +29,11 @@ bullet with the area in bold.
   `closed` in `canvas apply` (`canvas schema` lists them); crops and
   packets draw them. Older versions of slinger open these canvases and lose
   no item, drawing them plain.
+- **App:** the window draws fills, dashed and dotted lines, arrows with two
+  heads or none, and closed strokes, as crops do; moving, resizing, copying
+  or duplicating such an item keeps its look. A new `[theme] agent` key
+  (default `#8a5cf5`) sets the colour an agent's default-coloured ink and
+  fills show in.
 - **Canvas:** a tldraw import keeps each rectangle's fill (as a light tint
   of its colour) and each rectangle's, drawing's and arrow's dashed or
   dotted line, a closed drawing's loop and fill, an arrow's heads (at the
