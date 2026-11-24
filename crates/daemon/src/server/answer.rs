@@ -8,8 +8,8 @@ use slinger_control::{RemoteError, Request, Verb};
 
 use super::daemon::{self, Here};
 use super::{
-    agent, canvas, feedback, fold, import, look, pane, profile, read, record, session, showing,
-    sling, uis, workspace,
+    agent, canvas, feedback, figure, fold, import, look, pane, profile, read, record, session,
+    showing, sling, uis, workspace,
 };
 use crate::store::Store;
 
@@ -42,6 +42,7 @@ pub(super) fn answer(request: Request, store: &Store, here: &Here) -> Result<Val
         Request::CanvasFind(ask) => by(store, ask, look::find),
         Request::CanvasFold(ask) => by(store, ask, fold::fold),
         Request::CanvasUnfold(ask) => by(store, ask, fold::unfold),
+        Request::CanvasDraw(ask) => by(store, ask, figure::draw),
         Request::SessionList(ask) => by(store, ask, session::list),
         Request::SessionShow(ask) => by(store, ask, session::show),
         Request::StatusSet(ask) => by(store, ask, session::set),

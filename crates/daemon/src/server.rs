@@ -6,6 +6,7 @@ mod answer;
 mod canvas;
 mod daemon;
 mod feedback;
+mod figure;
 mod fold;
 mod import;
 mod look;

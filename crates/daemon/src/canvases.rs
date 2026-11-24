@@ -14,6 +14,7 @@
 //! canvas's lock.
 
 mod feed;
+mod figure;
 mod read;
 
 use std::collections::HashMap;

@@ -555,7 +555,9 @@ slinger canvas draw <CANVAS> <FILE> --name N (--beside ID | --over ID | --at X,Y
 - The script crosses the socket as a path, as `ui put` does: the daemon
   reads the file, stores it as a blob (`Store::put_blob`), runs
   `crates/script`, calls the core, then appends `figure_drawn`. `--data` is
-  inline JSON or `@file` (the CLI reads it); absent is `{}`.
+  inline JSON or `@file`; absent is `{}`. The data crosses as a file too
+  (the request's `data` is a path; the CLI writes inline JSON to a scratch
+  file), since a request line is at most 64 KiB (step 9's pick).
 - **Placement** of the figure's frame (the joint frame of its shapes):
   `--beside ID` puts it where `Canvas::free_beside` finds room beside the
   item (or address); `--over ID` puts the figure's origin (0,0) on the

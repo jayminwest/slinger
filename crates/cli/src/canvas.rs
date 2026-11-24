@@ -114,6 +114,7 @@ pub enum Canvas {
     /// Open a folded box in its old room, as one undo step; prints nothing. A room that is
     /// taken is a conflict (exit 4) naming what is in the way
     Unfold(crate::edit::Fold),
+    Draw(crate::draw::Draw),
 }
 
 impl Canvas {
@@ -137,6 +138,7 @@ impl Canvas {
             Self::Remove(_) => "canvas remove",
             Self::Fold(_) => "canvas fold",
             Self::Unfold(_) => "canvas unfold",
+            Self::Draw(_) => "canvas draw",
         }
     }
 }
@@ -230,6 +232,7 @@ pub fn execute(
         Canvas::Remove(args) => crate::edit::remove(args, daemon, env),
         Canvas::Fold(args) => crate::edit::fold(args, false, daemon, env),
         Canvas::Unfold(args) => crate::edit::fold(args, true, daemon, env),
+        Canvas::Draw(args) => crate::draw::draw(args, daemon, env),
     }
 }
 
