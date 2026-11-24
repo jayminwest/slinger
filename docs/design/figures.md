@@ -367,9 +367,9 @@ tldraw importer keeping fill and dash (and lock, closed, heads).
 |---|---|---|---|---|
 | 5 | Errors: a `script` error with the message, line, column, the source line and the call stack; over a limit is one error, `limit`, that says which | **Closed (slinger-fad0bb).** A failure is code `script`: `script:L:C: message`, the source line with a `^` under the column, and the script's own frames of the stack; every limit (time, memory, stack, shapes, the script's and the data's size) is code `limit` and says which. Both exit 5 | `crates/script/src/{lib,engine}.rs` (`ScriptError::report`, `Fault`), `crates/core/src/error.rs`, `crates/daemon/src/server/figure.rs` | closed |
 | 6 | Packet: `f3 figure softmax 0,0 1700x3800 parts=15 by=teacher` (an id of its own, the name, a part count) | closed slinger-2c5bfe: built as the owner's line; `f<n>` (the lowest item's number) works wherever an id does, and the name and `figure/part` addresses still work | `crates/core/src/packet/figure.rs`, docs/design/packet.md | closed |
-| 9 | Rule 5, inputs: `anchor` (the size and text of the item it goes beside or over) and, with `--over` or `--at`, the bounds of the items around it in figure coordinates | **Closed (slinger-fad0bb).** The globals `anchor` (`{id, kind, w, h, text}` for `--beside` and `--over`, else `null`) and `around` (with `--over` or `--at`, the shown items within 500 units, nearest first, at most 500, each `{id, kind, x, y, w, h}` in figure coordinates, else `[]`); `fig.view.target` stays; a redraw reads the anchor again from `figure_drawn`'s `anchor` | `crates/core/src/canvas/file/around.rs`, `crates/script/src/prelude/view.js`, `crates/daemon/src/canvases/figure.rs` | closed |
+| 9 | Rule 5, inputs: `anchor` (the size and text of the item it goes beside or over) and, with `--over` or `--at`, the bounds of the items around it in figure coordinates | **Closed (slinger-fad0bb).** The globals `anchor` (`{id, kind, w, h, text}` for `--beside` and `--over`, else `null`) and `around` (with `--over` or `--at`, the shown items within 500 units, nearest first, at most 500, each `{id, kind, x, y, w, h}` in figure coordinates, else `[]`); a redraw reads the anchor again from `figure_drawn`'s `anchor`. `fig.view` (`target`, `page`) is kept, decided slinger-9ce9a6: Appendix A does not name it and rule 5's `anchor` is for `--beside` and `--over`, while `--in` needs the size of the room inside the box (not the box's own size), which only `fig.view.target` gives | `crates/core/src/canvas/file/around.rs`, `crates/script/src/prelude/view.js`, `crates/daemon/src/canvases/figure.rs` | closed |
 | 13 | Decision 4: a script uses whole units; the other verbs keep tenths | Closed slinger-3b333f: now as designed. `canvas draw --at` takes tenths (`400,400`, `PAGE:X,Y`), as `canvas put --at` does | `crates/cli/src/draw.rs`, guide.md | small |
-| 15 | `fill`: a colour ("use a light or translucent colour") | The core, the app and the tldraw import keep a fill as given and every renderer caps it at 40% when drawn (`FILL_MAX_ALPHA`; slinger-2c5bfe). Left: the script API still stores a name or `#rrggbb` at 20% alpha (`33`) and `true` as a tint of the shape's colour | `prelude/base.js` (`tint`) | small |
+| 15 | `fill`: a colour ("use a light or translucent colour") | Closed slinger-9ce9a6: the script API stores a fill as given too (a name as its hex, `#rrggbb` and `#rrggbbaa` as written), as the core, the app and the tldraw import do, and every renderer draws it at 40% alpha at most (`FILL_MAX_ALPHA`; slinger-2c5bfe). `fill: true`, which the owner's text does not have, stays as built: a 20% tint of the shape's colour | `prelude/base.js` (`tint`) | closed |
 | 17 | Decision 3: no stored lock toggle | Closed slinger-3b333f: kept as built, the owner's call. The app has none, but `locked` is an ordinary field: an agent may `set` it on its own items and the user on any, through `canvas apply` (undo, import and paste need it written) | `crates/core/src/canvas/file/ops.rs` | small |
 
 Closed by slinger-bee990 (the script API ported to the owner's design;
@@ -394,7 +394,7 @@ boxes with their labels). The spike's prelude, which is not in the
 repository, drew 3 more; nothing in Appendix A says what (a value over each
 of the 3 bars would make 56).
 
-Count left open: 1 small (15, the 20% tint the script API stores).
+Count left open: none. Every row is closed (15 and the `fig.view` decision in row 9 by slinger-9ce9a6).
 
 ## As built (written overnight 2026-11-24, not the owner's text)
 
@@ -639,9 +639,10 @@ picks another agent colour sees every agent's default-coloured figure in it.
   would turn into a light grey block on dark paper, and the meaning of
   "yellow means given" is lost.
 
-**Pick: A.** The script API's `fill` is a tint by default: a fill given as
-a name, as `#rrggbb` or as `true` (the shape's own colour) is stored at alpha
-`0x33` (20%); `#rrggbbaa` is stored as given and drawn capped at `0x66`.
+**Pick: A.** The script API stores a fill as given (a name as its hex),
+as every other writer does, and every renderer draws it capped at `0x66`
+(40%); `true` (the shape's own colour) is stored at alpha `0x33` (20%)
+(slinger-9ce9a6, Differences row 15).
 
 #### Defaults that nest
 
@@ -1093,7 +1094,7 @@ that changes least of what the pen does today. Each line is also in
    `bad`, `warn`, `series1`..`series6` and the nine packet names; resolved to hex at run
    time; the app draws a stored `AGENT` in its `[theme] agent`.
 5. **A fill in the dark theme** is drawn as stored, never through
-   `legible()`; the API stores a fill as a 20% tint unless given `#rrggbbaa`.
+   `legible()`; the API stores a fill as given (`true`: a 20% tint of the shape's colour).
 6. **Names and addresses:** figure names unique per canvas, kebab case, never
    id-shaped; `figure[/part]` wherever an id is taken; resolved in
    `Log::resolve`; a draw on another maker's name is `conflict`; a copied
@@ -1299,9 +1300,9 @@ Options every call takes:
   `white`, `red`, `green`, `blue`, `yellow`, `orange`, `purple`, `grey`.
   Default: the colour of the group or part it is in, else `fig.color` (the
   agent colour; assign it to change every later default).
-- `fill`: a colour (stored as a 20% tint; `#rrggbbaa` as given) or `true`
-  (a tint of `color`), for a box, circle, ellipse or closed path. Fills draw
-  under all ink and text, so they never hide writing.
+- `fill`: a colour, stored as given and drawn at 40% opacity at most, or
+  `true` (a 20% tint of `color`), for a box, circle, ellipse or closed
+  path. Fills draw under all ink and text, so they never hide writing.
 - `dash`: `'dashed'`, `'dotted'` or `'solid'` (boxes, lines, paths, arrows).
 - `width`: line width (lines, paths, arrows; default 2). An arrow with heads
   is always 2 wide.

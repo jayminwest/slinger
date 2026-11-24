@@ -39,7 +39,7 @@ fn each_call_draws_an_add_item_object_in_tenths() {
         "x": 50, "y": 60, "w": 200, "h": 200, "text": "hi", "size": 200, "locked": true, "fig": "fig"})
     );
     let c = one("fig.circle(0, 0, 10, {fill: 'red'})");
-    assert_eq!((c["closed"].clone(), c["fill"].clone()), (json!(true), json!("#ff000033")));
+    assert_eq!((c["closed"].clone(), c["fill"].clone()), (json!(true), json!("#ff0000")), "a fill is stored as given");
     assert_eq!(c["pts"].as_array().map(Vec::len), Some(96));
     let e = one("fig.ellipse(0, 0, 20, 10)");
     assert_eq!(

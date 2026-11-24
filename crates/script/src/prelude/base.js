@@ -101,11 +101,11 @@ function colour(call, key, v) {
   fail(call, `${key} must be "#rrggbb", "#rrggbbaa" or one of ${NAME_LIST}; got ${show(v)}`);
 }
 
-// A fill: true is a tint of the shape's colour, a name or #rrggbb a 20% tint, #rrggbbaa as given.
+// A fill: a colour as given (every renderer draws it at 40% alpha at
+// most, FILL_MAX_ALPHA in the core), or true, a 20% tint of the shape's colour.
 function tint(call, v, own) {
   if (v === true) return own.slice(0, 7) + '33';
-  const hex = colour(call, 'fill', v);
-  return hex.length === 7 ? hex + '33' : hex;
+  return colour(call, 'fill', v);
 }
 
 function dashed(call, v) {

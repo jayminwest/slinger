@@ -322,9 +322,9 @@ Options every call takes:
   `white`, `red`, `green`, `blue`, `yellow`, `orange`, `purple`, `grey`.
   Default: the colour of the group or part it is in, else `fig.color` (the
   agent colour; assign it to change every later default).
-- `fill`: a colour (stored as a 20% tint; `#rrggbbaa` as given) or `true`
-  (a tint of `color`), for a box, circle, ellipse or closed path. Fills draw
-  under all ink and text, so they never hide writing.
+- `fill`: a colour, stored as given and drawn at 40% opacity at most, or
+  `true` (a 20% tint of `color`), for a box, circle, ellipse or closed
+  path. Fills draw under all ink and text, so they never hide writing.
 - `dash`: `'dashed'`, `'dotted'` or `'solid'` (boxes, lines, paths, arrows).
 - `width`: line width (lines, paths, arrows; default 2). An arrow with heads
   is always 2 wide.
