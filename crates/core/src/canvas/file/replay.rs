@@ -52,10 +52,11 @@ impl File {
                 each(canvas, *n, Op { by: by.clone(), at: *at, action }, *step);
             };
             match change {
-                Change::Add { item, page, shape, style } => {
+                Change::Add { item, page, shape, style, member } => {
                     claim(&mut canvas.next_item, item.get(), at_line)?;
-                    let (page, shape, style) = (*page, shape.clone(), *style);
-                    apply(&mut canvas, Action::Add { page, shape, style });
+                    let (page, shape, style, member) =
+                        (*page, shape.clone(), *style, member.clone());
+                    apply(&mut canvas, Action::Add { page, shape, style, member });
                     canvas.next_item = item.get().saturating_add(1);
                 }
                 Change::PageAdd { page, name } => {
@@ -98,10 +99,13 @@ impl File {
                     // A line that names no style key keeps the item's style.
                     let mut merged = json::fields(current.shape());
                     merged.extend(style::fields(*current.style()));
+                    merged.extend(style::member_fields(current.member()));
                     merged.extend(fields.iter().map(|(k, v)| (k.clone(), v.clone())));
                     if let Ok(Some(shape)) = json::read_shape(&merged) {
                         let style = style::named(fields).then(|| style::read(&merged, &shape));
-                        apply(&mut canvas, Action::Edit { item: *item, shape, style });
+                        let member =
+                            style::member_named(fields).then(|| style::read_member(&merged));
+                        apply(&mut canvas, Action::Edit { item: *item, shape, style, member });
                     }
                 }
             }

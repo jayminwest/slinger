@@ -90,7 +90,8 @@ fn a_put_beside_an_unknown_item_or_by_no_agent_fails_and_changes_nothing() {
     };
     assert_eq!(code("idea", "scout", "i9"), "not_found");
     assert_eq!(code("nope", "scout", "i1"), "not_found");
-    assert_eq!(code("idea", "scout", "zz"), "invalid");
+    assert_eq!(code("idea", "scout", "z z"), "invalid");
+    assert_eq!(code("idea", "scout", "zz"), "not_found", "a figure address naming none");
     assert_eq!(code("idea", " ", "i1"), "invalid");
     assert_eq!(client.canvas_show("idea", None).unwrap().next, 2);
     daemon.stop();

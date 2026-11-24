@@ -74,7 +74,8 @@ pub use short::AGENT_ROWS;
 pub use synthetic::{SESSIONS, Synthetic};
 
 use super::{
-    Action, Applied, Author, Item, ItemId, Op, Page, PageId, Point, Shape, Step, Style, Time,
+    Action, Applied, Author, Item, ItemId, Member, Op, Page, PageId, Point, Shape, Step, Style,
+    Time,
 };
 use crate::{Error, Result};
 use json::Obj;
@@ -147,6 +148,7 @@ pub enum Change {
         page: PageId,
         shape: Shape,
         style: Style,
+        member: Member,
     },
     Remove {
         items: Vec<ItemId>,
@@ -182,15 +184,17 @@ impl Line {
     #[must_use]
     pub fn of(n: u64, op: &Op, applied: Applied) -> Option<Self> {
         let change = match (&op.action, applied) {
-            (Action::Add { page, shape, style }, Applied::Added(item)) => {
-                Change::Add { item, page: *page, shape: snap_shape(shape), style: *style }
+            (Action::Add { page, shape, style, member }, Applied::Added(item)) => {
+                let (shape, style, member) = (snap_shape(shape), *style, member.clone());
+                Change::Add { item, page: *page, shape, style, member }
             }
             (Action::PageAdd { name }, Applied::PageAdded(page)) => {
                 Change::PageAdd { page, name: name.trim().into() }
             }
-            (Action::Edit { item, shape, style }, Applied::Changed) => {
+            (Action::Edit { item, shape, style, member }, Applied::Changed) => {
                 let mut fields = json::fields(shape);
                 fields.extend(style.map(style::fields).unwrap_or_default());
+                fields.extend(member.as_ref().map(style::member_fields).unwrap_or_default());
                 Change::Set { item: *item, fields }
             }
             (Action::Move { item, by }, Applied::Changed) => {
@@ -254,8 +258,8 @@ impl Line {
             Change::PageRemove { page } => {
                 o.str("op", "page.remove").str("page", &json::page_id(*page))
             }
-            Change::Add { item, page, shape, style } => {
-                o.str("op", "add").raw("item", &json::item(*item, *page, shape, *style))
+            Change::Add { item, page, shape, style, member } => {
+                o.str("op", "add").raw("item", &json::item(*item, *page, shape, *style, member))
             }
             Change::Remove { items } => o.str("op", "remove").raw("ids", &ids(items).to_string()),
             Change::Move { items, by } => o
@@ -347,11 +351,11 @@ pub fn read(bytes: &[u8]) -> Result<File> {
 #[must_use]
 pub fn snap(op: Op) -> Op {
     let action = match op.action.fitted() {
-        Action::Add { page, shape, style } => {
-            Action::Add { page, shape: snap_shape(&shape), style }
+        Action::Add { page, shape, style, member } => {
+            Action::Add { page, shape: snap_shape(&shape), style, member }
         }
-        Action::Edit { item, shape, style } => {
-            Action::Edit { item, shape: snap_shape(&shape), style }
+        Action::Edit { item, shape, style, member } => {
+            Action::Edit { item, shape: snap_shape(&shape), style, member }
         }
         Action::Move { item, by } => Action::Move { item, by: snap_point(by) },
         Action::Restore { item } => Action::Restore { item: snap_item(item) },

@@ -448,7 +448,7 @@ fn an_add_in_an_open_box_adds_plainly_and_a_bad_in_fails() {
     };
     assert_eq!(code(&mut log, &text), "invalid");
     assert_eq!(code(&mut log, "b99"), "not_found");
-    assert_eq!(code(&mut log, "zz"), "invalid");
+    assert_eq!(code(&mut log, "z z"), "invalid");
     log.fold(&Author::User, AT, &b, None).unwrap();
     // An agent adds into the user's folded box (an answer to a sling of it):
     // the box's list gains only the agent's own item.

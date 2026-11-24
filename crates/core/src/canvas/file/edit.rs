@@ -52,6 +52,12 @@ impl Log {
     ///
     /// [`TEXT_SIZES`]: crate::canvas::TEXT_SIZES
     pub fn edit(&mut self, by: &Author, at: Time, id: &str, edit: &Edit) -> Result<Placed> {
+        if super::look::number(id).is_none() {
+            let items = self.resolve(id)?;
+            if items.len() > 1 {
+                return self.edit_many(by, at, id, &items, edit);
+            }
+        }
         let (item, _, page) = self.named(id)?;
         let shape = self.canvas().may_change(item, by)?.shape().clone();
         let mut new = shape.clone();
@@ -101,6 +107,43 @@ impl Log {
         let frame = self.canvas().item(item).map(Item::bounds).unwrap_or_default();
         let frame = [frame.x, frame.y, frame.w, frame.h].map(json::tenths);
         Ok(Placed { written, item: json::item_id(item), page: json::page_id(page), frame })
+    }
+
+    /// [`Log::edit`] of a figure or a part of several items: only a move,
+    /// which takes their joint frame's top-left corner to `edit.to`.
+    fn edit_many(
+        &mut self,
+        by: &Author,
+        at: Time,
+        id: &str,
+        items: &[ItemId],
+        edit: &Edit,
+    ) -> Result<Placed> {
+        if edit.text.is_some() || edit.text_size.is_some() || edit.size.is_some() {
+            let hint = "edit one of its items by its id from 'slinger canvas show', or move them \
+                all with a new place";
+            return Err(invalid(&format!("{id} names {} items", items.len()), hint));
+        }
+        let canvas = self.canvas();
+        for item in items {
+            canvas.may_change(*item, by)?;
+        }
+        let (first, before, page) = self.named(id)?;
+        let written = match edit.to {
+            Some([x, y])
+                if Point::new(json::units(x) - before.x, json::units(y) - before.y)
+                    != Point::default() =>
+            {
+                let offset = Point::new(json::units(x) - before.x, json::units(y) - before.y);
+                let moves = items.iter().map(|&item| Action::Move { item, by: offset }).collect();
+                let actions = self.followed(by, self.carried(moves));
+                self.step(by, at, actions)?
+            }
+            _ => Written::default(),
+        };
+        let frame = self.canvas().bounds_of(items.iter().copied()).unwrap_or_default();
+        let frame = [frame.x, frame.y, frame.w, frame.h].map(json::tenths);
+        Ok(Placed { written, item: json::item_id(first), page: json::page_id(page), frame })
     }
 
     /// `actions` and, after them, the arrows that follow the items they move

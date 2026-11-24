@@ -51,7 +51,7 @@ dev-depend on the daemon's library, so they run against a real socket.
 
 | Module | Decides |
 |---|---|
-| `crates/core/src/canvas` | pages of items changed only by ops; the author rule; undo history; folds, item styles (`crates/core/src/canvas/style.rs`: fill, dash, heads, closed), geometry queries, the delta since a sling |
+| `crates/core/src/canvas` | pages of items changed only by ops; the author rule; undo history; folds, item styles (`crates/core/src/canvas/style.rs`: fill, dash, heads, closed), figures and parts (`crates/core/src/canvas/figure.rs`: `locked`, `fig`, `part`, the address), geometry queries, the delta since a sling |
 | `crates/core/src/canvas/file` | the canvas file (`docs/design/canvas-file.md`): the append-only log, `Log` and every request on it (put, edit, fold, look, import) |
 | `crates/core/src/packet` | what an agent reads from a page (`docs/design/packet.md`): lines, ids, reading order, clusters |
 | `crates/core/src/render` | items to PNGs: scale, tiles, text cells; pure and deterministic |

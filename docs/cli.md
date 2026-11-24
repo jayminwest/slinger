@@ -260,7 +260,9 @@ the `next` of `--json`. An `--after` the canvas has not reached exits 5
 `canvas crop` writes an image of one item or one box at the packet's scale
 (`docs/service.md`, "Crops and strokes"). A folded box's `--item` draws it
 open, with what it holds. `--item` takes an id from `canvas
-show` (`i12`) or from a packet (`c12` is the whole cluster). `--box` is in
+show` (`i12`) or from a packet (`c12` is the whole cluster), or a figure
+address (`worksheet` or `worksheet/1a-answer`: the items with that `fig`,
+and that `part`). `--box` is in
 tenths of a unit, like every canvas command, on the first page unless
 `--page` names another. The image goes to `--out` (default `<ITEM>.png` or
 `crop.png` in the current directory); a crop too large for one image goes
@@ -300,7 +302,7 @@ text, a box (`W,H` in tenths of a unit), a pen stroke (`--ink`: x,y pairs in
 tenths, the first where it starts, each next the step from the one before,
 as `pts` in `canvas schema`) or an arrow between two items, placed beside
 `--beside`, an id from `canvas show` (`i12`) or a packet (`c12` is the whole
-cluster), where it covers nothing (`docs/service.md`, "Agent canvas verbs").
+cluster) or a figure address (`worksheet/1a-answer`: beside the joint frame of that part), where it covers nothing (`docs/service.md`, "Agent canvas verbs").
 `--color` draws it in `#rrggbb` or `#rrggbbaa`. `--at X,Y`
 puts the top-left corner of its box there instead, in tenths, on the page of
 `--beside`; an arrow takes no `--at`. `--size` sizes a text's characters,
