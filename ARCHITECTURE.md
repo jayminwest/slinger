@@ -125,6 +125,7 @@ IO lives in `backend` and `platform`; everything else is pure and unit-tested.
 | `crates/app/src/canvases/follow.rs` | `Follow`: what each pane follows, its views, and the live, PDF and view-saving threads |
 | `crates/app/src/canvases/editing.rs` | `Editing`: ink, selection, shapes, crop, outbox, kept changes, pen, and the Nvim that edits a text (`crates/app/src/canvases/editing/vim.rs`) |
 | `crates/app/src/nvim.rs` | the Nvim UI client's protocol, pure: messages out, what the ones in mean, the ready and confirmed rules, the measure that sizes the grid; Nvim's screen in `crates/app/src/nvim/grid.rs`, painted by `crates/app/src/platform/cells.rs`; the child process is `crates/app/src/backend/nvim.rs` |
+| `crates/app/src/scene/glyphs.rs` | a canvas text's measure: its rows in cells (the core's `CELL`, the 80-cell column, the 80-row cap and what it hides), one for the caret, a press and the frame; drawn as markdown by `crates/app/src/scene/canvas/markdown.rs` (a line's looks) and `crates/app/src/scene/canvas/written.rs` (the rows' runs), a capped text by `crates/app/src/scene/canvas/capped.rs`, painted by `crates/app/src/platform/cells.rs` |
 | `crates/app/src/canvases/flow.rs` | `SlingFlow`: the sling, the slinger thread, slung, prompt, voice, notes, agents |
 | `crates/app/src/mirror.rs` | a copy of one canvas page as the daemon holds it, kept by the feed; folds, steps, clips in `crates/app/src/mirror` |
 | `crates/app/src/scene.rs` | what the window shows (a `Scene`); ink, selection, shapes, editor, sidebar, footer in `crates/app/src/scene` |

@@ -1,7 +1,8 @@
 # The writing column: a canvas text you can live in
 
 Status: picked overnight 2026-11-24 (slinger-820fe6, plan pl-b237f5, parent
-slinger-f86716), owner to confirm the picks marked so. Inputs: D6, D18, B6,
+slinger-f86716), owner to confirm the picks marked so. Built the same night:
+"As built" and "Acceptance" at the end say what shipped and what is left. Inputs: D6, D18, B6,
 the canvas file (`docs/design/canvas-file.md`), the packet
 (`docs/design/packet.md`), pen-less input (`docs/design/pen-less.md`, pick
 2A), folding (`docs/design/fold.md`, "Step in"), and the spike
@@ -33,7 +34,7 @@ competes with nvim, and not a place to read prose an agent wrote.
   change. There is no per-sling grant.
 - Upgrade the text item; add no new item kind (plan alternative 3).
 
-## Where things stand (main, 2026-11-24)
+## Where things stood (main, 2026-11-24, before the plan)
 
 - A text item is `Shape::Text { text, frame, colour, size }`
   (`crates/core/src/canvas/item.rs`). A character's cell is `CELL` = 0.5 of
@@ -460,3 +461,66 @@ style) out, for the subset of 4A; tested without AppKit. The painter is
 - Binary size: the spike is about 1,800 lines; `platform/cells.rs` adds
   NSFont and attributed-string code. Measure against the `slinger-app`
   ceiling in step 3 before the painter lands; no budget moves.
+
+## As built (2026-11-24, steps 2 to 8 and the adopted fixes)
+
+What shipped, where it differs from the picks above or adds to them:
+
+- **Every canvas text is drawn in Menlo cells**, the user's and the
+  agents', edited or not, and slinger's own editor types in the same
+  cells: one measure (`glyphs::Laid`, the core's `CELL`) for the caret,
+  a press and the frame. The system font at 0.83 is gone from the canvas
+  (the "N more lines" note alone keeps it).
+- **Hard breaks are kept** (2A): the stored text is the buffer's lines; the
+  rendered view draws each stored line from the first cell and wraps only
+  a line longer than the column. Nothing joins them, though the seed of
+  step 7 said to.
+- **A double press edits at a word.** The design said a press; a single
+  press with the select tool still selects, so a double tap (select tool,
+  lasso or a mouse with the pen tool) opens nvim in normal mode with the
+  cursor on that cell (`Laid::cell_at`; nvim's seed takes the line and
+  byte). The text tool's tap opens at the end in insert mode, as before.
+- **Write focus** is `write-focus` (⌥⌘↩, "Focus on text"), also in the
+  right-click menu of a text and of a text being typed (slinger-668fd9);
+  checked under nvim in a driven window: neither types into nvim.
+- **Step in on a long text**: a double tap on the "N more lines" row, or
+  `step-in` with the text selected (only when no box is selected), or its
+  right-click menu (Step in, Step in beside, slinger-69f995). The commands
+  read "Step in", "Step in beside", "Step out".
+- **A size change keeps the cells** (slinger-5285e4): the size keys and a
+  handle resize keep a text's 80 cells a row, so a new text stays 80 cells
+  at any size.
+- **The barrier goes in the key stream** (slinger-8854d9): escape and a
+  press outside wait for `<Cmd>call rpcnotify(0, 'slinger_barrier', n,
+  mode(1))<CR>` sent through `nvim_input` in turn with the keys, so the
+  word comes only after nvim took every key before it, and it carries the
+  mode those keys left (a request, as the first build's `nvim_eval` was,
+  can be answered before nvim takes keys still queued, such as a lone
+  escape held for `ttimeoutlen`). Undo and redo go the same way (`<Cmd>silent! undo<CR>`).
+- **Wrap** follows nvim's `linebreak` in the core (`raster::wrap`), the
+  app (`glyphs::layout`) and the script prelude's measure (step 5).
+- Not built: a warm spare nvim (slinger-4ecf05, only if the start is felt);
+  macOS dictation that arrives as typed text still goes as a paste
+  (slinger-bbbce8); the written runs are not cached per text (slinger-625ecd);
+  the packet's page section still cuts a user's text (slinger-2ba749).
+
+## Acceptance (plan pl-b237f5), checked 2026-11-24
+
+Tests named by function; "driven" is a driven window on a scratch daemon
+with `SLINGER_NVIM=clean` (nvim 0.11): four paragraphs of markdown typed,
+ended with escape twice, drawn as markdown, opened again by a double tap
+in normal mode on the tapped character, write focus in and out, 105 lines
+made with `yy99p` (grid 80x81, then a capped text saying "26 more lines").
+
+| # | Acceptance | State |
+|---|---|---|
+| 1 | Write and revise multi-paragraph markdown with your own nvim config, without leaving slinger | needs the owner (docs/hand-check.md, the writing-column script); driven with `--clean` |
+| 2 | A text not edited shows rendered markdown; a press on a word edits there | met: `scene::canvas::markdown` tests, `a_double_tap_on_a_word_opens_nvim_in_normal_mode_with_its_cursor_on_that_cell`, driven (a double press, see As built); the look in light and dark needs the owner |
+| 3 | 80 cells wide, never taller than 80 lines, read by stepping in | met: `a_text_is_at_most_most_rows_tall_however_its_frame_was_written`, `the_crop_of_a_long_text_draws_its_most_rows_only`, `a_text_past_most_rows_is_framed_at_most_rows_and_says_what_is_hidden`, `a_long_text_says_how_many_more_lines_and_steps_in_by_two_taps_or_step_in`, `a_size_step_keeps_a_new_text_s_80_cells_and_its_rows`, driven |
+| 3 | ... and its whole text is in the packet | **not met**: the item keeps it (`the_whole_text_is_kept_in_the_item_and_the_packet_boxes_its_most_rows`), but the page section cuts a user's text to 80 characters; quoting it whole moves the token ratchet, an owner decision (slinger-2ba749) |
+| 4 | Editing writes nothing under your nvim config, state or cache | met for `--clean` with all four homes redirected: `an_nvim_edits_the_text_and_writes_nothing_but_its_state_and_cache`; your real config needs the owner (script steps 1 and 11) |
+| 5 | No way of ending loses the text | met: `keys_typed_before_nvim_is_ready_land_in_order_and_escape_twice_ends_the_text`, `quitting_nvim_ends_the_text_with_its_buffer`, `a_crash_ends_the_text_with_the_buffer_last_confirmed`, `a_text_left_before_its_buffer_is_confirmed_keeps_what_it_had`, `an_nvim_not_ready_in_time_leaves_the_text_as_it_was`, `an_nvim_that_cannot_start_leaves_the_text_to_the_apps_editor_and_says_why`, `a_tap_outside_ends_the_text_and_is_used_up_a_tap_inside_is_not`, `a_text_being_typed_when_the_app_quits_is_written` (slinger's editor); the app quitting while nvim edits needs the owner (script step 10) |
+| 6 | With nvim missing or off, the scene editor works and every test passes | met: `slinger_nvim_turns_it_on_or_off_and_the_config_picks_which`, `the_editor_nvim_is_auto_off_or_a_path`, the one above that cannot start; unit tests and a driven window start nvim only with `SLINGER_NVIM` set; `cargo xtask check-all` green |
+| 7 | An agent cannot change a user's text; the guide and both skills say where a reply goes | met: `an_agent_cannot_change_a_text_the_user_wrote_by_any_verb`, `the_users_edit_of_an_agents_words_makes_the_text_the_users`, `an_agents_text_is_at_most_twelve_rows`; `crates/cli/src/guide.md`, `plugin/skills/slinger/SKILL.md`, `plugin/skills/slinger-listen/SKILL.md` |
+| 8 | With a pen, nothing changes | met by every pen and tool test, unchanged and passing; a pen tap on a text now opens it in nvim (a risk above); a real pen needs the owner (script step 5) |
+| 9 | `cargo xtask check-all` green, no budget loosened | met: no budget moved by the plan |

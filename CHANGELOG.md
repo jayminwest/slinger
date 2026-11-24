@@ -11,6 +11,57 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** the writing column: a canvas text is a column 80 characters
+  wide that grows to 80 lines, so several paragraphs fit in one text. A new
+  text starts that wide, and a bigger or smaller size keeps its 80
+  characters a row. A longer text shows its first lines, the last few
+  fading, and "N more lines" in its last row; two quick taps on that row,
+  or Step in with the text selected (or in its right-click menu), show it
+  whole; escape steps back out. The step commands now read "Step in",
+  "Step in beside" and "Step out", as they work on such a text as well as
+  on a box.
+- **App:** a canvas text you type is edited in your own nvim, with your
+  config and plugins, drawn in the text's place: 80 cells wide, as tall as
+  the text, with your colorscheme, modes, cursor and `:` line, and no line
+  numbers, sign column or ruler. A new text starts in insert mode. Escape
+  in normal mode (so escape twice from insert), `:q` or a tap outside ends
+  the text, and ctrl+return ends it and starts the next. Every key without
+  ⌘ is nvim's; ⌘Z and ⇧⌘Z are nvim's undo and redo, ⌘A selects the whole
+  text, ⌘C and ⌘X copy and cut what visual mode selects to the system
+  clipboard, and a paste or a dictation goes in at nvim's cursor as one
+  undo step. A click or a drag in the text is nvim's mouse. The key overlay
+  lists these. Your text is never lost: a crash, a quit or an nvim that
+  does not start keeps what you last had. nvim's state and cache go to a
+  folder of slinger's in the temporary directory, never yours. The new
+  `[editor] nvim` config key (`"auto"`, `"off"` or the path to nvim)
+  picks which nvim; with none found, slinger's own editor types and says so.
+- **App:** a canvas text you are not typing in shows its markdown, in the
+  same monospaced cells nvim edits it in, so no word moves when you open it:
+  `#` headings are bold, `*em*` italic, `**strong**` bold, `code` and
+  fenced code sit on a tint, `>` quotes show a bar, `- [ ]` and `- [x]`
+  show ☐ and ☑. The marks stay, dimmed, and your line breaks stay where
+  you typed them. A double tap on a word (with the select tool, the lasso
+  or a mouse) opens the text with the cursor on that word; the text tool's
+  tap still opens it at its end.
+- **App:** write focus (⌥⌘↩, "Focus on text" in the Canvas menu, the
+  palette and a text's right-click menu): while you type a text, or with
+  one text selected, the pane zooms so the text's 80-character column fills
+  its width, the text's top just under the pane's top. Ending the text, or
+  the same key again, puts the view back where it was.
+- **Canvas:** a text is at most 80 rows tall on the page. A longer text keeps
+  every word, but past row 80 it takes no room: an agent's put beside it, a
+  lasso and the agent's picture of it stop at row 80.
+- **Canvas:** a text wraps where nvim wraps it: a word that ends on the
+  column's last cell with a space after it goes to the next line, as the
+  space must fit too. Some long texts break a line differently.
+- **Agents:** an agent never changes the words of a text you wrote, and
+  answers beside it. An agent's text is at most 12 rows: a longer put or
+  edit fails with `too_long` (exit 5) and the hint to split it into short
+  puts, each beside its subject. Your own texts have no such limit. When
+  you change the words of a text an agent wrote, the text becomes yours,
+  and the agent can no longer change it; moving it or changing its colour
+  or size leaves it the agent's.
+
 - **App:** an agent's figure is locked to your pen: writing over it works
   as on paper, and the eraser, lasso, select tool, select all, the text
   tool and arrow ends pass over it. **Unlock figure** (opt+cmd+U, the Edit
@@ -41,27 +92,6 @@ bullet with the area in bold.
   the arrow or to its other side when its spot would cover another label
   or line.
 
-- **App:** a canvas text you type is edited in your own nvim, drawn in the
-  text's place: 80 cells wide, as tall as the text, with your colorscheme,
-  modes, cursor and `:` line, and no line numbers, sign column or ruler.
-  Escape in normal mode, `:q` or a tap outside ends the text, and
-  ctrl+return ends it and starts the next. Every key without ⌘ is nvim's;
-  ⌘Z and ⇧⌘Z are nvim's undo and redo, ⌘A selects the whole text, ⌘C and
-  ⌘X copy and cut what visual mode selects to the system clipboard, and a
-  paste or a dictation goes in at nvim's cursor as one undo step. A click
-  or a drag in the text is nvim's mouse. The key overlay lists these. The new
-  `[editor] nvim` config key (`"auto"`, `"off"` or the path to nvim)
-  picks which nvim; with none found, slinger's own editor types and says so.
-- **App:** write focus (⌥⌘↩, "Focus on text" in the Canvas menu and the
-  palette): while you type a text, or with one text selected, the pane zooms
-  so the text's 80-character column fills its width, the text's top just
-  under the pane's top. Ending the text, or the same key again, puts the
-  view back where it was. The right-click menu of a text, typed or not,
-  offers it too.
-- **App:** the right-click menu of a text too long to show whole (one that
-  says "N more lines") offers Step in and Step in beside. The step commands
-  now read "Step in", "Step in beside" and "Step out", as they work on such
-  a text as well as on a box.
 - **Canvas:** boxes and closed strokes take a fill, drawn as a light tint
   under all writing; boxes, strokes and arrows can be dashed or dotted; an
   arrow can have a head at both ends or none (a plain line); a stroke can
@@ -78,21 +108,6 @@ bullet with the area in bold.
   of its colour) and each rectangle's, drawing's and arrow's dashed or
   dotted line, a closed drawing's loop and fill, an arrow's heads (at the
   end, both ends or none) and a locked shape's lock.
-  dotted line.
-- **App:** a canvas text you are not typing in shows its markdown, in the
-  same monospaced cells nvim edits it in, so no word moves when you open it:
-  `#` headings are bold, `*em*` italic, `**strong**` bold, `code` and
-  fenced code sit on a tint, `>` quotes show a bar, `- [ ]` and `- [x]`
-  show ☐ and ☑. The marks stay, dimmed. A double tap on a word (with the
-  select tool, the lasso or a mouse) opens the text with the cursor on
-  that word; the text tool's tap still opens it at its end.
-- **App:** a canvas text is a writing column 80 characters wide and grows
-  to 80 lines. A longer text shows its first lines, the last few fading,
-  and "N more lines" in its last row; two quick taps on that row, or
-  step-in with the text selected, show it whole; escape steps back out.
-- **Canvas:** a text wraps where nvim wraps it: a word that ends on the
-  column's last cell with a space after it goes to the next line, as the
-  space must fit too. Some long texts break a line differently.
 
 - **Canvas:** items can belong to a named figure and a named part of it
   (`fig`, `part`) and can be locked (`locked`), set through
@@ -108,21 +123,6 @@ bullet with the area in bold.
   `sling send --in` take a figure or a part (`worksheet/1a-answer`): it,
   item by item, and the writing over it.
 
-- **App:** a new `[editor] nvim` config key (`"auto"`, `"off"` or the path
-  to nvim) picks the nvim that will edit canvas texts. The app reads it now;
-  your own editor takes over typing once nvim's screen is drawn in the text.
-- **Agents:** an agent's text is at most 12 rows. A longer put or edit
-  fails with `too_long` (exit 5) and the hint to split it into short puts,
-  each beside its subject. Your own texts have no such limit.
-
-- **Canvas:** a text is at most 80 rows tall on the page. A longer text keeps
-  every word, but past row 80 it takes no room: an agent's put beside it, a
-  lasso and the agent's picture of it stop at row 80.
-
-- **Canvas:** when you change the words of a text an agent wrote, the text
-  becomes yours, and the agent can no longer change it. Moving it or
-  changing its colour or size leaves it the agent's.
-
 - **App:** Reload agent UI (in the File menu, the palette and an agent UI
   pane's right-click menu) fetches the pane's agent UI again and starts its
   page over: a new version or new data shows, and one that could not show
@@ -137,7 +137,7 @@ bullet with the area in bold.
 
 - **App:** a right click on a canvas item opens a menu for that item: Sling
   selection, Cut, Copy, Duplicate, Delete selection and Pick a colour, plus
-  text sizes on a text, Fold, Step into box and Step into box beside on a
+  text sizes on a text, Fold, Step in and Step in beside on a
   box, and Crop PDF and Show canvas file in Finder on a PDF snippet. As in
   the Finder, a right click on an item outside the selection selects it
   alone first, and one on the selection keeps it and opens the selection's
@@ -257,7 +257,7 @@ bullet with the area in bold.
   deletes another, a paste or a cut one each, and a new size (the size
   keys) or a drag of its column one each. Once the text ends, undo
   takes back the whole text from the canvas, as before.
-- **App:** a typed text wraps. A new text wraps at 48 characters, and
+- **App:** a typed text wraps. A new text wraps in its column, and
   while you type it its dashed frame shows that column; drag the frame's
   right edge (the pointer shows a left-right arrow) to make the column
   narrower or wider, for a new text or one you edit. Texts typed before
@@ -306,7 +306,7 @@ bullet with the area in bold.
   or a tap outside closes it, and nothing is moved. Each fold and unfold
   is one undo step.
 - **App:** step into a box. Select it and press opt+cmd+I (or Edit > Step
-  into box), or tap a folded box's miniature twice: the pane shows only
+  in), or tap a folded box's miniature twice: the pane shows only
   what the box holds, from its top left, inside a dashed frame, and the
   footer adds the box's name to the page ("ideas · 2/3 › Plans"). What you
   draw, type, paste or drag in from another pane inside a folded box goes
@@ -666,7 +666,7 @@ bullet with the area in bold.
 ### Changed
 
 - **App:** a split pane starts where the pane it came from looks: the same
-  page, pan, zoom and box, instead of the first page at 100%. Step into box
+  page, pan, zoom and box, instead of the first page at 100%. Step in
   beside, then escape, shows that place too.
 - **Install:** one way in on a Mac: `scripts/bundle.sh --install`, then
   open slinger. The app starts slingerd, which writes its log to
@@ -808,10 +808,6 @@ bullet with the area in bold.
   remove that line.
 
 ### Fixed
-
-- **App:** a bigger or smaller text size keeps a wrapped text's rows: a
-  new text stays 80 characters wide at any size, where a size change used
-  to keep it about as wide and so change how many characters a row held.
 
 - **App:** a canvas text you are typing when you quit the app is written to
   the canvas, not lost.
@@ -1017,8 +1013,7 @@ bullet with the area in bold.
   its lines a little closer than before.
 - **App:** an agent's paragraph you resize, move to another page or edit
   keeps its lines. Before, it was saved as one long line each, so after a
-  reload it no longer wrapped, and an edit unwrapped it as you typed. Text
-  you type yourself still does not wrap.
+  reload it no longer wrapped, and an edit unwrapped it as you typed.
 - **App:** the sling's pill keeps counting, and a short message still goes
   away on time, while you resize the window or have a menu open. Before,
   both froze until you let go.

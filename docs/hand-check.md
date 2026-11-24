@@ -51,7 +51,6 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 
 - [ ] the file panels in the BUNDLED app after 01bd66f (scripts/bundle.sh && open target/slinger.app, never a bare binary or ssh): cmd+O reaches Downloads (allow the macOS prompt) and opens a PDF; shift+cmd+D / shift+cmd+O / cmd+V in Go-to-folder work in the panel; the app menu bar returns after; Open Workspace and Export UI show their message and button (rest of 03cad2) (slinger-4e7b98)
 - [ ] start-agent, stop-agent, restart-agent in the real app: the Tools menu items; does opt+cmd+. clash with a system or tablet key (35e7d5, 5f4959, dd0783; a driven window passed keys, palette, sidebar line and flash) (slinger-0879be)
-- [ ] canvas text after f66a97: are glyphs ~17% smaller right (system font at 0.83, an empirical number)? (a driven window passed paragraph breaks against 'canvas crop', the put box, multi-line caret and frame, descenders and accents) (slinger-53c684)
 - [ ] run scripts/e2e-sling.sh after 29bb9f: a session under no profile now gets no --tools and no --strict-mcp-config; check MCP servers load in print mode, .mcp.json approval, that dontAsk lets Agent and TodoWrite run, and the token cost per sling against SPEC 14 (slinger-881ffd)
 - [ ] (bundle) click an agent UI page or live item, then start a canvas text and press cmd+V / dictate: the paste lands (e41e9ee; a cause for 145162 shown in code only); after clicking the canvas an agent UI page no longer has the keyboard until clicked again; then redo slinger-29364d (slinger-54dc4a)
 - [ ] restart the real slingerd on this build, then from a Claude Code session run slinger with no --socket: it finds the daemon by the 'socket' file in the data directory (ac82eb3); a daemon that dies uncleanly leaves the file pointing at a dead path until the next start (slinger-29a9a9)
@@ -72,14 +71,66 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 
 - [ ] (bundle) a canvas with a filled dashed box, a dotted closed stroke and arrows with heads both and none (`slinger canvas apply`), on a Retina screen in both a light and the dark `[theme] background`: the dashes and dots read at zoom 1 and 4, ink over a fill reads, and the window matches `slinger canvas crop` (a driven window and its PNG passed) (slinger-450877)
 
-## Writing column (plan pl-b237f5)
+## Writing column (plan pl-b237f5): a day of writing in the bundle with no pen
 
-- [ ] (bundle) with `SLINGER_NVIM=user` (`open -n --env SLINGER_NVIM=user …`) and your own nvim config, open and end a few canvas texts: nothing of yours is written outside slinger's state and cache (`$TMPDIR/slinger-nvim/{state,cache}`): `lazy-lock.json` in ~/.config/nvim, plugin data under ~/.local/share/nvim, ~/.local/state/nvim and ~/.cache/nvim keep their mtimes (tests hold it for `--clean` with all four homes redirected); the bundle opened from the Finder finds nvim on a nix or Homebrew PATH (slinger-c6e898)
-- [ ] (bundle) with your own nvim config, type a few paragraphs in a canvas text on a real display: your colorscheme, render-markdown and spell (undercurls) paint in the grid; Nerd Font icons (which-key, file icons) are not boxes; no gutter, ruler or status line; the cursor shape follows the mode; key to paint feels instant in a release build; say whether the opaque grid over ink under it is right (a driven window passed with `SLINGER_NVIM=clean`) (slinger-be5d24)
+One script, in order; tick the whole when done and file what failed with
+leave-feedback or a seed. Tests hold each step with `nvim --clean`, and a
+driven window (`SLINGER_NVIM=clean`) passed the parts of steps 3, 4, 7, 8
+and 9 it can see; what is left is
+your config, your display, your hands and your taste (slinger-fe1e2a).
+
+- [ ] a day of writing in the bundle with no pen (slinger-fe1e2a):
+  1. **Before**: `scripts/bundle.sh --install` (a release build). Note the
+     mtimes: `stat -f '%Sm %N' ~/.config/nvim/lazy-lock.json ~/.local/share/nvim ~/.local/state/nvim ~/.cache/nvim`.
+     Leave `[editor] nvim` unset (`"auto"`).
+  2. **From the Finder** (Dock or Spotlight, not a terminal): open slinger,
+     ctrl+return on a canvas. nvim opens the text (no "nvim not found"
+     flash), so a launchd `PATH` finds nvim on nix or Homebrew (slinger-c6e898).
+  3. **Write** a few paragraphs of markdown on a real display, keyboard and
+     trackpad only: your colorscheme, render-markdown and spell undercurls
+     paint in the grid; Nerd Font icons (which-key, file icons) are glyphs,
+     not boxes; no gutter, ruler or status line; the cursor shape follows
+     the mode; key to paint feels instant (on the spike, 6.5 ms median);
+     say whether the opaque grid over ink under it is right (slinger-be5d24).
+  4. **Keys**: escape twice ends the text, `:q` and a tap outside too;
+     ctrl+return starts the next in insert mode; ⌘Z/⇧⌘Z undo and redo
+     nvim's edits and one ⌘Z after the text ends undoes the whole edit;
+     ⌘A, then ⌘C and ⌘X in visual mode, and a yank with
+     `clipboard=unnamedplus`, reach the system clipboard (paste into
+     another app); ⌘V lands at nvim's cursor as one `u`; cmd+/ lists
+     nvim's keys under "Typing a text"; say whether escape in normal mode
+     ending the text is right for you (slinger-b8e3d3).
+  5. **Trackpad**: a click and a drag in the grid place the cursor and
+     select; say what a two-finger scroll over the text does; then once
+     with a pen, to see a tap still opens the text and strokes still draw
+     (slinger-b8e3d3).
+  6. **Dictation**: a Flick dictation (the `dictate` key) lands at the
+     cursor as one undo step; macOS dictation (fn twice) into nvim, and say
+     what it does (slinger-bbbce8 is the known gap); dead-key accents type
+     (input methods do not: no marked text).
+  7. **Write focus**: ⌥⌘↩ while typing fits the column to the pane; ending
+     the text gives the view back; the same from a text's right-click menu
+     (slinger-9321cf, slinger-668fd9).
+  8. **Markdown look**, in the dark and a light `[theme] background` on a
+     Retina screen: a text with headings, emphasis, lists, checkboxes,
+     quotes, code spans and a fenced block reads with dimmed marks and a
+     code tint; ☐/☑ and accented or CJK characters fit their cells; a
+     double tap on a word opens it in nvim with the cursor on that word and
+     no word moves; panning a canvas of many texts stays smooth (slinger-45d66c).
+  9. **Long text**: paste 100+ lines into a new text: nvim's grid stops at
+     80 rows and scrolls; ended, rows 77-79 fade into the paper and row 80
+     reads "N more lines", legible in both themes; two quick taps on that
+     row show it whole, escape comes back; say whether the fade reads as
+     "more below" (slinger-93b7c8). A size step (alt+shift+}) on it keeps
+     80 characters a row (slinger-5285e4).
+  10. **Nothing lost**: quit the app (cmd+Q) while typing, reopen: the text
+      is there; `kill` the text's nvim (`pgrep -fl 'nvim --embed'`) while
+      typing: the text keeps what it had.
+  11. **After**: the mtimes of step 1 are unchanged, and
+      `ls $TMPDIR/slinger-nvim` holds nvim's state and cache (slinger-c6e898).
+  12. **Say** whether nvim's start (75-107 ms) is felt when a text opens
+      (slinger-4ecf05 keeps one warm only if it is).
 
 ## Figures (plan pl-9f74c2)
 
 - [ ] (bundle) on a canvas with an agent's figure (`slinger canvas apply` with `locked`, `fig`): write across it with a real pen and erase your ink with the pen's eraser end: the figure never moves, selects or erases, and nothing under the pen feels "grabbed"; then opt+cmd+U and a right-click on it: the dashed selection with no handles reads as "held as one", a drag moves it, escape lets go (a driven window and tests passed every gesture) (slinger-dd5add)
-- [ ] (bundle) with your own nvim config, in a canvas text: ⌘C and ⌘X in visual mode, and a yank with `clipboard=unnamedplus`, reach the system clipboard (paste it into another app); ⌘V and a Flick dictation land at nvim's cursor as one `u`; a click and a drag with a trackpad and with a pen place the cursor and select; ⌘Z/⇧⌘Z undo and redo nvim's edits, and one ⌘Z after the text ends undoes the whole edit; ctrl+return starts the next text in insert mode; the hint and the key overlay (show-keys) name the ways out (a test held each with `--clean` and a clipboard file) (slinger-b8e3d3)
-- [ ] (bundle) a canvas text with headings, emphasis, lists, checkboxes, quotes, code spans and a fenced block, in light and dark themes on a Retina screen: the marks read as dimmed and the tint as code; ☐/☑ and accented or CJK characters fall back to a font that fits the cell; opening it in your own nvim (double tap on a word) moves no word and puts the cursor on that word; panning a canvas of many texts stays smooth (each written text is drawn run by run, not from a cached layout) (a driven window passed with slinger's editor) (slinger-45d66c)
-- [ ] (bundle) put a text of 100+ lines on a canvas (paste it into a new text): rows 77-79 fade into the paper and row 80 reads "N more lines" dimmed, legible in light and dark themes; two quick taps on that row with the select tool show it whole from its top, escape comes back to the same view; say whether the fade reads as "more below" (a driven window passed) (slinger-93b7c8)
