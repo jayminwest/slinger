@@ -23,6 +23,7 @@ use style::HEAD_LENGTH;
 pub use style::{Dash, Heads, Style};
 #[cfg(test)]
 use style::{HEAD_ANGLE, barbs, legible};
+use written::Written;
 
 /// An item's id, unique within its canvas: the number of the server's `i<n>`.
 /// The id is how a scene knows an item it drew last time.
@@ -112,8 +113,18 @@ pub enum Mark {
     /// `text` laid out `size` canvas points high in a column `width` canvas
     /// points wide, its lines `line` apart (0: the font's own), drawn from `at` at
     /// `zoom` times that size. The layout is in canvas points so a pan or a
-    /// zoom never lays the text out again.
-    Text { at: Point, width: f64, text: String, size: f64, line: f64, zoom: f64 },
+    /// zoom never lays the text out again. A canvas text not being typed in
+    /// the app's own editor is `written`: its rows' runs in Menlo cells,
+    /// `line` tall, its markdown styled in place ([`written`]).
+    Text {
+        at: Point,
+        width: f64,
+        text: String,
+        size: f64,
+        line: f64,
+        zoom: f64,
+        written: Option<Arc<Written>>,
+    },
     /// A box's outline in its `dash`, its `fill` painted under all ink.
     Box { frame: Rect, width: f64, dash: Dash, fill: Option<Fill> },
     /// The shaft from `from` to `to` in its `dash`, and each head solid:
@@ -235,7 +246,7 @@ pub fn build_with<'a>(
                 Shape::Pdf { .. } => PDF_GREY,
                 _ => style::ink(item.colour, theme),
             },
-            mark: match item.shape.mark(viewport, item.style, theme) {
+            mark: match item.shape.mark(viewport, (item.style, item.colour), theme) {
                 Mark::Pdf { hash, frame, page, shown, at, size, zoom, .. } => {
                     let file = files(&hash);
                     Mark::Pdf { frame, page, shown, hash, file, at, size, zoom }
@@ -333,8 +344,8 @@ impl Shape {
         }
     }
 
-    /// The shape on the screen, drawn in `style` on `theme`.
-    fn mark(&self, view: Viewport, style: Style, theme: &Theme) -> Mark {
+    /// The shape on the screen, drawn in `style` and `colour` on `theme`.
+    fn mark(&self, view: Viewport, (style, colour): (Style, Rgb), theme: &Theme) -> Mark {
         let zoom = view.zoom();
         let (dash, fill) = (style.dash, style.tint(theme));
         match self {
@@ -358,17 +369,17 @@ impl Shape {
                 }
             }
             Self::Text { frame, text, size, column } => {
-                let (width, text, size, line) = match column {
-                    Some(c) => (
-                        glyphs::UNWRAPPED,
-                        glyphs::rows(text, *size, *c),
-                        size * glyphs::FONT,
-                        *size,
-                    ),
-                    None => (frame.width, text.clone(), *size, 0.0),
-                };
                 let at = view.to_screen(Point { x: frame.x, y: frame.y });
-                Mark::Text { at, width, text, size, line, zoom }
+                let Some(column) = column else {
+                    let (width, text, size, written) = (frame.width, text.clone(), *size, None);
+                    return Mark::Text { at, width, text, size, line: 0.0, zoom, written };
+                };
+                let ink = style::ink(colour, theme);
+                let runs = written::runs(text, *size, *column, (0, usize::MAX));
+                let written = Some(Arc::new(written::Written::new(runs, ink, theme)));
+                let (width, line) = (glyphs::UNWRAPPED, *size);
+                let (text, size) = (glyphs::rows(text, *size, *column), size * glyphs::FONT);
+                Mark::Text { at, width, text, size, line, zoom, written }
             }
             Self::Box { frame, width } => {
                 Mark::Box { frame: view.rect_to_screen(*frame), width: width * zoom, dash, fill }
@@ -419,9 +430,11 @@ impl Shape {
 
 mod capped;
 mod changed;
+pub mod markdown;
 mod member;
 mod smooth;
 pub mod style;
+pub mod written;
 
 #[cfg(test)]
 mod tests;

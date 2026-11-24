@@ -13,6 +13,7 @@ use std::borrow::Cow;
 
 use super::Editing;
 use crate::canvases::follow::Follow;
+use crate::canvases::step::capped;
 use crate::commands::context::{Kind, Subject};
 use crate::layout::{PaneId, Point, Rect};
 use crate::panes::Panes;
@@ -84,8 +85,10 @@ impl Editing {
 
 /// The kind of item `id` of `items`; `None` for one not there, or chrome.
 fn kind_of(items: &[Cow<'_, Item>], id: ItemId) -> Option<Kind> {
-    Some(match items.iter().find(|i| i.id == id)?.shape {
+    let item = items.iter().find(|i| i.id == id)?;
+    Some(match item.shape {
         Shape::Stroke { .. } => Kind::Stroke,
+        Shape::Text { .. } if capped(item).is_some() => Kind::LongText,
         Shape::Text { .. } => Kind::Text,
         Shape::Box { .. } => Kind::Box,
         Shape::Arrow { .. } => Kind::Arrow,

@@ -11,9 +11,11 @@
 //! But a canvas text keeps the core's rows (docs/design/canvas-file.md,
 //! slinger-f66a97): the lines it breaks into in its stored column, one
 //! `size` apart, are the ones the agent's picture draws and `canvas put`
-//! boxes. The app draws them in the system font at [`FONT`] of the size,
-//! whose own line is about that tall ([`rows`], [`rows_frame`]), so a note
-//! beside a line lines up in both.
+//! boxes. The app draws them in Menlo at [`FONT`] of the size, whose
+//! character is a cell ([`CELL`]) wide, a size apart ([`rows`],
+//! [`rows_frame`]), so a note beside a line lines up in both, and a canvas
+//! text's every measure is its cells: where a caret stands, what a press
+//! hits (docs/design/writing-column.md, 4A).
 //!
 //! Pure, with one door to `AppKit`: `platform` hands in the function that
 //! lays text out as it draws it ([`set_measure`]), on the main thread. Off
@@ -44,12 +46,12 @@ pub const MOST_ROWS: usize = 80;
 const CHAR_WIDTH: f64 = 0.55;
 const LINE_HEIGHT: f64 = 1.2;
 /// How wide the core's character cell is, as a part of the text's size
-/// (the core's `render::CELL`): about a character of the [`FONT`], so a
+/// (the core's `render::CELL`): Menlo's character at the [`FONT`], so a
 /// full row fills its column (slinger-ce52ee).
 pub const CELL: f64 = 0.5;
-/// A canvas text's font size, as a part of its size: the system font's
-/// line at this size is just under a size tall, so its rows sit one size
-/// apart, as the core's do.
+/// A canvas text's font size, as a part of its size: Menlo's advance at
+/// this size is a [`CELL`] (0.83 × 0.602), and its line just under a size
+/// tall, so its rows sit one size apart, as the core's do.
 pub const FONT: f64 = 0.83;
 /// How many measures are kept before the cache starts again.
 const KEPT: usize = 4096;
@@ -150,7 +152,7 @@ pub fn layout(text: &str, size: f64, column: f64) -> Vec<Row> {
 }
 
 /// A canvas text set from its top left `at`, `size` high in its `column`,
-/// as its rows ([`layout`]) and their glyphs in the [`FONT`]: where a caret
+/// as its rows ([`layout`]) and their cells ([`CELL`]): where a caret
 /// at a byte index stands, which index a point is nearest, and the boxes a
 /// selection fills. Indices are on grapheme cluster boundaries.
 pub struct Laid<'a> {
@@ -176,14 +178,27 @@ impl<'a> Laid<'a> {
     }
 
     /// How far right of the text's left edge a caret at `index` stands: the
-    /// measured width of its row up to it.
+    /// cells of its row up to it.
     pub fn x(&self, index: usize) -> f64 {
         self.x_in(self.rows[self.row_of(index)], index)
     }
 
-    /// The measured width of `row` up to `index`, which is in it or past it.
+    /// The width of the cells of `row` up to `index`, which is in it or past it.
     fn x_in(&self, row: Row, index: usize) -> f64 {
-        measured(&self.text[row.start..index.min(row.end)], self.size * FONT).width
+        cells_wide(&self.text[row.start..index.min(row.end)], self.size)
+    }
+
+    /// The index of the character whose cell holds the canvas point `p`,
+    /// in the row it is level with (the first or last when above or below
+    /// the text); its row's end when `p` is right of the row's cells.
+    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "clamped >= 0")]
+    pub fn cell_at(&self, p: Point) -> usize {
+        let row = ((p.y - self.at.y) / self.size).floor().max(0.0) as usize;
+        let Row { start, end } = self.rows[row.min(self.rows.len() - 1)];
+        let x = p.x - self.at.x;
+        let mut cells = self.text[start..end].char_indices().filter(|&(_, c)| !zero_width(c));
+        let into = (x / (self.size * CELL)).floor().max(0.0) as usize;
+        cells.nth(into).map_or(end, |(i, _)| start + i)
     }
 
     /// The index in row `row` (clamped) nearest `x` from the text's left edge.
@@ -240,7 +255,7 @@ impl<'a> Laid<'a> {
 }
 
 /// The frame of canvas text `text` set `size` high from `at` in its
-/// stored `column`: as wide as its widest row in the [`FONT`] (rounded up,
+/// stored `column`: as wide as its widest row's cells (rounded up,
 /// plus a point) and a size tall a row ([`rows`]), at most [`MOST_ROWS`]
 /// rows, as the core boxes it.
 pub fn rows_frame(at: Point, text: &str, size: f64, column: f64) -> Rect {
@@ -252,7 +267,8 @@ pub fn rows_frame(at: Point, text: &str, size: f64, column: f64) -> Rect {
 /// in slinger's editor, shows in.
 pub fn whole_frame(at: Point, text: &str, size: f64, column: f64) -> Rect {
     let rows = rows(text, size, column);
-    let width = measured(&rows, size * FONT).width.ceil() + 1.0;
+    let widest = rows.split('\n').map(|row| cells_wide(row, size)).fold(0.0, f64::max);
+    let width = widest.ceil() + 1.0;
     Rect { x: at.x, y: at.y, width, height: rows_height(rows.split('\n').count(), size) }
 }
 
@@ -282,8 +298,15 @@ pub fn more(frame: Rect, text: &str, size: f64, column: f64) -> Option<(Rect, us
     (hidden > 0 && short).then_some((Rect { y, height: size, ..frame }, hidden))
 }
 
+/// How wide `text` is in a canvas text's cells at `size`: a cell a
+/// character that takes one.
+#[expect(clippy::cast_precision_loss, reason = "row lengths are far below 2^52")]
+fn cells_wide(text: &str, size: f64) -> f64 {
+    text.chars().filter(|&c| !zero_width(c)).count() as f64 * size * CELL
+}
+
 /// A character that draws nothing and takes no cell in the core.
-fn zero_width(c: char) -> bool {
+pub fn zero_width(c: char) -> bool {
     matches!(c, '\u{200B}' | '\u{200C}' | '\u{200D}' | '\u{2060}' | '\u{FE0F}' | '\u{FEFF}')
 }
 

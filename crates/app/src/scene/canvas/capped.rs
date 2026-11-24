@@ -4,6 +4,9 @@
 //! dimmed, "N more lines". Stepped into, its frame holds every row and it
 //! draws whole ([`glyphs::more`] says which). Pure.
 
+use std::sync::Arc;
+
+use super::written::{self, Written};
 use super::{Draw, Item, ItemId, Mark, Shape, glyphs, style};
 use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect, Viewport};
@@ -29,7 +32,9 @@ pub(super) fn draws(item: &Item, view: Viewport, theme: &Theme) -> Option<Vec<Dr
     let row = |n: usize| Rect { y: frame.y + rows_tall(n, *size), height: *size, ..*frame };
     let piece = |id: ItemId, from: usize, to: usize, colour: Rgb| {
         let lines: Vec<&str> = rows[from..to].iter().map(|r| &text[r.start..r.end]).collect();
-        written(id, (row(from), to - from), (lines.join("\n"), *size), colour, view)
+        let runs = written::runs(text, *size, *column, (from, to));
+        let runs = Some(Written::new(runs, colour, theme));
+        drawn(id, (row(from), to - from), (lines.join("\n"), *size, runs), colour, view)
     };
     let tail = |k: usize| ItemId(TAIL + (item.id.0 & ((1 << 50) - 1)) * 4 + k as u64);
     let body = MOST_ROWS - 1 - FADING;
@@ -39,23 +44,25 @@ pub(super) fn draws(item: &Item, view: Viewport, theme: &Theme) -> Option<Vec<Dr
         out.push(piece(tail(k), body + k, body + k + 1, mix(ink, theme.background, by)));
     }
     let said = format!("{hidden} more lines");
-    out.push(written(tail(FADING), (note, 1), (said, *size), theme.muted, view));
+    out.push(drawn(tail(FADING), (note, 1), (said, *size, None), theme.muted, view));
     Some(out)
 }
 
 /// One mark of `text`, `n` rows of a canvas text of `size` from the top
-/// left of `frame`, in `colour`, under `id`.
-fn written(
+/// left of `frame`, in `colour`, under `id`: `written` in cells, or
+/// else in the system font.
+fn drawn(
     id: ItemId,
     (frame, n): (Rect, usize),
-    (text, size): (String, f64),
+    (text, size, written): (String, f64, Option<Written>),
     colour: Rgb,
     view: Viewport,
 ) -> Draw {
     let bounds = Rect { height: rows_tall(n, size), ..frame };
     let at = view.to_screen(Point { x: frame.x, y: frame.y });
-    let (width, line, zoom) = (glyphs::UNWRAPPED, size, view.zoom());
-    let mark = Mark::Text { at, width, text, size: size * glyphs::FONT, line, zoom };
+    let (width, line, zoom, written) =
+        (glyphs::UNWRAPPED, size, view.zoom(), written.map(Arc::new));
+    let mark = Mark::Text { at, width, text, size: size * glyphs::FONT, line, zoom, written };
     Draw { id, bounds: view.rect_to_screen(bounds), colour, mark, locked: false }
 }
 
