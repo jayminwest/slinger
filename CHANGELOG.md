@@ -20,6 +20,12 @@ bullet with the area in bold.
   figure alone as an image. A script that fails says the line and column
   where it was; its warnings print on success.
 
+- **CLI:** `slinger guide` now holds the drawing script API ("Drawing
+  scripts"). In a script, a plot takes a `title` and named ticks
+  (`xticks: [[0, "Jan"], [1, "Feb"]]`), and an arrow's label moves along
+  the arrow or to its other side when its spot would cover another label
+  or line.
+
 - **App:** a canvas text you type is edited in your own nvim, drawn in the
   text's place: 80 cells wide, as tall as the text, with your colorscheme,
   modes, cursor and `:` line, and no line numbers, sign column or ruler.

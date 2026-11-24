@@ -156,6 +156,37 @@ fn an_arrows_label_sits_beside_it_not_on_it() {
 }
 
 #[test]
+fn labels_of_two_arrows_into_one_box_do_not_cover_each_other() {
+    // The fluency round's state diagram: "cancel" and "refund" met at the middle.
+    let d = drawn(
+        "const a = box(0, 0, 150, 56);
+const b = box(240, 0, 150, 56);
+const c = box(120, 180, 150, 56);
+         arrow(a, c, {label: 'cancel'});
+arrow(b, c, {label: 'refund'});",
+    );
+    assert!(d.warnings.is_empty(), "{:?}", d.warnings);
+    let texts: Vec<&Value> = d.items.iter().filter(|i| kind(i) == "text").collect();
+    assert_eq!(texts.len(), 2);
+}
+
+#[test]
+fn a_plots_ticks_take_labels_and_a_title_stands_above_it() {
+    let d = drawn(
+        "plot(0, 100, 200, 100, {x: [0, 2], y: [0, 10], xticks: [[0, 'Jan'], [1, 'Feb'], 2],
+           ylabel: 'sales', title: 'Monthly'});",
+    );
+    let texts: Vec<&str> = d.items.iter().filter_map(|i| i["text"].as_str()).collect();
+    assert_eq!(texts, ["Jan", "Feb", "2", "sales", "Monthly"]);
+    let title = d.items.iter().find(|i| i["text"] == "Monthly").unwrap();
+    // Half as large again as the labels' 16: 24, the default, which is not stored.
+    assert_eq!((title.get("size"), &title["y"]), (None, &json!(1000 - 40 - 200 - 240)));
+    assert!(d.warnings.is_empty(), "{:?}", d.warnings);
+    let e = failed("plot(0, 0, 10, 10, {x: [0, 1], y: [0, 1], xticks: ['Jan']})");
+    assert!(e.message.contains(r#"[value, "label"] pairs, such as [[0, "Jan"]"#), "{e}");
+}
+
+#[test]
 fn warnings_name_text_over_a_line_overlapping_texts_and_a_far_shape() {
     let d = drawn(
         "line(0, 10, 100, 10);\ntext(0, 0, 'crossed');\ntext(5, 5, 'again');\nbox(0, 0, 1, 1);\nbox(90000, 0, 1, 1);",
