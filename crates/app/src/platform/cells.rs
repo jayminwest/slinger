@@ -119,8 +119,9 @@ fn plain(cell: &Cell) -> bool {
 
 /// Paints a canvas text's runs ([`Written`]) from `at`: cells half a
 /// `line` wide and a `line` tall, in Menlo `size` high, `zoom` times
-/// that; each in `ink`, a mark in its dim colour, code on its tint, a
-/// quote's bar and a checkbox in their cells.
+/// that; each in `ink`, a mark in its dim colour, code on its tint (a
+/// fenced block on one, as wide as its widest row), a quote's bar and a
+/// checkbox in their cells.
 #[expect(clippy::cast_precision_loss, reason = "a text's cells are far below 2^52")]
 pub(super) fn write(written: &Written, ink: Rgb, at: Point, (line, size): (f64, f64), zoom: f64) {
     NSGraphicsContext::saveGraphicsState_class();
@@ -131,6 +132,11 @@ pub(super) fn write(written: &Written, ink: Rgb, at: Point, (line, size): (f64, 
     let (w, h) = (line * glyphs::CELL, line);
     let drop = (h - size * 1.164) / 2.0;
     let mut pen = Pen { size, kept: HashMap::new() };
+    for block in &written.blocks {
+        let (y, width, height) =
+            (block.row as f64 * h, block.cells as f64 * w, block.rows as f64 * h);
+        fill(written.tint, 0.0, y, width, height);
+    }
     for run in &written.runs {
         let (x, y, look) = (run.col as f64 * w, run.row as f64 * h, run.look);
         if look.code {
