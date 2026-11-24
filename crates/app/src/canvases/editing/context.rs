@@ -84,6 +84,8 @@ fn kind_of(items: &[Cow<'_, Item>], id: ItemId) -> Option<Kind> {
         Shape::Arrow { .. } => Kind::Arrow,
         Shape::Pdf { .. } => Kind::Pdf,
         Shape::Live { .. } => Kind::Live,
-        Shape::Button { .. } | Shape::Panel { .. } | Shape::Caret { .. } => return None,
+        Shape::Button { .. } | Shape::Panel { .. } | Shape::Caret { .. } | Shape::Cells { .. } => {
+            return None;
+        }
     })
 }

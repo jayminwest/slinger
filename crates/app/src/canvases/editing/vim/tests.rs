@@ -2,12 +2,14 @@
 //! [`Shapes`]: no way of ending loses it. Each test skips, with a line on
 //! stderr, on a machine with no nvim.
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use super::*;
 use crate::backend::nvim::tests::nvim;
-use crate::config::Rgb;
+use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect};
+use crate::nvim::grid::Grid;
 use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::ink::Change;
 
@@ -44,7 +46,12 @@ fn opened(text: &str, ink: &mut Ink) -> Shapes {
 fn until(vim: &mut Vim, shapes: &mut Shapes, ink: &mut Ink, done: impl Fn(&Vim, &Shapes) -> bool) {
     let deadline = Instant::now() + Duration::from_secs(10);
     while !done(vim, shapes) {
-        assert!(Instant::now() < deadline, "nvim did not get there in 10 s");
+        if Instant::now() >= deadline {
+            let g = grid(shapes).map(|(g, _)| {
+                (g.cols, g.rows, (0..g.rows).map(|r| g.row_text(r)).collect::<Vec<_>>())
+            });
+            panic!("nvim did not get there in 10 s: {g:?}");
+        }
         vim.poll(shapes, ink);
         std::thread::sleep(Duration::from_millis(10));
     }
@@ -156,4 +163,50 @@ fn an_nvim_not_ready_in_time_leaves_the_text_as_it_was() {
     assert_eq!(shapes.typing_text().as_deref(), Some("plan"));
     let flash = vim.take_flash().unwrap();
     assert!(flash.starts_with("nvim was not ready in 0 s"), "{flash}");
+}
+
+/// The grid the text being typed shows, if one does, and its frame.
+fn grid(shapes: &Shapes) -> Option<(Arc<Grid>, Rect)> {
+    let shown = shapes.shown(HERE, Vec::new(), 1.0, &Theme::default());
+    shown.iter().find_map(|item| match &item.shape {
+        Shape::Cells { grid, frame, .. } => Some((Arc::clone(grid), *frame)),
+        _ => None,
+    })
+}
+
+#[test]
+fn the_grid_is_80_cells_and_as_tall_as_the_text_and_a_gutter_widens_it() {
+    let Some((mut vim, _dir)) = vim(READY) else { return };
+    let mut ink = Ink::named("t");
+    let mut shapes = opened("plan", &mut ink);
+    vim.typed("A ahead", &shapes);
+    let shows = |rows: usize, first: String| {
+        move |_: &Vim, s: &Shapes| {
+            grid(s).is_some_and(|(g, _)| g.cols == 80 && g.rows == rows && g.row_text(0) == first)
+        }
+    };
+    until(&mut vim, &mut shapes, &mut ink, shows(2, "plan ahead".into()));
+    let (_, frame) = grid(&shapes).unwrap();
+    assert_eq!((frame.x, frame.y), (0.0, 0.0), "the text's top left");
+    assert_eq!((frame.width, frame.height), (80.0 * 12.0, 2.0 * 24.0), "a cell half a size wide");
+    vim.typed(&" word".repeat(20), &shapes);
+    until(&mut vim, &mut shapes, &mut ink, shows(3, format!("plan ahead{}", " word".repeat(13))));
+    vim.key(Chord::new(0, '\u{1b}'), &mut shapes, &mut ink);
+    vim.typed(":set number", &shapes);
+    vim.key(Chord::new(0, '\r'), &mut shapes, &mut ink);
+    until(&mut vim, &mut shapes, &mut ink, |_, s| {
+        grid(s).is_some_and(|(g, _)| g.cols == 84 && g.row_text(0).starts_with("  1 plan"))
+    });
+}
+
+#[test]
+fn a_paste_taller_than_the_grid_shows_the_text_from_its_top() {
+    let Some((mut vim, _dir)) = vim(READY) else { return };
+    let mut ink = Ink::named("t");
+    let mut shapes = opened("plan", &mut ink);
+    let lines: Vec<String> = (1..=30).map(|n| format!("line {n}")).collect();
+    vim.pasted(&format!("\n{}", lines.join("\n")), &shapes);
+    until(&mut vim, &mut shapes, &mut ink, |_, s| {
+        grid(s).is_some_and(|(g, _)| g.rows == 32 && g.row_text(0) == "plan")
+    });
 }

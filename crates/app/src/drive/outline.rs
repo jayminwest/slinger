@@ -9,6 +9,7 @@ use crate::commands::context::Popup;
 use crate::commands::menu::Action;
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
+use crate::nvim::grid::Grid;
 use crate::scene::canvas::{Draw, Mark};
 use crate::scene::{Label, Scene};
 
@@ -137,10 +138,23 @@ fn mark(draw: &Draw) -> String {
             format!("panel{edge}{}", if fill.is_some() { " filled" } else { "" })
         }
         Mark::Caret { .. } => "caret".to_string(),
+        Mark::Cells { grid, .. } => cells(grid),
     };
     // A mark that is no item of the page (a caret, a frame, a handle) has an id past any item's.
     let id = if draw.id.0 > u64::MAX / 2 { "~".to_string() } else { format!("i{}", draw.id.0) };
     format!("{id} {} {} {what}", rect(draw.bounds), colour(draw.colour))
+}
+
+/// Nvim's grid over the text it edits: its size, mode and cursor (row,
+/// column, from 0), then each row as it shows, after a `|`, its blanks cut.
+fn cells(grid: &Grid) -> String {
+    let (cols, rows, (row, col)) = (grid.cols, grid.rows, grid.cursor);
+    let mut said = format!("cells {cols}x{rows} mode {} cursor {row},{col}", grid.mode_name);
+    for row in 0..rows {
+        // Writing to a string cannot fail.
+        let _ = write!(said, "\n      |{}", grid.row_text(row));
+    }
+    said
 }
 
 /// A line of text at its place: `kind x,y wxh #colour "text"`.

@@ -122,3 +122,48 @@ fn the_mode_follows_mode_change_and_a_flush_is_heard() {
         Heard::Old("0.9.5".into())
     );
 }
+
+#[test]
+fn each_flush_once_ready_measures_and_the_grid_follows_the_text_and_the_gutter() {
+    let mut out = Vec::new();
+    let mut session = Session::start("one", false, &mut out);
+    let flush =
+        || notify("redraw", vec![Value::Array(vec![Value::str("flush"), Value::Array(vec![])])]);
+    out.clear();
+    assert_eq!(session.hear(&flush(), &mut out), Heard::Flushed);
+    assert!(out.is_empty(), "no measure before ready: the window is not set up");
+    session.hear(&notify("slinger_ready", vec![]), &mut out);
+    out.clear();
+    session.hear(&flush(), &mut out);
+    assert_eq!(methods(&out), ["nvim_exec_lua"], "a flush asks how tall the text is");
+    let measure = 4; // 1 attach, 2 seed, 3 buffer attach
+    out.clear();
+    session.hear(&flush(), &mut out);
+    assert!(out.is_empty(), "one measure out at a time");
+    let answer = |id: i64, rows: i64, gutter: i64| {
+        let result = Value::Array(vec![Value::Int(rows), Value::Int(gutter)]);
+        Value::Array(vec![Value::Int(1), Value::Int(id), Value::Nil, result])
+    };
+    assert_eq!(session.hear(&answer(measure, 3, 2), &mut out), Heard::Nothing);
+    let asked = sent(&out);
+    let (resize, again) = (&asked[0], &asked[1]);
+    assert_eq!(resize.0, "nvim_ui_try_resize");
+    assert_eq!(
+        resize.1,
+        [Value::Int(82), Value::Int(4)],
+        "80 text cells, the gutter, and the : line"
+    );
+    assert_eq!(again.0, "nvim_exec_lua", "the flush that came meanwhile is measured too");
+    let resized = Value::Array(vec![
+        Value::str("grid_resize"),
+        Value::Array(vec![Value::Int(1), Value::Int(82), Value::Int(4)]),
+    ]);
+    session.hear(&notify("redraw", vec![resized]), &mut out);
+    out.clear();
+    session.hear(&answer(6, 3, 2), &mut out);
+    assert!(out.is_empty(), "the grid is that size: no resize");
+    session.hear(&flush(), &mut out);
+    out.clear();
+    session.hear(&answer(7, 500, 0), &mut out);
+    assert_eq!(sent(&out)[0].1, [Value::Int(80), Value::Int(81)], "at most 80 rows of text");
+}

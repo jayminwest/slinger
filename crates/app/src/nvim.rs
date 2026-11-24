@@ -15,13 +15,26 @@
 //! buffer's lines are mirrored from Nvim's line events; the text is
 //! **confirmed** ([`Session::text`]) only once the first event has given
 //! the whole buffer, so a text that ends before then keeps what it had.
+//!
+//! Nvim draws into a cell grid ([`grid`]) the scene shows in the text's
+//! box (slinger-be5d24). After each flush the session asks how many screen
+//! rows the text takes and how wide a gutter a plugin drew anyway
+//! ([`Session::measure`]), and resizes the UI so the text keeps
+//! [`COLUMNS`] cells and the grid is as tall as the text, to [`MOST_ROWS`],
+//! with the command line under it.
 
+pub mod grid;
 pub mod keys;
 pub mod pack;
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 
+use grid::Grid;
 use pack::{Value, encode};
+
+/// Counts the sessions, to tell one's grids from another's.
+static SESSIONS: AtomicU64 = AtomicU64::new(1);
 
 /// How many cells the text column holds.
 pub const COLUMNS: usize = 80;
@@ -33,7 +46,9 @@ const UNDER: usize = 1;
 /// Runs once Nvim has loaded the user's config: makes the buffer a scratch
 /// markdown one (no file, no swap, no undo file) holding the lines given,
 /// with no undo step for the seed, the cursor at the end, in insert mode for
-/// a new text; then says it is ready. An Nvim older than 0.10 says so instead.
+/// a new text; takes the gutter, the ruler and the status lines away and
+/// wraps at word ends, over whatever the config set; then says it is
+/// ready. An Nvim older than 0.10 says so instead.
 const INIT: &str = r"
 local lines, insert = ...
 if vim.fn.has('nvim-0.10') == 0 then
@@ -52,6 +67,15 @@ local function setup()
   vim.bo[buf].undolevels = levels
   vim.bo[buf].modified = false
   vim.bo[buf].filetype = 'markdown'
+  local win = vim.api.nvim_get_current_win()
+  vim.g.slinger_win = win
+  -- The owner's pick: a canvas text has no gutter, so the grid is 80 text cells.
+  for name, value in pairs({ number = false, relativenumber = false, signcolumn = 'no',
+      foldcolumn = '0', statuscolumn = '', wrap = true, linebreak = true }) do
+    vim.wo[win][name] = value
+  end
+  vim.o.laststatus, vim.o.showtabline, vim.o.ruler, vim.o.cmdheight = 0, 0, false, 1
+  vim.o.breakat = ' '
   vim.api.nvim_win_set_cursor(0, { #lines, math.max(#lines[#lines] - 1, 0) })
   if insert then vim.cmd('startinsert!') end
   vim.rpcnotify(0, 'slinger_ready')
@@ -65,11 +89,24 @@ else
 end
 ";
 
+/// The screen rows the text takes and the gutter's width. A grid that grew
+/// after the cursor scrolled the window (a paste) shows the text's top again.
+const MEASURE: &str = r"
+local win = vim.g.slinger_win
+if not win or not vim.api.nvim_win_is_valid(win) then return { 0, 0 } end
+local rows = vim.api.nvim_win_text_height(win, {}).all
+if rows <= vim.api.nvim_win_get_height(win) and vim.fn.line('w0', win) > 1 then
+  vim.api.nvim_win_call(win, function() vim.fn.winrestview({ topline = 1 }) end)
+end
+return { rows, vim.fn.getwininfo(win)[1].textoff }
+";
+
 /// What a request asked, to read its reply by.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Asked {
     Init,
     Barrier,
+    Measure,
 }
 
 /// What a message from Nvim meant.
@@ -94,7 +131,7 @@ pub enum Heard {
 }
 
 /// One attached Nvim, as its client knows it.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Session {
     next: i64,
     asked: HashMap<i64, Asked>,
@@ -104,8 +141,11 @@ pub struct Session {
     ready: bool,
     /// The requests asked before ready, written after it, in order.
     held: Vec<u8>,
-    /// Nvim's mode, by its short name (`normal`, `insert`, …).
-    mode: String,
+    /// Nvim's screen, its mode among it.
+    grid: Grid,
+    /// Whether a measure is out, and whether another flush came since.
+    measuring: bool,
+    stale: bool,
 }
 
 impl Session {
@@ -113,13 +153,22 @@ impl Session {
     /// starts): `out` gets the UI attach and the seed.
     pub fn start(text: &str, insert: bool, out: &mut Vec<u8>) -> Self {
         let lines: Vec<&str> = text.split('\n').collect();
-        let mut session = Session { next: 1, ..Session::default() };
+        let size = (COLUMNS, lines.len().clamp(1, MOST_ROWS) + UNDER);
+        let mut session = Session {
+            next: 1,
+            asked: HashMap::new(),
+            lines: None,
+            ready: false,
+            held: Vec::new(),
+            grid: Grid::new(SESSIONS.fetch_add(1, Ordering::Relaxed)),
+            measuring: false,
+            stale: false,
+        };
         let options = Value::Map(vec![
             (Value::str("ext_linegrid"), Value::Bool(true)),
             (Value::str("rgb"), Value::Bool(true)),
         ]);
-        let rows = int(lines.len().clamp(1, MOST_ROWS) + UNDER);
-        session.write(None, "nvim_ui_attach", vec![int(COLUMNS), rows, options], out);
+        session.write(None, "nvim_ui_attach", vec![int(size.0), int(size.1), options], out);
         let seed = Value::Array(lines.iter().map(|l| Value::str(l)).collect());
         let args = vec![Value::str(INIT), Value::Array(vec![seed, Value::Bool(insert)])];
         session.write(Some(Asked::Init), "nvim_exec_lua", args, out);
@@ -140,7 +189,12 @@ impl Session {
     /// Whether Nvim is in normal mode with nothing pending that the mode
     /// says (an operator waiting for its motion is `operator`).
     pub fn normal(&self) -> bool {
-        self.mode == "normal"
+        self.grid.mode_name == "normal"
+    }
+
+    /// Nvim's screen as last heard: whole after [`Heard::Flushed`].
+    pub fn grid(&self) -> &Grid {
+        &self.grid
     }
 
     /// Types `keys` (Nvim's notation).
@@ -192,7 +246,12 @@ impl Session {
             (Some(2), [method, params]) => {
                 let params = params.as_array().unwrap_or(&[]);
                 match method.as_str() {
-                    Some("redraw") if self.redraw(params) => Heard::Flushed,
+                    Some("redraw") if self.grid.redraw(params) => {
+                        if self.ready {
+                            self.measure(out);
+                        }
+                        Heard::Flushed
+                    }
                     Some("nvim_buf_lines_event") if self.lines_event(params) => Heard::Lines,
                     Some("slinger_ready") if !self.ready => {
                         // Only now: an attach before the config loaded hears nothing.
@@ -208,14 +267,21 @@ impl Session {
                     _ => Heard::Nothing,
                 }
             }
-            (Some(1), [id, error, _]) => {
+            (Some(1), [id, error, result]) => {
                 let asked = id.as_int().and_then(|id| self.asked.remove(&id));
                 match asked {
                     _ if *error != Value::Nil && asked == Some(Asked::Init) => {
                         Heard::Broken(said(error))
                     }
-                    _ if *error != Value::Nil => Heard::Failed(said(error)),
+                    _ if *error != Value::Nil => {
+                        self.measuring &= asked != Some(Asked::Measure);
+                        Heard::Failed(said(error))
+                    }
                     Some(Asked::Barrier) => Heard::Barrier,
+                    Some(Asked::Measure) => {
+                        self.measured(result, out);
+                        Heard::Nothing
+                    }
                     _ => Heard::Nothing,
                 }
             }
@@ -234,24 +300,36 @@ impl Session {
         }
     }
 
-    /// One `redraw` notification: its mode changes, and whether it ends
-    /// in a flush.
-    fn redraw(&mut self, batches: &[Value]) -> bool {
-        let mut flushed = false;
-        for batch in batches {
-            let Some([name, calls @ ..]) = batch.as_array() else { continue };
-            match name.as_str() {
-                Some("mode_change") => {
-                    let last = calls.last().and_then(Value::as_array);
-                    if let Some(mode) = last.and_then(<[Value]>::first).and_then(Value::as_str) {
-                        mode.clone_into(&mut self.mode);
-                    }
-                }
-                Some("flush") => flushed = true,
-                _ => {}
+    /// Asks how many screen rows the text takes and how wide the gutter
+    /// is; one such question is out at a time, and a flush while it is out
+    /// asks again once it is answered.
+    fn measure(&mut self, out: &mut Vec<u8>) {
+        if self.measuring {
+            self.stale = true;
+            return;
+        }
+        self.measuring = true;
+        let args = vec![Value::str(MEASURE), Value::Array(vec![])];
+        self.write(Some(Asked::Measure), "nvim_exec_lua", args, out);
+    }
+
+    /// The answer to [`Session::measure`]: `[rows, gutter]`. Resizes the
+    /// UI when the grid it asks for changed.
+    fn measured(&mut self, result: &Value, out: &mut Vec<u8>) {
+        self.measuring = false;
+        if let Some([rows, gutter]) = result.as_array()
+            && let (Some(rows @ 1..), Some(gutter)) = (rows.as_usize(), gutter.as_usize())
+        {
+            // Against the grid Nvim drew, not the size asked for: Nvim makes
+            // the first grid tall enough for its status line, gone since.
+            let want = (COLUMNS + gutter, rows.min(MOST_ROWS) + UNDER);
+            if want != (self.grid.cols, self.grid.rows) {
+                self.write(None, "nvim_ui_try_resize", vec![int(want.0), int(want.1)], out);
             }
         }
-        flushed
+        if std::mem::take(&mut self.stale) {
+            self.measure(out);
+        }
     }
 
     /// `nvim_buf_lines_event`: `[buf, tick, first, last, lines, more]`. A

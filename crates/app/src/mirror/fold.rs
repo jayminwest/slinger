@@ -254,7 +254,7 @@ fn scaled(shape: &Shape, fit: Fit) -> Option<Shape> {
             width: line(*width),
             bound: [None; 2],
         },
-        Shape::Panel { .. } | Shape::Caret { .. } => return None,
+        Shape::Panel { .. } | Shape::Caret { .. } | Shape::Cells { .. } => return None,
     })
 }
 

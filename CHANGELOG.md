@@ -11,9 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
-- **App:** a new `[editor] nvim` config key (`"auto"`, `"off"` or the path
-  to nvim) picks the nvim that will edit canvas texts. The app reads it now;
-  your own editor takes over typing once nvim's screen is drawn in the text.
+- **App:** a canvas text you type is edited in your own nvim, drawn in the
+  text's place: 80 cells wide, as tall as the text, with your colorscheme,
+  modes, cursor and `:` line, and no line numbers, sign column or ruler.
+  Escape in normal mode, `:q` or a tap outside ends the text. The new
+  `[editor] nvim` config key (`"auto"`, `"off"` or the path to nvim)
+  picks which nvim; with none found, slinger's own editor types and says so.
 - **Agents:** an agent's text is at most 12 rows. A longer put or edit
   fails with `too_long` (exit 5) and the hint to split it into short puts,
   each beside its subject. Your own texts have no such limit.
