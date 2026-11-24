@@ -1,5 +1,7 @@
-//! The reference worksheet (docs/design/figures.md, Appendix D): 56 items
-//! in 15 parts, and the redraw's data fills two parts by name.
+//! The owner's softmax worksheet (docs/design/figures.md, Appendix B,
+//! copied unchanged into softmax.js) runs on the API as designed; the
+//! redraw worksheet (Appendix D): 56 items in 15 parts, and the redraw's
+//! data fills two parts by name.
 
 use std::collections::BTreeSet;
 
@@ -9,6 +11,7 @@ use super::{kind, view};
 use crate::{Drawn, run};
 
 const SCRIPT: &str = include_str!("worksheet.js");
+const SOFTMAX: &str = include_str!("softmax.js");
 const DATA: &str = include_str!("worksheet.json");
 
 fn worksheet(patch: &Value) -> Drawn {
@@ -94,4 +97,48 @@ fn the_same_script_and_data_give_the_same_bytes() {
     let a = worksheet(&json!({}));
     let b = worksheet(&json!({}));
     assert_eq!(serde_json::to_string(&a.items).ok(), serde_json::to_string(&b.items).ok());
+}
+
+#[test]
+fn the_owners_softmax_worksheet_runs_unchanged() {
+    let d = match run(SOFTMAX, &Value::Null, &view()) {
+        Ok(d) => d,
+        Err(e) => unreachable!("Appendix B failed: {e}"),
+    };
+    // Appendix B says 56 items; as the API is written it draws 53: the
+    // spike's prelude is not in the repository and drew three more.
+    assert_eq!(d.items.len(), 53);
+    assert_eq!((count(&d, "text"), count(&d, "box")), (35, 18));
+    let parts: BTreeSet<&str> = d.items.iter().filter_map(|i| i["part"].as_str()).collect();
+    let named = [
+        "given",
+        "p1a",
+        "p1a-actual",
+        "p1b",
+        "p1c",
+        "p2-92",
+        "p2a",
+        "p2a-why",
+        "p2b",
+        "p2b-why",
+        "p2c",
+        "p2c-why",
+        "p3a",
+        "p3a-actual",
+        "p3b",
+    ];
+    assert_eq!(parts, BTreeSet::from(named), "15 named parts");
+    assert!(d.warnings.is_empty(), "{:?}", d.warnings);
+    let part = |p: &str| d.items.iter().filter(|i| i["part"] == p).cloned().collect::<Vec<_>>();
+    let given = part("given");
+    assert_eq!(given.len(), 1 + 3 + 3, "its dotted frame, three bars and their labels");
+    assert_eq!(given[0]["dash"], "dotted");
+    let answer = part("p1a");
+    assert_eq!(
+        (answer.len(), answer[0]["dash"].clone()),
+        (2, json!("dashed")),
+        "a dashed box and its label"
+    );
+    assert_eq!(part("p1a-actual")[0]["dash"], "dotted");
+    assert_eq!(part("p2-92").len(), 1, "an empty label draws nothing");
 }

@@ -119,15 +119,16 @@ fn a_failing_script_names_its_line_and_writes_nothing() {
     let client = daemon.client();
     client.canvas_create("main").unwrap();
     let dir = TempDir::new().unwrap();
-    let bad = script(&dir, "box(0, 0, 10, 10);\nbox(0, 0, 'wide', 10);\n");
+    let bad = script(&dir, "fig.box(0, 0, 10, 10);\nfig.box(0, 0, 'wide', 10);\n");
     let e = client.canvas_draw(ask("agent:scout", "f", &bad, Place::At([0, 0]))).unwrap_err();
     assert_eq!(e.code(), "invalid");
-    assert!(e.to_string().contains("script:2:1: box: w must be a number above 0"), "{e}");
+    assert!(e.to_string().contains("script:2:5: fig.box: w must be a number above 0"), "{e}");
     assert!(e.hint().is_some_and(|h| h.contains("--dry-run")), "{e:?}");
     let missing = dir.path().join("none.js");
     let e = client.canvas_draw(ask("agent:scout", "f", &missing, Place::At([0, 0]))).unwrap_err();
     assert_eq!(e.code(), "not_found");
-    let mut no_json = ask("agent:scout", "f", &script(&dir, "box(0, 0, 1, 1);"), Place::At([0, 0]));
+    let mut no_json =
+        ask("agent:scout", "f", &script(&dir, "fig.box(0, 0, 1, 1);"), Place::At([0, 0]));
     no_json.data = Some(script(&dir, "{nope"));
     assert_eq!(client.canvas_draw(no_json).unwrap_err().code(), "invalid");
     let e = client
@@ -181,13 +182,16 @@ fn a_script_sees_the_item_it_draws_over_and_the_page() {
         .canvas_apply(CanvasOps { canvas: "main".into(), by: "user".into(), ops, once: None })
         .unwrap();
     let dir = TempDir::new().unwrap();
-    let seen = script(&dir, "warn(JSON.stringify(fig.view));\nbox(0, 0, fig.view.target.w, 10);\n");
+    let seen = script(
+        &dir,
+        "warn(JSON.stringify([fig.view, data]));\nfig.box(0, 0, fig.view.target.w, 10);\n",
+    );
     let mut over = ask("agent:scout", "mark", &seen, Place::Over("b1".into()));
     over.data = None;
     let drawn = client.canvas_draw(over).unwrap();
     assert_eq!(
         drawn.warnings,
-        [r#"script:1:21: {"target":{"x":0,"y":0,"w":300,"h":150},"page":"Page 1"}"#]
+        [r#"script:1:32: [{"target":{"x":0,"y":0,"w":300,"h":150},"page":"Page 1"},null]"#]
     );
     assert_eq!((drawn.origin, drawn.frame[2]), ([1000, 2000], 3000), "drawn over the box, as wide");
     daemon.stop();
@@ -205,7 +209,7 @@ fn another_makers_figure_is_a_conflict_and_a_draw_answers_a_sling() {
     let payload = json!({ "prompt": "draw it", "packet": packet });
     let new = NewEvent { kind: "sling_sent".into(), source: "slinger".into(), tags, payload };
     let sling = client.record_append(new).unwrap()["number"].as_u64().unwrap();
-    let two = script(&dir, "box(0, 0, 10, 10);\nbox(20, 0, 10, 10);\n");
+    let two = script(&dir, "fig.box(0, 0, 10, 10);\nfig.box(20, 0, 10, 10);\n");
     let mut draw = ask("agent:scout", "pair", &two, Place::At([0, 0]));
     draw.data = None;
     let drawn = client.canvas_draw(draw.clone()).unwrap();

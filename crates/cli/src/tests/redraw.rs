@@ -6,7 +6,7 @@
 use super::{cli_each, json};
 use crate::output::exit;
 
-const SCRIPT: &str = "part('a', () => box(0, 0, fig.data.w || 10, 10));\n";
+const SCRIPT: &str = "fig.box(0, 0, (data || {}).w || 10, 10, { name: 'a' });\n";
 
 #[test]
 fn redraw_patches_the_data_and_figure_prints_what_was_drawn() {

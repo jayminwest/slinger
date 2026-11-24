@@ -19,6 +19,7 @@ use crate::{Drawn, MEMORY, STACK, ScriptError, TIME, Warning};
 const PRELUDE: &str = concat!(
     "(function (input, emit) {\n'use strict';\n",
     include_str!("prelude/base.js"),
+    include_str!("prelude/handle.js"),
     include_str!("prelude/shapes.js"),
     include_str!("prelude/structure.js"),
     include_str!("prelude/plot.js"),

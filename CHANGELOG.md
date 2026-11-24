@@ -694,6 +694,21 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Agents:** drawing scripts now use the owner's API (`slinger guide`,
+  "Drawing scripts"): every call is on `fig` and returns a handle you can
+  read (`x`, `y`, `w`, `h`, `right`, `bottom`, `cx`, `cy`) and move
+  (`moveTo`, `moveBy`, `below`, `rightOf`, `centerIn`), so a script builds
+  a thing, measures it, then places it. Text is `fig.text(str, x, y)`;
+  `fig.path`, `fig.ellipse`, `fig.slot` (an area for the user or the agent
+  to fill in), box labels, `align`, `fig.stack`, `fig.grid`,
+  `fig.table(rows, x, y)` and `fig.plot` with `xRange`, `yRange`, `ticks`,
+  `p.bars`, `p.fn` and `p.vector` are new. `name` names a part on any
+  call; `fig.part(name, {color}, fn)` sets defaults for what it draws. The
+  data is the global `data` (`null` when none). Colours `good`, `bad` and
+  `warn` replace `error`; lines and paths take a `width`. New warnings: a
+  label taller than its box, a word wider than its text, and two named
+  parts that overlap. Scripts written for the old calls (`box(...)`,
+  `text(x, y, str)`, `fig.data`) no longer run.
 - **App:** a split pane starts where the pane it came from looks: the same
   page, pan, zoom and box, instead of the first page at 100%. Step in
   beside, then escape, shows that place too.

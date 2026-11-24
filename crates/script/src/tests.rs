@@ -5,7 +5,10 @@ use serde_json::{Value, json};
 use crate::{AGENT, Drawn, ScriptError, View, run};
 
 mod api;
+mod examples;
+mod handles;
 mod limits;
+mod warnings;
 mod worksheet;
 
 fn view() -> View {

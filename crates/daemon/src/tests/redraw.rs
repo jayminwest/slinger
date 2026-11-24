@@ -143,9 +143,9 @@ fn a_redraw_swaps_the_script_and_sees_the_item_it_was_drawn_over() {
     let item = json!({ "page": "p1", "kind": "box", "x": 1000, "y": 2000, "w": 3000, "h": 1500 });
     apply(&client, "user", json!({ "op": "add", "item": item }));
     let dir = TempDir::new().unwrap();
-    let one = file(&dir, "one.js", "box(0, 0, fig.view.target.w, 10);\n");
+    let one = file(&dir, "one.js", "fig.box(0, 0, fig.view.target.w, 10);\n");
     draw(&client, &one, None, Place::Over("b1".into()));
-    let two = file(&dir, "two.js", "box(0, 0, fig.view.target.w / 2, 10);\nwarn('two');\n");
+    let two = file(&dir, "two.js", "fig.box(0, 0, fig.view.target.w / 2, 10);\nwarn('two');\n");
     let swap = CanvasRedraw { path: Some(two.clone()), ..redraw("agent:scout", None) };
     let drawn = client.canvas_redraw(swap).unwrap();
     assert_eq!((drawn.frame[2], drawn.seq.len()), (1500, 1), "half the box, set in place");
@@ -155,7 +155,8 @@ fn a_redraw_swaps_the_script_and_sees_the_item_it_was_drawn_over() {
     let shown = &one_figure.figures[0];
     assert_eq!(
         (shown.by.as_str(), shown.items, shown.data.as_ref()),
-        ("agent:scout", 1, Some(&json!({})))
+        ("agent:scout", 1, None),
+        "drawn with no data: the script read null"
     );
     let back = dir.path().join("back.js");
     client.blob_get(shown.script.as_deref().unwrap(), &back).unwrap();
