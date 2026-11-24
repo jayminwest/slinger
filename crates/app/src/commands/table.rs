@@ -146,6 +146,7 @@ pub(super) const TABLE: &[Row] = &[
     row(C::ZoomToFit, "zoom-to-fit", "Zoom to fit", Canvas, CMD, '9'),
     bare(C::ReloadUi, "reload-ui", "Reload agent UI", File),
     row(C::UnlockFigure, "unlock-figure", "Unlock figure", Canvas, CMD | ALT, 'u'),
+    row(C::WriteFocus, "write-focus", "Focus on text", Canvas, CMD | ALT, '\r'),
 ];
 
 // Each row is at its command's index: `Command as usize` finds its row.

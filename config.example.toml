@@ -191,6 +191,10 @@
 # Zoom and pan the focused pane so all its page shows (inside a box, the box), at 100%
 # or less. A canvas first shown in a pane opens this way.
 #zoom-to-fit = "cmd+9"
+# Write focus: zoom and pan the focused pane so the 80-cell column of the text being
+# typed (or the one text selected) fills its width, its top just under the pane's top.
+# The view the pane had comes back when the text ends, or on the same key again.
+#write-focus = "cmd+alt+return"
 # Pages: each pane shows its own page of its canvas, named at its foot. Turn the
 # focused pane to the next page (after the last, the first) or the one before.
 #next-page = "cmd+]"

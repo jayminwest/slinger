@@ -123,6 +123,16 @@ impl Editing {
         self.vim.selects().unwrap_or_else(|| self.shapes.selects())
     }
 
+    /// Where the text being typed is: canvas, page, top left and size.
+    pub(super) fn typing_place(&self) -> Option<(&str, &str, Point, f64)> {
+        self.shapes.typing_place()
+    }
+
+    /// How many texts have ended: one ended when this changed.
+    pub(super) fn ends(&self) -> u64 {
+        self.shapes.ends()
+    }
+
     /// The canvas and page of the text being typed, if any.
     pub(super) fn typing_on(&self) -> Option<(&str, &str)> {
         self.shapes.typing_on()

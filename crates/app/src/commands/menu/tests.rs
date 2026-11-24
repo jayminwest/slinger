@@ -17,6 +17,7 @@ const ABLE: Facts = Facts {
     sling_now: true,
     new_text: true,
     figure: true,
+    text: true,
     workspace: true,
     agent: Some(true),
     notice: true,

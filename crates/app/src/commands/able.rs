@@ -51,6 +51,9 @@ pub struct Facts {
     pub new_text: bool,
     /// A locked item is under the pointer: `unlock-figure` has a figure to grab.
     pub figure: bool,
+    /// `write-focus` has a text to focus on in the focused pane, or the
+    /// pane is in write focus.
+    pub text: bool,
     /// A workspace shows.
     pub workspace: bool,
     /// Its agent, and whether it runs; `None` without one.
@@ -149,6 +152,7 @@ pub fn can(command: Command, facts: &Facts) -> bool {
         Command::SlingNow => f.sling_now,
         Command::NewText => f.new_text,
         Command::UnlockFigure => f.figure,
+        Command::WriteFocus => f.text,
         Command::CloseWorkspace | Command::ShowWorkspaceFolder => f.workspace,
         Command::StartAgent => f.workspace && f.agent == Some(false),
         Command::StopAgent => f.workspace && f.agent == Some(true),

@@ -209,6 +209,10 @@ pub enum Command {
     /// selection: move, duplicate or delete it whole. It locks again when
     /// the selection ends (docs/design/figures.md, "The unlock").
     UnlockFigure,
+    /// Zoom and pan the focused pane so the column of the text being typed
+    /// (or the one text selected) fills its width; the view comes back
+    /// when a text ends, or on the same command again.
+    WriteFocus,
 }
 
 /// How many commands there are.

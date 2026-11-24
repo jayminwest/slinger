@@ -55,6 +55,7 @@ const NONE: Facts = Facts {
     sling_now: false,
     new_text: false,
     figure: false,
+    text: false,
     workspace: false,
     agent: None,
     notice: false,
@@ -70,7 +71,7 @@ fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
     let shown = Facts { workspace: true, ..PAGE };
     let (idle, busy) =
         (Facts { agent: Some(false), ..shown }, Facts { agent: Some(true), ..shown });
-    vec![
+    let mut rules: Vec<(&'static [Command], Facts, Facts)> = vec![
         (
             &[
                 C::ClosePane,
@@ -138,6 +139,7 @@ fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
         (&[C::SlingNow], Facts { sling_now: true, ..PAGE }, PAGE),
         (&[C::NewText], Facts { new_text: true, ..NONE }, PAGE),
         (&[C::UnlockFigure], Facts { figure: true, ..NONE }, PAGE),
+        (&[C::WriteFocus], Facts { text: true, ..PAGE }, PAGE),
         (&[C::CloseWorkspace, C::ShowWorkspaceFolder], shown, PAGE),
         (&[C::StartAgent, C::RestartAgent], idle, shown),
         (&[C::StopAgent, C::RestartAgent], busy, shown),
@@ -147,6 +149,15 @@ fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
         (&[C::ExportUi], Facts { ui: true, ..NONE }, Facts { canvas: true, ..NONE }),
         (&[C::ExportUi], Facts { ui: true, ..NONE }, Facts { ui_pane: true, ..NONE }),
         (&[C::ReloadUi], Facts { ui_pane: true, ..NONE }, Facts { canvas: true, ..NONE }),
+    ];
+    rules.extend(daemon_rules());
+    rules
+}
+
+/// The rules of the bundled slingerd's commands.
+fn daemon_rules() -> [(&'static [Command], Facts, Facts); 3] {
+    use Command as C;
+    [
         (&[C::StartSlingerd, C::RestartDaemon], Facts { managed: true, ..NONE }, NONE),
         (&[C::StartSlingerd], Facts { managed: true, old: true, ..NONE }, NONE),
         (
