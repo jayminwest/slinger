@@ -165,7 +165,8 @@ function connect(call, args, heads, allowed) {
 // across, to the right of one that runs straight down, at its middle. When
 // that spot covers a text or a line already drawn (two arrows into one
 // box), the first free one of the other side, then a third of the way from
-// either end, on either side; with none free, the middle.
+// either end, on either side; with none free, the middle. A label longer
+// than its arrow (along it) warns: it reads as beside nothing.
 function label(call, a, b, s, o) {
   const size = sizeOf(call, o);
   const f = textFrame(s, 0, size);
@@ -183,6 +184,11 @@ function label(call, a, b, s, o) {
     w: f.w,
     h: f.h,
   });
+  const along = Math.abs(b[0] - a[0]) / len * f.w + Math.abs(b[1] - a[1]) / len * f.h;
+  if (along > len) {
+    const [line, col] = where();
+    warning(line, col, `${call}: the label ${JSON.stringify(s)} is ${Math.round(along)} long beside an arrow ${Math.round(len)} long; lengthen the arrow or shorten the label`);
+  }
   const spots = [[0.5, 1], [0.5, -1], [0.35, 1], [0.65, 1], [0.35, -1], [0.65, -1]].map(spot);
   const at = spots.find(free) || spots[0];
   const opts = { size };
