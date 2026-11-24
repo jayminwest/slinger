@@ -29,7 +29,12 @@ use super::color;
 use crate::config::Rgb;
 use crate::layout::Point;
 use crate::nvim::grid::{Cell, CursorShape, Grid, Style, Under};
+use crate::scene::canvas::markdown::Shown;
+use crate::scene::canvas::written::Written;
 use crate::scene::glyphs;
+
+/// Bold, italic.
+type Face = (bool, bool);
 
 /// The attributes a run is drawn with, kept by weight, slant and colour.
 type Attributes = Retained<NSDictionary<NSAttributedStringKey, AnyObject>>;
@@ -60,11 +65,11 @@ struct Pen {
 }
 
 impl Pen {
-    fn attributes(&mut self, style: &Style, fg: Rgb, icon: bool) -> &Attributes {
+    fn attributes(&mut self, (bold, italic): Face, fg: Rgb, icon: bool) -> &Attributes {
         let size = self.size;
-        let key = (style.bold, style.italic, icon, [fg.r, fg.g, fg.b]);
+        let key = (bold, italic, icon, [fg.r, fg.g, fg.b]);
         self.kept.entry(key).or_insert_with(|| {
-            let name = match (style.bold, style.italic) {
+            let name = match (bold, italic) {
                 (false, false) => "Menlo-Regular",
                 (true, false) => "Menlo-Bold",
                 (false, true) => "Menlo-Italic",
@@ -87,8 +92,8 @@ impl Pen {
     }
 
     /// Draws `text` from the top left `at`.
-    fn draw(&mut self, text: &str, style: &Style, fg: Rgb, at: NSPoint) {
-        let attributes = self.attributes(style, fg, icon(text));
+    fn draw(&mut self, text: &str, face: Face, fg: Rgb, at: NSPoint) {
+        let attributes = self.attributes(face, fg, icon(text));
         // SAFETY: each value is the type its key takes: an `NSFont` and an `NSColor`.
         let string = unsafe {
             NSAttributedString::initWithString_attributes(
@@ -110,6 +115,48 @@ fn fill(colour: Rgb, x: f64, y: f64, width: f64, height: f64) {
 /// A cell one plain character fills, which a run may hold.
 fn plain(cell: &Cell) -> bool {
     matches!(cell.text.as_bytes(), [b' '..=b'~'])
+}
+
+/// Paints a canvas text's runs ([`Written`]) from `at`: cells half a
+/// `line` wide and a `line` tall, in Menlo `size` high, `zoom` times
+/// that; each in `ink`, a mark in its dim colour, code on its tint, a
+/// quote's bar and a checkbox in their cells.
+#[expect(clippy::cast_precision_loss, reason = "a text's cells are far below 2^52")]
+pub(super) fn write(written: &Written, ink: Rgb, at: Point, (line, size): (f64, f64), zoom: f64) {
+    NSGraphicsContext::saveGraphicsState_class();
+    let place = NSAffineTransform::transform();
+    place.translateXBy_yBy(at.x, at.y);
+    place.scaleBy(zoom);
+    place.concat();
+    let (w, h) = (line * glyphs::CELL, line);
+    let drop = (h - size * 1.164) / 2.0;
+    let mut pen = Pen { size, kept: HashMap::new() };
+    for run in &written.runs {
+        let (x, y, look) = (run.col as f64 * w, run.row as f64 * h, run.look);
+        if look.code {
+            fill(written.tint, x, y, run.cells as f64 * w, h);
+        }
+        let (fg, face) = (if look.dim { written.dim } else { ink }, (look.bold, look.italic));
+        let text = match look.shown {
+            Shown::As => run.text.trim_end(),
+            Shown::Blank => "",
+            Shown::Bar => {
+                fill(fg, x + w * 0.35, y, w * 0.2, h);
+                ""
+            }
+            Shown::Check(ticked) => {
+                if ticked {
+                    "☑"
+                } else {
+                    "☐"
+                }
+            }
+        };
+        if !text.is_empty() {
+            pen.draw(text, face, fg, NSPoint::new(x, y + drop));
+        }
+    }
+    NSGraphicsContext::restoreGraphicsState_class();
 }
 
 /// Paints `grid` from `at`, its cells half a `size` wide and a `size`
@@ -157,7 +204,8 @@ pub(super) fn paint(grid: &Grid, at: Point, size: f64, zoom: f64) {
                     col += 1;
                 }
             }
-            pen.draw(run.trim_end(), &style, style.fg, NSPoint::new(start as f64 * w, y + drop));
+            let (face, at) = ((style.bold, style.italic), NSPoint::new(start as f64 * w, y + drop));
+            pen.draw(run.trim_end(), face, style.fg, at);
         }
     }
     cursor(grid, &mut pen, (w, h), drop);
@@ -225,7 +273,12 @@ fn cursor(grid: &Grid, pen: &mut Pen, (w, h): (f64, f64), drop: f64) {
             let wide = grid.row(row).get(col + 1).is_some_and(|next| next.text.is_empty());
             fill(style.fg, x, y, if wide { 2.0 * w } else { w }, h);
             if !cell.text.trim().is_empty() {
-                pen.draw(&cell.text, &style, style.bg, NSPoint::new(x, y + drop));
+                pen.draw(
+                    &cell.text,
+                    (style.bold, style.italic),
+                    style.bg,
+                    NSPoint::new(x, y + drop),
+                );
             }
         }
         CursorShape::Vertical(part) => fill(style.fg, x, y, (w * part).max(1.0), h),

@@ -106,7 +106,7 @@ fn an_nvim_edits_the_text_and_writes_nothing_but_its_state_and_cache() {
     let setup = Setup::clean_in(program, dir.path());
     let mut process = Process::start(&setup, &Wake::none()).unwrap();
     let mut out = Vec::new();
-    let mut session = Session::start("plan", false, &mut out);
+    let mut session = Session::start("plan", (false, usize::MAX), &mut out);
     session.input("A, then ship<Esc>", &mut out);
     process.send(&out);
     hear_until(&mut process, &mut session, |_, s| s.text().as_deref() == Some("plan, then ship"));

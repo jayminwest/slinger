@@ -45,12 +45,12 @@ const UNDER: usize = 1;
 
 /// Runs once Nvim has loaded the user's config: makes the buffer a scratch
 /// markdown one (no file, no swap, no undo file) holding the lines given,
-/// with no undo step for the seed, the cursor at the end, in insert mode for
-/// a new text; takes the gutter, the ruler and the status lines away and
+/// with no undo step for the seed, the cursor on the line and byte given
+/// (where the text was pressed, or its end), in insert mode for a new text; takes the gutter, the ruler and the status lines away and
 /// wraps at word ends, over whatever the config set; then says it is
 /// ready. An Nvim older than 0.10 says so instead.
 const INIT: &str = r"
-local lines, insert = ...
+local lines, insert, row, col = ...
 if vim.fn.has('nvim-0.10') == 0 then
   local v = vim.version()
   vim.rpcnotify(0, 'slinger_old', v.major .. '.' .. v.minor .. '.' .. v.patch)
@@ -76,7 +76,7 @@ local function setup()
   end
   vim.o.laststatus, vim.o.showtabline, vim.o.ruler, vim.o.cmdheight = 0, 0, false, 1
   vim.o.breakat = ' '
-  vim.api.nvim_win_set_cursor(0, { #lines, math.max(#lines[#lines] - 1, 0) })
+  vim.api.nvim_win_set_cursor(0, { row, math.max(math.min(col, #lines[row] - 1), 0) })
   if insert then vim.cmd('startinsert!') end
   vim.rpcnotify(0, 'slinger_ready')
 end
@@ -152,8 +152,9 @@ pub struct Session {
 
 impl Session {
     /// A session editing `text` (`insert`: in insert mode, as a new text
-    /// starts): `out` gets the UI attach and the seed.
-    pub fn start(text: &str, insert: bool, out: &mut Vec<u8>) -> Self {
+    /// starts), its cursor at the byte `caret`: `out` gets the UI attach
+    /// and the seed.
+    pub fn start(text: &str, (insert, caret): (bool, usize), out: &mut Vec<u8>) -> Self {
         let lines: Vec<&str> = text.split('\n').collect();
         let size = (COLUMNS, lines.len().clamp(1, MOST_ROWS) + UNDER);
         let mut session = Session {
@@ -174,7 +175,11 @@ impl Session {
         ]);
         session.write(None, "nvim_ui_attach", vec![int(size.0), int(size.1), options], out);
         let seed = Value::Array(lines.iter().map(|l| Value::str(l)).collect());
-        let args = vec![Value::str(INIT), Value::Array(vec![seed, Value::Bool(insert)])];
+        let before = &text[..text.floor_char_boundary(caret.min(text.len()))];
+        let row = before.matches('\n').count() + 1;
+        let col = before.len() - before.rfind('\n').map_or(0, |n| n + 1);
+        let cursor = [Value::Bool(insert), int(row), int(col)];
+        let args = vec![Value::str(INIT), Value::Array([vec![seed], cursor.to_vec()].concat())];
         session.write(Some(Asked::Init), "nvim_exec_lua", args, out);
         session
     }

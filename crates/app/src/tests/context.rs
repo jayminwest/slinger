@@ -71,7 +71,7 @@ fn a_click_on_the_empty_canvas_pops_the_canvas_menu_at_that_point() {
         assert_eq!(popup.at, Point { x: 300.0, y: 250.0 });
         assert_eq!(popup.items, w.offers(&Subject::Canvas));
         assert_eq!(titles(&popup)[..3], ["Paste", "New text", "Select all"]);
-        let step_out = popup.items.iter().find(|i| i.title == "Step out of box").unwrap();
+        let step_out = popup.items.iter().find(|i| i.title == "Step out").unwrap();
         assert!(!step_out.enabled, "not stepped into a box");
     });
 }
