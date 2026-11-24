@@ -521,7 +521,8 @@ call emits shapes at once; nothing is returned to place later.
   a stopped run is where QuickJS last recorded a position: a loop whose body
   calls nothing (`while (true) n += 1`) can be named at the line before the
   loop; a loop that calls anything is named inside its body. Warnings
-  (text over a line, texts overlapping, a shape far outside the others)
+  (text over a line, texts overlapping, a box drawn again on another's
+  frame, a label longer than its arrow, a shape far outside the others)
   come back beside the shapes, with their line, and never fail a draw.
 
 ### How shapes cross to the daemon (B6)
@@ -682,7 +683,7 @@ there, as "Drawing scripts".
 |---|---|---|---|---|
 | state diagram: five states, five labelled arrows, a part per state | `--beside t3` | ran | "cancel" and "refund" on top of each other where two arrows meet one box (warned: overlaps) | arrow labels move along the arrow or to its other side to clear texts and lines drawn before them; a fresh run read cleanly |
 | plot from data: six months of sales, a dashed target, named month ticks, a title | `--beside b2`, `--data @FILE` | ran | the hand-made title covered the y label (warned: overlaps); month names drawn by hand as texts; `p.at` guessed as `[x, y]` or `{x, y}` | ticks take `[value, "label"]`; `plot` takes `title`, set above the y label; the guide says `p.at` returns `[x, y]`; a fresh run used all three and read cleanly |
-| vector addition: a table with empty cells, an answer box, three parts | `--at 600,40` | ran | correct; the two empty cells drawn twice (a table box, then the part's own box) | none |
+| vector addition: a table with empty cells, an answer box, three parts | `--at 600,40` | ran | correct; the two empty cells drawn twice (a table box, then the part's own box) | later (slinger-caafca): a box with no fill on the frame of an earlier box warns, naming the table's line, and the guide says a named cell is boxed already; an arrow's label longer than the arrow warns |
 | kanban board from data: three columns, filled cards, a part per column | `--beside t1` | ran | correct | none |
 | marks over an item: dashed outline, ruled lines, a label and a tick, fitted to `fig.view.target` | `--over b2` | ran | correct, fitted to the box's size | none |
 
@@ -776,7 +777,7 @@ that sets it, then to `fig.color`:
 |---|---|
 | `box(x, y, w, h, opts?)` | a rectangle; `w`, `h` above 0 |
 | `line(x1, y1, x2, y2, opts?)` | a straight line, no heads |
-| `arrow(x1, y1, x2, y2, opts?)` or `arrow(from, to, opts?)` | an arrow; `from`, `to` are `[x, y]` or a frame a shape returned (the arrow meets its edge). `heads`: `"end"` (default), `"both"`, `"none"`; `label`: a text set beside the arrow's middle, never on it, moved along it or to its other side to clear texts and lines drawn before it |
+| `arrow(x1, y1, x2, y2, opts?)` or `arrow(from, to, opts?)` | an arrow; `from`, `to` are `[x, y]` or a frame a shape returned (the arrow meets its edge). `heads`: `"end"` (default), `"both"`, `"none"`; `label`: a text set beside the arrow's middle, never on it, moved along it or to its other side to clear texts and lines drawn before it; a label longer than its arrow warns |
 | `poly(points, opts?)` | a line through `[[x, y], ...]` (two or more); `closed: true` joins the ends; `width` (default 2) |
 | `circle(cx, cy, r, opts?)` | a closed line of 48 points |
 | `text(x, y, str, opts?)` | text from its top left; `w` wraps it at that width |
@@ -789,13 +790,16 @@ that sets it, then to `fig.color`:
 | `part(name, fn)`, `part(name, opts, fn)` | every shape `fn` draws is in part `name` (`a-z`, `0-9`, `-`, up to 40). Parts do not nest. A later turn finds it as `<figure>/<name>` |
 | `group(opts, fn)` | defaults for the shapes `fn` draws |
 | `stack(x, y, opts, fn)` | `fn(s)` places one thing after another: `s.text(str, opts?)`, `s.box(w, h, opts?)`, `s.gap(n)`; `opts.dir` `"down"` (default) or `"right"`, `opts.gap` (default 8). Returns its frame |
-| `table(x, y, rows, opts?)` | a grid: `rows` an array of arrays of strings, one box per cell and one text per non-empty cell; `cols` (a width, or one per column; default fits the widest text), `rowH` (default 1.6 of the size), `header: true` tints the first row, `parts` (an array of arrays of part names, `null` for none). Returns its frame and `cell(r, c)` |
+| `table(x, y, rows, opts?)` | a grid: `rows` an array of arrays of strings, one box per cell and one text per non-empty cell; `cols` (a width, or one per column; default fits the widest text), `rowH` (default 1.6 of the size), `header: true` tints the first row, `parts` (an array of arrays of part names, `null` for none; a named cell is boxed already, so draw in it with `cell(r, c)`, not another box on it). Returns its frame and `cell(r, c)` |
 | `plot(x, y, w, h, opts)` | axes for `opts.x: [min, max]`, `opts.y: [min, max]`: two axis lines, a label per tick in `xticks`/`yticks` (each a value, or `[value, "label"]` such as `[0, "Jan"]`; size 16, `muted`), `xlabel`, `ylabel`, `title` (above the plot). Returns `p` with `p.at(x, y)` (the canvas point `[x, y]` of a value), `p.line(f or [[x, y], ...], opts?)` (one line; `steps` for a function, default 50), `p.dots([[x, y], ...], opts?)` (filled circles of radius 4). Each `line` or `dots` takes the next series colour unless given one |
 
 **Context.** `fig.name` (the figure's name), `fig.data` (the data, `{}` when
 none), `fig.view.target` (`{x: 0, y: 0, w, h}` of the `--over` or `--in`
 item, else `null`), `fig.view.page` (the page's name), `fig.color` (assign
-to change every later default). `warn(message)` adds a warning.
+to change every later default). `warn(message)` adds a warning. The engine
+warns, and still draws, on text over a line, texts overlapping, a box
+drawn again on the same frame without a fill, an arrow's label longer than
+the arrow, and a shape far from the others.
 
 **Not there:** `Date`, timers, `console`, `import`, `fetch`, files. `Math.random`
 is seeded: the same script and data draw the same figure.

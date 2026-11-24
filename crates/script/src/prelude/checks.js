@@ -1,6 +1,7 @@
 
 // checks.js: the warnings that come back beside the shapes once the script
-// has run: text over a line, texts overlapping, a shape far from the others.
+// has run: text over a line, texts overlapping, a box drawn again on one
+// already there, a shape far from the others.
 
 const FAR = 5000;
 const CELLS = 256;
@@ -38,6 +39,23 @@ function keys(f) {
   return out;
 }
 
+// A box with no fill on the frame of a box drawn before it (a table's cell,
+// then the part's own box in it) adds nothing but a doubled edge.
+function twice() {
+  const boxes = new Map();
+  for (const s of drawn) {
+    if (s.kind !== 'box') continue;
+    const f = s.frame;
+    const key = [f.x, f.y, f.w, f.h].map(T).join(',');
+    const first = boxes.get(key);
+    if (first === undefined) boxes.set(key, s);
+    else if (!s.fill) {
+      const from = first.line > 0 ? ` from line ${first.line}` : '';
+      warning(s.line, s.col, `box: is drawn again on the box${from}; a table's cell is boxed already, draw in it with t.cell(r, c)`);
+    }
+  }
+}
+
 function finish() {
   const grid = new Map();
   drawn.forEach((s, i) => {
@@ -64,6 +82,7 @@ function finish() {
     if (over !== null) warning(s.line, s.col, `text: ${JSON.stringify(s.text)} is over the ${over.kind === 'arrow' ? 'line' : over.kind}${said(over)}`);
     if (text !== null) warning(s.line, s.col, `text: ${JSON.stringify(s.text)} overlaps the text${said(text)}`);
   });
+  twice();
   if (drawn.length > 1) {
     const mid = (a) => a.sort((p, q) => p - q)[Math.floor(a.length / 2)];
     const cx = mid(drawn.map((s) => s.frame.x + s.frame.w / 2));

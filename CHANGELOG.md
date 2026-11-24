@@ -18,6 +18,9 @@ bullet with the area in bold.
   pointer as one piece to move, duplicate or delete; it locks again when
   you deselect it. A duplicate is a new figure with its own name, one no
   other figure on the canvas has, on any page.
+- **CLI:** a drawing script now warns when it draws a box again on a
+  table cell's box (draw in the cell instead), and when an arrow's label
+  is longer than the arrow.
 - **CLI:** `slinger canvas draw <CANVAS> <FILE> --name NAME` runs an
   agent's drawing script (JavaScript) in the daemon and places what it
   draws as one named figure, beside an item, over it, in a box or at a

@@ -110,7 +110,7 @@ G.table = function (x, y, rows, opts) {
   if (o.parts !== undefined && part !== null) fail(call, `parts do not nest: the table is inside ${part}`);
   const left = (j) => x + widths.slice(0, j).reduce((a, b) => a + b, 0);
   const cell = (r, c) => ({ x: left(c), y: y + r * rowH, w: widths[c], h: rowH });
-  within(call, o, () => cells.forEach((r, i) => r.forEach((v, j) => {
+  from(() => within(call, o, () => cells.forEach((r, i) => r.forEach((v, j) => {
     const name = o.parts && o.parts[i] ? o.parts[i][j] : null;
     const draw = () => {
       const f = cell(i, j);
@@ -122,7 +122,7 @@ G.table = function (x, y, rows, opts) {
     };
     if (name === null || name === undefined) draw();
     else G.part(partName(call, name), draw);
-  })));
+  }))));
   const frame = { x, y, w: widths.reduce((a, b) => a + b, 0), h: rowH * cells.length };
   frame.cell = (r, c) => {
     if (!Number.isInteger(r) || !Number.isInteger(c) || r < 0 || c < 0 || r >= cells.length || c >= count) {
