@@ -45,6 +45,17 @@ impl Value {
             _ => None,
         }
     }
+
+    /// The value under the string `key` of a map.
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        let Value::Map(pairs) = self else { return None };
+        pairs.iter().find(|(k, _)| k.as_str() == Some(key)).map(|(_, v)| v)
+    }
+
+    /// Whether it is true, or a number other than 0.
+    pub fn truthy(&self) -> bool {
+        matches!(self, Value::Bool(true)) || self.as_int().is_some_and(|n| n != 0)
+    }
 }
 
 /// Appends `value` to `out`.

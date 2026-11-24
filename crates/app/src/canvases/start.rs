@@ -9,6 +9,14 @@ use crate::layout::{PaneId, Point, Rect};
 use crate::panes::Panes;
 
 impl Canvases {
+    /// Only `SLINGER_NVIM` turns Nvim on in these canvases, not the config:
+    /// a driven window's, which types the same on any machine.
+    #[must_use]
+    pub fn driven(mut self) -> Self {
+        self.editing.driven();
+        self
+    }
+
     /// Follows the config's `[editor] nvim`: which Nvim edits a text.
     pub fn follow_editor(&mut self, nvim: &crate::config::Nvim) {
         self.editing.follow_editor(nvim);

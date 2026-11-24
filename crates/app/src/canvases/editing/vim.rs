@@ -3,7 +3,8 @@
 //! a text opens ([`Vim::sync`]), hands it the keys and the pastes, and
 //! takes its news ([`Vim::poll`]): each change of the buffer's lines, once
 //! the buffer is confirmed, goes to the text, so the text ends, from
-//! anywhere, with what Nvim holds.
+//! anywhere, with what Nvim holds; each grid Nvim flushed goes to the
+//! scene, which shows it in place of the text ([`Shapes::set_grid`]).
 //!
 //! No way of ending loses the text. Every end waits, at most [`SETTLE`],
 //! for Nvim to take the keys already sent ([`Vim::settle`]). A text ends
@@ -14,6 +15,7 @@
 //! had, the app's own editor types on, the flash says why, and no Nvim
 //! starts again this run.
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::backend::Wake;
@@ -43,6 +45,9 @@ pub(super) struct Vim {
     flash: Option<String>,
     /// How long a new Nvim has to be ready.
     ready_within: Duration,
+    /// Whether the config may turn Nvim on: not in a driven window or a
+    /// test, where only `SLINGER_NVIM` does.
+    by_config: bool,
     wake: Wake,
 }
 
@@ -76,6 +81,7 @@ impl Open {
                     shapes.set_text(text);
                 }
             }
+            Heard::Flushed => shapes.set_grid(Some(Arc::new(self.session.grid().clone()))),
             Heard::Ready => {
                 let us = (at - self.started).as_micros();
                 self.say(&format!("ready_us {us}"));
@@ -93,7 +99,14 @@ impl Vim {
     /// messages wake the main thread with `wake`.
     pub(super) fn new(wake: &Wake) -> Self {
         let (open, setup, config, flash) = (None, None, None, None);
-        Vim { open, setup, config, flash, ready_within: READY, wake: wake.clone() }
+        let (ready_within, by_config) = (READY, !cfg!(test));
+        Vim { open, setup, config, flash, ready_within, by_config, wake: wake.clone() }
+    }
+
+    /// Only `SLINGER_NVIM` turns Nvim on from now on, not the config: a
+    /// driven window types the same on any machine.
+    pub(super) fn driven(&mut self) {
+        (self.by_config, self.config) = (false, None);
     }
 
     /// Follows the config's `[editor] nvim` (and `SLINGER_NVIM`): an Nvim
@@ -103,7 +116,7 @@ impl Vim {
             return;
         }
         self.config = Some(nvim.clone());
-        match Setup::resolve(nvim, &|name| std::env::var_os(name)) {
+        match Setup::resolve(nvim, self.by_config, &|name| std::env::var_os(name)) {
             Ok(setup) => self.setup = setup,
             Err(why) => self.fail(&why),
         }
@@ -205,6 +218,7 @@ impl Vim {
         }
         if let Some(why) = failed {
             self.fail(&why);
+            shapes.set_grid(None);
             return changed;
         }
         if gone {

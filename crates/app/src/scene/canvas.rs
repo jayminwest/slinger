@@ -9,14 +9,16 @@
 //! off at the pane's edges ([`Scene::clip`]). Chrome over a page adds two shapes
 //! no server item has: a panel (a box with a fill) and a text's caret.
 
-use std::collections::HashMap;
 use std::f64::consts::FRAC_PI_6;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use super::sidebar::Status;
 use super::{button, glyphs};
 use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect, Size, Viewport};
+use crate::nvim::grid::Grid;
+use changed::changed_between;
 
 /// An item's id, unique within its canvas: the number of the server's `i<n>`.
 /// The id is how a scene knows an item it drew last time.
@@ -71,6 +73,9 @@ pub enum Shape {
     /// The caret of a text being typed, also chrome: a bar filling `frame`
     /// ([`crate::scene::editor`] places it).
     Caret { frame: Rect },
+    /// Nvim's cell grid over the text it edits, also chrome: from `frame`'s
+    /// top left, cells `size` tall (`scene::shapes`, `platform::cells`).
+    Cells { frame: Rect, size: f64, grid: Arc<Grid> },
 }
 
 /// The paint inside a [`Shape::Panel`]: `colour` at `alpha` (0 to 1), over
@@ -161,6 +166,14 @@ pub enum Mark {
     /// A text's caret: a bar filling `frame`.
     Caret {
         frame: Rect,
+    },
+    /// Nvim's cell grid from `at`: cells `size` canvas points tall, drawn
+    /// `zoom` times that.
+    Cells {
+        at: Point,
+        size: f64,
+        zoom: f64,
+        grid: Arc<Grid>,
     },
 }
 
@@ -290,47 +303,6 @@ impl Scene {
     }
 }
 
-/// The box around every draw that is in one list and not, unchanged, in the
-/// other. A pen line that only grew at its end (the stroke under the pen)
-/// counts only its new end, so a long stroke does not repaint whole at
-/// every pen event.
-fn changed_between(old: &[Draw], new: &[Draw]) -> Option<Rect> {
-    let before: HashMap<ItemId, &Draw> = old.iter().map(|d| (d.id, d)).collect();
-    let after: HashMap<ItemId, &Draw> = new.iter().map(|d| (d.id, d)).collect();
-    let gone = old.iter().filter(|d| !after.contains_key(&d.id)).map(|d| d.bounds);
-    let came = new.iter().filter_map(|d| match before.get(&d.id) {
-        None => Some(d.bounds),
-        Some(was) if *was == d => None,
-        Some(was) => Some(grown(was, d).unwrap_or_else(|| was.bounds.union(d.bounds))),
-    });
-    gone.chain(came).reduce(Rect::union)
-}
-
-/// The screen box of what changed between `old` and `new`, when both are
-/// the same pen line from the same start and only its end changed (the
-/// stroke under the pen). Smoothing changes only a line's last few curves
-/// when a point comes, so the box holds the curves of each after those they
-/// share. A cubic stays inside its points' box.
-#[expect(clippy::float_cmp, reason = "the same line's width is the same value, from one product")]
-fn grown(old: &Draw, new: &Draw) -> Option<Rect> {
-    let (
-        Mark::Stroke { start: a, curves: was, width: w },
-        Mark::Stroke { start: b, curves: now, width },
-    ) = (&old.mark, &new.mark)
-    else {
-        return None;
-    };
-    let shared = was.iter().zip(now).take_while(|(x, y)| x == y).count();
-    let same = a == b && w == width && old.colour == new.colour;
-    if !same {
-        return None;
-    }
-    let from = if shared == 0 { *a } else { was[shared - 1][2] };
-    let points = was[shared..].iter().chain(&now[shared..]).flatten().copied();
-    // One point more on each side for the edge's smoothing.
-    Rect::around(points.chain([from])).map(|r| r.outset(width / 2.0 + 1.0))
-}
-
 /// The canvas box `items` cover, as a pane shows them: the union of their
 /// bounds; `None` for a page with nothing on it.
 pub fn extent<'a>(items: impl IntoIterator<Item = &'a Item>) -> Option<Rect> {
@@ -348,7 +320,8 @@ impl Shape {
             | Self::Live { frame, .. }
             | Self::Button { frame, .. }
             | Self::Pdf { frame, .. }
-            | Self::Caret { frame } => Some(*frame),
+            | Self::Caret { frame }
+            | Self::Cells { frame, .. } => Some(*frame),
             Self::Box { frame, width } | Self::Panel { frame, width, .. } => {
                 Some(frame.outset(width / 2.0))
             }
@@ -382,6 +355,9 @@ impl Shape {
                 Self::Panel { frame: shift(frame), fill: *fill, width: *width, dashed: *dashed }
             }
             Self::Caret { frame } => Self::Caret { frame: shift(frame) },
+            Self::Cells { frame, size, grid } => {
+                Self::Cells { frame: shift(frame), size: *size, grid: Arc::clone(grid) }
+            }
         }
     }
 
@@ -446,6 +422,10 @@ impl Shape {
                 dashed: *dashed,
             },
             Self::Caret { frame } => Mark::Caret { frame: view.rect_to_screen(*frame) },
+            Self::Cells { frame, size, grid } => {
+                let at = view.to_screen(Point { x: frame.x, y: frame.y });
+                Mark::Cells { at, size: *size, zoom, grid: Arc::clone(grid) }
+            }
         }
     }
 }
@@ -474,6 +454,7 @@ fn barbs(from: Point, to: Point) -> [Point; 2] {
     })
 }
 
+mod changed;
 mod smooth;
 
 #[cfg(test)]

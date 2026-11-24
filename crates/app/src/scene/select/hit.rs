@@ -56,7 +56,8 @@ pub fn erases(shape: &Shape, a: Point, b: Point, radius: f64) -> bool {
         | Shape::Button { .. }
         | Shape::Pdf { .. }
         | Shape::Panel { .. }
-        | Shape::Caret { .. } => false,
+        | Shape::Caret { .. }
+        | Shape::Cells { .. } => false,
     }
 }
 
@@ -74,7 +75,8 @@ pub fn holds(lasso: &[Point], shape: &Shape) -> bool {
         | Shape::Button { frame, .. }
         | Shape::Pdf { frame, .. }
         | Shape::Panel { frame, .. }
-        | Shape::Caret { frame, .. } => corners(frame).to_vec(),
+        | Shape::Caret { frame, .. }
+        | Shape::Cells { frame, .. } => corners(frame).to_vec(),
     };
     !vertices.is_empty() && vertices.into_iter().all(|p| winding(lasso, p) != 0)
 }
@@ -180,7 +182,7 @@ pub fn picks(shape: &Shape, at: Point, radius: f64) -> bool {
             frame.outset(radius).contains(at)
         }
         Shape::Pdf { frame, .. } => frame.contains(at),
-        Shape::Panel { .. } | Shape::Caret { .. } => false,
+        Shape::Panel { .. } | Shape::Caret { .. } | Shape::Cells { .. } => false,
     }
 }
 
@@ -198,7 +200,7 @@ pub fn touches(shape: &Shape, area: &Rect) -> bool {
             frame.intersection(*area).is_some()
         }
         Shape::Pdf { frame, .. } => corners(frame).into_iter().all(|p| area.contains(p)),
-        Shape::Panel { .. } | Shape::Caret { .. } => false,
+        Shape::Panel { .. } | Shape::Caret { .. } | Shape::Cells { .. } => false,
     }
 }
 

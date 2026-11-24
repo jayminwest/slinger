@@ -40,11 +40,6 @@ pub const PLACES: [&str; 5] = [
     "/run/current-system/sw/bin",
 ];
 
-/// Until Nvim's grid is drawn in the text (slinger-be5d24), only
-/// `SLINGER_NVIM` turns Nvim on: with the config alone, the app's own
-/// editor types.
-const BY_CONFIG: bool = false;
-
 /// How an Nvim is started.
 #[derive(Debug, Clone)]
 pub struct Setup {
@@ -61,7 +56,8 @@ pub struct Setup {
 
 impl Setup {
     /// The Nvim `nvim` (the config's) and the environment `env` ask for:
-    /// `Ok(None)` when it is off.
+    /// `Ok(None)` when it is off. Without `by_config` (a driven window, a
+    /// test) only `SLINGER_NVIM` turns it on.
     ///
     /// # Errors
     ///
@@ -69,6 +65,7 @@ impl Setup {
     /// the flash says.
     pub fn resolve(
         nvim: &Nvim,
+        by_config: bool,
         env: &dyn Fn(&str) -> Option<OsString>,
     ) -> Result<Option<Setup>, String> {
         let var = |name: &str| env(name).filter(|v| !v.is_empty());
@@ -76,7 +73,7 @@ impl Setup {
             Some("clean") => true,
             Some("user") => false,
             Some("off") => return Ok(None),
-            _ if !BY_CONFIG || *nvim == Nvim::Off => return Ok(None),
+            _ if !by_config || *nvim == Nvim::Off => return Ok(None),
             _ => false,
         };
         let home = var("HOME").map(PathBuf::from);

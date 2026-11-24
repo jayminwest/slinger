@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** a canvas text you type is edited in your own nvim, drawn in the
+  text's place: 80 cells wide, as tall as the text, with your colorscheme,
+  modes, cursor and `:` line, and no line numbers, sign column or ruler.
+  Escape in normal mode, `:q` or a tap outside ends the text. The new
+  `[editor] nvim` config key (`"auto"`, `"off"` or the path to nvim)
+  picks which nvim; with none found, slinger's own editor types and says so.
 - **Canvas:** boxes and closed strokes take a fill, drawn as a light tint
   under all writing; boxes, strokes and arrows can be dashed or dotted; an
   arrow can have a head at both ends or none (a plain line); a stroke can

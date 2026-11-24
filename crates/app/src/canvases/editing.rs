@@ -181,6 +181,11 @@ impl Editing {
         self.shapes.end(&mut self.ink)
     }
 
+    /// Only `SLINGER_NVIM` turns Nvim on from now on ([`vim::Vim::driven`]).
+    pub(super) fn driven(&mut self) {
+        self.vim.driven();
+    }
+
     /// Follows the config's `[editor] nvim`: which Nvim edits a text.
     pub(super) fn follow_editor(&mut self, nvim: &crate::config::Nvim) {
         self.vim.follow(nvim);
@@ -290,7 +295,9 @@ impl Editing {
         zoom: f64,
         theme: &Theme,
     ) -> Vec<Cow<'a, Item>> {
-        let items = self.select.shown(here, items, zoom, theme);
+        // The selection's marks are not drawn over a text being typed.
+        let typing = self.shapes.typing_on() == Some(here);
+        let items = if typing { items } else { self.select.shown(here, items, zoom, theme) };
         let items = self.shapes.shown(here, items, zoom, theme);
         self.crop.shown(here, items, zoom, theme)
     }

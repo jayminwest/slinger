@@ -33,11 +33,13 @@
 //! tap and makes nothing.
 
 use std::borrow::Cow;
+use std::sync::Arc;
 
 use crate::commands::Chord;
 use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect};
 use crate::mirror::{LINE_WIDTH, TEXT_SIZE};
+use crate::nvim::grid::Grid;
 use crate::scene::canvas::{Fill, Item, ItemId, Shape};
 use crate::scene::editor::Editing;
 use crate::scene::ink::{Change, Ink, on_server};
@@ -45,7 +47,10 @@ use crate::scene::paste;
 use crate::scene::tools::{Resize, Tool};
 
 mod bind;
+mod cells;
+mod label;
 pub use bind::{follow, follow_by, follow_frames, target};
+pub use label::{label, label_height};
 
 /// Two presses this close in time, in seconds, are a double tap...
 pub const DOUBLE_TAP: f64 = 0.4;
@@ -63,10 +68,6 @@ const FRAME_PAD: f64 = 4.0;
 /// Under the text being edited, this far below its frame, in screen points.
 const HINT: &str = "esc or a tap outside ends the text";
 const HINT_GAP: f64 = 4.0;
-/// How high chrome's labels are set (the selection's count, the hint), and
-/// how tall their line is, in screen points.
-const LABEL_SIZE: f64 = 11.0;
-const LABEL_LINE: f64 = 1.3;
 /// The ids of the marks drawn over a page: above every server id and every
 /// id of local ink, and apart from the selection's marks.
 const PREVIEW: ItemId = ItemId(u64::MAX - 2);
@@ -126,6 +127,8 @@ pub struct Shapes {
     next: Option<Chord>,
     /// How many texts have ended: another editor tells one text from the next by it.
     ends: u64,
+    /// The grid an Nvim editing the text flushed last, shown in its place ([`cells`]).
+    grid: Option<Arc<Grid>>,
 }
 
 impl Shapes {
@@ -173,14 +176,20 @@ impl Shapes {
                 && press.when - last.when <= DOUBLE_TAP
                 && distance(press.at, last.at) <= reach
         });
+        let cells = self.grid_frame();
         if let Some(editing) = &mut self.editing {
             let here = editing.canvas == canvas && editing.page == page;
-            if here && on_edge(editing, press.at, press.zoom) {
+            // Inside Nvim's grid a press is Nvim's (slinger-b8e3d3): the text stays.
+            if let Some(cells) = cells.filter(|_| here) {
+                if cells.outset(reach).contains(press.at) {
+                    return true;
+                }
+            } else if here && on_edge(editing, press.at, press.zoom) {
                 let bounds = editing.bounds();
                 self.widening = Some((press.at.x - (bounds.x + bounds.width), editing.column));
                 return true;
             }
-            if here && editing.bounds().outset(reach).contains(press.at) {
+            if cells.is_none() && here && editing.bounds().outset(reach).contains(press.at) {
                 self.taps = if double { taps.saturating_add(1) } else { 1 };
                 editing.tap(press.at, press.shift, self.taps);
                 self.selecting = true;
@@ -358,7 +367,7 @@ impl Shapes {
     /// text and an unchanged edit make none. Returns false when no text was
     /// being edited.
     pub fn end(&mut self, ink: &mut Ink) -> bool {
-        (self.selecting, self.widening) = (false, None);
+        (self.selecting, self.widening, self.grid) = (false, None, None);
         let Some(editing) = self.editing.take() else { return false };
         self.ends += 1;
         self.ended = Some((editing.canvas.clone(), editing.page.clone(), editing.frame()));
@@ -392,6 +401,9 @@ impl Shapes {
             if let Some(was) = &editing.item {
                 items.retain(|i| i.id != was.id);
             }
+            if self.cells(&mut items, zoom, theme) {
+                return items;
+            }
             let (frame, text, size) = (editing.frame(), editing.editor.text(), editing.size);
             let (caret, selected) = editing.marks(CARET / zoom);
             let fill = Some(Fill { colour: theme.focus, alpha: SELECTED_ALPHA });
@@ -415,21 +427,6 @@ impl Shapes {
         }
         items
     }
-}
-
-/// A line of chrome's text, `id`, from `at` (its top left), set
-/// [`LABEL_SIZE`] screen points high at `zoom`, in `colour`.
-pub fn label(id: ItemId, text: String, colour: Rgb, at: Point, zoom: f64) -> Item {
-    let size = LABEL_SIZE / zoom;
-    let count = u32::try_from(text.chars().count()).map_or(f64::from(u32::MAX), f64::from);
-    // A cell of the full size a character: the line never wraps.
-    let frame = Rect { x: at.x, y: at.y, width: count.max(1.0) * size, height: label_height(zoom) };
-    Item { id, colour, shape: Shape::Text { frame, text, size, column: None } }
-}
-
-/// How tall a [`label`] is at `zoom`, in canvas units.
-pub fn label_height(zoom: f64) -> f64 {
-    LABEL_SIZE * LABEL_LINE / zoom
 }
 
 /// Whether `at` is on the right edge of the dashed frame `editing` shows
