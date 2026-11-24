@@ -27,6 +27,13 @@ bullet with the area in bold.
 - **Canvas:** a tldraw import keeps each rectangle's fill (as a light tint
   of its colour) and each rectangle's, drawing's and arrow's dashed or
   dotted line.
+- **App:** a canvas text is a writing column 80 characters wide and grows
+  to 80 lines. A longer text shows its first lines, the last few fading,
+  and "N more lines" in its last row; two quick taps on that row, or
+  step-in with the text selected, show it whole; escape steps back out.
+- **Canvas:** a text wraps where nvim wraps it: a word that ends on the
+  column's last cell with a space after it goes to the next line, as the
+  space must fit too. Some long texts break a line differently.
 
 - **App:** a new `[editor] nvim` config key (`"auto"`, `"off"` or the path
   to nvim) picks the nvim that will edit canvas texts. The app reads it now;

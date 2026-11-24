@@ -250,29 +250,32 @@ pub fn build_with<'a>(
     files: &dyn Fn(&str) -> Option<PathBuf>,
 ) -> Scene {
     let visible = viewport.visible(screen);
-    let draws: Vec<Draw> = items
-        .into_iter()
-        .filter_map(|item| {
-            let bounds = item.shape.bounds()?;
-            bounds.intersection(visible)?;
-            Some(Draw {
-                id: item.id,
-                bounds: viewport.rect_to_screen(bounds),
-                colour: match item.shape {
-                    Shape::Button { status, .. } => button::colour(status, theme),
-                    Shape::Pdf { .. } => PDF_GREY,
-                    _ => legible(item.colour, theme),
-                },
-                mark: match item.shape.mark(viewport) {
-                    Mark::Pdf { hash, frame, page, shown, at, size, zoom, .. } => {
-                        let file = files(&hash);
-                        Mark::Pdf { frame, page, shown, hash, file, at, size, zoom }
-                    }
-                    mark => mark,
-                },
-            })
-        })
-        .collect();
+    let mut draws: Vec<Draw> = Vec::new();
+    for item in items {
+        let Some(bounds) = item.shape.bounds().filter(|b| b.intersection(visible).is_some()) else {
+            continue;
+        };
+        if let Some(capped) = capped::draws(item, viewport, theme) {
+            draws.extend(capped);
+            continue;
+        }
+        draws.push(Draw {
+            id: item.id,
+            bounds: viewport.rect_to_screen(bounds),
+            colour: match item.shape {
+                Shape::Button { status, .. } => button::colour(status, theme),
+                Shape::Pdf { .. } => PDF_GREY,
+                _ => legible(item.colour, theme),
+            },
+            mark: match item.shape.mark(viewport) {
+                Mark::Pdf { hash, frame, page, shown, at, size, zoom, .. } => {
+                    let file = files(&hash);
+                    Mark::Pdf { frame, page, shown, hash, file, at, size, zoom }
+                }
+                mark => mark,
+            },
+        });
+    }
     let background = theme.background;
     let pane = screen.rect();
     let changed = match last {
@@ -454,6 +457,7 @@ fn barbs(from: Point, to: Point) -> [Point; 2] {
     })
 }
 
+mod capped;
 mod changed;
 mod smooth;
 

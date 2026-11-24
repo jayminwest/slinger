@@ -8,6 +8,11 @@
 //! pane turned to another page leaves it, and a box erased, moved out, or
 //! folded or unfolded elsewhere steps the pane out of it ([`Mirror::step`]).
 //!
+//! A text with more rows than its frame shows (docs/design/writing-column.md,
+//! 3A) is stepped into the same way: `step-in` with it selected, or two
+//! quick taps on its "N more lines" row. The pane shows it alone, every
+//! row, from its top.
+//!
 //! What is written in a pane inside a folded box joins it: the pen's
 //! strokes, boxes and arrows from the press to the lift, a text from its
 //! start to its end, and what is pasted, duplicated or carried into the
@@ -20,6 +25,7 @@ use crate::layout::{PaneId, Point, Rect, Viewport};
 use crate::mirror::{Inside, LINE_WIDTH, Mirror};
 use crate::panes::Panes;
 use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::glyphs;
 use crate::scene::ink::Ink;
 
 /// The draw id of the dashed frame round the room a pane is inside: below
@@ -74,13 +80,23 @@ pub(super) enum Typed {
     Under(Option<ItemId>),
 }
 
-/// A box a pane can step into: where it is, and whether it is folded.
+/// A box a pane can step into: where it is, and whether it is folded; or
+/// a text with more rows than it shows.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Boxed {
     canvas: String,
     page: String,
     id: ItemId,
     folded: bool,
+    /// A text's whole frame, when it is a text.
+    text: Option<Rect>,
+}
+
+impl Boxed {
+    /// Whether it is a box, which folds, not a text.
+    pub fn is_box(&self) -> bool {
+        self.text.is_none()
+    }
 }
 
 /// The page `mirror` holds as a pane stepped into `trail` shows it, `ink`
@@ -98,6 +114,13 @@ pub(super) fn shown_in<'a>(
     let mut items = ink.shown(canvas, mirror.page(), source);
     if let Some(inside) = &inside {
         items.retain(|i| inside.shows(mirror, i));
+        if let Some((id, whole)) = inside.text() {
+            for item in items.iter_mut().filter(|i| i.id == id) {
+                if let Shape::Text { frame, .. } = &mut item.to_mut().shape {
+                    *frame = whole;
+                }
+            }
+        }
     }
     (items, inside, n)
 }
@@ -133,7 +156,8 @@ impl Canvases {
     }
 
     /// The box the selection on the page `pane` of `panes` shows would
-    /// step into: of the boxes selected, the largest.
+    /// step into: of the boxes selected, the largest; with none, the first
+    /// selected text with more rows than it shows.
     pub fn step_target(&self, panes: &Panes, pane: PaneId) -> Option<Boxed> {
         let s = self.selection().filter(|_| self.shows_selection(panes, pane))?;
         let mirror = self.follow.mirror(&s.canvas, &s.page)?;
@@ -141,21 +165,29 @@ impl Canvases {
             Shape::Box { frame, .. } => Some(frame.width * frame.height),
             _ => None,
         };
-        let id =
-            *s.ids.iter().filter(|id| area(id).is_some()).max_by(|a, b| {
-                area(a).unwrap_or_default().total_cmp(&area(b).unwrap_or_default())
-            })?;
-        let folded = mirror.box_folded(id)?;
-        Some(Boxed { canvas: s.canvas.clone(), page: s.page.clone(), id, folded })
+        let (canvas, on) = (s.canvas.clone(), s.page.clone());
+        let biggest = s
+            .ids
+            .iter()
+            .filter(|id| area(id).is_some())
+            .max_by(|a, b| area(a).unwrap_or_default().total_cmp(&area(b).unwrap_or_default()));
+        if let Some(&id) = biggest {
+            let folded = mirror.box_folded(id)?;
+            return Some(Boxed { canvas, page: on, id, folded, text: None });
+        }
+        let (id, text) = s.ids.iter().find_map(|&id| Some((id, capped(mirror.item(id)?)?)))?;
+        Some(Boxed { canvas, page: on, id, folded: false, text: Some(text) })
     }
 
     /// Turns `pane` to the page of `target` and steps it into the box,
     /// its view starting at the box's top left; the selection is let go.
     pub fn step_into(&mut self, pane: PaneId, target: Boxed) {
         let mirror = self.follow.mirror(&target.canvas, &target.page);
-        let frame = mirror.and_then(|m| match m.item(target.id)?.shape {
-            Shape::Box { frame, .. } => Some(m.room(target.id).unwrap_or(frame)),
-            _ => None,
+        let frame = target.text.or_else(|| {
+            mirror.and_then(|m| match m.item(target.id)?.shape {
+                Shape::Box { frame, .. } => Some(m.room(target.id).unwrap_or(frame)),
+                _ => None,
+            })
         });
         let Some(frame) = frame else { return };
         self.editing.deselect();
@@ -184,9 +216,9 @@ impl Canvases {
     }
 
     /// A press in `pane` on `page` of `canvas` at time `when`, on the
-    /// miniature of folded box `mini`, if any: the second of two quick
-    /// taps on one miniature steps the pane into it. False, and the press
-    /// goes on, for any other.
+    /// miniature of folded box `mini` or the "N more lines" row of a text,
+    /// if any: the second of two quick taps on one steps the pane into it.
+    /// False, and the press goes on, for any other.
     pub(super) fn tapped_in(
         &mut self,
         pane: PaneId,
@@ -195,8 +227,10 @@ impl Canvases {
         mini: Option<ItemId>,
     ) -> bool {
         let Some(id) = self.follow.tapped(pane, when, mini) else { return false };
+        let item = self.follow.mirror(here.0, here.1).and_then(|m| m.item(id));
+        let text = item.and_then(capped);
         let (canvas, on) = (here.0.to_string(), here.1.to_string());
-        self.step_into(pane, Boxed { canvas, page: on, id, folded: true });
+        self.step_into(pane, Boxed { canvas, page: on, id, folded: text.is_none(), text });
         true
     }
 }
@@ -211,6 +245,14 @@ impl super::View {
             self.trail = Trail::default();
         }
     }
+}
+
+/// The whole frame of `item` when it is a canvas text with more rows than
+/// its frame shows ([`glyphs::more`]): what stepping into it shows.
+pub(super) fn capped(item: &Item) -> Option<Rect> {
+    let Shape::Text { frame, text, size, column: Some(column) } = &item.shape else { return None };
+    glyphs::more(*frame, text, *size, *column)?;
+    Some(glyphs::whole_frame(Point { x: frame.x, y: frame.y }, text, *size, *column))
 }
 
 /// Whether `r` holds `p`, edges included.

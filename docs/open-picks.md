@@ -99,3 +99,8 @@ Choices an agent made and shipped that the owner has not confirmed. An agent tha
 - [ ] docs/design/figures.md was rebuilt overnight because the owner's draft was never committed: compare its "Decided by the owner" section with your draft (slinger-e8d6e3)
 - [ ] style geometry in the core raster: a dash is 4 line widths on, 3 off (8/6 units on a box edge), a dot every 3 widths, an arrow's heads solid on a dashed shaft; a set that names any style field writes all four, one that names none keeps the style (slinger-c0c4c2)
 - [ ] tldraw import style: fill solid/fill/lined-fill = the shape's colour at 0x66, semi and pattern at 0x33 (no hatching, semi is not tldraw's neutral white); dash draw = solid; a draw shape's fill and isClosed and an arrow's arrowheads are not read; isLocked waits for locked (slinger-3ca75e)
+
+## Writing column (plan pl-b237f5)
+
+- [ ] long text look: rows 1-76 in the text's ink, rows 77-79 fade a quarter, a half and three quarters to the paper, row 80 says "N more lines" in the theme's muted colour (N = rows past 79); stepping into a text is offered only for one with more rows than it shows; `step-in` takes a selected text only when no box is selected; slinger's own editor (no nvim) shows every row while it types; the command title "Step into box" is kept (slinger-93b7c8)
+- [ ] nvim's wrap rule in core and app: a row breaks after the last space in its cells that a non-space follows, never in the line's leading spaces, and the core's rows keep that space (so an agent's put text is one cell wider when its longest row broke at a space); measured on nvim 0.11 (slinger-93b7c8)

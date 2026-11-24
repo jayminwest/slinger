@@ -56,7 +56,7 @@ fn a_typed_text_s_column_reads_back_as_its_column() {
             };
             let read = read.unwrap();
             assert!(read < glyphs::UNWRAPPED, "{cells} cells at {size}");
-            let rows = |column| glyphs::rows(&format!("{text} y"), size, column);
+            let rows = |column| glyphs::rows(&format!("{text}y"), size, column);
             assert_eq!(rows(read), format!("{text}\ny"), "{cells} cells at {size}");
             assert_eq!(rows(read), rows(column));
         }
