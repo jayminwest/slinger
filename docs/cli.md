@@ -355,7 +355,7 @@ nothing and exits 0. `session show` of an agent with no session exits 3
 `canvas draw` runs a drawing script (JavaScript; `slinger guide` has its
 API) in the daemon and places what it draws as one figure named `--name`,
 as one undo step (`docs/service.md`, "Drawing a figure"). `--at` is in
-canvas units, the packet's, not tenths: `--at 40,40` or `--at "Page 2:40,40"`.
+tenths of a unit, as `canvas put --at`: `--at 400,400` or `--at "Page 2:400,400"`.
 `--data` is JSON, or `@FILE`; the script reads it as `fig.data`. Drawing a
 name again replaces that figure in place and writes nothing when nothing
 changed. `--dry-run` writes nothing and, with `--json`, says where the

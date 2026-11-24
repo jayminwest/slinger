@@ -133,8 +133,8 @@ Draw a picture with code: write a JavaScript file (its API and an example
 are under "Drawing scripts" below) and run it as one figure, a named set of
 items the user's pen passes over. Look at it first with
 `--dry-run --png` (it writes nothing), then draw it; a draw of the same
-`--name` again replaces the figure in place. `--at` is in canvas units, the
-packet's:
+`--name` again replaces the figure in place. `--at` is in tenths of a unit,
+as for `canvas put`:
 
 ```bash
 slinger canvas draw <CANVAS> plot.js --name growth --beside c12 --dry-run --png /tmp/growth.png --agent claude

@@ -178,7 +178,9 @@ Behaviour:
    seen: a tablet proximity event "pen near" sets tablet, "pen left" sets
    mouse, and each press sets it from its own subtype. Before any tablet
    event the device is the mouse. A pen user sees the pen (the first
-   proximity event comes before the first press).
+   proximity event comes before the first press). The flash of a newly
+   picked tool names the same tool: the pen tool picked with a mouse
+   flashes "Select ⌘7 · a mouse selects with the pen" (slinger-aa9117).
 4. Space-drag and middle-button drag pan, as in "Both" above. While space
    is held and free, the cursor is the open hand; during the drag, the
    closed hand. A press with space held never reaches a tool.
