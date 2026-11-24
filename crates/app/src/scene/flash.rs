@@ -1,7 +1,9 @@
 //! The flash: a pill at the top centre of the focused pane that names a
 //! change the window shows nowhere else (SPEC P6: every state is visible).
 //! A new tool, from its command or a pick in a pop-up, flashes its name and
-//! its key ("Pen ⌘1"); a new width or text size flashes it and its pop-up's
+//! its key ("Pen ⌘1"), as the footer names it: the pen tool picked while
+//! the device last seen is a mouse flashes the select tool it acts as,
+//! and why ("Select ⌘7 · a mouse selects with the pen"); a new width or text size flashes it and its pop-up's
 //! key ("Width 4 ⇧⌘W", "Text size 36 ⇧⌘A"); so does a command with no
 //! other visible effect (`reload-config`), a saved feedback note ("Feedback saved"), and a page
 //! command says what it did ("Page 2 · 2/3", "Renamed: plan"; the words are
@@ -23,6 +25,9 @@ use crate::layout::Rect;
 use crate::scene::Label;
 use crate::scene::tools::Tool;
 
+/// Why a picked tool flashes as another: the pen tool with a mouse selects
+/// (docs/design/pen-less.md, pick 1B).
+pub const MOUSE_PEN: &str = " · a mouse selects with the pen";
 /// How long a flash shows.
 pub const SHOWN: Duration = Duration::from_millis(800);
 /// The pill's text size, in points.
@@ -70,11 +75,22 @@ impl Flash {
         }
     }
 
-    /// The pen's tool is `tool` at `now`: when it changed, it flashes with
-    /// its key in `keys`.
-    pub fn follow(&self, tool: Tool, keys: &Keymap, now: Instant) {
-        if self.tool.replace(tool) != tool {
-            self.command(command(tool), keys, now);
+    /// The chosen tool is `chosen` at `now`, and a press uses `acts` (the
+    /// select tool for the pen tool and a mouse): when `chosen` changed,
+    /// `acts` flashes with its key in `keys`, and [`MOUSE_PEN`] when
+    /// it is not `chosen`. A change of device alone does not flash.
+    pub fn follow(&self, chosen: Tool, acts: Tool, keys: &Keymap, now: Instant) {
+        if self.tool.replace(chosen) != chosen {
+            let command = command(acts);
+            let mut text = command.title().to_string();
+            if let Some(chord) = keys.chord(command) {
+                text.push(' ');
+                text.push_str(&chord.glyphs());
+            }
+            if acts != chosen {
+                text.push_str(MOUSE_PEN);
+            }
+            self.say(text, now);
         }
     }
 

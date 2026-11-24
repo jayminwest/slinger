@@ -838,6 +838,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** with a mouse or trackpad, picking the pen tool (⌘1) flashed
+  "Pen" while the footer said "Select" and a press selected. The flash
+  now names the select tool too, and says why: "Select ⌘7 · a mouse
+  selects with the pen". With the tablet pen near, it flashes "Pen ⌘1".
 - **CLI:** `slinger canvas draw` by an agent onto another page no longer
   splits a figure you drew over: it says the figure has your items on its
   page and draws nothing, so a figure's name stays on one page.
