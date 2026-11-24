@@ -46,6 +46,7 @@
 
 mod decode;
 mod edit;
+mod figure;
 mod fold;
 mod json;
 mod log;
@@ -64,6 +65,7 @@ mod time;
 mod whole;
 
 pub use edit::Edit;
+pub use figure::{Draft, Drawn, FIGURE_ITEMS, Placement};
 pub use log::{Log, Shown, Span, Written, check_id, id_from_name, lines, parse_author};
 pub use look::MAX_CROP;
 pub use once::ONCES;

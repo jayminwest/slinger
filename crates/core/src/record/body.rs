@@ -7,8 +7,8 @@ use super::BlobId;
 use crate::{Error, Result};
 
 /// The kinds a writer may append with `record_append`, in the order the spec
-/// lists them. A kind that a verb of its own writes, such as `ui_put`, is not
-/// here: that verb keeps the rules its events follow.
+/// lists them. A kind that a verb of its own writes, such as `ui_put` or
+/// `figure_drawn`, is not here: that verb keeps the rules its events follow.
 pub const KINDS: [&str; 6] =
     ["sling_sent", "reply_landed", "file_touched", "pane_moved", "agent_blocked", "agent_done"];
 
@@ -36,6 +36,8 @@ pub enum Body {
     UiOpened(UiOpened),
     /// `ui_reply`: a showing of a UI replied to the agent that opened it.
     UiReply(UiReply),
+    /// `figure_drawn`: an agent's script drew or redrew a figure.
+    FigureDrawn(FigureDrawn),
     /// A kind this reader does not know, with its payload as written.
     Other { kind: String, payload: Value },
 }
@@ -151,6 +153,28 @@ pub struct UiReply {
     pub value: Value,
 }
 
+/// Payload of `figure_drawn` (docs/design/figures.md, "`figure_drawn`"):
+/// a figure as a script drew it on a canvas. Only `canvas draw` and
+/// `canvas redraw` write it, tagged with the canvas and the maker; the last
+/// one of a (canvas, figure) is the figure's script and data.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FigureDrawn {
+    /// The canvas's id, as its tag.
+    pub canvas: String,
+    /// The figure's name.
+    pub figure: String,
+    /// The page's id it is on (`p1`).
+    pub page: String,
+    /// The script, stored as a blob.
+    pub script: BlobId,
+    /// The data the script ran on, whole.
+    pub data: Value,
+    /// Where the figure's (0,0) was placed, `[x, y]` in tenths.
+    pub origin: [i64; 2],
+    /// The figure's frame as placed, `[x, y, w, h]` in tenths.
+    pub frame: [i64; 4],
+}
+
 impl Body {
     /// The kind's name as it is written in an event.
     #[must_use]
@@ -165,6 +189,7 @@ impl Body {
             Self::UiPut(_) => "ui_put",
             Self::UiOpened(_) => "ui_opened",
             Self::UiReply(_) => "ui_reply",
+            Self::FigureDrawn(_) => "figure_drawn",
             Self::Other { kind, .. } => kind,
         }
     }
@@ -181,6 +206,7 @@ impl Body {
             Self::UiPut(p) => to_value(p),
             Self::UiOpened(p) => to_value(p),
             Self::UiReply(p) => to_value(p),
+            Self::FigureDrawn(p) => to_value(p),
             Self::Other { payload, .. } => payload.clone(),
         }
     }
@@ -220,6 +246,7 @@ impl Body {
             "ui_put" => Self::UiPut(serde_json::from_value(payload)?),
             "ui_opened" => Self::UiOpened(serde_json::from_value(payload)?),
             "ui_reply" => Self::UiReply(serde_json::from_value(payload)?),
+            "figure_drawn" => Self::FigureDrawn(serde_json::from_value(payload)?),
             _ => Self::Other { kind, payload },
         })
     }
