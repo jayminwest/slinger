@@ -145,7 +145,10 @@ impl Raster {
     /// ([`super::CELL`] of `size` wide, `size` tall) per character, wrapped at spaces to the frame's width when at
     /// least one cell fits, and at each `\n`.
     fn text(&mut self, text: &str, frame: Rect, colour: Colour, size: f64) {
-        let rows = wrap(text, columns(frame.w, size));
+        let mut rows = wrap(text, columns(frame.w, size));
+        // The rows past the most a frame holds are not drawn: the app shows
+        // them only when the text is stepped into.
+        rows.truncate(super::MOST_ROWS);
         let longest = rows.iter().map(Vec::len).max().unwrap_or(0);
         // A cell is narrower than it is tall: the 8 by 8 glyph is squeezed.
         let (wide, tall) = (size * SCALE * super::CELL, size * SCALE);

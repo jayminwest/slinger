@@ -56,7 +56,7 @@ impl Editing {
                 };
                 (found, (here.0.to_string(), here.1.to_string()))
             })?;
-        if !matches!(found, Found::Typing) && self.shapes.end(&mut self.ink) {
+        if !matches!(found, Found::Typing) && self.end_text() {
             self.send(follow);
         }
         Some(match found {

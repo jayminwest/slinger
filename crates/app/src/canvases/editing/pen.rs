@@ -39,6 +39,8 @@ impl Editing {
         (tool, colour): (Tool, crate::config::Rgb),
     ) -> bool {
         let Press { at, when, zoom, shift } = press;
+        // A press may end the text: its Nvim takes the keys sent first.
+        self.vim.settle(&mut self.shapes);
         follow.pen_in(pane, here, self.ink.mark());
         let items = follow.pane_shown(&self.ink, panes, pane);
         if self.shapes.down((tool, colour), here, press, &items, &mut self.ink) {

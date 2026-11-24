@@ -18,12 +18,16 @@ use std::path::{Path, PathBuf};
 use crate::commands::{Chord, Command, Keymap};
 
 pub mod canvas;
+mod editor;
+mod error;
 mod pointer;
 mod sling;
 mod theme;
 mod widths;
 
 pub use canvas::Canvas;
+pub use editor::Nvim;
+pub use error::ErrorKind;
 pub use pointer::Press;
 pub use sling::Prompt;
 pub use theme::Theme;
@@ -115,6 +119,8 @@ pub struct Config {
     pub prompt: Prompt,
     /// What a mouse or trackpad press does with the pen tool.
     pub press: Press,
+    /// Which Nvim edits a canvas text, if any.
+    pub nvim: Nvim,
 }
 
 /// What one file sets. Unset keys fall through to the layer below.
@@ -135,6 +141,7 @@ pub struct Layer {
     grid: Option<canvas::Grid>,
     prompt: Option<Prompt>,
     press: Option<Press>,
+    nvim: Option<Nvim>,
     /// By command: `Some(None)` unbinds it.
     #[expect(
         clippy::option_option,
@@ -163,6 +170,7 @@ impl Default for Layer {
             grid: None,
             prompt: None,
             press: None,
+            nvim: None,
             keys: [None; Command::ALL.len()],
         }
     }
@@ -200,6 +208,7 @@ impl Layer {
             grid: top.grid.or(self.grid),
             prompt: top.prompt.or(self.prompt),
             press: top.press.or(self.press),
+            nvim: top.nvim.or(self.nvim),
             keys,
         }
     }
@@ -234,6 +243,7 @@ impl Layer {
             },
             prompt: self.prompt.unwrap_or_default(),
             press: self.press.unwrap_or_default(),
+            nvim: self.nvim.unwrap_or_default(),
         }
     }
 
@@ -274,6 +284,9 @@ impl Layer {
             ("pointer", "press") => {
                 return put(&mut self.press, Press::parse(&value).ok_or(ErrorKind::BadPress)?);
             }
+            ("editor", "nvim") => {
+                return put(&mut self.nvim, Nvim::parse(&value).ok_or(ErrorKind::BadNvim)?);
+            }
             ("theme", "background") => &mut self.background,
             ("theme", "text") => &mut self.text,
             ("theme", "muted") => &mut self.muted,
@@ -309,8 +322,18 @@ fn put<T>(slot: &mut Option<T>, value: T) -> Result<(), ErrorKind> {
     Ok(())
 }
 
-const TABLES: [&str; 9] =
-    ["theme", "daemon", "workspace", "pen", "window", "pointer", "canvas", "sling", "keys"];
+const TABLES: [&str; 10] = [
+    "theme",
+    "daemon",
+    "workspace",
+    "pen",
+    "window",
+    "pointer",
+    "canvas",
+    "sling",
+    "editor",
+    "keys",
+];
 
 /// A line the parser rejects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -318,89 +341,6 @@ pub struct Error {
     /// 1-based.
     pub line: usize,
     pub kind: ErrorKind,
-}
-
-/// Why a line is rejected. The line itself names the table, key or value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ErrorKind {
-    /// Neither a comment, a `[table]` nor `key = "value"`.
-    Syntax,
-    UnknownTable,
-    UnknownKey,
-    DuplicateKey,
-    /// The value is not one double-quoted string.
-    NotAString,
-    BadColour,
-    /// Not one to nine colours.
-    BadPalette,
-    /// Not one to nine widths, each above 0 and at most 50.
-    BadWidths,
-    /// `[window] sidebar` is neither `open` nor `closed`.
-    BadSidebar,
-    /// `[canvas] background` is neither `plain` nor `dots`.
-    BadBackground,
-    /// `[canvas] grid` is not a distance from 1 to 500 points.
-    BadGrid,
-    /// `[sling] prompt` is blank.
-    BadPrompt,
-    /// `[pointer] press` is neither `select` nor `tool`.
-    BadPress,
-    /// A key in `[keys]` that names no command.
-    UnknownCommand,
-    BadChord,
-    /// Two commands on one chord in one file.
-    ChordTaken,
-}
-
-impl ErrorKind {
-    /// What is wrong, and what to do about it.
-    fn text(self) -> (&'static str, &'static str) {
-        let every = "config.example.toml lists every table and key";
-        match self {
-            Self::Syntax => (
-                "not a table, a setting or a comment",
-                "write a [table] or key = \"value\"; start a comment with #",
-            ),
-            Self::UnknownTable => ("unknown table", every),
-            Self::UnknownKey => ("unknown key", every),
-            Self::DuplicateKey => {
-                ("the key is set twice", "set each key once; put machine values in the overlay")
-            }
-            Self::NotAString => {
-                ("the value is not a quoted string", "quote the value: key = \"value\"")
-            }
-            Self::BadColour => ("the value is not a colour", "write a colour as \"#rrggbb\""),
-            Self::BadPalette => (
-                "the value is not one to nine colours",
-                "write the colours as \"#rrggbb #rrggbb\", split by spaces or commas",
-            ),
-            Self::BadWidths => (
-                "the value is not one to nine widths from 0.1 to 50",
-                "write the widths in points as \"2 4 8 16\", split by spaces or commas",
-            ),
-            Self::BadSidebar => ("the value is not open or closed", "write \"open\" or \"closed\""),
-            Self::BadBackground => {
-                ("the value is not plain or dots", "write \"plain\" or \"dots\"")
-            }
-            Self::BadGrid => (
-                "the value is not a distance from 1 to 500 points",
-                "write the canvas points between dots, with at most two decimal places: \"28.35\"",
-            ),
-            Self::BadPrompt => (
-                "the value is blank",
-                "write the words a sling with no prompt sends: \"Read what I wrote and do what it asks.\"",
-            ),
-            Self::BadPress => ("the value is not select or tool", "write \"select\" or \"tool\""),
-            Self::UnknownCommand => ("unknown command", every),
-            Self::BadChord => (
-                "the value is not a key chord",
-                "write a chord as \"cmd+shift+k\", or \"\" for none",
-            ),
-            Self::ChordTaken => {
-                ("another command is on this chord", "bind each chord to one command")
-            }
-        }
-    }
 }
 
 impl Error {

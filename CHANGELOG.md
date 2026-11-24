@@ -19,9 +19,16 @@ bullet with the area in bold.
   packets draw them. Older versions of slinger open these canvases and lose
   no item, drawing them plain.
 
+- **App:** a new `[editor] nvim` config key (`"auto"`, `"off"` or the path
+  to nvim) picks the nvim that will edit canvas texts. The app reads it now;
+  your own editor takes over typing once nvim's screen is drawn in the text.
 - **Agents:** an agent's text is at most 12 rows. A longer put or edit
   fails with `too_long` (exit 5) and the hint to split it into short puts,
   each beside its subject. Your own texts have no such limit.
+
+- **Canvas:** a text is at most 80 rows tall on the page. A longer text keeps
+  every word, but past row 80 it takes no room: an agent's put beside it, a
+  lasso and the agent's picture of it stop at row 80.
 
 - **Canvas:** when you change the words of a text an agent wrote, the text
   becomes yours, and the agent can no longer change it. Moving it or
@@ -712,6 +719,9 @@ bullet with the area in bold.
   remove that line.
 
 ### Fixed
+
+- **App:** a canvas text you are typing when you quit the app is written to
+  the canvas, not lost.
 
 - **App:** a workspace closed while the window showed it comes back, when
   opened again, as slingerd kept it (where each pane looked and which pane
