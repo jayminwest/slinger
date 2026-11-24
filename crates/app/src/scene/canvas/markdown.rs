@@ -49,7 +49,7 @@ impl Look {
 
 /// Whether a line opens or closes a fenced code block: three or more
 /// backticks or tildes after at most three spaces.
-fn fence(chars: &[char]) -> bool {
+pub fn fence(chars: &[char]) -> bool {
     let lead = chars.iter().take_while(|&&c| c == ' ').count();
     let rest = &chars[lead..];
     lead <= 3 && rest.len() >= 3 && (rest[..3] == ['`'; 3] || rest[..3] == ['~'; 3])

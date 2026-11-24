@@ -257,6 +257,49 @@ Most rows move by 10-20% with the load. `canvas_apply` moves by 3x at load
   takes 35-45% of the frame at scale 5 in the retake (20-30% in the first
   runs), before the paint, which was not timed.
 
+### Writing-column texts (slinger-625ecd, 2026-11-24)
+
+Since slinger-45d66c every canvas text draws as rendered markdown in cells
+(`scene/canvas/written.rs`): each scene build laid out every text in view
+again, and worked out the look of each of its cells. A pen sample rebuilds
+the scene, so it paid that for each text in view. The script now opens a
+third workspace, `column`: three markdown texts in 80-cell columns at size
+16 (headings, emphasis, code spans, checkboxes, quotes, a fenced block),
+two of about 79 rows side by side and one of about 120 rows, capped at 80
+(its fading rows and note are their own draws). Since slinger-625ecd a
+text's runs and fenced blocks are kept per text (its characters, size,
+column, rows, ink and paper; up to 1 024 texts, then the cache starts
+again, as `glyphs` keeps its measures).
+
+Pen samples, median / p90 in ms, 100 samples a row, `--runs 20` at scale 1,
+`--no-app` not given. Two runs of each build, taken in turn in one session
+(the code without the cache from `git stash` of the change).
+
+| what | no cache (load 11.7) | no cache (load 5.0) | kept (load 6.8) | kept (load 4.8) |
+|---|---|---|---|---|
+| pen sample on `column`, 100% at the origin (10 marks in view) | 0.4 / 0.5 | 0.4 / 0.4 | 0.1 / 0.2 | 0.1 / 0.2 |
+| the same, samples 100-200 | 0.4 / 0.4 | 0.4 / 0.4 | 0.1 / 0.1 | 0.1 / 0.1 |
+| pen sample on big, 100% at the origin (36 marks) | 0.8 / 0.9 | 0.8 / 1.7 | 0.7 / 0.8 | 0.8 / 0.9 |
+| pen sample on big, zoomed out to 17% (105 marks) | 0.9 / 1.4 | 0.8 / 0.9 | 0.8 / 1.0 | 1.2 / 3.1 |
+| pen sample on big, fitted (618 marks) | 1.7 / 2.1 | 1.5 / 1.8 | 1.6 / 2.1 | 1.8 / 3.2 |
+| pen sample on small, 100% at the origin (20 marks) | 0.2 / 0.2 | 0.1 / 0.1 | 0.1 / 0.1 | 0.1 / 0.2 |
+| switch to big, `heard` to `drawn` (trace) | 5.0 / 6.0 | 5.0 / 5.0 | 4.5 / 6.0 | 5.0 / 6.0 |
+
+- Three long texts in view cost a pen sample 0.3 ms of layout without the
+  cache (0.4 against 0.1 ms), in both runs. That grows with every long
+  text in view: a page of a dozen columns zoomed out would spend more than
+  1 ms of the 8.3 ms frame on it, for nothing changed.
+- The synthetic `big` and `small` canvases hold short texts (2-40 words),
+  so their rows do not move past the noise between runs. A run just
+  before the script change (load 9.6) gave 0.8 / 1.0 / 1.8 ms on big
+  (100%, 17%, fitted), against 0.7 / 0.8-0.9 / 1.5 ms in the retake of
+  2026-11-20 at load 1.5: the rendered view (slinger-45d66c) cost the
+  short texts no more than the load explains.
+- The painting of the runs (`platform::cells::write`, Menlo glyphs by
+  `NSAttributedString` each frame) is not timed here: see "Not taken".
+- Each text is kept whole: a text being typed is laid out once for each
+  change, and the one before stays kept until the cache starts again.
+
 ## Not taken
 
 - **AppKit paint time per frame.** A driven window times the dispatch, which
@@ -281,6 +324,9 @@ scripts/perf-canvas.py --scale 5 --runs 8        # scale 5, about 4 minutes
 scripts/perf-canvas.py --no-app                  # daemon rows only
 scripts/perf-canvas.py --keep --dir DIR          # keep the scratch directory and its logs
 ```
+
+The `column` workspace (three long markdown texts, `writing()` in the
+script) is written by the script over the socket; its pen rows come last.
 
 The script builds the release binaries. It writes both canvases into a fresh
 scratch data directory, starts a scratch `slingerd` (its own `--socket`,

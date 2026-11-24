@@ -11,7 +11,8 @@ Claude Code, so a sling spends no tokens), and times the control verbs over
 the socket: canvas_show (cold and warm), canvas_read, sling_backdrops,
 sling_send, canvas_apply. Then, unless --no-app, it starts a driven window
 (`slinger-app --drive`, never on a screen) and times a workspace switch and
-pen samples through the drive socket. It prints one Markdown table; the
+pen samples through the drive socket, last on a third canvas, `column`, of
+long markdown texts in 80-cell columns (slinger-625ecd). It prints one Markdown table; the
 method and the results are in docs/perf/canvas.md.
 
 Nothing touches the user's daemon, data directory or config. Everything it
@@ -133,7 +134,7 @@ def main():
                         "--seed", "2", "--pdf", pdf], check=True)
         big_bytes = os.path.getsize("data/canvases/big.canvas")
         small_bytes = os.path.getsize("data/canvases/small.canvas")
-        for name in ("big", "small"):
+        for name in ("big", "small", "column"):
             os.makedirs(f"ws-{name}")
             with open(f"ws-{name}/slinger-workspace.toml", "w") as f:
                 f.write(f'version = 1\nname = "{name}"\ncanvas = "{name}"\n[agent]\nname = "bench-{name}"\n')
@@ -148,8 +149,9 @@ def main():
         time.sleep(0.2)
         sock = "d.sock"
         daemon(sock, {"op": "blob_put", "path": os.path.abspath("paper.pdf")})
-        for name in ("big", "small"):
+        for name in ("big", "small", "column"):
             daemon(sock, {"op": "workspace_open", "dir": os.path.abspath(f"ws-{name}")})
+        writing(sock)
 
         before = load()
         for name, size in (("big", big_bytes), ("small", small_bytes)):
@@ -205,7 +207,7 @@ def main():
         # (`Viewport::opening`, since slinger-ff9dbe). The app rows start
         # from a fixed view instead: 100% with the origin at the top left,
         # kept for each workspace's pane, which a new window opens on.
-        for name in ("big", "small"):
+        for name in ("big", "small", "column"):
             _, listed = daemon(sock, {"op": "pane_list", "workspace": name})
             views = [{"id": p["id"], "canvas": name, "page": "p1", "x": 0, "y": 0, "zoom": 1}
                      for p in leaves(listed["layout"]) if p["kind"] == "canvas"]
@@ -231,6 +233,33 @@ def main():
     print("|---|---|---|---|---|")
     for line in rows + app_rows:
         print(line)
+
+
+def writing(sock):
+    """The `column` canvas: long markdown texts in 80-cell columns, as the
+    owner writes them (docs/design/writing-column.md), at size 16: two of
+    about 79 rows side by side and a capped one of about 120 rows."""
+    para = ("Some *emphasis* and **strong** words, a `code span`, and plain "
+            "prose that runs on past the column so it wraps onto a second row.")
+    block = ["```rust", "fn main() {", '    println!("a fenced block");',
+             "    let wider = vec![1, 2, 3].iter().map(|n| n * 2).collect::<Vec<_>>();",
+             "}", "```"]
+
+    def text(rows):
+        lines, n, k = [], 0, 0
+        while n < rows:
+            part = [f"# Heading {k}", para, "- [ ] a task", "- [x] a done one",
+                    "> a quote", ""] + block + [""]
+            lines += part
+            n += len(part) + 1  # the paragraph takes two rows
+            k += 1
+        return "\n".join(lines)
+    # 80 cells and a half of 8 points (a cell is half the size), in tenths.
+    for x, rows in ((0, 79), (6600, 79), (13200, 120)):
+        item = {"page": "p1", "kind": "text", "color": "black", "x": x, "y": 0,
+                "w": 6440, "size": 160, "text": text(rows)}
+        daemon(sock, {"op": "canvas_apply", "canvas": "column",
+                      "ops": {"op": "add", "item": item}})
 
 
 def drive(bins, sock, runs):
@@ -281,11 +310,11 @@ def drive(bins, sock, runs):
             side = settled('"small"')
         rows_at = {}
         for line in side.split("\n"):
-            m = re.match(r'sidebar ([\d.]+),([\d.]+) ([\d.]+)x([\d.]+) \S+(?: on \S+)? "(big|small)"', line)
+            m = re.match(r'sidebar ([\d.]+),([\d.]+) ([\d.]+)x([\d.]+) \S+(?: on \S+)? "(big|small|column)"', line)
             if m:
                 x, y, w, h = map(float, m.groups()[:4])
                 rows_at[m.group(5)] = (x + w / 2, y + h / 2)
-        if set(rows_at) != {"big", "small"}:
+        if set(rows_at) != {"big", "small", "column"}:
             sys.exit(f"✗ no sidebar rows for both workspaces:\n{side}")
 
         def marks(text):
@@ -377,6 +406,11 @@ def drive(bins, sock, runs):
             go({"op": "command", "name": "zoom-to-fit"})
             go({"op": "move", "x": 602, "y": 300})
             pen(to, "fitted to the content (zoom-to-fit)")
+        # Long markdown texts in view: each rebuild lays out their runs.
+        switch("column")
+        go({"op": "command", "name": "tool-pen"})
+        go({"op": "move", "x": 600, "y": 300})
+        pen("column", "100% at the origin, 3 long texts (79, 79, capped)")
         idle = [go({"op": "clip"})[0] for _ in range(runs)]
         rows.append(f"| drive request that does nothing (clip) | {summary(idle)} | the socket's own cost |")
     finally:
