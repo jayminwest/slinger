@@ -123,6 +123,11 @@ fn mark(draw: &Draw) -> String {
         Mark::Stroke { curves, width, dash, fill, .. } => {
             format!("stroke {} curves width {}{}", curves.len(), n(*width), styled(*dash, *fill))
         }
+        // A written text's rows are broken already, its font a part of
+        // its size: print the canvas text's size (its line), not those.
+        Mark::Text { text, line, written: Some(_), .. } => {
+            format!("text size {} written {}", n(*line), quoted(text))
+        }
         Mark::Text { text, size, width, .. } => {
             format!("text size {} column {} {}", n(*size), n(*width), quoted(text))
         }

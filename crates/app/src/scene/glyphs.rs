@@ -100,11 +100,12 @@ pub fn column(width: f64, size: f64) -> f64 {
     ((width / cell).floor().max(1.0) + 0.5) * cell
 }
 
-/// A text's column of about `width` at its new `size`, as [`column`] puts
-/// it, so a resize never lands it on whole cells; a text that does not
-/// wrap ([`UNWRAPPED`]) stays so.
-pub fn rewrapped(width: f64, size: f64) -> f64 {
-    if width < UNWRAPPED { column(width, size) } else { width }
+/// The column of a text of size `from` wrapped in `column`, at its new
+/// size `to`: as many cells of the new size as it had (slinger-5285e4),
+/// so a typed text's 80-cell column stays 80 cells and its rows do not
+/// change; a text that does not wrap stays so.
+pub fn resized(column: f64, from: f64, to: f64) -> f64 {
+    if column < UNWRAPPED { self::column(column * to / from, to) } else { column }
 }
 
 /// One of the core's rows of a text: the byte range of its characters. The
