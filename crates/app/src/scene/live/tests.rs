@@ -9,7 +9,7 @@ use crate::config::{Rgb, Theme};
 use crate::layout::Viewport;
 use crate::panes::{Kind, Pane, Panes};
 use crate::scene::Notes;
-use crate::scene::canvas::{self, Item, Shape};
+use crate::scene::canvas::{self, Item, Shape, Style};
 use crate::scene::cursor::Cursor;
 use crate::ui::{Code, Shown};
 
@@ -23,7 +23,7 @@ fn rect(x: f64, y: f64, width: f64, height: f64) -> Rect {
 
 fn live(id: u64, frame: Rect, open: &str) -> Item {
     let shape = Shape::Live { frame, name: "pick-slot".into(), open: open.into() };
-    Item { id: ItemId(id), colour: Rgb { r: 0, g: 0, b: 0 }, shape }
+    Item { id: ItemId(id), colour: Rgb { r: 0, g: 0, b: 0 }, shape, style: Style::default() }
 }
 
 fn page(open: &str) -> Arc<Page> {

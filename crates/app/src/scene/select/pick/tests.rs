@@ -5,6 +5,7 @@
 use super::*;
 use crate::config::{Rgb, Theme};
 use crate::scene::canvas::Shape;
+use crate::scene::canvas::Style;
 use crate::scene::ink::{Answer, Change, Ink, LOCAL};
 
 const HERE: (&str, &str) = ("main", "p1");
@@ -15,6 +16,7 @@ const THEME: Theme = Theme {
     error: Rgb { r: 3, g: 3, b: 3 },
     focus: Rgb { r: 4, g: 4, b: 4 },
     done: Rgb { r: 5, g: 5, b: 5 },
+    agent: Rgb { r: 6, g: 6, b: 6 },
 };
 
 fn pt(x: f64, y: f64) -> Point {
@@ -26,7 +28,7 @@ fn frame(x: f64, y: f64, width: f64, height: f64) -> Rect {
 }
 
 fn item(id: u64, shape: Shape) -> Item {
-    Item { id: ItemId(id), colour: Rgb { r: 255, g: 0, b: 0 }, shape }
+    Item { id: ItemId(id), colour: Rgb { r: 255, g: 0, b: 0 }, shape, style: Style::default() }
 }
 
 fn stroke(id: u64, (x1, y1): (f64, f64), (x2, y2): (f64, f64)) -> Item {

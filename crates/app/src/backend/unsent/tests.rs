@@ -92,7 +92,7 @@ fn every_change_comes_back_as_kept_and_a_file_of_strokes_alone_reads() {
     let (canvas, page) = (String::from("notes"), String::from("p1"));
     let colour = Rgb { r: 0, g: 10, b: 255 };
     let frame = Rect { x: 1.5, y: -2.0, width: 30.0, height: 4.5 };
-    let item = |id, shape| Item { id: ItemId(id), colour, shape };
+    let item = |id, shape| Item::plain(ItemId(id), colour, shape);
     let at = |x, y| Point { x, y };
     let arrow = Shape::Arrow {
         from: at(0.0, 0.0),

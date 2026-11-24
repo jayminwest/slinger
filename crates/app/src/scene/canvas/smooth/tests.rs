@@ -173,3 +173,24 @@ fn a_point_more_changes_only_the_last_few_curves() {
         assert!(was.len() - shared <= EASES + 4, "{} of {} changed", was.len() - shared, was.len());
     }
 }
+
+#[test]
+fn a_closed_line_ends_where_it_starts_with_no_corner_there() {
+    let square = [pt(0.0, 0.0), pt(40.0, 0.0), pt(40.0, 40.0), pt(0.0, 40.0)];
+    let curves = line(&square, 2.0, true);
+    let start = curves[curves.len() - 1][2];
+    // The curve leaves its start along the line it came in on.
+    let (into, out) = (curves[curves.len() - 1][1], curves[0][0]);
+    let cross = (start.x - into.x) * (out.y - start.y) - (start.y - into.y) * (out.x - start.x);
+    assert!(cross.abs() < 1e-9, "a corner at the join: {into:?} {start:?} {out:?}");
+    assert!(curves.len() >= 4);
+    assert!(
+        curves.iter().flatten().all(|p| (0.0..=40.0).contains(&p.x) && (0.0..=40.0).contains(&p.y))
+    );
+}
+
+#[test]
+fn a_closed_line_of_two_points_is_drawn_open() {
+    let two = [pt(0.0, 0.0), pt(40.0, 0.0)];
+    assert_eq!(line(&two, 2.0, true), smooth(&two, 2.0));
+}

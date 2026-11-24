@@ -30,6 +30,8 @@
 #focus = "#4c9aff"
 # A done agent's mark in the sidebar.
 #done = "#4cc36b"
+# The agent colour: what an agent draws in by default (a figure's ink and fills) shows in this one.
+#agent = "#8a5cf5"
 
 # --- daemon: how the app reaches slingerd.
 [daemon]

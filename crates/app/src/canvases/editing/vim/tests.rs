@@ -36,7 +36,7 @@ fn new_text(ink: &mut Ink) -> Shapes {
 fn opened(text: &str, ink: &mut Ink) -> Shapes {
     let frame = Rect { x: 0.0, y: 0.0, width: 200.0, height: 30.0 };
     let shape = Shape::Text { frame, text: text.into(), size: 24.0, column: None };
-    let item = Item { id: ItemId(7), colour: RED, shape };
+    let item = Item::plain(ItemId(7), RED, shape);
     let mut shapes = Shapes::default();
     shapes.start_at(HERE, (Point { x: 5.0, y: 5.0 }, 10.0), &[Cow::Owned(item)], RED, ink);
     shapes
