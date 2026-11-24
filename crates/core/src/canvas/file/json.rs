@@ -8,9 +8,9 @@
 
 use serde_json::{Map, Value};
 
-use super::time;
+use super::{style, time};
 use crate::canvas::{
-    Author, Colour, End, Fold, Item, ItemId, PageId, Point, Rect, Shape, TEXT_SIZE,
+    Author, Colour, End, Fold, Item, ItemId, PageId, Point, Rect, Shape, Style, TEXT_SIZE,
 };
 
 /// A JSON object, as read.
@@ -96,7 +96,7 @@ pub(super) fn parse_page(s: &str) -> Result<PageId, Bad> {
 }
 
 /// `#rrggbb`, or `#rrggbbaa` when the colour is not opaque.
-fn colour(c: Colour) -> String {
+pub(super) fn colour(c: Colour) -> String {
     let rgb = format!("#{:02x}{:02x}{:02x}", c.r, c.g, c.b);
     if c.a == 255 { rgb } else { format!("{rgb}{:02x}", c.a) }
 }
@@ -216,16 +216,18 @@ fn read_fold(m: &Fields) -> Result<Option<Fold>, Bad> {
     Ok(Some(Fold { open, items: ids(f, "items")? }))
 }
 
-/// An `add` operation's item object.
-pub(super) fn item(id: ItemId, page: PageId, s: &Shape) -> String {
-    shape(Obj::new().str("id", &item_id(id)).str("page", &page_id(page)), s).end()
+/// An `add` operation's item object: the shape's fields, then the style's.
+pub(super) fn item(id: ItemId, page: PageId, s: &Shape, st: Style) -> String {
+    let o = shape(Obj::new().str("id", &item_id(id)).str("page", &page_id(page)), s);
+    style::write(o, st).end()
 }
 
 /// An item whole, as `restore` and `page.restore` carry it: its id, page,
 /// maker and time, then its shape.
 pub(super) fn whole_item(i: &Item) -> String {
     let o = Obj::new().str("id", &item_id(i.id)).str("page", &page_id(i.page));
-    shape(o.str("by", &author(&i.author)).str("t", &time::format(i.time)), &i.shape).end()
+    let o = shape(o.str("by", &author(&i.author)).str("t", &time::format(i.time)), &i.shape);
+    style::write(o, i.style).end()
 }
 
 /// Reads [`whole_item`]. `None` for an item kind or maker this reader does
@@ -238,6 +240,7 @@ pub(super) fn read_whole_item(m: &Fields) -> Result<Option<Item>, Bad> {
         page: parse_page(text(m, "page")?)?,
         author,
         time: time::parse(text(m, "t")?)?,
+        style: style::read(m, &shape),
         shape,
     }))
 }
@@ -311,7 +314,7 @@ pub(super) fn read_shape(m: &Fields) -> Result<Option<Shape>, Bad> {
         }));
     }
     if kind == "pdf" {
-        return read_pdf(m).map(Some);
+        return super::pdf::read(m).map(Some);
     }
     if !matches!(kind, "stroke" | "text" | "box" | "arrow") {
         return Ok(None);
@@ -346,40 +349,6 @@ pub(super) fn read_shape(m: &Fields) -> Result<Option<Shape>, Bad> {
     Ok(Some(shape))
 }
 
-/// A `pdf` item's fields (docs/design/pdf.md). Values the canvas would
-/// refuse (a page 0, a crop off the page) are left for [`Shape::check`].
-fn read_pdf(m: &Fields) -> Result<Shape, Bad> {
-    let at = |key| int(m, key).map(units);
-    let frame = Rect::new(at("x")?, at("y")?, at("w")?, at("h")?);
-    let pdf_page =
-        u32::try_from(int(m, "pdfpage")?).map_err(|_| "`pdfpage` is not a page number")?;
-    let [pw, ph] = tenths_list::<2>(m, "pagesize")?;
-    let crop = match m.get("crop") {
-        None | Some(Value::Null) => None,
-        Some(_) => {
-            let [left, top, width, height] = tenths_list::<4>(m, "crop")?;
-            Some(Rect::new(left, top, width, height))
-        }
-    };
-    Ok(Shape::Pdf {
-        frame,
-        hash: text(m, "hash")?.to_owned(),
-        pdf_page,
-        page_size: (pw, ph),
-        crop,
-        name: opt_text(m, "name")?.map(str::to_owned),
-    })
-}
-
-/// A list of exactly `N` integers in tenths, in units.
-fn tenths_list<const N: usize>(m: &Fields, key: &str) -> Result<[f64; N], Bad> {
-    let bad = || format!("`{key}` is not a list of {N} integers");
-    let list = field(m, key)?.as_array().ok_or_else(bad)?;
-    let values: Vec<f64> =
-        list.iter().map(|v| v.as_i64().map(units)).collect::<Option<_>>().ok_or_else(bad)?;
-    values.try_into().map_err(|_| bad())
-}
-
 pub(super) fn field<'a>(m: &'a Fields, key: &str) -> Result<&'a Value, Bad> {
     m.get(key).ok_or_else(|| format!("`{key}` is missing"))
 }
@@ -388,7 +357,7 @@ pub(super) fn text<'a>(m: &'a Fields, key: &str) -> Result<&'a str, Bad> {
     field(m, key)?.as_str().ok_or_else(|| format!("`{key}` is not a string"))
 }
 
-fn opt_text<'a>(m: &'a Fields, key: &str) -> Result<Option<&'a str>, Bad> {
+pub(super) fn opt_text<'a>(m: &'a Fields, key: &str) -> Result<Option<&'a str>, Bad> {
     match m.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(_) => text(m, key).map(Some),

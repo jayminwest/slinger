@@ -11,6 +11,14 @@ bullet with the area in bold.
 
 ### Added
 
+- **Canvas:** boxes and closed strokes take a fill, drawn as a light tint
+  under all writing; boxes, strokes and arrows can be dashed or dotted; an
+  arrow can have a head at both ends or none (a plain line); a stroke can
+  be closed into a loop. Set them with `fill`, `dash`, `heads` and
+  `closed` in `canvas apply` (`canvas schema` lists them); crops and
+  packets draw them. Older versions of slinger open these canvases and lose
+  no item, drawing them plain.
+
 - **App:** a new `[editor] nvim` config key (`"auto"`, `"off"` or the path
   to nvim) picks the nvim that will edit canvas texts. The app reads it now;
   your own editor takes over typing once nvim's screen is drawn in the text.

@@ -27,7 +27,7 @@ impl Board {
     }
 
     fn add(&mut self, by: Author, shape: Shape) -> ItemId {
-        let action = Action::Add { page: self.page, shape };
+        let action = Action::add(self.page, shape);
         let Applied::Added(id) = self.canvas.apply(Op { by, at: Time(0), action }).unwrap() else {
             panic!("not added")
         };

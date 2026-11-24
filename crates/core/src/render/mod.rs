@@ -25,7 +25,7 @@ mod backdrop;
 mod png;
 mod raster;
 
-use crate::canvas::{Canvas, Item, ItemId, PageId, Rect};
+use crate::canvas::{Canvas, Item, ItemId, PageId, Rect, Shape};
 pub use backdrop::{Backdrop, Word};
 pub(crate) use backdrop::{meet, usable};
 use raster::Raster;
@@ -201,9 +201,7 @@ fn draw(
         for (backdrop, clip) in under {
             raster.backdrop(backdrop, *clip);
         }
-        for item in items {
-            raster.item(item);
-        }
+        lay(&mut raster, items);
         raster
     };
     let drawn: Vec<([u32; 4], Raster)> = spans(height)
@@ -340,6 +338,22 @@ fn spans(len: u32) -> Vec<(u32, u32)> {
 pub(crate) fn union(a: Rect, b: Rect) -> Rect {
     let (x, y) = (a.x.min(b.x), a.y.min(b.y));
     Rect::new(x, y, (a.x + a.w).max(b.x + b.w) - x, (a.y + a.h).max(b.y + b.h) - y)
+}
+
+/// Draws `items` over what `raster` holds, in the one draw order
+/// (docs/design/figures.md, "Draw order"): PDF pages, then every fill, then
+/// the rest, each in the order given. A fill is under all ink and text.
+fn lay(raster: &mut Raster, items: &[&Item]) {
+    let paper = |i: &&&Item| matches!(i.shape(), Shape::Pdf { .. });
+    for item in items.iter().filter(paper) {
+        raster.item(item);
+    }
+    for item in items {
+        raster.fill(item);
+    }
+    for item in items.iter().filter(|i| !paper(i)) {
+        raster.item(item);
+    }
 }
 
 #[cfg(test)]

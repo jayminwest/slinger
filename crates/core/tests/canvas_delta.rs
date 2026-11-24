@@ -27,7 +27,7 @@ fn stroke(x: f64) -> Shape {
 }
 
 fn add(x: f64) -> Op {
-    user(Action::Add { page: PAGE, shape: stroke(x) })
+    user(Action::add(PAGE, stroke(x)))
 }
 
 /// Item ids are handed out from 1 in the order items are added.
@@ -57,7 +57,7 @@ fn items_added_after_the_marker_are_new() {
 #[test]
 fn an_edited_or_moved_item_is_changed_not_new() {
     let (mut log, marker) = slung();
-    log.push(user(Action::Edit { item: id(1), shape: stroke(300.0) }));
+    log.push(user(Action::edit(id(1), stroke(300.0))));
     log.push(user(Action::Move { item: id(2), by: Point::new(5.0, 5.0) }));
     let c = changes_since(&log, marker);
     assert_eq!(c.changed, ids(&[1, 2]));
@@ -94,7 +94,7 @@ fn an_item_added_then_removed_after_the_marker_is_not_new() {
 fn an_item_added_then_edited_after_the_marker_is_new() {
     let (mut log, marker) = slung();
     log.push(add(100.0));
-    log.push(user(Action::Edit { item: id(3), shape: stroke(400.0) }));
+    log.push(user(Action::edit(id(3), stroke(400.0))));
     let c = changes_since(&log, marker);
     assert_eq!(c.new, ids(&[3]));
     assert_eq!(c.changed, ids(&[]));
@@ -138,7 +138,7 @@ fn removing_a_page_removes_its_old_items_and_hides_its_new_ones() {
     let (mut log, marker) = slung();
     log.push(user(Action::PageAdd { name: "spec".into() }));
     let spec = PageId::new(2);
-    log.push(user(Action::Add { page: spec, shape: stroke(0.0) }));
+    log.push(user(Action::add(spec, stroke(0.0))));
     let c = changes_since(&log, Marker(4));
     assert!(c.is_empty());
     assert_eq!(changes_since(&log, marker).new, ids(&[3]));
@@ -154,15 +154,15 @@ fn a_refused_op_in_the_log_changes_nothing() {
     // An agent may not change the user's ink, and item 9 does not exist.
     log.push(op(&Author::Agent("scout".into()), Action::Remove { item: id(1) }));
     log.push(user(Action::Move { item: id(9), by: Point::new(1.0, 1.0) }));
-    log.push(user(Action::Add {
-        page: PAGE,
-        shape: Shape::Text {
+    log.push(user(Action::add(
+        PAGE,
+        Shape::Text {
             text: "t".into(),
             frame: Rect::new(0.0, 0.0, 9.0, 9.0),
             colour: Colour::BLACK,
             size: 24.0,
         },
-    }));
+    )));
     let c = changes_since(&log, marker);
     assert_eq!(c.new, ids(&[3]));
     assert!(c.changed.is_empty() && c.removed.is_empty());

@@ -43,7 +43,7 @@ impl Log {
             let items = log.canvas().contents(item);
             let fold = Fold { open: (frame.w, frame.h), items: items.clone() };
             let shape = Shape::Box { frame: miniature(frame), colour, fold: Some(fold) };
-            let mut actions = vec![Action::Edit { item, shape }];
+            let mut actions = vec![Action::edit(item, shape)];
             let taken: HashSet<ItemId> = items.into_iter().collect();
             actions.extend(outer.and_then(|o| {
                 relisted(log.canvas(), o, |list| {
@@ -92,7 +92,7 @@ impl Log {
             let held = canvas.contents(item);
             let open = Rect::new(frame.x, frame.y, fold.open.0, fold.open.1);
             let mut actions =
-                vec![Action::Edit { item, shape: Shape::Box { frame: open, colour, fold: None } }];
+                vec![Action::edit(item, Shape::Box { frame: open, colour, fold: None })];
             actions.extend(outer.and_then(|o| relisted(canvas, o, |list| list.extend(held))));
             let actions = log.followed(by, actions);
             log.step(by, at, actions)
@@ -118,7 +118,7 @@ impl Log {
             let carries = match &action {
                 Action::Move { item, by } => Some((*item, Some(*by))),
                 Action::Remove { item } => Some((*item, None)),
-                Action::Edit { item, shape } => {
+                Action::Edit { item, shape, .. } => {
                     moved(canvas, *item, shape).map(|by| (*item, Some(by)))
                 }
                 _ => None,
@@ -163,11 +163,11 @@ impl Log {
         let (item, _, on) = self.named(id)?;
         let adds = out.iter().filter(|a| matches!(a, Action::Add { .. } | Action::PageAdd { .. }));
         let made = self.made(out, &(adds.count().saturating_sub(1)).to_string());
-        let (Some(made), Some(Action::Add { page, shape: added })) = (made, out.last()) else {
+        let (Some(made), Some(Action::Add { page, shape: added, .. })) = (made, out.last()) else {
             return Ok(());
         };
         let earlier = out.iter().rev().find_map(|a| match a {
-            Action::Edit { item: e, shape } if *e == item => Some(shape.clone()),
+            Action::Edit { item: e, shape, .. } if *e == item => Some(shape.clone()),
             _ => None,
         });
         let current = earlier.or_else(|| self.canvas().item(item).map(|i| i.shape().clone()));
@@ -183,7 +183,7 @@ impl Log {
         fold.open.0 = fold.open.0.max(r.x + r.w - frame.x);
         fold.open.1 = fold.open.1.max(r.y + r.h - frame.y);
         fold.items.push(made);
-        out.push(Action::Edit { item, shape: Shape::Box { frame, colour, fold: Some(fold) } });
+        out.push(Action::edit(item, Shape::Box { frame, colour, fold: Some(fold) }));
         Ok(())
     }
 
@@ -216,7 +216,7 @@ fn relisted(
     let mut shape = canvas.item(outer)?.shape().clone();
     let Shape::Box { fold: Some(fold), .. } = &mut shape else { return None };
     change(&mut fold.items);
-    Some(Action::Edit { item: outer, shape })
+    Some(Action::edit(outer, shape))
 }
 
 /// The item a move, remove or edit names.
