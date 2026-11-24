@@ -63,6 +63,7 @@ a "did you mean" suggestion.
 | `canvas edit <ID> --item ITEM [--text TEXT] [--size TENTHS] [--box W,H] [--move X,Y] [--agent NAME]` | The item's id and its box `x,y,w,h` in tenths now, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq` |
 | `canvas remove <ID> --item ITEM [--agent NAME]` | Nothing. `--json`: `seq` |
 | `canvas fold <ID> <ITEM> [--agent NAME]`, `canvas unfold <ID> <ITEM> [--agent NAME]` | Nothing. `--json`: `item`, `page`, `x`, `y`, `w`, `h` (the box's frame now), `seq` |
+| `canvas draw <ID> <FILE> --name NAME (--beside ID \| --over ID \| --in BOX \| --at [PAGE:]X,Y) [--data JSON\|@FILE] [--dry-run] [--png PATH] [--agent NAME]` | The path of each image `--png` wrote, one per line, then one line per warning of the script, `warning: script:LINE:COL: message`; else nothing. `--json`: `name`, `page`, `origin`, `frame`, `parts`, `items`, `seq`, `warnings`, `images`, `event` |
 | `feedback add <TEXT>...` | The note's `ts`. `--json`: `path`, `entry` |
 | `feedback ls [--all] [--limit N]` | One line per note, newest first: `ts`, text and, with `--all`, `resolved` and its note for a resolved one, separated by tabs. `--limit` defaults to 20. `--json`: `path`, `entries` |
 | `feedback resolve <TS> [NOTE]...` | Nothing. `--json`: `path`, `resolves`, `ts`, `note` |
@@ -342,6 +343,17 @@ item that is not a box, exits 5 (`invalid`); one that is not there exits 3.
 `session list` shows the agents of the open workspaces; with none it prints
 nothing and exits 0. `session show` of an agent with no session exits 3
 (`not_found`).
+
+`canvas draw` runs a drawing script (JavaScript; `slinger guide` has its
+API) in the daemon and places what it draws as one figure named `--name`,
+as one undo step (`docs/service.md`, "Drawing a figure"). `--at` is in
+canvas units, the packet's, not tenths: `--at 40,40` or `--at "Page 2:40,40"`.
+`--data` is JSON, or `@FILE`; the script reads it as `fig.data`. Drawing a
+name again replaces that figure in place and writes nothing when nothing
+changed. `--dry-run` writes nothing and, with `--json`, says where the
+figure would go and its parts; `--png` writes the figure alone as an image.
+A script that fails exits 5 (`invalid`) with `script:LINE:COL` in its
+message; a name another agent drew exits 4 (`conflict`).
 
 `session start` starts the workspace's agent: a Claude Code process in its
 home that `slingerd` holds open, resuming the conversation it last had, even

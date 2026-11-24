@@ -257,6 +257,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_strokes` | `canvas`: canvas id, `item`: an item id | `strokes`: list of stroke items with `points` |
 | `canvas_find` | `canvas`: canvas id, `text`: string | `found`: list of text items that hold it, page by page in reading order |
 | `canvas_fold`, `canvas_unfold` | `canvas`: canvas id, `item`: a box's id, `by`: author (default `user`), `once`: string (optional) | `item`, `page`, `x`, `y`, `w`, `h`: the box's frame now (the miniature, or the open frame), `seq`: the numbers written (empty when nothing changed) |
+| `canvas_draw` | `canvas`: canvas id, `by`: author (default `user`), `name`: the figure's name, `path`: the script's file, then one of `beside`, `over`, `in`: an item id or address, `at`: `[x, y]` in tenths; optional `page` (with `at` only), `data`: a JSON file the script reads as `fig.data`, `dry_run`: `true` writes nothing, `png`: a file for a PNG of the figure alone | `name`, `page`, `origin`: `[x, y]`, `frame`: `[x, y, w, h]` in tenths, `parts`, `items`: how many, `seq`: the numbers written (empty on a dry run or when nothing changed), `warnings` (when any), `images` (with `png`), `event`: the `reply_landed` appended (absent when none) |
 | `session_list` | none | `sessions`: list of sessions, sorted by agent |
 | `session_show` | `agent`: string | `session` |
 | `status_set` | `agent`: string, `status`: `working`, `blocked` or `done`, `note`: string (optional) | `agent`, `status`, `note` (absent when none), `event`: the number of the event appended (absent for `working`) |
@@ -801,6 +802,47 @@ takes a `FoldAsk` (`crates/control/src/fold.rs`).
 { "ok": true, "item": "i4", "page": "p1", "x": 0, "y": 0, "w": 2500, "h": 1250, "seq": [17] }
 { "v": 1, "op": "canvas_unfold", "canvas": "main", "item": "i4" }
 { "ok": false, "code": "conflict", "error": "the box's room is taken by i9", "hint": "move them first, or read the box with 'slinger canvas read --in'" }
+```
+
+#### Drawing a figure
+
+**`canvas_draw`** runs an agent's drawing script and places what it draws
+as one figure (`docs/design/figures.md`): ordinary items that share the
+figure's `name` (`fig`), with named parts, locked against the user's pen
+unless the script says not. The script (JavaScript, the API in Appendix A of
+that page and in `slinger guide`) and its data cross as files, as a blob's
+bytes do: the daemon reads `path` (UTF-8) and `data` (JSON; absent is
+`{}`), runs the script in its bounded, pure engine (`crates/script`: 1 s,
+32 MB, 5,000 shapes, a 1 MiB script, 256 KiB of data), and the core places
+the shapes as one undo step. `beside` puts the figure's frame beside an
+item where it covers nothing; `over` puts its (0,0) on an item's top left
+and moves nothing (the script reads the item's size as `fig.view.target`);
+`in` puts its frame in a box's room, as `canvas_put`'s `in` does; `at`
+puts its (0,0) at a point, on `page` (id or name) or the first. A name the
+canvas has is drawn again in place, by match: an item that is the same
+stays, one that changed is set under its id, and the same draw again writes
+nothing. An agent may not draw a name another made (`conflict`); the user
+may. A draw that wrote appends `figure_drawn` (the script stored as a
+blob, the data whole) and, for an agent slung something on the canvas, a
+`reply_landed` naming the figure's items, as `canvas_put` does.
+`dry_run` writes nothing at all (no blob, no event, no op) and replies as
+the draw would. `png` writes the figure alone on white as `canvas_crop`
+writes images (tiles beside it as `<stem>-<n>.png`), on a dry run or not.
+
+A script that fails is `invalid`, its message `script:LINE:COL: ...` where
+the script was and a hint; a script that runs but would not land (a shape
+the canvas does not take, a name that is not a figure name) is `invalid`
+too, and an agent's text over 12 rows is `too_long`: a figure is not a way
+around `AGENT_ROWS`. `warnings` (text over a line, texts overlapping, a
+shape far from the rest, the script's own `warn`) never fail a draw. The
+app never sends it; a client writes it with `Client::canvas_draw`
+(`crates/control/src/figure.rs`).
+
+```json
+{ "v": 1, "op": "canvas_draw", "canvas": "main", "by": "agent:scout", "name": "worksheet", "path": "/tmp/w.js", "data": "/tmp/w.json", "at": [400, 400] }
+{ "ok": true, "name": "worksheet", "page": "p1", "origin": [400, 400], "frame": [400, 400, 9000, 14000], "parts": ["1a", "1b"], "items": 56, "seq": [7, 8] }
+{ "v": 1, "op": "canvas_draw", "canvas": "main", "name": "f", "path": "/tmp/bad.js", "beside": "c12", "dry_run": true }
+{ "ok": false, "code": "invalid", "error": "script:2:1: box: w must be a number above 0, got \"wide\"", "hint": "fix the script there and try it with --dry-run; 'slinger guide' has the drawing API" }
 ```
 
 #### Sessions

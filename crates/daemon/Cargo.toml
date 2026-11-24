@@ -13,6 +13,8 @@ path = "src/main.rs"
 [dependencies]
 slinger-core.workspace = true
 slinger-control.workspace = true
+# Runs agents' drawing scripts (canvas_draw): only the daemon links QuickJS.
+slinger-script.workspace = true
 clap.workspace = true
 gethostname.workspace = true
 rusqlite.workspace = true
@@ -22,7 +24,6 @@ signal-hook.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-slinger-script.workspace = true
 tempfile.workspace = true
 
 [lints]

@@ -118,6 +118,20 @@ impl Log {
         Ok(Some(tenths(frame)))
     }
 
+    /// The name of the page a figure placed as `at` says goes on: what a
+    /// script reads as `fig.view.page`.
+    ///
+    /// # Errors
+    ///
+    /// Those of an id or a page that names nothing or is not one.
+    pub fn figure_page(&self, at: &Placement) -> Result<String> {
+        let page = match at {
+            Placement::At { page, .. } => return Ok(self.page(page.as_deref())?.name().to_owned()),
+            Placement::Beside(id) | Placement::Over(id) | Placement::In(id) => self.named(id)?.2,
+        };
+        Ok(self.canvas().page(page).map(|p| p.name().to_owned()).unwrap_or_default())
+    }
+
     /// The figure `name` that `items` (see the module doc) make, placed as
     /// `at` says, as `by` would draw it at `time`, without writing it.
     ///
