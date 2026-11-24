@@ -201,6 +201,8 @@ newer slinger (`canvas_too_new`) exits 1.
 
 `canvas import` makes a new canvas from a tldraw file (`.tldraw` or `.tldr`),
 named by `--name` or after the file (lowercased, other characters made `-`).
+It keeps each shape's colour, fill, dashed or dotted line, a drawing's
+closed loop, an arrow's heads and a locked shape's lock.
 A file that is not there exits 3 (`not_found`), one that is not a tldraw file
 exits 5 (`invalid`), and a canvas of that id exits 4 (`conflict`).
 `workspace open <DIR>` opens a directory (relative to the current one) as a

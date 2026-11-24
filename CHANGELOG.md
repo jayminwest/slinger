@@ -26,7 +26,8 @@ bullet with the area in bold.
   no item, drawing them plain.
 - **Canvas:** a tldraw import keeps each rectangle's fill (as a light tint
   of its colour) and each rectangle's, drawing's and arrow's dashed or
-  dotted line.
+  dotted line, a closed drawing's loop and fill, an arrow's heads (at the
+  end, both ends or none) and a locked shape's lock.
 
 - **Canvas:** items can belong to a named figure and a named part of it
   (`fig`, `part`) and can be locked (`locked`), set through
