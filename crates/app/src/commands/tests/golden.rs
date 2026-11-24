@@ -32,6 +32,7 @@ const ABLE: Facts = Facts {
     entry: false,
     sling_now: true,
     new_text: true,
+    text: true,
     workspace: true,
     agent: Some(false),
     notice: true,

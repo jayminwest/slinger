@@ -41,6 +41,7 @@ pub fn facts(
         entry: canvases.typing(),
         sling_now: canvases.can_sling_now(panes, area),
         new_text: new_text.is_some() && !canvases.typing(),
+        text: canvases.focus_target(panes, pane).is_some() || canvases.write_focused(pane),
         workspace,
         agent: sidebar.shown_agent().map(|a| a.running).filter(|_| workspace),
         notice: sidebar.noticed(),

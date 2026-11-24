@@ -396,6 +396,9 @@ pane's width less a margin of 4 cells each side, its top a cell below the
 pane's top; the view the pane had comes back when the text ends or on the
 same chord again. Alternative not taken: a pane of its own for the text
 (cuts the writing off from the ink around it).
+Landed (slinger-9321cf): `crates/app/src/canvases/focus.rs` (`writing`, the
+pure view; `Focus` keeps the view it replaced and the count of texts ended,
+so any text ending gives it back); the top margin is one row (one size).
 
 ### The rendered view (step 7, slinger-45d66c)
 
