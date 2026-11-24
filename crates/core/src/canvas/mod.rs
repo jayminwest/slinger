@@ -10,6 +10,8 @@
 //! - Removing an item or a page that is already gone succeeds (SPEC B4).
 //! - An agent edits, moves or removes only items it made. The user's ink is
 //!   never changed by an agent (SPEC section 7).
+//! - The user's edit of the words of an agent's text makes the text the
+//!   user's: from then on the agent may not change what the user wrote.
 //! - A canvas always has at least one page, and page names are unique.
 
 mod delta;
@@ -175,6 +177,9 @@ impl Canvas {
                 } else {
                     self.changeable(item, &by)?
                 };
+                if by == Author::User && rewords(&found.shape, &shape) {
+                    found.author = Author::User;
+                }
                 found.shape = shape;
                 Ok(Applied::Changed)
             }
@@ -336,6 +341,11 @@ impl Canvas {
     }
 }
 
+/// Whether `new` is a text with other words than the text `old`.
+fn rewords(old: &Shape, new: &Shape) -> bool {
+    matches!((old, new), (Shape::Text { text: a, .. }, Shape::Text { text: b, .. }) if a != b)
+}
+
 fn gone(id: ItemId) -> Error {
     Error::NotFound {
         what: id.to_string(),
@@ -346,6 +356,6 @@ fn gone(id: ItemId) -> Error {
 fn not_yours(by: &Author, what: &str, maker: &Author) -> Error {
     invalid(
         format!("{by} may not change {what} made by {maker}"),
-        "an agent changes only items it made; add a new item instead",
+        "an agent changes only items it made; put a new item beside it instead",
     )
 }

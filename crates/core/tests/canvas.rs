@@ -310,9 +310,13 @@ fn an_agent_changes_only_items_it_made() {
 fn the_user_may_change_an_agents_items() {
     let mut c = Canvas::new();
     let id = add(&mut c, &agent("claude"), text("t"));
+    let moved = Action::Move { item: id, by: Point::new(1.0, 1.0) };
+    assert_eq!(c.apply(op(&Author::User, moved)).unwrap(), Applied::Changed);
+    assert_eq!(c.item(id).unwrap().author(), &agent("claude"));
+    // New words make the text the user's.
     let edit = Action::Edit { item: id, shape: text("fixed") };
     assert_eq!(c.apply(op(&Author::User, edit)).unwrap(), Applied::Changed);
-    assert_eq!(c.item(id).unwrap().author(), &agent("claude"));
+    assert_eq!(c.item(id).unwrap().author(), &Author::User);
 }
 
 #[test]

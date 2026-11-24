@@ -292,6 +292,8 @@ names no file records nothing and exits 0. The hooks `slingerd` gives each
 agent's process run it after every file write (`docs/service.md`, "Hooks").
 A file that is not there exits 3 (`not_found`); both or neither of `PATH`
 and `--hook` exits 2.
+An agent's text is at most 12 rows: a `canvas put`, `canvas edit` or
+`canvas apply` past that exits 5 with code `too_long`.
 `canvas put` is an agent verb too: the agent answers on the canvas with
 text, a box (`W,H` in tenths of a unit), a pen stroke (`--ink`: x,y pairs in
 tenths, the first where it starts, each next the step from the one before,
@@ -427,7 +429,7 @@ never on `error`.
 | 2 | usage | Bad arguments, unknown command or flag |
 | 3 | not_found | A named thing does not exist |
 | 4 | conflict | The thing exists or is in the wrong state |
-| 5 | invalid | Input was understood but rejected |
+| 5 | invalid | Input was understood but rejected (also `too_long`: an agent's text over 12 rows) |
 | 6 | unavailable | `slingerd` does not answer, or the agent's process is not running. The hint says how to start it, or, for a `slingerd` that took the request and did not reply in time, to try again or restart it |
 Add a code only when a caller needs to tell the failure apart from the
 others. Never renumber.

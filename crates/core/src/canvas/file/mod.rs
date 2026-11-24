@@ -54,6 +54,7 @@ mod once;
 mod packet;
 mod put;
 mod replay;
+mod short;
 mod synthetic;
 mod time;
 mod whole;
@@ -65,6 +66,7 @@ pub use once::ONCES;
 pub use packet::{backdrop, rect_tenths, size_tenths};
 pub use put::{How, INK_WIDTH, Placed, Put, TEXT_COLUMNS};
 use serde_json::{Map, Value};
+pub use short::AGENT_ROWS;
 pub use synthetic::{SESSIONS, Synthetic};
 
 use super::{Action, Applied, Author, Item, ItemId, Op, Page, PageId, Point, Shape, Step, Time};

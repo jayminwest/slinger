@@ -14,6 +14,13 @@ bullet with the area in bold.
 - **App:** a new `[editor] nvim` config key (`"auto"`, `"off"` or the path
   to nvim) picks the nvim that will edit canvas texts. The app reads it now;
   your own editor takes over typing once nvim's screen is drawn in the text.
+- **Agents:** an agent's text is at most 12 rows. A longer put or edit
+  fails with `too_long` (exit 5) and the hint to split it into short puts,
+  each beside its subject. Your own texts have no such limit.
+
+- **Canvas:** when you change the words of a text an agent wrote, the text
+  becomes yours, and the agent can no longer change it. Moving it or
+  changing its colour or size leaves it the agent's.
 
 - **App:** Reload agent UI (in the File menu, the palette and an agent UI
   pane's right-click menu) fetches the pane's agent UI again and starts its

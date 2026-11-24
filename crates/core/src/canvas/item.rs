@@ -61,7 +61,8 @@ pub struct Time(pub u64);
 pub enum Author {
     /// The person at the window. The user may change anything.
     User,
-    /// An agent, by name. An agent may change only items it made.
+    /// An agent, by name. An agent may change only items it made, and not
+    /// a text of its own whose words the user has changed since.
     Agent(String),
 }
 
@@ -404,7 +405,8 @@ impl Item {
         self.page
     }
 
-    /// Who made the item. An edit or a move does not change it.
+    /// Who made the item. An edit or a move does not change it, but for the
+    /// user's edit of the words of an agent's text: that text is the user's.
     #[must_use]
     pub fn author(&self) -> &Author {
         &self.author
