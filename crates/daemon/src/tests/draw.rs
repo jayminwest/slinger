@@ -2,7 +2,8 @@
 //! figure, with `figure_drawn` holding the script and the data; the same
 //! draw again writes nothing; a dry run writes nothing at all and can draw a
 //! PNG; a failing script names its line; another maker's name is
-//! `conflict`; a draw answers the agent's sling.
+//! `conflict`; a draw answers the agent's sling; a runaway script stops at
+//! its limit and the daemon draws on.
 
 use std::path::{Path, PathBuf};
 
@@ -134,6 +135,38 @@ fn a_failing_script_names_its_line_and_writes_nothing() {
         .unwrap_err();
     assert_eq!(e.code(), "invalid");
     assert_eq!((next(&client), events(&client, "figure_drawn").len()), (1, 0));
+    daemon.stop();
+}
+
+/// Acceptance 4 of plan pl-9f74c2: a script that loops forever, eats
+/// memory or recurses without end stops at its limit with a line, writes
+/// nothing, and the same daemon then draws the worksheet.
+#[test]
+fn a_runaway_script_stops_at_its_limit_and_the_daemon_draws_on() {
+    let daemon = Daemon::start();
+    let client = daemon.client();
+    client.canvas_create("main").unwrap();
+    let dir = TempDir::new().unwrap();
+    let runaway = [
+        // The loop's line is not yet reliable (slinger-71c6cb): only "script:".
+        ("const a = 1;\nwhile (true) {}\n", "script:", "ran longer than"),
+        (
+            "const xs = [];\nwhile (true) xs.push(new Array(100000).fill(1));\n",
+            "script:2:",
+            "used more than",
+        ),
+        ("function f(n) { return f(n + 1) + 1; }\nf(0);\n", "script:1:", "recursed too deep"),
+    ];
+    for (text, line, said) in runaway {
+        let e = client.canvas_draw(ask("agent:scout", "r", &script(&dir, text), Place::At([0, 0])));
+        let e = e.unwrap_err();
+        assert_eq!(e.code(), "invalid");
+        assert!(e.to_string().contains(line) && e.to_string().contains(said), "{e}");
+    }
+    assert_eq!(next(&client), 1, "nothing written");
+    let drawn =
+        client.canvas_draw(ask("agent:scout", "worksheet", &worksheet(), Place::At([0, 0])));
+    assert_eq!(drawn.unwrap().items, 56);
     daemon.stop();
 }
 

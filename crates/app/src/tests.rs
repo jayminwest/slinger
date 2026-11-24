@@ -43,6 +43,7 @@ mod style;
 mod undo;
 mod views;
 mod wake;
+mod worksheet;
 
 /// The window's state, as `window` keeps it, with no watch.
 struct World {
