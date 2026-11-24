@@ -25,8 +25,18 @@ pub(super) fn glyph(c: char) -> Bitmap {
     drawn(c).or_else(|| unaccented(c).and_then(drawn)).unwrap_or(TOFU)
 }
 
+/// The low line, a row higher than `font8x8`'s. A text row has no leading,
+/// so `font8x8`'s bottom row touches the next row's capitals and tall
+/// letters, and `___` there read as a bar over the word below it
+/// (slinger-5be889). On the baseline's row it keeps a clear row under it,
+/// as the app's Menlo keeps a gap.
+const LOW_LINE: Bitmap = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x00];
+
 /// The bitmap a set has for `c` itself.
 fn drawn(c: char) -> Option<Bitmap> {
+    if c == '_' {
+        return Some(LOW_LINE);
+    }
     let fonts = [
         font8x8::BASIC_FONTS.get(c),
         font8x8::LATIN_FONTS.get(c),

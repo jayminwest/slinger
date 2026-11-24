@@ -229,6 +229,17 @@ fn dashes_are_bars_of_growing_length_and_quotes_look_like_quotes() {
 }
 
 #[test]
+fn a_low_line_leaves_a_gap_above_the_next_row() {
+    // `___` ending a line over "logit" read as a bar over the word below.
+    let frame = Rect::new(0.0, 0.0, 80.0, 80.0);
+    let r =
+        drawn(vec![Shape::Text { text: "_\nl".into(), frame, colour: Colour::BLACK, size: 48.0 }]);
+    let inked: Vec<usize> = (0..35).filter(|&y| r.pixel(2, y) != WHITE).collect();
+    let (first, last) = (inked[0], inked[inked.len() - 1]);
+    assert!((first..last).any(|y| r.pixel(2, y) == WHITE), "the low line touches the l: {inked:?}");
+}
+
+#[test]
 fn an_em_dash_draws_as_a_line_not_a_question_mark() {
     let frame = Rect::new(10.0, 10.0, 80.0, 30.0);
     let dash =
