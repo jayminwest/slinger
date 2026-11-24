@@ -97,6 +97,18 @@
 # it. The agent is already told to answer on the canvas. Must not be blank.
 #prompt = "Read what I wrote and do what it asks."
 
+# --- editor: what types a canvas text.
+[editor]
+# Which nvim edits a canvas text: "auto" finds one on the app's PATH, then in
+# /opt/homebrew/bin, /usr/local/bin, ~/.nix-profile/bin, /etc/profiles/per-user/$USER/bin and
+# /run/current-system/sw/bin (an app opened from the Finder has a short PATH); "off" types
+# every text with slinger's own editor; or the path to nvim ("~/" allowed). Your own config
+# and plugins load; nvim's state and cache (logs, shada, undo, plugin caches) go to a folder
+# of slinger's in the temporary directory, never yours. With no nvim found, or one older
+# than 0.10, slinger's own editor types and says so once. Not yet in use: until nvim's
+# screen is drawn in the text, slinger's own editor types every text.
+#nvim = "auto"
+
 # --- keys: every action is a named command, bound to a key chord here.
 # A chord is lowercase modifiers (shift, ctrl, alt, cmd) joined by "+", then one character
 # or a key's name: space, tab, return, escape, delete, forward-delete, up, down, left,
