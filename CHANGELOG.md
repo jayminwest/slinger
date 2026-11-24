@@ -35,6 +35,12 @@ bullet with the area in bold.
   item id does: `canvas put --beside`, `canvas edit`, `canvas remove` and
   `canvas crop --item`. Older versions of slinger open these canvases and
   lose no item.
+- **Packet:** a figure is one line, named by the figure, with its parts,
+  whether it is locked and its title, instead of a line per item; ink over
+  a part of a figure says which (`over=worksheet/1a-answer`), and an arrow
+  to an item of a figure names its part. `canvas read --in` and
+  `sling send --in` take a figure or a part (`worksheet/1a-answer`): it,
+  item by item, and the writing over it.
 
 - **App:** a new `[editor] nvim` config key (`"auto"`, `"off"` or the path
   to nvim) picks the nvim that will edit canvas texts. The app reads it now;

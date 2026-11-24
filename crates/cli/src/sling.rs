@@ -19,8 +19,9 @@ pub enum Sling {
         /// The page, by id (p1) or name [default: the first page]
         #[arg(long)]
         page: Option<String>,
-        /// Sling a box: its packet holds only what it holds, and the agent answers in it
-        #[arg(long = "in", value_name = "BOX")]
+        /// Sling a box: its packet holds only what it holds, and the agent answers in it;
+        /// or a figure or part (worksheet/1a-answer): it and what lies over it
+        #[arg(long = "in", value_name = "BOX|FIGURE")]
         inside: Option<String>,
         /// The selected items: ids such as c42,t12 or i7
         #[arg(long, value_name = "IDS", value_delimiter = ',')]

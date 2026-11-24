@@ -35,7 +35,7 @@ a "did you mean" suggestion.
 | `canvas apply <ID> <OPS\|-> [--agent NAME]` | The ids the operations made, one per line. `--json`: `seq`, `made` |
 | `canvas schema` | The item kinds and operations `canvas apply` takes, one per line: section (`unit`, `item`, `kind` or `op`), name and fields, separated by tabs. Needs no daemon. `--json`: `units`, `item`, `kinds`, `ops` (each name to its fields) |
 | `canvas undo <ID> [--agent NAME]`, `canvas redo <ID> [--agent NAME]` | Nothing. `--json`: `seq`, `made` |
-| `canvas read <ID> [--page PAGE] [--in BOX] [--after NUMBER] [--select IDS] [--out DIR]` | The packet's text (`docs/design/packet.md`), its header naming the directory that holds the images (`at=`). `--json`: `packet`, `dir`, `text`, `images` |
+| `canvas read <ID> [--page PAGE] [--in BOX\|FIGURE] [--after NUMBER] [--select IDS] [--out DIR]` | The packet's text (`docs/design/packet.md`), its header naming the directory that holds the images (`at=`). `--json`: `packet`, `dir`, `text`, `images` |
 | `canvas import <FILE> [--name ID]` | The new canvas's id, then one count per line, tab separated: `pages`, each item kind, and `skipped` with each tldraw shape type. `--json`: `canvas`, `pages`, `items`, `skipped` |
 | `workspace open [DIR] [--name NAME]` | The workspace's name. `--json`: `workspace`, `new` |
 | `workspace list` | One line per open workspace, by name: name, canvas and directory, separated by tabs. A workspace whose file is broken has `-` for what its file does not say and a fourth field, `✗` and the error. `--json`: `workspaces` (a broken one with `error`: `code`, `message`, `hint`, `file`, `field`) |
@@ -56,7 +56,7 @@ a "did you mean" suggestion.
 | `profile set <WORKSPACE> <NAME> [--dir DIR] [--tool RULE]...`, `profile remove <WORKSPACE> <NAME>` | Nothing. `--json`: `workspace`, `profiles` |
 | `session send <WORKSPACE> <TEXT\|->` | Nothing. `--json`: `session` |
 | `session listen <WORKSPACE> [--wait SECONDS] [--pid PID]` | The next sling to the workspace's agent, as text: line 1 `slinger-sling 1 … agent=<NAME>`, the packet (its `at=` names the directory of its images), the note and the prompt. Nothing when `--wait` passes with none. `--json`: `agent`, and `sling` (`event`, `canvas`, `dir`, `text`) when one came |
-| `sling send <ID> [--page PAGE] [--in BOX] [--select IDS] [--prompt TEXT\|-] [--profile NAME]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id` (empty when a listener takes it), `deliver` (`process` or `listen`), `tokens` |
+| `sling send <ID> [--page PAGE] [--in BOX\|FIGURE] [--select IDS] [--prompt TEXT\|-] [--profile NAME]` | Nothing. `--json`: `event`, `packet`, `from`, `to`, `strokes`, `agent`, `session_id` (empty when a listener takes it), `deliver` (`process` or `listen`), `tokens` |
 | `status set <working\|blocked\|done> [--note TEXT] [--agent NAME]` | Nothing. `--json`: `agent`, `status`, `note`, `event` |
 | `file touched (<PATH> \| --hook) [--agent NAME]` | Nothing. `--json`: `agent`, `path`, `hash`, `event` |
 | `canvas put <ID> --beside ITEM (--text TEXT \| --box W,H \| --ink PTS \| --arrow FROM TO) [--color COLOR] [--at X,Y] [--size TENTHS] [--in BOX] [--agent NAME]` | The new item's id and its box `x,y,w,h` in tenths, separated by a tab. `--json`: `item`, `page`, `x`, `y`, `w`, `h`, `seq`, `event` |
@@ -237,7 +237,11 @@ The images are in the directory the header's `at=` names: `--out`, or
 slingerd's own. `--select c42,t12` keeps only those items in the outline.
 A folded box is one line, `b4 box … folded=7 "its first text"`; `--in b4`
 reads what a box holds, open or folded, as if it were the page, and its
-header says so (`in=b4`).
+header says so (`in=b4`). A figure is one line, `worksheet figure …
+parts=title,q1,1a-answer locked=yes "its title"`, and ink over a part
+says so (`over=worksheet/1a-answer`); `--in worksheet/1a-answer` reads
+that part (`--in worksheet` the whole figure) item by item, each with
+`part=`, with every other item whose centre lies in its frame.
 A read changes nothing. The packet is stored as a blob (`packet` in
 `--json`), and so is each image (`images`), for `blob get`. A canvas or
 page that is not there exits 3 (`not_found`), an id that is not one exits
@@ -362,7 +366,9 @@ agent on the daemon that started it (see "The process" in
 
 `sling send` sends what changed on a canvas page since its last sling (with
 `--in BOX`, only what that box holds: a sling of the box, whose note asks
-for the answer in it with `canvas put --in BOX`), the
+for the answer in it with `canvas put --in BOX`; with `--in` a figure or
+a part, it and what lies over it, whose note asks for the answer beside
+it with `canvas put --beside`), the
 selection (`--select c42,t12`, ids as `canvas read` takes them) and the
 prompt (`-` reads it from stdin; none is valid: the selection is the
 question) to the agent of the canvas's open workspace, and returns once it

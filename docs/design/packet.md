@@ -202,13 +202,32 @@ read `--in` a box is the packet of what the box holds directly, open or
 folded, as if it were the page; the box's own line is not in it, and the
 header names the box: `slinger-packet 1 canvas=idea page=p1 in=b4 from=…`.
 
+**Figures** (docs/design/figures.md, "In the packet"): a figure is one
+`figure` line, its id the figure's name, its box the joint frame of the
+items the page shows, and its items make no line of their own:
+`worksheet figure 40,40 900x1400 by=claude parts=title,q1,1a-answer locked=yes "Compound growth"`.
+The line goes in `made` when an agent drew or changed any of its items in
+`from..=to`, else in `page`, and where its lowest item would go: a figure
+whose lowest item a folded box hides is one of the lines the box's
+`folded` counts, and the box's quote may be the figure's text. An arrow end
+bound to an item of a figure names its address (`worksheet/q1`, or
+`worksheet` for an item of no part); `in` never names a box of a figure.
+A packet read `--in` a figure or a part (`worksheet/1a-answer`) holds the
+items it names, a line each with `part`, and every other item the page
+shows, not of that figure, whose box's centre lies in their frame; the
+header names it: `in=worksheet/1a-answer`. There, `in` may name the
+figure's boxes, since they have lines.
+
 **Fields** (order as listed; each only when it applies):
 
 | Field | On | Meaning |
 |---|---|---|
 | `colour` | ink | the cluster's stroke colour (clusters never mix colours): `black`, `white`, `red`, `green`, `blue`, `yellow`, `orange`, `purple` or `grey` for those exact CSS colours, else `#rrggbb`, or `#rrggbbaa` when not opaque |
 | `strokes` | ink | number of strokes |
-| `by` | made items | the agent's name |
+| `by` | made items | the agent's name; on a `figure`, its maker's, when an agent |
+| `parts` | figure | its part names, comma-separated, in reading order of their frames |
+| `locked` | figure | `yes` when any of its items is locked |
+| `part` | any, read `--in` a figure | the part of the figure the item is in |
 | `from`, `to` | arrow | ids at the arrow's ends, when bound |
 | `to` | ink | the id an arrow drawn in this cluster points at: the first arrow whose start is bound to one of its strokes |
 | `ui`, `open` | live | the UI's name and the showing's id (`pick-slot#12`) |
@@ -219,11 +238,12 @@ header names the box: `slinger-packet 1 canvas=idea page=p1 in=b4 from=…`.
 | `folded` | box | the box is folded (docs/design/fold.md): how many lines what it holds would make in a packet of its own (`canvas read --in`); its box is the miniature |
 | `new` | box | a folded box that holds new strokes of the user's, at any depth: how many. Its line goes in `new`, with no image |
 | `in` | any | the id of the smallest other box that contains this item's box |
-| `over` | ink | the ids of the `pdf` items whose frame the cluster's box overlaps, comma-separated, in drawing order |
+| `over` | ink | the ids of the `pdf` items whose frame the cluster's box overlaps, comma-separated, in drawing order; then each figure part whose frame holds the centre of the cluster's box, as `figure/part`, the smallest first |
 | `img` | ink in `new` | image file names, comma-separated, tiles in reading order |
 
 The quoted text is last. On a folded `box` line: its first text's first
-line, as above. On `text` lines: the full text in `new` and
+line, as above. On a `figure` line: the first line of the text of its
+part `title`, else of its first text in reading order, cut as in `page`. On `text` lines: the full text in `new` and
 `made`, the first 80 characters plus `…` in `page`. On an `ink` line in
 `new` over a PDF: the PDF's words under the ink, when the sling came with
 backdrops (below); `page` ink lines never carry words.
