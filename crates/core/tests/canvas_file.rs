@@ -90,8 +90,8 @@ fn action(rng: &mut Rng, c: &Canvas) -> Action {
         pages.iter().flat_map(|p| c.items(*p).map(Item::id)).chain([ItemId::new(999)]).collect();
     let names = ["a", "b", " c ", "Page 1", "d"];
     match rng.below(10) {
-        0..=3 => Action::Add { page: rng.pick(&pages), shape: shape(rng, &items) },
-        4 => Action::Edit { item: rng.pick(&items), shape: shape(rng, &items) },
+        0..=3 => Action::add(rng.pick(&pages), shape(rng, &items)),
+        4 => Action::edit(rng.pick(&items), shape(rng, &items)),
         5 => Action::Move { item: rng.pick(&items), by: rng.point() },
         6 => Action::Remove { item: rng.pick(&items) },
         7 => Action::PageAdd { name: rng.pick(&names).into() },
@@ -417,14 +417,8 @@ fn snap_rounds_to_tenths_and_leaves_what_the_canvas_rejects() {
         Shape::Stroke { points: vec![Point::new(1.26, -1.25)], colour: Colour::BLACK, width: 0.01 };
     let snapped =
         Shape::Stroke { points: vec![Point::new(1.3, -1.3)], colour: Colour::BLACK, width: 0.1 };
-    assert_eq!(
-        snap(op(Action::Add { page, shape: thin })).action,
-        Action::Add { page, shape: snapped.clone() }
-    );
-    assert_eq!(
-        snap(op(Action::Add { page, shape: snapped.clone() })).action,
-        Action::Add { page, shape: snapped }
-    );
+    assert_eq!(snap(op(Action::add(page, thin))).action, Action::add(page, snapped.clone()));
+    assert_eq!(snap(op(Action::add(page, snapped.clone()))).action, Action::add(page, snapped));
     let nan = Action::Move { item: ItemId::new(1), by: Point::new(f64::NAN, 0.0) };
     assert!(matches!(snap(op(nan)).action, Action::Move { by, .. } if by.x.is_nan()));
     let item = ItemId::new(1);

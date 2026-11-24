@@ -9,6 +9,11 @@ use crate::layout::{PaneId, Point, Rect};
 use crate::panes::Panes;
 
 impl Canvases {
+    /// Follows the config's `[editor] nvim`: which Nvim edits a text.
+    pub fn follow_editor(&mut self, nvim: &crate::config::Nvim) {
+        self.editing.follow_editor(nvim);
+    }
+
     /// Follows `keys`: the hint under a typed text names `new-text`'s key.
     pub fn follow_keys(&mut self, keys: &Keymap) {
         self.editing.follow_keys(keys);

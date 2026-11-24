@@ -26,7 +26,7 @@ fn a_button_needs_an_area_and_nothing_else() {
     let page = c.pages().next().unwrap().id();
     let mut add = |frame| {
         let shape = Shape::Button { frame };
-        c.apply(Op { by: Author::User, at: AT, action: Action::Add { page, shape } })
+        c.apply(Op { by: Author::User, at: AT, action: Action::add(page, shape) })
     };
     assert!(add(Rect::new(1.0, 2.0, 160.0, 40.0)).is_ok());
     for frame in [Rect::new(0.0, 0.0, 0.0, 40.0), Rect::new(0.0, 0.0, 10.0, -1.0)] {

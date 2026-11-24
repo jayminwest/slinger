@@ -39,6 +39,7 @@ fn parses_every_key() {
         canvas: Canvas::default(),
         prompt: Prompt::default(),
         press: Press::Select,
+        nvim: Nvim::Auto,
     };
     assert_eq!(config, expected);
 }
@@ -180,6 +181,7 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
         grid: Some(canvas::Grid::default()),
         prompt: Some(Prompt::default()),
         press: Some(Press::Select),
+        nvim: Some(Nvim::Auto),
         keys: Command::ALL.map(|(c, _)| Some(Keymap::default().chord(c))),
     };
     assert_eq!(all, every_key);
@@ -330,6 +332,17 @@ fn a_mouse_press_with_the_pen_tool_selects_unless_the_pointer_table_says_tool() 
     assert_eq!(press("[pointer]\npress = \"draw\"\n"), Err(ErrorKind::BadPress));
     let base = parse("[pointer]\npress = \"tool\"\n").unwrap();
     assert_eq!(base.over(Layer::default()).resolve().press, Press::Tool);
+}
+
+#[test]
+fn the_editor_nvim_is_auto_off_or_a_path() {
+    let nvim = |text: &str| parse(text).map(|l| l.resolve().nvim).map_err(|e| e.kind);
+    assert_eq!(nvim(""), Ok(Nvim::Auto));
+    assert_eq!(nvim("[editor]\nnvim = \"off\"\n"), Ok(Nvim::Off));
+    assert_eq!(nvim("[editor]\nnvim = \"~/bin/nvim\"\n"), Ok(Nvim::Path("~/bin/nvim".into())));
+    assert_eq!(nvim("[editor]\nnvim = \"of\"\n"), Err(ErrorKind::BadNvim));
+    let base = parse("[editor]\nnvim = \"off\"\n").unwrap();
+    assert_eq!(base.over(Layer::default()).resolve().nvim, Nvim::Off);
 }
 
 #[test]

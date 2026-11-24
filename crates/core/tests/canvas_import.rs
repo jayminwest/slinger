@@ -56,22 +56,18 @@ fn ids_makers_times_arrow_ends_and_a_removed_first_page_survive() {
     let free = |x| End::free(Point::new(x, 0.0));
     let arrow = Shape::Arrow { from: free(0.0), to: free(10.0), colour: Colour::BLACK };
     let ada = Author::Agent("ada".into());
-    let Applied::Added(a) =
-        apply(&mut canvas, ada.clone(), Action::Add { page: notes, shape: arrow })
-    else {
+    let Applied::Added(a) = apply(&mut canvas, ada.clone(), Action::add(notes, arrow)) else {
         panic!("no arrow")
     };
     let frame = Rect::new(20.0, 0.0, 5.5, 3.0);
     let bx = Shape::Box { frame, colour: Colour::rgb(200, 0, 0), fold: None };
-    let Applied::Added(b) =
-        apply(&mut canvas, Author::User, Action::Add { page: notes, shape: bx })
-    else {
+    let Applied::Added(b) = apply(&mut canvas, Author::User, Action::add(notes, bx)) else {
         panic!("no box")
     };
     // The arrow points at an item made after it.
     let to = End::on(Point::new(10.0, 0.0), b);
     let bound = Shape::Arrow { from: free(0.0), to, colour: Colour::BLACK };
-    apply(&mut canvas, ada, Action::Edit { item: a, shape: bound });
+    apply(&mut canvas, ada, Action::edit(a, bound));
     apply(&mut canvas, Author::User, Action::PageRemove { page: PageId::new(1) });
 
     let (log, _) = Log::import("copy", &canvas, Time(5)).unwrap();

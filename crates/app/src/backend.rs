@@ -28,6 +28,7 @@ pub mod daemon;
 mod feedback;
 mod flick;
 mod follow;
+pub mod nvim;
 mod outbox;
 pub mod panes;
 pub mod pdf;

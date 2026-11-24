@@ -204,9 +204,9 @@ fn schema_needs_no_daemon_and_names_every_kind_apply_takes() {
     let add = |item: &str| format!(r#"{{"op":"add","item":{{"page":"p1",{item}}}}}"#);
     let items = [
         r#""kind":"text","x":0,"y":0,"text":"plan""#,
-        r#""kind":"box","x":0,"y":0,"w":100,"h":50"#,
-        r#""kind":"arrow","pts":[0,0,100,0],"from":"i1","to":"i2""#,
-        r#""kind":"stroke","width":20,"pts":[500,500,10,10,0,10]"#,
+        r##""kind":"box","x":0,"y":0,"w":100,"h":50,"fill":"#ffcc0033","dash":"dashed""##,
+        r#""kind":"arrow","pts":[0,0,100,0],"from":"i1","to":"i2","heads":"both""#,
+        r##""kind":"stroke","width":20,"pts":[500,500,10,10,0,10],"closed":true,"fill":"#2f80ed""##,
         r#""kind":"button","x":0,"y":900,"w":1600,"h":400"#,
     ];
     let ops = format!("[{}]", items.map(add).join(","));

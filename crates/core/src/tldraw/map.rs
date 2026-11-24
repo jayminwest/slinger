@@ -7,8 +7,8 @@ use serde_json::Value;
 
 use super::{Import, Report, path};
 use crate::canvas::{
-    Action, Applied, Author, Canvas, Colour, End, ItemId, Op, PageId, Point, Rect, Shape,
-    TEXT_SIZE, TEXT_SIZES, Time,
+    Action, Applied, Author, Canvas, Colour, Dash, End, ItemId, Op, PageId, Point, Rect, Shape,
+    Style, TEXT_SIZE, TEXT_SIZES, Time, style::FILL_MAX_ALPHA,
 };
 
 static NULL: Value = Value::Null;
@@ -181,9 +181,10 @@ impl Builder {
         let Some(shapes) = shapes else {
             return self.skip(format!("{} (damaged)", n.kind));
         };
+        let style = style(n);
         for shape in shapes {
-            let Some(Applied::Added(item)) = self.apply(Action::Add { page, shape: shape.clone() })
-            else {
+            let add = Action::Add { page, style: style.fitted(&shape), shape: shape.clone() };
+            let Some(Applied::Added(item)) = self.apply(add) else {
                 return self.skip(format!("{} (damaged)", n.kind));
             };
             match shape {
@@ -235,9 +236,29 @@ impl Builder {
             .collect();
         edits.sort_by_key(|(item, _)| *item);
         for (item, shape) in edits {
-            self.apply(Action::Edit { item, shape });
+            self.apply(Action::edit(item, shape));
         }
     }
+}
+
+/// A shape's `fill` and `dash` as a style. [`Style::fitted`] then keeps
+/// what each item takes: a box both, a stroke or an arrow the dash, a
+/// rectangle's label neither. tldraw's hand-drawn `draw` dash is solid; a
+/// `solid` fill (and the newer `fill` and `lined-fill`) is the shape's
+/// colour as dense a tint as a fill gets, `semi` and `pattern` half that.
+fn style(n: &Node) -> Style {
+    let tint = |a: u8| Some(Colour { a, ..n.colour("color") });
+    let fill = match text(n.props, "fill") {
+        "solid" | "fill" | "lined-fill" => tint(FILL_MAX_ALPHA),
+        "semi" | "pattern" => tint(FILL_MAX_ALPHA / 2),
+        _ => None,
+    };
+    let dash = match text(n.props, "dash") {
+        "dashed" => Dash::Dashed,
+        "dotted" => Dash::Dotted,
+        _ => Dash::Solid,
+    };
+    Style { fill, dash, ..Style::default() }
 }
 
 /// tldraw's stroke widths for its four sizes, in canvas units.

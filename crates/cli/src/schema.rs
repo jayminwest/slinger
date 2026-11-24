@@ -14,15 +14,15 @@ unit\tlength\tpositions and lengths are integers in tenths of a unit
 unit\tpts\ta flat list of x,y pairs: the first pair is the start, each next pair the step from the one before
 item\tany\tid (i<n>), page (p<n>), kind, color (#rrggbb or #rrggbbaa, default #000000; not on live or button), then the kind's fields; 'canvas show' adds by and t
 kind\ttext\tx, y, text; optional w, h (the frame; missing, it fits the words); optional size (a character's height, twice its width, 40 to 4000; missing or null, 240; as 'canvas put' and 'canvas edit' --size take it)
-kind\tbox\tx, y, w, h
-kind\tarrow\tpts (two or more pairs); optional from, to (the item ids it points at)
-kind\tstroke\twidth, pts (one or more pairs)
+kind\tbox\tx, y, w, h; optional fill (#rrggbb or #rrggbbaa: a tint under all ink, drawn at most 40% opaque), dash (dashed or dotted)
+kind\tarrow\tpts (two or more pairs); optional from, to (the item ids it points at); optional heads (none, end or both; missing, end: none is a plain line), dash (dashed or dotted)
+kind\tstroke\twidth, pts (one or more pairs); optional closed (true: the last point joins the first), fill (on a closed stroke only), dash (dashed or dotted)
 kind\tbutton\tx, y, w, h (above 0): the send-to-agent button
 kind\tlive\tx, y, w, h, ui, hash, open: an agent UI, made by 'slinger ui open --as item'
 op\tadd\titem: an item without id; an arrow's from or to may be $n: the item made[n] names, from an add before it in this apply; optional in: a folded box the item joins (its open size grows to hold it)
 op\tremove\tids: a list of item ids; ids already gone are fine
 op\tmove\tids, dx, dy
-op\tset\tid, fields: item fields laid over the item's current ones
+op\tset\tid, fields: item fields laid over the item's current ones; null clears an optional one (fill: null takes the fill away)
 op\tpage.add\tname; the page goes last
 op\tpage.rename\tpage, name
 op\tpage.remove\tpage; its items go with it, the last page stays";

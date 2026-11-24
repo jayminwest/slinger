@@ -132,11 +132,7 @@ impl Page {
     fn draw(&mut self, by: &Author, colour: Colour, points: &[(f64, f64)]) -> ItemId {
         let points = points.iter().map(|&(x, y)| Point::new(x, y)).collect();
         let shape = Shape::Stroke { points, colour, width: 2.0 };
-        let op = Op {
-            by: by.clone(),
-            at: Time(self.clock),
-            action: Action::Add { page: self.on, shape },
-        };
+        let op = Op { by: by.clone(), at: Time(self.clock), action: Action::add(self.on, shape) };
         let Applied::Added(id) = self.canvas.apply(op).unwrap() else { panic!("not added") };
         id
     }
@@ -276,10 +272,10 @@ fn ids_that_are_not_strokes_are_skipped() {
     let op = Op {
         by: Author::User,
         at: Time(p.clock),
-        action: Action::Add {
-            page: p.on,
-            shape: Shape::Box { frame: Rect::new(0.0, 0.0, 50.0, 50.0), colour: BLACK, fold: None },
-        },
+        action: Action::add(
+            p.on,
+            Shape::Box { frame: Rect::new(0.0, 0.0, 50.0, 50.0), colour: BLACK, fold: None },
+        ),
     };
     let Applied::Added(frame) = p.canvas.apply(op).unwrap() else { panic!("not added") };
     let ids = a.iter().copied().chain([frame, ItemId::new(999)]);

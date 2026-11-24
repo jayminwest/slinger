@@ -391,6 +391,7 @@ pub fn view(
     canvases.follow_paper(settings.config.canvas);
     canvases.set_prompt(&settings.config.prompt);
     canvases.follow_keys(&settings.config.keys);
+    canvases.follow_editor(&settings.config.nvim);
     let drawn = canvases.show(&shared.panes, area, theme);
     let asking = canvases.asking(shared.trouble.as_ref());
     let own = canvases.own_problems().chain(settings.problem.as_ref());

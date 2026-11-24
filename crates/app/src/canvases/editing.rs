@@ -20,6 +20,7 @@ pub(super) mod kept;
 mod keys;
 mod pen;
 mod start;
+mod vim;
 
 use std::borrow::Cow;
 
@@ -57,6 +58,8 @@ pub(super) struct Editing {
     unshown: Option<f64>,
     /// The pane the pointer is on a selection handle in, and its cursor.
     handle: Option<(PaneId, Cursor)>,
+    /// The Nvim that edits the text being typed, if one does ([`vim`]).
+    vim: vim::Vim,
 }
 
 impl Editing {
@@ -74,6 +77,7 @@ impl Editing {
             pen: None,
             unshown: None,
             handle: None,
+            vim: vim::Vim::new(wake),
         }
     }
 
@@ -170,9 +174,31 @@ impl Editing {
         self.handle = None;
     }
 
-    /// Ends the text being typed: it goes to the ink. False when none is.
+    /// Ends the text being typed: it goes to the ink, with what its Nvim
+    /// holds once it has taken the keys sent. False when none is.
     pub(super) fn end_text(&mut self) -> bool {
+        self.vim.settle(&mut self.shapes);
         self.shapes.end(&mut self.ink)
+    }
+
+    /// Follows the config's `[editor] nvim`: which Nvim edits a text.
+    pub(super) fn follow_editor(&mut self, nvim: &crate::config::Nvim) {
+        self.vim.follow(nvim);
+    }
+
+    /// Why no Nvim edits the text, once.
+    pub(super) fn take_flash(&mut self) -> Option<String> {
+        self.vim.take_flash()
+    }
+
+    /// Takes the news of the text's Nvim: a text it ended goes to the
+    /// daemon. Returns whether the text changed or ended.
+    pub(super) fn poll_vim(&mut self, follow: &mut Follow) -> bool {
+        let changed = self.vim.poll(&mut self.shapes, &mut self.ink);
+        if changed && !self.shapes.editing() {
+            self.send(follow);
+        }
+        changed
     }
 
     /// Undoes the text being typed's last edit, or redoes the last undone.
@@ -304,6 +330,7 @@ impl Editing {
     /// follows of their canvas now holds, and hands the next change to the
     /// outbox. Returns whether there were answers.
     pub(super) fn send(&mut self, follow: &mut Follow) -> bool {
+        self.vim.sync(&self.shapes);
         if !self.shapes.editing() {
             follow.text_joined(&mut self.ink);
         }

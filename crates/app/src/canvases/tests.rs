@@ -82,6 +82,19 @@ fn until(canvases: &mut Canvases, panes: &Panes, daemon: &Client, met: impl Fn(&
 }
 
 #[test]
+fn a_text_being_typed_when_the_app_quits_is_written() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+        wait_until(|| shown(&mut canvases, &panes) == 1);
+        type_word(&mut canvases, &panes, (300.0, 300.0), 10.0);
+        canvases.quitting(&panes);
+        assert!(!canvases.editing());
+        until(&mut canvases, &panes, daemon, |d| count(d, "text") == 1);
+    });
+}
+
+#[test]
 fn escape_ends_a_text_and_the_next_box_drag_is_a_box() {
     with_store(None, |daemon| {
         let _home = open_notes(daemon);
