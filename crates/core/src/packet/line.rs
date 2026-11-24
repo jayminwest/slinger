@@ -10,7 +10,7 @@ use crate::canvas::{Colour, Rect};
 /// How many characters of a text item the `page` section keeps.
 pub(super) const PAGE_TEXT_CHARS: usize = 80;
 
-/// One line: `id kind x,y wxh field... "text"`.
+/// One line: `id kind [name] x,y wxh field... "text"`.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct Line {
     /// The item number the id is built from. Unique within a packet, so it
@@ -18,6 +18,8 @@ pub(super) struct Line {
     pub n: u64,
     pub id: String,
     pub kind: &'static str,
+    /// A figure's name, written after the kind.
+    pub name: Option<String>,
     pub frame: Rect,
     /// `key=value` pairs, in the order the format lists them.
     pub fields: Vec<(&'static str, String)>,
@@ -37,7 +39,8 @@ impl Line {
             fields.push(("img", &img));
         }
         let frame = [units(f.x), units(f.y), units(f.w), units(f.h)];
-        write_line(out, (&self.id, self.kind), frame, &fields, self.text.as_deref(), short);
+        let head = (self.id.as_str(), self.kind, self.name.as_deref());
+        write_line(out, head, frame, &fields, self.text.as_deref(), short);
     }
 }
 
@@ -49,8 +52,10 @@ impl Line {
 pub struct Entry {
     /// `c42`, `t12`, ...
     pub id: String,
-    /// `ink`, `text`, `box` or `arrow`.
+    /// `ink`, `text`, `box`, `arrow`, `figure`, ...
     pub kind: String,
+    /// The name after the kind: a `figure` line's figure name.
+    pub name: Option<String>,
     /// The box, in whole canvas units.
     pub x: i64,
     pub y: i64,
@@ -73,7 +78,8 @@ impl Entry {
         let fields: Vec<(&str, &str)> =
             self.fields.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let frame = [self.x, self.y, self.w, self.h];
-        write_line(out, (&self.id, &self.kind), frame, &fields, self.text.as_deref(), false);
+        let head = (self.id.as_str(), self.kind.as_str(), self.name.as_deref());
+        write_line(out, head, frame, &fields, self.text.as_deref(), false);
     }
 
     /// Reads one line, without its `\n`. `None` when it breaks the grammar.
@@ -85,7 +91,15 @@ impl Entry {
         let mut tokens = head.split(' ');
         let mut next = || tokens.next().filter(|t| !t.is_empty());
         let (id, kind) = (next()?.to_string(), next()?.to_string());
-        let (x, y) = next()?.split_once(',')?;
+        let mut at = next()?;
+        let name = if at.contains(',') {
+            None
+        } else {
+            let name = unvalue(at)?;
+            at = next()?;
+            Some(name)
+        };
+        let (x, y) = at.split_once(',')?;
         let (w, h) = next()?.split_once('x')?;
         let (x, y, w, h) = (x.parse().ok()?, y.parse().ok()?, w.parse().ok()?, h.parse().ok()?);
         let mut fields = Vec::new();
@@ -96,20 +110,25 @@ impl Entry {
         if tokens.next().is_some() {
             return None;
         }
-        Some(Self { id, kind, x, y, w, h, fields, text })
+        Some(Self { id, kind, name, x, y, w, h, fields, text })
     }
 }
 
-/// Writes `id kind x,y wxh key=value... "text"` and the line end.
+/// Writes `id kind [name] x,y wxh key=value... "text"` and the line end.
 fn write_line(
     out: &mut String,
-    (id, kind): (&str, &str),
+    (id, kind, name): (&str, &str, Option<&str>),
     [x, y, w, h]: [i64; 4],
     fields: &[(&str, &str)],
     text: Option<&str>,
     short: bool,
 ) {
-    let _ = write!(out, "{id} {kind} {x},{y} {w}x{h}");
+    let _ = write!(out, "{id} {kind} ");
+    if let Some(name) = name {
+        push_value(out, name);
+        out.push(' ');
+    }
+    let _ = write!(out, "{x},{y} {w}x{h}");
     for (key, value) in fields {
         let _ = write!(out, " {key}=");
         push_value(out, value);
@@ -258,7 +277,7 @@ mod tests {
     use super::*;
 
     fn line(n: u64, frame: Rect) -> Line {
-        Line { n, id: format!("t{n}"), kind: "text", frame, fields: vec![], text: None }
+        Line { n, id: format!("t{n}"), kind: "text", name: None, frame, fields: vec![], text: None }
     }
 
     fn order(lines: Vec<Line>) -> Vec<u64> {

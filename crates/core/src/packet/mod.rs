@@ -369,7 +369,7 @@ impl<'a> Page<'a> {
         if !under.is_empty() {
             fields.push(("over", under.join(",")));
         }
-        Line { n, id: format!("c{n}"), kind: "ink", frame, fields, text: None }
+        Line { n, id: format!("c{n}"), kind: "ink", name: None, frame, fields, text: None }
     }
 
     fn item_line(&self, item: &Item, changed: &dyn Fn(ItemId) -> bool) -> Line {
@@ -417,7 +417,7 @@ impl<'a> Page<'a> {
         let frame = item.bounds();
         fields.extend(self.container(n, frame).map(|b| ("in", b)));
         let id = self.id_of(item.id()).unwrap_or_default();
-        Line { n, id, kind, frame, fields, text }
+        Line { n, id, kind, name: None, frame, fields, text }
     }
 }
 

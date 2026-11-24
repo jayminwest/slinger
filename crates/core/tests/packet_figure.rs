@@ -4,7 +4,7 @@
 #![cfg(test)]
 
 use serde_json::{Value, json};
-use slinger_core::canvas::file::Log;
+use slinger_core::canvas::file::{Log, Put};
 use slinger_core::canvas::{Author, Time};
 use slinger_core::packet::{Entry, Packet};
 
@@ -89,14 +89,13 @@ fn line<'a>(packet: &'a Packet, id: &str) -> &'a Entry {
 }
 
 #[test]
-fn a_figure_is_one_line_named_by_the_figure_and_its_items_make_none() {
+fn a_figure_is_one_line_with_an_id_its_name_and_a_part_count() {
     let log = written();
     let p = packet(&log, None, 9);
-    assert_eq!(ids(&p.page), ["worksheet", "c6", "a9", "t8", "c7"], "{}", p.text());
+    assert_eq!(ids(&p.page), ["f1", "c6", "a9", "t8", "c7"], "{}", p.text());
     let text = p.text();
-    let want = "worksheet figure 0,0 340x320 by=claude parts=title,q1,1a-answer locked=yes \
-                \"Growth\"\n";
-    assert!(text.contains(want), "{text}");
+    assert!(text.contains("\nf1 figure worksheet 0,0 340x320 parts=3 by=claude\n"), "{text}");
+    assert_eq!(line(&p, "f1").name.as_deref(), Some("worksheet"));
     // The arrow's end bound to an item of the figure names its address.
     assert_eq!(line(&p, "a9").field("to"), Some("worksheet/q1"));
     assert_eq!(Packet::read(&text).unwrap().page, p.page, "a reader keeps the new kind");
@@ -106,29 +105,44 @@ fn a_figure_is_one_line_named_by_the_figure_and_its_items_make_none() {
 fn a_figure_an_agent_drew_since_the_last_sling_is_in_made() {
     let (mut log, _) = Log::create("sheet").unwrap();
     worksheet(&mut log);
-    assert_eq!(ids(&packet(&log, None, 0).made), ["worksheet"]);
-    assert_eq!(ids(&packet(&log, None, 5).page), ["worksheet"]);
+    assert_eq!(ids(&packet(&log, None, 0).made), ["f1"]);
+    assert_eq!(ids(&packet(&log, None, 5).page), ["f1"]);
     // A redraw of one item puts the whole figure in made again.
     let set = json!({"op": "set", "id": "i5", "fields": {"w": 500}});
     log.apply(&claude(), AT, &set).unwrap();
-    assert_eq!(ids(&packet(&log, None, 5).made), ["worksheet"]);
+    assert_eq!(ids(&packet(&log, None, 5).made), ["f1"]);
 }
 
 #[test]
-fn the_quote_is_the_title_or_else_the_first_text() {
+fn a_figure_of_no_parts_and_by_the_user_says_neither() {
     let (mut log, _) = Log::create("plot").unwrap();
-    let c = claude();
-    add(&mut log, &c, json!({"kind": "text", "x": 0, "y": 500, "text": "low", "fig": "plot"}));
-    add(&mut log, &c, json!({"kind": "text", "x": 0, "y": 0, "text": "high", "fig": "plot"}));
+    add(&mut log, &Author::User, json!({"kind": "box", "x": 0, "y": 0, "w": 10, "h": 10}));
+    let text =
+        json!({"kind": "text", "x": 0, "y": 500, "text": "low", "fig": "plot", "locked": true});
+    add(&mut log, &Author::User, text);
     let p = log.packet("plot", None, None, 0, &[], &[]).unwrap();
-    assert_eq!(line(&p, "plot").text.as_deref(), Some("high"), "the first in reading order");
-    assert_eq!(line(&p, "plot").field("parts"), None);
-    assert_eq!(line(&p, "plot").field("locked"), None);
-    let title = json!({"kind": "text", "x": 0, "y": 900, "text": "Title", "fig": "plot",
-        "part": "title"});
-    add(&mut log, &c, title);
-    let p = log.packet("plot", None, None, 0, &[], &[]).unwrap();
-    assert_eq!(line(&p, "plot").text.as_deref(), Some("Title"));
+    assert!(p.text().contains("\nf2 figure plot 0,50 "), "{}", p.text());
+    let f = line(&p, "f2");
+    assert_eq!((f.field("parts"), f.field("by"), f.field("locked")), (None, None, None));
+    assert_eq!(f.text, None, "a figure line quotes nothing");
+}
+
+#[test]
+fn the_figure_id_names_the_whole_figure_wherever_an_id_is_taken() {
+    let mut log = written();
+    // Any item's number with `f` names its figure, as `c` names a cluster.
+    let by_id = packet(&log, Some("f1"), 9);
+    assert_eq!(by_id.header.inside.as_deref(), Some("worksheet"));
+    assert_eq!(ids(&by_id.page), ids(&packet(&log, Some("worksheet"), 9).page));
+    assert_eq!(packet(&log, Some("f3"), 9).header.inside.as_deref(), Some("worksheet"));
+    let crop = |log: &Log, id: &str| log.crop(id, "c").unwrap();
+    assert_eq!(crop(&log, "f1"), crop(&log, "worksheet"));
+    let by_name = log.clone().put(&claude(), AT, "worksheet", &Put::Text("ok".into())).unwrap();
+    let by_id = log.put(&claude(), AT, "f1", &Put::Text("ok".into())).unwrap();
+    assert_eq!(by_id.frame, by_name.frame, "beside the whole figure");
+    // On an item of no figure, `f` is the item, as any other letter is.
+    let read = |id: &str| log.packet("sheet", None, Some(id), 9, &[], &[]).unwrap_err().to_string();
+    assert_eq!(read("f8"), read("b8"));
 }
 
 #[test]
@@ -205,8 +219,10 @@ fn a_selected_item_of_a_figure_selects_the_figure() {
     let log = written();
     let select = ["i3".to_owned(), "t8".to_owned()];
     let p = log.packet("sheet", None, None, 9, &select, &[]).unwrap();
-    assert_eq!(p.selected, ["worksheet", "t8"]);
-    assert_eq!(ids(&p.page), ["worksheet", "t8"]);
+    assert_eq!(p.selected, ["f1", "t8"]);
+    assert_eq!(ids(&p.page), ["f1", "t8"]);
+    let by_id = log.packet("sheet", None, None, 9, &["f1".to_owned()], &[]).unwrap();
+    assert_eq!(by_id.selected, ["f1"]);
 }
 
 #[test]
@@ -227,7 +243,7 @@ fn a_folded_box_holding_a_figure_counts_it_as_one_line() {
     assert_eq!(line(&p, "b1").text.as_deref(), Some("Growth"));
     // Read in the box, the figure is one line again, and the ink is over its part.
     let inside = log.packet("held", None, Some("b1"), 99, &[], &[]).unwrap();
-    assert_eq!(ids(&inside.page), ["worksheet", "c7"]);
+    assert_eq!(ids(&inside.page), ["f2", "c7"]);
     assert_eq!(
         line(&inside, "c7").field("over"),
         None,
