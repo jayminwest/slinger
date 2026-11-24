@@ -13,6 +13,7 @@ repository = "https://github.com/jayminwest/slinger"
 slinger-core = { path = "crates/core", version = "0.0.0" }
 slinger-control = { path = "crates/control", version = "0.0.0" }
 slingerd = { path = "crates/daemon", version = "0.0.0" }
+slinger-script = { path = "crates/script", version = "0.0.0" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 font8x8 = { version = "0.3", default-features = false, features = ["unicode"] }
@@ -25,6 +26,9 @@ objc2-core-foundation = { version = "0.3", default-features = false, features = 
 objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGBitmapContext", "CGColorSpace", "CGContext", "CGImage", "CGPDFDocument", "CGPDFPage"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSAffineTransform", "NSArray", "NSAttributedString", "NSData", "NSDate", "NSDictionary", "NSError", "NSGeometry", "NSNotification", "NSObject", "NSProcessInfo", "NSRunLoop", "NSString", "NSTimer", "NSURL", "NSURLRequest", "NSURLResponse", "NSUserDefaults", "NSValue"] }
 objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-app-kit", "objc2-core-foundation", "WKContentRuleList", "WKContentRuleListStore", "WKContentWorld", "WKFrameInfo", "WKNavigation", "WKNavigationAction", "WKNavigationDelegate", "WKPreferences", "WKScriptMessage", "WKScriptMessageHandlerWithReply", "WKUIDelegate", "WKURLSchemeHandler", "WKURLSchemeTask", "WKUserContentController", "WKUserScript", "WKWebView", "WKWebViewConfiguration", "WKWebsiteDataStore", "WKWindowFeatures"] }
+# QuickJS (quickjs-ng), built from C with the bindings the crate ships: no
+# bindgen, no libclang. Only crates/script links it.
+rquickjs = "0.14"
 rusqlite = { version = "0.41", features = ["bundled"] }
 rustix = { version = "1", features = ["process", "stdio"] }
 serde = { version = "1", features = ["derive"] }

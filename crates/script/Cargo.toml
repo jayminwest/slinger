@@ -1,0 +1,15 @@
+[package]
+name = "slinger-script"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Runs an agent's drawing script in an embedded, bounded QuickJS: script and data in, canvas shapes out."
+repository.workspace = true
+[dependencies]
+rquickjs.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

@@ -19,6 +19,10 @@ crates/control  slinger-control: the control protocol: requests, replies, the wi
 crates/daemon   slingerd: owns the IO the core leaves out (socket, signals, startup,
                 the record's SQLite file, canvas files, agent processes) and serves
                 the core. No domain logic.
+crates/script   slinger-script: runs an agent's drawing script in an embedded,
+                bounded QuickJS: script, data and a view in; canvas item objects
+                and warnings out. Pure, and links no core type. Only the daemon
+                links it.
 crates/cli      slinger: argv -> one control request -> the output contract.
 crates/app      slinger-app: the macOS app. Control requests -> a scene -> one window.
                 The bundled app starts the slingerd beside it when none answers.
@@ -36,7 +40,9 @@ other programs ──────┘   (one JSON line each way)
 ```
 
 Only the daemon links the core, so each capability has one implementation
-and one path to it. No binary crate depends on another; the clients' tests
+and one path to it. Only the daemon links `crates/script` too, so every
+figure comes from one bounded engine and no client builds QuickJS (the
+clients' test builds do, through the daemon). No binary crate depends on another; the clients' tests
 dev-depend on the daemon's library, so they run against a real socket.
 
 ## Where things are
@@ -86,6 +92,15 @@ format (`crates/control/src/wire.rs`), the socket client
 | `crates/daemon/src/processes.rs` | agent processes: spawn, limits, session ids, which `claude` |
 | `crates/daemon/src/feedback.rs` | the feedback file |
 | `crates/daemon/src/lock.rs` | the locks that say who owns the socket and the record |
+
+### `crates/script/src`
+
+`crates/script/src/lib.rs` is the one function, `run`, its types and its
+limits; `crates/script/src/engine.rs` is the QuickJS glue (a fresh runtime
+per run, the limits, the exception turned into `script:LINE:COL: message`).
+The API a script calls (docs/design/figures.md, Appendix A) is JavaScript in
+`crates/script/src/prelude`, over one native emit; the colour names are
+`crates/script/src/colour.rs`.
 
 ### `crates/cli/src`
 
@@ -191,6 +206,10 @@ add an `allow` entry with a `why`.
 | The CLI reaches the core only through the socket | rule `cli-uses-the-socket` |
 | The app reaches the core only through the socket | rule `app-uses-the-socket` |
 | Only `crates/app/src/platform` holds `unsafe`, objc2 or AppKit code | rule `platform-owns-ffi` |
+| Only the daemon runs drawing scripts | rule `only-daemon-runs-scripts` |
+| The script engine does no process, terminal, network or file IO and no FFI of its own | rule `script-is-pure` |
+| A script's limits (time, memory, stack, size, shapes) and its purity | `crates/script/src/tests/limits.rs` |
+| A script's shapes are items the core applies, measured by the core's text rule | `crates/daemon/src/tests/script.rs` |
 | Only `crates/app/src/main.rs` starts the platform | rule `app-logic-is-pure` |
 | Only `crates/app/src/platform/pdf.rs` reads a PDF | rule `pdf-lives-in-platform-pdf` |
 | Drive lines are only `DriveAsk` and `DriveReply`, never hand-built JSON | rule `drive-speaks-typed`; `crates/control/tests/fixtures/drive.jsonl` |
