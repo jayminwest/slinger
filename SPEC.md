@@ -30,7 +30,7 @@ Each decision has an id (D1, D2, ...). Each open item has an id (O1, O2, ...). R
 - D3. Client and server are both custom. herdr is an inspiration only. There is no herdr adapter.
 - D4. Client and server are separate from day one. They talk over a local socket. One server per machine.
 - D5. The canvas is a native rebuild. It does not embed tldraw.
-- D6. Canvas v1: pen at a constant width (no pressure), eraser, lasso, select, text, box, arrow, pages, undo, endless pan and zoom, and PDF pages. Nothing else. Amended 2026-11-12: a `pdf` item shows one page of a PDF, or a part of one (a snippet); the PDF is a blob in the record. Opening a PDF makes a canvas of its pages stacked on one canvas page, read in reader mode (fit to width, vertical scroll). Only the app reads a PDF; the core and the server never parse one. See `docs/design/pdf.md`.
+- D6. Canvas v1: pen at a constant width (no pressure), eraser, lasso, select, text, box, arrow, pages, undo, endless pan and zoom, and PDF pages. Nothing else. Amended 2026-11-12: a `pdf` item shows one page of a PDF, or a part of one (a snippet); the PDF is a blob in the record. Opening a PDF makes a canvas of its pages stacked on one canvas page, read in reader mode (fit to width, vertical scroll). Only the app reads a PDF; the core and the server never parse one. See `docs/design/pdf.md`. Amended 2026-11-24: a text is edited in the user's nvim when nvim is there, is a column 80 cells wide and shows at most 80 rows (the rest by stepping in), and draws as markdown on its cells when not edited; still one `text` item. See `docs/design/writing-column.md`.
 - D7. Canvas files use Slinger's own format. Slinger can import a tldraw file. It cannot export one.
 - D8. An agent gets a packet, not a screenshot (section 6).
 - D9. Handwriting recognition runs only when the user asks. It is never a layer between the canvas and the agent.
@@ -42,7 +42,7 @@ Each decision has an id (D1, D2, ...). Each open item has an id (O1, O2, ...). R
 - D15. Each machine writes its own record. One always-on machine receives a copy of every record, for search and backup.
 - D16. A workspace has directories. It is not a directory (section 10).
 - D17. The sidebar is optional and it collapses. Agent status is a glance, not a dashboard.
-- D18. Keyboard input always works. Terminal and code entry are not design goals.
+- D18. Keyboard input always works. Terminal and code entry are not design goals. Amended 2026-11-24: prose typed in an embedded nvim is keyboard input, not terminal or code entry; slinger runs no shell or terminal buffer in it (`docs/design/writing-column.md`).
 - D19. Code that an agent writes for a UI lives in the record as a blob. It is not a file in a directory. A pane or a canvas item refers to it by hash.
 - D20. Slinger does not make an agent durable. The harness does: cc-durable for Claude Code today, Daffy later. Slinger builds no durable-agent machinery.
 - D21. Three surfaces show the commands: a key overlay, a command palette and the macOS menu bar. All three read one command registry: each command's title, group and live key. A command added to the registry shows in all three.
