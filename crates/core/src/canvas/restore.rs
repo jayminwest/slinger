@@ -58,6 +58,7 @@ impl Canvas {
             return Err(never_made(&format!("{}", item.id)));
         }
         item.shape.check()?;
+        item.member.check()?;
         if !by.may_change(&item.author) {
             return Err(not_yours(by, &format!("{}", item.id), &item.author));
         }

@@ -15,6 +15,7 @@
 //! - A canvas always has at least one page, and page names are unique.
 
 mod delta;
+mod figure;
 pub mod file;
 mod find;
 mod fold;
@@ -29,6 +30,7 @@ use std::collections::BTreeMap;
 
 pub(crate) use delta::replay;
 pub use delta::{Changes, Marker, changes_since};
+pub use figure::{Address, Figure, Member, NAME_MAX, Part, figure_name, part_name};
 pub use fold::Fold;
 pub(crate) use geometry::ink_gap;
 pub use geometry::{GAP, MINIATURE, miniature};
@@ -57,11 +59,11 @@ pub struct Op {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
     /// Put a new item on a page. The item is the author's, made at the op's time.
-    Add { page: PageId, shape: Shape, style: Style },
-    /// Replace an item's shape, and its style when `style` is given. Its
-    /// author and time stay. A style kept is [`Style::fitted`] to the new
-    /// shape.
-    Edit { item: ItemId, shape: Shape, style: Option<Style> },
+    Add { page: PageId, shape: Shape, style: Style, member: Member },
+    /// Replace an item's shape, its style when `style` is given and its
+    /// figure, part and lock when `member` is. Its author and time stay. A
+    /// style kept is [`Style::fitted`] to the new shape.
+    Edit { item: ItemId, shape: Shape, style: Option<Style>, member: Option<Member> },
     /// Shift an item by `by` canvas units.
     Move { item: ItemId, by: Point },
     /// Take an item off the canvas.
@@ -81,16 +83,16 @@ pub enum Action {
 }
 
 impl Action {
-    /// An add of `shape` with the default style.
+    /// An add of `shape` with the default style, in no figure.
     #[must_use]
     pub fn add(page: PageId, shape: Shape) -> Self {
-        Action::Add { page, shape, style: Style::default() }
+        Action::Add { page, shape, style: Style::default(), member: Member::default() }
     }
 
-    /// An edit of `item`'s shape that keeps its style.
+    /// An edit of `item`'s shape that keeps its style and its figure.
     #[must_use]
     pub fn edit(item: ItemId, shape: Shape) -> Self {
-        Action::Edit { item, shape, style: None }
+        Action::Edit { item, shape, style: None, member: None }
     }
 
     /// The same action, with every text it carries [`Shape::fitted`]: the
@@ -99,11 +101,11 @@ impl Action {
     #[must_use]
     pub fn fitted(self) -> Self {
         match self {
-            Action::Add { page, shape, style } => {
-                Action::Add { page, shape: shape.fitted(), style }
+            Action::Add { page, shape, style, member } => {
+                Action::Add { page, shape: shape.fitted(), style, member }
             }
-            Action::Edit { item, shape, style } => {
-                Action::Edit { item, shape: shape.fitted(), style }
+            Action::Edit { item, shape, style, member } => {
+                Action::Edit { item, shape: shape.fitted(), style, member }
             }
             Action::Restore { item } => Action::Restore { item: item.fitted() },
             Action::PageRestore { page, index, items } => Action::PageRestore {
@@ -181,18 +183,21 @@ impl Canvas {
             return Err(invalid("the agent has no name", "name the agent that asks"));
         }
         match action {
-            Action::Add { page, shape, style } => {
+            Action::Add { page, shape, style, member } => {
                 self.page_index(page)?;
                 self.check_shape(&shape, None)?;
                 style.check(&shape)?;
+                member.check()?;
                 let id = ItemId::new(self.next_item);
                 self.next_item += 1;
-                self.items.insert(id, Item { id, page, author: by, time: at, shape, style });
+                let item = Item { id, page, author: by, time: at, shape, style, member };
+                self.items.insert(id, item);
                 Ok(Applied::Added(id))
             }
-            Action::Edit { item, shape, style } => {
+            Action::Edit { item, shape, style, member } => {
                 self.check_shape(&shape, Some(item))?;
                 style.as_ref().map_or(Ok(()), |s| s.check(&shape))?;
+                member.as_ref().map_or(Ok(()), Member::check)?;
                 let found = if self.joins(item, &shape, &by) {
                     self.items.get_mut(&item).ok_or_else(|| gone(item))?
                 } else {
@@ -202,6 +207,9 @@ impl Canvas {
                     found.author = Author::User;
                 }
                 found.style = style.unwrap_or(found.style).fitted(&shape);
+                if let Some(member) = member {
+                    found.member = member;
+                }
                 found.shape = shape;
                 Ok(Applied::Changed)
             }

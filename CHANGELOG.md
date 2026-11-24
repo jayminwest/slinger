@@ -33,6 +33,14 @@ bullet with the area in bold.
   of its colour) and each rectangle's, drawing's and arrow's dashed or
   dotted line.
 
+- **Canvas:** items can belong to a named figure and a named part of it
+  (`fig`, `part`) and can be locked (`locked`), set through
+  `canvas apply`; a `set` of `locked` locks or unlocks. A figure address
+  (`worksheet`, or `worksheet/1a-answer` for one part) works wherever an
+  item id does: `canvas put --beside`, `canvas edit`, `canvas remove` and
+  `canvas crop --item`. Older versions of slinger open these canvases and
+  lose no item.
+
 - **App:** a new `[editor] nvim` config key (`"auto"`, `"off"` or the path
   to nvim) picks the nvim that will edit canvas texts. The app reads it now;
   your own editor takes over typing once nvim's screen is drawn in the text.

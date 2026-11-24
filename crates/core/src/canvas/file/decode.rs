@@ -83,7 +83,8 @@ fn read_change(m: &Fields) -> std::result::Result<Option<Change>, Bad> {
             let Some(shape) = json::read_shape(item)? else { return Ok(None) };
             let id = json::text(item, "id").and_then(json::parse_item)?;
             let page = json::text(item, "page").and_then(json::parse_page)?;
-            Change::Add { item: id, page, style: style::read(item, &shape), shape }
+            let (style, member) = (style::read(item, &shape), style::read_member(item));
+            Change::Add { item: id, page, style, member, shape }
         }
         "remove" => Change::Remove { items: json::ids(m, "ids")? },
         "move" => {

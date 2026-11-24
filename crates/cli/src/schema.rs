@@ -12,7 +12,7 @@ use crate::output::Output;
 pub const SCHEMA: &str = "\
 unit\tlength\tpositions and lengths are integers in tenths of a unit
 unit\tpts\ta flat list of x,y pairs: the first pair is the start, each next pair the step from the one before
-item\tany\tid (i<n>), page (p<n>), kind, color (#rrggbb or #rrggbbaa, default #000000; not on live or button), then the kind's fields; 'canvas show' adds by and t
+item\tany\tid (i<n>), page (p<n>), kind, color (#rrggbb or #rrggbbaa, default #000000; not on live or button), then the kind's fields; optional locked (true: the user's pen passes over it), fig (a figure name: a-z, 0-9 and -, a letter first, not like an id), part (a part of that figure); 'canvas show' adds by and t
 kind\ttext\tx, y, text; optional w, h (the frame; missing, it fits the words); optional size (a character's height, twice its width, 40 to 4000; missing or null, 240; as 'canvas put' and 'canvas edit' --size take it)
 kind\tbox\tx, y, w, h; optional fill (#rrggbb or #rrggbbaa: a tint under all ink, drawn at most 40% opaque), dash (dashed or dotted)
 kind\tarrow\tpts (two or more pairs); optional from, to (the item ids it points at); optional heads (none, end or both; missing, end: none is a plain line), dash (dashed or dotted)

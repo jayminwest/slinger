@@ -226,6 +226,23 @@ one is `invalid` with a hint. A `set` that names any of them carries all four, a
 default as `null`; one that names none keeps the item's style (a field the new shape
 cannot take is dropped).
 
+Figure fields (`docs/design/figures.md`, "Figure and part"). Optional, on any kind,
+written after the style fields in this order, and left out at their default:
+
+| field | value | default (absent or `null`) |
+|---|---|---|
+| `locked` | `true`: the user's pen, eraser, lasso and taps pass over it in the app | free; written only when `true` |
+| `fig` | a figure name: 1 to 40 of `a-z`, `0-9` and `-`, a letter first, not a letter then only digits (`b4`) | in no figure |
+| `part` | a part name: 1 to 40 of `a-z`, `0-9` and `-`; only with `fig` | in no part |
+
+A figure is the items that share a `fig`, a part the items of a figure that share a
+`part`; no line lists them. `locked` binds the user's hands in the app only: the
+author rule is unchanged, and an agent changes its own locked items. Lock and unlock
+are a `set` of `locked` (`true` or `null`). Reading never fails on them: a value of
+the wrong type, a name that breaks the rules or a `part` without `fig` reads as the
+default. A request that gives one is `invalid` with a hint. A `set` that names any of
+them carries all three, a default as `null`; one that names none keeps them.
+
 `color` is a string: a palette name the model defines, `#rrggbb`, or `#rrggbbaa` when
 the colour is not opaque. The model has no palette yet, so a reader reads any other
 string as black.
@@ -297,13 +314,16 @@ undo history (slinger-2628e5):
   not know without drawing it, and ignores fields it does not know. Because the file
   is never rewritten, all of them stay on disk.
 - Added so far without a `v` change: the text `size`, the `live`, `button` and `pdf`
-  kinds, a box's `fold` (`docs/design/fold.md`), and the style fields `fill`, `dash`,
-  `heads` and `closed` (`docs/design/figures.md`). A reader from before `fold` shows
+  kinds, a box's `fold` (`docs/design/fold.md`), the style fields `fill`, `dash`,
+  `heads` and `closed`, and the figure fields `locked`, `fig` and `part`
+  (`docs/design/figures.md`). A reader from before `fold` shows
   a folded box as a small open box and every item it holds where it is: it loses
   the fold, never an item. A reader from before styles draws a filled box as an
   outline, a dashed line solid, a headless arrow with a head and a closed stroke
   open; its `set` keeps the fields, and its `restore` (undo of an erase) writes the
-  item back plain: it loses the style, never the item.
+  item back plain: it loses the style, never the item. A reader from before figures
+  shows a figure's items as free items of their maker: it loses the names and the
+  lock, never an item.
 - `v` goes up only when an old reader would misread the file (for example, a new
   coordinate unit). A new kind of thing is a new `op`, never a new meaning for an old
   one, as with CLI verbs (section 7).
