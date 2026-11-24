@@ -11,6 +11,15 @@ bullet with the area in bold.
 
 ### Added
 
+- **CLI:** `slinger canvas draw <CANVAS> <FILE> --name NAME` runs an
+  agent's drawing script (JavaScript) in the daemon and places what it
+  draws as one named figure, beside an item, over it, in a box or at a
+  point, as one undo step. Drawing the same name again replaces the figure
+  in place and writes nothing when nothing changed. `--data` passes the
+  script its data, `--dry-run` writes nothing, and `--png` writes the
+  figure alone as an image. A script that fails says the line and column
+  where it was; its warnings print on success.
+
 - **App:** a canvas text you type is edited in your own nvim, drawn in the
   text's place: 80 cells wide, as tall as the text, with your colorscheme,
   modes, cursor and `:` line, and no line numbers, sign column or ruler.
@@ -22,6 +31,11 @@ bullet with the area in bold.
   or a drag in the text is nvim's mouse. The key overlay lists these. The new
   `[editor] nvim` config key (`"auto"`, `"off"` or the path to nvim)
   picks which nvim; with none found, slinger's own editor types and says so.
+- **App:** write focus (⌥⌘↩, "Focus on text" in the Canvas menu and the
+  palette): while you type a text, or with one text selected, the pane zooms
+  so the text's 80-character column fills its width, the text's top just
+  under the pane's top. Ending the text, or the same key again, puts the
+  view back where it was.
 - **Canvas:** boxes and closed strokes take a fill, drawn as a light tint
   under all writing; boxes, strokes and arrows can be dashed or dotted; an
   arrow can have a head at both ends or none (a plain line); a stroke can

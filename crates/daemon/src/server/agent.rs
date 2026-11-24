@@ -52,6 +52,20 @@ fn canvas_put(
     session::check_agent(agent).map_err(|e| remote(&e))?;
     let placed = store.canvases().put(canvas, agent, beside, what, how).map_err(|e| drawn(&e))?;
     let Placed { written, item, page, frame: [x, y, w, h] } = placed;
+    let event = landed(store, canvas, agent, vec![item.clone()])?;
+    let seq = written.seq.first().copied().unwrap_or_default();
+    Ok(CanvasPlaced { item, page, x, y, w, h, seq, event })
+}
+
+/// Appends `reply_landed` for `items` when `agent` was slung something on
+/// `canvas` (see [`sling::landed`]); its number, or `None` when nothing
+/// was slung.
+pub(super) fn landed(
+    store: &Store,
+    canvas: &str,
+    agent: &str,
+    items: Vec<String>,
+) -> Result<Option<u64>, RemoteError> {
     let tags = Tags { agent: Some(agent.into()), canvas: Some(canvas.into()), ..Tags::on("") };
     let query = Query {
         kind: Some("sling_sent".into()),
@@ -59,15 +73,13 @@ fn canvas_put(
         canvas: tags.canvas.clone(),
         ..Query::default()
     };
-    // A sling being sent appends its event first: the put answers that one.
+    // A sling being sent appends its event first: the reply answers that one.
     let _sling = store.sessions().slinging();
     let slings = store.events(&query).map_err(|e| stored(&e))?;
-    let event = match sling::landed(&slings, vec![item.clone()]) {
+    match sling::landed(&slings, items) {
         Some(body) => {
-            store.append(Event::new(0, agent, tags, body)).map_err(|e| stored(&e))?.number
+            Ok(store.append(Event::new(0, agent, tags, body)).map_err(|e| stored(&e))?.number)
         }
-        None => None,
-    };
-    let seq = written.seq.first().copied().unwrap_or_default();
-    Ok(CanvasPlaced { item, page, x, y, w, h, seq, event })
+        None => Ok(None),
+    }
 }

@@ -3,11 +3,13 @@
 
 use std::fs;
 use std::io;
+use std::path::Path;
 
 use slinger_control::{
     CanvasCropAsk, CanvasFindAsk, CanvasFound, CanvasImage, CanvasImages, CanvasStrokes,
     CanvasStrokesAsk, RemoteError,
 };
+use slinger_core::render::Image;
 
 use super::{absolute, drawn, unusable};
 use crate::store::Store;
@@ -19,13 +21,25 @@ pub(super) fn crop(
     CanvasCropAsk { canvas, of, path }: CanvasCropAsk,
 ) -> Result<CanvasImages, RemoteError> {
     let (canvas, of) = (canvas.as_str(), of.as_str());
-    let path = absolute(&path)?;
+    let images =
+        written(&path, |name| store.canvases().crop(canvas, of, name).map_err(|e| drawn(&e)))?;
+    Ok(CanvasImages { images })
+}
+
+/// Writes the images `draw` makes, given the file stem of `path`: `path`
+/// names the one image, and tiles go beside it as `<stem>-<n>.png`. Bytes
+/// travel as files, as a blob's do.
+pub(super) fn written(
+    path: &Path,
+    draw: impl FnOnce(&str) -> Result<Vec<Image>, RemoteError>,
+) -> Result<Vec<CanvasImage>, RemoteError> {
+    let path = absolute(path)?;
     let (Some(dir), Some(name)) = (path.parent(), path.file_stem().and_then(|s| s.to_str())) else {
         return Err(unusable(path, &io::Error::other("it names no file")));
     };
-    let images = store.canvases().crop(canvas, of, name).map_err(|e| drawn(&e))?;
+    let images = draw(name)?;
     fs::create_dir_all(dir).map_err(|e| unusable(dir, &e))?;
-    let images = images
+    images
         .into_iter()
         .map(|image| {
             let path = dir.join(&image.name);
@@ -33,8 +47,7 @@ pub(super) fn crop(
             let (x, y, width, height) = (image.x, image.y, image.width, image.height);
             Ok(CanvasImage { path, x, y, width, height })
         })
-        .collect::<Result<_, RemoteError>>()?;
-    Ok(CanvasImages { images })
+        .collect()
 }
 
 /// The strokes `item` names, with their points.

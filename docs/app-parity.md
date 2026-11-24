@@ -31,6 +31,7 @@ same thing by drawing, or never needs to.
 | `canvas show`, `changes`, `read`, `crop`, `strokes`, `schema` | How an agent reads a canvas; the app draws it |
 | `canvas apply`, `undo`, `redo` | The pen, the eraser, select and lasso, Undo and Redo |
 | `canvas put`, `edit`, `remove` | Agent verbs; the person draws, writes, moves and deletes |
+| `canvas draw` | An agent draws with code; the person draws with the pen. The app shows the figure it makes |
 | `status set`, `file touched`, `session listen` | Agent verbs: the agent's harness runs them |
 | `guide`, `skill install` | For agents and their harness; no daemon verb behind them |
 | `feedback resolve` | Done: a tap on a note's "✓" in the feedback entry |

@@ -71,6 +71,7 @@ impl Canvases {
             Command::ToggleGrid => self.zoomed = Some(self.paper.toggle().to_string()),
             Command::StepIn => return self.step_in(panes, pane),
             Command::StepOut => return self.step_out(panes, pane),
+            Command::WriteFocus => self.write_focus(panes, (pane, frame)),
             Command::Save => {
                 self.zoomed = Some(self.saved(panes, pane, std::env::home_dir().as_deref()));
             }

@@ -54,3 +54,4 @@
 {"build":"abc1234","claude":null,"data_dir":"/data","exe":"/usr/local/bin/slingerd","log":"/tmp/d.log","ok":true,"pid":42,"protocol":1,"slinger":"/usr/local/bin/slinger","socket":"/tmp/s.sock","started_ms":1762790400000,"version":"0.1.0"}
 {"ok":true,"pid":42}
 {"agent":"scout","event":14,"hash":"sha256:cc","ok":true,"path":"/p/w/a.rs"}
+{"event":9,"frame":[400,400,9000,14000],"images":[{"height":700,"path":"/tmp/w.png","width":450,"x":0,"y":0}],"items":56,"name":"worksheet","ok":true,"origin":[400,400],"page":"p1","parts":["1a","1b"],"seq":[7,8],"warnings":["script:12:7: text over a line"]}

@@ -73,6 +73,7 @@ verbs! {
     "canvas_find" CanvasFind(CanvasFindAsk) -> CanvasFound,
     "canvas_fold" CanvasFold(CanvasFoldAsk) -> CanvasEdited,
     "canvas_unfold" CanvasUnfold(CanvasUnfoldAsk) -> CanvasEdited,
+    "canvas_draw" CanvasDraw(CanvasDraw) -> CanvasDrawn,
     "session_list" SessionList(SessionListAsk) -> Sessions,
     "session_show" SessionShow(SessionShowAsk) -> SessionInfo,
     "status_set" StatusSet(StatusSetAsk) -> StatusSet,

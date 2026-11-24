@@ -88,6 +88,7 @@
 86 restart-daemon | Restart slingerd | Window | -
 87 zoom-to-fit | Zoom to fit | Canvas | ⌘9
 88 reload-ui | Reload agent UI | File | -
+89 write-focus | Focus on text | Canvas | ⌥⌘↩
 # config.example.toml [keys]
 #quit = "cmd+q"
 #reload-config = "cmd+r"
@@ -115,6 +116,7 @@
 #zoom-out = "cmd+-"
 #zoom-reset = "cmd+0"
 #zoom-to-fit = "cmd+9"
+#write-focus = "cmd+alt+return"
 #next-page = "cmd+]"
 #delete-selection = "delete"
 #clear-selection = "escape"
@@ -261,6 +263,7 @@ Canvas Plain
   run ZoomOut | Zoom out | ⌘-
   run ZoomReset | Zoom to 100% | ⌘0
   run ZoomToFit | Zoom to fit | ⌘9
+  run WriteFocus | Focus on text | ⌥⌘↩
   run PanLeft | Pan left | -
   run PanRight | Pan right | -
   run PanUp | Pan up | -

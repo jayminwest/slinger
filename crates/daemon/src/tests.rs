@@ -21,6 +21,7 @@ mod beside;
 mod canvas;
 mod close;
 mod daemon;
+mod draw;
 mod edit;
 mod feed;
 mod feedback;

@@ -2,8 +2,8 @@
 //! back with `write_reply`, as the daemon writes it.
 
 use slinger_control::{
-    BlobGetAsk, BlobPutAsk, CanvasChangesAsk, CanvasCreateAsk, CanvasCropAsk, CanvasEdit,
-    CanvasFindAsk, CanvasFoldAsk, CanvasImportAsk, CanvasListAsk, CanvasOps, CanvasPut,
+    BlobGetAsk, BlobPutAsk, CanvasChangesAsk, CanvasCreateAsk, CanvasCropAsk, CanvasDraw,
+    CanvasEdit, CanvasFindAsk, CanvasFoldAsk, CanvasImportAsk, CanvasListAsk, CanvasOps, CanvasPut,
     CanvasRedoAsk, CanvasRemove, CanvasShowAsk, CanvasStrokesAsk, CanvasUndoAsk, CanvasUnfoldAsk,
     DaemonInfoAsk, DaemonStopAsk, EventFilter, FeedbackListAsk, FeedbackNote, FeedbackPathAsk,
     FeedbackResolveAsk, FileTouchedAsk, NewEvent, PacketAsk, PaneCloseAsk, PaneListAsk,
@@ -85,4 +85,5 @@ pub const REPLIES: &[(&str, Round)] = &[
     (DaemonInfoAsk::OP, round::<DaemonInfoAsk>),
     (DaemonStopAsk::OP, round::<DaemonStopAsk>),
     (FileTouchedAsk::OP, round::<FileTouchedAsk>),
+    (CanvasDraw::OP, round::<CanvasDraw>),
 ];

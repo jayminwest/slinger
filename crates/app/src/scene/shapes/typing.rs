@@ -2,6 +2,7 @@
 //! (`canvases::editing::vim`) and hands back its buffer. Pure.
 
 use super::Shapes;
+use crate::layout::Point;
 use crate::scene::editor::Editor;
 
 impl Shapes {
@@ -20,6 +21,13 @@ impl Shapes {
     /// starts with its cursor there.
     pub fn typing_caret(&self) -> Option<usize> {
         self.editing.as_ref().map(|e| e.editor.caret())
+    }
+
+    /// Where the text being typed is: its canvas, page, top left (in
+    /// canvas units) and size.
+    pub fn typing_place(&self) -> Option<(&str, &str, Point, f64)> {
+        let e = self.editing.as_ref()?;
+        Some((e.canvas.as_str(), e.page.as_str(), e.at, e.size))
     }
 
     /// Whether the text being typed is a new one, not an item opened.
