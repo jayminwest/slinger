@@ -123,9 +123,10 @@ your config, your display, your hands and your taste (slinger-fe1e2a).
      row show it whole, escape comes back; say whether the fade reads as
      "more below" (slinger-93b7c8). A size step (alt+shift+}) on it keeps
      80 characters a row (slinger-5285e4).
-  10. **Nothing lost**: quit the app (cmd+Q) while typing, reopen: the text
-      is there; `kill` the text's nvim (`pgrep -fl 'nvim --embed'`) while
-      typing: the text keeps what it had.
+  10. **Nothing lost**, with your config: cmd+Q right after typing a few
+      words in insert mode, reopen: they are there. (Tests hold the rest
+      with `--clean`: a quit in insert mode with keys just typed, before and
+      after nvim is ready, and a killed nvim (slinger-205263).)
   11. **After**: the mtimes of step 1 are unchanged, and
       `ls $TMPDIR/slinger-nvim` holds nvim's state and cache (slinger-c6e898).
   12. **Say** whether nvim's start (75-107 ms) is felt when a text opens

@@ -11,8 +11,9 @@ use crate::render::{Backdrop, Word};
 use crate::{Error, Result};
 
 /// The letters an item id may start with: the file's `i`, and the packet's
-/// `c` (a cluster: its earliest stroke), `t`, `b`, `a`, `l`, `u` and `d`.
-pub(super) const ID_LETTERS: [char; 8] = ['i', 'c', 't', 'b', 'a', 'l', 'u', 'd'];
+/// `c` (a cluster: its earliest stroke), `f` (a figure: its lowest item),
+/// `t`, `b`, `a`, `l`, `u` and `d`.
+pub(super) const ID_LETTERS: [char; 9] = ['i', 'c', 'f', 't', 'b', 'a', 'l', 'u', 'd'];
 
 impl Log {
     /// The packet of one page of this canvas, `id`: the page `page` names by
@@ -89,7 +90,7 @@ impl Log {
     /// page, or the figure's, when `inside` names one and `page` is not
     /// given.
     fn scope(&self, page: Option<&str>, inside: Option<&str>) -> Result<(PageId, Option<Inside>)> {
-        let inside = inside.map(within).transpose()?;
+        let inside = inside.map(|i| self.within(i)).transpose()?;
         let first = match &inside {
             Some(Inside::Box(b)) => Some(*b),
             Some(Inside::Figure(address)) => self.resolve(&address.to_string())?.first().copied(),
@@ -101,6 +102,28 @@ impl Log {
             _ => self.page(page)?.id(),
         };
         Ok((page, inside))
+    }
+
+    /// What `canvas read --in` names: a box's id, a figure's (`f3`, read as
+    /// its name), or a figure address.
+    fn within(&self, inside: &str) -> Result<Inside> {
+        if super::look::number(inside).is_some() {
+            let id = item(inside)?;
+            let fig = self.canvas().item(id).and_then(|i| i.member().fig.clone());
+            return Ok(match fig {
+                Some(figure) if inside.starts_with('f') => {
+                    Inside::Figure(Address { figure, part: None })
+                }
+                _ => Inside::Box(id),
+            });
+        }
+        Address::parse(inside).map(Inside::Figure).map_err(|_| Error::Invalid {
+            message: format!("{inside:?} is not a box's id or a figure address"),
+            hint: Some(
+                "read --in a box (b4), a figure (f3 or worksheet) or a part (worksheet/1a-answer)"
+                    .into(),
+            ),
+        })
     }
 
     /// The op marker after the file's line `after`. Ops and lines differ
@@ -145,19 +168,6 @@ pub fn rect_tenths(r: Rect) -> [i64; 4] {
 #[must_use]
 pub fn size_tenths((w, h): (f64, f64)) -> [i64; 2] {
     [w, h].map(tenths)
-}
-
-/// What `canvas read --in` names: a box's id, or a figure address.
-fn within(inside: &str) -> Result<Inside> {
-    if super::look::number(inside).is_some() {
-        return item(inside).map(Inside::Box);
-    }
-    Address::parse(inside).map(Inside::Figure).map_err(|_| Error::Invalid {
-        message: format!("{inside:?} is not a box's id or a figure address"),
-        hint: Some(
-            "read --in a box (b4), a figure (worksheet) or a part (worksheet/1a-answer)".into(),
-        ),
-    })
 }
 
 /// An item id as the file or a packet writes it.

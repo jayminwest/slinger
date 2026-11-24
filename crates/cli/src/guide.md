@@ -13,7 +13,8 @@ guide comes from the `slinger` binary you run, so it fits that binary.
   PDF's canvas is named after its file, such as `paper.pdf`.
 - **Item ids.** `slinger canvas show` names items `i12`. A packet names them
   by kind: `t12` is a text, `c12` is a cluster of ink (many strokes, one id),
-  `d12` is a PDF's page.
+  `d12` is a PDF's page, `f12` is a figure (`f12 figure worksheet … parts=15`:
+  its name follows, and `worksheet/<part>` names one part).
   The verbs that take an item take both forms.
 - **Units.** The verbs and `canvas show` use integers in tenths of a unit. A
   packet prints whole units: the packet's `120` is `1200` in a verb.

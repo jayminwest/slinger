@@ -111,8 +111,8 @@ bullet with the area in bold.
   worked example script. A sling of a figure's part asks for the answer
   beside it, or a redraw when the figure is the agent's.
 
-- **Canvas:** boxes and closed strokes take a fill, drawn as a light tint
-  under all writing; boxes, strokes and arrows can be dashed or dotted; an
+- **Canvas:** boxes and closed strokes take a fill, kept as the colour
+  given and drawn as a light tint (at most 40% opaque) under all writing; boxes, strokes and arrows can be dashed or dotted; an
   arrow can have a head at both ends or none (a plain line); a stroke can
   be closed into a loop. Set them with `fill`, `dash`, `heads` and
   `closed` in `canvas apply` (`canvas schema` lists them); crops and
@@ -123,11 +123,10 @@ bullet with the area in bold.
   or duplicating such an item keeps its look. A new `[theme] agent` key
   (default `#8a5cf5`) sets the colour an agent's default-coloured ink and
   fills show in.
-- **Canvas:** a tldraw import keeps each rectangle's fill (as a light tint
-  of its colour) and each rectangle's, drawing's and arrow's dashed or
+- **Canvas:** a tldraw import keeps each rectangle's fill (its colour,
+  drawn as a light tint) and each rectangle's, drawing's and arrow's dashed or
   dotted line, a closed drawing's loop and fill, an arrow's heads (at the
   end, both ends or none) and a locked shape's lock.
-  dotted line.
 - **App:** a canvas text you are not typing in shows its markdown, in the
   same monospaced cells nvim edits it in, so no word moves when you open it:
   `#` headings are bold, `*em*` italic, `**strong**` bold, `code` sits on
@@ -151,8 +150,10 @@ bullet with the area in bold.
   item id does: `canvas put --beside`, `canvas edit`, `canvas remove` and
   `canvas crop --item`. Older versions of slinger open these canvases and
   lose no item.
-- **Packet:** a figure is one line, named by the figure, with its parts,
-  whether it is locked and its title, instead of a line per item; ink over
+- **Packet:** a figure is one line, `f3 figure worksheet 0,0 900x1400
+  parts=15 by=claude`: an id of its own (`f` and the number of its lowest
+  item, usable wherever an id is), its name and how many parts it has,
+  instead of a line per item; ink over
   a part of a figure says which (`over=worksheet/1a-answer`), and an arrow
   to an item of a figure names its part. `canvas read --in` and
   `sling send --in` take a figure or a part (`worksheet/1a-answer`): it,

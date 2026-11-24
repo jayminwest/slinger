@@ -1,21 +1,18 @@
 //! Figures in the packet (docs/design/figures.md, "In the packet"). A
-//! figure is one `figure` line, its id the figure's name: its items make no
-//! lines of their own, and an arrow end bound to one names its address. The
-//! line goes where the figure's lowest item would: a figure whose lowest
+//! figure is one `figure` line, `f3 figure softmax 0,0 1700x3800 parts=15
+//! by=teacher`: its id `f` and its lowest item's number, then its name. Its
+//! items make no lines of their own, and an arrow end bound to one names its
+//! address. The line goes where the figure's lowest item would: a figure whose lowest
 //! item a folded box hides is one of the lines that box's `folded=` counts.
 //! Ink over a part says so in `over`. A packet read `--in` a figure or a
 //! part opens that figure: its items there make a line each, with `part=`.
 
 use std::collections::{BTreeSet, HashSet};
 
-use super::fold::first_line;
-use super::line::{Line, reading_order};
+use super::line::Line;
 use super::{Page, area};
-use crate::canvas::{Address, Author, Canvas, Figure, Item, ItemId, PageId, Rect, Shape};
+use crate::canvas::{Address, Author, Canvas, Figure, Item, ItemId, PageId, Rect};
 use crate::{Error, Result};
-
-/// The part every figure may name for its title: its text quotes the line.
-const TITLE: &str = "title";
 
 /// Splits `items`, what a packet reads, into the items that make lines of
 /// their own and the figures that make one line each: those whose lowest
@@ -102,50 +99,28 @@ pub(super) fn scope<'c>(
 }
 
 impl Page<'_> {
-    /// The line of `figure`: its frame, its maker when an agent, its parts
-    /// in reading order, `locked=yes` when any item is, the box it lies in,
-    /// and the first line of its title (part `title`) or of its first text.
+    /// The line of `figure`: its id `f` and its lowest item's number, its
+    /// name, its frame, how many parts it has, its maker when an agent, and
+    /// the box it lies in.
     pub(super) fn figure_line(&self, figure: &Figure) -> Line {
         let n = figure.items.first().map_or(0, |i| i.get());
         let mut fields = Vec::new();
+        if !figure.parts.is_empty() {
+            fields.push(("parts", figure.parts.len().to_string()));
+        }
         if let Author::Agent(name) = &figure.maker {
             fields.push(("by", name.clone()));
         }
-        let parts: Vec<&str> = figure.parts.iter().map(|p| p.name.as_str()).collect();
-        if !parts.is_empty() {
-            fields.push(("parts", parts.join(",")));
-        }
-        if figure.locked {
-            fields.push(("locked", "yes".to_owned()));
-        }
         fields.extend(self.container(n, figure.frame).map(|b| ("in", b)));
-        let text = quote(self.canvas, figure);
-        Line { n, id: figure.name.clone(), kind: "figure", frame: figure.frame, fields, text }
+        let name = Some(figure.name.clone());
+        Line {
+            n,
+            id: format!("f{n}"),
+            kind: "figure",
+            name,
+            frame: figure.frame,
+            fields,
+            text: None,
+        }
     }
-}
-
-/// The first line of the text of part `title` of `figure`, or else of its
-/// first text in reading order, cut as in `page`.
-fn quote(canvas: &Canvas, figure: &Figure) -> Option<String> {
-    let items = figure.items.iter().filter_map(|i| canvas.item(*i));
-    let texts: Vec<(bool, Line)> = items
-        .filter_map(|i| match i.shape() {
-            Shape::Text { text, .. } => Some((
-                i.member().part.as_deref() == Some(TITLE),
-                Line {
-                    n: i.id().get(),
-                    id: String::new(),
-                    kind: "text",
-                    frame: i.bounds(),
-                    fields: Vec::new(),
-                    text: Some(text.clone()),
-                },
-            )),
-            _ => None,
-        })
-        .collect();
-    let titled = texts.iter().any(|(title, _)| *title);
-    let lines = texts.into_iter().filter(|(title, _)| *title || !titled).map(|(_, l)| l);
-    let first = reading_order(lines.collect()).into_iter().next()?.text?;
-    Some(first_line(&first))
 }
