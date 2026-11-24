@@ -2,7 +2,7 @@
 //! predicate ([`crate::commands::able::can`]) from the queries the
 //! commands' own gates ask, so the menu greys exactly what would not act.
 
-use super::{focus, items, pane_at, shown_ui};
+use super::{figure, focus, items, pane_at, shown_ui};
 use crate::canvases::{Boxed, Canvases};
 use crate::commands::able::Facts;
 use crate::layout::Rect;
@@ -43,6 +43,8 @@ pub fn facts(
         entry: canvases.typing(),
         sling_now: canvases.can_sling_now(panes, area),
         new_text: new_text.is_some() && !canvases.typing(),
+        figure: figure::under(panes, tools, area)
+            .is_some_and(|(at, pointer)| canvases.figure_under(panes, at, pointer)),
         text: canvases.focus_target(panes, pane).is_some() || canvases.write_focused(pane),
         workspace,
         agent: sidebar.shown_agent().map(|a| a.running).filter(|_| workspace),

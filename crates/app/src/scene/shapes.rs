@@ -40,7 +40,7 @@ use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect};
 use crate::mirror::{LINE_WIDTH, TEXT_SIZE};
 use crate::nvim::grid::Grid;
-use crate::scene::canvas::{Fill, Item, ItemId, Shape};
+use crate::scene::canvas::{Fill, Item, ItemId, Shape, free};
 use crate::scene::editor::Editing;
 use crate::scene::ink::{Change, Ink, on_server};
 use crate::scene::paste;
@@ -442,7 +442,7 @@ fn on_edge(editing: &Editing, at: Point, zoom: f64) -> bool {
 
 /// The topmost server text of `items` within `reach` of `at`.
 fn text_at<'b>(items: &'b [Cow<'_, Item>], at: Point, reach: f64) -> Option<&'b Item> {
-    let texts = items.iter().filter(|i| on_server(i.id));
+    let texts = items.iter().filter(|i| on_server(i.id) && free(i));
     let mut texts = texts.filter(|i| match &i.shape {
         Shape::Text { frame, .. } => frame.outset(reach).contains(at),
         _ => false,

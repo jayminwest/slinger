@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::layout::Size;
-use crate::scene::canvas::{self, Draw, ItemId, Scene, Style};
+use crate::scene::canvas::{self, Draw, ItemId, Scene};
 
 const SCREEN: Size = Size { width: 800.0, height: 600.0 };
 /// The size the core gives a workspace's button, in canvas points.
@@ -13,12 +13,7 @@ const FRAME: Rect = Rect { x: 100.0, y: 50.0, width: WIDTH, height: HEIGHT };
 
 fn button(id: u64, status: Option<Status>) -> Item {
     let colour = Rgb { r: 0, g: 0, b: 0 };
-    Item {
-        id: ItemId(id),
-        colour,
-        shape: Shape::Button { frame: FRAME, status },
-        style: Style::default(),
-    }
+    Item::plain(ItemId(id), colour, Shape::Button { frame: FRAME, status })
 }
 
 fn scene(items: &[Item], view: Viewport, last: Option<&Scene>) -> Scene {

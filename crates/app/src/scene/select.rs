@@ -37,6 +37,7 @@
 //! every item.
 
 mod carry;
+mod grab;
 mod hit;
 mod keys;
 mod pick;
@@ -44,6 +45,7 @@ mod scale;
 
 pub use carry::Landing;
 use carry::{Arriving, Target};
+pub use grab::figure_at;
 pub use keys::{Keyed, into_view};
 pub use pick::{REACH, topmost};
 
@@ -52,7 +54,7 @@ use std::collections::HashSet;
 
 use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect};
-use crate::scene::canvas::{Fill, Item, ItemId, Shape};
+use crate::scene::canvas::{Fill, Item, ItemId, Shape, free};
 use crate::scene::ink::{Change, Ink, on_server};
 use crate::scene::tools::Tool;
 use crate::scene::{pdf, shapes};
@@ -121,6 +123,8 @@ pub struct Select {
     gesture: Option<(String, String, Gesture)>,
     selection: Option<Selection>,
     arriving: Option<Arriving>,
+    /// The selection `unlock-figure` made, while it is the selection ([`grab`]).
+    grab: Option<Selection>,
 }
 
 impl Select {
@@ -164,7 +168,7 @@ impl Select {
         match gesture {
             Gesture::Erase { ids, last, radius } => {
                 let hit = items.iter().filter(|i| on_server(i.id) && !ids.contains(&i.id));
-                let hit = hit.filter(|i| hit::erases(&i.shape, *last, at, *radius));
+                let hit = hit.filter(|i| free(i) && hit::erases(&i.shape, *last, at, *radius));
                 let hit: Vec<ItemId> = hit.map(|i| i.id).collect();
                 ids.extend(hit);
                 *last = at;
@@ -302,11 +306,14 @@ impl Select {
     /// Items a carry brought here, once all are in `items`, are selected.
     pub fn keep(&mut self, (canvas, page): (&str, &str), items: &[Cow<'_, Item>]) {
         self.arrive((canvas, page), items);
+        let grabbed = self.grabbed();
         let Some(selection) = &mut self.selection else { return };
         if selection.canvas != canvas || selection.page != page {
             return;
         }
-        let present: HashSet<ItemId> = items.iter().map(|i| i.id).collect();
+        // Only a grab holds locked items ([`grab`]).
+        let kept = items.iter().filter(|i| grabbed || free(i));
+        let present: HashSet<ItemId> = kept.map(|i| i.id).collect();
         selection.ids.retain(|id| present.contains(id));
         if selection.ids.is_empty() {
             self.selection = None;
@@ -344,13 +351,8 @@ impl Select {
                     if let Some(after) = follow.iter().find(|f| f.id == item.id) {
                         *item = Cow::Owned(after.clone());
                     } else if ids.contains(&item.id) {
-                        let (id, colour) = (item.id, item.colour);
-                        *item = Cow::Owned(Item {
-                            id,
-                            colour,
-                            shape: item.shape.moved(*by),
-                            style: item.style,
-                        });
+                        let shape = item.shape.moved(*by);
+                        *item = Cow::Owned(Item { shape, ..item.as_ref().clone() });
                     }
                 }
             }
@@ -364,7 +366,8 @@ impl Select {
             items.extend(coming);
         }
         if let Some((frame, count)) = boxed {
-            items.extend(chrome(frame.outset(MARGIN / zoom), count, zoom, theme));
+            let handles = !self.grabbed();
+            items.extend(chrome(frame.outset(MARGIN / zoom), (count, handles), zoom, theme));
         }
         if let Some(Gesture::Lasso { points }) = gesture {
             let mut points = points.clone();
@@ -397,9 +400,14 @@ impl Select {
 }
 
 /// The marks of a selection of `count` items whose box is `frame`, at
-/// `zoom`: the box, tinted, its four corner handles, and the count above
-/// its top left.
-fn chrome(frame: Rect, count: usize, zoom: f64, theme: &Theme) -> Vec<Cow<'static, Item>> {
+/// `zoom`: the box, tinted, its four corner handles (with `handles`: not
+/// on a grabbed figure), and the count above its top left.
+fn chrome(
+    frame: Rect,
+    (count, handles): (usize, bool),
+    zoom: f64,
+    theme: &Theme,
+) -> Vec<Cow<'static, Item>> {
     let focus = theme.focus;
     let tint = Fill { colour: focus, alpha: TINT };
     let shape = Shape::Panel { frame, fill: Some(tint), width: THIN / zoom, dashed: false };
@@ -407,7 +415,8 @@ fn chrome(frame: Rect, count: usize, zoom: f64, theme: &Theme) -> Vec<Cow<'stati
     let side = HANDLE / zoom;
     let (right, bottom) = (frame.x + frame.width, frame.y + frame.height);
     let corners = [(frame.x, frame.y), (right, frame.y), (right, bottom), (frame.x, bottom)];
-    for ((x, y), id) in corners.into_iter().zip((0..4).map(|n| HANDLES - n)) {
+    let corners = corners.into_iter().filter(|_| handles);
+    for ((x, y), id) in corners.zip((0..4).map(|n| HANDLES - n)) {
         let square = Rect { x: x - side / 2.0, y: y - side / 2.0, width: side, height: side };
         let paper = Fill { colour: theme.background, alpha: 1.0 };
         let width = HANDLE_LINE / zoom;
@@ -421,12 +430,12 @@ fn chrome(frame: Rect, count: usize, zoom: f64, theme: &Theme) -> Vec<Cow<'stati
 }
 
 /// Whether the select tool and the lasso may take `item` on `canvas`:
-/// not a page on a PDF's canvas (a `pdf` item with no crop), where the
-/// pages are the paper and a tap or a drag on one never moves it
-/// (docs/design/pdf.md). A snippet always has a crop, so one pasted there
-/// is taken as anywhere.
+/// not a locked item ([`free`]), and not a page on a PDF's canvas (a
+/// `pdf` item with no crop), where the pages are the paper and a tap or a
+/// drag on one never moves it (docs/design/pdf.md). A snippet always has
+/// a crop, so one pasted there is taken as anywhere.
 fn takes(canvas: &str, item: &Item) -> bool {
-    !(pdf::reader(canvas) && matches!(item.shape, Shape::Pdf { crop: None, .. }))
+    free(item) && !(pdf::reader(canvas) && matches!(item.shape, Shape::Pdf { crop: None, .. }))
 }
 
 /// The box around the items of `items` whose ids are `ids`; `None` when

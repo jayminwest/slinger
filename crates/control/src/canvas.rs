@@ -100,7 +100,8 @@ pub struct CanvasPage {
     pub next: u64,
     /// The id of the page shown.
     pub page: String,
-    /// Every page, in order: `{"id", "name"}`.
+    /// Every page, in order: `{"id", "name"}`, and `"figures"` (the names
+    /// of the figures on it) when it has any.
     pub pages: Vec<Value>,
     /// The page's items in drawing order, as the canvas file writes them.
     pub items: Vec<Value>,

@@ -2,7 +2,7 @@
 //! object and pastes back as that crop.
 
 use serde_json::json;
-use slinger_control::CanvasPage;
+use slinger_control::{CanvasFeed, CanvasPage};
 
 use super::*;
 
@@ -53,7 +53,8 @@ fn a_copy_holds_the_items_objects_and_the_texts_one_a_line() {
 #[test]
 fn a_paste_adds_the_items_to_the_page_centred_on_the_point() {
     let clip = page().copied(("main", &Ink::default()), &[ItemId(1), ItemId(3)]).unwrap();
-    let pasted = pasted(clip.items.as_deref().unwrap(), "p2", Point { x: 500.0, y: 300.0 });
+    let pasted =
+        pasted(clip.items.as_deref().unwrap(), "p2", Point { x: 500.0, y: 300.0 }, &HashSet::new());
     assert_eq!(pasted.len(), 2);
     // The box is 10 by 4 and the arrow 10 long on its top edge: together
     // centred on (5, 2) before, (500, 300) after.
@@ -80,7 +81,7 @@ fn a_pasted_arrow_keeps_only_the_ends_on_items_pasted_before_it() {
         arrow("i1", "$3"),
         arrow("$2", "$x"),
     ]);
-    let pasted = pasted(&clip.to_string(), "p1", Point { x: 0.0, y: 0.0 });
+    let pasted = pasted(&clip.to_string(), "p1", Point { x: 0.0, y: 0.0 }, &HashSet::new());
     assert_eq!(pasted.len(), 4, "the unknown kind is left out");
     let ends = |n: usize| (pasted[n].object.get("from"), pasted[n].object.get("to"));
     assert_eq!(ends(1), (Some(&json!("$0")), None), "renumbered; an end on what is left out goes");
@@ -92,7 +93,7 @@ fn a_pasted_arrow_keeps_only_the_ends_on_items_pasted_before_it() {
 fn a_paste_of_anything_else_adds_nothing() {
     let at = Point { x: 0.0, y: 0.0 };
     for text in ["hello", "{}", "[]", "[1, 2]", r#"[{"kind": "unknown"}]"#] {
-        assert!(pasted(text, "p1", at).is_empty(), "{text}");
+        assert!(pasted(text, "p1", at, &HashSet::new()).is_empty(), "{text}");
     }
 }
 
@@ -100,7 +101,7 @@ fn a_paste_of_anything_else_adds_nothing() {
 fn plain_text_pastes_as_one_text_item_of_the_pen_s_colour() {
     let colour = Rgb { r: 0x12, g: 0x34, b: 0x56 };
     let items = text_items("ideas\r\nfor\tmonday", colour).unwrap();
-    let pasted = pasted(&items, "p1", Point { x: 200.0, y: 100.0 });
+    let pasted = pasted(&items, "p1", Point { x: 200.0, y: 100.0 }, &HashSet::new());
     assert_eq!(pasted.len(), 1);
     assert_eq!(pasted[0].object["text"], "ideas\nfor monday");
     assert_eq!(pasted[0].object["color"], "#123456");
@@ -176,10 +177,102 @@ fn a_snippet_goes_as_one_pdf_object_and_pastes_back_as_that_crop() {
                 "name": "paper.pdf"}]),
         "as the design's example line, with no id and no colour"
     );
-    let pasted = pasted(clip.items.as_deref().unwrap(), "p1", Point { x: 0.0, y: 0.0 });
+    let pasted =
+        pasted(clip.items.as_deref().unwrap(), "p1", Point { x: 0.0, y: 0.0 }, &HashSet::new());
     let [one] = &pasted[..] else { panic!("{pasted:?}") };
     let frame = Rect { x: -300.0, y: -120.0, width: 600.0, height: 240.0 };
     assert_eq!(one.item.shape, shape.reframed(frame), "centred on the point, the crop kept");
     assert_eq!(one.object["page"], "p1");
     assert_eq!(snippet(&Shape::Panel { frame, fill: None, width: 1.0, dashed: false }), None);
+}
+
+fn figure() -> Mirror {
+    let member = |id: &str, x: i64, part: Option<&str>| {
+        let mut o = json!({"id": id, "page": "p1", "by": "agent:scout", "kind": "box",
+            "color": "#8a5cf5", "x": x, "y": 0, "w": 100, "h": 40, "dash": "dashed",
+            "locked": true, "fig": "sheet"});
+        if let Some(part) = part {
+            o["part"] = part.into();
+        }
+        o
+    };
+    mirror(vec![member("i1", 0, Some("q1")), member("i2", 200, None), member("i3", 400, None)])
+}
+
+#[test]
+fn a_whole_figure_pastes_as_a_new_figure_under_a_free_name_with_its_parts_and_lock() {
+    let m = figure();
+    let clip = m.copied(("main", &Ink::default()), &[ItemId(1), ItemId(2), ItemId(3)]).unwrap();
+    let taken: HashSet<String> = ["sheet", "sheet-2"].map(String::from).into();
+    assert_eq!(m.figures(), HashSet::from(["sheet".to_string()]));
+    let pasted = pasted(clip.items.as_deref().unwrap(), "p1", Point { x: 0.0, y: 0.0 }, &taken);
+    assert_eq!(pasted.len(), 3);
+    for c in &pasted {
+        assert_eq!(c.object["fig"], "sheet-3", "a name not on the page");
+        assert_eq!(c.object["locked"], true, "still locked");
+        assert_eq!(c.object["dash"], "dashed", "the look stays");
+        assert_eq!(c.item.member.fig.as_deref(), Some("sheet-3"));
+    }
+    assert_eq!(pasted[0].object["part"], "q1", "its parts kept");
+}
+
+#[test]
+fn part_of_a_figure_pastes_as_free_items_that_keep_their_look() {
+    let m = figure();
+    let clip = m.copied(("main", &Ink::default()), &[ItemId(1), ItemId(2)]).unwrap();
+    let pasted =
+        pasted(clip.items.as_deref().unwrap(), "p1", Point { x: 0.0, y: 0.0 }, &HashSet::new());
+    assert_eq!(pasted.len(), 2);
+    for c in &pasted {
+        for key in ["fig", "part", "locked"] {
+            assert_eq!(c.object.get(key), None, "{key} dropped");
+        }
+        assert_eq!(c.object["dash"], "dashed");
+        assert!(!c.item.member.locked);
+    }
+}
+
+#[test]
+fn a_clip_of_two_figures_pastes_as_free_items() {
+    let two = json!([
+        {"kind": "box", "x": 0, "y": 0, "w": 10, "h": 10, "fig": "a", "locked": true},
+        {"kind": "box", "x": 20, "y": 0, "w": 10, "h": 10, "fig": "b", "part": "p", "locked": true},
+    ]);
+    let pasted = pasted(&two.to_string(), "p1", Point { x: 0.0, y: 0.0 }, &HashSet::new());
+    assert!(
+        pasted.iter().all(|c| c.object.get("fig").is_none() && c.object.get("locked").is_none())
+    );
+}
+
+#[test]
+fn a_free_name_takes_off_a_trailing_number_and_counts_from_two() {
+    let taken = |names: &[&str]| names.iter().map(|s| (*s).to_string()).collect::<HashSet<_>>();
+    assert_eq!(free_name("worksheet", &taken(&["worksheet"])), "worksheet-2");
+    assert_eq!(free_name("worksheet-2", &taken(&["worksheet", "worksheet-2"])), "worksheet-3");
+    assert_eq!(free_name("q1-plot", &taken(&[])), "q1-plot-2", "a word, not a number, stays");
+    let long = "a".repeat(40);
+    assert_eq!(free_name(&long, &taken(&[])), format!("{}-2", "a".repeat(38)), "40 at most");
+}
+
+#[test]
+fn a_pasted_figure_avoids_the_names_of_every_page_and_those_the_feed_writes() {
+    let mut m = Mirror::new(&CanvasPage {
+        canvas: "main".into(),
+        next: 5,
+        page: "p1".into(),
+        pages: vec![
+            json!({"id": "p1", "name": "one"}),
+            json!({"id": "p2", "name": "two", "figures": ["sheet-2"]}),
+        ],
+        items: vec![],
+        path: None,
+    });
+    let feed = |op: Value| CanvasFeed { next: 6, ops: vec![op] };
+    let add = json!({"op": "add", "by": "user", "item": {"id": "i9", "page": "p3",
+                     "kind": "box", "x": 0, "y": 0, "w": 10, "h": 10, "fig": "sheet-3"}});
+    m.apply(&feed(add));
+    m.apply(&feed(json!({"op": "set", "id": "i8", "fields": {"fig": "sheet-4"}})));
+    let names = ["sheet-2", "sheet-3", "sheet-4"].map(String::from);
+    assert_eq!(m.figures(), HashSet::from(names), "names on pages not shown");
+    assert_eq!(free_name("sheet", &m.figures()), "sheet-5");
 }

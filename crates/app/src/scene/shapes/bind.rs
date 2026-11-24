@@ -5,14 +5,14 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 
 use crate::layout::{Point, Rect};
-use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::canvas::{Item, ItemId, Shape, free};
 use crate::scene::ink::on_server;
 
 /// The topmost server item of `items` an arrow's end at `at` binds to: one
 /// whose box, `reach` canvas units bigger, holds the end. Arrows are not
 /// bound to.
 pub fn target(items: &[Cow<'_, Item>], at: Point, reach: f64) -> Option<ItemId> {
-    let bindable = items.iter().filter(|i| on_server(i.id));
+    let bindable = items.iter().filter(|i| on_server(i.id) && free(i));
     let bindable = bindable.filter(|i| !matches!(i.shape, Shape::Arrow { .. }));
     let mut found =
         bindable.filter(|i| i.shape.bounds().is_some_and(|b| b.outset(reach).contains(at)));
@@ -72,7 +72,7 @@ fn ends(
         };
         let (from, to) = (shift(*from, bound[0]), shift(*to, bound[1]));
         let shape = Shape::Arrow { from, to, width: *width, bound: *bound };
-        follows.push(Item { id: item.id, colour: item.colour, shape, style: item.style });
+        follows.push(Item { shape, ..item.as_ref().clone() });
     }
     follows
 }

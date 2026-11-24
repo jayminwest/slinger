@@ -11,6 +11,13 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** an agent's figure is locked to your pen: writing over it works
+  as on paper, and the eraser, lasso, select tool, select all, the text
+  tool and arrow ends pass over it. **Unlock figure** (opt+cmd+U, the Edit
+  menu, or a right-click on the figure) picks up the figure under the
+  pointer as one piece to move, duplicate or delete; it locks again when
+  you deselect it. A duplicate is a new figure with its own name, one no
+  other figure on the canvas has, on any page.
 - **CLI:** `slinger canvas draw <CANVAS> <FILE> --name NAME` runs an
   agent's drawing script (JavaScript) in the daemon and places what it
   draws as one named figure, beside an item, over it, in a box or at a

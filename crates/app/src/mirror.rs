@@ -11,7 +11,7 @@
 //! Items keep the server's drawing order, which is the order of their ids.
 //! Items a folded box hides are kept apart from the page's ([`fold`]).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde_json::{Map, Value};
 use slinger_control::{CanvasFeed, CanvasPage};
@@ -63,6 +63,10 @@ pub struct Mirror {
     holders: HashMap<ItemId, ItemId>,
     /// Each folded box's miniature ([`Mirror::miniature`]).
     minis: HashMap<ItemId, Vec<Item>>,
+    /// Every figure name the canvas has had on any page, as far as this
+    /// mirror has seen: `canvas_show`'s pages' `figures`, then each `fig`
+    /// the feed writes. A name gone since stays: a paste only avoids them.
+    named: HashSet<String>,
 }
 
 /// What [`Mirror::apply`] did.
@@ -83,7 +87,9 @@ impl Mirror {
         let (page, items, objects) = (shown.page.clone(), Vec::new(), Vec::new());
         let (held, held_objects, holders, minis) =
             (Vec::new(), Vec::new(), HashMap::new(), HashMap::new());
-        let mut mirror = Self { page, pages, items, objects, held, held_objects, holders, minis };
+        let named = shown.pages.iter().flat_map(figures).collect();
+        let mut mirror =
+            Self { page, pages, items, objects, held, held_objects, holders, minis, named };
         for item in &shown.items {
             mirror.put(item);
         }
@@ -188,6 +194,7 @@ impl Mirror {
     }
 
     fn apply_one(&mut self, op: &Value) -> Applied {
+        self.note(op);
         let text = |key: &str| op.get(key).and_then(Value::as_str);
         let changed = match text("op").unwrap_or_default() {
             // The feed says who added an item on the operation, `canvas_show` on the item.
@@ -253,6 +260,15 @@ impl Mirror {
         if changed { Applied::Changed } else { Applied::Same }
     }
 
+    /// Notes each figure name operation `op` writes, on any page: an
+    /// `add`'s or `restore`'s item, a `set`'s fields, a restored page's items.
+    fn note(&mut self, op: &Value) {
+        let restored = op.get("items").and_then(Value::as_array).into_iter().flatten();
+        let objects = op.get("item").into_iter().chain(op.get("fields")).chain(restored);
+        let names = objects.filter_map(|o| o.get("fig")?.as_str());
+        self.named.extend(names.map(str::to_string));
+    }
+
     /// Puts an item object in its place by id when it is on this page and
     /// can be drawn; returns whether it was put.
     fn put(&mut self, item: &Value) -> bool {
@@ -302,6 +318,12 @@ fn page(o: &Value) -> Option<Page> {
     let id = o.get("id").or_else(|| o.get("page"))?.as_str()?.to_string();
     let name = o.get("name").and_then(Value::as_str).map_or_else(|| id.clone(), str::to_string);
     Some(Page { id, name })
+}
+
+/// The figure names a page of `canvas_show`'s `pages` lists.
+fn figures(page: &Value) -> impl Iterator<Item = String> + '_ {
+    let names = page.get("figures").and_then(Value::as_array);
+    names.into_iter().flatten().filter_map(|n| Some(n.as_str()?.to_string()))
 }
 
 /// The item ids an operation's `ids` names.
@@ -391,8 +413,8 @@ fn read(o: &Map<String, Value>) -> Option<Item> {
         _ => return None,
     };
     let colour = o.get("color").and_then(Value::as_str).and_then(colour);
-    let style = style::read(o, &shape);
-    Some(Item { id, colour: colour.unwrap_or(Rgb { r: 0, g: 0, b: 0 }), shape, style })
+    let (style, member) = (style::read(o, &shape), style::member(o));
+    Some(Item { id, colour: colour.unwrap_or(Rgb { r: 0, g: 0, b: 0 }), shape, style, member })
 }
 
 /// A `pdf` item in `frame` (docs/design/pdf.md); `None` without the

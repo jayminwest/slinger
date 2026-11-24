@@ -175,6 +175,7 @@ const BAR: [(&str, Role, &[Action]); 8] = [
             R(Command::DeleteSelection),
             R(Command::ClearSelection),
             R(Command::Duplicate),
+            R(Command::UnlockFigure),
             R(Command::Fold),
             R(Command::StepIn),
             R(Command::StepInBeside),

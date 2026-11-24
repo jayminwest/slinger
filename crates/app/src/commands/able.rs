@@ -49,6 +49,8 @@ pub struct Facts {
     pub sling_now: bool,
     /// `new-text` has a canvas page to start a text on.
     pub new_text: bool,
+    /// A locked item is under the pointer: `unlock-figure` has a figure to grab.
+    pub figure: bool,
     /// `write-focus` has a text to focus on in the focused pane, or the
     /// pane is in write focus.
     pub text: bool,
@@ -149,6 +151,7 @@ pub fn can(command: Command, facts: &Facts) -> bool {
         Command::Dictate => f.entry || f.sling,
         Command::SlingNow => f.sling_now,
         Command::NewText => f.new_text,
+        Command::UnlockFigure => f.figure,
         Command::WriteFocus => f.text,
         Command::CloseWorkspace | Command::ShowWorkspaceFolder => f.workspace,
         Command::StartAgent => f.workspace && f.agent == Some(false),

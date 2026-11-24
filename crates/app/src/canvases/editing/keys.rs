@@ -193,7 +193,8 @@ impl Editing {
         (canvas, page): (String, String),
         (items, centre): (&str, Point),
     ) -> bool {
-        let items = clip::pasted(items, &page, centre);
+        let taken = follow.mirror(&canvas, &page).map(Mirror::figures).unwrap_or_default();
+        let items = clip::pasted(items, &page, centre, &taken);
         if items.is_empty() {
             return false;
         }

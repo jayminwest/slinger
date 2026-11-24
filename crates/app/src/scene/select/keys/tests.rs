@@ -4,7 +4,6 @@
 use super::*;
 use crate::config::Rgb;
 use crate::scene::canvas::Shape;
-use crate::scene::canvas::Style;
 use crate::scene::ink::{Answer, LOCAL};
 
 const HERE: (&str, &str) = ("main", "p1");
@@ -15,7 +14,7 @@ fn pt(x: f64, y: f64) -> Point {
 
 fn stroke(id: u64, (x1, y1): (f64, f64), (x2, y2): (f64, f64)) -> Item {
     let shape = Shape::Stroke { points: vec![pt(x1, y1), pt(x2, y2)], width: 2.0 };
-    Item { id: ItemId(id), colour: Rgb { r: 255, g: 0, b: 0 }, shape, style: Style::default() }
+    Item::plain(ItemId(id), Rgb { r: 255, g: 0, b: 0 }, shape)
 }
 
 /// Drawn out of reading order: i1 low on the page, i2 at its top right,

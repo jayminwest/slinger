@@ -17,7 +17,7 @@ fn frame() -> Rect {
 }
 
 fn item(id: u64, shape: Shape, style: Style) -> Item {
-    Item { id: ItemId(id), colour: RED, shape, style }
+    Item { style, ..Item::plain(ItemId(id), RED, shape) }
 }
 
 fn draws(items: &[Item], theme: &Theme) -> Vec<Draw> {

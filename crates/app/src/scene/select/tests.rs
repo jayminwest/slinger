@@ -4,7 +4,6 @@
 
 use super::*;
 use crate::config::Rgb;
-use crate::scene::canvas::Style;
 
 const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
 const THEME: Theme = Theme {
@@ -23,7 +22,7 @@ fn pt(x: f64, y: f64) -> Point {
 }
 
 fn item(id: u64, shape: Shape) -> Item {
-    Item { id: ItemId(id), colour: RED, shape, style: Style::default() }
+    Item::plain(ItemId(id), RED, shape)
 }
 
 fn stroke(id: u64, points: &[(f64, f64)]) -> Item {

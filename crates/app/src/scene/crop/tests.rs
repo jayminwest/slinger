@@ -156,3 +156,16 @@ fn a_tap_or_a_box_on_no_page_makes_nothing() {
     assert!(!crop.up(None, &items), "no box under the pen");
     assert!(!crop.drag(pt(0.0, 0.0)));
 }
+
+#[test]
+fn a_locked_page_is_passed_over_for_the_free_one_under_it() {
+    let lower = pdf(rect(0.0, 0.0, 1224.0, 1584.0), None);
+    let upper = pdf(rect(600.0, 0.0, 1224.0, 1584.0), None);
+    let member = crate::scene::canvas::Member { locked: true, ..Default::default() };
+    let locked = Cow::Owned(Item { member, ..item(2, upper).into_owned() });
+    let items = vec![item(1, lower.clone()), locked];
+    let mut crop = Crop::default();
+    assert!(crop.down(Tool::CropPdf, ("main", "p1"), press(pt(700.0, 100.0)), &items));
+    assert!(crop.up(Some(pt(900.0, 200.0)), &items));
+    assert_eq!(crop.take(), cropped(&lower, rect(700.0, 100.0, 200.0, 100.0)), "the free page");
+}

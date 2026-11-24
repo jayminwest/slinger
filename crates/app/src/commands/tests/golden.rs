@@ -33,6 +33,7 @@ const ABLE: Facts = Facts {
     entry: false,
     sling_now: true,
     new_text: true,
+    figure: true,
     text: true,
     workspace: true,
     agent: Some(false),
@@ -79,17 +80,18 @@ fn recorded() -> String {
     out.push_str("# context menus (checked: tool-pen; nothing can act)\n");
     let kinds =
         [Kind::Stroke, Kind::Text, Kind::LongText, Kind::Box, Kind::Arrow, Kind::Pdf, Kind::Live];
-    let subjects = [Subject::Canvas, Subject::Pane { ui: false }, Subject::Pane { ui: true }]
-        .into_iter()
-        .chain(kinds.map(|kind| Subject::Item { kind }))
-        .chain([
-            Subject::Selection { boxed: false },
-            Subject::Selection { boxed: true },
-            Subject::Typing,
-            Subject::Workspace { dir: PathBuf::from("/w") },
-            Subject::Divider { before: PaneId::numbered(1), ratio: 0.5 },
-            Subject::Sidebar,
-        ]);
+    let subjects =
+        [Subject::Canvas, Subject::Figure, Subject::Pane { ui: false }, Subject::Pane { ui: true }]
+            .into_iter()
+            .chain(kinds.map(|kind| Subject::Item { kind }))
+            .chain([
+                Subject::Selection { boxed: false },
+                Subject::Selection { boxed: true },
+                Subject::Typing,
+                Subject::Workspace { dir: PathBuf::from("/w") },
+                Subject::Divider { before: PaneId::numbered(1), ratio: 0.5 },
+                Subject::Sidebar,
+            ]);
     for subject in subjects {
         let _ = writeln!(out, "{subject:?}");
         items(&mut out, &context::items(&subject, &keys, Command::ToolPen, &Facts::default()));

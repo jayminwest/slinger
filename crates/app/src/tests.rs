@@ -24,6 +24,7 @@ mod context;
 mod context_items;
 mod context_rows;
 mod drive;
+mod figure;
 mod focus;
 mod fold;
 mod items;

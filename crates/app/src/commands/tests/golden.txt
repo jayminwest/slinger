@@ -88,7 +88,8 @@
 86 restart-daemon | Restart slingerd | Window | -
 87 zoom-to-fit | Zoom to fit | Canvas | ⌘9
 88 reload-ui | Reload agent UI | File | -
-89 write-focus | Focus on text | Canvas | ⌥⌘↩
+89 unlock-figure | Unlock figure | Canvas | ⌥⌘U
+90 write-focus | Focus on text | Canvas | ⌥⌘↩
 # config.example.toml [keys]
 #quit = "cmd+q"
 #reload-config = "cmd+r"
@@ -180,6 +181,7 @@
 #step-out = "cmd+alt+o"
 #start-slingerd = ""
 #restart-daemon = ""
+#unlock-figure = "cmd+alt+u"
 # menu bar (checked: tool-pen; every command can act)
 slinger App
   native About | About slinger | -
@@ -218,6 +220,7 @@ Edit Plain
   run DeleteSelection | Delete selection | -
   run ClearSelection | Select nothing | -
   run Duplicate | Duplicate | ⌘J
+  run UnlockFigure | Unlock figure | ⌥⌘U
   run Fold | Fold or unfold box | ⌥⌘F
   run StepIn | Step in | ⌥⌘I
   run StepInBeside | Step in beside | ⌥⇧⌘I
@@ -299,6 +302,20 @@ Help Help
   run ShowFeedbackFile | Show feedback file in Finder | -
 # context menus (checked: tool-pen; nothing can act)
 Canvas
+  native Paste | Paste | ⌘V
+  run NewText | New text | ⌃↩ grey
+  run SelectAll | Select all | ⌘A
+  --- |  | -
+  run SlingNow | Sling now | - grey
+  --- |  | -
+  run ZoomReset | Zoom to 100% | ⌘0 grey
+  run ToggleGrid | Dotted grid | ⌘'
+  --- |  | -
+  run NewPage | New page | ⌘N grey
+  run StepOut | Step out | ⌥⌘O grey
+Figure
+  run UnlockFigure | Unlock figure | ⌥⌘U grey
+  --- |  | -
   native Paste | Paste | ⌘V
   run NewText | New text | ⌃↩ grey
   run SelectAll | Select all | ⌘A
