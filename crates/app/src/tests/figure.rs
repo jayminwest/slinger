@@ -36,7 +36,7 @@ fn page(daemon: &control::Client) {
 }
 
 /// Where the one pane draws item `id`, once it does.
-fn bounds(w: &mut World, id: u64) -> Rect {
+pub(super) fn bounds(w: &mut World, id: u64) -> Rect {
     let mut found = None;
     wait_until(|| {
         w.send(Event::Tick);
@@ -49,12 +49,12 @@ fn bounds(w: &mut World, id: u64) -> Rect {
     found.unwrap()
 }
 
-fn said(w: &mut World) -> String {
+pub(super) fn said(w: &mut World) -> String {
     let scene = view(&w.settings, &mut w.shared, &w.tools, &w.sidebar, &mut w.canvases);
     crate::drive::outline(&scene)
 }
 
-fn selected(w: &World) -> Vec<u64> {
+pub(super) fn selected(w: &World) -> Vec<u64> {
     w.canvases.selection().map(|s| s.ids.iter().map(|i| i.0).collect()).unwrap_or_default()
 }
 
