@@ -92,6 +92,12 @@ bullet with the area in bold.
   `--script` swaps the figure's script. `slinger canvas figure <CANVAS>`
   lists the figures; with a name it prints the figure's parts, or its script
   (`--script`) or data (`--data`).
+- **CLI:** a drawing script that fails exits with code `script` and shows
+  the line of the script it stopped at, with a mark under the column, and
+  the calls it was in; one over a limit (time, memory, stack, shapes, size)
+  exits with code `limit` and says which. A script reads the item it is
+  drawn beside or over as `anchor` (its size, kind and text), and with
+  `--over` or `--at` the items near it as `around`, in its own coordinates.
 - **CLI:** `slinger guide` now holds the drawing script API ("Drawing
   scripts"). In a script, a plot takes a `title` and named ticks
   (`xticks: [[0, "Jan"], [1, "Feb"]]`), and an arrow's label moves along

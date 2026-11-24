@@ -360,8 +360,13 @@ tenths of a unit, as `canvas put --at`: `--at 400,400` or `--at "Page 2:400,400"
 name again replaces that figure in place and writes nothing when nothing
 changed. `--dry-run` writes nothing and, with `--json`, says where the
 figure would go and its parts; `--png` writes the figure alone as an image.
-A script that fails exits 5 (`invalid`) with `script:LINE:COL` in its
-message; a name another agent drew exits 4 (`conflict`).
+A script that fails exits 5 with code `script`: its message is
+`script:LINE:COL: ...`, then the source line with a `^` under the column
+and, inside a function, the calls it was in. A script over a limit (time,
+memory, stack, shapes, the script's or the data's size) exits 5 with code
+`limit`. The script reads the item it goes beside or over as `anchor`,
+and with `--over` or `--at` the items near it as `around`. A name another
+agent drew exits 4 (`conflict`).
 `canvas redraw` draws a figure again from its script on its last data
 with `--data` merged in as a JSON merge patch (an object merges key by key,
 `null` takes a key away, anything else replaces), where the figure now is,
@@ -462,7 +467,7 @@ never on `error`.
 | 2 | usage | Bad arguments, unknown command or flag |
 | 3 | not_found | A named thing does not exist |
 | 4 | conflict | The thing exists or is in the wrong state |
-| 5 | invalid | Input was understood but rejected (also `too_long`: an agent's text over 12 rows) |
+| 5 | invalid | Input was understood but rejected (also `too_long`: an agent's text over 12 rows; `script` and `limit`: a drawing script that failed or went over a limit) |
 | 6 | unavailable | `slingerd` does not answer, or the agent's process is not running. The hint says how to start it, or, for a `slingerd` that took the request and did not reply in time, to try again or restart it |
 Add a code only when a caller needs to tell the failure apart from the
 others. Never renumber.

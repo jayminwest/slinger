@@ -14,8 +14,12 @@ const WORKSHEET: &str = include_str!("../../../script/src/tests/worksheet.js");
 const DATA: &str = include_str!("../../../script/src/tests/worksheet.json");
 
 fn drawn(script: &str, data: &Value) -> Drawn {
-    let view =
-        View { name: "worksheet".into(), target: None, agent: AGENT.into(), page: "p1".into() };
+    let view = View {
+        name: "worksheet".into(),
+        agent: AGENT.into(),
+        page: "p1".into(),
+        ..View::default()
+    };
     match run(script, data, &view) {
         Ok(d) => d,
         Err(e) => unreachable!("{e}"),
