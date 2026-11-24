@@ -42,9 +42,7 @@ impl Board {
 
     fn add(&mut self, by: &Author, shape: Shape) -> ItemId {
         let page = self.page;
-        let Applied::Added(id) = self.op(by, Action::Add { page, shape }) else {
-            panic!("not added")
-        };
+        let Applied::Added(id) = self.op(by, Action::add(page, shape)) else { panic!("not added") };
         if self.slung {
             self.changed.insert(id);
         }

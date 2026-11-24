@@ -46,7 +46,7 @@ fn page_of(shapes: Vec<Shape>) -> (Canvas, PageId, Vec<ItemId>) {
     let ids = shapes
         .into_iter()
         .map(|shape| {
-            let op = Op { by: Author::User, at: Time(0), action: Action::Add { page, shape } };
+            let op = Op { by: Author::User, at: Time(0), action: Action::add(page, shape) };
             match c.apply(op).unwrap() {
                 Applied::Added(id) => id,
                 other => panic!("expected Added, got {other:?}"),

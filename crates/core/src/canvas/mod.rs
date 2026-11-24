@@ -23,6 +23,7 @@ mod history;
 mod item;
 mod pdf;
 mod restore;
+pub mod style;
 
 use std::collections::BTreeMap;
 
@@ -34,9 +35,9 @@ pub use geometry::{GAP, MINIATURE, miniature};
 pub(crate) use history::Rebuild;
 pub use history::{History, Step, Walked};
 pub use item::{
-    Author, Colour, End, Item, ItemId, Page, PageId, Point, Rect, Shape, TEXT_SIZE, TEXT_SIZES,
-    Time,
+    Author, End, Item, ItemId, Page, PageId, Point, Rect, Shape, TEXT_SIZE, TEXT_SIZES, Time,
 };
+pub use style::{Colour, Dash, Heads, Style};
 
 use crate::{Error, Result};
 use item::invalid;
@@ -56,9 +57,11 @@ pub struct Op {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
     /// Put a new item on a page. The item is the author's, made at the op's time.
-    Add { page: PageId, shape: Shape },
-    /// Replace an item's shape. Its author and time stay.
-    Edit { item: ItemId, shape: Shape },
+    Add { page: PageId, shape: Shape, style: Style },
+    /// Replace an item's shape, and its style when `style` is given. Its
+    /// author and time stay. A style kept is [`Style::fitted`] to the new
+    /// shape.
+    Edit { item: ItemId, shape: Shape, style: Option<Style> },
     /// Shift an item by `by` canvas units.
     Move { item: ItemId, by: Point },
     /// Take an item off the canvas.
@@ -78,14 +81,30 @@ pub enum Action {
 }
 
 impl Action {
+    /// An add of `shape` with the default style.
+    #[must_use]
+    pub fn add(page: PageId, shape: Shape) -> Self {
+        Action::Add { page, shape, style: Style::default() }
+    }
+
+    /// An edit of `item`'s shape that keeps its style.
+    #[must_use]
+    pub fn edit(item: ItemId, shape: Shape) -> Self {
+        Action::Edit { item, shape, style: None }
+    }
+
     /// The same action, with every text it carries [`Shape::fitted`]: the
     /// one rule for a text frame, kept by the canvas on every change and by
     /// the file on every line, so old lines with no frame replay to one.
     #[must_use]
     pub fn fitted(self) -> Self {
         match self {
-            Action::Add { page, shape } => Action::Add { page, shape: shape.fitted() },
-            Action::Edit { item, shape } => Action::Edit { item, shape: shape.fitted() },
+            Action::Add { page, shape, style } => {
+                Action::Add { page, shape: shape.fitted(), style }
+            }
+            Action::Edit { item, shape, style } => {
+                Action::Edit { item, shape: shape.fitted(), style }
+            }
             Action::Restore { item } => Action::Restore { item: item.fitted() },
             Action::PageRestore { page, index, items } => Action::PageRestore {
                 page,
@@ -162,16 +181,18 @@ impl Canvas {
             return Err(invalid("the agent has no name", "name the agent that asks"));
         }
         match action {
-            Action::Add { page, shape } => {
+            Action::Add { page, shape, style } => {
                 self.page_index(page)?;
                 self.check_shape(&shape, None)?;
+                style.check(&shape)?;
                 let id = ItemId::new(self.next_item);
                 self.next_item += 1;
-                self.items.insert(id, Item { id, page, author: by, time: at, shape });
+                self.items.insert(id, Item { id, page, author: by, time: at, shape, style });
                 Ok(Applied::Added(id))
             }
-            Action::Edit { item, shape } => {
+            Action::Edit { item, shape, style } => {
                 self.check_shape(&shape, Some(item))?;
+                style.as_ref().map_or(Ok(()), |s| s.check(&shape))?;
                 let found = if self.joins(item, &shape, &by) {
                     self.items.get_mut(&item).ok_or_else(|| gone(item))?
                 } else {
@@ -180,6 +201,7 @@ impl Canvas {
                 if by == Author::User && rewords(&found.shape, &shape) {
                     found.author = Author::User;
                 }
+                found.style = style.unwrap_or(found.style).fitted(&shape);
                 found.shape = shape;
                 Ok(Applied::Changed)
             }

@@ -43,7 +43,7 @@ fn put_live(log: &mut Log, file: &mut String) -> String {
 fn a_live_item_needs_a_name_a_blob_id_a_showing_and_a_box() {
     let mut c = Canvas::new();
     let page = c.pages().next().unwrap().id();
-    let mut add = |shape| c.apply(Op { by: scout(), at: AT, action: Action::Add { page, shape } });
+    let mut add = |shape| c.apply(Op { by: scout(), at: AT, action: Action::add(page, shape) });
     assert!(add(live(Rect::new(1.0, 2.0, 320.0, 240.0))).is_ok());
     let frame = Rect::new(0.0, 0.0, 10.0, 10.0);
     let bad = [

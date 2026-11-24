@@ -189,7 +189,7 @@ impl Log {
                 placed(&shape, Point::new(free.x, free.y))
             }
         };
-        let mut actions = vec![Action::Add { page, shape }];
+        let mut actions = vec![Action::add(page, shape)];
         if let Some(boxed) = &how.inside {
             self.join_box(boxed, &mut actions)?;
         }

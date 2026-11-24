@@ -370,6 +370,22 @@ The key overlay's "Typing a text" rows (`scene/overlay/fixed.rs`) say
 - App: `glyphs::NEW_COLUMN` becomes 80; `glyphs::layout` caps rows the same
   way and gives the hidden count; the fade and "N more lines" row; step in
   on a text (`Trail` learns a text id; `canvases/step.rs`).
+- Landed (core half, slinger-93b7c8): `render::MOST_ROWS`; `text_size` and
+  `text_frame` cap the height (a frame written taller too), the crop draws
+  80 rows, `text_rows` still counts every row (`AGENT_ROWS` reads it).
+  Tests: `crates/core/tests/canvas_column.rs`.
+- Found, not done: the packet's `page` section cuts every text to its
+  first 80 characters (packet.md), so a user's long text is not whole in
+  the packet unless it is in `new` or `made`, which a user's text never
+  is. Quoting the user's texts whole in `page` takes the whole-board packet
+  in `crates/core/tests/packet_build.rs` from under 55 700 to 64 971
+  tokens: a ratchet, so it waits for the owner.
+- Found, not done: nvim 0.11 with `wrap`, `linebreak`, `breakat=" "` at
+  80 columns moves a word that ends exactly at cell 80 to the next row when
+  a space follows it (the space must fit too); at a line's end it stays.
+  The core's `raster::wrap` and the app's `glyphs::layout` keep it on
+  the row. Moving to nvim's rule changes both in one commit, with the app
+  half.
 
 ### Write focus (step 6, slinger-9321cf)
 

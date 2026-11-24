@@ -186,7 +186,8 @@ workspace. A refused open records nothing.
 one undo step (the operations are in `docs/service.md`, "Canvas
 operations"; arrows bound to what they move or resize follow); `-` reads them from stdin. `canvas schema` (and `canvas apply
 --help`) prints the item kinds and operations, for an agent that cannot read
-the docs. An `add` of kind `button` places
+the docs, with the optional style fields each kind takes (`fill`, `dash`,
+`heads`, `closed`; one a kind does not take exits 5, `invalid`). An `add` of kind `button` places
 the "send to agent" button, which needs no UI put first:
 `slinger canvas apply notes '{"op":"add","item":{"page":"p1","kind":"button","x":0,"y":0,"w":1600,"h":400}}'`.
 `canvas apply`, `canvas undo` and `canvas redo` act as the agent `--agent`

@@ -197,12 +197,34 @@ kind:
 | `kind` | fields (lengths and positions in tenths of a unit) |
 |---|---|
 | `stroke` | `width`, `pts` (delta array, above, at least one pair) |
-| `text` | `x`, `y`, `w`, `h` (the frame the text is laid out in; `w` and `h` read as 0 when missing), `text`, then optional `size`: the text's size (a character's cell is that tall and half that wide, about a character of the app's font), from 40 to 4000 tenths (4 to 400 units). A missing or `null` `size` is 240 (24 units), and a writer leaves it out at 240, so a file from before sizes reads and writes the same bytes. A frame narrower than one character cell gets the size of the text unwrapped; one with no height keeps its width and gets the height of the text wrapped to it. Zero-width characters (U+200B, U+200C, U+200D, U+2060, U+FE0F, U+FEFF) take no cell. Readers and writers apply this rule, so a line written without a frame size replays to the same frame. A width as wide as the text's longest line is a text that does not wrap (one written a full size a character wide, as cells were before slinger-ce52ee, reads so too): the app wrote text the user typed so before slinger-d96bfb, and keeps that width as it grows. Any other width is a column, which a resize scales with the size and an edit keeps. The app now writes a typed text in its column (48 cells for a new text, or as the user drags it), whole cells and half of one more, so it never reads as one that does not wrap. A `set` of a text carries `"size":null` for the usual size, which clears an earlier one. |
+| `text` | `x`, `y`, `w`, `h` (the frame the text is laid out in; `w` and `h` read as 0 when missing), `text`, then optional `size`: the text's size (a character's cell is that tall and half that wide, about a character of the app's font), from 40 to 4000 tenths (4 to 400 units). A missing or `null` `size` is 240 (24 units), and a writer leaves it out at 240, so a file from before sizes reads and writes the same bytes. A frame narrower than one character cell gets the size of the text unwrapped; one with no height keeps its width and gets the height of the text wrapped to it. Either way, and for a frame written taller, a text is at most 80 rows (80 times its size) tall (`render::MOST_ROWS`, docs/design/writing-column.md): the rest of a longer text stays in `text`, but its frame, its hit, the room a put keeps clear of and the crop end at row 80. Zero-width characters (U+200B, U+200C, U+200D, U+2060, U+FE0F, U+FEFF) take no cell. Readers and writers apply this rule, so a line written without a frame size replays to the same frame. A width as wide as the text's longest line is a text that does not wrap (one written a full size a character wide, as cells were before slinger-ce52ee, reads so too): the app wrote text the user typed so before slinger-d96bfb, and keeps that width as it grows. Any other width is a column, which a resize scales with the size and an edit keeps. The app now writes a typed text in its column (48 cells for a new text, or as the user drags it), whole cells and half of one more, so it never reads as one that does not wrap. A `set` of a text carries `"size":null` for the usual size, which clears an earlier one. |
 | `box` | `x`, `y`, `w`, `h` (the frame on the page: the miniature while folded), then optional `fold`: `{"w":<open w>,"h":<open h>,"items":["i5",…]}` while the box is folded (`docs/design/fold.md`): its open size (both above 0; the open frame's top left is the box's) and the ids of the items it holds directly, in the order taken. Absent or `null`: open. The items it holds stay items with their own lines, at their places; a reader hides them. A listed id that is gone or on another page is skipped, an item two boxes list belongs to the lower box id, and an entry that would make a box hold itself, at any depth, is skipped: no list is damage. A `set` carries `"fold":null` to open the box. A move or remove of a folded box names every item it holds as well |
 | `arrow` | `pts` (delta array, two or more pairs); optional `from`, `to` (item ids it points at) |
 | `live` | `x`, `y`, `w`, `h` (both above 0), `ui` (the UI's name), `hash` (the blob id of the version shown), `open` (the showing, `pick-slot#12`) |
 | `button` | `x`, `y`, `w`, `h` (both above 0): the built-in "send to agent" button (SPEC section 8). It names no code: the app draws it, and a tap on it slings what is new on its page |
 | `pdf` | `x`, `y`, `w`, `h` (both above 0), `hash` (the PDF's blob id), `pdfpage` (the page number, from 1), `pagesize` (`[w, h]`, the whole page as displayed, in tenths of a PDF point, both above 0), then optional `crop` (`[x, y, w, h]` in tenths of a point from the page's top left, inside the page, `w` and `h` above 0; absent: the whole page) and optional `name` (the PDF's file name without its directory, 1 to 255 bytes, no `/`, no control character). One page of a PDF, or part of one, stretched to fill the frame (`docs/design/pdf.md`). A `set` carries `"crop":null` and `"name":null` to clear them |
+
+Style fields (`docs/design/figures.md`, "The model"). Optional, on the kinds that take
+them, written after the kind's own fields (and `fold`) in this order, and left out at
+their default, so a file without them reads and writes the same bytes:
+
+| field | on | value | default (absent or `null`) |
+|---|---|---|---|
+| `fill` | `box`; `stroke` with `closed` | `#rrggbb` or `#rrggbbaa` | no fill |
+| `dash` | `box`, `stroke`, `arrow` | `"dashed"` or `"dotted"` | solid |
+| `heads` | `arrow` | `"none"`, `"end"` or `"both"` | `"end"`, the arrow's head at `to`; written only when not `end` |
+| `closed` | `stroke` | `true`: the last point joins the first | open; written only when `true` |
+
+A fill is a tint: it is drawn at its alpha, at most `0x66` (40%), under every outline,
+stroke and text and above PDF pages, whatever the item order. A dash is four line
+widths on and three off (8 and 6 units on a box's edge), from a line's first point
+(a box's top left corner); a dot is as round as the line is wide, every three widths.
+An arrow's heads are solid on a dashed shaft. Reading never fails on them: a value of
+the wrong type, an unknown word, a colour that does not parse (no fill, never black)
+or a field the item's kind does not take reads as the default. A request that gives
+one is `invalid` with a hint. A `set` that names any of them carries all four, a
+default as `null`; one that names none keeps the item's style (a field the new shape
+cannot take is dropped).
 
 `color` is a string: a palette name the model defines, `#rrggbb`, or `#rrggbbaa` when
 the colour is not opaque. The model has no palette yet, so a reader reads any other
@@ -275,9 +297,13 @@ undo history (slinger-2628e5):
   not know without drawing it, and ignores fields it does not know. Because the file
   is never rewritten, all of them stay on disk.
 - Added so far without a `v` change: the text `size`, the `live`, `button` and `pdf`
-  kinds, and a box's `fold` (`docs/design/fold.md`). A reader from before `fold` shows
+  kinds, a box's `fold` (`docs/design/fold.md`), and the style fields `fill`, `dash`,
+  `heads` and `closed` (`docs/design/figures.md`). A reader from before `fold` shows
   a folded box as a small open box and every item it holds where it is: it loses
-  the fold, never an item.
+  the fold, never an item. A reader from before styles draws a filled box as an
+  outline, a dashed line solid, a headless arrow with a head and a closed stroke
+  open; its `set` keeps the fields, and its `restore` (undo of an erase) writes the
+  item back plain: it loses the style, never the item.
 - `v` goes up only when an old reader would misread the file (for example, a new
   coordinate unit). A new kind of thing is a new `op`, never a new meaning for an old
   one, as with CLI verbs (section 7).

@@ -42,7 +42,7 @@ fn a_pdf_item_needs_an_area_a_blob_id_a_page_and_a_crop_on_the_page() {
     let mut c = Canvas::new();
     let page = c.pages().next().unwrap().id();
     let mut add =
-        |shape| c.apply(Op { by: Author::User, at: AT, action: Action::Add { page, shape } });
+        |shape| c.apply(Op { by: Author::User, at: AT, action: Action::add(page, shape) });
     let frame = Rect::new(0.0, 0.0, 160.0, 207.0);
     assert!(add(pdf(frame, None)).is_ok());
     assert!(add(pdf(frame, Some(Rect::new(72.0, 180.0, 300.0, 120.0)))).is_ok());
