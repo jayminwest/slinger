@@ -33,7 +33,7 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 - [ ] first launch (slinger-5e8b60): with no slingerd running, open /Applications/slinger.app: "Starting slingerd…" then the canvases, no terminal used; quit the app: slingerd and a working agent keep running; reopen: the window finds it; `slinger daemon info` names the exe inside the app and the log `slingerd.log` in the data directory, which holds its start line (scene and launcher tests passed; a driven window never starts a daemon by design) (slinger-5e8b60)
 - [ ] with the bundled app open, `kill -9` its slingerd: "Starting slingerd…" and it is back within seconds, and ink drawn meanwhile is sent; `slinger daemon stop` instead: "slingerd is stopped" and the sidebar's Start slingerd brings it back (slinger-5e8b60)
 - [ ] open two copies of the app at once with no daemon (`open -n` twice): one slingerd runs (`pgrep -l slingerd`), neither window shows "did not start" (slinger-5e8b60)
-- [ ] a workspace under ~/Documents opened through the app-started daemon: which macOS prompt appears and for whom (slinger.app or slingerd); does the grant survive a reinstall (the bundle is signed ad hoc) (slinger-5e8b60)
+- [ ] a workspace under ~/Documents opened through the app-started daemon: which macOS prompt appears and for whom (slinger.app or slingerd); does the grant survive a reinstall (the bundle is signed ad hoc when the keychain has no certificate) (slinger-5e8b60)
 - [ ] from a slingerd that the bundled app started, start an agent and sling once: Claude Code is found, its hooks report, its Bash tool finds git/cargo/sd, its MCP servers load (slinger-be3082)
 
 ## Command targets (plan pl-9880f1)
