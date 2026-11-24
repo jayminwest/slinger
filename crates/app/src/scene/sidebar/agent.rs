@@ -8,6 +8,9 @@ pub enum Status {
     Working,
     Blocked,
     Done,
+    /// A session slingerd did not start listens for its slings, and none
+    /// waits: the next sling goes to it.
+    Listening,
     /// Its process is not running: the next sling starts it.
     Stopped,
 }
@@ -21,6 +24,9 @@ pub enum Process {
     /// slingerd never started it: the agent may run outside it, and its
     /// hooks say how it is.
     Absent,
+    /// A session of its own listens for the agent's slings
+    /// (`session_listen`): it takes them, whatever process slingerd held.
+    Listener,
 }
 
 impl Process {
@@ -45,7 +51,8 @@ impl Status {
     /// what its hooks said shows (stopped when they said nothing). A running one with a
     /// message pending is working, or blocked when it says so; with none
     /// it is done once it said anything or answered, and has no status
-    /// before.
+    /// before. A listener with a sling pending is working or blocked the
+    /// same way, and with none it is [`Status::Listening`].
     pub fn of(
         said: Option<Status>,
         process: Process,
@@ -53,13 +60,16 @@ impl Status {
         answered: bool,
     ) -> Option<Status> {
         match process {
-            Process::Running => {}
+            Process::Running | Process::Listener => {}
             Process::Exited => return Some(Status::Stopped),
             Process::Absent => return said.or(Some(Status::Stopped)),
         }
         if pending > 0 {
             let blocked = said == Some(Status::Blocked);
             return Some(if blocked { Status::Blocked } else { Status::Working });
+        }
+        if process == Process::Listener {
+            return Some(Status::Listening);
         }
         (said.is_some() || answered).then_some(Status::Done)
     }
@@ -79,6 +89,7 @@ impl Status {
             Status::Working => "working",
             Status::Blocked => "blocked",
             Status::Done => "done",
+            Status::Listening => "listening",
             Status::Stopped => "not running",
         }
     }

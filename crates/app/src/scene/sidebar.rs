@@ -18,8 +18,9 @@
 //!
 //! An agent's line is `<agent> · <status>` (`<agent> (<profile>) ·
 //! <status>` while it runs under a profile) or `no agent`; its mark is
-//! round for working, round green for done, square red for blocked, and
-//! hollow and muted for `not running` (its process exited or was stopped).
+//! round for working, round green for done, square red for blocked,
+//! round and muted for `listening` (a session of its own takes its slings),
+//! and hollow and muted for `not running` (its process exited or was stopped).
 //! Each workspace's name line ends in a muted ✕, a 28 pt target listed
 //! before its row's (`Tap::Close`). [`Sidebar::dir`] is a row's folder,
 //! what closes it; [`Sidebar::closed`] takes a row out once the daemon
@@ -355,7 +356,7 @@ fn mark(status: Option<Status>, theme: &Theme) -> (&'static str, Rgb) {
 pub(super) fn glyph(status: Option<Status>) -> &'static str {
     match status {
         None | Some(Status::Stopped) => "○",
-        Some(Status::Working | Status::Done) => "●",
+        Some(Status::Working | Status::Done | Status::Listening) => "●",
         Some(Status::Blocked) => "■",
     }
 }
@@ -364,7 +365,7 @@ pub(super) fn glyph(status: Option<Status>) -> &'static str {
 /// colour, done in the done colour.
 pub(super) fn colour(status: Option<Status>, theme: &Theme) -> Rgb {
     match status {
-        None | Some(Status::Stopped) => theme.muted,
+        None | Some(Status::Stopped | Status::Listening) => theme.muted,
         Some(Status::Working) => theme.focus,
         Some(Status::Blocked) => theme.error,
         Some(Status::Done) => theme.done,

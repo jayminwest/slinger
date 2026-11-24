@@ -139,9 +139,10 @@ pub(super) fn present<'a>(mirror: &'a Mirror, ink: &Ink, canvas: &str) -> Vec<Co
     items
 }
 
-/// The dashed frame round `room`, the box a pane is inside, in `colour`.
+/// The dashed frame round `room`, the box a pane is inside, in `colour`:
+/// as wide as a box's own line, so it reads at a glance (slinger-01eece).
 pub(super) fn room(room: Rect, colour: crate::config::Rgb) -> Item {
-    let shape = Shape::Panel { frame: room, fill: None, width: LINE_WIDTH / 2.0, dashed: true };
+    let shape = Shape::Panel { frame: room, fill: None, width: LINE_WIDTH, dashed: true };
     Item::plain(ROOM, colour, shape)
 }
 

@@ -130,6 +130,12 @@ Pick the form of an answer by what it is:
   draw beside the old one.
 - Something the user clicks or fills in: a UI (`ui open`).
 
+Prefer a picture to a long text. An answer with a shape (steps in an order,
+parts and how they join, a comparison, numbers, a layout, a timeline) reads
+faster drawn than in rows of words, and the script API draws more than boxes
+with text in them: plots, tables, grids, stacks, arrows, fills, dashes and
+named parts. Keep text for an answer that is a sentence or two.
+
 Draw a picture with code: write a JavaScript file (its API and an example
 are under "Drawing scripts" below) and run it as one figure, a named set of
 items the user's pen passes over. Look at it first with
@@ -226,7 +232,7 @@ Take a workspace's slings yourself, in this session, with your own tools and
 permissions. Each run waits for one sling and prints it:
 
 ```bash
-slinger session listen <WORKSPACE> --pid $PPID   # in the background; act when it exits
+slinger session listen <WORKSPACE> --pid $PPID   # a background command: end your turn, act when it exits
 slinger canvas put <CANVAS> --beside c12 --text "The answer" --agent <NAME>
 slinger status set done --agent <NAME>        # then listen again
 ```

@@ -325,7 +325,7 @@ impl Canvases {
             let status = self.flow.agent_of(here.0).and_then(|a| a.status);
             let items = button::shown(items, status);
             let mut items = fold::drawn(items, mirror, marks, theme);
-            items.extend(within.map(|w| Cow::Owned(step::room(w.room, theme.muted))));
+            items.extend(within.map(|w| Cow::Owned(step::room(w.room, theme.focus))));
             let items = items.iter().map(AsRef::as_ref);
             let files = |hash: &str| pdfs.file(hash);
             let scene = canvas::build_with(items, (view.viewport, screen), theme, last, &files);

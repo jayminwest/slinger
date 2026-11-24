@@ -867,6 +867,19 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** an agent whose slings a session of your own takes
+  (`/slinger-listen`) now shows as "listening" in a pane's footer and the
+  sidebar, and as working while it answers. It showed "not running" beside
+  a sling pill that said working, and the sidebar offered to start it.
+- **App:** the dashed frame round a box you stepped into is drawn in the
+  accent colour at a box's own line width. It was thin and grey, and hard
+  to see.
+- **Agents:** the `slinger-listen` skill tells an agent to wait for a sling
+  with a background command and end its turn, so you can talk to the
+  session while it listens. Agents kept their turn open while they waited.
+- **Agents:** the guide and both skills tell an agent to prefer a figure to
+  a long text when an answer has a shape (steps, parts, a comparison,
+  numbers, a layout), and name what the script API draws.
 - **Canvas:** in a crop or a packet's picture, an underscore (`___`) sits
   on its own line instead of touching the line below, where it read as a
   bar over the word under it.

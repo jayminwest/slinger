@@ -33,6 +33,9 @@ If you cannot run the guide, these rules hold:
   that fails exits 5 with code `script` (its line, source line and calls) or,
   over a limit, `limit`: fix it and try `--dry-run`. A short remark stays a
   `canvas put`.
+- Prefer a figure to a long text. Steps in an order, parts and how they
+  join, a comparison, numbers or a layout are a picture: draw them with the
+  script API's plots, tables, grids, arrows and fills, not rows of words.
 - Change only the items you made. Never change the user's ink or text: reply
   beside it, in short texts (at most 12 rows each; longer exits 5,
   `too_long`).
