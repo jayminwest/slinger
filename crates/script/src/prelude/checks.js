@@ -148,7 +148,7 @@ function parts(drawn) {
   });
   list.forEach((b, j) => list.slice(0, j).forEach((a) => {
     if (overlaps(a.f, b.f)) {
-      warning(b.first.line, b.first.col, `name: the part ${JSON.stringify(b.name)} overlaps the part ${JSON.stringify(a.name)}${from(a.first)}`);
+      warning(b.first.line, b.first.col, `name: the part ${JSON.stringify(b.name)} overlaps the part ${JSON.stringify(a.name)}${from(a.first)}: ink where their frames meet may be said to be over either`);
     }
   }));
 }
@@ -183,7 +183,7 @@ function finish() {
       }
     }
     if (over !== null) warning(s.line, s.col, `${s.call}: ${JSON.stringify(s.text)} is over the ${what(over)}${from(over)}`);
-    if (text !== null) warning(s.line, s.col, `${s.call}: ${JSON.stringify(s.text)} overlaps the text${from(text)}`);
+    if (text !== null) warning(s.line, s.col, `${s.call}: ${JSON.stringify(s.text)} overlaps the text ${JSON.stringify(text.text)}${from(text)}`);
   });
   twice(drawn);
   fits(drawn);

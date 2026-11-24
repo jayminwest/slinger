@@ -162,7 +162,16 @@ impl ScriptError {
             }
         }
         if self.stack.len() > 1 {
-            out.extend(self.stack.iter().map(|frame| format!("  at {frame}")));
+            // A frame the stack repeats (a recursion) shows once, with a count.
+            let mut frames = self.stack.iter().peekable();
+            while let Some(frame) = frames.next() {
+                let mut times = 1;
+                while frames.next_if_eq(&frame).is_some() {
+                    times += 1;
+                }
+                let more = if times > 1 { format!(", {times} times") } else { String::new() };
+                out.push(format!("  at {frame}{more}"));
+            }
         }
         out.join("\n")
     }

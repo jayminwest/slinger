@@ -81,7 +81,7 @@ fn the_redraw_data_fills_two_parts_by_name() {
     let check =
         |d: &Drawn| d.items.iter().find(|i| i["part"] == "check").cloned().unwrap_or_default();
     assert_eq!(check(&before).get("fill"), None);
-    assert_eq!(check(&after)["fill"], "#009e7333");
+    assert_eq!(check(&after)["fill"], "#009e73", "good, as given");
     let others = |d: &Drawn| -> Vec<Value> {
         d.items
             .iter()

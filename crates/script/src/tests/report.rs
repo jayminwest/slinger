@@ -21,6 +21,15 @@ fn a_throw_carries_its_source_line_and_the_calls_it_was_in() {
 }
 
 #[test]
+fn a_recursion_shows_its_repeated_frame_once_with_a_count() {
+    let e = failed("function f(n) { return f(n + 1) + 1; }\nf(0);\n");
+    let report = e.report();
+    let at: Vec<&str> = report.lines().filter(|l| l.starts_with("  at ")).collect();
+    assert_eq!(at.len(), 1, "{report}");
+    assert!(at[0].starts_with("  at f (script:1:") && at[0].ends_with(" times"), "{report}");
+}
+
+#[test]
 fn a_throw_at_the_top_level_shows_its_line_and_no_stack() {
     let e = failed("fig.box(0, 0, 1, 1);\nthrow new Error('no');\n");
     assert_eq!(
