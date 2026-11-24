@@ -2,7 +2,7 @@
 //! object and pastes back as that crop.
 
 use serde_json::json;
-use slinger_control::CanvasPage;
+use slinger_control::{CanvasFeed, CanvasPage};
 
 use super::*;
 
@@ -252,4 +252,27 @@ fn a_free_name_takes_off_a_trailing_number_and_counts_from_two() {
     assert_eq!(free_name("q1-plot", &taken(&[])), "q1-plot-2", "a word, not a number, stays");
     let long = "a".repeat(40);
     assert_eq!(free_name(&long, &taken(&[])), format!("{}-2", "a".repeat(38)), "40 at most");
+}
+
+#[test]
+fn a_pasted_figure_avoids_the_names_of_every_page_and_those_the_feed_writes() {
+    let mut m = Mirror::new(&CanvasPage {
+        canvas: "main".into(),
+        next: 5,
+        page: "p1".into(),
+        pages: vec![
+            json!({"id": "p1", "name": "one"}),
+            json!({"id": "p2", "name": "two", "figures": ["sheet-2"]}),
+        ],
+        items: vec![],
+        path: None,
+    });
+    let feed = |op: Value| CanvasFeed { next: 6, ops: vec![op] };
+    let add = json!({"op": "add", "by": "user", "item": {"id": "i9", "page": "p3",
+                     "kind": "box", "x": 0, "y": 0, "w": 10, "h": 10, "fig": "sheet-3"}});
+    m.apply(&feed(add));
+    m.apply(&feed(json!({"op": "set", "id": "i8", "fields": {"fig": "sheet-4"}})));
+    let names = ["sheet-2", "sheet-3", "sheet-4"].map(String::from);
+    assert_eq!(m.figures(), HashSet::from(names), "names on pages not shown");
+    assert_eq!(free_name("sheet", &m.figures()), "sheet-5");
 }

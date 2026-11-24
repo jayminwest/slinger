@@ -71,11 +71,14 @@ impl Mirror {
         whole
     }
 
-    /// The names of the figures on this page, folded away or not: a paste
-    /// does not take one of them ([`free_name`]).
+    /// The names of the figures on the canvas, a figure's name being
+    /// unique there across pages: this page's, folded away or not, and
+    /// every other this mirror has seen (`canvas_show`'s pages and the feed). A paste does
+    /// not take one of them ([`free_name`]).
     pub fn figures(&self) -> HashSet<String> {
         let items = self.items.iter().chain(&self.held);
-        items.filter_map(|i| i.member.fig.clone()).collect()
+        let here = items.filter_map(|i| i.member.fig.clone());
+        here.chain(self.named.iter().cloned()).collect()
     }
 }
 
@@ -86,7 +89,8 @@ impl Mirror {
 /// object is pasted before the arrow; any other end is let go. Nothing for
 /// text that is not a JSON array; an object that does not read as an item
 /// is left out. One whole figure is pasted as a new one, named apart from
-/// `taken` ([`free_name`]); any other figure's items come free.
+/// `taken` (the canvas's figures, [`Mirror::figures`]) by [`free_name`];
+/// any other figure's items come free.
 pub fn pasted(items: &str, page: &str, centre: Point, taken: &HashSet<String>) -> Vec<Carried> {
     let Ok(Value::Array(objects)) = serde_json::from_str::<Value>(items) else {
         return Vec::new();

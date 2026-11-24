@@ -16,7 +16,8 @@ bullet with the area in bold.
   tool and arrow ends pass over it. **Unlock figure** (opt+cmd+U, the Edit
   menu, or a right-click on the figure) picks up the figure under the
   pointer as one piece to move, duplicate or delete; it locks again when
-  you deselect it. A duplicate is a new figure with its own name.
+  you deselect it. A duplicate is a new figure with its own name, one no
+  other figure on the canvas has, on any page.
 
 - **App:** a canvas text you type is edited in your own nvim, drawn in the
   text's place: 80 cells wide, as tall as the text, with your colorscheme,

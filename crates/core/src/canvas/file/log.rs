@@ -96,7 +96,8 @@ pub struct Written {
 pub struct Shown {
     /// The id of the page shown.
     pub page: String,
-    /// Every page, in order: `{"id": "p1", "name": "Page 1"}`.
+    /// Every page, in order: `{"id": "p1", "name": "Page 1"}`, and
+    /// `"figures"`, the names of the figures on it, when it has any.
     pub pages: Vec<Value>,
     /// The page's items in drawing order, as the file's whole item objects.
     pub items: Vec<Value>,
@@ -311,9 +312,18 @@ impl Log {
     pub fn show(&self, page: Option<&str>) -> Result<Shown> {
         let canvas = &self.canvas;
         let page = self.page(page)?;
+        let figures = canvas.figures();
         let pages = canvas
             .pages()
-            .map(|p| serde_json::json!({ "id": json::page_id(p.id()), "name": p.name() }))
+            .map(|p| {
+                let mut o = serde_json::json!({ "id": json::page_id(p.id()), "name": p.name() });
+                let on = figures.iter().filter(|f| f.page == p.id());
+                let names: Vec<&str> = on.map(|f| f.name.as_str()).collect();
+                if !names.is_empty() {
+                    o["figures"] = names.into();
+                }
+                o
+            })
             .collect();
         let items = canvas
             .items(page.id())

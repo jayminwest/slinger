@@ -452,7 +452,9 @@ passed over and, for the selection rows, that a grabbed one is not.
 - A paste or duplicate of **a whole figure** (every object of the clip with
   a `fig` has the same one, and the clip holds every item the figure had
   when copied, which `Mirror::copied` records as a count in the clip) keeps
-  `part` and `locked` and takes a free name. The rule is one function in
+  `part` and `locked` and takes a free name, free on the whole canvas: the
+  app reads the other pages' names from `canvas_show`'s `pages` (each with
+  its `figures`) and every `fig` the change feed writes. The rule is one function in
   `crates/app/src/mirror/clip.rs` beside `pasted`, which today keeps unknown
   keys.
 - Styles (`fill`, `dash`, `heads`, `closed`) are kept in both cases: they
