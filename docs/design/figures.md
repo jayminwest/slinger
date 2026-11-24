@@ -365,28 +365,36 @@ tldraw importer keeping fill and dash (and lock, closed, heads).
 
 | # | The owner's decision | What was built | Where | How hard |
 |---|---|---|---|---|
-| 1 | Script API rule 3, "Build, measure, place": every call is a method on `fig` and returns a **handle** with bounds and moves (`moveTo`, `moveBy`, `below`, `above`, `rightOf`, `leftOf`, `centerIn`, `name`); nothing is on the canvas until the script ends | Global functions (`box`, `line`, `arrow`, `poly`, `circle`, `text`, `measure`, `part`, `group`, `stack`, `table`, `plot`, `warn`) that emit at once and return a plain `{x, y, w, h}`; no handle, nothing moves after it is drawn | `crates/script/src/prelude/*.js`, guide.md "Drawing scripts", `crates/script/src/tests`, daemon and CLI draw tests | contract |
-| 2 | Rule 1: call shapes follow Canvas 2D and p5, `fig.text(str, x, y)`, `fig.path(points)` | `text(x, y, str)` (string last); the polyline is `poly(points)` | `prelude/shapes.js` | contract |
-| 3 | `fig.plot(x, y, w, h, {xRange, yRange, ticks, frame = 'dotted'})` with `p.x(v)`, `p.y(v)`, `p.bars(values, {labels})`, `p.fn(f)`, `p.vector(a, b, {label})`, `p.bounds` | `plot(x, y, w, h, {x, y, xticks, yticks, xlabel, ylabel, title})` with `p.at(x, y)`, `p.line(f or points)`, `p.dots(points)`; no bars, no vector, no dotted frame, no bounds handle | `prelude/plot.js` | contract |
-| 4 | `fig.stack([handles], {dir, gap = 24})` and `fig.grid([handles], {cols, gap, x, y})` move handles already built; `fig.table(rows, x, y, {size, header, widths})`; `fig.group(h1, h2, ...)` is one handle over several | `stack(x, y, opts, fn)` draws as it goes (`s.text`, `s.box`, `s.gap`; gap 8); no `grid`; `table(x, y, rows, {cols, rowH, header, parts})`; `group(opts, fn)` only sets defaults | `prelude/structure.js` | contract |
 | 5 | Errors: a `script` error with the message, line, column, the source line and the call stack; over a limit is one error, `limit`, that says which | **Closed (slinger-fad0bb).** A failure is code `script`: `script:L:C: message`, the source line with a `^` under the column, and the script's own frames of the stack; every limit (time, memory, stack, shapes, the script's and the data's size) is code `limit` and says which. Both exit 5 | `crates/script/src/{lib,engine}.rs` (`ScriptError::report`, `Fault`), `crates/core/src/error.rs`, `crates/daemon/src/server/figure.rs` | closed |
 | 6 | Packet: `f3 figure softmax 0,0 1700x3800 parts=15 by=teacher` (an id of its own, the name, a part count) | closed slinger-2c5bfe: built as the owner's line; `f<n>` (the lowest item's number) works wherever an id does, and the name and `figure/part` addresses still work | `crates/core/src/packet/figure.rs`, docs/design/packet.md | closed |
-| 7 | Shapes the reference has: `fig.ellipse`, `fig.slot(x, y, w, h, {label, by})` (dashed for the user, dotted for the agent), a box's `label` and `size`, a text's `align` | none of them; a slot is a dashed or dotted `box` and a label a separate `text` | `prelude/shapes.js` | medium |
-| 8 | A part is named by a `name` option on any call, `h.name()`, or `fig.part(name, {color}, fn)` | only `part(name, [opts], fn)`; `name` is an unknown option and fails the call | `prelude/structure.js`, `prelude/base.js` | medium |
 | 9 | Rule 5, inputs: `anchor` (the size and text of the item it goes beside or over) and, with `--over` or `--at`, the bounds of the items around it in figure coordinates | **Closed (slinger-fad0bb).** The globals `anchor` (`{id, kind, w, h, text}` for `--beside` and `--over`, else `null`) and `around` (with `--over` or `--at`, the shown items within 500 units, nearest first, at most 500, each `{id, kind, x, y, w, h}` in figure coordinates, else `[]`); `fig.view.target` stays; a redraw reads the anchor again from `figure_drawn`'s `anchor` | `crates/core/src/canvas/file/around.rs`, `crates/script/src/prelude/view.js`, `crates/daemon/src/canvases/figure.rs` | closed |
-| 10 | Warnings: text taller than its box, a word wider than its frame, two named parts that overlap (and text over a line) | text over a line, arrow, stroke or box edge; texts overlapping; a box drawn again on a box; a label longer than its arrow; a shape far from the others. None of the owner's first three | `prelude/checks.js` | medium |
-| 11 | Acceptance: Appendix B (the 106 softmax worksheet, 56 items, 15 parts) is the script; redraw fills "actual top 5" by name | The acceptance fixture is another worksheet (compound growth, 56 items, 15 parts) written for the built API (Appendix D); Appendix B does not run (rows 1 to 4, 7, 8) | `crates/script/src/tests/worksheet.{js,json}`, `crates/daemon/src/tests/script.rs` | medium |
-| 12 | The data is the global `data` (`null` when none) | `fig.data` (`{}` when none); no global `data` | `prelude/base.js` | small |
 | 13 | Decision 4: a script uses whole units; the other verbs keep tenths | Closed slinger-3b333f: now as designed. `canvas draw --at` takes tenths (`400,400`, `PAGE:X,Y`), as `canvas put --at` does | `crates/cli/src/draw.rs`, guide.md | small |
-| 14 | `width` on lines, paths and arrows (default 2) | `width` on `poly` and `circle` only; `line` and `arrow` refuse it | `prelude/shapes.js` | small |
 | 15 | `fill`: a colour ("use a light or translucent colour") | The core, the app and the tldraw import keep a fill as given and every renderer caps it at 40% when drawn (`FILL_MAX_ALPHA`; slinger-2c5bfe). Left: the script API still stores a name or `#rrggbb` at 20% alpha (`33`) and `true` as a tint of the shape's colour | `prelude/base.js` (`tint`) | small |
-| 16 | Colour names, for example `accent`, `muted`, `good`, `bad`, `warn` and a plot series (exact names left to the design step) | `agent`, `ink`, `muted`, `accent`, `error`, `series1`..`series6` and nine CSS names; no `good`, `bad` or `warn` | `crates/script/src/colour.rs` | small |
 | 17 | Decision 3: no stored lock toggle | Closed slinger-3b333f: kept as built, the owner's call. The app has none, but `locked` is an ordinary field: an agent may `set` it on its own items and the user on any, through `canvas apply` (undo, import and paste need it written) | `crates/core/src/canvas/file/ops.rs` | small |
 
-Count: 6 contract, 5 medium, 6 small. The model, the verbs, the lock, the
-packet's meaning, placement and replace by match are as the owner decided;
-the difference is the script API's surface (rows 1 to 4, 7, 8, 12, 14), so
-the owner's Appendices A and B do not run on the build.
+Closed by slinger-bee990 (the script API ported to the owner's design;
+rows keep the numbers they were written with): 1 (handles), 2
+(`fig.text(str, x, y)`, `fig.path`), 3 (`fig.plot` with `xRange`, `yRange`,
+`ticks`, `frame`, `p.x`, `p.y`, `p.bars`, `p.fn`, `p.vector`, `p.bounds`), 4
+(`fig.stack`, `fig.grid`, `fig.table(rows, x, y)`, `fig.group(h1, h2, ...)`), 7
+(`fig.ellipse`, `fig.slot`, a box's `label` and `size`, a text's `align`), 8
+(`name` on any call, `h.name()`, `fig.part(name, {color}, fn)`), 10 (the owner's
+three warnings, beside the ones built overnight), 11 (Appendix B runs unchanged
+as `crates/script/src/tests/softmax.js`: 53 items in its 15 parts, not the 56
+its heading says, see below; the redraw acceptance stays on Appendix D, since
+Appendix B's script reads no data), 12 (the global `data`, `null` when none),
+14 (`width` on lines, paths and arrows; an arrow with heads stays 2 wide, a line
+of another width is a two-point stroke) and 16 (`good`, `bad`, `warn`; `error`
+is gone). Row 9 (`anchor`, `around`) closed with slinger-fad0bb.
+
+Appendix B's count: as the API reads, the script draws 35 texts and 18 boxes
+(4 headings, 5 paragraphs, 8 answer boxes with 7 labels, 4 plot titles, 4
+dotted plot frames, 3 bars with 3 labels, 9 hand-drawn bar labels, 3 "Why"
+boxes with their labels). The spike's prelude, which is not in the
+repository, drew 3 more; nothing in Appendix A says what (a value over each
+of the 3 bars would make 56).
+
+Count left open: 1 small (15, the 20% tint the script API stores).
 
 ## As built (written overnight 2026-11-24, not the owner's text)
 
@@ -578,7 +586,9 @@ A script, and only a script, takes a colour as hex (`#rrggbb`,
 | `ink` | `#000000` | the user's default ink (the app shows it light on dark, as any black) |
 | `muted` | `#8c8c8c` | secondary text, tick labels |
 | `accent` | `#4c9aff` | the theme's accent (`focus`) |
-| `error` | `#e5484d` | wrong, missing |
+| `good` | `#2f9e44` | right, done (slinger-bee990) |
+| `bad` | `#e5484d` | wrong, missing (was `error`) |
+| `warn` | `#c77700` | check this, nearly |
 | `series1` .. `series6` | `#2f80ed`, `#d55e00`, `#009e73`, `#cc79a7`, `#a87a00`, `#178a8a` | the plot series, in order |
 | `black`, `white`, `red`, `green`, `blue`, `yellow`, `orange`, `purple`, `grey` | the CSS colours | the names the packet prints for ink (`packet::line::colour_name`), so a colour read can be given back |
 
@@ -834,12 +844,18 @@ passed over and, for the selection rows, that a grabbed one is not.
 
 ### The script API
 
-The full reference is Appendix C: it goes into `crates/cli/src/guide.md` as
-written there. In short: globals `box`, `line`, `arrow`, `poly`, `circle`,
-`text`, `measure`, `part`, `group`, `stack`, `table`, `plot`, `warn` and
-the object `fig` (`name`, `data`, `view`, `color`). Units are canvas
-units, y down, origin the figure's own top left before placement. Each
-call emits shapes at once; nothing is returned to place later.
+The full reference is Appendix C: it is `crates/cli/src/guide.md`'s
+"Drawing scripts". Since slinger-bee990 it is the owner's Appendix A: the
+draw calls are methods of `fig` (`text`, `box`, `slot`, `line`, `path`,
+`circle`, `ellipse`, `arrow`, `group`, `stack`, `grid`, `table`, `plot`,
+`part`), each returning a handle with bounds and moves; the globals are
+`fig`, `data`, `measure` and `warn`. Units are canvas units, y down,
+origin the figure's own top left before placement. Nothing leaves the
+engine until the script ends: `crates/script/src/prelude/handle.js` keeps
+every shape (a `Leaf`) and every `Group`, a move changes them, and
+`checks.js` `finish` resolves each shape's style (its own, then the
+nearest group that holds it, then the `fig.part` it was drawn in, then
+`fig.color` as it was when drawn) and emits the shapes in the order made.
 
 #### Limits and purity (step 7)
 
@@ -850,10 +866,13 @@ call emits shapes at once; nothing is returned to place later.
 - No `Date`, timers, `console`, `import`/`require`, `eval` of strings, or IO.
   `Math.random` is a seeded generator (seed 1 each run), so the same script
   and data give the same bytes out, which replace by match relies on.
-- Errors keep the script's line and column: `script:12:7: box: w must be a number above 0, got "wide"`,
+- Errors keep the script's line and column: `script:12:7: fig.box: w must be a number above 0, got "wide"`,
   as the error code `script`, followed by the source line (a `^` under the
   column) and the script's frames of the stack when it was inside a
-  function of its own (slinger-fad0bb). A bad argument fails at the call, by the function's name. A run the
+  function of its own (slinger-fad0bb). Each API call reads its site as it
+  starts (`entry` in `base.js`) and an error it throws leads its stack
+  with that site, so a call deep in a plot or a table still names the
+  script's line. A bad argument fails at the call, by the function's name. A run the
   clock stopped names a line the loop is at or after, and says so
   (`script:3:1: the script ran longer than 1 s, stopped at this line or in
   a loop after it`): QuickJS checks the clock at a call, where the stack
@@ -862,9 +881,11 @@ call emits shapes at once; nothing is returned to place later.
   first line of its function). Which check fires moves with any work run
   before, the loop's own calls included, so no loop is named inside its
   body every time (slinger-71c6cb). Warnings
-  (text over a line, texts overlapping, a box drawn again on another's
-  frame, a label longer than its arrow, a shape far outside the others)
-  come back beside the shapes, with their line, and never fail a draw.
+  (the owner's three: a label taller than its box, a word wider than its
+  text's frame, two named parts that overlap; and text over a line, texts
+  overlapping, a box drawn again on another's frame, a label longer than
+  its arrow, a shape far outside the others) come back beside the shapes,
+  with their line, and never fail a draw.
 
 #### How shapes cross to the daemon (B6)
 
@@ -1068,8 +1089,8 @@ that changes least of what the pen does today. Each line is also in
 2. **A headless line** is an arrow with `heads: none`.
 3. **Draw order:** PDF pages, then every fill, then the rest, in both
    renderers; a fill is not a hit; a fill draws at most 40% alpha.
-4. **Colour names:** `agent` `#8a5cf5`, `ink`, `muted`, `accent`, `error`,
-   `series1`..`series6` and the nine packet names; resolved to hex at run
+4. **Colour names:** `agent` `#8a5cf5`, `ink`, `muted`, `accent`, `good`,
+   `bad`, `warn`, `series1`..`series6` and the nine packet names; resolved to hex at run
    time; the app draws a stored `AGENT` in its `[theme] agent`.
 5. **A fill in the dark theme** is drawn as stored, never through
    `legible()`; the API stores a fill as a 20% tint unless given `#rrggbbaa`.
@@ -1233,141 +1254,209 @@ mine(1000 + GAP, 640, 600, 'Actual losses (I fill this in after you predict)', '
 y += 640;
 yours(0, W, 450, '(b) Why does the loss punish a confident wrong answer so hard?', 'p3b');
 ```
-## Appendix C: the script API as built (written overnight; in the guide as "Drawing scripts")
+## Appendix C: the script API as built (in the guide as "Drawing scripts")
 
-A drawing script is JavaScript (ES2023, as QuickJS runs it). It draws by
-calling the functions below; each emits shapes at once. Units are canvas
-units, the units a packet prints; y grows down; (0,0) is the figure's
-origin, which `--at` or `--over` places (`--beside` and `--in` place the
-figure's frame instead). Text size is the height of a character cell (24
-unless set); a character is half that wide.
+Since slinger-bee990 this is the owner's Appendix A with what the build
+adds (colour names, `fig.grid` options, `t.cell`, the plot's named ticks,
+`title`, `frame: 'axes'`, `p.dots`, the warnings, the limits). The guide
+prints it as below.
 
-**Colours** are `"#rrggbb"`, `"#rrggbbaa"` or a name: `agent`, `ink`,
-`muted`, `accent`, `error`, `series1` to `series6`, `black`, `white`,
-`red`, `green`, `blue`, `yellow`, `orange`, `purple`, `grey`.
+You write one JavaScript file (ES2023, as QuickJS runs it). Slinger runs it
+in a sandbox and turns what it draws into ordinary canvas items, placed as
+one figure.
 
-**Options** every shape takes in its last argument, an object; each falls
-back to the nearest enclosing `part`/`group`/`stack`/`table`/`plot`
-that sets it, then to `fig.color`:
+- Coordinates are canvas units in the figure's own frame: (0, 0) is its top
+  left, x grows right, y grows down. Slinger decides where the figure goes on
+  the page (`--at` or `--over` place (0, 0); `--beside` and `--in` place
+  its frame). Never assume page coordinates.
+- Text is monospace: a character is `size` tall and `size / 2` wide, so
+  `measure('hello', {size: 24})` is `{w: 60, h: 24}`.
+- No imports, no network, no files, no timers, no `Date`, no `console`.
+  `Math.random` is seeded: the same script and data draw the same figure.
+- The global `data` holds the JSON passed with `--data` (or `null`).
+- Nothing is on the canvas until the script ends, so build a thing, read its
+  size, then place it.
 
-| option | takes | default |
-|---|---|---|
-| `color` | a colour | `fig.color` (the agent colour) |
-| `fill` | `true` (a tint of `color`) or a colour (a 20% tint; `#rrggbbaa` as given). `box`, `circle`, `poly` with `closed` | none |
-| `dash` | `"dashed"` or `"dotted"`. `box`, `line`, `arrow`, `poly`, `circle` | solid |
-| `size` | a text size, 4 to 400. `text`, and tables' and plots' labels | 24 |
-| `locked` | `false` leaves the shape free for the user's pen | `true` |
+**Draw.** Every call returns a handle. The last argument is always an
+options object.
 
-**Shapes.** Each returns `{x, y, w, h}`, its frame.
+```js
+fig.text(str, x, y, {size = 24, w, align = 'left'})   // w wraps the text to that width; align: 'left' | 'center' | 'right' (x is then the centre or the right edge)
+fig.box(x, y, w, h, {label, size = 20})               // label: text inside the box, top left, wrapped
+fig.slot(x, y, w, h, {label, by = 'user'})            // a box meant to be filled in: dashed for the user, dotted when by: 'agent'
+fig.line(x1, y1, x2, y2)
+fig.path([[x, y], ...], {closed = false})             // a polyline; closed joins the last point to the first
+fig.circle(cx, cy, r)
+fig.ellipse(cx, cy, rx, ry)
+fig.arrow(x1, y1, x2, y2, {heads = 'end', label})     // as line; heads: 'end' | 'both' | 'none'
+fig.arrow(from, to, {heads, label})                   // from, to: [x, y] or a handle (the arrow then meets its edge where it is now)
+```
 
-| call | draws |
-|---|---|
-| `box(x, y, w, h, opts?)` | a rectangle; `w`, `h` above 0 |
-| `line(x1, y1, x2, y2, opts?)` | a straight line, no heads |
-| `arrow(x1, y1, x2, y2, opts?)` or `arrow(from, to, opts?)` | an arrow; `from`, `to` are `[x, y]` or a frame a shape returned (the arrow meets its edge). `heads`: `"end"` (default), `"both"`, `"none"`; `label`: a text set beside the arrow's middle, never on it, moved along it or to its other side to clear texts and lines drawn before it; a label longer than its arrow warns |
-| `poly(points, opts?)` | a line through `[[x, y], ...]` (two or more); `closed: true` joins the ends; `width` (default 2) |
-| `circle(cx, cy, r, opts?)` | a closed line of 48 points |
-| `text(x, y, str, opts?)` | text from its top left; `w` wraps it at that width |
-| `measure(str, opts?)` | draws nothing: `{w, h}` that `text` would take (`size`, `w`) |
+Options every call takes:
 
-**Structure.**
+- `color`: `'#rrggbb'`, `'#rrggbbaa'` or a name: `agent`, `ink`, `muted`,
+  `accent`, `good`, `bad`, `warn`, `series1` to `series6`, `black`,
+  `white`, `red`, `green`, `blue`, `yellow`, `orange`, `purple`, `grey`.
+  Default: the colour of the group or part it is in, else `fig.color` (the
+  agent colour; assign it to change every later default).
+- `fill`: a colour (stored as a 20% tint; `#rrggbbaa` as given) or `true`
+  (a tint of `color`), for a box, circle, ellipse or closed path. Fills draw
+  under all ink and text, so they never hide writing.
+- `dash`: `'dashed'`, `'dotted'` or `'solid'` (boxes, lines, paths, arrows).
+- `width`: line width (lines, paths, arrows; default 2). An arrow with heads
+  is always 2 wide.
+- `name`: names this part of the figure, such as `'answer-a'` (`a-z`, `0-9`,
+  `-`, up to 40). A later command finds it as `<figure>/<name>`. Name every
+  area that will be written in or updated.
+- `locked`: default `true`: the user's pen and eraser pass over it. Pass
+  `false` for something the user should be able to move.
 
-| call | does |
-|---|---|
-| `part(name, fn)`, `part(name, opts, fn)` | every shape `fn` draws is in part `name` (`a-z`, `0-9`, `-`, up to 40). Parts do not nest. A later turn finds it as `<figure>/<name>` |
-| `group(opts, fn)` | defaults for the shapes `fn` draws |
-| `stack(x, y, opts, fn)` | `fn(s)` places one thing after another: `s.text(str, opts?)`, `s.box(w, h, opts?)`, `s.gap(n)`; `opts.dir` `"down"` (default) or `"right"`, `opts.gap` (default 8). Returns its frame |
-| `table(x, y, rows, opts?)` | a grid: `rows` an array of arrays of strings, one box per cell and one text per non-empty cell; `cols` (a width, or one per column; default fits the widest text), `rowH` (default 1.6 of the size), `header: true` tints the first row, `parts` (an array of arrays of part names, `null` for none; a named cell is boxed already, so draw in it with `cell(r, c)`, not another box on it). Returns its frame and `cell(r, c)` |
-| `plot(x, y, w, h, opts)` | axes for `opts.x: [min, max]`, `opts.y: [min, max]`: two axis lines, a label per tick in `xticks`/`yticks` (each a value, or `[value, "label"]` such as `[0, "Jan"]`; size 16, `muted`), `xlabel`, `ylabel`, `title` (above the plot). Returns `p` with `p.at(x, y)` (the canvas point `[x, y]` of a value), `p.line(f or [[x, y], ...], opts?)` (one line; `steps` for a function, default 50), `p.dots([[x, y], ...], opts?)` (filled circles of radius 4). Each `line` or `dots` takes the next series colour unless given one |
+An unknown option, or one the call cannot take, fails the call and lists
+what it takes.
 
-**Context.** `fig.name` (the figure's name), `fig.data` (the data, `{}` when
-none), `fig.view.target` (`{x: 0, y: 0, w, h}` of the `--over` or `--in`
-item, else `null`), `fig.view.page` (the page's name), `fig.color` (assign
-to change every later default). The global `anchor` is the item the
+**Handles.**
+
+```js
+h.x  h.y  h.w  h.h  h.right  h.bottom  h.cx  h.cy     // its bounds, read-only
+h.moveTo(x, y)   h.moveBy(dx, dy)                     // each move returns h
+h.below(other, gap = 24)   h.above(other, gap)   h.rightOf(other, gap)   h.leftOf(other, gap)
+h.centerIn(other)                                     // other: a handle or {x, y, w, h}
+h.name('part-name')
+```
+
+`below` and `above` move only y, `rightOf` and `leftOf` only x. A box's
+label and an arrow's label move with it.
+
+**Helpers.**
+
+```js
+measure(str, {size = 24, w})                 // {w, h} of text, wrapped to w when given
+fig.group(h1, h2, ..., {color, fill, dash, locked, name})   // one handle over several; its options reach every shape in it that sets none
+fig.part(name, {color, fill, dash, locked, size}, () => { ... })   // every shape the function draws is in part name; returns a handle over them. Parts do not nest
+fig.stack([h1, h2, ...], {dir = 'down', gap = 24})   // dir: 'down' | 'right'; moves each after the one before; returns a group
+fig.grid([h1, ...], {cols = 3, gap = 24, x = 0, y = 0})    // rows of cols; each column as wide as its widest
+fig.table(rows, x, y, {size = 20, header = true, widths, rowH, parts})   // rows: arrays of cells; columns fit their longest cell
+const p = fig.plot(x, y, w, h, {xRange: [0, 1], yRange: [0, 1], ticks = 0, frame = 'dotted'})
+p.x(v)  p.y(v)                               // data value -> figure coordinate (y is up in data)
+p.bars(values, {labels})                     // one bar per value across the plot
+p.fn((x) => y, {color, width, steps = 50})   // a curve; or an array of [x, y] in data
+p.vector([x1, y1], [x2, y2], {label})        // an arrow in data coordinates
+p.dots([[x, y], ...])                        // filled dots of radius 4
+p.bounds                                     // a handle over the whole plot: p.bounds.name('chart')
+```
+
+- `fig.table`: one box per cell and one text per non-empty cell; `header`
+  tints the first row; `widths` is one width or one per column; `rowH`
+  defaults to 1.6 of the size; `parts` names cells (an array of rows of part
+  names, `null` for none). It returns a group with `t.cell(r, c)`, a cell's
+  `{x, y, w, h}`: a cell is boxed already, draw in it, not another box on it.
+- `fig.plot`: `frame` is `'dotted'`, `'dashed'`, `'solid'`, `'axes'` (two
+  axis lines) or `'none'`. `ticks: n` labels n steps along both axes;
+  `xticks`/`yticks` list them instead (a value, or `[value, "label"]` such
+  as `[0, "Jan"]`); `xlabel`, `ylabel`, `title` (above the plot); `size`
+  (labels, default 18). `bars`, `fn` and `dots` each take the next series
+  colour unless given one.
+
+**Context.** `fig.name` (the figure's name), `fig.view.target`
+(`{x: 0, y: 0, w, h}` of the `--over` or `--in` item, else `null`),
+`fig.view.page` (the page's name). The global `anchor` is the item the
 figure goes beside or over, `{id, kind, w, h, text}` (`text` is `null` but
 for a text), else `null`; the global `around`, with `--over` or `--at`,
 holds the items within 500 units of that item or point, nearest first (at
 most 500), each `{id, kind, x, y, w, h}` in the figure's coordinates, else
-`[]`. `warn(message)` adds a warning. The engine
-warns, and still draws, on text over a line, texts overlapping, a box
-drawn again on the same frame without a fill, an arrow's label longer than
-the arrow, and a shape far from the others.
+`[]`. `warn(message)` adds a warning.
 
-**Not there:** `Date`, timers, `console`, `import`, `fetch`, files. `Math.random`
-is seeded: the same script and data draw the same figure.
+**Warnings** do not fail the draw: a label taller than its box, a word wider
+than its text's frame (it is cut), two named parts that overlap, text over a
+line, texts overlapping, a box drawn again on the same frame without a fill,
+an arrow's label longer than the arrow, a shape far from the others.
 
-**Errors** name the call and the line: `script:12:7: box: w must be a number above 0, got "wide"`,
+**Errors** name the call and the line: `script:12:7: fig.box: w must be a number above 0, got "wide"`,
 then the source line with a `^` under the column and, inside a function,
 the calls it was in (`at row (script:12:7)`). Its code is `script` (exit 5).
-Limits: 1 s, 32 MB, a 512 KB stack, 5,000 shapes, a 1 MiB script, 256 KiB
-of data. Over one is code `limit` (exit 5), and the message says which.
+A script stopped at 1 s names a line its endless loop is at or after.
+Limits: 1 s, 32 MB, 5,000 shapes, a 1 MiB script, 256 KiB of data.
 
-## Appendix D: the reference worksheet as built (written overnight)
+**An example.** `bars.js` draws a title, a bar chart of its data and an
+answer area beside it that a later sling can name (`rain/why`):
+
+```js
+const title = fig.text(data.title, 0, 0, { size: 32 });
+const top = Math.max(...data.rows.map(([, v]) => v));
+const p = fig.plot(0, title.bottom + 40, 380, 300, { yRange: [0, top], yticks: [0, top] });
+p.bars(data.rows.map(([, v]) => v), { labels: data.rows.map(([l]) => l) });
+p.bounds.name('chart');
+fig.slot(420, title.bottom + 40, 500, 300, { label: 'Why is March the wettest?', name: 'why' });
+```
+
+```bash
+slinger canvas draw <CANVAS> bars.js --name rain --beside c12 --data '{"title": "Rain (mm)", "rows": [["Jan", 80], ["Feb", 65], ["Mar", 90]]}' --agent claude
+slinger canvas redraw <CANVAS> rain --data '{"rows": [["Jan", 80], ["Feb", 65], ["Mar", 90], ["Apr", 40]]}' --agent claude
+```
+
+## Appendix D: the reference worksheet as built (ported to Appendix A, slinger-bee990)
 
 The acceptance script (steps 7, 9, 14). With the data below it draws **56
 items in 15 parts** (33 texts, 17 boxes, 4 arrows of which 3 are lines,
 2 strokes: the plot's curve and the closed `check` circle). The redraw with the second data patch fills
 `actual-top-5` and `feedback` by name: 62 items, 6 texts added and the
 `check` circle filled (one `set`); every other item is unchanged and the
-user's strokes are untouched. The counts were checked against a stand-in of
-this API in plain JavaScript; step 7 checks them in QuickJS.
+user's strokes are untouched. The script is `crates/script/src/tests/worksheet.js`; its tests
+check these counts in QuickJS.
 
 ```js
-const d = fig.data;
+const d = data;
 const pct = Math.round(d.rate * 100);
 const value = (t) => d.start * (1 + d.rate) ** t;
 
-part('title', () => {
-  text(0, 0, d.title, { size: 40 });
-  text(0, 56, 'Work in the dashed boxes. The dotted ones are mine.', { color: 'muted' });
+fig.part('title', () => {
+  fig.text(d.title, 0, 0, { size: 40 });
+  fig.text('Work in the dashed boxes. The dotted ones are mine.', 0, 56, { color: 'muted' });
 });
-part('name', () => {
-  text(620, 8, 'Name', { color: 'muted' });
-  line(690, 32, 900, 32);
+fig.part('name', () => {
+  fig.text('Name', 620, 8, { color: 'muted' });
+  fig.line(690, 32, 900, 32);
 });
 
 // 1. Read a graph.
-part('q1', () => text(0, 120, `1. ${d.start} is saved at ${pct}% a year, added once a year.`));
-part('q1-plot', () => {
-  const p = plot(60, 190, 480, 280, {
-    x: [0, d.years], y: [0, 250],
-    xticks: [0, 2, 4, 6, 8, 10], yticks: [0, 100, 200],
-    xlabel: 'years', ylabel: 'balance',
-  });
-  p.line(value, { steps: 40 });
+fig.text(`1. ${d.start} is saved at ${pct}% a year, added once a year.`, 0, 120, { name: 'q1' });
+const p = fig.plot(60, 190, 480, 280, {
+  xRange: [0, d.years], yRange: [0, 250], frame: 'axes',
+  xticks: [0, 2, 4, 6, 8, 10], yticks: [0, 100, 200],
+  xlabel: 'years', ylabel: 'balance', name: 'q1-plot',
 });
-text(600, 190, '1a. About how much after 5 years?', { size: 20, w: 300 });
-part('1a-answer', () => box(600, 250, 300, 90, { dash: 'dashed' }));
-text(600, 360, '1b. When has it doubled?', { size: 20, w: 300 });
-part('1b-answer', () => box(600, 400, 300, 90, { dash: 'dashed' }));
+p.fn(value, { steps: 40 });
+fig.text('1a. About how much after 5 years?', 600, 190, { size: 20, w: 300 });
+fig.slot(600, 250, 300, 90, { name: '1a-answer' });
+fig.text('1b. When has it doubled?', 600, 360, { size: 20, w: 300 });
+fig.slot(600, 400, 300, 90, { name: '1b-answer' });
 
 // 2. Fill the table.
-part('q2', () => text(0, 540, '2. Fill in the balance.'));
-part('q2-table', () => table(0, 580, [
+fig.text('2. Fill in the balance.', 0, 540, { name: 'q2' });
+fig.table([
   ['year', ...d.table.map(String)],
   ['balance', value(d.table[0]).toFixed(0), '', '', ''],
-], { cols: 150, header: true }));
-part('2-working', () => box(0, 680, 900, 120, { dash: 'dashed' }));
+], 0, 580, { widths: 150, size: 24, name: 'q2-table' });
+fig.slot(0, 680, 900, 120, { name: '2-working' });
 
 // 3. Predict, then compare.
-part('q3', () => text(0, 840, `3. Rank these by balance after ${d.years} years.`));
-part('3-accounts', () => stack(0, 880, { gap: 4 }, (s) => {
-  for (const a of d.accounts) s.text(`${a.name}: ${a.start} at ${a.rate}%`, { size: 20 });
-}));
-part('3-predicted', () => box(0, 1010, 430, 200, { dash: 'dashed' }));
-arrow(436, 1110, 464, 1110);
-text(470, 1010, 'Actual top 5', { color: 'muted', size: 20 });
-part('actual-top-5', () => {
-  box(470, 1040, 430, 170, { dash: 'dotted' });
-  if (d.actual) stack(486, 1052, {}, (s) => d.actual.forEach((n, i) => s.text(`${i + 1}. ${n}`, { size: 20 })));
+fig.text(`3. Rank these by balance after ${d.years} years.`, 0, 840, { name: 'q3' });
+fig.stack(d.accounts.map((a) => fig.text(`${a.name}: ${a.start} at ${a.rate}%`, 0, 880, { size: 20 })), { gap: 4 })
+  .name('3-accounts');
+fig.slot(0, 1010, 430, 200, { name: '3-predicted' });
+fig.arrow(436, 1110, 464, 1110);
+fig.text('Actual top 5', 470, 1010, { color: 'muted', size: 20 });
+fig.part('actual-top-5', () => {
+  fig.slot(470, 1040, 430, 170, { by: 'agent' });
+  if (d.actual) fig.stack(d.actual.map((n, i) => fig.text(`${i + 1}. ${n}`, 486, 1052, { size: 20 })), { gap: 8 });
 });
 
 // Feedback, written on a later turn.
-part('feedback', () => {
-  box(0, 1250, 900, 140, { dash: 'dotted' });
-  if (d.feedback) text(16, 1266, d.feedback, { w: 868 });
+fig.part('feedback', () => {
+  fig.slot(0, 1250, 900, 140, { by: 'agent' });
+  if (d.feedback) fig.text(d.feedback, 16, 1266, { w: 868 });
 });
-part('check', () => circle(880, 1230, 8, { fill: d.feedback ? 'series3' : undefined }));
+fig.circle(880, 1230, 8, { fill: d.feedback ? 'series3' : undefined, name: 'check' });
 ```
 
 Data for `canvas draw main worksheet.js --name worksheet --at 40,40 --data @worksheet.json`:

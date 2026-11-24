@@ -1,55 +1,52 @@
-const d = fig.data;
+const d = data;
 const pct = Math.round(d.rate * 100);
 const value = (t) => d.start * (1 + d.rate) ** t;
 
-part('title', () => {
-  text(0, 0, d.title, { size: 40 });
-  text(0, 56, 'Work in the dashed boxes. The dotted ones are mine.', { color: 'muted' });
+fig.part('title', () => {
+  fig.text(d.title, 0, 0, { size: 40 });
+  fig.text('Work in the dashed boxes. The dotted ones are mine.', 0, 56, { color: 'muted' });
 });
-part('name', () => {
-  text(620, 8, 'Name', { color: 'muted' });
-  line(690, 32, 900, 32);
+fig.part('name', () => {
+  fig.text('Name', 620, 8, { color: 'muted' });
+  fig.line(690, 32, 900, 32);
 });
 
 // 1. Read a graph.
-part('q1', () => text(0, 120, `1. ${d.start} is saved at ${pct}% a year, added once a year.`));
-part('q1-plot', () => {
-  const p = plot(60, 190, 480, 280, {
-    x: [0, d.years], y: [0, 250],
-    xticks: [0, 2, 4, 6, 8, 10], yticks: [0, 100, 200],
-    xlabel: 'years', ylabel: 'balance',
-  });
-  p.line(value, { steps: 40 });
+fig.text(`1. ${d.start} is saved at ${pct}% a year, added once a year.`, 0, 120, { name: 'q1' });
+const p = fig.plot(60, 190, 480, 280, {
+  xRange: [0, d.years], yRange: [0, 250], frame: 'axes',
+  xticks: [0, 2, 4, 6, 8, 10], yticks: [0, 100, 200],
+  xlabel: 'years', ylabel: 'balance', name: 'q1-plot',
 });
-text(600, 190, '1a. About how much after 5 years?', { size: 20, w: 300 });
-part('1a-answer', () => box(600, 250, 300, 90, { dash: 'dashed' }));
-text(600, 360, '1b. When has it doubled?', { size: 20, w: 300 });
-part('1b-answer', () => box(600, 400, 300, 90, { dash: 'dashed' }));
+p.fn(value, { steps: 40 });
+fig.text('1a. About how much after 5 years?', 600, 190, { size: 20, w: 300 });
+fig.slot(600, 250, 300, 90, { name: '1a-answer' });
+fig.text('1b. When has it doubled?', 600, 360, { size: 20, w: 300 });
+fig.slot(600, 400, 300, 90, { name: '1b-answer' });
 
 // 2. Fill the table.
-part('q2', () => text(0, 540, '2. Fill in the balance.'));
-part('q2-table', () => table(0, 580, [
+fig.text('2. Fill in the balance.', 0, 540, { name: 'q2' });
+fig.table([
   ['year', ...d.table.map(String)],
   ['balance', value(d.table[0]).toFixed(0), '', '', ''],
-], { cols: 150, header: true }));
-part('2-working', () => box(0, 680, 900, 120, { dash: 'dashed' }));
+], 0, 580, { widths: 150, size: 24, name: 'q2-table' });
+fig.slot(0, 680, 900, 120, { name: '2-working' });
 
 // 3. Predict, then compare.
-part('q3', () => text(0, 840, `3. Rank these by balance after ${d.years} years.`));
-part('3-accounts', () => stack(0, 880, { gap: 4 }, (s) => {
-  for (const a of d.accounts) s.text(`${a.name}: ${a.start} at ${a.rate}%`, { size: 20 });
-}));
-part('3-predicted', () => box(0, 1010, 430, 200, { dash: 'dashed' }));
-arrow(436, 1110, 464, 1110);
-text(470, 1010, 'Actual top 5', { color: 'muted', size: 20 });
-part('actual-top-5', () => {
-  box(470, 1040, 430, 170, { dash: 'dotted' });
-  if (d.actual) stack(486, 1052, {}, (s) => d.actual.forEach((n, i) => s.text(`${i + 1}. ${n}`, { size: 20 })));
+fig.text(`3. Rank these by balance after ${d.years} years.`, 0, 840, { name: 'q3' });
+fig.stack(d.accounts.map((a) => fig.text(`${a.name}: ${a.start} at ${a.rate}%`, 0, 880, { size: 20 })), { gap: 4 })
+  .name('3-accounts');
+fig.slot(0, 1010, 430, 200, { name: '3-predicted' });
+fig.arrow(436, 1110, 464, 1110);
+fig.text('Actual top 5', 470, 1010, { color: 'muted', size: 20 });
+fig.part('actual-top-5', () => {
+  fig.slot(470, 1040, 430, 170, { by: 'agent' });
+  if (d.actual) fig.stack(d.actual.map((n, i) => fig.text(`${i + 1}. ${n}`, 486, 1052, { size: 20 })), { gap: 8 });
 });
 
 // Feedback, written on a later turn.
-part('feedback', () => {
-  box(0, 1250, 900, 140, { dash: 'dotted' });
-  if (d.feedback) text(16, 1266, d.feedback, { w: 868 });
+fig.part('feedback', () => {
+  fig.slot(0, 1250, 900, 140, { by: 'agent' });
+  if (d.feedback) fig.text(d.feedback, 16, 1266, { w: 868 });
 });
-part('check', () => circle(880, 1230, 8, { fill: d.feedback ? 'series3' : undefined }));
+fig.circle(880, 1230, 8, { fill: d.feedback ? 'series3' : undefined, name: 'check' });

@@ -233,6 +233,7 @@ pub fn run(script: &str, data: &Value, view: &View) -> Result<Drawn, ScriptError
         "target": view.target,
         "agent": view.agent,
         "page": view.page,
+        "items": ITEMS,
         "anchor": view.anchor.as_ref().map(|a| serde_json::json!({
             "id": a.id, "kind": a.kind, "w": a.w, "h": a.h, "text": a.text,
         })),

@@ -12,7 +12,7 @@ use tempfile::TempDir;
 
 use super::Daemon;
 
-const LOOK: &str = "box(0, 0, 10, 10);\nwarn(JSON.stringify({anchor, around}));\n";
+const LOOK: &str = "fig.box(0, 0, 10, 10);\nwarn(JSON.stringify({anchor, around}));\n";
 
 fn ask(name: &str, path: &Path, place: Place) -> CanvasDraw {
     CanvasDraw {
@@ -113,7 +113,7 @@ fn a_script_sees_its_anchor_and_the_items_around_it_and_a_redraw_sees_them_again
     let anchors: Vec<&Value> = events.iter().map(|e| &e["payload"]["anchor"]).collect();
     assert_eq!(anchors, [&json!("i1"), &json!("b2"), &Value::Null]);
 
-    let again = file(&dir, "again.js", &format!("box(0, 0, 20, 10);\n{}", &LOOK[19..]));
+    let again = file(&dir, "again.js", &format!("fig.box(0, 0, 20, 10);\n{}", &LOOK[23..]));
     let redraw = CanvasRedraw {
         canvas: "main".into(),
         by: "agent:scout".into(),
@@ -136,12 +136,12 @@ fn a_failing_script_is_script_with_its_source_line_and_a_runaway_one_is_limit() 
     let client = daemon.client();
     client.canvas_create("main").unwrap();
     let dir = TempDir::new().unwrap();
-    let bad = file(&dir, "bad.js", "function row(y) {\n  box(0, y, 'wide', 10);\n}\nrow(5);\n");
+    let bad = file(&dir, "bad.js", "function row(y) {\n  fig.box(0, y, 'wide', 10);\n}\nrow(5);\n");
     let e = client.canvas_draw(ask("f", &bad, Place::At([0, 0]))).unwrap_err();
     assert_eq!(e.code(), "script");
     let said = e.to_string();
     assert!(said.starts_with("script:2:"), "{said}");
-    assert!(said.contains("\n  2 |   box(0, y, 'wide', 10);"), "{said}");
+    assert!(said.contains("\n  2 |   fig.box(0, y, 'wide', 10);"), "{said}");
     assert!(
         said.contains("\n  at row (script:2:") && said.contains("at top level (script:4:1)"),
         "{said}"

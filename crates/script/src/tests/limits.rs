@@ -49,7 +49,7 @@ fn an_endless_loop_stops_after_the_time_limit_at_or_before_its_line() {
             for (body, last) in LOOPS {
                 threads.spawn(move || {
                     let script = format!(
-                        "for (let i = 0; i < {shapes}; i += 1) box(i, 0, 1, 1);\nconst seen = [1, 2];\nlet w = 0;\n{body}"
+                        "for (let i = 0; i < {shapes}; i += 1) fig.box(i, 0, 1, 1);\nconst seen = [1, 2];\nlet w = 0;\n{body}"
                     );
                     let start = Instant::now();
                     let e = failed(&script);
@@ -96,8 +96,11 @@ fn a_memory_hog_stops_at_the_memory_limit_at_its_line() {
 
 #[test]
 fn long_strings_stop_at_the_memory_limit() {
+    // When the memory left cannot hold the error itself QuickJS throws
+    // null and names no line; where 32 MB falls moves with the prelude's
+    // size. 150000 leaves the error room with the prelude as it is.
     stops(
-        "const all = [];\nfor (;;) {\n  all.push('x'.repeat(100000) + all.length);\n}\n",
+        "const all = [];\nfor (;;) {\n  all.push('x'.repeat(150000) + all.length);\n}\n",
         "more than 32 MB",
         3..=3,
     );
@@ -114,7 +117,7 @@ fn endless_recursion_stops_at_the_stack_limit_at_its_line() {
 
 #[test]
 fn too_many_shapes_fail_at_the_call() {
-    let e = failed("for (let i = 0; i < 6000; i += 1) {\n  box(i, 0, 1, 1);\n}\n");
+    let e = failed("for (let i = 0; i < 6000; i += 1) {\n  fig.box(i, 0, 1, 1);\n}\n");
     assert_eq!(e.line, 2);
     assert!(e.message.contains(&format!("at most {ITEMS} shapes")), "{e}");
 }
@@ -126,7 +129,8 @@ fn a_script_or_data_too_large_fails_before_it_runs() {
     assert_eq!((e.line, e.col), (0, 0));
     assert!(e.to_string().starts_with("script: the script is"), "{e}");
     let data = json!({"big": "y".repeat(DATA_BYTES)});
-    let e = run("box(0, 0, 1, 1);", &data, &view()).err().map(|e| e.message).unwrap_or_default();
+    let e =
+        run("fig.box(0, 0, 1, 1);", &data, &view()).err().map(|e| e.message).unwrap_or_default();
     assert!(e.contains("the data is"), "{e}");
 }
 
@@ -148,26 +152,26 @@ fn the_script_cannot_reach_a_clock_a_timer_the_console_or_eval() {
     }
     let import = failed("import('x');").message;
     assert!(import.contains("could not load module 'x'"), "an import loads nothing: {import}");
-    let late = draw("async function later() {\n  await 1;\n  box(0, 0, 1, 1);\n}\nlater();\n");
+    let late = draw("async function later() {\n  await 1;\n  fig.box(0, 0, 1, 1);\n}\nlater();\n");
     assert_eq!(late.map(|d| d.items.len()), Ok(1), "promise jobs run before the run ends");
 }
 
 #[test]
 fn a_rejection_nothing_catches_fails_the_draw_at_its_line() {
     let e = failed(
-        "box(0, 0, 1, 1);\nasync function later() {\n  await 1;\n  throw new Error('no data');\n}\nlater();\n",
+        "fig.box(0, 0, 1, 1);\nasync function later() {\n  await 1;\n  throw new Error('no data');\n}\nlater();\n",
     );
     assert_eq!((e.line, e.col), (4, 13), "{e}");
     assert!(e.message.contains("nothing caught it") && e.message.contains("no data"), "{e}");
     let e = failed("Promise.reject('gone');\n");
     assert!(e.message.ends_with("nothing caught it: gone"), "{e}");
-    let caught = "Promise.reject(new Error('x')).catch(() => box(0, 0, 1, 1));\n";
+    let caught = "Promise.reject(new Error('x')).catch(() => fig.box(0, 0, 1, 1));\n";
     assert_eq!(draw(caught).map(|d| d.items.len()), Ok(1), "a rejection caught later is fine");
 }
 
 #[test]
 fn math_random_is_seeded_so_runs_repeat() {
-    let script = "for (let i = 0; i < 5; i += 1) box(Math.random() * 100, 0, 1, 1);";
+    let script = "for (let i = 0; i < 5; i += 1) fig.box(Math.random() * 100, 0, 1, 1);";
     let a = draw(script).map(|d| d.items).ok();
     assert_eq!(a, draw(script).map(|d| d.items).ok());
     let xs: Vec<i64> = a.unwrap_or_default().iter().filter_map(|i| i["x"].as_i64()).collect();

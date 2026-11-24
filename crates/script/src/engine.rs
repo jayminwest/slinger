@@ -20,6 +20,7 @@ use crate::{Drawn, Fault, ITEMS, MEMORY, STACK, ScriptError, TIME, Warning};
 const PRELUDE: &str = concat!(
     "(function (input, emit) {\n'use strict';\n",
     include_str!("prelude/base.js"),
+    include_str!("prelude/handle.js"),
     include_str!("prelude/shapes.js"),
     include_str!("prelude/structure.js"),
     include_str!("prelude/plot.js"),
@@ -85,6 +86,7 @@ pub(crate) fn run(script: &str, data: &str, input: &str) -> Result<Drawn, Script
     // that caught the throw still fails.
     match ended {
         _ if drawn.items.len() > ITEMS => Err(full(ended.err())),
+        Err(e) if e.message.contains(FULL) => Err(full(Some(e))),
         Err(e) => Err(e),
         Ok(()) => Ok(drawn),
     }

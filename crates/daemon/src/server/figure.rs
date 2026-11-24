@@ -10,7 +10,7 @@
 use std::fs;
 use std::path::Path;
 
-use serde_json::{Value, json};
+use serde_json::Value;
 use slinger_control::{
     CanvasDraw, CanvasDrawn, CanvasFigureAsk, CanvasFigures, CanvasRedraw, FigureShown, PartShown,
     Place, RemoteError,
@@ -32,7 +32,7 @@ pub(super) fn draw(store: &Store, ask: CanvasDraw) -> Result<CanvasDrawn, Remote
     parse_author(&who).map_err(|e| remote(&e))?;
     let at = placement(place, page);
     let script = read_script(&path)?;
-    let data = data.as_deref().map_or_else(|| Ok(json!({})), read_data)?;
+    let data = data.as_deref().map_or(Ok(Value::Null), read_data)?;
     let canvases = store.canvases();
     let sight = canvases.figure_view(&canvas, &name, &at).map_err(|e| drawn(&e))?;
     let target = sight.target;

@@ -1,89 +1,101 @@
 
-// structure.js: part, group, stack and table.
+// structure.js: fig.part, group, stack, grid and table.
 
-const NAME = /^[a-z0-9-]{1,40}$/;
-const STYLE_OPTS = ['color', 'fill', 'dash', 'size', 'locked'];
+const PART = ['color', 'fill', 'dash', 'locked', 'size'];
 
-function partName(call, name) {
-  if (typeof name !== 'string' || !NAME.test(name)) {
-    fail(call, `a part name is 1 to 40 of a-z, 0-9 and -, got ${show(name)}`);
-  }
-  return name;
-}
-
-G.part = function (name, opts, fn) {
-  const call = 'part';
+// Every shape fn draws is in part `name`, with these defaults. Returns a
+// handle over what it drew.
+fig.part = entry(function (name, opts, fn) {
+  const call = 'fig.part';
   partName(call, name);
   if (fn === undefined) [opts, fn] = [undefined, opts];
   callback(call, fn);
-  const o = options(call, opts, STYLE_OPTS);
-  if (part !== null) fail(call, `parts do not nest: ${name} is inside ${part}`);
-  part = name;
+  const o = options(call, opts, PART);
+  if (scope !== null) fail(call, `parts do not nest: ${name} is inside ${scope.name}`);
+  const s = style(call, o);
+  if (o.size !== undefined) s.size = checkSize(call, o.size);
+  const first = leaves.length;
+  scope = { name, style: s };
   try {
-    return within(call, o, fn);
+    fn();
   } finally {
-    part = null;
+    scope = null;
   }
-};
+  return new Group(leaves.slice(first).filter((l) => l.owner === null), {});
+});
 
-G.group = function (opts, fn) {
-  const call = 'group';
-  if (fn === undefined) [opts, fn] = [undefined, opts];
-  callback(call, fn);
-  return within(call, options(call, opts, STYLE_OPTS), fn);
-};
+const GROUP = ['color', 'fill', 'dash', 'locked', 'name'];
 
-function union(frames) {
-  const x = Math.min(...frames.map((f) => f.x));
-  const y = Math.min(...frames.map((f) => f.y));
-  const w = Math.max(...frames.map((f) => f.x + f.w)) - x;
-  const h = Math.max(...frames.map((f) => f.y + f.h)) - y;
-  return { x, y, w, h };
+// The handles and the options of a call that takes handles, then options last.
+function split(call, args, allowed) {
+  const last = args[args.length - 1];
+  const has = args.length > 0 && last !== null && typeof last === 'object' && !Array.isArray(last) && !(last instanceof Handle);
+  const o = has ? options(call, last, allowed) : {};
+  return { list: handles(call, has ? args.slice(0, -1) : args), o };
 }
 
-G.stack = function (x, y, opts, fn) {
-  const call = 'stack';
-  number(call, 'x', x);
-  number(call, 'y', y);
-  if (fn === undefined) [opts, fn] = [undefined, opts];
-  callback(call, fn);
-  const o = options(call, opts, [...STYLE_OPTS, 'dir', 'gap']);
-  if (o.dir !== undefined && o.dir !== 'down' && o.dir !== 'right') fail(call, `dir must be "down" or "right", got ${show(o.dir)}`);
-  const gap = o.gap === undefined ? 8 : number(call, 'gap', o.gap);
-  const down = o.dir !== 'right';
-  const frames = [];
-  let at = down ? y : x;
-  const placed = (f) => {
-    frames.push(f);
-    at += (down ? f.h : f.w) + gap;
-    return f;
-  };
-  const here = () => (down ? [x, at] : [at, y]);
-  const s = {
-    text(str, topts) {
-      const [px, py] = here();
-      return placed(text(px, py, str, topts));
-    },
-    box(w, h, bopts) {
-      const [px, py] = here();
-      return placed(box(px, py, w, h, bopts));
-    },
-    gap(n) {
-      at += number('stack: gap', 'n', n);
-    },
-  };
-  within(call, o, () => fn(s));
-  return frames.length === 0 ? { x, y, w: 0, h: 0 } : union(frames);
-};
+fig.group = entry(function (...args) {
+  const call = 'fig.group';
+  if (args.some((a) => typeof a === 'function')) handles(call, args.filter((a) => typeof a === 'function'));
+  const { list, o } = split(call, args, GROUP);
+  return new Group(list, style(call, o));
+});
 
-G.table = function (x, y, rows, opts) {
-  const call = 'table';
-  number(call, 'x', x);
-  number(call, 'y', y);
+// The handles of a stack or a grid: one array.
+function placed(call, list) {
+  if (!Array.isArray(list)) fail(call, `takes an array of handles first, got ${show(list)}`);
+  return handles(call, list);
+}
+
+// Moves each handle after the one before, down or right; the other way
+// each stays where it is.
+fig.stack = entry(function (list, opts) {
+  const call = 'fig.stack';
+  const hs = placed(call, list);
+  const o = options(call, opts, [...GROUP, 'dir', 'gap']);
+  if (o.dir !== undefined && o.dir !== 'down' && o.dir !== 'right') fail(call, `dir must be "down" or "right", got ${show(o.dir)}`);
+  const gap = o.gap === undefined ? 24 : number(call, 'gap', o.gap);
+  for (let i = 1; i < hs.length; i += 1) {
+    if (o.dir === 'right') hs[i].moveBy(hs[i - 1].right + gap - hs[i].x, 0);
+    else hs[i].moveBy(0, hs[i - 1].bottom + gap - hs[i].y);
+  }
+  return new Group(hs, style(call, o));
+});
+
+// Places the handles in rows of `cols` from (x, y): each column as wide as
+// its widest, each row as tall as its tallest.
+fig.grid = entry(function (list, opts) {
+  const call = 'fig.grid';
+  const hs = placed(call, list);
+  const o = options(call, opts, [...GROUP, 'cols', 'gap', 'x', 'y']);
+  const cols = o.cols === undefined ? 3 : o.cols;
+  if (!Number.isInteger(cols) || cols < 1) fail(call, `cols must be a whole number above 0, got ${show(cols)}`);
+  const gap = o.gap === undefined ? 24 : number(call, 'gap', o.gap);
+  const x = o.x === undefined ? 0 : number(call, 'x', o.x);
+  const y = o.y === undefined ? 0 : number(call, 'y', o.y);
+  const widths = [];
+  const heights = [];
+  hs.forEach((h, i) => {
+    const [r, c] = [Math.floor(i / cols), i % cols];
+    widths[c] = Math.max(widths[c] || 0, h.w);
+    heights[r] = Math.max(heights[r] || 0, h.h);
+  });
+  const sum = (a, n) => a.slice(0, n).reduce((s, v) => s + v + gap, 0);
+  hs.forEach((h, i) => h.moveTo(x + sum(widths, i % cols), y + sum(heights, Math.floor(i / cols))));
+  return new Group(hs, style(call, o));
+});
+
+// A grid of boxed cells, one text per non-empty cell; columns fit their
+// longest cell unless `widths` says. The first row is tinted unless
+// header: false. `parts` names cells: an array of rows of part names.
+fig.table = entry(function (rows, x, y, opts) {
+  const call = 'fig.table';
   if (!Array.isArray(rows) || rows.length === 0 || !rows.every((r) => Array.isArray(r) && r.length > 0)) {
     fail(call, `rows must be an array of arrays of strings, got ${show(rows)}`);
   }
-  const o = options(call, opts, [...STYLE_OPTS, 'cols', 'rowH', 'header', 'parts']);
+  number(call, 'x', x);
+  number(call, 'y', y);
+  const o = options(call, opts, [...GROUP, 'size', 'header', 'widths', 'rowH', 'parts']);
   const cells = rows.map((r, i) => r.map((v, j) => {
     if (v === null || v === undefined || v === '') return '';
     if (typeof v !== 'string' && !(typeof v === 'number' && Number.isFinite(v))) {
@@ -91,44 +103,43 @@ G.table = function (x, y, rows, opts) {
     }
     return String(v);
   }));
-  const size = sizeOf(call, o);
+  const size = sizeOf(call, o, 20);
   const pad = size / 2;
   const count = Math.max(...cells.map((r) => r.length));
   let widths;
-  if (o.cols === undefined) {
+  if (o.widths === undefined) {
     widths = Array.from({ length: count }, (_, j) => Math.max(size, ...cells.map((r) => (r[j] ? textFrame(r[j], 0, size).w : 0))) + 2 * pad);
-  } else if (Array.isArray(o.cols)) {
-    if (o.cols.length !== count) fail(call, `cols has ${o.cols.length} widths for ${count} columns`);
-    widths = o.cols.map((c, j) => positive(call, `cols[${j}]`, c));
+  } else if (Array.isArray(o.widths)) {
+    if (o.widths.length !== count) fail(call, `widths has ${o.widths.length} widths for ${count} columns`);
+    widths = o.widths.map((c, j) => positive(call, `widths[${j}]`, c));
   } else {
-    widths = Array(count).fill(positive(call, 'cols', o.cols));
+    widths = Array(count).fill(positive(call, 'widths', o.widths));
   }
   const rowH = o.rowH === undefined ? 1.6 * size : positive(call, 'rowH', o.rowH);
   if (o.parts !== undefined && (!Array.isArray(o.parts) || !o.parts.every((r) => r === null || Array.isArray(r)))) {
     fail(call, 'parts must be an array of arrays of part names, null for none');
   }
-  if (o.parts !== undefined && part !== null) fail(call, `parts do not nest: the table is inside ${part}`);
+  const header = o.header === undefined ? true : bool(call, 'header', o.header);
   const left = (j) => x + widths.slice(0, j).reduce((a, b) => a + b, 0);
-  const cell = (r, c) => ({ x: left(c), y: y + r * rowH, w: widths[c], h: rowH });
-  from(() => within(call, o, () => cells.forEach((r, i) => r.forEach((v, j) => {
+  const group = new Group([], style(call, o));
+  const grid = cells.map((r, i) => r.map((v, j) => {
     const name = o.parts && o.parts[i] ? o.parts[i][j] : null;
-    const draw = () => {
-      const f = cell(i, j);
-      box(f.x, f.y, f.w, f.h, i === 0 && o.header === true ? { fill: true } : {});
-      if (v !== '') {
-        const t = textFrame(v, 0, size);
-        text(f.x + pad, f.y + (f.h - t.h) / 2, v);
-      }
-    };
-    if (name === null || name === undefined) draw();
-    else G.part(partName(call, name), draw);
-  }))));
-  const frame = { x, y, w: widths.reduce((a, b) => a + b, 0), h: rowH * cells.length };
-  frame.cell = (r, c) => {
-    if (!Number.isInteger(r) || !Number.isInteger(c) || r < 0 || c < 0 || r >= cells.length || c >= count) {
-      fail('cell', `(${show(r)}, ${show(c)}) is not a cell of ${cells.length} rows and ${count} columns`);
+    const cell = { fill: i === 0 && header ? true : undefined };
+    if (name !== null && name !== undefined) cell.name = partName(call, name);
+    const b = group.add(box(call, left(j), y + i * rowH, widths[j], rowH, cell));
+    if (v !== '') {
+      const t = textFrame(v, 0, size);
+      const own = { size };
+      if (cell.name !== undefined) own.name = cell.name;
+      group.add(text(call, v, b.x + pad, b.y + (rowH - t.h) / 2, own));
     }
-    return cell(r, c);
+    return b;
+  }));
+  group.cell = (r, c) => {
+    if (!Number.isInteger(r) || !Number.isInteger(c) || r < 0 || c < 0 || r >= grid.length || c >= grid[r].length) {
+      fail('t.cell', `(${show(r)}, ${show(c)}) is not a cell of ${cells.length} rows and ${count} columns`);
+    }
+    return grid[r][c].bounds();
   };
-  return frame;
-};
+  return group;
+});

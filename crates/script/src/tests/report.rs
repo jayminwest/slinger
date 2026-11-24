@@ -8,21 +8,21 @@ use crate::{Anchor, Fault, ITEMS, Near, View, run};
 
 #[test]
 fn a_throw_carries_its_source_line_and_the_calls_it_was_in() {
-    let e = failed("function row(y) {\n  box(0, y, 'wide', 10);\n}\nrow(5);\n");
-    assert_eq!((e.kind, e.line, e.col), (Fault::Script, 2, 10), "{e}");
-    assert_eq!(e.shown, "  box(0, y, 'wide', 10);");
-    assert_eq!(e.stack, ["row (script:2:10)", "top level (script:4:1)"]);
+    let e = failed("function row(y) {\n  fig.box(0, y, 'wide', 10);\n}\nrow(5);\n");
+    assert_eq!((e.kind, e.line, e.col), (Fault::Script, 2, 14), "{e}");
+    assert_eq!(e.shown, "  fig.box(0, y, 'wide', 10);");
+    assert_eq!(e.stack, ["row (script:2:14)", "top level (script:4:1)"]);
     assert_eq!(
         e.report(),
-        "script:2:10: box: w must be a number above 0, got \"wide\"\n  \
-         2 |   box(0, y, 'wide', 10);\n    |          ^\n  \
-         at row (script:2:10)\n  at top level (script:4:1)"
+        "script:2:14: fig.box: w must be a number above 0, got \"wide\"\n  \
+         2 |   fig.box(0, y, 'wide', 10);\n    |              ^\n  \
+         at row (script:2:14)\n  at top level (script:4:1)"
     );
 }
 
 #[test]
 fn a_throw_at_the_top_level_shows_its_line_and_no_stack() {
-    let e = failed("box(0, 0, 1, 1);\nthrow new Error('no');\n");
+    let e = failed("fig.box(0, 0, 1, 1);\nthrow new Error('no');\n");
     assert_eq!(
         e.report(),
         "script:2:11: Error: no\n  2 | throw new Error('no');\n    |           ^"
@@ -31,9 +31,9 @@ fn a_throw_at_the_top_level_shows_its_line_and_no_stack() {
 
 #[test]
 fn a_long_source_line_is_cut_round_the_column() {
-    let script = format!("const a = '{}'; box(0, 0, -1, 1);", "x".repeat(300));
+    let script = format!("const a = '{}'; fig.box(0, 0, -1, 1);", "x".repeat(300));
     let e = failed(&script);
-    assert!(e.shown.starts_with('…') && e.shown.contains("box(0, 0, -1, 1)"), "{}", e.shown);
+    assert!(e.shown.starts_with('…') && e.shown.contains("fig.box(0, 0, -1, 1)"), "{}", e.shown);
     assert!(e.shown.chars().count() <= 122, "{}", e.shown);
     assert!(!e.report().contains('^'), "no mark under a cut line");
 }
@@ -44,21 +44,22 @@ fn each_limit_is_a_limit_and_a_fault_is_a_script() {
         "while (true) {}",
         "const a = [];\nfor (;;) a.push(new Array(100000).fill(1));",
         "function f() { return f() + 1; }\nf();",
-        "for (let i = 0; i < 6000; i += 1) box(i, 0, 1, 1);",
+        "for (let i = 0; i < 6000; i += 1) fig.box(i, 0, 1, 1);",
     ] {
         assert_eq!(failed(script).kind, Fault::Limit, "{script}");
     }
     let long = format!("// {}\n", "x".repeat(crate::SCRIPT_BYTES));
     assert_eq!(failed(&long).kind, Fault::Limit);
-    for script in ["box(0, 0);", "nope();", "let = ;", "throw 'x';"] {
+    for script in ["fig.box(0, 0);", "nope();", "let = ;", "throw 'x';"] {
         assert_eq!(failed(script).kind, Fault::Script, "{script}");
     }
 }
 
 #[test]
 fn too_many_shapes_is_a_limit_even_when_the_script_catches_it() {
-    let e =
-        failed("for (let i = 0; i < 6000; i += 1) {\n  try { box(i, 0, 1, 1); } catch (e) {}\n}\n");
+    let e = failed(
+        "for (let i = 0; i < 6000; i += 1) {\n  try { fig.box(i, 0, 1, 1); } catch (e) {}\n}\n",
+    );
     assert_eq!(e.kind, Fault::Limit);
     assert_eq!(e.message, format!("a figure holds at most {ITEMS} shapes"));
 }
@@ -82,7 +83,7 @@ fn a_script_reads_its_anchor_and_the_items_around_it() {
             "around": [{"id": "i9", "kind": "stroke", "x": -5, "y": 10, "w": 20, "h": 2.5}],
         })
     );
-    let d = drawn("box(0, 0, anchor === null ? 10 : 20, 10);");
+    let d = drawn("fig.box(0, 0, anchor === null ? 10 : 20, 10);");
     assert_eq!(d.items.len(), 1);
 }
 

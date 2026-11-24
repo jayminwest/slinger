@@ -7,7 +7,7 @@ use super::{cli_each, json};
 use crate::output::exit;
 
 const SCRIPT: &str =
-    "part('a', () => box(0, 0, fig.data.w || 10, 10));\nwarn('look at ' + fig.view.page);\n";
+    "fig.box(0, 0, (data || {}).w || 10, 10, { name: 'a' });\nwarn('look at ' + fig.view.page);\n";
 
 #[test]
 fn draw_prints_only_the_warnings_and_places_the_figure_at_tenths() {
@@ -75,7 +75,7 @@ fn draw_prints_only_the_warnings_and_places_the_figure_at_tenths() {
 fn a_dry_run_prints_its_png_and_writes_nothing() {
     let dir = tempfile::tempdir().unwrap();
     let script = dir.path().join("f.js");
-    std::fs::write(&script, "box(0, 0, 100, 50, { fill: true, dash: 'dashed' });").unwrap();
+    std::fs::write(&script, "fig.box(0, 0, 100, 50, { fill: true, dash: 'dashed' });").unwrap();
     let png = dir.path().join("f.png");
     let (script, png_path) = (script.to_str().unwrap(), png.to_str().unwrap());
     let runs = cli_each(&[
@@ -107,7 +107,7 @@ fn a_dry_run_prints_its_png_and_writes_nothing() {
 fn a_bad_script_or_a_bad_flag_gets_its_exit_code() {
     let dir = tempfile::tempdir().unwrap();
     let script = dir.path().join("f.js");
-    std::fs::write(&script, "box(0, 0, 10, 10);\ncircle(0, 0, -1);\n").unwrap();
+    std::fs::write(&script, "fig.box(0, 0, 10, 10);\nfig.circle(0, 0, -1);\n").unwrap();
     let script = script.to_str().unwrap();
     let runs = cli_each(&[
         &["canvas", "create", "main"],
@@ -133,5 +133,5 @@ fn a_bad_script_or_a_bad_flag_gets_its_exit_code() {
             exit::NOT_FOUND
         ]
     );
-    assert!(runs[1].err.contains("script:2:1: circle"), "{}", runs[1].err);
+    assert!(runs[1].err.contains("script:2:5: fig.circle"), "{}", runs[1].err);
 }
