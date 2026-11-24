@@ -11,8 +11,11 @@
 //! - arrows become arrows, and an arrow bound to a shape points at its item;
 //! - pages become pages, in tldraw's page order, with their names.
 //!
-//! Colour is kept (as Slinger's own value for each tldraw colour name), and
-//! items are added in tldraw's drawing order, so a later item draws on top.
+//! Colour is kept (as Slinger's own value for each tldraw colour name), and so
+//! are a shape's `fill` (as a tint of its colour) and `dash` (`dashed` and
+//! `dotted`; tldraw's hand-drawn `draw` is solid) on the items that take
+//! them: a box both, a stroke or an arrow its dash. Items are added in
+//! tldraw's drawing order, so a later item draws on top.
 //! Children of groups and frames are placed in page space; the group itself
 //! has no item. A shape with no mapping is skipped and counted in the
 //! [`Report`]. Built from tldraw's file format only (SPEC K3).

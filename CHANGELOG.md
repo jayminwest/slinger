@@ -18,6 +18,9 @@ bullet with the area in bold.
   `closed` in `canvas apply` (`canvas schema` lists them); crops and
   packets draw them. Older versions of slinger open these canvases and lose
   no item, drawing them plain.
+- **Canvas:** a tldraw import keeps each rectangle's fill (as a light tint
+  of its colour) and each rectangle's, drawing's and arrow's dashed or
+  dotted line.
 
 - **App:** a new `[editor] nvim` config key (`"auto"`, `"off"` or the path
   to nvim) picks the nvim that will edit canvas texts. The app reads it now;
