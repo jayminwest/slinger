@@ -426,6 +426,12 @@ impl Editing {
         glyphs::rows_frame(self.at, self.editor.text(), self.size, self.column)
     }
 
+    /// The box all its rows fill ([`glyphs::whole_frame`]): what slinger's
+    /// editor draws while it is typed, past [`glyphs::MOST_ROWS`] too.
+    pub fn whole(&self) -> Rect {
+        glyphs::whole_frame(self.at, self.editor.text(), self.size, self.column)
+    }
+
     /// Its text laid out where it is.
     fn laid(&self) -> Laid<'_> {
         Laid::new(self.editor.text(), self.at, self.size, self.column)

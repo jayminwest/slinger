@@ -122,7 +122,8 @@ fn a_carry_into_a_pane_inside_a_folded_box_joins_it() {
                 find(canvases.follow.open(), "notes", Some(&p2)).and_then(|o| o.mirror.as_ref());
             open.is_some_and(|m| m.box_folded(id) == Some(true))
         });
-        let boxed = Boxed { canvas: "notes".into(), page: p2.clone(), id, folded: true };
+        let boxed =
+            Boxed { canvas: "notes".into(), page: p2.clone(), id, folded: true, text: None };
         canvases.step_into(right, boxed);
 
         // The stroke from (100, 100) to (110, 110) in the left pane, dragged right.
@@ -184,7 +185,8 @@ fn zoom_to_fit_inside_a_box_fits_its_room() {
         let pane = panes.focus();
         assert!(canvases.view(pane).viewport.zoom() < 0.25, "the page opened fitted");
         assert!(canvases.command(&panes, (pane, WINDOW.rect()), Command::ZoomReset));
-        let boxed = Boxed { canvas: "notes".into(), page: "p1".into(), id: big, folded: false };
+        let boxed =
+            Boxed { canvas: "notes".into(), page: "p1".into(), id: big, folded: false, text: None };
         canvases.step_into(pane, boxed);
         assert_eq!(canvases.view(pane).viewport.zoom(), 1.0, "a step in keeps the zoom");
         assert!(canvases.command(&panes, (pane, WINDOW.rect()), Command::ZoomToFit));

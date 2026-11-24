@@ -48,6 +48,7 @@ const NONE: Facts = Facts {
     items: false,
     selected: false,
     boxed: false,
+    steps: false,
     inside: false,
     sling: false,
     entry: false,
@@ -64,7 +65,7 @@ const NONE: Facts = Facts {
 fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
     use Command as C;
     let selected = Facts { selected: true, ..PAGE };
-    let boxed = Facts { boxed: true, ..selected };
+    let boxed = Facts { boxed: true, steps: true, ..selected };
     let shown = Facts { workspace: true, ..PAGE };
     vec![
         (
@@ -126,6 +127,8 @@ fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
         (&[C::ClearSelection], Facts { inside: true, ..PAGE }, Facts { items: false, ..PAGE }),
         (&[C::Fold, C::StepIn, C::StepInBeside], boxed, selected),
         (&[C::Fold], boxed, Facts { items: false, ..boxed }),
+        (&[C::StepIn, C::StepInBeside], Facts { steps: true, ..selected }, selected), // long text
+        (&[C::Fold], boxed, Facts { steps: true, ..selected }),
         (&[C::StepIn, C::StepInBeside], Facts { items: false, ..boxed }, PAGE),
         (&[C::Sling, C::Dictate], Facts { sling: true, ..PAGE }, PAGE),
         (&[C::Dictate], Facts { entry: true, ..NONE }, NONE),

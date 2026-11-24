@@ -269,5 +269,6 @@ fn a_text_s_column_scales_onto_half_a_cell_of_its_new_size() {
     let Some((_, Change::Reshape { items: after, .. })) = next else { panic!("{next:?}") };
     let Shape::Text { size, column, .. } = after[0].shape else { panic!() };
     assert_eq!((size, column), (48.0, Some(5.5 * 24.0)), "5 cells and half of one");
-    assert_eq!(glyphs::rows("hello world", size, column.unwrap()), "hello\nworld", "same rows");
+    let rows = |size, column| glyphs::rows("hello world", size, column);
+    assert_eq!(rows(size, column.unwrap()), rows(24.0, 60.0), "same rows");
 }

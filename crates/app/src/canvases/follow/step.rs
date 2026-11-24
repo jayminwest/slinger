@@ -11,6 +11,7 @@ use crate::canvases::step::{Typed, holds};
 use crate::layout::{PaneId, Point};
 use crate::panes::Panes;
 use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::glyphs;
 use crate::scene::ink::{Change, Ink};
 use crate::scene::select::Selection;
 use crate::scene::shapes::{DOUBLE_TAP, Shapes};
@@ -114,7 +115,9 @@ impl Follow {
     }
 
     /// The folded box whose miniature a press at `at` on `items` (`page`
-    /// of `canvas` as a pane shows it) is on, the topmost, if any.
+    /// of `canvas` as a pane shows it) is on, or the text whose "N more
+    /// lines" row it is on, the topmost, if any: what two quick taps there
+    /// step into.
     pub(in crate::canvases) fn miniature_under(
         &self,
         (canvas, page): (&str, &str),
@@ -122,8 +125,11 @@ impl Follow {
         items: &[Cow<'_, Item>],
     ) -> Option<ItemId> {
         let mirror = self.mirror(canvas, page)?;
-        let on = |i: &&Cow<'_, Item>| match i.shape {
-            Shape::Box { frame, .. } => mirror.box_folded(i.id) == Some(true) && holds(frame, at),
+        let on = |i: &&Cow<'_, Item>| match &i.shape {
+            Shape::Box { frame, .. } => mirror.box_folded(i.id) == Some(true) && holds(*frame, at),
+            Shape::Text { frame, text, size, column: Some(column) } => {
+                glyphs::more(*frame, text, *size, *column).is_some_and(|(row, _)| holds(row, at))
+            }
             _ => false,
         };
         items.iter().rev().find(on).map(|i| i.id)
