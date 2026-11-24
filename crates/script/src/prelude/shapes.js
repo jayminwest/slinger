@@ -161,8 +161,11 @@ function connect(call, args, heads, allowed) {
   return frame;
 }
 
-// A label beside the middle of the line from a to b, never on it: above a
-// line that runs across, to the right of one that runs straight down.
+// A label beside the line from a to b, never on it: above a line that runs
+// across, to the right of one that runs straight down, at its middle. When
+// that spot covers a text or a line already drawn (two arrows into one
+// box), the first free one of the other side, then a third of the way from
+// either end, on either side; with none free, the middle.
 function label(call, a, b, s, o) {
   const size = sizeOf(call, o);
   const f = textFrame(s, 0, size);
@@ -174,12 +177,29 @@ function label(call, a, b, s, o) {
     ny = -ny;
   }
   const away = 6 + Math.abs(nx) * f.w / 2 + Math.abs(ny) * f.h / 2;
-  const cx = (a[0] + b[0]) / 2 + nx * away;
-  const cy = (a[1] + b[1]) / 2 + ny * away;
+  const spot = ([t, side]) => ({
+    x: a[0] + (b[0] - a[0]) * t + side * nx * away - f.w / 2,
+    y: a[1] + (b[1] - a[1]) * t + side * ny * away - f.h / 2,
+    w: f.w,
+    h: f.h,
+  });
+  const spots = [[0.5, 1], [0.5, -1], [0.35, 1], [0.65, 1], [0.35, -1], [0.65, -1]].map(spot);
+  const at = spots.find(free) || spots[0];
   const opts = { size };
   if (o.color !== undefined) opts.color = o.color;
   if (o.locked !== undefined) opts.locked = o.locked;
-  text(cx - f.w / 2, cy - f.h / 2, s, opts);
+  text(at.x, at.y, s, opts);
+}
+
+// Whether frame f covers no text and crosses no line drawn so far.
+function free(f) {
+  return drawn.every((d) => !overlaps(f, grown(d.frame))
+    || (d.kind !== 'text' && !d.segments.some(([p, q]) => crosses(f, p, q))));
+}
+
+// A frame one unit larger each way, so a straight line's empty frame still meets.
+function grown(f) {
+  return { x: f.x - 1, y: f.y - 1, w: f.w + 2, h: f.h + 2 };
 }
 
 function line(...args) {

@@ -115,7 +115,8 @@ slinger canvas put <CANVAS> --beside c12 --in b4 --text "The answer" --agent cla
 ```
 
 Draw a picture with code when a few puts would not do (a diagram, a plot, a
-table, a worksheet): write a JavaScript file and run it as one figure, a
+table, a worksheet): write a JavaScript file (its API is under "Drawing
+scripts" below) and run it as one figure, a
 named set of items the user's pen passes over. Look at it first with
 `--dry-run --png` (it writes nothing), then draw it; a draw of the same
 `--name` again replaces the figure in place. `--at` is in canvas units, the
@@ -263,3 +264,63 @@ When slinger itself gets in your way, leave a note for its maker:
 ```bash
 slinger feedback add "canvas put put my text over the ink"
 ```
+
+## Drawing scripts
+
+The API of a `canvas draw` script.
+
+A drawing script is JavaScript (ES2023, as QuickJS runs it). It draws by
+calling the functions below; each emits shapes at once. Units are canvas
+units, the units a packet prints; y grows down; (0,0) is the figure's
+origin, which `--at` or `--over` places (`--beside` and `--in` place the
+figure's frame instead). Text size is the height of a character cell (24
+unless set); a character is half that wide.
+
+**Colours** are `"#rrggbb"`, `"#rrggbbaa"` or a name: `agent`, `ink`,
+`muted`, `accent`, `error`, `series1` to `series6`, `black`, `white`,
+`red`, `green`, `blue`, `yellow`, `orange`, `purple`, `grey`.
+
+**Options** every shape takes in its last argument, an object; each falls
+back to the nearest enclosing `part`/`group`/`stack`/`table`/`plot`
+that sets it, then to `fig.color`:
+
+| option | takes | default |
+|---|---|---|
+| `color` | a colour | `fig.color` (the agent colour) |
+| `fill` | `true` (a tint of `color`) or a colour (a 20% tint; `#rrggbbaa` as given). `box`, `circle`, `poly` with `closed` | none |
+| `dash` | `"dashed"`, `"dotted"` or `"solid"`. `box`, `line`, `arrow`, `poly`, `circle` | solid |
+| `size` | a text size, 4 to 400. `text`, and tables' and plots' labels | 24 |
+| `locked` | `false` leaves the shape free for the user's pen | `true` |
+
+**Shapes.** Each returns `{x, y, w, h}`, its frame.
+
+| call | draws |
+|---|---|
+| `box(x, y, w, h, opts?)` | a rectangle; `w`, `h` above 0 |
+| `line(x1, y1, x2, y2, opts?)` | a straight line, no heads |
+| `arrow(x1, y1, x2, y2, opts?)` or `arrow(from, to, opts?)` | an arrow; `from`, `to` are `[x, y]` or a frame a shape returned (the arrow meets its edge). `heads`: `"end"` (default), `"both"`, `"none"`; `label`: a text set beside the arrow's middle, never on it, moved along it or to its other side to clear texts and lines drawn before it |
+| `poly(points, opts?)` | a line through `[[x, y], ...]` (two or more); `closed: true` joins the ends; `width` (default 2) |
+| `circle(cx, cy, r, opts?)` | a closed line of 48 points |
+| `text(x, y, str, opts?)` | text from its top left; `w` wraps it at that width |
+| `measure(str, opts?)` | draws nothing: `{w, h}` that `text` would take (`size`, `w`) |
+
+**Structure.**
+
+| call | does |
+|---|---|
+| `part(name, fn)`, `part(name, opts, fn)` | every shape `fn` draws is in part `name` (`a-z`, `0-9`, `-`, up to 40). Parts do not nest. A later turn finds it as `<figure>/<name>` |
+| `group(opts, fn)` | defaults for the shapes `fn` draws |
+| `stack(x, y, opts, fn)` | `fn(s)` places one thing after another: `s.text(str, opts?)`, `s.box(w, h, opts?)`, `s.gap(n)`; `opts.dir` `"down"` (default) or `"right"`, `opts.gap` (default 8). Returns its frame |
+| `table(x, y, rows, opts?)` | a grid: `rows` an array of arrays of strings, one box per cell and one text per non-empty cell; `cols` (a width, or one per column; default fits the widest text), `rowH` (default 1.6 of the size), `header: true` tints the first row, `parts` (an array of arrays of part names, `null` for none). Returns its frame and `cell(r, c)` |
+| `plot(x, y, w, h, opts)` | axes for `opts.x: [min, max]`, `opts.y: [min, max]`: two axis lines, a label per tick in `xticks`/`yticks` (each a value, or `[value, "label"]` such as `[0, "Jan"]`; size 16, `muted`), `xlabel`, `ylabel`, `title` (above the plot). Returns `p` with `p.at(x, y)` (the canvas point `[x, y]` of a value), `p.line(f or [[x, y], ...], opts?)` (one line; `steps` for a function, default 50), `p.dots([[x, y], ...], opts?)` (filled circles of radius 4). Each `line` or `dots` takes the next series colour unless given one |
+
+**Context.** `fig.name` (the figure's name), `fig.data` (the data, `{}` when
+none), `fig.view.target` (`{x: 0, y: 0, w, h}` of the `--over` or `--in`
+item, else `null`), `fig.view.page` (the page's name), `fig.color` (assign
+to change every later default). `warn(message)` adds a warning.
+
+**Not there:** `Date`, timers, `console`, `import`, `fetch`, files. `Math.random`
+is seeded: the same script and data draw the same figure.
+
+**Errors** name the call and the line: `script:12:7: box: w must be a number above 0, got "wide"`.
+Limits: 1 s, 32 MB, 5,000 shapes, a 1 MiB script, 256 KiB of data.

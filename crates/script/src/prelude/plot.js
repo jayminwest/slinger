@@ -7,7 +7,7 @@ G.plot = function (x, y, w, h, opts) {
   number(call, 'y', y);
   positive(call, 'w', w);
   positive(call, 'h', h);
-  const o = options(call, opts, [...STYLE_OPTS, 'x', 'y', 'xticks', 'yticks', 'xlabel', 'ylabel']);
+  const o = options(call, opts, [...STYLE_OPTS, 'x', 'y', 'xticks', 'yticks', 'xlabel', 'ylabel', 'title']);
   const range = (k) => {
     const r = o[k];
     if (!Array.isArray(r) || r.length !== 2 || !r.every((v) => typeof v === 'number' && Number.isFinite(v)) || r[0] === r[1]) {
@@ -18,12 +18,15 @@ G.plot = function (x, y, w, h, opts) {
   const [x0, x1] = range('x');
   const [y0, y1] = range('y');
   const at = (vx, vy) => [x + ((vx - x0) / (x1 - x0)) * w, y + h - ((vy - y0) / (y1 - y0)) * h];
+  // Each tick is a value, labelled with itself, or [value, label].
   const ticks = (k) => {
     const t = o[k] === undefined ? [] : o[k];
-    if (!Array.isArray(t) || !t.every((v) => typeof v === 'number' && Number.isFinite(v))) {
-      fail(call, `${k} must be an array of numbers, got ${show(t)}`);
+    const finite = (v) => typeof v === 'number' && Number.isFinite(v);
+    const tick = (v) => finite(v) || (Array.isArray(v) && v.length === 2 && finite(v[0]) && (typeof v[1] === 'string' || finite(v[1])));
+    if (!Array.isArray(t) || !t.every(tick)) {
+      fail(call, `${k} must be an array of numbers or [value, "label"] pairs, such as [[0, "Jan"], [1, "Feb"]]; got ${show(t)}`);
     }
-    return t;
+    return t.map((v) => (Array.isArray(v) ? [v[0], String(v[1])] : [v, String(v)]));
   };
   const scope = Object.assign({}, o);
   if (scope.size === undefined) scope.size = 16;
@@ -32,13 +35,11 @@ G.plot = function (x, y, w, h, opts) {
     line(x, y, x, y + h);
     line(x, y + h, x + w, y + h);
     const label = { color: 'muted' };
-    for (const t of ticks('xticks')) {
-      const s = String(t);
+    for (const [t, s] of ticks('xticks')) {
       const f = textFrame(s, 0, size);
       text(at(t, y0)[0] - f.w / 2, y + h + 4, s, label);
     }
-    for (const t of ticks('yticks')) {
-      const s = String(t);
+    for (const [t, s] of ticks('yticks')) {
       const f = textFrame(s, 0, size);
       text(x - 6 - f.w, at(x0, t)[1] - f.h / 2, s, label);
     }
@@ -48,6 +49,11 @@ G.plot = function (x, y, w, h, opts) {
       text(x + (w - f.w) / 2, y + h + 8 + size, s);
     }
     if (o.ylabel !== undefined) text(x + 6, y - 4 - size, words(call, o.ylabel));
+    // The title stands above the y label, half as large again as the labels.
+    if (o.title !== undefined) {
+      const big = Math.min(size * 1.5, 400);
+      text(x, y - 4 - (o.ylabel !== undefined ? size + 4 : 0) - big, words(call, o.title), { size: big });
+    }
   });
   let series = 0;
   const next = (lopts) => {

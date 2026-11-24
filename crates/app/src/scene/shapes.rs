@@ -204,7 +204,10 @@ impl Shapes {
         }
         let edits = tool == Tool::Text || (double && tool != Tool::Pen);
         if let Some(item) = text_at(items, press.at, reach).filter(|_| edits) {
-            let Some(editing) = start::edit((canvas, page), item, items) else { return true };
+            let Some(mut editing) = start::edit((canvas, page), item, items) else { return true };
+            if tool != Tool::Text {
+                start::on_cell(&mut editing, press.at);
+            }
             if matches!(tool, Tool::Select | Tool::Lasso) {
                 self.waiting = Some((editing, press.at, reach));
                 return false;

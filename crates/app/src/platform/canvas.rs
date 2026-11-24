@@ -212,7 +212,10 @@ fn paint(scene: &Scene, dirty: NSRect, texts: &mut HashMap<ItemId, Laid>) {
         }
         match &draw.mark {
             Mark::Stroke { .. } | Mark::Box { .. } | Mark::Arrow { .. } => {}
-            Mark::Text { at, width, text, size, line, zoom } => {
+            Mark::Text { at, size, line, zoom, written: Some(written), .. } => {
+                super::cells::write(written, draw.colour, *at, (*line, *size), *zoom);
+            }
+            Mark::Text { at, width, text, size, line, zoom, written: None } => {
                 let from = (text.clone(), *width, *size, *line, draw.colour);
                 draw_text(laid(texts, draw.id, from), *at, *zoom);
             }

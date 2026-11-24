@@ -45,12 +45,12 @@ const UNDER: usize = 1;
 
 /// Runs once Nvim has loaded the user's config: makes the buffer a scratch
 /// markdown one (no file, no swap, no undo file) holding the lines given,
-/// with no undo step for the seed, the cursor at the end, in insert mode for
-/// a new text; takes the gutter, the ruler and the status lines away and
+/// with no undo step for the seed, the cursor on the line and byte given
+/// (where the text was pressed, or its end), in insert mode for a new text; takes the gutter, the ruler and the status lines away and
 /// wraps at word ends, over whatever the config set; then says it is
 /// ready. An Nvim older than 0.10 says so instead.
 const INIT: &str = r"
-local lines, insert = ...
+local lines, insert, row, col = ...
 if vim.fn.has('nvim-0.10') == 0 then
   local v = vim.version()
   vim.rpcnotify(0, 'slinger_old', v.major .. '.' .. v.minor .. '.' .. v.patch)
@@ -76,7 +76,7 @@ local function setup()
   end
   vim.o.laststatus, vim.o.showtabline, vim.o.ruler, vim.o.cmdheight = 0, 0, false, 1
   vim.o.breakat = ' '
-  vim.api.nvim_win_set_cursor(0, { #lines, math.max(#lines[#lines] - 1, 0) })
+  vim.api.nvim_win_set_cursor(0, { row, math.max(math.min(col, #lines[row] - 1), 0) })
   if insert then vim.cmd('startinsert!') end
   vim.rpcnotify(0, 'slinger_ready')
 end
@@ -105,7 +105,6 @@ return { rows, vim.fn.getwininfo(win)[1].textoff }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Asked {
     Init,
-    Barrier,
     Measure,
 }
 
@@ -120,7 +119,7 @@ pub enum Heard {
     Lines,
     /// The config is loaded and the buffer seeded: what was held is sent.
     Ready,
-    /// The reply to [`Session::barrier`]: every key sent before it is done.
+    /// The word [`Session::barrier`] asked for: every key sent before it is done.
     Barrier,
     /// This Nvim is older than 0.10 (its version): it cannot edit a text.
     Old(String),
@@ -146,12 +145,16 @@ pub struct Session {
     /// Whether a measure is out, and whether another flush came since.
     measuring: bool,
     stale: bool,
+    /// The barriers asked, and the mode (`mode(1)`) the last one found.
+    barriers: i64,
+    settled: Option<String>,
 }
 
 impl Session {
     /// A session editing `text` (`insert`: in insert mode, as a new text
-    /// starts): `out` gets the UI attach and the seed.
-    pub fn start(text: &str, insert: bool, out: &mut Vec<u8>) -> Self {
+    /// starts), its cursor at the byte `caret`: `out` gets the UI attach
+    /// and the seed.
+    pub fn start(text: &str, (insert, caret): (bool, usize), out: &mut Vec<u8>) -> Self {
         let lines: Vec<&str> = text.split('\n').collect();
         let size = (COLUMNS, lines.len().clamp(1, MOST_ROWS) + UNDER);
         let mut session = Session {
@@ -163,6 +166,8 @@ impl Session {
             grid: Grid::new(SESSIONS.fetch_add(1, Ordering::Relaxed)),
             measuring: false,
             stale: false,
+            barriers: 0,
+            settled: None,
         };
         let options = Value::Map(vec![
             (Value::str("ext_linegrid"), Value::Bool(true)),
@@ -170,7 +175,11 @@ impl Session {
         ]);
         session.write(None, "nvim_ui_attach", vec![int(size.0), int(size.1), options], out);
         let seed = Value::Array(lines.iter().map(|l| Value::str(l)).collect());
-        let args = vec![Value::str(INIT), Value::Array(vec![seed, Value::Bool(insert)])];
+        let before = &text[..text.floor_char_boundary(caret.min(text.len()))];
+        let row = before.matches('\n').count() + 1;
+        let col = before.len() - before.rfind('\n').map_or(0, |n| n + 1);
+        let cursor = [Value::Bool(insert), int(row), int(col)];
+        let args = vec![Value::str(INIT), Value::Array([vec![seed], cursor.to_vec()].concat())];
         session.write(Some(Asked::Init), "nvim_exec_lua", args, out);
         session
     }
@@ -186,10 +195,11 @@ impl Session {
         self.ready
     }
 
-    /// Whether Nvim is in normal mode with nothing pending that the mode
-    /// says (an operator waiting for its motion is `operator`).
+    /// Whether Nvim was in normal mode, with nothing pending, when the
+    /// last barrier was taken: false until it is, and in any other mode
+    /// (an operator waiting for its motion, a normal command from insert).
     pub fn normal(&self) -> bool {
-        self.grid.mode_name == "normal"
+        self.settled.as_deref() == Some("n")
     }
 
     /// Nvim's screen as last heard: whole after [`Heard::Flushed`].
@@ -236,9 +246,18 @@ impl Session {
         self.request(None, "nvim_paste", args, out);
     }
 
-    /// Asks for a reply that comes once Nvim has taken every key sent so far.
+    /// Asks for word ([`Heard::Barrier`]) once Nvim has taken every key
+    /// sent so far, with the mode they left it in ([`Session::normal`]).
+    /// It goes in with the keys, in turn: Nvim may answer a request before
+    /// it takes keys sent ahead of it (a lone escape is held for
+    /// 'ttimeoutlen'), and sends a mode change only when it next flushes.
+    /// A pending operator or count is ended by it, as an escape would.
     pub fn barrier(&mut self, out: &mut Vec<u8>) {
-        self.request(Some(Asked::Barrier), "nvim_eval", vec![Value::str("1")], out);
+        self.barriers += 1;
+        self.settled = None;
+        let keys =
+            format!("<Cmd>call rpcnotify(0, 'slinger_barrier', {}, mode(1))<CR>", self.barriers);
+        self.input(&keys, out);
     }
 
     /// A request: written to `out` once ready, held until then.
@@ -289,6 +308,13 @@ impl Session {
                         self.ready = true;
                         Heard::Ready
                     }
+                    Some("slinger_barrier") => match params {
+                        [Value::Int(n), mode] if *n == self.barriers => {
+                            self.settled = mode.as_str().map(str::to_string);
+                            Heard::Barrier
+                        }
+                        _ => Heard::Nothing,
+                    },
                     Some("slinger_old") => {
                         Heard::Old(params.first().and_then(Value::as_str).unwrap_or("").into())
                     }
@@ -305,7 +331,6 @@ impl Session {
                         self.measuring &= asked != Some(Asked::Measure);
                         Heard::Failed(said(error))
                     }
-                    Some(Asked::Barrier) => Heard::Barrier,
                     Some(Asked::Measure) => {
                         self.measured(result, out);
                         Heard::Nothing

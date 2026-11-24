@@ -152,8 +152,8 @@ fn other_keys_go_on_to_the_keymap() {
 fn a_press_places_the_caret_and_a_drag_or_shift_selects() {
     let mut e = at("abc\ndef|");
     let laid = Laid::new("abc\ndef", Point { x: 100.0, y: 50.0 }, SIZE, EIGHT);
-    assert_eq!(laid.index_at(Point { x: 114.0, y: 52.0 }), 1, "nearer b's start than its end");
-    assert_eq!(laid.index_at(Point { x: 116.0, y: 52.0 }), 2);
+    assert_eq!(laid.index_at(Point { x: 107.0, y: 52.0 }), 1, "nearer b's start than its end");
+    assert_eq!(laid.index_at(Point { x: 108.0, y: 52.0 }), 2);
     assert_eq!(laid.index_at(Point { x: 500.0, y: 65.0 }), 7, "right of a row: its end");
     assert_eq!(laid.index_at(Point { x: 0.0, y: -40.0 }), 0, "above: the first row");
     e.place(1, false);
@@ -172,9 +172,10 @@ fn the_caret_and_the_selection_are_drawn_in_the_rows() {
     let row = |start, end| glyphs::Row { start, end };
     assert_eq!(laid.rows(), [row(0, 7), row(8, 13)]);
     let rect = |x, y, width| Rect { x, y, width, height: SIZE };
-    assert_eq!(laid.caret(2, 1.0), rect(120.0, 50.0, 1.0));
-    assert_eq!(laid.caret(10, 1.0), rect(120.0, 60.0, 1.0), "in the second row");
-    assert_eq!(laid.selection(4, 10, 2.0), [rect(140.0, 50.0, 30.0), rect(100.0, 60.0, 20.0)]);
+    // A cell (5 points) a character, whatever the font measures.
+    assert_eq!(laid.caret(2, 1.0), rect(110.0, 50.0, 1.0));
+    assert_eq!(laid.caret(10, 1.0), rect(110.0, 60.0, 1.0), "in the second row");
+    assert_eq!(laid.selection(4, 10, 2.0), [rect(120.0, 50.0, 15.0), rect(100.0, 60.0, 10.0)]);
     let empty = Laid::new("a\n\nb", Point { x: 0.0, y: 0.0 }, SIZE, EIGHT);
     assert_eq!(empty.selection(0, 4, 2.0)[1], rect(0.0, 10.0, 2.0), "an empty line shows");
 }
@@ -196,9 +197,9 @@ fn the_caret_moves_and_deletes_by_whole_grapheme_clusters() {
     assert_eq!(pressed(&mut e, &["alt+left", "alt+right"]), format!("caf{e_acute}| x"), "a word");
     let text = format!("{family}b");
     let laid = Laid::new(&text, Point { x: 0.0, y: 0.0 }, SIZE, 1e7);
-    // The stand-in measure gives the family's five scalars 50 points.
-    assert_eq!(laid.index_at(Point { x: 20.0, y: 0.0 }), 0, "a press snaps out of a cluster");
-    assert_eq!(laid.index_at(Point { x: 30.0, y: 0.0 }), family.len());
+    // The family's joiners take no cell: its three people are 15 points.
+    assert_eq!(laid.index_at(Point { x: 5.0, y: 0.0 }), 0, "a press snaps out of a cluster");
+    assert_eq!(laid.index_at(Point { x: 10.0, y: 0.0 }), family.len());
 }
 
 /// `text` being typed at the origin, size 10, in `column`.
@@ -223,16 +224,16 @@ fn a_double_tap_selects_a_word_and_a_triple_tap_a_row() {
         e.tap(Point { x, y }, false, taps);
         shown(&e.editor)
     };
-    assert_eq!(tap(&mut e, 12.0, 2.0, 1), "o|ne, two\n\nthree");
-    assert_eq!(tap(&mut e, 12.0, 2.0, 2), "[one], two\n\nthree");
-    assert_eq!(tap(&mut e, 30.0, 2.0, 2), "[one], two\n\nthree", "at a word's end, that word");
-    assert_eq!(tap(&mut e, 42.0, 2.0, 2), "one[, ]two\n\nthree", "between words, the gap");
+    assert_eq!(tap(&mut e, 6.0, 2.0, 1), "o|ne, two\n\nthree");
+    assert_eq!(tap(&mut e, 6.0, 2.0, 2), "[one], two\n\nthree");
+    assert_eq!(tap(&mut e, 15.0, 2.0, 2), "[one], two\n\nthree", "at a word's end, that word");
+    assert_eq!(tap(&mut e, 21.0, 2.0, 2), "one[, ]two\n\nthree", "between words, the gap");
     assert_eq!(tap(&mut e, 999.0, 2.0, 2), "one, [two]\n\nthree", "past the row, its last word");
     assert_eq!(tap(&mut e, 5.0, 12.0, 2), "one, two\n|\nthree", "an empty line: the caret");
-    assert_eq!(tap(&mut e, 12.0, 22.0, 3), "one, two\n\n[three]");
-    assert_eq!(tap(&mut e, 12.0, 2.0, 4), "[one, two]\n\nthree", "and on");
+    assert_eq!(tap(&mut e, 6.0, 22.0, 3), "one, two\n\n[three]");
+    assert_eq!(tap(&mut e, 6.0, 2.0, 4), "[one, two]\n\nthree", "and on");
     let mut e = typing("one two three", EIGHT);
-    assert_eq!(tap(&mut e, 12.0, 12.0, 3), "one two [three]", "a wrapped row, not the line");
+    assert_eq!(tap(&mut e, 6.0, 12.0, 3), "one two [three]", "a wrapped row, not the line");
 }
 
 #[test]

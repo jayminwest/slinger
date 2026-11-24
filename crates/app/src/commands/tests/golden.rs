@@ -77,7 +77,8 @@ fn recorded() -> String {
         items(&mut out, &bar.items);
     }
     out.push_str("# context menus (checked: tool-pen; nothing can act)\n");
-    let kinds = [Kind::Stroke, Kind::Text, Kind::Box, Kind::Arrow, Kind::Pdf, Kind::Live];
+    let kinds =
+        [Kind::Stroke, Kind::Text, Kind::LongText, Kind::Box, Kind::Arrow, Kind::Pdf, Kind::Live];
     let subjects = [Subject::Canvas, Subject::Pane { ui: false }, Subject::Pane { ui: true }]
         .into_iter()
         .chain(kinds.map(|kind| Subject::Item { kind }))

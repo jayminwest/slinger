@@ -32,7 +32,7 @@ fn lines(tick: Value, first: i64, last: i64, lines: &[&str]) -> Value {
 #[test]
 fn the_buffer_is_attached_only_once_ready_and_what_came_before_follows_in_order() {
     let mut out = Vec::new();
-    let mut session = Session::start("plan", false, &mut out);
+    let mut session = Session::start("plan", (false, usize::MAX), &mut out);
     assert_eq!(methods(&out), ["nvim_ui_attach", "nvim_exec_lua"]);
     out.clear();
     session.input("ihello", &mut out);
@@ -41,7 +41,7 @@ fn the_buffer_is_attached_only_once_ready_and_what_came_before_follows_in_order(
     assert!(out.is_empty(), "nothing goes before the config has loaded");
     assert!(!session.ready());
     assert_eq!(session.hear(&notify("slinger_ready", vec![]), &mut out), Heard::Ready);
-    assert_eq!(methods(&out), ["nvim_buf_attach", "nvim_input", "nvim_paste", "nvim_eval"]);
+    assert_eq!(methods(&out), ["nvim_buf_attach", "nvim_input", "nvim_paste", "nvim_input"]);
     let keys = &sent(&out)[1].1;
     assert_eq!(keys, &[Value::str("ihello")]);
     out.clear();
@@ -51,9 +51,29 @@ fn the_buffer_is_attached_only_once_ready_and_what_came_before_follows_in_order(
 }
 
 #[test]
+fn the_seed_puts_the_cursor_on_the_line_and_byte_of_the_caret() {
+    let mut out = Vec::new();
+    Session::start("ab\ncd ef", (false, 5), &mut out);
+    let seed = &sent(&out)[1].1[1];
+    let lines = Value::Array(vec![Value::str("ab"), Value::str("cd ef")]);
+    let cursor = [Value::Bool(false), Value::Int(2), Value::Int(2)];
+    assert_eq!(seed, &Value::Array([vec![lines], cursor.to_vec()].concat()), "line 2, byte 2");
+    out.clear();
+    Session::start("ab", (true, usize::MAX), &mut out);
+    let seed = &sent(&out)[1].1[1];
+    let end = Value::Array(vec![
+        Value::Array(vec![Value::str("ab")]),
+        Value::Bool(true),
+        Value::Int(1),
+        Value::Int(2),
+    ]);
+    assert_eq!(seed, &end, "past the end: the end");
+}
+
+#[test]
 fn the_text_is_confirmed_only_by_the_whole_buffer() {
     let mut out = Vec::new();
-    let mut session = Session::start("one\ntwo", false, &mut out);
+    let mut session = Session::start("one\ntwo", (false, usize::MAX), &mut out);
     assert_eq!(session.text(), None);
     assert_eq!(session.hear(&lines(Value::Int(2), 1, 2, &["x"]), &mut out), Heard::Nothing);
     assert_eq!(session.text(), None, "a part of a buffer confirms nothing");
@@ -64,7 +84,7 @@ fn the_text_is_confirmed_only_by_the_whole_buffer() {
 #[test]
 fn line_events_keep_the_mirror_and_a_preview_does_not() {
     let mut out = Vec::new();
-    let mut session = Session::start("one\ntwo\nthree", false, &mut out);
+    let mut session = Session::start("one\ntwo\nthree", (false, usize::MAX), &mut out);
     let whole = lines(Value::Int(2), 0, -1, &["one", "two", "three"]);
     assert_eq!(session.hear(&whole, &mut out), Heard::Lines);
     assert_eq!(session.hear(&lines(Value::Int(3), 1, 2, &["2", "2.5"]), &mut out), Heard::Lines);
@@ -75,9 +95,9 @@ fn line_events_keep_the_mirror_and_a_preview_does_not() {
 }
 
 #[test]
-fn replies_mean_a_barrier_a_broken_seed_or_a_failure_and_requests_get_an_error() {
+fn replies_mean_a_broken_seed_or_a_failure_and_requests_get_an_error() {
     let mut out = Vec::new();
-    let mut session = Session::start("", true, &mut out);
+    let mut session = Session::start("", (true, usize::MAX), &mut out);
     let reply = |id: i64, error: Value| {
         Value::Array(vec![Value::Int(1), Value::Int(id), error, Value::Nil])
     };
@@ -87,11 +107,6 @@ fn replies_mean_a_barrier_a_broken_seed_or_a_failure_and_requests_get_an_error()
         Heard::Broken("E5108: boom".into())
     );
     assert_eq!(session.hear(&reply(1, error), &mut out), Heard::Failed("E5108: boom".into()));
-    session.hear(&notify("slinger_ready", vec![]), &mut out);
-    out.clear();
-    session.barrier(&mut out);
-    let id = 4; // 1 attach, 2 seed, 3 buffer attach
-    assert_eq!(session.hear(&reply(id, Value::Nil), &mut out), Heard::Barrier);
     out.clear();
     let asked =
         Value::Array(vec![Value::Int(0), Value::Int(9), Value::str("x"), Value::Array(vec![])]);
@@ -100,9 +115,37 @@ fn replies_mean_a_barrier_a_broken_seed_or_a_failure_and_requests_get_an_error()
 }
 
 #[test]
+fn a_barrier_goes_in_with_the_keys_and_its_word_says_the_mode_they_left() {
+    let mut out = Vec::new();
+    let mut session = Session::start("", (true, usize::MAX), &mut out);
+    session.hear(&notify("slinger_ready", vec![]), &mut out);
+    out.clear();
+    session.input("<Esc>", &mut out);
+    session.barrier(&mut out);
+    let asked = sent(&out);
+    assert_eq!(
+        asked[1].0, "nvim_input",
+        "in turn with the keys, not a request Nvim may answer first"
+    );
+    let keys = asked[1].1[0].as_str().unwrap();
+    assert!(keys.starts_with("<Cmd>") && keys.contains("'slinger_barrier', 1, mode(1)"), "{keys}");
+    let word =
+        |n: i64, mode: &str| notify("slinger_barrier", vec![Value::Int(n), Value::str(mode)]);
+    session.barrier(&mut out);
+    assert_eq!(session.hear(&word(1, "n"), &mut out), Heard::Nothing, "an old barrier's word");
+    assert!(!session.normal());
+    assert_eq!(session.hear(&word(2, "n"), &mut out), Heard::Barrier);
+    assert!(session.normal());
+    session.barrier(&mut out);
+    assert!(!session.normal(), "not known again until its word comes");
+    assert_eq!(session.hear(&word(3, "no"), &mut out), Heard::Barrier);
+    assert!(!session.normal(), "an operator waits for its motion");
+}
+
+#[test]
 fn the_mode_follows_mode_change_and_a_flush_is_heard() {
     let mut out = Vec::new();
-    let mut session = Session::start("", false, &mut out);
+    let mut session = Session::start("", (false, usize::MAX), &mut out);
     let change = |mode: &str| {
         Value::Array(vec![
             Value::str("mode_change"),
@@ -111,12 +154,13 @@ fn the_mode_follows_mode_change_and_a_flush_is_heard() {
     };
     let flush = Value::Array(vec![Value::str("flush"), Value::Array(vec![])]);
     assert_eq!(session.hear(&notify("redraw", vec![change("insert")]), &mut out), Heard::Nothing);
-    assert!(!session.normal());
+    assert_eq!(session.grid().mode_name, "insert");
     assert_eq!(
         session.hear(&notify("redraw", vec![change("normal"), flush]), &mut out),
         Heard::Flushed
     );
-    assert!(session.normal());
+    assert_eq!(session.grid().mode_name, "normal");
+    assert!(!session.normal(), "only a barrier says the keys are all taken");
     assert_eq!(
         session.hear(&notify("slinger_old", vec![Value::str("0.9.5")]), &mut out),
         Heard::Old("0.9.5".into())
@@ -126,7 +170,7 @@ fn the_mode_follows_mode_change_and_a_flush_is_heard() {
 #[test]
 fn each_flush_once_ready_measures_and_the_grid_follows_the_text_and_the_gutter() {
     let mut out = Vec::new();
-    let mut session = Session::start("one", false, &mut out);
+    let mut session = Session::start("one", (false, usize::MAX), &mut out);
     let flush =
         || notify("redraw", vec![Value::Array(vec![Value::str("flush"), Value::Array(vec![])])]);
     out.clear();
