@@ -1,74 +1,401 @@
 # Figures: an agent draws with code
 
-Status: design closed overnight 2026-11-24 (slinger-e8d6e3, plan pl-9f74c2,
-parent slinger-cb0227), owner to confirm the picks in "Recommended" at the
-end. Inputs: SPEC D6 and section 4, B4, B5, B6, the canvas file
-(`docs/design/canvas-file.md`), the packet (`docs/design/packet.md`), folds
-(`docs/design/fold.md`), live items (`docs/design/live-items.md`), the plan's
-context, approach and alternatives (`sd plan show pl-9f74c2`) and its seeds.
+Status: draft 2026-11-24, owner to confirm. Nothing here is built. Inputs:
+D6, D11, D13, D19, K4, B1, B6, B9, the canvas file
+(`docs/design/canvas-file.md`), fold (`docs/design/fold.md`), live items
+(`docs/design/live-items.md`) and the engine spike below.
 
-The draft this page was to finish (the spike results and the owner's
-answers) never reached the repository: the spike is gone and its numbers
-are kept only where the plan and its seeds quote them. This page rebuilds
-the design from those, and every later step of the plan reads this page
-alone. A step that cannot do what it says reports that; it does not pick
-another way.
+> **Note, written overnight 2026-11-24 (not the owner's text).** Steps 2 to
+> 13 of plan pl-9f74c2 were built that night from a page rebuilt from the
+> plan and its seeds, because this draft had not reached local `main`.
+> Every section from here to "Build order", and Appendices A and B, is the
+> owner's text, unchanged: it is the authority for decisions, the spike and
+> intent. Where the build differs, "Differences between this design and
+> what was built on 2026-11-24" says so, one row each. "As built" keeps what
+> the rebuilt page added that this draft does not cover (old readers, file
+> keys, draw order, names and addresses, the gesture table, paste, packet
+> detail, the fluency round, the files to split, the overnight picks), and
+> Appendices C and D are the script API and the reference worksheet as
+> shipped.
 
-## What it is for
+## The gap
 
-Agents answer on the canvas with a paragraph of text. The reference is a
-tldraw worksheet an agent made from one script: 64 placed shapes (plots,
-dashed answer areas, dotted areas the agent later filled) that the user wrote
-1,023 strokes on. Slinger cannot make it today: items have no fill, dash,
-lock or plain line; placing 60 items by verb is slow and error-prone for an
-agent; and nothing names "the answer area for 1a" so a later turn can find
-it. The worksheet is one example: the same mechanism covers diagrams, plots,
-tables, boards and marks drawn over the user's own work.
+An agent answers a sling with one short text beside the ink. The reference
+for "better" is a worksheet a tutor agent made in tldraw on 2026-11-03
+(`~/sync/learning/canvas/lessons.tldraw`, page `mech-interp 106 logits`): 64
+shapes from one script. It had headings, answer areas sized for handwriting
+(dashed: yours; dotted: the agent fills it in), a bar chart whose heights came
+from the numbers, and feedback that landed in the area kept for it. The user
+wrote 1,023 strokes on it.
 
-**A figure** is a set of ordinary canvas items that share a name (`fig`),
-some with a **part** name, locked against the user's pen by default, made by
-one agent from one **script** and its **data**. The script is JavaScript the
-agent writes; the daemon runs it in an embedded, bounded QuickJS and places
-what it returns. An update is a data patch (`canvas redraw`): the daemon runs
-the script again and rewrites only what changed.
+The worksheet is one example, not the scope. The scope is: an agent makes
+any structured, computed picture on the canvas (a chart, a diagram, a table,
+a timeline, marks on the user's own ink), the user draws on it, and the agent
+changes it later without redrawing it by hand.
 
-## Decided by the owner (2026-11-24, not reopened here)
+Slinger today cannot do this for three reasons:
 
-Collected from the plan's approach and alternatives and the seeds' "Decided"
-lines. They do not go in `docs/open-picks.md`.
+1. No fill, no dash, no lock and no plain line (D6).
+2. `canvas apply` is a log of changes in page coordinates, not a thing to
+   draw with. Every agent would write its own drawing library over it.
+3. What an agent draws is loose items. Nothing says "these 64 are one
+   worksheet" or "this box is answer (a)".
 
-1. **The engine:** QuickJS (quickjs-ng through rquickjs, MIT), in the
-   daemon's process, in a new crate `crates/script` that only the daemon
-   links. Pure: script, data and a read-only view in; shapes out. Rejected:
-   the agent running its own script into `canvas apply` (no figure, no
-   parts, no redraw), a declarative layout tree, an HTML live item (no pen
-   on it), Boa (no memory limit, 175 crates, 3.7x slower), Starlark (failed
-   the worksheet; no classes).
-2. **The nouns and verbs:** figure and part; `canvas draw`, `canvas redraw`,
-   `canvas figure`. A figure is its script plus its data. Membership is a
-   field on each item, never a figure item that lists child ids.
-3. **Locked by default, and the unlock:** a figure's items are locked
-   against the user's pen. One command, "unlock figure", on the figure under
-   the pointer: it selects the whole figure as one unit (move, duplicate,
-   delete), and the figure is locked again when deselected. No lock/unlock
-   toggle, no single-item unlock. A duplicate of a whole figure is a new
-   figure with a new name.
-4. **Script units:** whole canvas units, the units the packet prints. A
-   script never sees tenths.
-5. **The default figure colour:** the agent colour, which the daemon passes
-   in. The agent colour is a theme config key (the app's
-   `crates/app/src/config/theme.rs`). Colour defaults nest: `fig.color`, then
-   part, group, stack, table and plot; the nearest wins.
-6. **Fills are always under ink:** under every outline, stroke and text,
-   above PDF pages. Nothing raises a fill.
+## Proposed, in short
 
-Also decided: named theme colours beside hex (the names and the plot series
-are picked below), and the fluency rules from the spike: `arrow` takes
-`line`'s arguments or `(from, to)`; bad arguments fail at the call, by name;
-an arrow's label sits beside the arrow, not on it; the engine warns on text
-over a line and on overlapping texts.
+1. **A drawing API that slinger owns.** An agent writes one JavaScript file
+   against it. Slinger runs the file in a sandbox and makes the items.
+2. **A figure.** What one script draws is one named thing with named parts.
+   It has its own coordinates; slinger places it.
+3. **A figure is its script and its data.** To change a figure, change its
+   data; slinger runs the script again and changes only what differs.
+4. **Four new item fields:** `fill`, `dash`, `locked` and a line with no
+   head. These amend D6.
 
-## Owners
+## Where the code runs (B6: the alternatives)
+
+**A. Slinger runs the script (picked).** One API, versioned with the binary,
+tested here. The run is a pure function: script, data and a read-only view
+of the canvas in; a list of shapes out. The same core operations as
+`canvas apply` put them on the page, so there is still one way to change a
+canvas.
+
+**B. The agent runs its own script and pipes operations to `canvas apply`.**
+Works today with no new code. Rejected: slinger would own no drawing API,
+each agent's helpers would differ, text could not be measured before it is
+placed, and the result would be loose items (reason 3 above).
+
+**C. A layout tree (rows and columns) that the core resolves.** Rejected by
+the owner: it only stacks. Axes, vectors and diagrams need free coordinates.
+What it was good for (stack, grid, table) is in A as helpers.
+
+**D. HTML in a live item.** Exists (O1). It is the right tool for a control
+(a picker, a slider). It is the wrong one here: the user cannot write on it
+with the pen, the agent cannot change one part of it, and its content is not
+in the packet.
+
+## The engine spike (B9: the code is outside the repository)
+
+One harness for each engine ran the same prelude and the same scripts: the
+worksheet (56 items) and a harder page (a plot of three curves with ticks, a
+4-layer network of 10 circles and 23 arrows, a table: 78 items). Release
+build with this workspace's profile (fat LTO, strip), rustc 1.99, Apple
+silicon.
+
+| | QuickJS (rquickjs 0.14, quickjs-ng 0.16.2) | Boa 0.22 | Starlark 0.14 |
+|---|---|---|---|
+| Language | JavaScript | JavaScript | a Python subset |
+| Code | C, one vendored library | Rust | Rust |
+| Crates added | 8 | 175 | 182 |
+| Clean build | 11 s | 91 s | 42 s |
+| Binary over an empty one | 1.07 MB | 7.68 MB | 4.68 MB |
+| Worksheet, one run (new engine each run, mean of 200) | 0.60 ms | 2.22 ms | did not finish |
+| `while (true) {}` | stopped at the 1 s deadline | stopped at a loop count | stopped at a tick count |
+| Fill memory forever | "out of memory" at the 32 MB limit, 31 ms | **no limit: ran until killed** | stopped at the heap limit |
+| Endless recursion | error | error | error |
+| A thrown error names line and column | yes, with the call stack | yes | yes, with the source line |
+| A syntax error names line and column | yes | yes | yes (the line after) |
+
+(`slingerd` is 4.4 MB today.)
+
+- QuickJS and Boa gave byte-identical output for all three scripts,
+  including a script of modern syntax (classes, private fields, generators,
+  spread, optional chaining, BigInt, named groups, `toSorted`).
+- Neither has `fetch`, `require`, `process`, `setTimeout` or `console` unless
+  the host adds it. Both have `Date` and `Math.random`; the host removes them.
+- Starlark failed the worksheet three times on what it lacks: no `math`
+  module (no `exp`), no `sum`, no `"%.3f"`. It has no classes and no
+  closures over a changing value. An agent writes Python well and Starlark
+  badly.
+- Boa 0.22's limits are loop count, recursion depth and stack size. It has
+  no memory limit, so one script can take the daemon down.
+
+**Pick: QuickJS.** It is the only one with a time limit, a memory limit and
+a stack limit that all held, it is the smallest and the fastest, and agents
+already write its language.
+
+**Its cost:** C code. The core stays pure (`core-is-pure`), so the engine
+goes in a new crate, `crates/script`, that only the daemon links. Nothing
+else names the engine (a layer rule), so it can be replaced. A build needs a
+C compiler; `rusqlite` (bundled SQLite) already needs one. The crates and
+QuickJS are MIT, which `deny.toml` allows. Built only on
+`aarch64-apple-darwin` in the spike; the other three targets in `deny.toml`
+are not checked.
+
+### Can a small model use the API first time?
+
+Three fresh agents on the smallest model (claude-haiku-5-5) each got only
+the reference in the appendix and one task the reference has no example of:
+a timeline from data, a vector-addition diagram with a table and an answer
+area, and a kanban board from data. They could not run anything.
+
+| Task | Script | First run |
+|---|---|---|
+| Timeline (6 events, alternating sides) | 51 lines, 31 items | ran, right |
+| Kanban (3 columns, cards fit their text) | 42 lines, 18 items | ran, right |
+| Vector addition | 57 lines, 59 items | failed: it called `fig.arrow(x1, y1, x2, y2)` as `fig.line` takes, and `arrow` took two points |
+
+What the failure changed in the API, not in the script:
+
+- Calls that draw the same kind of thing take the same arguments. `arrow`
+  now takes four numbers as `line` does, or two points or handles. The
+  script then ran unchanged and was right.
+- A bad argument fails at the call, by name: `fig.line: a point must be
+  [x, y], got ["ten",5]`, with the script's line. The first failure
+  surfaced at the end of the run, far from its cause.
+- A label on an arrow sat on the arrow. Label placement must clear the line,
+  and "text over a line" is a warning. A dry run would have shown it.
+
+## The model
+
+### New item fields (amend D6)
+
+| Field | On | Values |
+|---|---|---|
+| `fill` | box, closed stroke | a colour; missing: none |
+| `dash` | box, stroke, arrow | `dashed`, `dotted`; missing: solid |
+| `heads` | arrow | `end` (default), `both`, `none` (a plain line) |
+| `closed` | stroke | the last point joins the first |
+| `locked` | any | the pen, the eraser, the lasso and a tap pass over it |
+
+- **Fills draw under everything but PDF pages.** A fill never hides ink or
+  text, whatever was made first. No z-order to manage.
+- **A circle is a closed stroke.** No new kind for circles, ellipses or
+  polygons.
+- **Locked is for the user's hands, not for agents.** The author rule still
+  decides what an agent may change. The user unlocks a figure with a command.
+- All five are optional fields on known kinds, so an older reader keeps the
+  items (fold.md, "What an old reader does today", rules 3 and 6; rule 5's
+  loss applies as it does to `fold`).
+
+### Figure and part
+
+Two more optional fields on any item: `fig` (the figure's name, unique on
+a canvas) and `part` (a name the script chose).
+
+- A figure is the set of items with one `fig`. No item's existence depends
+  on another item, and none leaves the page's item list.
+- A part is the items of a figure with one `part` name. A part is an
+  address: `softmax/p1a` works wherever an item id does (`--beside`, `--over`,
+  `canvas crop --item`, an arrow's end).
+- The figure's script (a blob, D19) and data are in the record, in a
+  `figure_drawn` event: `{canvas, figure, script, data, origin}`. The canvas
+  file holds only items.
+- Not a frame: the user does not make, name or enter a figure (the owner
+  rejected named frames in pl-f130a2). A figure can sit in a box and fold
+  with it.
+
+Alternative: a `figure` item that lists its children's ids, as a folded
+box does. Rejected: the children's meaning would depend on another item, and
+the list must be kept right on every add, remove and undo. Tags need no
+upkeep.
+
+### In the packet
+
+- The outline has one line for a figure, not one per item:
+  `f3 figure softmax 0,0 1700x3800 parts=15 by=teacher`.
+- Ink over a part says so, as ink over a PDF page does:
+  `c12 ink … over=softmax/p1a`. The agent learns which answer area the
+  user wrote in without looking at coordinates.
+- `canvas read --in softmax/p1a` gives only what lies in that part.
+
+## The script API (v1)
+
+Full reference with an example: the spike's `API.md` becomes a section of
+`slinger guide`. The rules that shape it:
+
+1. **It is the API agents already know.** Call shapes follow Canvas 2D and
+   p5: `fig.text(str, x, y)`, `fig.box(x, y, w, h)`, `fig.line(x1, y1, x2, y2)`,
+   `fig.circle(cx, cy, r)`, `fig.path(points)`, `fig.arrow(from, to)`. Options
+   are one object, last: `{color, fill, dash, width, name, locked}`.
+2. **Figure coordinates only.** (0, 0) is the figure's top left, in the
+   units a packet prints. The script never sees the page.
+3. **Build, measure, place.** Every call returns a handle with exact bounds
+   (`x y w h right bottom cx cy`) and moves (`moveTo`, `below`, `rightOf`,
+   `above`, `leftOf`, `centerIn`). Text is a fixed cell, so `measure` is
+   exact (it calls `render::text_frame`). Nothing is on the canvas until the
+   script ends.
+4. **Free coordinates first, helpers second.** `stack`, `grid`, `table`,
+   `plot` (data coordinates, bars, curves, vectors) and `slot` are written
+   in JavaScript over the primitives, in a prelude that ships in the binary.
+   A helper is never the only way to do a thing. New helpers need no engine
+   change.
+5. **Pure.** Inputs: the script, `data` (JSON from `--data`), `anchor`
+   (the size and text of the item it goes beside or over) and, with
+   `--over` or `--at`, the bounds of the items around it in figure
+   coordinates. No clock, no random numbers without a seed, no IO. The same
+   inputs give the same figure.
+6. **Bounded.** 1 s, 32 MB, a 512 KB stack, a script of at most 1 MiB (as a
+   UI), at most 5,000 items. Over a limit is one error, `limit`, that says
+   which.
+7. **One shape of call.** Calls that draw the same kind of thing take the
+   same arguments (`arrow` as `line`). A bad argument fails at the call and
+   names it.
+8. **Errors point at the line.** `script`: the message, line and column,
+   the source line, the call stack. Warnings do not fail the run: text
+   taller than its box, a word wider than its frame, two named parts that
+   overlap.
+
+## The verbs
+
+```bash
+slinger canvas draw <CANVAS> <FILE> --name softmax --beside c12 [--data JSON|@FILE]
+slinger canvas draw <CANVAS> <FILE> --name marks --over c12     # the figure's (0,0) is c12's top left
+slinger canvas draw <CANVAS> <FILE> --name plan --at 0,0 | --in b4
+slinger canvas draw <CANVAS> <FILE> --dry-run --png out.png     # draws nothing; writes the picture and the warnings
+slinger canvas redraw <CANVAS> softmax --data '{"p1a":{"actual":[…]}}'   # merge into its data, run its script again
+slinger canvas figure <CANVAS> softmax [--script] [--data]      # its parts and boxes; its script; its data
+```
+
+- `draw` with a name the canvas has replaces that figure in place, as one
+  undo step. Items are matched by part and order: one that did not change
+  keeps its id and is not touched, so a second run of the same script and
+  data changes nothing and the next packet shows nothing new.
+- A redraw never touches the user's ink or another agent's items.
+- `--beside` places the whole figure by `free_beside` on its bounds.
+- `--dry-run --png` lets the agent look at its own picture before the user
+  sees it (the core's renderer, no app).
+- Removal and moves use the verbs that exist, with `softmax` or
+  `softmax/p1a` as the id.
+
+## What this allows beyond the worksheet
+
+- **Change by data.** "Fill in the actual top 5" is
+  `canvas redraw … --data`, not a new script. A worked example shown one
+  step at a time is `{"step": 3}`. A chart follows a result as it changes.
+- **Marks on the user's own work** (`--over`): circle the wrong term,
+  an arrow from one of their clusters to another, a bracket in a PDF's
+  margin, a light fill behind a sentence. The tutor could only put notes in
+  free space.
+- **The agent checks itself.** A dry run gives the picture and the warnings.
+- **Parts as places.** The packet says which part new ink is over, and a
+  `canvas put --beside softmax/p1b` lands feedback at that answer.
+- **Scripts worth keeping.** A script is a blob with a hash. Later, with no
+  redesign: named, versioned scripts as UIs have (`timeline@2`), run with
+  new data.
+- **Later, with no redesign: a figure that follows the user.** A live item's
+  reply (a slider), or a text the user edits, patches a figure's data and
+  slinger redraws it with no agent turn. The run is pure and bounded, so it
+  is safe to run on a user's action.
+- **The tldraw importer** can keep fill and dash, so the old lessons board
+  comes in as it looked.
+
+## Not in this design
+
+Images, rotation, rich text (bold, sub- and superscript, maths), curves
+other than polylines, snapping. Each is a separate decision.
+
+## Decided by the owner (2026-11-24)
+
+1. **Engine.** QuickJS, in process, in its own crate that only the daemon
+   links.
+2. **Names.** figure, part, `canvas draw`, `canvas redraw`,
+   `canvas figure`.
+3. **Lock.** What a script draws is locked by default. The user moves a
+   figure by grabbing it as one: an "unlock figure" command (a key and a menu
+   row) on the figure under the pointer selects the whole figure as one unit,
+   to move, duplicate or delete. It is locked again when deselected. There is
+   no unlocking of single items and no stored lock toggle, so a scaffold
+   never falls apart.
+4. **Units.** A script uses whole units, as the packet prints them. The other
+   verbs keep tenths.
+5. **Colour.** A figure with no colour named takes one agent colour (a config
+   key in the theme). Colour is also part of what an agent says: any call,
+   group or part can take its own colour, so one figure can hold several.
+   See "Colour" below.
+6. **Fills.** Always under all ink and text, above a PDF page. Nothing raises
+   one.
+
+### Colour
+
+- The default is the agent colour, so the user tells a scaffold from their
+  own ink at a glance.
+- Every draw call takes `color` and `fill` (as before). A group, a stack,
+  a table, a plot and `fig.part(name, {color}, () => { ... })` set a
+  default for what they hold; `fig.color = ...` sets it for the rest of the
+  script. The nearest one wins.
+- Decided: a small set of named colours beside hex (for example `'accent'`,
+  `'muted'`, `'good'`, `'bad'`, `'warn'`, and a short series for plots)
+  that the theme maps, so a figure reads in any theme and agents share one
+  grammar. Hex stays for anything else. The design step (slinger-e8d6e3)
+  picks the exact names and, designed twice, whether a name is stored on the
+  item or resolved to hex when the script runs.
+
+## Build order
+
+1. Core, file, render, app: `fill`, `dash`, `heads`, `closed`.
+2. Core and app: `locked`, and the unlock command.
+3. Core: `fig` and `part`, part ids, the packet lines, `read --in`.
+4. `crates/script`: the engine, the prelude, the limits, the errors, the
+   layer rule. Tests run real scripts.
+5. `canvas draw` through control, daemon and CLI: placement, replace by
+   match, `--dry-run --png`, the `figure_drawn` event.
+6. `canvas redraw` and `canvas figure`.
+7. `guide.md` and both skills: when to draw a figure and when to put a
+   text. `scripts/e2e-sling.sh` gains a sling that must come back as a
+   figure.
+8. The tldraw importer keeps fill and dash.
+
+Acceptance: one script makes the 106 worksheet; `canvas redraw` fills
+"actual top 5" by name; pen strokes over it are untouched; a second run of
+the same script changes nothing.
+
+## Differences between this design and what was built on 2026-11-24
+
+Written overnight 2026-11-24 (not the owner's text), comparing the sections
+above with the code on `main`, not only with the rebuilt page. Ordered by
+weight. Size: **small** (a few lines, no contract), **medium** (real code,
+additive), **contract** (changes what agents write or read: the script API,
+the packet, an error code). What matches, and needs no row: the engine and
+its crate and layer rule; the limits (1 s, 32 MB, 512 KB stack, 1 MiB
+script, 5,000 items); the five style fields plus `fig` and `part` and
+their values; a circle as a closed stroke; fills under all ink and text,
+above PDF pages; locked by default and for the user's hands only, with the
+author rule unchanged; the unlock command (opt+cmd+U, the Edit menu and the
+context menu) that grabs the figure under the pointer whole and relocks on
+deselection, with no single-item unlock in the app; part addresses wherever
+an id is taken (`--beside`, `--over`, `--in`, `crop --item`, an arrow's
+end in `put`, edit and remove); `over=figure/part` on ink; `read --in` a
+part; `canvas draw`, `redraw` (a merge into the data) and `figure`;
+`--dry-run --png`; replace in place by part and order, one undo step, a
+rerun that changes nothing; `figure_drawn` with the script as a blob (it
+also carries `page`, `frame` and an optional `target`); a seeded
+`Math.random` and no clock or IO; the agent colour as a theme key; the
+tldraw importer keeping fill and dash (and lock, closed, heads).
+
+| # | The owner's decision | What was built | Where | How hard |
+|---|---|---|---|---|
+| 1 | Script API rule 3, "Build, measure, place": every call is a method on `fig` and returns a **handle** with bounds and moves (`moveTo`, `moveBy`, `below`, `above`, `rightOf`, `leftOf`, `centerIn`, `name`); nothing is on the canvas until the script ends | Global functions (`box`, `line`, `arrow`, `poly`, `circle`, `text`, `measure`, `part`, `group`, `stack`, `table`, `plot`, `warn`) that emit at once and return a plain `{x, y, w, h}`; no handle, nothing moves after it is drawn | `crates/script/src/prelude/*.js`, guide.md "Drawing scripts", `crates/script/src/tests`, daemon and CLI draw tests | contract |
+| 2 | Rule 1: call shapes follow Canvas 2D and p5, `fig.text(str, x, y)`, `fig.path(points)` | `text(x, y, str)` (string last); the polyline is `poly(points)` | `prelude/shapes.js` | contract |
+| 3 | `fig.plot(x, y, w, h, {xRange, yRange, ticks, frame = 'dotted'})` with `p.x(v)`, `p.y(v)`, `p.bars(values, {labels})`, `p.fn(f)`, `p.vector(a, b, {label})`, `p.bounds` | `plot(x, y, w, h, {x, y, xticks, yticks, xlabel, ylabel, title})` with `p.at(x, y)`, `p.line(f or points)`, `p.dots(points)`; no bars, no vector, no dotted frame, no bounds handle | `prelude/plot.js` | contract |
+| 4 | `fig.stack([handles], {dir, gap = 24})` and `fig.grid([handles], {cols, gap, x, y})` move handles already built; `fig.table(rows, x, y, {size, header, widths})`; `fig.group(h1, h2, ...)` is one handle over several | `stack(x, y, opts, fn)` draws as it goes (`s.text`, `s.box`, `s.gap`; gap 8); no `grid`; `table(x, y, rows, {cols, rowH, header, parts})`; `group(opts, fn)` only sets defaults | `prelude/structure.js` | contract |
+| 5 | Errors: a `script` error with the message, line, column, the source line and the call stack; over a limit is one error, `limit`, that says which | Every script failure and every limit is `invalid` with `script:L:C: message` and a hint; no source line or stack (lane c adds the error line tonight) | `crates/daemon/src/server/figure.rs` (`run`), `crates/script/src/engine.rs`, docs/service.md, docs/cli.md | contract |
+| 6 | Packet: `f3 figure softmax 0,0 1700x3800 parts=15 by=teacher` (an id of its own, the name, a part count) | `softmax figure 0,0 1700x3800 by=teacher parts=p1a,p1b,... locked=yes "first line"` (the name is the id, the part names listed, a quote) | `crates/core/src/packet/figure.rs`, docs/design/packet.md | contract |
+| 7 | Shapes the reference has: `fig.ellipse`, `fig.slot(x, y, w, h, {label, by})` (dashed for the user, dotted for the agent), a box's `label` and `size`, a text's `align` | none of them; a slot is a dashed or dotted `box` and a label a separate `text` | `prelude/shapes.js` | medium |
+| 8 | A part is named by a `name` option on any call, `h.name()`, or `fig.part(name, {color}, fn)` | only `part(name, [opts], fn)`; `name` is an unknown option and fails the call | `prelude/structure.js`, `prelude/base.js` | medium |
+| 9 | Rule 5, inputs: `anchor` (the size and text of the item it goes beside or over) and, with `--over` or `--at`, the bounds of the items around it in figure coordinates | `fig.view.target` (`{x: 0, y: 0, w, h}` of the `--over` or `--in` item, else `null`) and `fig.view.page`; no text, nothing for `--beside`, no neighbours | `crates/script/src/lib.rs` (`View`), `crates/daemon/src/canvases/figure.rs`, `server/figure.rs` | medium |
+| 10 | Warnings: text taller than its box, a word wider than its frame, two named parts that overlap (and text over a line) | text over a line, arrow, stroke or box edge; texts overlapping; a box drawn again on a box; a label longer than its arrow; a shape far from the others. None of the owner's first three | `prelude/checks.js` | medium |
+| 11 | Acceptance: Appendix B (the 106 softmax worksheet, 56 items, 15 parts) is the script; redraw fills "actual top 5" by name | The acceptance fixture is another worksheet (compound growth, 56 items, 15 parts) written for the built API (Appendix D); Appendix B does not run (rows 1 to 4, 7, 8) | `crates/script/src/tests/worksheet.{js,json}`, `crates/daemon/src/tests/script.rs` | medium |
+| 12 | The data is the global `data` (`null` when none) | `fig.data` (`{}` when none); no global `data` | `prelude/base.js` | small |
+| 13 | Decision 4: a script uses whole units; the other verbs keep tenths | `canvas draw --at` takes canvas units (`40,40`, `PAGE:X,Y`) while `canvas put --at` takes tenths (the wire is tenths for both) | `crates/cli/src/draw.rs`, guide.md | small |
+| 14 | `width` on lines, paths and arrows (default 2) | `width` on `poly` and `circle` only; `line` and `arrow` refuse it | `prelude/shapes.js` | small |
+| 15 | `fill`: a colour ("use a light or translucent colour") | A name or `#rrggbb` is stored at 20% alpha (`33`), `true` is a tint of the shape's colour, `#rrggbbaa` as given; every renderer caps a fill at 40% (`FILL_MAX_ALPHA`) | `prelude/base.js` (`tint`), `crates/core/src/canvas/style.rs`, the app's fill pass | small |
+| 16 | Colour names, for example `accent`, `muted`, `good`, `bad`, `warn` and a plot series (exact names left to the design step) | `agent`, `ink`, `muted`, `accent`, `error`, `series1`..`series6` and nine CSS names; no `good`, `bad` or `warn` | `crates/script/src/colour.rs` | small |
+| 17 | Decision 3: no stored lock toggle | The app has none, but `locked` is an ordinary field: an agent may `set` it on its own items and the user on any, through `canvas apply` (undo, import and paste need it written) | `crates/core/src/canvas/file/ops.rs` | small |
+
+Count: 6 contract, 5 medium, 6 small. The model, the verbs, the lock, the
+packet's meaning, placement and replace by match are as the owner decided;
+the difference is the script API's surface (rows 1 to 4, 7, 8, 12, 14), so
+the owner's Appendices A and B do not run on the build.
+
+## As built (written overnight 2026-11-24, not the owner's text)
+
+The sections below are the page that was rebuilt overnight from the plan and
+its seeds, with its headings one level down. They describe what was built.
+Where they disagree with the owner's text above, the owner's text is the
+design and the row in "Differences" is the gap.
+
+### Owners
 
 | Step | Seed | Owns |
 |---|---|---|
@@ -78,7 +405,7 @@ over a line and on overlapping texts.
 | 4 | slinger-097d16 | core: `locked`, `fig`, `part`; the address; `Canvas::figures` |
 | 5 | slinger-dd5add | app: the gesture table; `unlock-figure`; paste and duplicate |
 | 6 | slinger-b860be | core: the figure line in the packet, `over=`, `read --in` a part |
-| 7 | slinger-3ce137 | `crates/script`: the engine, the prelude (Appendix A), limits |
+| 7 | slinger-3ce137 | `crates/script`: the engine, the prelude (Appendix C), limits |
 | 8 | slinger-387b76 | core: place shapes as a figure; replace by match; `figure_drawn` |
 | 9 | slinger-14a8ab | `canvas draw` through control, daemon, CLI; `--dry-run --png` |
 | 10 | slinger-2ee5da | `canvas redraw`, `canvas figure` |
@@ -87,7 +414,7 @@ over a line and on overlapping texts.
 | 13 | slinger-3ca75e | tldraw import keeps fill, dash, isLocked |
 | 14 | slinger-9dcf50 | acceptance in a driven window |
 
-## What an old reader does with new fields
+### What an old reader does with new fields
 
 The rules are `docs/design/fold.md`, "What an old reader does today", findings
 1 to 8. For optional fields on known kinds they come to this:
@@ -113,9 +440,9 @@ old-reader test as fold's: replay a file with the new fields, and the same
 file with every new key stripped, and every item of the first is in the
 second at the same place.
 
-## The model (B6: where the style and the membership live)
+### The model (B6: where the style and the membership live)
 
-### A: optional fields on the item object (picked)
+#### A: optional fields on the item object (picked)
 
 Seven optional keys on the item objects of the kinds that use them, written
 after the kind's own fields, left out at their default so a file without
@@ -174,7 +501,7 @@ The core keeps them out of the full files. `crates/core/src/canvas/item.rs`
   `Default`), so no `match` on `Shape` changes. They sit beside `shape`, not
   in it: a `set` that changes a shape keeps them unless it names them.
 
-### B: new kinds, or a style table
+#### B: new kinds, or a style table
 
 A `fbox` / `line` / `polygon` kind for each styled shape, or one `style`
 table in the header that items point into.
@@ -189,7 +516,7 @@ table in the header that items point into.
 **Pick: A.** Optional fields keep every item visible to an old reader and
 taking them back is ignoring seven keys.
 
-### A headless line: an arrow with `heads: none` (picked) or a two-point stroke
+#### A headless line: an arrow with `heads: none` (picked) or a two-point stroke
 
 - **Arrow, `heads: none`.** Its ends bind to items as an arrow's do, so a
   connector follows what it joins; it draws at the box edge's width; it is
@@ -202,7 +529,7 @@ taking them back is ignoring seven keys.
 **Pick: the arrow.** `line()` in the script API makes one. A stroke stays
 what a pen (or `poly`) draws.
 
-## Draw order
+### Draw order
 
 One order, in the core raster and in the app:
 
@@ -238,9 +565,9 @@ One order, in the core raster and in the app:
   closed stroke draws its last point joined to its first; the app's
   `smooth` closes the curve (wraps its neighbours) for it.
 
-## Colour
+### Colour
 
-### The names (picked)
+#### The names (picked)
 
 A script, and only a script, takes a colour as hex (`#rrggbb`,
 `#rrggbbaa`) or as one of these names. The canvas file keeps hex only.
@@ -268,7 +595,7 @@ A script, and only a script, takes a colour as hex (`#rrggbb`,
   (`View.agent`), and a daemon test checks the script's table has the same
   value, since `crates/script` does not link the core.
 
-### Stored on the item, or resolved to hex at run time (B6)
+#### Stored on the item, or resolved to hex at run time (B6)
 
 - **A: resolve at run time (picked).** The prelude turns a name into hex
   before the shape leaves the engine; the file holds hex as today. Old
@@ -291,7 +618,7 @@ listed in `config.example.toml`) is the colour the app draws for a stored
 colour exactly `AGENT`, in ink and in fills. Nothing is written. A user who
 picks another agent colour sees every agent's default-coloured figure in it.
 
-### A fill in the dark theme (B6)
+#### A fill in the dark theme (B6)
 
 - **A: as stored, never through `legible()` (picked).** A fill is drawn at
   its colour and alpha (capped at 40%) over the background, in both themes.
@@ -306,7 +633,7 @@ picks another agent colour sees every agent's default-coloured figure in it.
 a name, as `#rrggbb` or as `true` (the shape's own colour) is stored at alpha
 `0x33` (20%); `#rrggbbaa` is stored as given and drawn capped at `0x66`.
 
-### Defaults that nest
+#### Defaults that nest
 
 Each shape's colour, and its `dash`, `fill` and text `size`, is the first of:
 the shape's own option, then the innermost enclosing `group`, `stack`,
@@ -316,9 +643,9 @@ agent colour), then the built-in default (solid, no fill, size 24). A
 plot's series colour is the plot's own default for its lines, not for its
 axes, which take the plot's colour.
 
-## Figure and part
+### Figure and part
 
-### Names
+#### Names
 
 - A **figure name** is 1 to 40 characters of `a-z`, `0-9` and `-`, starts with a
   letter, and is not shaped like an item id (a letter then only digits:
@@ -338,7 +665,7 @@ axes, which take the plot's colour.
   valid `fig` (undo, import and paste need it). The clash rules below are
   the verbs' and the app's.
 
-### The address
+#### The address
 
 ```
 address = figure [ "/" part ]
@@ -361,7 +688,7 @@ address = figure [ "/" part ]
 - `Canvas::figures() -> Vec<Figure>` (name, maker, page, frame, parts with
   their frames, in reading order) is what `canvas figure` and the packet read.
 
-### A clash
+#### A clash
 
 - `canvas draw --name N` when N exists on the canvas: by its maker, it is a
   redraw with the new script and data (replace by match, below); by anyone
@@ -374,9 +701,9 @@ address = figure [ "/" part ]
   its maker is the user (the user made the copy), so the agent cannot
   redraw the copy, only the original.
 
-## Lock
+### Lock
 
-### The unlock (designed from the owner's pick)
+#### The unlock (designed from the owner's pick)
 
 There is no stored toggle and no single-item unlock. The user grabs a
 figure:
@@ -411,7 +738,7 @@ path, and every hit test still skips locked items, so the figure under the
 grab is moved by the selection's own drag; (b) a separate "figure grab"
 mode with its own drag and keys: a second selection model to keep in step.
 
-### The gesture table
+#### The gesture table
 
 Every gesture that picks items by place skips a locked item, unless the
 figure is grabbed. **Skip** means the gesture behaves as if the item were
@@ -443,7 +770,7 @@ The skip is one predicate, `scene::canvas::free(&Item, grabbed: Option<&str>) ->
 site in the table; step 5 adds a test per row that a locked item is
 passed over and, for the selection rows, that a grabbed one is not.
 
-### Paste and duplicate
+#### Paste and duplicate
 
 - A paste or duplicate of items that are **not a whole figure** drops `fig`,
   `part` and `locked`: the copies are the user's free items. (With the grab
@@ -460,7 +787,7 @@ passed over and, for the selection rows, that a grabbed one is not.
 - Styles (`fill`, `dash`, `heads`, `closed`) are kept in both cases: they
   are the look, not the membership.
 
-## In the packet
+### In the packet
 
 - **A figure is one line**, `figure` kind, its id the figure's name, its box
   the figure's frame, then `by`, then `parts=` (the part names, comma-joined,
@@ -492,16 +819,16 @@ passed over and, for the selection rows, that a grabbed one is not.
 - Packet version stays 1: a new kind and new fields (B5). Stored packet
   snapshots without figures read and print the same.
 
-## The script API
+### The script API
 
-The full reference is Appendix A: it goes into `crates/cli/src/guide.md` as
+The full reference is Appendix C: it goes into `crates/cli/src/guide.md` as
 written there. In short: globals `box`, `line`, `arrow`, `poly`, `circle`,
 `text`, `measure`, `part`, `group`, `stack`, `table`, `plot`, `warn` and
 the object `fig` (`name`, `data`, `view`, `color`). Units are canvas
 units, y down, origin the figure's own top left before placement. Each
 call emits shapes at once; nothing is returned to place later.
 
-### Limits and purity (step 7)
+#### Limits and purity (step 7)
 
 - 1 s of run time (an interrupt handler), 32 MB of memory, 512 KB of stack,
   a script of at most 1 MiB, data of at most 256 KiB as JSON, at most 5,000
@@ -519,7 +846,7 @@ call emits shapes at once; nothing is returned to place later.
   frame, a label longer than its arrow, a shape far outside the others)
   come back beside the shapes, with their line, and never fail a draw.
 
-### How shapes cross to the daemon (B6)
+#### How shapes cross to the daemon (B6)
 
 - **A: item objects as JSON (picked).** The engine returns
   `Drawn { items: Vec<serde_json::Value>, warnings: Vec<Warning> }`; each item
@@ -544,9 +871,9 @@ size tall); a daemon test pins it against `slinger_core::render::text_size`
 (slinger-ce52ee: the app draws text proportional, so a script's measured
 width is the core's, wider than the app's for most text; scripts leave room).
 
-## The verbs
+### The verbs
 
-### `canvas draw` (step 9)
+#### `canvas draw` (step 9)
 
 ```
 slinger canvas draw <CANVAS> <FILE> --name N (--beside ID | --over ID | --at X,Y | --in ID)
@@ -581,7 +908,7 @@ slinger canvas draw <CANVAS> <FILE> --name N (--beside ID | --over ID | --at X,Y
 - New files: `crates/control/src/figure.rs`, `crates/daemon/src/server/figure.rs`,
   `crates/cli/src/draw.rs`; each verb one row in `crates/control/src/verb.rs`.
 
-### `figure_drawn`
+#### `figure_drawn`
 
 A record event, written by `draw` and `redraw` only (so not in `KINDS`, as
 `ui_put`), tagged with the canvas and the agent (the maker):
@@ -601,7 +928,7 @@ A record event, written by `draw` and `redraw` only (so not in `KINDS`, as
 - The payload type is `FigureDrawn` in `crates/core/src/record/body.rs`
   (`payload`, `kind`, `from_parts`); `crates/core/tests/record.rs` pins it.
 
-### `canvas redraw` (step 10)
+#### `canvas redraw` (step 10)
 
 ```
 slinger canvas redraw <CANVAS> <NAME> --data JSON|@FILE [--script FILE] [--agent NAME]
@@ -620,7 +947,7 @@ slinger canvas redraw <CANVAS> <NAME> --data JSON|@FILE [--script FILE] [--agent
   replaces the figure by match; `figure_drawn` is written only when at least
   one op was.
 
-### Replace by match (step 8, B6)
+#### Replace by match (step 8, B6)
 
 - **A: match by (part, kind, order) (picked).** Old items are the canvas's
   items with `fig` = N made by the maker; new items are the script's
@@ -643,7 +970,7 @@ in a new `crates/core/src/canvas/file/figure.rs` (log.rs is 484 lines), with
 the match a pure function in `crates/core/src/canvas/figure/matching.rs`
 tested on its own.
 
-### `canvas figure` (step 10)
+#### `canvas figure` (step 10)
 
 ```
 slinger canvas figure <CANVAS> [NAME] [--script | --data]
@@ -658,19 +985,19 @@ As built (step 10): positions in canvas units, `by=` the agent's name (or
 `canvas redraw` needs `--data` or `--script`; the core half is
 `Log::again` and `merge_patch` (`crates/core/src/canvas/file/redraw.rs`).
 
-## Fluency
+### Fluency
 
 Step 12 (slinger-b0b24a) ran its round on 2026-11-24 with `claude-haiku-5-5`
 (Claude Code subagents, model "haiku"; 7 runs of about 27k tokens each, no
 tools used). Each run got only the guide's drawing text, as `slinger guide`
 prints it (the `canvas draw` paragraph, "Drawing scripts", which is
-Appendix A, and the command's usage line), plus one task and the command line
+Appendix C, and the command's usage line), plus one task and the command line
 that would run it. Each script ran once through
 `canvas draw --dry-run --png` on a scratch daemon whose canvas held a text
 (t1), an answer box (b2, 300x150) and a second text (t3).
 
 The guide had no API before this step: `canvas draw --help` sent agents to
-`slinger guide` for it, so the round's first change was to put Appendix A
+`slinger guide` for it, so the round's first change was to put Appendix C
 there, as "Drawing scripts".
 
 | task | placement | first run | read in the PNG | fix |
@@ -687,7 +1014,7 @@ fresh runs on the fixed guide). No run hit an error, so no error text
 changed. What small models reached for that the API lacked: a plot title
 and named ticks (both added); nobody guessed a wrong option name.
 
-## Files to split first (measured 2026-11-24, limit 500)
+### Files to split first (measured 2026-11-24, limit 500)
 
 Plan risk 3. A step adds to none of these before it moves code out (or puts
 its code in the new files this page names). Lines at the time of writing:
@@ -700,7 +1027,13 @@ its code in the new files this page names). Lines at the time of writing:
 | 8 (place) | `crates/core/src/canvas/file/log.rs` 484 (the code goes in `file/figure.rs`) |
 | 9, 10 (verbs) | `crates/daemon/src/tests.rs` 485, `crates/daemon/src/store.rs` 490, `crates/cli/src/tests.rs` 486 (tests in new files) |
 
-## Recommended (picked overnight, owner to confirm)
+### Recommended (picked overnight, owner to confirm)
+
+Since the owner's draft came in: picks 1 and 2, the fill order in 3, the
+address in 6, the unlock command in 7, the `over=` and `read --in` of 9,
+the match by part and order in 11 and pick 13 (a seeded `Math.random`) are
+the owner's decisions above. The rest stay open in `docs/open-picks.md`;
+where the build differs from the owner, see "Differences".
 
 Picked by the brief's rule: the alternative cheapest to reverse, and the one
 that changes least of what the pen does today. Each line is also in
@@ -740,7 +1073,143 @@ that changes least of what the pen does today. Each line is also in
     (at most 256 KiB), with origin and frame in tenths.
 13. **`Math.random`** is seeded, not removed.
 
-## Appendix A: the script API (goes into the guide)
+## Appendix A: the reference the agents were given
+
+This becomes a section of `slinger guide`. Headings are one level down here.
+
+### Drawing on a slinger canvas with a script
+
+You write one JavaScript file. Slinger runs it in a sandbox and turns what it
+draws into ordinary canvas items, placed as one figure.
+
+- Coordinates are canvas units in the figure's own frame: (0, 0) is its top
+  left, x grows right, y grows down. Slinger decides where the figure goes on
+  the page. Never assume page coordinates.
+- Text is monospace: a character is `size` tall and `size / 2` wide. So text
+  size is exact: `measure('hello', {size: 24})` is `{w: 60, h: 24}`.
+- Plain modern JavaScript (ES2023). No imports, no network, no files, no
+  timers, no `Date`, no `console`. Top-level code runs once.
+- The global `data` holds the JSON passed with the script (or `null`).
+
+#### Draw
+
+Every call returns a handle. The last argument is always an options object.
+
+```js
+fig.text(str, x, y, {size = 24, w, align = 'left'})   // w wraps the text to that width; align: 'left' | 'center' | 'right' (x is then the centre or the right edge)
+fig.box(x, y, w, h, {label, size = 20})               // label: text inside the box, top left, wrapped
+fig.slot(x, y, w, h, {label, by = 'user'})            // a box meant to be filled in: dashed for the user, dotted when by: 'agent'
+fig.line(x1, y1, x2, y2)
+fig.path([[x, y], ...], {closed = false})             // a polyline; closed joins the last point to the first
+fig.circle(cx, cy, r)
+fig.ellipse(cx, cy, rx, ry)
+fig.arrow(x1, y1, x2, y2, {heads = 'end', label})     // as line; heads: 'end' | 'both' | 'none'
+fig.arrow(from, to, {heads, label})                   // from, to: [x, y] or a handle (the arrow then meets its edge)
+```
+
+Options every call takes:
+
+- `color`: `'#rrggbb'` or `'#rrggbbaa'`. Default: the colour of the group or part it is in, else the figure's colour (the agent colour).
+- `fill`: a colour to fill a box, circle, ellipse or closed path. Fills draw under all ink and text, so they never hide writing. Use a light or translucent colour.
+- `dash`: `'dashed'` or `'dotted'` (boxes, lines, paths).
+- `width`: line width (lines, paths, arrows; default 2).
+- `name`: names this part of the figure, such as `'answer-a'`. A later command can find it by name. Name every area that will be written in or updated.
+- `locked`: default `true`: the user's pen and eraser pass over it. Pass `false` for something the user should be able to move.
+
+#### Handles
+
+```js
+h.x  h.y  h.w  h.h  h.right  h.bottom  h.cx  h.cy     // its bounds, read-only
+h.moveTo(x, y)   h.moveBy(dx, dy)
+h.below(other, gap = 24)   h.above(other, gap)   h.rightOf(other, gap)   h.leftOf(other, gap)
+h.centerIn(other)
+h.name('part-name')
+```
+
+Nothing is on the canvas until the script ends, so build a thing, read its
+size, then place it.
+
+#### Helpers
+
+```js
+measure(str, {size = 24, w})                 // {w, h} of text, wrapped to w when given
+fig.group(h1, h2, ...)                       // one handle over several
+fig.stack([h1, h2, ...], {dir = 'down', gap = 24})   // dir: 'down' | 'right'; moves each after the one before; returns a group
+fig.grid([h1, ...], {cols = 3, gap = 24, x = 0, y = 0})
+fig.table(rows, x, y, {size = 20, header = true, widths})   // rows: arrays of cells; columns fit their longest cell
+const p = fig.plot(x, y, w, h, {xRange: [0, 1], yRange: [0, 1], ticks = 0, frame = 'dotted'})
+p.x(v)  p.y(v)                               // data value -> figure coordinate (y is up in data)
+p.bars(values, {labels})                     // one bar per value across the plot
+p.fn((x) => y, {color, width})               // a curve
+p.vector([x1, y1], [x2, y2], {label})        // an arrow in data coordinates
+```
+
+#### Example
+
+```js
+const title = fig.text('Shares of [2, 1, 0]', 0, 0, { size: 32 });
+const e = [2, 1, 0].map(Math.exp), sum = e.reduce((a, b) => a + b);
+const p = fig.plot(0, title.bottom + 40, 380, 300, { yRange: [0, 1] });
+p.bars(e.map((v) => v / sum), { labels: ['A', 'B', 'C'] });
+fig.slot(420, title.bottom + 40, 500, 300, { label: 'Why is A more than twice B?', name: 'why' });
+```
+
+## Appendix B: the 106 worksheet as one script
+
+Ran on both JavaScript engines in the spike: 56 items, 15 named parts.
+
+```js
+// The teacher's 106 worksheet, as one script.
+const W = 1700, COL = 820, GAP = 60;
+let y = 0;
+const heading = (s, size = 32) => { const t = fig.text(s, 0, y, { size, w: W }); y = t.bottom + 12; return t; };
+const para = (s) => { const t = fig.text(s, 0, y, { size: 20, w: W }); y = t.bottom + 24; return t; };
+const yours = (x, w, h, label, name) => fig.box(x, y, w, h, { dash: 'dashed', label, name, locked: true });
+const mine = (x, w, h, label, name) => fig.box(x, y, w, h, { dash: 'dotted', label, name });
+
+heading('106: Logits, softmax, loss (GPT-2 small)', 48);
+para('Predict first, in the dashed boxes. Then sling the page: I put GPT-2\'s actual output next to your prediction, and you write what surprised you.');
+
+heading('Problem 1: what GPT-2 thinks comes next');
+para('Prompt: "The Eiffel Tower is in the city of" ___\nGPT-2 gives every one of its 50,257 tokens a logit (a raw score). Softmax turns the logits into probabilities.');
+yours(0, COL, 300, '(a) Top token and roughly its probability. Then your guesses for the next four.', 'p1a');
+mine(COL + GAP, COL, 300, "GPT-2's actual top 5 (I fill this in after you predict)", 'p1a-actual');
+y += 330;
+yours(0, COL, 220, '(b) Surprised by the probability? Why might a model spread its bets like this?', 'p1b');
+yours(COL + GAP, COL, 600, "(c) The top logit = residual vector · that token's row of W_U. In 101 terms: what is each row of W_U, and what is the logit?", 'p1c');
+y += 640;
+
+heading('Problem 2: how softmax reacts');
+para('Each token gets a share proportional to e^logit; the shares add to 1. Below: three tokens with logits [2, 1, 0]. The dotted frame is 100%. Sketch the bars you predict for (a), (b), (c), then write a line on each.');
+const softmax = (z) => { const e = z.map(Math.exp), s = e.reduce((a, b) => a + b); return e.map((v) => v / s); };
+const cases = [
+  { title: 'Given: [2, 1, 0]', z: [2, 1, 0], shown: true, name: 'given' },
+  { title: '(a) add 5 to all: [7, 6, 5]', z: [7, 6, 5], name: 'p2a' },
+  { title: '(b) double all: [4, 2, 0]', z: [4, 2, 0], name: 'p2b' },
+  { title: '(c) top +1 only: [3, 1, 0]', z: [3, 1, 0], name: 'p2c' },
+];
+const PW = 380, PH = 400;
+cases.forEach((c, k) => {
+  const x = k * (PW + 50);
+  fig.text(c.title, x, y, { size: 22 });
+  const p = fig.plot(x, y + 60, PW, PH, { yRange: [0, 1] });
+  if (c.shown) p.bars(softmax(c.z), { labels: ['A', 'B', 'C'] });
+  else ['A', 'B', 'C'].forEach((l, j) => fig.text(l, x + (j + 0.5) * (PW / 3), y + 60 + PH + 6, { size: 18, align: 'center' }));
+  p.bounds.name(c.name);
+  if (!c.shown) fig.box(x, y + 60 + PH + 50, PW, 300, { dash: 'dashed', label: 'Why:', name: c.name + '-why' });
+});
+y += 60 + PH + 50 + 300 + 40;
+para('Then: what does (a) tell you about the logits in Problem 1 all being around -92?');
+yours(0, 1380, 400, '', 'p2-92'); y += 440;
+
+heading('Problem 3: loss, or how wrong was the model?');
+para('Loss for one prediction = -ln(probability the model gave the right token). Same prompt as Problem 1.');
+yours(0, 1000, 600, '(a) Rank the loss if the right answer were " Paris", " London", " banana". Roughly how far apart?', 'p3a');
+mine(1000 + GAP, 640, 600, 'Actual losses (I fill this in after you predict)', 'p3a-actual');
+y += 640;
+yours(0, W, 450, '(b) Why does the loss punish a confident wrong answer so hard?', 'p3b');
+```
+## Appendix C: the script API as built (written overnight; in the guide as "Drawing scripts")
 
 A drawing script is JavaScript (ES2023, as QuickJS runs it). It draws by
 calling the functions below; each emits shapes at once. Units are canvas
@@ -801,7 +1270,7 @@ is seeded: the same script and data draw the same figure.
 **Errors** name the call and the line: `script:12:7: box: w must be a number above 0, got "wide"`.
 Limits: 1 s, 32 MB, 5,000 shapes, a 1 MiB script, 256 KiB of data.
 
-## Appendix B: the reference worksheet
+## Appendix D: the reference worksheet as built (written overnight)
 
 The acceptance script (steps 7, 9, 14). With the data below it draws **56
 items in 15 parts** (33 texts, 17 boxes, 4 arrows of which 3 are lines,
