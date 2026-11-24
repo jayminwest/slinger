@@ -105,7 +105,6 @@ return { rows, vim.fn.getwininfo(win)[1].textoff }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Asked {
     Init,
-    Barrier,
     Measure,
 }
 
@@ -120,7 +119,7 @@ pub enum Heard {
     Lines,
     /// The config is loaded and the buffer seeded: what was held is sent.
     Ready,
-    /// The reply to [`Session::barrier`]: every key sent before it is done.
+    /// The word [`Session::barrier`] asked for: every key sent before it is done.
     Barrier,
     /// This Nvim is older than 0.10 (its version): it cannot edit a text.
     Old(String),
@@ -146,6 +145,9 @@ pub struct Session {
     /// Whether a measure is out, and whether another flush came since.
     measuring: bool,
     stale: bool,
+    /// The barriers asked, and the mode (`mode(1)`) the last one found.
+    barriers: i64,
+    settled: Option<String>,
 }
 
 impl Session {
@@ -163,6 +165,8 @@ impl Session {
             grid: Grid::new(SESSIONS.fetch_add(1, Ordering::Relaxed)),
             measuring: false,
             stale: false,
+            barriers: 0,
+            settled: None,
         };
         let options = Value::Map(vec![
             (Value::str("ext_linegrid"), Value::Bool(true)),
@@ -186,10 +190,11 @@ impl Session {
         self.ready
     }
 
-    /// Whether Nvim is in normal mode with nothing pending that the mode
-    /// says (an operator waiting for its motion is `operator`).
+    /// Whether Nvim was in normal mode, with nothing pending, when the
+    /// last barrier was taken: false until it is, and in any other mode
+    /// (an operator waiting for its motion, a normal command from insert).
     pub fn normal(&self) -> bool {
-        self.grid.mode_name == "normal"
+        self.settled.as_deref() == Some("n")
     }
 
     /// Nvim's screen as last heard: whole after [`Heard::Flushed`].
@@ -236,9 +241,18 @@ impl Session {
         self.request(None, "nvim_paste", args, out);
     }
 
-    /// Asks for a reply that comes once Nvim has taken every key sent so far.
+    /// Asks for word ([`Heard::Barrier`]) once Nvim has taken every key
+    /// sent so far, with the mode they left it in ([`Session::normal`]).
+    /// It goes in with the keys, in turn: Nvim may answer a request before
+    /// it takes keys sent ahead of it (a lone escape is held for
+    /// 'ttimeoutlen'), and sends a mode change only when it next flushes.
+    /// A pending operator or count is ended by it, as an escape would.
     pub fn barrier(&mut self, out: &mut Vec<u8>) {
-        self.request(Some(Asked::Barrier), "nvim_eval", vec![Value::str("1")], out);
+        self.barriers += 1;
+        self.settled = None;
+        let keys =
+            format!("<Cmd>call rpcnotify(0, 'slinger_barrier', {}, mode(1))<CR>", self.barriers);
+        self.input(&keys, out);
     }
 
     /// A request: written to `out` once ready, held until then.
@@ -289,6 +303,13 @@ impl Session {
                         self.ready = true;
                         Heard::Ready
                     }
+                    Some("slinger_barrier") => match params {
+                        [Value::Int(n), mode] if *n == self.barriers => {
+                            self.settled = mode.as_str().map(str::to_string);
+                            Heard::Barrier
+                        }
+                        _ => Heard::Nothing,
+                    },
                     Some("slinger_old") => {
                         Heard::Old(params.first().and_then(Value::as_str).unwrap_or("").into())
                     }
@@ -305,7 +326,6 @@ impl Session {
                         self.measuring &= asked != Some(Asked::Measure);
                         Heard::Failed(said(error))
                     }
-                    Some(Asked::Barrier) => Heard::Barrier,
                     Some(Asked::Measure) => {
                         self.measured(result, out);
                         Heard::Nothing
