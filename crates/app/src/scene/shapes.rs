@@ -179,7 +179,7 @@ impl Shapes {
         let cells = self.grid_frame();
         if let Some(editing) = &mut self.editing {
             let here = editing.canvas == canvas && editing.page == page;
-            // Inside Nvim's grid a press is Nvim's (slinger-b8e3d3): the text stays.
+            // Inside Nvim's grid a press is Nvim's mouse, which `canvases` hands it first: the text stays.
             if let Some(cells) = cells.filter(|_| here) {
                 if cells.outset(reach).contains(press.at) {
                     return true;
@@ -404,7 +404,7 @@ impl Shapes {
             if self.cells(&mut items, zoom, theme) {
                 return items;
             }
-            let (frame, text, size) = (editing.frame(), editing.editor.text(), editing.size);
+            let (frame, text, size) = (editing.whole(), editing.editor.text(), editing.size);
             let (caret, selected) = editing.marks(CARET / zoom);
             let fill = Some(Fill { colour: theme.focus, alpha: SELECTED_ALPHA });
             for (n, frame) in (0..).zip(selected) {

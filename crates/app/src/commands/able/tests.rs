@@ -48,6 +48,7 @@ const NONE: Facts = Facts {
     items: false,
     selected: false,
     boxed: false,
+    steps: false,
     inside: false,
     sling: false,
     entry: false,
@@ -65,8 +66,10 @@ const NONE: Facts = Facts {
 fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
     use Command as C;
     let selected = Facts { selected: true, ..PAGE };
-    let boxed = Facts { boxed: true, ..selected };
+    let boxed = Facts { boxed: true, steps: true, ..selected };
     let shown = Facts { workspace: true, ..PAGE };
+    let (idle, busy) =
+        (Facts { agent: Some(false), ..shown }, Facts { agent: Some(true), ..shown });
     vec![
         (
             &[
@@ -127,6 +130,8 @@ fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
         (&[C::ClearSelection], Facts { inside: true, ..PAGE }, Facts { items: false, ..PAGE }),
         (&[C::Fold, C::StepIn, C::StepInBeside], boxed, selected),
         (&[C::Fold], boxed, Facts { items: false, ..boxed }),
+        (&[C::StepIn, C::StepInBeside], Facts { steps: true, ..selected }, selected), // long text
+        (&[C::Fold], boxed, Facts { steps: true, ..selected }),
         (&[C::StepIn, C::StepInBeside], Facts { items: false, ..boxed }, PAGE),
         (&[C::Sling, C::Dictate], Facts { sling: true, ..PAGE }, PAGE),
         (&[C::Dictate], Facts { entry: true, ..NONE }, NONE),
@@ -134,23 +139,11 @@ fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
         (&[C::NewText], Facts { new_text: true, ..NONE }, PAGE),
         (&[C::UnlockFigure], Facts { figure: true, ..NONE }, PAGE),
         (&[C::CloseWorkspace, C::ShowWorkspaceFolder], shown, PAGE),
-        (&[C::StartAgent, C::RestartAgent], Facts { agent: Some(false), ..shown }, shown),
-        (&[C::StopAgent, C::RestartAgent], Facts { agent: Some(true), ..shown }, shown),
-        (
-            &[C::StartAgent],
-            Facts { agent: Some(false), ..shown },
-            Facts { agent: Some(true), ..shown },
-        ),
-        (
-            &[C::StopAgent],
-            Facts { agent: Some(true), ..shown },
-            Facts { agent: Some(false), ..shown },
-        ),
-        (
-            &[C::RestartAgent],
-            Facts { agent: Some(true), ..shown },
-            Facts { agent: Some(true), ..PAGE },
-        ),
+        (&[C::StartAgent, C::RestartAgent], idle, shown),
+        (&[C::StopAgent, C::RestartAgent], busy, shown),
+        (&[C::StartAgent], idle, busy),
+        (&[C::StopAgent], busy, idle),
+        (&[C::RestartAgent], busy, Facts { agent: Some(true), ..PAGE }),
         (&[C::ExportUi], Facts { ui: true, ..NONE }, Facts { canvas: true, ..NONE }),
         (&[C::ExportUi], Facts { ui: true, ..NONE }, Facts { ui_pane: true, ..NONE }),
         (&[C::ReloadUi], Facts { ui_pane: true, ..NONE }, Facts { canvas: true, ..NONE }),

@@ -4,9 +4,10 @@ use crate::layout::Size;
 
 mod undo;
 
-/// Size 10: a cell is 5 wide, so a column of 35 holds seven.
+/// Size 10: a cell is 5 wide, so a column of 40 holds eight: "one two"
+/// and the space a row breaks at.
 const SIZE: f64 = 10.0;
-const SEVEN: f64 = 35.0;
+const EIGHT: f64 = 40.0;
 
 /// Ten points a character, a line a size tall.
 fn fixed(text: &str, _size: f64) -> Size {
@@ -35,7 +36,7 @@ fn shown(e: &Editor) -> String {
     s
 }
 
-/// `keys` pressed in turn, as `"alt+left"` and so on, in a column of seven cells.
+/// `keys` pressed in turn, as `"alt+left"` and so on, in a column of eight cells.
 fn pressed(e: &mut Editor, keys: &[&str]) -> String {
     for key in keys {
         let chord = match *key {
@@ -43,7 +44,7 @@ fn pressed(e: &mut Editor, keys: &[&str]) -> String {
             "end" => Chord::new(0, END),
             key => Chord::parse(key).unwrap(),
         };
-        assert!(e.key(chord, SIZE, SEVEN), "{key} is the text's");
+        assert!(e.key(chord, SIZE, EIGHT), "{key} is the text's");
     }
     shown(e)
 }
@@ -74,7 +75,7 @@ fn alt_moves_and_deletes_by_words() {
 
 #[test]
 fn cmd_moves_to_the_row_s_ends_and_deletes_to_its_start() {
-    // Seven cells: "one two" and "three" are rows.
+    // Eight cells: "one two" and "three" are rows.
     let mut e = at("one t|wo three");
     assert_eq!(pressed(&mut e, &["cmd+left"]), "|one two three");
     assert_eq!(pressed(&mut e, &["cmd+right"]), "one two| three", "before the broken space");
@@ -138,10 +139,10 @@ fn cmd_a_selects_all_and_cut_takes_the_selection_out() {
 fn other_keys_go_on_to_the_keymap() {
     let mut e = at("ab|");
     for key in ["cmd+z", "ctrl+left", "a", "cmd+alt+left", "alt+up", "f5", "escape", "return"] {
-        assert!(!e.key(Chord::parse(key).unwrap(), SIZE, SEVEN), "{key}");
+        assert!(!e.key(Chord::parse(key).unwrap(), SIZE, EIGHT), "{key}");
     }
     assert!(
-        !e.key(Chord::new(CTRL, 'z'), SIZE, SEVEN),
+        !e.key(Chord::new(CTRL, 'z'), SIZE, EIGHT),
         "ctrl and a letter that is not an emacs key"
     );
     assert_eq!(shown(&e), "ab|");
@@ -150,7 +151,7 @@ fn other_keys_go_on_to_the_keymap() {
 #[test]
 fn a_press_places_the_caret_and_a_drag_or_shift_selects() {
     let mut e = at("abc\ndef|");
-    let laid = Laid::new("abc\ndef", Point { x: 100.0, y: 50.0 }, SIZE, SEVEN);
+    let laid = Laid::new("abc\ndef", Point { x: 100.0, y: 50.0 }, SIZE, EIGHT);
     assert_eq!(laid.index_at(Point { x: 114.0, y: 52.0 }), 1, "nearer b's start than its end");
     assert_eq!(laid.index_at(Point { x: 116.0, y: 52.0 }), 2);
     assert_eq!(laid.index_at(Point { x: 500.0, y: 65.0 }), 7, "right of a row: its end");
@@ -167,14 +168,14 @@ fn a_press_places_the_caret_and_a_drag_or_shift_selects() {
 #[test]
 fn the_caret_and_the_selection_are_drawn_in_the_rows() {
     glyphs::set_measure(fixed);
-    let laid = Laid::new("one two three", Point { x: 100.0, y: 50.0 }, SIZE, SEVEN);
+    let laid = Laid::new("one two three", Point { x: 100.0, y: 50.0 }, SIZE, EIGHT);
     let row = |start, end| glyphs::Row { start, end };
     assert_eq!(laid.rows(), [row(0, 7), row(8, 13)]);
     let rect = |x, y, width| Rect { x, y, width, height: SIZE };
     assert_eq!(laid.caret(2, 1.0), rect(120.0, 50.0, 1.0));
     assert_eq!(laid.caret(10, 1.0), rect(120.0, 60.0, 1.0), "in the second row");
     assert_eq!(laid.selection(4, 10, 2.0), [rect(140.0, 50.0, 30.0), rect(100.0, 60.0, 20.0)]);
-    let empty = Laid::new("a\n\nb", Point { x: 0.0, y: 0.0 }, SIZE, SEVEN);
+    let empty = Laid::new("a\n\nb", Point { x: 0.0, y: 0.0 }, SIZE, EIGHT);
     assert_eq!(empty.selection(0, 4, 2.0)[1], rect(0.0, 10.0, 2.0), "an empty line shows");
 }
 
@@ -230,7 +231,7 @@ fn a_double_tap_selects_a_word_and_a_triple_tap_a_row() {
     assert_eq!(tap(&mut e, 5.0, 12.0, 2), "one, two\n|\nthree", "an empty line: the caret");
     assert_eq!(tap(&mut e, 12.0, 22.0, 3), "one, two\n\n[three]");
     assert_eq!(tap(&mut e, 12.0, 2.0, 4), "[one, two]\n\nthree", "and on");
-    let mut e = typing("one two three", SEVEN);
+    let mut e = typing("one two three", EIGHT);
     assert_eq!(tap(&mut e, 12.0, 12.0, 3), "one two [three]", "a wrapped row, not the line");
 }
 

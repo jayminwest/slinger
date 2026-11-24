@@ -8,6 +8,8 @@
 //! edits its own locked items, and the user's verbs act on them as on any.
 //! It is the app's to skip. A figure exists while an item has its name.
 
+pub(super) mod matching;
+
 use std::collections::BTreeMap;
 use std::fmt;
 

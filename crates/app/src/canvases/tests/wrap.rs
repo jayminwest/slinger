@@ -3,6 +3,7 @@
 //! (slinger-d96bfb).
 
 use super::*;
+use crate::commands::Command;
 use crate::scene::canvas::Shape;
 use crate::scene::cursor::Cursor;
 use crate::scene::glyphs;
@@ -29,7 +30,7 @@ fn drawn(canvases: &mut Canvases, panes: &Panes) -> Option<Rect> {
 fn a_wrapped_text_resized_then_edited_reads_back_from_the_daemon_in_its_rows() {
     with_store(None, |daemon| {
         let _home = open_notes(daemon);
-        // Ten cells of 12: four rows.
+        // Ten cells of 12: four rows, a row's break taking a cell.
         let text = "one two three four five six seven";
         let ops = serde_json::json!({"op": "add", "item": {"page": "p1", "kind": "text",
             "color": "#000000", "x": 1000, "y": 1000, "w": 1200, "text": text}});
@@ -38,7 +39,7 @@ fn a_wrapped_text_resized_then_edited_reads_back_from_the_daemon_in_its_rows() {
         let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
         wait_until(|| drawn(&mut canvases, &panes).is_some());
         let (_, _, rows) = stored(daemon);
-        assert_eq!(rows, "one two\nthree four\nfive six\nseven");
+        assert_eq!(rows, "one two\nthree\nfour five\nsix seven");
 
         let pane = (panes.focus(), WINDOW.rect());
         let b = drawn(&mut canvases, &panes).unwrap();
@@ -74,7 +75,7 @@ fn a_wrapped_text_resized_then_edited_reads_back_from_the_daemon_in_its_rows() {
         assert!(canvases.typed(" eight nine") && canvases.typed("\u{1b}"));
         until(&mut canvases, &panes, daemon, |d| stored(d).0.ends_with("nine"));
         let (_, _, edited) = stored(daemon);
-        assert_eq!(edited, "one two\nthree four\nfive six\nseven\neight nine");
+        assert_eq!(edited, "one two\nthree\nfour five\nsix seven\neight nine");
     });
 }
 
@@ -96,12 +97,13 @@ fn a_text_typed_here_keeps_its_column_when_edited_after_a_reload() {
         let mid = (b.x + 5.0, b.y + b.height / 2.0);
         assert!(canvases.pen_down(&panes, pane, pen(mid.0, mid.1, 5.0), (Tool::Text, GREY)));
         canvases.pen_up(&panes, pen(mid.0, mid.1, 5.1), Some(pane));
-        let more = " and a much longer line that runs past its column";
+        let more = " and a much longer line that runs on past the eighty cells a new text holds in its column";
         assert!(canvases.typed(more) && canvases.typed("\u{1b}"));
         until(&mut canvases, &panes, daemon, |d| stored(d).0.ends_with("column"));
         let (_, _, rows) = stored(daemon);
-        let first = "word and a much longer line that runs past its";
-        assert_eq!(rows, format!("{first}\ncolumn"), "48 cells a row");
+        let first =
+            "word and a much longer line that runs on past the eighty cells a new text holds";
+        assert_eq!(rows, format!("{first}\nin its column"), "80 cells a row");
     });
 }
 
@@ -115,19 +117,25 @@ fn a_drag_of_the_typed_text_s_edge_sets_its_column() {
         let panes = notes();
         let mut canvases = Canvases::new(daemon.clone());
         wait_until(|| shown(&mut canvases, &panes) == 1);
-        type_word(&mut canvases, &panes, (300.0, 300.0), 1.0);
-        assert!(canvases.typed(" two three"));
         let pane = (panes.focus(), WINDOW.rect());
+        // Zoomed out, so the column of 80 cells shows in the window.
+        assert!(canvases.command(&panes, pane, Command::ZoomOut));
+        let zoom = canvases.view(pane.0).viewport.zoom();
+        assert!(zoom < 0.9, "{zoom}");
+        type_word(&mut canvases, &panes, (20.0, 300.0), 1.0);
+        assert!(canvases.typed(" two three"));
         let y = 300.0;
-        let edge = (300..1200).map(f64::from).find(|&x| {
+        let edge = (20..960).map(f64::from).find(|&x| {
             canvases.hover_handle(&panes, Some(pane), Point { x, y }, Tool::Text);
             canvases.handle_cursor(pane.0) == Some(Cursor::ResizeLeftRight)
         });
         let x = edge.expect("the edge of the text's column");
-        assert!(x > 300.0 + 400.0, "out at its column, not its glyphs: {x}");
+        assert!(x > 20.0 + 900.0 * zoom, "out at its column, not its glyphs: {x}");
+        // Dragged so the column is seven cells of 12 and a half.
+        let to = 20.0 + 7.5 * 12.0 * zoom;
         assert!(canvases.pen_down(&panes, pane, pen(x, y, 2.0), (Tool::Text, GREY)));
-        assert!(canvases.pen_drag(&panes, pen(x - 500.0, y, 2.1), Some(pane)));
-        canvases.pen_up(&panes, pen(x - 500.0, y, 2.2), Some(pane));
+        assert!(canvases.pen_drag(&panes, pen(to, y, 2.1), Some(pane)));
+        canvases.pen_up(&panes, pen(to, y, 2.2), Some(pane));
         assert!(canvases.editing(), "the drag keeps the text typed");
         assert!(canvases.typed("\u{1b}"));
         until(&mut canvases, &panes, daemon, |d| count(d, "text") == 1);

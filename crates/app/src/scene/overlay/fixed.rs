@@ -3,7 +3,8 @@
 //! docs/design/pen-less.md pick 2A) and the pans held rather than pressed
 //! (pick 1). They are fixed, so no config moves them and the registry does
 //! not list them; the overlay shows them after the command groups, as rows
-//! with no target.
+//! with no target. While Nvim edits the texts, a typed text's rows are
+//! Nvim's ([`NVIM`]).
 
 use crate::commands::Chord;
 
@@ -46,8 +47,11 @@ const fn row(title: &'static str, keys: Keys) -> Row {
     Row { title, keys }
 }
 
-/// Every fixed section, in the order the overlay shows them.
-pub const ALL: [&Fixed; 2] = [&TYPING, &POINTER];
+/// Every fixed section, in the order the overlay shows them: a typed
+/// text's keys are Nvim's while `nvim` (it edits the texts).
+pub fn all(nvim: bool) -> [&'static Fixed; 2] {
+    [if nvim { &NVIM } else { &TYPING }, &POINTER]
+}
 
 /// The keys of a canvas text being typed: they come before the keymap.
 pub const TYPING: Fixed = Fixed {
@@ -68,6 +72,21 @@ pub const TYPING: Fixed = Fixed {
         row("Undo, redo its edits", Keys::Words("⌘Z ⇧⌘Z")),
         row("Set where it wraps", Keys::Words("drag right edge")),
         row("End the text", Keys::Words("⎋ or tap out")),
+    ],
+};
+
+/// The keys of a canvas text Nvim edits (docs/design/writing-column.md,
+/// "The keys"): every key without command is Nvim's.
+pub const NVIM: Fixed = Fixed {
+    title: "Typing a text",
+    rows: &[
+        row("Every key but ⌘ chords", Keys::Words("nvim's keys")),
+        row("End the text", Keys::Words("⎋ in normal, :q, tap out")),
+        row("Place the cursor, select", Keys::Words("tap, drag")),
+        row("Undo, redo nvim's edits", Keys::Words("⌘Z ⇧⌘Z")),
+        row("Paste, dictate", Keys::Words("⌘V")),
+        row("Copy, cut in visual mode", Keys::Words("⌘C ⌘X")),
+        row("Select the whole text", Keys::Words("⌘A")),
     ],
 };
 

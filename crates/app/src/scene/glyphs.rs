@@ -32,8 +32,13 @@ pub type Measure = fn(text: &str, size: f64) -> Size;
 
 /// The column of a text that does not wrap.
 pub const UNWRAPPED: f64 = 1e7;
-/// How many characters a row of a new typed text holds ([`column`]).
-pub const NEW_COLUMN: f64 = 48.0;
+/// How many characters a row of a new typed text holds ([`column`]): the
+/// writing column (docs/design/writing-column.md), as wide as nvim's grid.
+pub const NEW_COLUMN: f64 = 80.0;
+/// The most rows a canvas text's frame is tall (the core's
+/// `render::MOST_ROWS`): a longer text shows its first rows, the last
+/// fading, and "N more lines" in the last ([`more`]); stepped into, all.
+pub const MOST_ROWS: usize = 80;
 /// The estimate's width of a character, and height of a line, as a part of
 /// the text's size: about the system font's.
 const CHAR_WIDTH: f64 = 0.55;
@@ -109,43 +114,37 @@ pub struct Row {
 }
 
 /// `text`'s rows as [`rows`] cuts them, as byte ranges: so the rows drawn
-/// and the rows a caret moves through never differ.
+/// and the rows a caret moves through never differ. A line that does not
+/// fit in the cells breaks as nvim breaks it (the core's `raster::wrap`):
+/// at the last space in its first cells that a character other than a
+/// space follows and that comes after the line's first other character,
+/// so a word ending on the last cell with a space after it goes to the
+/// next row; else it is cut at the cells.
 #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "floored, >= 1")]
 pub fn layout(text: &str, size: f64, column: f64) -> Vec<Row> {
     let cell = size * CELL;
     let cells = if column >= cell { (column / cell) as usize } else { usize::MAX };
     let mut rows = Vec::new();
-    // Where the paragraph, then the row, then the word, starts.
+    // Where the paragraph starts.
     let mut pos = 0;
     for paragraph in text.split('\n') {
-        // The cells the row so far takes.
-        let mut taken: usize = 0;
-        let mut start = pos;
-        for (i, word) in paragraph.split(' ').enumerate() {
-            if i > 0 {
-                // The space before a word that does not fit becomes the line break.
-                let wide = word.chars().filter(|&c| !zero_width(c)).count();
-                if taken > 0 && taken.saturating_add(wide + 1) > cells {
-                    rows.push(Row { start, end: pos });
-                    start = pos + 1;
-                    taken = 0;
-                } else {
-                    taken += 1;
-                }
-                pos += 1;
-            }
-            for (at, _) in word.char_indices().filter(|&(_, c)| !zero_width(c)) {
-                if taken >= cells {
-                    rows.push(Row { start, end: pos + at });
-                    start = pos + at;
-                    taken = 0;
-                }
-                taken += 1;
-            }
-            pos += word.len();
+        // The characters that take a cell, and where each starts.
+        let chars: Vec<(usize, char)> =
+            paragraph.char_indices().filter(|&(_, c)| !zero_width(c)).collect();
+        let space = |i: usize| chars[i].1 == ' ';
+        // No break in the spaces a line starts with.
+        let lead = (0..chars.len()).take_while(|&i| space(i)).count();
+        let (mut first, mut start) = (0, pos);
+        while chars.len() - first > cells {
+            let cut = first + cells;
+            let after = (first.max(lead + 1)..cut).rev().find(|&i| space(i) && !space(i + 1));
+            // The space a row breaks at is in neither row; a cut row's next starts at the cut.
+            let (end, next, skip) = after.map_or((cut, cut, 0), |i| (i, i + 1, 1));
+            rows.push(Row { start, end: pos + chars[end].0 });
+            (first, start) = (next, pos + chars[end].0 + skip);
         }
-        rows.push(Row { start, end: pos });
-        pos += 1;
+        rows.push(Row { start, end: pos + paragraph.len() });
+        pos += paragraph.len() + 1;
     }
     rows
 }
@@ -242,13 +241,45 @@ impl<'a> Laid<'a> {
 
 /// The frame of canvas text `text` set `size` high from `at` in its
 /// stored `column`: as wide as its widest row in the [`FONT`] (rounded up,
-/// plus a point) and a size tall a row ([`rows`]).
-#[expect(clippy::cast_precision_loss, reason = "row counts are far below 2^52")]
+/// plus a point) and a size tall a row ([`rows`]), at most [`MOST_ROWS`]
+/// rows, as the core boxes it.
 pub fn rows_frame(at: Point, text: &str, size: f64, column: f64) -> Rect {
+    let whole = whole_frame(at, text, size, column);
+    Rect { height: whole.height.min(rows_height(MOST_ROWS, size)), ..whole }
+}
+
+/// [`rows_frame`] with every row: the frame a text stepped into, or typed
+/// in slinger's editor, shows in.
+pub fn whole_frame(at: Point, text: &str, size: f64, column: f64) -> Rect {
     let rows = rows(text, size, column);
     let width = measured(&rows, size * FONT).width.ceil() + 1.0;
-    let count = rows.split('\n').count();
-    Rect { x: at.x, y: at.y, width, height: count as f64 * size }
+    Rect { x: at.x, y: at.y, width, height: rows_height(rows.split('\n').count(), size) }
+}
+
+/// How tall `n` rows of a text of `size` are.
+#[expect(clippy::cast_precision_loss, reason = "row counts are far below 2^52")]
+fn rows_height(n: usize, size: f64) -> f64 {
+    n as f64 * size
+}
+
+/// How many of a text's `rows` its last shown row stands for when it has
+/// more than [`MOST_ROWS`]: those past the one before it, which "N more
+/// lines" counts. None for a text that shows whole.
+pub fn hidden(rows: usize) -> usize {
+    if rows > MOST_ROWS { rows - (MOST_ROWS - 1) } else { 0 }
+}
+
+/// The row of a canvas text drawn in `frame` that says "N more lines", and
+/// N: when it has more than [`MOST_ROWS`] rows in its `column` and its
+/// frame stops short of them (a text stepped into is framed whole). Two
+/// quick taps on that row step into the text.
+#[expect(clippy::cast_precision_loss, reason = "row counts are far below 2^52")]
+pub fn more(frame: Rect, text: &str, size: f64, column: f64) -> Option<(Rect, usize)> {
+    let rows = layout(text, size, column).len();
+    let hidden = hidden(rows);
+    let short = frame.height < rows_height(rows, size) - size / 2.0;
+    let y = frame.y + (MOST_ROWS - 1) as f64 * size;
+    (hidden > 0 && short).then_some((Rect { y, height: size, ..frame }, hidden))
 }
 
 /// A character that draws nothing and takes no cell in the core.

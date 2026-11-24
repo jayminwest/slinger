@@ -45,7 +45,10 @@ fn slinger_nvim_turns_it_on_or_off_and_the_config_picks_which() {
     assert!(driven.is_none(), "a driven window: only SLINGER_NVIM turns it on");
     assert!(resolve(&Nvim::Auto, &[("SLINGER_NVIM", "off"), ("PATH", path)]).unwrap().is_none());
     let on = resolve(&Nvim::Off, &[("SLINGER_NVIM", "clean"), ("PATH", path)]).unwrap().unwrap();
-    assert_eq!((on.program, on.clean), (program.clone(), true));
+    assert_eq!((on.program, on.clean, on.clip), (program.clone(), true, None), "the system's");
+    let pairs = [("SLINGER_NVIM", "clean"), ("PATH", path)];
+    let driven = Setup::resolve(&Nvim::Auto, false, &env(&pairs)).unwrap().unwrap();
+    assert_eq!(driven.clip, Some(driven.scratch.join("clip")), "a driven window's own clipboard");
     let home = dir.path().to_str().unwrap();
     let mine = Nvim::Path("~/bin/nvim".into());
     let on = resolve(&mine, &[("SLINGER_NVIM", "user"), ("HOME", home)]).unwrap().unwrap();

@@ -34,6 +34,9 @@ pub struct Facts {
     pub selected: bool,
     /// The selection there holds a box to step into or fold.
     pub boxed: bool,
+    /// The selection there holds a box, or a text with more rows than it
+    /// shows, to step into.
+    pub steps: bool,
     /// The focused pane is stepped into a box.
     pub inside: bool,
     /// `sling` has something to open its entry at: the selection, a
@@ -138,7 +141,7 @@ pub fn can(command: Command, facts: &Facts) -> bool {
         // With nothing selected it steps out.
         Command::ClearSelection => f.items && (f.selected || f.inside),
         Command::Fold => f.items && f.boxed,
-        Command::StepIn | Command::StepInBeside => f.boxed,
+        Command::StepIn | Command::StepInBeside => f.steps,
         Command::StepOut => f.inside,
         Command::Sling => f.sling,
         // With an entry open it speaks into it.

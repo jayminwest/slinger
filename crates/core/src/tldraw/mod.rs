@@ -12,9 +12,12 @@
 //! - pages become pages, in tldraw's page order, with their names.
 //!
 //! Colour is kept (as Slinger's own value for each tldraw colour name), and so
-//! are a shape's `fill` (as a tint of its colour) and `dash` (`dashed` and
-//! `dotted`; tldraw's hand-drawn `draw` is solid) on the items that take
-//! them: a box both, a stroke or an arrow its dash. Items are added in
+//! are a shape's `fill` (as a tint of its colour), `dash` (`dashed` and
+//! `dotted`; tldraw's hand-drawn `draw` is solid), a drawing's `isClosed`
+//! and an arrow's arrowheads on the items that take them: a box the fill
+//! and the dash, a stroke its dash and, closed, its fill, an arrow its dash
+//! and heads (a head at its start only turns it round). A locked shape
+//! (`isLocked`) makes locked items. Items are added in
 //! tldraw's drawing order, so a later item draws on top.
 //! Children of groups and frames are placed in page space; the group itself
 //! has no item. A shape with no mapping is skipped and counted in the

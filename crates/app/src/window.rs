@@ -285,7 +285,9 @@ pub fn edit(
         && match edit {
             Edit::Cut | Edit::Copy => {
                 let clip = canvases.copy(&shared.panes, *edit == Edit::Cut);
-                return clip.map_or(Edited::No, |clip| Edited::Drawn(Some(clip)));
+                // Nvim puts what it copies on the clipboard itself: an empty clip.
+                let clip = clip.map(|clip| Some(clip).filter(|c| !c.is_empty()));
+                return clip.map_or(Edited::No, Edited::Drawn);
             }
             Edit::Paste(Clip { text: Some(text), .. }) if shared.palette.is_open() => {
                 shared.palette.pasted(text)
@@ -448,6 +450,7 @@ pub fn view(
         List::Profiles => canvases.profile_names(&shared.panes, pane),
     });
     shared.menu.refresh(rows);
+    shared.overlay.set_nvim(canvases.nvim_on());
     let overlay = shared.overlay.shown(keys, theme, size);
     let overlay = overlay.or_else(|| shared.palette.shown(keys, theme, size));
     let overlay = overlay.or_else(|| shared.menu.shown(theme, size));

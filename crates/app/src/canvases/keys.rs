@@ -16,6 +16,12 @@ use crate::scene::sling::edits;
 use crate::scene::tools::Resize;
 
 impl Canvases {
+    /// Whether an Nvim edits the texts typed from now on: the key overlay
+    /// lists its keys for them.
+    pub fn nvim_on(&self) -> bool {
+        self.editing.nvim_on()
+    }
+
     /// Whether a text is being typed, or a page command asks: the keys
     /// that type go to it.
     pub fn editing(&self) -> bool {

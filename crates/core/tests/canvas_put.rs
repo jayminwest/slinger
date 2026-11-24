@@ -137,12 +137,13 @@ fn put_text_lands_beside_the_item_as_the_agents_at_its_time() {
 
 #[test]
 fn long_text_wraps_and_its_frame_holds_every_line() {
-    // Sixteen words fit a line of 80; thirty make two lines.
+    // Sixteen words and the space a row breaks at fit a line of 80; thirty
+    // make two lines.
     let words = "word ".repeat(30);
-    assert_eq!(render::text_size(&words, TEXT_COLUMNS, 24.0), (79.0 * 12.0, 2.0 * 24.0));
+    assert_eq!(render::text_size(&words, TEXT_COLUMNS, 24.0), (80.0 * 12.0, 2.0 * 24.0));
     let mut log = log_of(&bx(0, 0, 10, 10));
     let placed = log.put(&scout(), AT, "i1", &Put::Text(words)).unwrap();
-    assert_eq!(placed.frame[2..], [9480, 480]);
+    assert_eq!(placed.frame[2..], [9600, 480]);
 }
 
 #[test]

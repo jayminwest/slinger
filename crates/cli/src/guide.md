@@ -67,6 +67,7 @@ Read a canvas:
 ```bash
 slinger canvas read <CANVAS>                 # the packet; `at=` names the directory of its images
 slinger canvas read <CANVAS> --in b4         # what box b4 holds: a folded box is one line, `folded=7`
+slinger canvas read <CANVAS> --in worksheet/1a-answer  # one part of a figure, item by item, and the ink over it
 slinger canvas show <CANVAS>                 # every item as JSON, in tenths
 slinger canvas crop <CANVAS> --item c12      # an image of one item; read the file it prints
 slinger canvas find <CANVAS> "the plan"     # page, item and text of each text that holds it ("i7 in i4": folded in box i4)
@@ -222,7 +223,8 @@ slinger drive shot window.png           # the window as a PNG, to look at
 A driven window types canvas texts with slinger's own editor. Start it with
 `SLINGER_NVIM=clean` (no config) or `SLINGER_NVIM=user` (yours) to have nvim
 edit them as the app does: `drive scene` then prints nvim's grid, its mode,
-cursor and rows, under a `cells` line.
+cursor and rows, under a `cells` line. nvim's copies go to the file
+`SLINGER_NVIM_CLIP` names (else `$TMPDIR/slinger-nvim/clip`), not to `drive clip`.
 
 Points are in the window's points from its top left, as `drive scene`
 prints them, written `X,Y` or `X Y`. `taken` means the app used the event, `passed` that it did

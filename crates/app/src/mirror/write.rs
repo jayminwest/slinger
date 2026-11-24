@@ -218,6 +218,7 @@ fn fields(shape: &Shape) -> Map<String, Value> {
             match column.and_then(|c| stored_column(c, *size)).filter(wraps) {
                 Some(width) => {
                     let rows = glyphs::rows(text, *size, width).split('\n').count();
+                    let rows = rows.min(glyphs::MOST_ROWS);
                     let rows = u32::try_from(rows).map_or(f64::from(u32::MAX), f64::from);
                     frame(&mut o, &Rect { width, height: rows * size, ..unwrapped });
                 }

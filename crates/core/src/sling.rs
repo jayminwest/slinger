@@ -309,8 +309,19 @@ fn note(
     format!("# reply\n{line}{theirs}")
 }
 
-/// The note's line for a sling of the box `inside`.
+/// The note's line for a sling of the box `inside`, or of a figure or a
+/// part: an answer goes beside that, as its one box may not hold it.
 fn boxed(inside: &str, verbs: &[Verb]) -> String {
+    if crate::canvas::Address::parse(inside).is_ok() {
+        let answer = if verbs.contains(&Verb::Put) {
+            format!(" Answer by it: add `--beside {inside}` to each `canvas put`.")
+        } else {
+            String::new()
+        };
+        return format!(
+            "This sling is of {inside}: the packet holds only it and what lies over it.{answer}\n"
+        );
+    }
     let answer = if verbs.contains(&Verb::Put) {
         format!(" Answer in it: add `--in {inside}` to each `canvas put`.")
     } else {
