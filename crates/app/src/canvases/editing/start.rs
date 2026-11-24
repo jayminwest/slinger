@@ -28,6 +28,8 @@ impl Editing {
         (pointer, colour): (Option<Point>, Rgb),
     ) -> bool {
         let Some(canvas) = canvas_of(panes, pane).map(str::to_string) else { return false };
+        // The text being typed may end: its Nvim takes the keys sent first.
+        self.vim.settle(&mut self.shapes);
         let open = follow.shown(&canvas, pane);
         let Some(shown) = open.and_then(|o| o.mirror.as_ref()).map(|m| m.page().to_string()) else {
             return false;

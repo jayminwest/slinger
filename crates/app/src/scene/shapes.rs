@@ -124,6 +124,8 @@ pub struct Shapes {
     waiting: Option<(Editing, Point, f64)>,
     size: Option<f64>,
     next: Option<Chord>,
+    /// How many texts have ended: another editor tells one text from the next by it.
+    ends: u64,
 }
 
 impl Shapes {
@@ -358,6 +360,7 @@ impl Shapes {
     pub fn end(&mut self, ink: &mut Ink) -> bool {
         (self.selecting, self.widening) = (false, None);
         let Some(editing) = self.editing.take() else { return false };
+        self.ends += 1;
         self.ended = Some((editing.canvas.clone(), editing.page.clone(), editing.frame()));
         if let Some(change) = start::ended(editing) {
             ink.push(change);
@@ -476,3 +479,4 @@ fn snap(p: Point) -> Point {
 mod start;
 #[cfg(test)]
 mod tests;
+mod typing;

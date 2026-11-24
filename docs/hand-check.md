@@ -69,3 +69,7 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 - [ ] quit the real app while it shows a non-first workspace, relaunch: that workspace is shown (fa2e551; saved in the app's user defaults via an unsafe NSUserDefaults call never run for real) (slinger-d00b38)
 - [ ] IME input (Japanese/Chinese composition, dead-key accents) in the sling entry (slinger-368f56)
 - [ ] open the app once with no saved window frame (a copy of the binary under another name, or delete the 'NSWindow Frame slinger window' default) and confirm it opens 960 wide; 70d6d7 was closed as not reproducible (slinger-f7bb8d)
+
+## Writing column (plan pl-b237f5)
+
+- [ ] (bundle) with `SLINGER_NVIM=user` (`open -n --env SLINGER_NVIM=user …`) and your own nvim config, open and end a few canvas texts: nothing of yours is written outside slinger's state and cache (`$TMPDIR/slinger-nvim/{state,cache}`): `lazy-lock.json` in ~/.config/nvim, plugin data under ~/.local/share/nvim, ~/.local/state/nvim and ~/.cache/nvim keep their mtimes (tests hold it for `--clean` with all four homes redirected); the bundle opened from the Finder finds nvim on a nix or Homebrew PATH (slinger-c6e898)

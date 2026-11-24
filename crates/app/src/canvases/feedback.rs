@@ -73,9 +73,9 @@ impl Canvases {
         crate::backend::feedback_file(&self.daemon)
     }
 
-    /// What to flash once a note is saved, once.
+    /// What to flash once a note is saved, or why no Nvim edits a text, once.
     pub fn take_flash(&mut self) -> Option<String> {
-        self.flow.take_flash()
+        self.flow.take_flash().or_else(|| self.editing.take_flash())
     }
 }
 

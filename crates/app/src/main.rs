@@ -28,6 +28,7 @@ mod drive;
 mod launch;
 mod layout;
 mod mirror;
+mod nvim;
 mod panes;
 mod platform;
 mod route;

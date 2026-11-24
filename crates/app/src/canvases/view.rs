@@ -215,9 +215,14 @@ impl super::Canvases {
         self.follow.forget(workspace);
     }
 
-    /// The app quits: the looks of `panes` go to the daemon at once, and
+    /// The app quits: the text being typed ends (with what its Nvim holds),
+    /// the looks of `panes` go to the daemon at once, and
     /// this waits for that a short while at most ([`follow`](super::follow)).
     pub fn quitting(&mut self, panes: &crate::panes::Panes) {
+        // The text being typed ends, so it is kept with the unsent ink.
+        if self.editing.end_text() {
+            self.send();
+        }
         self.follow.quitting(panes);
     }
 }
