@@ -277,12 +277,15 @@ fn apply_one(canvas: &mut Canvas, op: Op) -> Result<(Applied, Option<Action>)> {
 fn inverse(canvas: &Canvas, action: &Action) -> Option<Action> {
     match action {
         Action::Add { .. } | Action::PageAdd { .. } => None,
-        Action::Edit { item, shape, style } => canvas.item(*item).map(|old| {
-            // The style goes back only when the edit changes it, so the
-            // undo of a plain edit writes the same line as before styles.
+        Action::Edit { item, shape, style, member } => canvas.item(*item).map(|old| {
+            // The style and the figure go back only when the edit changes
+            // them, so the undo of a plain edit writes the same line as
+            // before them.
             let after = style.unwrap_or(*old.style()).fitted(shape);
             let style = (after != *old.style()).then_some(*old.style());
-            Action::Edit { item: *item, shape: old.shape().clone(), style }
+            let changed = member.as_ref().is_some_and(|m| m != old.member());
+            let member = changed.then(|| old.member().clone());
+            Action::Edit { item: *item, shape: old.shape().clone(), style, member }
         }),
         Action::Move { item, .. } => {
             canvas.item(*item).map(|old| Action::edit(*item, old.shape().clone()))

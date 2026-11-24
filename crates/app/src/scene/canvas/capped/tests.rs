@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::layout::Size;
-use crate::scene::canvas::build;
+use crate::scene::canvas::{Style, build};
 
 const SIZE: f64 = 24.0;
 const INK: Rgb = Rgb { r: 0, g: 0, b: 0 };
@@ -24,6 +24,7 @@ fn text(n: usize, whole: bool) -> Item {
         id: ItemId(7),
         colour: INK,
         shape: Shape::Text { frame, text, size: SIZE, column: Some(column) },
+        style: Style::default(),
     }
 }
 

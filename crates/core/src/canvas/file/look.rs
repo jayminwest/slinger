@@ -5,7 +5,9 @@
 //! Ids are the file's (`i12`) or the packet's (`c12`, `t12`, `b12`, `a12`):
 //! the number is the item's, so every letter names that item, except that
 //! `c<n>` on a stroke of the user's names the whole cluster it is in on the
-//! page as it is now (`packet::cluster`). A box is `x,y,w,h` in the file's
+//! page as it is now (`packet::cluster`). Anything else is a figure address
+//! (docs/design/figures.md, "The address"): `worksheet` names every item of
+//! that figure, `worksheet/1a-answer` the items of that part. A box is `x,y,w,h` in the file's
 //! units, integers in tenths of a unit, on the first page, or `<page>:x,y,w,h`
 //! on the page with that id or name. Images follow `render`'s rules, so a crop
 //! is at the packet's scale and large ones come as tiles. A crop is at most
@@ -20,7 +22,7 @@ use serde_json::Value;
 
 use super::Log;
 use super::json;
-use crate::canvas::{Author, Item, ItemId, Rect, Shape};
+use crate::canvas::{Address, Author, Item, ItemId, Rect, Shape};
 use crate::packet::cluster;
 use crate::render::{self, Image, MARGIN};
 use crate::{Error, Result};
@@ -119,15 +121,23 @@ impl Log {
             .collect()
     }
 
-    /// The items `id` names, in drawing order. See the module doc.
+    /// The items `id` names, in id order: the one place an id or a figure
+    /// address is read. See the module doc.
     pub(super) fn resolve(&self, id: &str) -> Result<Vec<ItemId>> {
         let canvas = self.canvas();
-        let number = id
-            .strip_prefix(super::packet::ID_LETTERS)
-            .filter(|d| d.bytes().all(|b| b.is_ascii_digit()))
-            .and_then(|d| d.parse().ok());
-        let Some(n) = number else {
-            return Err(invalid(format!("{id:?} is not an item id"), ID_HINT));
+        let Some(n) = number(id) else {
+            let address = Address::parse(id).map_err(|_| {
+                invalid(format!("{id:?} is not an item id or a figure address"), ID_HINT)
+            })?;
+            let items = canvas.part(&address);
+            if items.is_empty() {
+                let what = match address.part {
+                    Some(_) => format!("part {address}"),
+                    None => format!("figure {address}"),
+                };
+                return Err(Error::NotFound { what, hint: Some(FIGURE_HINT.into()) });
+            }
+            return Ok(items);
         };
         let Some(item) = canvas.item(ItemId::new(n)) else {
             return Err(Error::NotFound { what: format!("item {id}"), hint: Some(ID_HINT.into()) });
@@ -146,7 +156,19 @@ impl Log {
     }
 }
 
-const ID_HINT: &str = "pass an id from 'slinger canvas show' (i12) or from a packet (c12, t12)";
+/// The number of an item id (`i12`, `c12`), or `None` for anything else,
+/// a figure address among them.
+pub(super) fn number(id: &str) -> Option<u64> {
+    id.strip_prefix(super::packet::ID_LETTERS)
+        .filter(|d| d.bytes().all(|b| b.is_ascii_digit()))
+        .and_then(|d| d.parse().ok())
+}
+
+const ID_HINT: &str = "pass an id from 'slinger canvas show' (i12) or from a packet (c12, t12), \
+    or a figure address (worksheet, worksheet/1a-answer)";
+
+const FIGURE_HINT: &str =
+    "the figures are the fig and part fields of the items 'slinger canvas show' lists";
 
 const BOX_HINT: &str = "give a box as x,y,w,h in tenths of a unit, after <page>: for another page";
 

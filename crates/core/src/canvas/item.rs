@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use super::{Colour, Fold, Style};
+use super::{Colour, Fold, Member, Style};
 use crate::{Error, Result};
 
 /// The size of a text item's characters, in canvas units, when it gives
@@ -360,6 +360,7 @@ pub struct Item {
     pub(super) time: Time,
     pub(super) shape: Shape,
     pub(super) style: Style,
+    pub(super) member: Member,
 }
 
 impl Item {

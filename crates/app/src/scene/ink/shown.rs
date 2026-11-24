@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 
 use super::{Change, Ink, PENDING, Pending, Stroke};
-use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::canvas::{Item, ItemId, Shape, Style};
 
 impl Ink {
     /// `items`, the server's copy of `page` of `canvas`, as the user should
@@ -51,19 +51,29 @@ impl Ink {
                             *item = Cow::Owned(after.clone());
                         } else if ids.contains(&item.id) {
                             let (id, colour) = (item.id, item.colour);
-                            *item = Cow::Owned(Item { id, colour, shape: item.shape.moved(*by) });
+                            *item = Cow::Owned(Item {
+                                id,
+                                colour,
+                                shape: item.shape.moved(*by),
+                                style: item.style,
+                            });
                         }
                     }
                 }
                 Change::Put { colour, shape, .. } => {
                     let id = pending.id(0);
-                    let item = Item { id, colour: *colour, shape: shape.clone() };
+                    let item = Item::plain(id, *colour, shape.clone());
                     shown.extend(new(&id).then_some(Cow::Owned(item)));
                 }
                 Change::Set { id, shape, .. } => {
                     for item in shown.iter_mut().filter(|i| i.id == *id) {
                         let colour = item.colour;
-                        *item = Cow::Owned(Item { id: *id, colour, shape: shape.clone() });
+                        *item = Cow::Owned(Item {
+                            id: *id,
+                            colour,
+                            shape: shape.clone(),
+                            style: item.style,
+                        });
                     }
                 }
                 Change::Reshape { items: after, .. } => {
@@ -118,5 +128,6 @@ fn local(id: ItemId, stroke: &Stroke) -> Item {
         id,
         colour: stroke.colour,
         shape: Shape::Stroke { points: stroke.points.clone(), width: stroke.width },
+        style: Style::default(),
     }
 }

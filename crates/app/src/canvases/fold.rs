@@ -104,7 +104,7 @@ pub(super) fn drawn<'a>(
         let Some(mini) = mirror.miniature(id) else {
             out.push(item);
             if mirror.box_folded(id) == Some(false) {
-                out.push(Cow::Owned(Item { id: ItemId(MARK + id.0), colour, shape: mark(frame) }));
+                out.push(Cow::Owned(Item::plain(ItemId(MARK + id.0), colour, mark(frame))));
             }
             continue;
         };
@@ -117,14 +117,14 @@ pub(super) fn drawn<'a>(
                 out.extend(mini.iter().map(Cow::Borrowed));
             }
         }
-        out.push(Cow::Owned(Item { id: ItemId(MARK + id.0), colour, shape: mark(frame) }));
+        out.push(Cow::Owned(Item::plain(ItemId(MARK + id.0), colour, mark(frame))));
     }
     let room = peek.and_then(|id| Some((id, mirror.room(id)?)));
     if let Some((id, room)) = room {
         let colour = mirror.item(id).map_or(theme.text, |i| i.colour);
         let fill = Some(Fill { colour: theme.background, alpha: 1.0 });
         let paper = Shape::Panel { frame: room, fill, width: LINE_WIDTH, dashed: false };
-        out.push(Cow::Owned(Item { id: PEEK, colour, shape: paper }));
+        out.push(Cow::Owned(Item::plain(PEEK, colour, paper)));
         out.extend(mirror.inside(id, room).into_iter().map(Cow::Owned));
     }
     out

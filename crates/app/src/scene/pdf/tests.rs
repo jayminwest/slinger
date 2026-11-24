@@ -7,7 +7,7 @@ use std::borrow::Cow;
 use super::*;
 use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Size, Viewport};
-use crate::scene::canvas::{self, Item, ItemId, Mark};
+use crate::scene::canvas::{self, Item, ItemId, Mark, Style};
 use crate::scene::ink::Ink;
 
 /// US Letter and A4, in points, as displayed.
@@ -28,7 +28,7 @@ fn pdf(frame: Rect, crop: Option<Rect>) -> Shape {
 }
 
 fn item(id: u64, shape: Shape) -> Item {
-    Item { id: ItemId(id), colour: Rgb { r: 0, g: 0, b: 0 }, shape }
+    Item { id: ItemId(id), colour: Rgb { r: 0, g: 0, b: 0 }, shape, style: Style::default() }
 }
 
 #[test]

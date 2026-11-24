@@ -18,7 +18,7 @@ use crate::scene::canvas::{Item, ItemId};
 use crate::scene::cursor::Cursor;
 use crate::scene::ink::{Ink, Pen};
 use crate::scene::select::{Landing, Select};
-use crate::scene::shapes::Press;
+use crate::scene::shapes::{Press, REACH};
 use crate::scene::tools::Tool;
 
 impl Editing {
@@ -27,8 +27,10 @@ impl Editing {
     /// else took the press: the text, box, arrow and crop tools start, the
     /// pen a stroke, the select tool a pick, and the eraser and the lasso
     /// an erase, a loop or a drag of the selection. What it adds until it
-    /// lifts joins the folded box the pane is inside, if any. False, and
-    /// nothing starts, when the tool takes no press there.
+    /// lifts joins the folded box the pane is inside, if any. A press on
+    /// the grid of the text Nvim edits, with any tool, is Nvim's mouse
+    /// until the lift. False, and nothing starts, when the tool takes no
+    /// press there.
     pub(in crate::canvases) fn press(
         &mut self,
         follow: &mut Follow,
@@ -39,6 +41,10 @@ impl Editing {
         (tool, colour): (Tool, crate::config::Rgb),
     ) -> bool {
         let Press { at, when, zoom, shift } = press;
+        if self.vim.press(here, (at, REACH / zoom), shift, &mut self.shapes) {
+            self.pen = Some((pane, frame));
+            return true;
+        }
         // A press may end the text: its Nvim takes the keys sent first.
         self.vim.settle(&mut self.shapes);
         follow.pen_in(pane, here, self.ink.mark());
@@ -73,6 +79,9 @@ impl Editing {
     ) -> bool {
         let Some((pane, frame)) = self.pen else { return false };
         let at = to_canvas(follow.view(pane).viewport, frame, pen.at);
+        if self.vim.drag(at, false, &self.shapes) {
+            return true;
+        }
         self.unshown = Some(self.unshown.map_or(pen.when, |t| t.min(pen.when)));
         if self.ink.drag(at) || self.shapes.drag(at) || self.crop.drag(at) {
             return true;
@@ -101,6 +110,9 @@ impl Editing {
     ) -> bool {
         let Some((pane, frame)) = self.pen.take() else { return false };
         let at = to_canvas(follow.view(pane).viewport, frame, pen.at);
+        if self.vim.drag(at, true, &self.shapes) {
+            return true;
+        }
         let landing = landing(follow, panes, under, pen.at);
         self.select.keep_ratio(pen.shift);
         let mark = self.ink.mark();

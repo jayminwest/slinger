@@ -37,6 +37,7 @@ mod sling_box;
 mod split;
 mod start;
 mod step;
+mod style;
 mod undo;
 mod views;
 mod wake;

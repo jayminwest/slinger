@@ -17,7 +17,7 @@ fn an_empty_file_is_every_default() {
 fn parses_every_key() {
     let text = "[theme]\nbackground = \"#000000\"\ntext = \"#FFFFFF\"\n\
                 muted=\"#010203\"   # a note\nerror = \"#ff0000\"\nfocus = \"#00ff00\"\n\
-                done = \"#0000ff\"\n\
+                done = \"#0000ff\"\nagent = \"#00ffff\"\n\
                 [daemon]  # the daemon\nsocket = \"~/s.sock\"\n[workspace]\nname = \"My Notes\"\n";
     let config = parse(text).unwrap().resolve();
     let theme = Theme {
@@ -27,6 +27,7 @@ fn parses_every_key() {
         error: rgb(255, 0, 0),
         focus: rgb(0, 255, 0),
         done: rgb(0, 0, 255),
+        agent: rgb(0, 255, 255),
     };
     let expected = Config {
         theme,
@@ -166,12 +167,15 @@ fn the_example_parses_to_the_defaults_and_lists_every_key() {
     let all = parse(&uncommented).unwrap();
     assert_eq!(all.clone().resolve().theme, Theme::default());
     let every_key = Layer {
-        background: Some(Theme::default().background),
-        text: Some(Theme::default().text),
-        muted: Some(Theme::default().muted),
-        error: Some(Theme::default().error),
-        focus: Some(Theme::default().focus),
-        done: Some(Theme::default().done),
+        colours: Colours {
+            background: Some(Theme::default().background),
+            text: Some(Theme::default().text),
+            muted: Some(Theme::default().muted),
+            error: Some(Theme::default().error),
+            focus: Some(Theme::default().focus),
+            done: Some(Theme::default().done),
+            agent: Some(Theme::default().agent),
+        },
         socket: all.socket.clone(),
         workspace: Some("notes".into()),
         palette: Some(Palette::default()),

@@ -18,7 +18,7 @@ fn rect(x: f64, y: f64, width: f64, height: f64) -> Rect {
 }
 
 fn item(id: u64, shape: Shape) -> Item {
-    Item { id: ItemId(id), colour: INK, shape }
+    Item { id: ItemId(id), colour: INK, shape, style: Style::default() }
 }
 
 fn stroke(id: u64, points: &[(f64, f64)]) -> Item {
@@ -97,7 +97,10 @@ fn marks_are_in_screen_points_and_scale_with_the_zoom() {
     // Smoothed in canvas points, then placed.
     let curves = smooth::smooth(&[pt(10.0, 10.0), pt(50.0, 40.0)], 2.0);
     let curves = curves.iter().map(|c| c.map(|p| view.to_screen(p))).collect();
-    assert_eq!(scene.draws[0].mark, Mark::Stroke { start: pt(30.0, 20.0), curves, width: 4.0 });
+    assert_eq!(
+        scene.draws[0].mark,
+        Mark::Stroke { start: pt(30.0, 20.0), curves, width: 4.0, dash: Dash::Solid, fill: None }
+    );
     assert_eq!(scene.draws[0].bounds, rect(28.0, 18.0, 84.0, 64.0));
     assert_eq!(
         scene.draws[1].mark,
@@ -112,7 +115,10 @@ fn marks_are_in_screen_points_and_scale_with_the_zoom() {
     );
     let boxed = [item(9, Shape::Box { frame: rect(1.0, 2.0, 3.0, 4.0), width: 1.0 })];
     let scene = at(&boxed, view, None);
-    assert_eq!(scene.draws[0].mark, Mark::Box { frame: rect(12.0, 4.0, 6.0, 8.0), width: 2.0 });
+    assert_eq!(
+        scene.draws[0].mark,
+        Mark::Box { frame: rect(12.0, 4.0, 6.0, 8.0), width: 2.0, dash: Dash::Solid, fill: None }
+    );
     assert_eq!(scene.draws[0].bounds, rect(11.0, 3.0, 8.0, 10.0));
 }
 
@@ -139,10 +145,12 @@ fn ink_keeps_its_colour_unless_the_background_would_hide_it() {
 #[test]
 fn an_arrow_head_points_back_along_the_shaft() {
     let scene = at(&page(), Viewport::default(), None);
-    let Mark::Arrow { from, to, barbs, width } = scene.draws[2].mark else {
+    let Mark::Arrow { from, to, ref heads, width, .. } = scene.draws[2].mark else {
         panic!("not an arrow: {:?}", scene.draws[2].mark);
     };
     assert_eq!((from, to, width), (pt(200.0, 300.0), pt(300.0, 300.0), 2.0));
+    let [(tip, barbs)] = heads[..] else { panic!("one head: {heads:?}") };
+    assert_eq!(tip, to);
     let (dx, dy) = (HEAD_LENGTH * HEAD_ANGLE.cos(), HEAD_LENGTH * HEAD_ANGLE.sin());
     assert!(near(barbs[0], pt(300.0 - dx, 300.0 + dy)));
     assert!(near(barbs[1], pt(300.0 - dx, 300.0 - dy)));

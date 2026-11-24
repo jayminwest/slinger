@@ -23,7 +23,7 @@ fn cut(overlay: &mut KeyOverlay, keys: &Keymap, size: Size) -> Vec<String> {
 /// The left edge of each column the rows fill in a window of `size`.
 fn lefts(overlay: &mut KeyOverlay, keys: &Keymap, size: Size) -> usize {
     overlay.shown(keys, &T, size);
-    let place = place::place(size, 0.0, &overlay.widths);
+    let place = place::place(size, 0.0, &overlay.widths, false);
     let mut lefts: Vec<f64> = place.headings.iter().map(|(_, f)| f.x).collect();
     lefts.sort_by(f64::total_cmp);
     lefts.dedup();

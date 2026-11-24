@@ -8,6 +8,10 @@
 //!
 //! Each step looks only a few points back, so a point added at the end of a
 //! line changes only its last few curves (`canvas::grown`).
+//!
+//! A closed line (`closed` in its style) has no ends: its points wrap round,
+//! each eased toward its neighbours across the join, and the curve is the
+//! closed B-spline through them, ending where it starts.
 
 use crate::layout::Point;
 
@@ -19,6 +23,30 @@ const MAX_STEP: f64 = 6.0;
 /// How many times each inner point moves halfway to the middle of its two
 /// neighbours.
 const EASES: usize = 2;
+
+/// [`smooth`], or for a `closed` line of three points or more the closed
+/// curve through them: it starts where its last curve ends, near (not on)
+/// the first point.
+pub(super) fn line(points: &[Point], width: f64, closed: bool) -> Vec<[Point; 3]> {
+    if !closed {
+        return smooth(points, width);
+    }
+    let step = (width * STEP_PER_WIDTH).clamp(MIN_STEP, MAX_STEP);
+    let mut kept = thinned(points, step);
+    // The last point near the first is the join, not a point of its own.
+    while kept.len() > 3 && distance(kept[0], kept[kept.len() - 1]) < step {
+        kept.pop();
+    }
+    if kept.len() < 3 {
+        return smooth(points, width);
+    }
+    for _ in 0..EASES {
+        eased_round(&mut kept);
+    }
+    let n = kept.len();
+    let controls: Vec<Point> = (0..n + 3).map(|i| kept[(i + n - 1) % n]).collect();
+    curves(&controls)
+}
 
 /// The line through `points`, `width` wide, as cubic curves from its first
 /// point: each curve is two control points, then its end. One point is one
@@ -69,6 +97,20 @@ fn eased(points: &mut [Point]) {
     }
 }
 
+/// Each point of a closed line moved halfway to the middle of its two
+/// neighbours, the first and the last neighbours across the join.
+fn eased_round(points: &mut [Point]) {
+    let was = points.to_vec();
+    let n = was.len();
+    for (i, p) in points.iter_mut().enumerate() {
+        let (before, here, after) = (was[(i + n - 1) % n], was[i], was[(i + 1) % n]);
+        *p = Point {
+            x: (before.x + 2.0 * here.x + after.x) / 4.0,
+            y: (before.y + 2.0 * here.y + after.y) / 4.0,
+        };
+    }
+}
+
 /// The uniform cubic B-spline with `points` as its controls, the first and
 /// last tripled so the curve starts and ends on them, as Bézier curves.
 fn spline(points: &[Point]) -> Vec<[Point; 3]> {
@@ -78,6 +120,12 @@ fn spline(points: &[Point]) -> Vec<[Point; 3]> {
     }
     let controls: Vec<Point> =
         [first, first].into_iter().chain(points.iter().copied()).chain([last, last]).collect();
+    curves(&controls)
+}
+
+/// The uniform cubic B-spline with `controls` as its controls, as Bézier
+/// curves: one for each run of four.
+fn curves(controls: &[Point]) -> Vec<[Point; 3]> {
     let toward =
         |a: Point, b: Point, t: f64| Point { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
     // Each run of four controls is one curve; its start is the last one's end.

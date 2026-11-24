@@ -179,7 +179,7 @@ impl Shapes {
         let cells = self.grid_frame();
         if let Some(editing) = &mut self.editing {
             let here = editing.canvas == canvas && editing.page == page;
-            // Inside Nvim's grid a press is Nvim's (slinger-b8e3d3): the text stays.
+            // Inside Nvim's grid a press is Nvim's mouse, which `canvases` hands it first: the text stays.
             if let Some(cells) = cells.filter(|_| here) {
                 if cells.outset(reach).contains(press.at) {
                     return true;
@@ -395,7 +395,7 @@ impl Shapes {
             } else {
                 boxed(drag.from, drag.to)
             };
-            items.push(Cow::Owned(Item { id: PREVIEW, colour: drag.colour, shape }));
+            items.push(Cow::Owned(Item::plain(PREVIEW, drag.colour, shape)));
         }
         if let Some(editing) = self.editing.as_ref().filter(|e| here(&e.canvas, &e.page)) {
             if let Some(was) = &editing.item {
@@ -410,17 +410,17 @@ impl Shapes {
             for (n, frame) in (0..).zip(selected) {
                 let shape = Shape::Panel { frame, fill, width: 0.0, dashed: false };
                 let id = ItemId(SELECTED - n);
-                items.push(Cow::Owned(Item { id, colour: theme.focus, shape }));
+                items.push(Cow::Owned(Item::plain(id, theme.focus, shape)));
             }
             let column = Some(editing.column);
             let shape = Shape::Text { frame, text: text.to_string(), size, column };
-            items.push(Cow::Owned(Item { id: EDITING, colour: editing.colour, shape }));
+            items.push(Cow::Owned(Item::plain(EDITING, editing.colour, shape)));
             let shape = Shape::Caret { frame: caret };
-            items.push(Cow::Owned(Item { id: CARET_ID, colour: theme.focus, shape }));
+            items.push(Cow::Owned(Item::plain(CARET_ID, theme.focus, shape)));
             let around = editing.bounds().outset(FRAME_PAD / zoom);
             let shape =
                 Shape::Panel { frame: around, fill: None, width: FRAME_LINE / zoom, dashed: true };
-            items.push(Cow::Owned(Item { id: FRAME_ID, colour: theme.muted, shape }));
+            items.push(Cow::Owned(Item::plain(FRAME_ID, theme.muted, shape)));
             let under = Point { x: around.x, y: around.y + around.height + HINT_GAP / zoom };
             let hint = label(HINT_ID, self.hint(), theme.muted, under, zoom);
             items.push(Cow::Owned(hint));

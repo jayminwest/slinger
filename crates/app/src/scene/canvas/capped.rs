@@ -4,7 +4,7 @@
 //! dimmed, "N more lines". Stepped into, its frame holds every row and it
 //! draws whole ([`glyphs::more`] says which). Pure.
 
-use super::{Draw, Item, ItemId, Mark, Shape, glyphs, legible};
+use super::{Draw, Item, ItemId, Mark, Shape, glyphs, style};
 use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect, Viewport};
 use crate::scene::style::mix;
@@ -25,7 +25,7 @@ pub(super) fn draws(item: &Item, view: Viewport, theme: &Theme) -> Option<Vec<Dr
     let Shape::Text { frame, text, size, column: Some(column) } = &item.shape else { return None };
     let (note, hidden) = glyphs::more(*frame, text, *size, *column)?;
     let rows = glyphs::layout(text, *size, *column);
-    let ink = legible(item.colour, theme);
+    let ink = style::ink(item.colour, theme);
     let row = |n: usize| Rect { y: frame.y + rows_tall(n, *size), height: *size, ..*frame };
     let piece = |id: ItemId, from: usize, to: usize, colour: Rgb| {
         let lines: Vec<&str> = rows[from..to].iter().map(|r| &text[r.start..r.end]).collect();

@@ -99,7 +99,8 @@ fn an_agent_may_not_edit_the_users_ink_or_another_agents_item() {
     assert!(err.unwrap_err().hint().is_some_and(|h| h.contains("only items it made")));
     let code = |ask: CanvasEdit| client.canvas_edit(ask).unwrap_err().code().to_string();
     assert_eq!(code(edit("scout", "i9")), "not_found");
-    assert_eq!(code(edit("scout", "zz")), "invalid");
+    assert_eq!(code(edit("scout", "z z")), "invalid");
+    assert_eq!(code(edit("scout", "zz")), "not_found", "a figure address naming none");
     assert_eq!(code(edit(" ", "i2")), "invalid");
     assert_eq!(code(CanvasEdit { text: Some(" ".into()), ..edit("scout", "i2") }), "invalid");
     assert_eq!(code(CanvasEdit { size: Some([-1, 5]), ..edit("scout", "i2") }), "invalid");

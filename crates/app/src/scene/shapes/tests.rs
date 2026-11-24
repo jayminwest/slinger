@@ -1,5 +1,6 @@
 use super::*;
 use crate::scene::canvas::Mark;
+use crate::scene::canvas::Style;
 use crate::scene::glyphs;
 use crate::scene::select::Select;
 
@@ -17,6 +18,7 @@ const THEME: Theme = Theme {
     error: Rgb { r: 3, g: 3, b: 3 },
     focus: Rgb { r: 4, g: 4, b: 4 },
     done: Rgb { r: 5, g: 5, b: 5 },
+    agent: Rgb { r: 6, g: 6, b: 6 },
 };
 
 fn pt(x: f64, y: f64) -> Point {
@@ -37,7 +39,7 @@ fn glyph(x: f64, y: f64, text: &str) -> Rect {
 const NEW: Option<f64> = Some(966.0);
 
 fn item(id: u64, shape: Shape) -> Item {
-    Item { id: ItemId(id), colour: BLUE, shape }
+    Item { id: ItemId(id), colour: BLUE, shape, style: Style::default() }
 }
 
 /// A box (i1), a text (i2), an arrow (i3) across the empty middle, and a

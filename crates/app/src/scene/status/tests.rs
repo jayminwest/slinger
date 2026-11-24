@@ -13,6 +13,7 @@ const T: Theme = Theme {
     error: Rgb { r: 3, g: 3, b: 3 },
     focus: Rgb { r: 4, g: 4, b: 4 },
     done: Rgb { r: 5, g: 5, b: 5 },
+    agent: Rgb { r: 6, g: 6, b: 6 },
 };
 const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
 const PANE: Rect = Rect { x: 100.0, y: 0.0, width: 1000.0, height: 400.0 };

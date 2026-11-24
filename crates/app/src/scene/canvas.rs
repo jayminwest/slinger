@@ -9,7 +9,6 @@
 //! off at the pane's edges ([`Scene::clip`]). Chrome over a page adds two shapes
 //! no server item has: a panel (a box with a fill) and a text's caret.
 
-use std::f64::consts::FRAC_PI_6;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -19,6 +18,10 @@ use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect, Size, Viewport};
 use crate::nvim::grid::Grid;
 use changed::changed_between;
+use style::HEAD_LENGTH;
+pub use style::{Dash, Heads, Style};
+#[cfg(test)]
+use style::{HEAD_ANGLE, barbs, legible};
 
 /// An item's id, unique within its canvas: the number of the server's `i<n>`.
 /// The id is how a scene knows an item it drew last time.
@@ -31,6 +34,15 @@ pub struct Item {
     pub id: ItemId,
     pub colour: Rgb,
     pub shape: Shape,
+    /// Its fill, dash, heads and closed ([`style`]).
+    pub style: Style,
+}
+
+impl Item {
+    /// An item drawn plain: no fill, solid, as every item before styles.
+    pub fn plain(id: ItemId, colour: Rgb, shape: Shape) -> Item {
+        Item { id, colour, shape, style: Style::default() }
+    }
 }
 
 /// What an item is, in canvas points. Widths are line widths.
@@ -91,56 +103,26 @@ pub struct Fill {
 pub enum Mark {
     /// A line from `start` through each cubic curve: two control points, then
     /// the curve's end. A line of one point is one curve of no length, which
-    /// a round cap draws as a dot.
-    Stroke {
-        start: Point,
-        curves: Vec<[Point; 3]>,
-        width: f64,
-    },
+    /// a round cap draws as a dot. A closed line ends where it starts;
+    /// its `fill`, if any, is painted under all ink ([`style::order`]).
+    Stroke { start: Point, curves: Vec<[Point; 3]>, width: f64, dash: Dash, fill: Option<Fill> },
     /// `text` laid out `size` canvas points high in a column `width` canvas
     /// points wide, its lines `line` apart (0: the font's own), drawn from `at` at
     /// `zoom` times that size. The layout is in canvas points so a pan or a
     /// zoom never lays the text out again.
-    Text {
-        at: Point,
-        width: f64,
-        text: String,
-        size: f64,
-        line: f64,
-        zoom: f64,
-    },
-    Box {
-        frame: Rect,
-        width: f64,
-    },
-    /// The shaft from `from` to `to`, and the head: a line from `to` to each barb.
-    Arrow {
-        from: Point,
-        to: Point,
-        barbs: [Point; 2],
-        width: f64,
-    },
+    Text { at: Point, width: f64, text: String, size: f64, line: f64, zoom: f64 },
+    /// A box's outline in its `dash`, its `fill` painted under all ink.
+    Box { frame: Rect, width: f64, dash: Dash, fill: Option<Fill> },
+    /// The shaft from `from` to `to` in its `dash`, and each head solid:
+    /// a line from its tip to each of its two barbs.
+    Arrow { from: Point, to: Point, heads: Vec<(Point, [Point; 2])>, width: f64, dash: Dash },
     /// A live item's box, and its UI's `name` laid out like a text, from
     /// `at`, inside its top left corner: what shows until, or unless, the
     /// page of the showing `open` shows over it, `zoom` times its size.
-    Live {
-        frame: Rect,
-        open: String,
-        name: String,
-        at: Point,
-        size: f64,
-        zoom: f64,
-    },
+    Live { frame: Rect, open: String, name: String, at: Point, size: f64, zoom: f64 },
     /// The button's outline, `width` wide, and its `label` (its status mark
     /// first) laid out like a text from `at`, `zoom` times its size.
-    Button {
-        frame: Rect,
-        label: String,
-        at: Point,
-        size: f64,
-        width: f64,
-        zoom: f64,
-    },
+    Button { frame: Rect, label: String, at: Point, size: f64, width: f64, zoom: f64 },
     /// A `pdf` item: the part `shown` of page `page` (from 1), in page
     /// points as displayed, stretched to fill `frame`, on white, from the
     /// PDF at `file` once it has come ([`build_with`]) for the blob `hash`. Until then, or when the PDF cannot be read, the frame's
@@ -157,24 +139,12 @@ pub enum Mark {
         zoom: f64,
     },
     /// The panel's `frame`, filled, then outlined `width` wide.
-    Panel {
-        frame: Rect,
-        fill: Option<Fill>,
-        width: f64,
-        dashed: bool,
-    },
+    Panel { frame: Rect, fill: Option<Fill>, width: f64, dashed: bool },
     /// A text's caret: a bar filling `frame`.
-    Caret {
-        frame: Rect,
-    },
+    Caret { frame: Rect },
     /// Nvim's cell grid from `at`: cells `size` canvas points tall, drawn
     /// `zoom` times that.
-    Cells {
-        at: Point,
-        size: f64,
-        zoom: f64,
-        grid: Arc<Grid>,
-    },
+    Cells { at: Point, size: f64, zoom: f64, grid: Arc<Grid> },
 }
 
 /// A mark, the item it draws, its colour and the screen box its ink covers.
@@ -209,18 +179,10 @@ pub struct Scene {
     pub pen_event: Option<f64>,
 }
 
-/// The length of an arrow's head barbs, in canvas points.
-const HEAD_LENGTH: f64 = 12.0;
-/// The angle between an arrow's shaft and each barb.
-const HEAD_ANGLE: f64 = FRAC_PI_6;
 /// How high a live item's name is set, and how far inside its corner, in
 /// canvas points.
 const NAME_SIZE: f64 = 16.0;
 const NAME_INSET: f64 = 8.0;
-/// The least contrast (WCAG ratio) ink keeps with the paper. Ink closer to
-/// the background than this, such as black ink on a dark theme, draws in
-/// the theme's text colour, so nothing on a page is invisible.
-const MIN_CONTRAST: f64 = 1.5;
 /// The outline and the word of a `pdf` item whose PDF has not come.
 const PDF_GREY: Rgb = Rgb { r: 0xc8, g: 0xc8, b: 0xc8 };
 
@@ -265,9 +227,9 @@ pub fn build_with<'a>(
             colour: match item.shape {
                 Shape::Button { status, .. } => button::colour(status, theme),
                 Shape::Pdf { .. } => PDF_GREY,
-                _ => legible(item.colour, theme),
+                _ => style::ink(item.colour, theme),
             },
-            mark: match item.shape.mark(viewport) {
+            mark: match item.shape.mark(viewport, item.style, theme) {
                 Mark::Pdf { hash, frame, page, shown, at, size, zoom, .. } => {
                     let file = files(&hash);
                     Mark::Pdf { frame, page, shown, hash, file, at, size, zoom }
@@ -364,18 +326,29 @@ impl Shape {
         }
     }
 
-    /// The shape on the screen.
-    fn mark(&self, view: Viewport) -> Mark {
+    /// The shape on the screen, drawn in `style` on `theme`.
+    fn mark(&self, view: Viewport, style: Style, theme: &Theme) -> Mark {
         let zoom = view.zoom();
+        let (dash, fill) = (style.dash, style.tint(theme));
         match self {
             Self::Stroke { points, width } => {
                 // Smoothed in canvas points, so a zoom does not change the
                 // line's shape; the screen is the canvas scaled and moved.
-                let curves = smooth::smooth(points, *width);
-                let curves = curves.iter().map(|c| c.map(|p| view.to_screen(p))).collect();
+                let curves = smooth::line(points, *width, style.closed);
                 // A stroke has a point, or it has no bounds and is not drawn.
-                let start = points.first().map_or(Point { x: 0.0, y: 0.0 }, |p| view.to_screen(*p));
-                Mark::Stroke { start, curves, width: width * zoom }
+                // A closed one starts where its last curve ends.
+                let start = match (style.closed, curves.last()) {
+                    (true, Some(last)) => last[2],
+                    _ => points.first().copied().unwrap_or(Point { x: 0.0, y: 0.0 }),
+                };
+                let curves = curves.iter().map(|c| c.map(|p| view.to_screen(p))).collect();
+                Mark::Stroke {
+                    start: view.to_screen(start),
+                    curves,
+                    width: width * zoom,
+                    dash,
+                    fill,
+                }
             }
             Self::Text { frame, text, size, column } => {
                 let (width, text, size, line) = match column {
@@ -391,13 +364,17 @@ impl Shape {
                 Mark::Text { at, width, text, size, line, zoom }
             }
             Self::Box { frame, width } => {
-                Mark::Box { frame: view.rect_to_screen(*frame), width: width * zoom }
+                Mark::Box { frame: view.rect_to_screen(*frame), width: width * zoom, dash, fill }
             }
             Self::Arrow { from, to, width, .. } => Mark::Arrow {
                 from: view.to_screen(*from),
                 to: view.to_screen(*to),
-                barbs: barbs(*from, *to).map(|p| view.to_screen(p)),
+                heads: style::heads(*from, *to, style.heads)
+                    .into_iter()
+                    .map(|(tip, barbs)| (view.to_screen(tip), barbs.map(|p| view.to_screen(p))))
+                    .collect(),
                 width: width * zoom,
+                dash,
             },
             Self::Live { frame, name, open } => Mark::Live {
                 frame: view.rect_to_screen(*frame),
@@ -433,33 +410,10 @@ impl Shape {
     }
 }
 
-/// `ink`, or the theme's text colour when `ink` would not show on its
-/// background.
-fn legible(ink: Rgb, theme: &Theme) -> Rgb {
-    let (a, b) = (luminance(ink), luminance(theme.background));
-    let contrast = (a.max(b) + 0.05) / (a.min(b) + 0.05);
-    if contrast < MIN_CONTRAST { theme.text } else { ink }
-}
-
-/// The relative luminance of an sRGB colour, 0 (black) to 1 (white).
-fn luminance(c: Rgb) -> f64 {
-    let linear = |v: u8| (f64::from(v) / 255.0).powf(2.2);
-    0.2126 * linear(c.r) + 0.7152 * linear(c.g) + 0.0722 * linear(c.b)
-}
-
-/// The ends of an arrow's two barbs, in canvas points. They point back along
-/// the shaft; a shaft of no length points right, so its head points left.
-fn barbs(from: Point, to: Point) -> [Point; 2] {
-    let heading = (to.y - from.y).atan2(to.x - from.x);
-    [heading - HEAD_ANGLE, heading + HEAD_ANGLE].map(|angle| Point {
-        x: to.x - HEAD_LENGTH * angle.cos(),
-        y: to.y - HEAD_LENGTH * angle.sin(),
-    })
-}
-
 mod capped;
 mod changed;
 mod smooth;
+pub mod style;
 
 #[cfg(test)]
 mod tests;

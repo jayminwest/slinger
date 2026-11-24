@@ -446,10 +446,10 @@ tenths of a unit.
 
 | `op` | fields |
 |---|---|
-| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000`. A `text` without `w` or `h` gets a frame that fits its words (the rule is in `docs/design/canvas-file.md`); a given size is kept. A `text`'s optional `size` (40 to 4000 tenths; missing, 240) is the size of its characters; outside that range it is `invalid`. An arrow's `from` or `to` may be `$n` (`$0`, `$1`, ...): the item that `made[n]` of this same request names, made by an `add` before it, so items and the arrows between them are added in one step; so may an id in a box's `fold.items`. Optional style fields (`docs/design/canvas-file.md`, "Item objects"): `fill` (`#rrggbb` or `#rrggbbaa`) on a `box` or a `stroke` with `closed`, `dash` (`dashed` or `dotted`) on a `box`, `stroke` or `arrow`, `heads` (`none`, `end` or `both`) on an `arrow`, `closed` (`true`) on a `stroke`; `null` is the default. A value of the wrong type, an unknown word, a colour that does not parse or a field the kind does not take is `invalid`, with a hint naming the field and what it takes. Beside `item`, an optional `in` (`b4` or `i4`) names a folded box on the item's page that the item joins (docs/design/fold.md, "Step in"): the step writes the `add` and a `set` of the box's `fold` listing it, its open size grown right and down to hold it. An `in` an open box adds plainly; one that is not a box, or on another page, is `invalid` |
+| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000`. A `text` without `w` or `h` gets a frame that fits its words (the rule is in `docs/design/canvas-file.md`); a given size is kept. A `text`'s optional `size` (40 to 4000 tenths; missing, 240) is the size of its characters; outside that range it is `invalid`. An arrow's `from` or `to` may be `$n` (`$0`, `$1`, ...): the item that `made[n]` of this same request names, made by an `add` before it, so items and the arrows between them are added in one step; so may an id in a box's `fold.items`. Optional style fields (`docs/design/canvas-file.md`, "Item objects"): `fill` (`#rrggbb` or `#rrggbbaa`) on a `box` or a `stroke` with `closed`, `dash` (`dashed` or `dotted`) on a `box`, `stroke` or `arrow`, `heads` (`none`, `end` or `both`) on an `arrow`, `closed` (`true`) on a `stroke`; `null` is the default. A value of the wrong type, an unknown word, a colour that does not parse or a field the kind does not take is `invalid`, with a hint naming the field and what it takes. Optional figure fields on any kind (`docs/design/figures.md`, "Figure and part"): `locked` (`true`: the user's hands pass over it in the app; agents are not stopped by it), `fig` (a figure name: 1 to 40 of `a-z`, `0-9` and `-`, a letter first, not shaped like an item id) and `part` (1 to 40 of `a-z`, `0-9` and `-`; only with `fig`); a value of the wrong type, a name that breaks the rules or a `part` without `fig` is `invalid` with a hint. Beside `item`, an optional `in` (`b4` or `i4`) names a folded box on the item's page that the item joins (docs/design/fold.md, "Step in"): the step writes the `add` and a `set` of the box's `fold` listing it, its open size grown right and down to hold it. An `in` an open box adds plainly; one that is not a box, or on another page, is `invalid` |
 | `remove` | `ids`: list of item ids. Ids already gone are fine |
 | `move` | `ids`, `dx`, `dy` |
-| `set` | `id`, `fields`: item fields to replace, laid over the item's current ones. New `text` without `w` or `h` reads the missing one as 0, so the frame fits the new words (at the text's `size`) by the same rule; `"size": null` puts a text back to the usual 240. A `set` that names a style field (`fill`, `dash`, `heads`, `closed`) checks it as `add` does and writes all four; one that names none keeps the item's style |
+| `set` | `id`, `fields`: item fields to replace, laid over the item's current ones. New `text` without `w` or `h` reads the missing one as 0, so the frame fits the new words (at the text's `size`) by the same rule; `"size": null` puts a text back to the usual 240. A `set` that names a style field (`fill`, `dash`, `heads`, `closed`) checks it as `add` does and writes all four; one that names none keeps the item's style. So with the figure fields (`locked`, `fig`, `part`): a `set` of `locked` to `true` or `null` locks or unlocks an item, by its maker or the user |
 | `page.add` | `name`. The page goes last |
 | `page.rename` | `page`, `name` |
 | `page.remove` | `page`. Its items go with it; the last page stays |
@@ -719,8 +719,13 @@ ink (R6).
 or as a packet gives it (`c12`, `t12`, `b12`, `a12`, `d12`). The number is the
 item's. `c<n>` on a stroke of the user's names every stroke of the cluster
 it is in, clustered on the page as it is now; on anything else it names the
-item alone. An id that is not one is `invalid`; an item that is not there
-is `not_found`.
+item alone. Anything not shaped as an id is a figure address
+(`docs/design/figures.md`, "The address"): `worksheet` names every item whose
+`fig` is `worksheet`, `worksheet/1a-answer` those of that part too. So do
+`canvas_put`'s `beside` (the joint frame of what it names, on the page of
+its first item), `canvas_edit`'s and `canvas_remove`'s `item`. A string
+that is neither an id nor an address is `invalid`; an item, figure or part
+that is not there is `not_found`.
 
 **`canvas_crop`** draws by the packet's image rules: the scale `0.35`, ink
 in its colour on white, and tiles of at most 1568 pixels a side, overlapping
@@ -1280,7 +1285,10 @@ does (a resize keeps the end on the same spot of the item's box, scaled
 with it); only arrows the agent made: another author's arrow stays as it is. What it
 leaves out stays; an edit that leaves the item as it was writes nothing. **`canvas_remove`** takes an item
 the agent made off the canvas; an item already gone (or never there)
-succeeds and writes nothing (SPEC B4). Ids are as for `canvas_put`. The
+succeeds and writes nothing (SPEC B4). Ids are as for `canvas_put`. A
+figure address ("Crops and strokes", "Ids") that names several items is
+removed whole, or moved whole by `move` (the top-left corner of their joint
+frame); `text`, `size` or `box` on it is `invalid`. The
 author rule (above, "Authors") is checked first: an agent naming the user's
 ink, or another agent's item, gets `invalid` with a hint, whatever it asked.
 A canvas that is not there, or an item to edit that is not there, is

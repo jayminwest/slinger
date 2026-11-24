@@ -72,7 +72,7 @@ fn start_at_over_a_text_edits_it_and_elsewhere_starts_a_new_one() {
     let frame = Rect { x: 10.0, y: 20.0, width: 60.0, height: 30.0 };
     let shape = Shape::Text { frame, text: "old".into(), size: 36.0, column: None };
     let id = crate::scene::canvas::ItemId(2);
-    let items = [Cow::Owned(Item { id, colour: RED, shape })];
+    let items = [Cow::Owned(Item::plain(id, RED, shape))];
     shapes.start_at(HERE, (Point { x: 30.0, y: 30.0 }, 4.0), &items, RED, &mut ink);
     assert_eq!(shapes.typing_frame().map(|f| (f.x, f.y)), Some((10.0, 20.0)), "the text, opened");
     assert!(shapes.typed("er\u{1b}", &mut ink), "the caret at its end");

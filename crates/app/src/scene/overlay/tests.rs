@@ -12,6 +12,7 @@ const T: Theme = Theme {
     error: Rgb { r: 3, g: 3, b: 3 },
     focus: Rgb { r: 4, g: 4, b: 250 },
     done: Rgb { r: 5, g: 5, b: 5 },
+    agent: Rgb { r: 6, g: 6, b: 6 },
 };
 /// A window tall enough for every row.
 const TALL: Size = Size { width: 1600.0, height: 1400.0 };
@@ -32,7 +33,7 @@ fn open() -> KeyOverlay {
 /// Where the parts sit in a window of `size`, scrolled by `scroll`, with
 /// the default keys.
 fn place(size: Size, scroll: f64) -> Place {
-    place::place(size, scroll, &place::widths(&Keymap::default()))
+    place::place(size, scroll, &place::widths(&Keymap::default(), false), false)
 }
 
 /// The text of each line of `overlay` with `keys`.
@@ -73,8 +74,9 @@ fn every_command_shows_exactly_once_with_its_key_under_its_group() {
         let at = texts.iter().position(|t| *t == heading(command.group())).unwrap();
         let row = texts.iter().position(|t| t == command.title()).unwrap();
         let heading = |s: Section| s.title().to_uppercase();
-        let next =
-            Section::all().into_iter().filter_map(|s| texts.iter().position(|t| *t == heading(s)));
+        let next = Section::all(false)
+            .into_iter()
+            .filter_map(|s| texts.iter().position(|t| *t == heading(s)));
         assert!(at < row && next.filter(|&n| n > at).all(|n| n > row), "{command:?}");
     }
     for group in Group::ALL {
@@ -101,7 +103,7 @@ fn a_rebind_changes_the_row_and_an_unbound_command_says_no_key() {
 fn lefts(size: Size) -> Vec<f64> {
     let place = place(size, 0.0);
     let left = |s: Section| place.headings.iter().find(|(h, _)| *h == s).unwrap().1.x;
-    Section::all().into_iter().map(left).collect()
+    Section::all(false).into_iter().map(left).collect()
 }
 
 /// How many columns the groups fill in a window of `size`.
@@ -113,7 +115,7 @@ fn columns_at(size: Size) -> usize {
 
 #[test]
 fn the_groups_fill_three_columns_left_to_right() {
-    let (_, runs) = split(&Section::all(), 3);
+    let (_, runs) = split(&Section::all(false), 3);
     let names = |run: &Vec<Section>| run.iter().map(|g| g.title()).collect::<Vec<_>>().join(" ");
     let runs: Vec<String> = runs.iter().map(names).collect();
     let last = "Panes Window Typing a text Pointer";
@@ -133,16 +135,16 @@ fn a_narrow_window_takes_fewer_columns_each_wide_enough_for_its_rows() {
         assert_eq!(columns_at(size), n, "{size:?}");
         let place = place(size, 0.0);
         assert!(place.rows.iter().all(|(_, f)| f.width >= MIN_COLUMN), "{size:?}");
-        let (tallest, _) = split(&Section::all(), u32::try_from(n).unwrap());
+        let (tallest, _) = split(&Section::all(false), u32::try_from(n).unwrap());
         assert!((place.most - (tallest - place.body.height).max(0.0)).abs() < 1e-9);
     }
     let place = place(layout::SMALLEST, 0.0);
     let tops: Vec<f64> = place.headings.iter().map(|(_, f)| f.y).collect();
     assert!(tops.windows(2).all(|w| w[0] < w[1]), "one column, top to bottom");
-    assert!(place.headings.iter().map(|(g, _)| *g).eq(Section::all()), "in registry order");
-    let (one, _) = split(&Section::all(), 1);
-    let (two, _) = split(&Section::all(), 2);
-    let (three, _) = split(&Section::all(), 3);
+    assert!(place.headings.iter().map(|(g, _)| *g).eq(Section::all(false)), "in registry order");
+    let (one, _) = split(&Section::all(false), 1);
+    let (two, _) = split(&Section::all(false), 2);
+    let (three, _) = split(&Section::all(false), 3);
     assert!(three < two && two < one, "each column more shortens the tallest");
 }
 
@@ -312,7 +314,7 @@ fn the_fixed_keys_show_after_the_groups_each_with_its_chip_and_a_tap_runs_nothin
     let texts = texts(&keys, TALL);
     let titles: Vec<&str> = Command::ALL.iter().map(|(c, _)| c.title()).collect();
     let window = texts.iter().position(|t| *t == Group::Window.title().to_uppercase()).unwrap();
-    for fixed in fixed::ALL {
+    for fixed in fixed::all(false) {
         let heading = texts.iter().position(|t| *t == fixed.title.to_uppercase()).unwrap();
         assert!(heading > window, "{}", fixed.title);
         for row in fixed.rows {
@@ -347,4 +349,21 @@ fn every_chord_the_overlay_names_for_a_typed_text_is_one_the_text_takes() {
             assert!(editor.key(chord, 24.0, UNWRAPPED), "{text} ({})", row.title);
         }
     }
+}
+
+#[test]
+fn while_nvim_edits_the_texts_the_typing_rows_name_its_keys() {
+    let keys = Keymap::default();
+    let mut overlay = KeyOverlay::default();
+    overlay.set_nvim(true);
+    overlay.toggle();
+    let texts = texts_of(&mut overlay, &keys, TALL);
+    for row in fixed::NVIM.rows {
+        let at = texts.iter().position(|t| t == row.title).expect(row.title);
+        assert_eq!(texts[at + 1], row.keys.shown());
+    }
+    assert!(!texts.iter().any(|t| t == fixed::TYPING.rows[0].title), "the app editor's rows go");
+    overlay.toggle();
+    overlay.toggle();
+    assert!(texts_of(&mut overlay, &keys, TALL).iter().any(|t| t == "nvim's keys"), "it stays");
 }
