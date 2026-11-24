@@ -99,7 +99,7 @@ format (`crates/control/src/wire.rs`), the socket client
 limits; `crates/script/src/engine.rs` is the QuickJS glue (a fresh runtime
 per run, the limits, the exception, or a promise rejected with nothing to
 catch it, turned into `script:LINE:COL: message`).
-The API a script calls (docs/design/figures.md, Appendix A) is JavaScript in
+The API a script calls (docs/design/figures.md, Appendix C) is JavaScript in
 `crates/script/src/prelude`, over one native emit; the colour names are
 `crates/script/src/colour.rs`.
 

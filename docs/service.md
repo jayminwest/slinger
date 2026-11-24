@@ -812,7 +812,7 @@ takes a `FoldAsk` (`crates/control/src/fold.rs`).
 **`canvas_draw`** runs an agent's drawing script and places what it draws
 as one figure (`docs/design/figures.md`): ordinary items that share the
 figure's `name` (`fig`), with named parts, locked against the user's pen
-unless the script says not. The script (JavaScript, the API in Appendix A of
+unless the script says not. The script (JavaScript, the API in Appendix C of
 that page and in `slinger guide`) and its data cross as files, as a blob's
 bytes do: the daemon reads `path` (UTF-8) and `data` (JSON; absent is
 `{}`), runs the script in its bounded, pure engine (`crates/script`: 1 s,

@@ -1,4 +1,4 @@
-//! The reference worksheet (docs/design/figures.md, Appendix B): 56 items
+//! The reference worksheet (docs/design/figures.md, Appendix D): 56 items
 //! in 15 parts, and the redraw's data fills two parts by name.
 
 use std::collections::BTreeSet;

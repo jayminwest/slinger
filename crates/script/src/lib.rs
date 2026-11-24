@@ -1,6 +1,6 @@
 //! Runs an agent's drawing script: JavaScript, in an embedded `QuickJS`,
 //! bounded and pure (docs/design/figures.md, "The script API" and
-//! Appendix A).
+//! Appendix C).
 //!
 //! One function, [`run`]: a script, its data and a read-only [`View`] in;
 //! the shapes it drew and its warnings out, or a [`ScriptError`] with the
