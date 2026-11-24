@@ -348,7 +348,7 @@ spare nvim kept warm can be added to 6A later). 4A shares the grid painter
 | Key or act | While nvim edits a text |
 |---|---|
 | any key without cmd | nvim's (`nvim_input`, in vim notation; ctrl chords too) |
-| escape in normal mode (after nvim took every key sent: a barrier, at most 250 ms) | ends the text |
+| escape in normal mode (after nvim took every key sent and confirmed its buffer: a barrier, at most 250 ms; an nvim still starting gets its 2 s to be ready too) | ends the text |
 | `:q`, `:wq`, `ZZ` (nvim exits) | ends the text with the confirmed buffer |
 | ctrl+return (`new-text`) | ends the text and starts the next below, in insert mode |
 | a press outside the grid | ends the text (after the barrier) and does what it does today |
