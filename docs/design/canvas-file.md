@@ -190,6 +190,7 @@ Operation kinds in v1 (their fields follow the envelope):
 | `set` | `id`, `fields` (object of item fields to replace whole, e.g. `{"text":"..."}`) |
 | `restore` | `item`: a removed item put back whole, under its own id. The item object adds `by` and `t` (its maker and time) after `page`. Undo and redo write it. |
 | `page.restore` | `page`, `name`, `index` (0-based position), `items` (whole items, as in `restore`). Undo writes it. |
+| `figure` | `fig` (a figure name), `origin` (`[x, y]`), `frame` (`[x, y, w, h]`), optional `target` (`[x, y, w, h]`: the frame it was drawn over or in), optional `anchor` (the id or address it was drawn beside or over), `data` (any JSON), `script` (the script's text); positions in tenths. What a redraw of the figure needs (`docs/design/figures.md`, "Where a figure's script and data live"): a draw from a script that writes appends it after its step's lines, in the same write. It changes no item and is no undo step; the figure's last one is its source. A line missing a field, or with one of the wrong type, reads as an unknown line. |
 
 Item objects. Every item has `id`, `page`, `kind` and, but for `live`, `button` and `pdf`, `color`; then by
 kind:
@@ -315,15 +316,16 @@ undo history (slinger-2628e5):
   is never rewritten, all of them stay on disk.
 - Added so far without a `v` change: the text `size`, the `live`, `button` and `pdf`
   kinds, a box's `fold` (`docs/design/fold.md`), the style fields `fill`, `dash`,
-  `heads` and `closed`, and the figure fields `locked`, `fig` and `part`
-  (`docs/design/figures.md`). A reader from before `fold` shows
+  `heads` and `closed`, the figure fields `locked`, `fig` and `part`
+  (`docs/design/figures.md`), and the `figure` operation. A reader from before `fold` shows
   a folded box as a small open box and every item it holds where it is: it loses
   the fold, never an item. A reader from before styles draws a filled box as an
   outline, a dashed line solid, a headless arrow with a head and a closed stroke
   open; its `set` keeps the fields, and its `restore` (undo of an erase) writes the
   item back plain: it loses the style, never the item. A reader from before figures
   shows a figure's items as free items of their maker: it loses the names and the
-  lock, never an item.
+  lock, never an item. A reader from before the `figure` operation skips it and
+  cannot redraw the figure; a later reader can.
 - `v` goes up only when an old reader would misread the file (for example, a new
   coordinate unit). A new kind of thing is a new `op`, never a new meaning for an old
   one, as with CLI verbs (section 7).

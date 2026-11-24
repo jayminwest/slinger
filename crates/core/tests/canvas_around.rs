@@ -3,10 +3,10 @@
 //! `at`, nothing in a box; a redraw reads the anchor again.
 #![cfg(test)]
 
-use serde_json::json;
+use serde_json::{Value, json};
 use slinger_core::canvas::Author;
 use slinger_core::canvas::Time;
-use slinger_core::canvas::file::{AROUND, Log, Placement, REACH, Surround};
+use slinger_core::canvas::file::{AROUND, Log, Placement, REACH, Script, Surround};
 
 const AT: Time = Time(1_762_790_400_000);
 
@@ -23,8 +23,14 @@ fn log() -> Log {
     ]);
     log.apply(&Author::User, AT, &ops).unwrap();
     let shapes = [json!({"kind": "box", "x": 0, "y": 0, "w": 100, "h": 100})];
-    log.place_figure(&Author::User, AT, "fig", &shapes, &Placement::Over("i2".into()), None)
-        .unwrap();
+    let script = Script {
+        text: "fig.box(0, 0, 10, 10)".into(),
+        data: Value::Null,
+        target: Some([1000, 0, 1000, 1000]),
+        anchor: Some("i2".into()),
+    };
+    let over = Placement::Over("i2".into());
+    log.place_figure(&Author::User, AT, ("fig", &shapes), &over, None, Some(script)).unwrap();
     log
 }
 
@@ -64,7 +70,7 @@ fn over_and_at_give_the_items_near_in_figure_coordinates_nearest_first() {
 #[test]
 fn a_redraw_reads_the_anchor_again_and_finds_the_items_where_the_figure_is() {
     let log = log();
-    let again = log.again(&Author::User, "fig", [1000, 0], [1000, 0, 1000, 1000]).unwrap();
+    let again = log.again(&Author::User, "fig").unwrap();
     let over = log.surround_again("fig", &again, Some("i2"), Some([1000, 0, 1000, 1000]));
     assert_eq!(over.anchor.unwrap().id, "i2");
     assert_eq!(over.around.first().map(|n| n.id.as_str()), Some("i3"));

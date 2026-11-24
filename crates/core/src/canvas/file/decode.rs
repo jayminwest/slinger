@@ -51,7 +51,11 @@ pub(super) fn line(row: &[u8], expected: u64) -> std::result::Result<Line, Damag
         return Err(Damage::Bad(format!("expected operation {expected}, found `n` {n:?}")));
     }
     let unknown = Line::Unknown { n: expected, text: text.to_owned() };
-    let Some(change) = read_change(&m).map_err(Damage::Bad)? else { return Ok(unknown) };
+    let change = match m.get("op").and_then(Value::as_str) {
+        Some("figure") => super::source::read(&m),
+        _ => read_change(&m).map_err(Damage::Bad)?,
+    };
+    let Some(change) = change else { return Ok(unknown) };
     let Some(by) = json::parse_author(json::text(&m, "by").map_err(Damage::Bad)?) else {
         return Ok(unknown);
     };

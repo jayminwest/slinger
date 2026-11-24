@@ -1,8 +1,9 @@
 //! `canvas_redraw` and `canvas_figure` through the real socket: a redraw
 //! patches the figure's last data and replaces it in place, the same data
 //! again writes nothing, the user's ink stays, it follows the user's move,
-//! another agent is refused by the author rule, and `canvas_figure` lists
-//! the figures and gives one's script and data.
+//! another agent is refused by the author rule, `canvas_figure` lists
+//! the figures and gives one's script and data, and a canvas file copied to
+//! another data directory still redraws.
 
 use std::path::{Path, PathBuf};
 
@@ -148,7 +149,11 @@ fn a_redraw_swaps_the_script_and_sees_the_item_it_was_drawn_over() {
     let two = file(&dir, "two.js", "fig.box(0, 0, fig.view.target.w / 2, 10);\nwarn('two');\n");
     let swap = CanvasRedraw { path: Some(two.clone()), ..redraw("agent:scout", None) };
     let drawn = client.canvas_redraw(swap).unwrap();
-    assert_eq!((drawn.frame[2], drawn.seq.len()), (1500, 1), "half the box, set in place");
+    assert_eq!(
+        (drawn.frame[2], drawn.seq.len()),
+        (1500, 2),
+        "half the box, set in place, and the figure line"
+    );
     assert_eq!(drawn.warnings, ["script:2:1: two"]);
 
     let one_figure = client.canvas_figure("main", Some("worksheet")).unwrap();
@@ -188,5 +193,53 @@ fn canvas_figure_lists_the_figures_and_their_parts() {
         (e.code(), e.hint().is_some_and(|h| h.contains("canvas figure main"))),
         ("not_found", true)
     );
+    daemon.stop();
+}
+
+#[test]
+fn a_canvas_file_moved_to_another_data_dir_redraws_and_lists_its_parts_in_one_order() {
+    let (here, there) = (TempDir::new().unwrap(), TempDir::new().unwrap());
+    let daemon = Daemon::start_in(here.path());
+    let client = daemon.client();
+    client.canvas_create("main").unwrap();
+    let dir = Path::new(SCRIPTS);
+    let ask = CanvasDraw {
+        canvas: "main".into(),
+        by: "agent:scout".into(),
+        name: "worksheet".into(),
+        path: dir.join("worksheet.js"),
+        data: Some(dir.join("worksheet.json")),
+        place: Place::At([400, 400]),
+        page: None,
+        dry_run: false,
+        png: None,
+        once: None,
+    };
+    let drawn = client.canvas_draw(ask).unwrap();
+    let same = client.canvas_redraw(redraw("agent:scout", None)).unwrap();
+    assert!(same.seq.is_empty(), "the same again writes nothing");
+    assert_eq!(same.parts, drawn.parts, "one order, written or not");
+    daemon.stop();
+
+    let moved = there.path().join("canvases");
+    std::fs::create_dir_all(&moved).unwrap();
+    std::fs::copy(here.path().join("canvases/main.canvas"), moved.join("main.canvas")).unwrap();
+    let daemon = Daemon::start_in(there.path());
+    let client = daemon.client();
+    assert!(drawn_events(&client).is_empty(), "a record that never saw the figure");
+    let shown = client.canvas_figure("main", Some("worksheet")).unwrap().figures.remove(0);
+    assert_eq!(shown.data.as_ref().map(|d| d["rate"].clone()), Some(json!(0.08)));
+    let back = there.path().join("back.js");
+    client.blob_get(shown.script.as_deref().unwrap(), &back).unwrap();
+    let script = std::fs::read(dir.join("worksheet.js")).unwrap();
+    assert_eq!(std::fs::read(back).unwrap(), script, "the script came with the file");
+
+    let patch = file(&there, "patch.json", r#"{"actual": ["C", "A", "E", "D", "B"]}"#);
+    let filled = client.canvas_redraw(redraw("agent:scout", Some(patch))).unwrap();
+    assert_eq!((filled.origin, filled.parts.len()), ([400, 400], 15));
+    assert!(!filled.seq.is_empty() && filled.items > drawn.items, "{filled:?}");
+    let same = client.canvas_redraw(redraw("agent:scout", None)).unwrap();
+    assert!(same.seq.is_empty(), "the new data is kept");
+    assert_eq!(same.parts, filled.parts, "one order, written or not");
     daemon.stop();
 }

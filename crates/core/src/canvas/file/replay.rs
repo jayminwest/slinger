@@ -91,6 +91,8 @@ impl File {
                     };
                     apply(&mut canvas, action);
                 }
+                // What a redraw needs; [`Log::open`](super::Log::open) keeps it.
+                Change::Figure { .. } => {}
                 Change::Set { item, fields } => {
                     let Some(current) = canvas.item(*item) else { continue };
                     // A line lays its fields over whole; only a request's

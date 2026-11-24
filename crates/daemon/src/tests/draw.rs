@@ -59,7 +59,8 @@ fn a_script_draws_one_figure_and_the_same_draw_again_writes_nothing() {
         .unwrap();
     assert_eq!((drawn.name.as_str(), drawn.page.as_str()), ("worksheet", "p1"));
     assert_eq!((drawn.items, drawn.parts.len(), drawn.origin), (56, 15, [400, 400]));
-    assert_eq!((drawn.seq.len(), drawn.event), (56, None), "an op per item; nothing was slung");
+    let (seq, event) = (drawn.seq.len(), drawn.event);
+    assert_eq!((seq, event), (57, None), "an op per item and the figure line; nothing slung");
     let items = client.canvas_show("main", None).unwrap().items;
     assert_eq!(items.len(), 56);
     assert!(items.iter().all(|i| i["fig"] == "worksheet" && i["by"] == "agent:scout"));
