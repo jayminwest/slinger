@@ -368,6 +368,12 @@ address = figure [ "/" part ]
   else, `conflict` (exit 4): "figure N is agent:other's", hint: "pick another
   --name". The user (no `--agent`) may draw over a figure of any maker, as
   the user may change any item.
+- A redraw on another page moves the whole figure there (drawn anew, new
+  ids). When some of its items are another maker's (the user drew over the
+  agent's figure), the agent may not move those, so its draw on another
+  page is `conflict`: "figure N has user's items on page P", hint: "draw it
+  on page P, or pick another --name". No draw leaves one name on two pages.
+  Applied ops still do not check names (above).
 - A whole figure the app copies, duplicates or pastes takes a free name: the
   name with its trailing `-<n>` taken off, then `-2`, `-3`, ... the first not
   on the canvas (`worksheet` gives `worksheet-2`). Its parts and its lock stay;
