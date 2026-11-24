@@ -13,7 +13,7 @@ use serde_json::Value;
 
 use crate::{Drawn, MEMORY, STACK, ScriptError, TIME, Warning};
 
-/// The API the script calls (docs/design/figures.md, Appendix A): one
+/// The API the script calls (docs/design/figures.md, Appendix C): one
 /// function expression that takes the input and the native emit, puts the
 /// API on the global object and returns the check run after the script.
 const PRELUDE: &str = concat!(
