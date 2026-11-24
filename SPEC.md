@@ -30,7 +30,7 @@ Each decision has an id (D1, D2, ...). Each open item has an id (O1, O2, ...). R
 - D3. Client and server are both custom. herdr is an inspiration only. There is no herdr adapter.
 - D4. Client and server are separate from day one. They talk over a local socket. One server per machine.
 - D5. The canvas is a native rebuild. It does not embed tldraw.
-- D6. Canvas v1: pen at a constant width (no pressure), eraser, lasso, select, text, box, arrow, pages, undo, endless pan and zoom, and PDF pages. Nothing else. Amended 2026-11-12: a `pdf` item shows one page of a PDF, or a part of one (a snippet); the PDF is a blob in the record. Opening a PDF makes a canvas of its pages stacked on one canvas page, read in reader mode (fit to width, vertical scroll). Only the app reads a PDF; the core and the server never parse one. See `docs/design/pdf.md`. Amended 2026-11-24: a text is edited in the user's nvim when nvim is there, is a column 80 cells wide and shows at most 80 rows (the rest by stepping in), and draws as markdown on its cells when not edited; still one `text` item. See `docs/design/writing-column.md`.
+- D6. Canvas v1: pen at a constant width (no pressure), eraser, lasso, select, text, box, arrow, pages, undo, endless pan and zoom, and PDF pages. Nothing else. Amended 2026-11-12: a `pdf` item shows one page of a PDF, or a part of one (a snippet); the PDF is a blob in the record. Opening a PDF makes a canvas of its pages stacked on one canvas page, read in reader mode (fit to width, vertical scroll). Only the app reads a PDF; the core and the server never parse one. See `docs/design/pdf.md`. Amended 2026-11-24: a text is edited in the user's nvim when nvim is there, is a column 80 cells wide and shows at most 80 rows (the rest by stepping in), and draws as markdown on its cells when not edited; still one `text` item. See `docs/design/writing-column.md`. Amended 2026-11-24: items take optional fill (a tint, always under ink), dash (dashed, dotted), arrow heads (none, end, both) and closed strokes; any item may be locked against the user's pen and belong to a figure (`fig`) and one of its parts (`part`). A figure is the items an agent's drawing script made (`canvas draw`), placed and replaced as one; the user unlocks a figure only by grabbing it whole. The user's own tools gain no style pickers. See `docs/design/figures.md`.
 - D7. Canvas files use Slinger's own format. Slinger can import a tldraw file. It cannot export one.
 - D8. An agent gets a packet, not a screenshot (section 6).
 - D9. Handwriting recognition runs only when the user asks. It is never a layer between the canvas and the agent.
@@ -54,7 +54,7 @@ Each decision has an id (D1, D2, ...). Each open item has an id (O1, O2, ...). R
 - Sending the record to the always-on machine. Events carry the machine name from day one, so this can be added with no redesign.
 - More than one machine in one session.
 - Control of the tablet display or its drivers.
-- Canvas features outside D6: snapping, frames, images (a PDF page is not an image: D6), rotation, export.
+- Canvas features outside D6: snapping, frames, images (a PDF page is not an image: D6), rotation, export. Fill, dash, arrow heads, closed strokes, lock and figures are in D6 since 2026-11-24 (`docs/design/figures.md`); a fill tool, a dash or colour picker for the user's pen, and a lock the user sets by hand are not.
 - A PDF pane, PDF export, and a PDF made from the CLI alone (the CLI cannot read a PDF's page sizes).
 - A data model beyond events and blobs.
 
