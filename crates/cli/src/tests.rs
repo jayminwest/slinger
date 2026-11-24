@@ -26,6 +26,7 @@ mod pane;
 mod profile;
 mod put;
 mod read;
+mod redraw;
 mod session;
 mod sling;
 mod stop;

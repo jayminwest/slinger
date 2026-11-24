@@ -74,6 +74,8 @@ verbs! {
     "canvas_fold" CanvasFold(CanvasFoldAsk) -> CanvasEdited,
     "canvas_unfold" CanvasUnfold(CanvasUnfoldAsk) -> CanvasEdited,
     "canvas_draw" CanvasDraw(CanvasDraw) -> CanvasDrawn,
+    "canvas_redraw" CanvasRedraw(CanvasRedraw) -> CanvasDrawn,
+    "canvas_figure" CanvasFigure(CanvasFigureAsk) -> CanvasFigures,
     "session_list" SessionList(SessionListAsk) -> Sessions,
     "session_show" SessionShow(SessionShowAsk) -> SessionInfo,
     "status_set" StatusSet(StatusSetAsk) -> StatusSet,

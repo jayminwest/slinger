@@ -1,6 +1,7 @@
-//! `slinger canvas draw`: an agent draws with code. One request: the
-//! daemon reads the script, runs it in its bounded engine and places what
-//! it draws as one figure (docs/design/figures.md, "The verbs").
+//! `slinger canvas draw` and `slinger canvas redraw`: an agent draws with
+//! code. One request each: the daemon reads the script, runs it in its
+//! bounded engine and places what it draws as one figure
+//! (docs/design/figures.md, "The verbs"). A redraw patches the figure's data.
 
 use std::io::Write;
 use std::path::PathBuf;
@@ -49,6 +50,23 @@ pub struct Draw {
     agent: Option<String>,
 }
 
+/// Draw a figure again from its script on its last data patched (a JSON merge patch: objects merge key by key, null takes a key away, anything else replaces), where it now is; only what changed is written, and the same data again writes nothing; prints the script's warnings
+#[derive(Args)]
+#[command(group(ArgGroup::new("change").required(true).multiple(true).args(["data", "script"])))]
+pub struct Redraw {
+    canvas: String,
+    /// The figure's name
+    name: String,
+    /// The patch on the figure's data: JSON, or @FILE to read it from a file
+    #[arg(long, value_name = "JSON|@FILE")]
+    data: Option<String>,
+    /// Swap the figure's script for this file
+    #[arg(long, value_name = "FILE")]
+    script: Option<PathBuf>,
+    #[arg(long, value_name = "NAME", help = AGENT_OR_USER_HELP)]
+    agent: Option<String>,
+}
+
 /// An `--at` value: a page, maybe, and a point in tenths.
 #[derive(Clone)]
 struct At {
@@ -76,7 +94,26 @@ pub fn draw(args: &Draw, daemon: &control::Client, env: &Env) -> anyhow::Result<
         page,
         dry_run: args.dry_run,
         png: args.png.clone(),
+        once: None,
     })?;
+    drawn_lines(&drawn)
+}
+
+pub fn redraw(args: &Redraw, daemon: &control::Client, env: &Env) -> anyhow::Result<Output> {
+    let (data, _scratch) = data(args.data.as_deref())?;
+    let drawn = daemon.canvas_redraw(control::CanvasRedraw {
+        canvas: args.canvas.clone(),
+        by: crate::canvas::by(env, args.agent.as_deref()),
+        name: args.name.clone(),
+        data,
+        path: args.script.clone(),
+        once: None,
+    })?;
+    drawn_lines(&drawn)
+}
+
+/// A draw for people: each image's path, then each warning.
+fn drawn_lines(drawn: &control::CanvasDrawn) -> anyhow::Result<Output> {
     let mut lines: Vec<String> =
         drawn.images.iter().map(|i| i.path.display().to_string()).collect();
     lines.extend(drawn.warnings.iter().map(|w| format!("warning: {w}")));

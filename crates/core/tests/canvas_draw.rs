@@ -1,12 +1,13 @@
 //! A figure placed whole and drawn again by match (docs/design/figures.md,
 //! "The verbs" and "Replace by match"): where each placement puts it, that
 //! a rerun writes nothing, that a redraw keeps ids and the user's ink, who
-//! may draw over a name, and what a bad shape says.
+//! may draw over a name, and what a bad shape says. A redraw finds the
+//! figure where the user moved it.
 #![cfg(test)]
 
 use serde_json::{Value, json};
 use slinger_core::Error;
-use slinger_core::canvas::file::{Drawn, Log, Placement};
+use slinger_core::canvas::file::{Again, Drawn, Log, Placement};
 use slinger_core::canvas::{Author, GAP, Item, ItemId, Shape, Time};
 use slinger_core::render;
 
@@ -334,4 +335,34 @@ fn a_draw_under_a_key_it_was_written_under_is_not_written_twice() {
     assert_eq!(again.written.bytes, "");
     assert_eq!(again.written.seq, first.written.seq);
     assert_eq!(again.written.made, first.written.made);
+}
+
+#[test]
+fn a_redraw_follows_the_figure_where_it_was_moved_and_keeps_the_author_rule() {
+    let mut book = Book::new();
+    let drawn = book.draw(&claude(), "worksheet", &sheet("?"), &beside("i1"));
+    let (origin, frame) = (drawn.draft.origin, drawn.draft.frame);
+    let again = book.log.again(&claude(), "worksheet", origin, frame).unwrap();
+    let at = Placement::At { page: Some("p1".into()), x: origin[0], y: origin[1] };
+    let want = Again { at, page: "p1".into(), origin, frame, parts: vec![], items: 5 };
+    assert_eq!(Again { parts: vec![], ..again.clone() }, want, "nothing moved");
+    assert_eq!(again.parts, ["title", "1a-answer"]);
+    let unmoved = book.draw(&claude(), "worksheet", &sheet("?"), &again.at);
+    assert!(unmoved.draft.unchanged(), "drawn again where it is, it writes nothing");
+
+    let ids: Vec<String> = ids(&drawn).iter().map(|i| format!("i{}", i.get())).collect();
+    book.apply(&Author::User, &json!({"op": "move", "ids": ids, "dx": 300, "dy": -200}));
+    let moved = book.log.again(&claude(), "worksheet", origin, frame).unwrap();
+    assert_eq!(moved.origin, [origin[0] + 300, origin[1] - 200]);
+    assert_eq!(moved.frame, [frame[0] + 300, frame[1] - 200, frame[2], frame[3]]);
+    let redrawn = book.draw(&claude(), "worksheet", &sheet("42"), &moved.at);
+    assert_eq!(redrawn.written.seq.len(), 1, "only the answer's text is set");
+    assert_eq!(redrawn.draft.frame[..2], moved.frame[..2], "drawn where it was moved to");
+
+    let ada = Author::Agent("ada".into());
+    let e = book.log.again(&ada, "worksheet", origin, frame).unwrap_err();
+    assert_eq!(e.code(), "invalid", "the author rule: {e}");
+    assert!(book.log.again(&Author::User, "worksheet", origin, frame).is_ok(), "the user may");
+    let e = book.log.again(&claude(), "nothing", origin, frame).unwrap_err();
+    assert_eq!(e.code(), "not_found");
 }

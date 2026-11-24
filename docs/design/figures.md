@@ -594,6 +594,9 @@ A record event, written by `draw` and `redraw` only (so not in `KINDS`, as
   `frame`: the figure's frame as placed; both in tenths, as the canvas file.
 - The last `figure_drawn` of a (canvas, figure) is the figure's script and
   data. `canvas figure --script`/`--data` print it; `redraw` starts from it.
+- `target` (since step 10, absent when none): the frame of the item drawn
+  over or in, in tenths, so a redraw shows the script the same
+  `fig.view.target` as the first draw.
 - The payload type is `FigureDrawn` in `crates/core/src/record/body.rs`
   (`payload`, `kind`, `from_parts`); `crates/core/tests/record.rs` pins it.
 
@@ -648,6 +651,11 @@ slinger canvas figure <CANVAS> [NAME] [--script | --data]
 No name: one line per figure (`name page x,y wxh by=<maker> parts=<n>`).
 A name: its parts, one a line (`part x,y wxh items=<n>`). `--script` prints the
 script's bytes, `--data` the data as JSON. `--json` as the rest of the CLI.
+As built (step 10): positions in canvas units, `by=` the agent's name (or
+`user`) as the packet writes it; the wire gives the script as a blob id
+(the CLI reads it with `blob_get`) and only for a figure asked by name.
+`canvas redraw` needs `--data` or `--script`; the core half is
+`Log::again` and `merge_patch` (`crates/core/src/canvas/file/redraw.rs`).
 
 ## Fluency
 

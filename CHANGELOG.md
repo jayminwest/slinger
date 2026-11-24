@@ -27,6 +27,14 @@ bullet with the area in bold.
   figure alone as an image. A script that fails says the line and column
   where it was; its warnings print on success.
 
+- **CLI:** `slinger canvas redraw <CANVAS> <NAME> --data JSON` draws a
+  figure again from its script with the data changed (a JSON merge patch:
+  only the keys you give change, `null` takes one away), where the figure
+  now is, even after you moved it. Only what changed is written, your
+  writing on the figure stays, and the same data again writes nothing.
+  `--script` swaps the figure's script. `slinger canvas figure <CANVAS>`
+  lists the figures; with a name it prints the figure's parts, or its script
+  (`--script`) or data (`--data`).
 - **CLI:** `slinger guide` now holds the drawing script API ("Drawing
   scripts"). In a script, a plot takes a `title` and named ticks
   (`xticks: [[0, "Jan"], [1, "Feb"]]`), and an arrow's label moves along

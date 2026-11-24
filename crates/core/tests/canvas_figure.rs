@@ -364,7 +364,7 @@ fn an_address_that_names_nothing_or_is_not_one_fails_with_a_hint() {
     worksheet(&mut book);
     let err = book.log.crop("nothing", "n").unwrap_err();
     assert_eq!(err.code(), "not_found");
-    assert!(err.hint().unwrap_or_default().contains("canvas show"));
+    assert!(err.hint().unwrap_or_default().contains("slinger canvas figure"));
     assert_eq!(book.log.crop("worksheet/none", "n").unwrap_err().code(), "not_found");
     let err = book.log.crop("Not a name", "n").unwrap_err();
     assert_eq!(err.code(), "invalid");
