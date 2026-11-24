@@ -36,6 +36,7 @@ mod process;
 mod profile;
 mod put;
 mod read;
+mod script;
 mod session;
 mod showing;
 mod sling;

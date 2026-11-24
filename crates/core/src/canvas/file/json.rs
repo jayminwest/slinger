@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 
 use super::{style, time};
 use crate::canvas::{
-    Author, Colour, End, Fold, Item, ItemId, PageId, Point, Rect, Shape, Style, TEXT_SIZE,
+    Author, Colour, End, Fold, Item, ItemId, Member, PageId, Point, Rect, Shape, Style, TEXT_SIZE,
 };
 
 /// A JSON object, as read.
@@ -216,10 +216,11 @@ fn read_fold(m: &Fields) -> Result<Option<Fold>, Bad> {
     Ok(Some(Fold { open, items: ids(f, "items")? }))
 }
 
-/// An `add` operation's item object: the shape's fields, then the style's.
-pub(super) fn item(id: ItemId, page: PageId, s: &Shape, st: Style) -> String {
+/// An `add` operation's item object: the shape's fields, then the style's
+/// and the figure's.
+pub(super) fn item(id: ItemId, page: PageId, s: &Shape, st: Style, member: &Member) -> String {
     let o = shape(Obj::new().str("id", &item_id(id)).str("page", &page_id(page)), s);
-    style::write(o, st).end()
+    style::write(o, st, member).end()
 }
 
 /// An item whole, as `restore` and `page.restore` carry it: its id, page,
@@ -227,7 +228,7 @@ pub(super) fn item(id: ItemId, page: PageId, s: &Shape, st: Style) -> String {
 pub(super) fn whole_item(i: &Item) -> String {
     let o = Obj::new().str("id", &item_id(i.id)).str("page", &page_id(i.page));
     let o = shape(o.str("by", &author(&i.author)).str("t", &time::format(i.time)), &i.shape);
-    style::write(o, i.style).end()
+    style::write(o, i.style, &i.member).end()
 }
 
 /// Reads [`whole_item`]. `None` for an item kind or maker this reader does
@@ -241,6 +242,7 @@ pub(super) fn read_whole_item(m: &Fields) -> Result<Option<Item>, Bad> {
         author,
         time: time::parse(text(m, "t")?)?,
         style: style::read(m, &shape),
+        member: style::read_member(m),
         shape,
     }))
 }

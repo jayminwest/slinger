@@ -72,7 +72,7 @@ fn ends(
         };
         let (from, to) = (shift(*from, bound[0]), shift(*to, bound[1]));
         let shape = Shape::Arrow { from, to, width: *width, bound: *bound };
-        follows.push(Item { id: item.id, colour: item.colour, shape });
+        follows.push(Item { id: item.id, colour: item.colour, shape, style: item.style });
     }
     follows
 }

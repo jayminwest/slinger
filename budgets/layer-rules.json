@@ -139,6 +139,41 @@
 				"impl super::Canvases",
 				"impl crate::canvases::Canvases"
 			]
+		},
+		{
+			"name": "only-daemon-runs-scripts",
+			"why": "a drawing script runs in one place, the daemon, so every figure comes from the same bounded engine and the clients never link QuickJS",
+			"paths": [
+				"crates"
+			],
+			"except": [
+				"crates/daemon",
+				"crates/script"
+			],
+			"forbid": [
+				"slinger_script"
+			]
+		},
+		{
+			"name": "script-is-pure",
+			"why": "the script engine is a pure function: script, data and view in, shapes out; no process, terminal, network, FFI or file",
+			"paths": [
+				"crates/script"
+			],
+			"except": [],
+			"forbid": [
+				"unsafe",
+				"extern \"C\"",
+				"objc2*",
+				"std::process",
+				"std::env",
+				"std::net",
+				"std::os",
+				"std::io::stdin",
+				"std::io::stdout",
+				"std::io::stderr",
+				"std::fs"
+			]
 		}
 	],
 	"allow": []

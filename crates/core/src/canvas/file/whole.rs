@@ -48,8 +48,9 @@ pub(super) fn encode(id: &str, canvas: &Canvas, at: Time) -> String {
             }
             other => other.clone(),
         };
-        let (id, page, style) = (item.id(), item.page(), *item.style());
-        let change = Change::Add { item: id, page, shape: snap_shape(&shape), style };
+        let (id, page, style, member) = (item.id(), item.page(), *item.style(), item.member());
+        let (shape, member) = (snap_shape(&shape), member.clone());
+        let change = Change::Add { item: id, page, shape, style, member };
         push(item.author(), item.time(), change);
     }
     for item in bound {

@@ -29,9 +29,22 @@ bullet with the area in bold.
   `closed` in `canvas apply` (`canvas schema` lists them); crops and
   packets draw them. Older versions of slinger open these canvases and lose
   no item, drawing them plain.
+- **App:** the window draws fills, dashed and dotted lines, arrows with two
+  heads or none, and closed strokes, as crops do; moving, resizing, copying
+  or duplicating such an item keeps its look. A new `[theme] agent` key
+  (default `#8a5cf5`) sets the colour an agent's default-coloured ink and
+  fills show in.
 - **Canvas:** a tldraw import keeps each rectangle's fill (as a light tint
   of its colour) and each rectangle's, drawing's and arrow's dashed or
   dotted line.
+
+- **Canvas:** items can belong to a named figure and a named part of it
+  (`fig`, `part`) and can be locked (`locked`), set through
+  `canvas apply`; a `set` of `locked` locks or unlocks. A figure address
+  (`worksheet`, or `worksheet/1a-answer` for one part) works wherever an
+  item id does: `canvas put --beside`, `canvas edit`, `canvas remove` and
+  `canvas crop --item`. Older versions of slinger open these canvases and
+  lose no item.
 
 - **App:** a new `[editor] nvim` config key (`"auto"`, `"off"` or the path
   to nvim) picks the nvim that will edit canvas texts. The app reads it now;

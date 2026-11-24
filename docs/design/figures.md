@@ -509,7 +509,10 @@ call emits shapes at once; nothing is returned to place later.
   `Math.random` is a seeded generator (seed 1 each run), so the same script
   and data give the same bytes out, which replace by match relies on.
 - Errors keep the script's line and column: `script:12:7: box: w must be a number above 0, got "wide"`.
-  A bad argument fails at the call, by the function's name. Warnings
+  A bad argument fails at the call, by the function's name. The line of
+  a stopped run is where QuickJS last recorded a position: a loop whose body
+  calls nothing (`while (true) n += 1`) can be named at the line before the
+  loop; a loop that calls anything is named inside its body. Warnings
   (text over a line, texts overlapping, a shape far outside the others)
   come back beside the shapes, with their line, and never fail a draw.
 
@@ -529,8 +532,9 @@ call emits shapes at once; nothing is returned to place later.
 
 **Pick: A.** `crates/script`'s one function:
 `slinger_script::run(script: &str, data: &serde_json::Value, view: &View) -> Result<Drawn, ScriptError>`,
-with `View { target: Option<[f64; 4]>, agent: String, page: String }` (the
-`--over`/`--in` item's size, the agent colour as hex, the page name) and
+with `View { name: String, target: Option<[f64; 4]>, agent: String, page: String }` (the
+figure's name, which every shape carries as `fig`; the `--over`/`--in` item's frame, of which
+the script sees the size; the agent colour as hex; the page name) and
 `ScriptError { line: u32, col: u32, message: String }`. Text measure in the
 prelude is the core's rule (a cell is `render::CELL` of the size wide, one
 size tall); a daemon test pins it against `slinger_core::render::text_size`

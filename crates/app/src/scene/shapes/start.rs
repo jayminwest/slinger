@@ -139,7 +139,7 @@ pub(super) fn ended(editing: Editing) -> Option<Change> {
             if follow.is_empty() {
                 return Some(Change::Set { canvas, page, id, shape });
             }
-            follow.insert(0, Item { id, colour, shape });
+            follow.insert(0, Item::plain(id, colour, shape));
             Some(Change::Reshape { canvas, page, items: follow })
         }
     }

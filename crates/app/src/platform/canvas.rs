@@ -7,6 +7,8 @@
 //! A new scene repaints only the box the scene says changed; `AppKit` then
 //! asks for that box alone, and only the marks that touch it are painted.
 //! The view is flipped, so its points are the scene's: top-left origin.
+//! Lines take their dash and fills are painted under all ink, in the order
+//! the scene decides ([`style::order`]); the lines are in `lines`.
 //!
 //! A scene made by a pen event is painted, then the delay from that event
 //! to the paint goes to the app as [`Event::Painted`]: from the event's
@@ -44,6 +46,7 @@ use objc2_foundation::{
 use super::{Event, color, dispatch, pdf};
 use crate::config::Rgb;
 use crate::layout::{Point, Rect, Size};
+use crate::scene::canvas::style::{self, Pass};
 use crate::scene::canvas::{Draw, ItemId, Mark, Scene};
 use crate::scene::cursor::Cursor;
 use crate::scene::glyphs;
@@ -194,35 +197,21 @@ fn paint(scene: &Scene, dirty: NSRect, texts: &mut HashMap<ItemId, Laid>) {
         paint_dots(grid, scene, area);
     }
     let mut ink: Option<Rgb> = None;
-    for draw in scene.touching(area) {
+    for (pass, draw) in style::order(scene.touching(area)) {
+        if pass == Pass::Fill {
+            lines::fill(&draw.mark);
+            ink = None;
+            continue;
+        }
         if ink != Some(draw.colour) {
             color(draw.colour).set();
             ink = Some(draw.colour);
         }
+        if lines::ink(&draw.mark) {
+            continue;
+        }
         match &draw.mark {
-            Mark::Stroke { start, curves, width } => {
-                let path = line(*width);
-                path.moveToPoint(ns(*start));
-                for [c1, c2, end] in curves {
-                    path.curveToPoint_controlPoint1_controlPoint2(ns(*end), ns(*c1), ns(*c2));
-                }
-                path.stroke();
-            }
-            Mark::Box { frame, width } => {
-                let path = NSBezierPath::bezierPathWithRect(ns_rect(*frame));
-                path.setLineWidth(*width);
-                path.stroke();
-            }
-            Mark::Arrow { from, to, barbs, width } => {
-                let path = line(*width);
-                path.moveToPoint(ns(*from));
-                path.lineToPoint(ns(*to));
-                for barb in barbs {
-                    path.moveToPoint(ns(*barb));
-                    path.lineToPoint(ns(*to));
-                }
-                path.stroke();
-            }
+            Mark::Stroke { .. } | Mark::Box { .. } | Mark::Arrow { .. } => {}
             Mark::Text { at, width, text, size, line, zoom } => {
                 let from = (text.clone(), *width, *size, *line, draw.colour);
                 draw_text(laid(texts, draw.id, from), *at, *zoom);
@@ -445,6 +434,8 @@ fn draw_text(laid: &Laid, at: Point, zoom: f64) {
     laid.manager.drawGlyphsForGlyphRange_atPoint(glyphs, NSPoint::new(0.0, 0.0));
     NSGraphicsContext::restoreGraphicsState_class();
 }
+
+mod lines;
 
 fn ns(p: Point) -> NSPoint {
     NSPoint::new(p.x, p.y)

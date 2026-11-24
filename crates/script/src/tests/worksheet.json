@@ -1,0 +1,10 @@
+{
+  "title": "Compound growth", "start": 100, "rate": 0.08, "years": 10,
+  "table": [0, 2, 4, 6, 8],
+  "accounts": [
+    {"name": "A", "start": 100, "rate": 8}, {"name": "B", "start": 150, "rate": 4},
+    {"name": "C", "start": 80, "rate": 10}, {"name": "D", "start": 120, "rate": 6},
+    {"name": "E", "start": 60, "rate": 12}
+  ],
+  "actual": null, "feedback": null
+}

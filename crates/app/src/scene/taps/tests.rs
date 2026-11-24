@@ -10,6 +10,7 @@ const T: Theme = Theme {
     error: Rgb { r: 3, g: 3, b: 3 },
     focus: Rgb { r: 4, g: 4, b: 4 },
     done: Rgb { r: 5, g: 5, b: 5 },
+    agent: Rgb { r: 6, g: 6, b: 6 },
 };
 const UNDO: Rect = Rect { x: 10.0, y: 572.0, width: 28.0, height: 28.0 };
 const REDO: Rect = Rect { x: 38.0, y: 572.0, width: 28.0, height: 28.0 };

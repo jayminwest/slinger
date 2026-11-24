@@ -70,6 +70,8 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 - [ ] IME input (Japanese/Chinese composition, dead-key accents) in the sling entry (slinger-368f56)
 - [ ] open the app once with no saved window frame (a copy of the binary under another name, or delete the 'NSWindow Frame slinger window' default) and confirm it opens 960 wide; 70d6d7 was closed as not reproducible (slinger-f7bb8d)
 
+- [ ] (bundle) a canvas with a filled dashed box, a dotted closed stroke and arrows with heads both and none (`slinger canvas apply`), on a Retina screen in both a light and the dark `[theme] background`: the dashes and dots read at zoom 1 and 4, ink over a fill reads, and the window matches `slinger canvas crop` (a driven window and its PNG passed) (slinger-450877)
+
 ## Writing column (plan pl-b237f5)
 
 - [ ] (bundle) with `SLINGER_NVIM=user` (`open -n --env SLINGER_NVIM=user …`) and your own nvim config, open and end a few canvas texts: nothing of yours is written outside slinger's state and cache (`$TMPDIR/slinger-nvim/{state,cache}`): `lazy-lock.json` in ~/.config/nvim, plugin data under ~/.local/share/nvim, ~/.local/state/nvim and ~/.cache/nvim keep their mtimes (tests hold it for `--clean` with all four homes redirected); the bundle opened from the Finder finds nvim on a nix or Homebrew PATH (slinger-c6e898)

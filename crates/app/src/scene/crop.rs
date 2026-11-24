@@ -107,7 +107,7 @@ impl Crop {
         if let Some(drag) = self.drag.as_ref().filter(here) {
             let frame = boxed(drag.from, drag.to);
             let shape = Shape::Panel { frame, fill: None, width: LINE / zoom, dashed: true };
-            items.push(Cow::Owned(Item { id: BOX, colour: theme.focus, shape }));
+            items.push(Cow::Owned(Item::plain(BOX, theme.focus, shape)));
         }
         items
     }

@@ -47,7 +47,7 @@ impl Canvas {
 }
 
 /// Top to bottom, then left to right.
-fn by_place(a: Rect, b: Rect) -> Ordering {
+pub(super) fn by_place(a: Rect, b: Rect) -> Ordering {
     a.y.total_cmp(&b.y).then(a.x.total_cmp(&b.x))
 }
 

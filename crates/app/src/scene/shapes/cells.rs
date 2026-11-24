@@ -72,11 +72,11 @@ impl Shapes {
             return false;
         };
         let shape = Shape::Cells { frame, size: editing.size, grid: Arc::clone(grid) };
-        items.push(Cow::Owned(Item { id: EDITING, colour: editing.colour, shape }));
+        items.push(Cow::Owned(Item::plain(EDITING, editing.colour, shape)));
         let around = frame.outset(FRAME_PAD / zoom);
         let shape =
             Shape::Panel { frame: around, fill: None, width: FRAME_LINE / zoom, dashed: true };
-        items.push(Cow::Owned(Item { id: FRAME_ID, colour: theme.muted, shape }));
+        items.push(Cow::Owned(Item::plain(FRAME_ID, theme.muted, shape)));
         let under = Point { x: around.x, y: around.y + around.height + HINT_GAP / zoom };
         let hint = match self.next {
             Some(key) => format!("{HINT} · {} new text", key.glyphs()),

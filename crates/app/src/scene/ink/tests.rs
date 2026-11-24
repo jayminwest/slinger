@@ -201,10 +201,12 @@ fn the_delay_log_has_the_stroke_s_numbers() {
 /// A page of three server strokes, i1 to i3, each one point at x = its id.
 fn page() -> Vec<Item> {
     (1..=3)
-        .map(|n: u32| Item {
-            id: ItemId(n.into()),
-            colour: RED,
-            shape: Shape::Stroke { points: vec![pt(f64::from(n), 0.0)], width: PEN_WIDTH },
+        .map(|n: u32| {
+            Item::plain(
+                ItemId(n.into()),
+                RED,
+                Shape::Stroke { points: vec![pt(f64::from(n), 0.0)], width: PEN_WIDTH },
+            )
         })
         .collect()
 }
@@ -281,14 +283,12 @@ fn a_put_an_edit_and_a_move_with_its_arrows_show_at_once() {
         width: 2.0,
         bound: [Some(ItemId(1)), None],
     };
-    let follow = vec![Item { id: ItemId(2), colour: RED, shape: arrow(5.0) }];
+    let follow = vec![Item::plain(ItemId(2), RED, arrow(5.0))];
     let (canvas, page) = here();
     ink.push(Change::Move { canvas, page, ids: vec![ItemId(1)], by: pt(5.0, 0.0), follow });
 
-    let server = [
-        Item { id: ItemId(1), colour: RED, shape: text("before") },
-        Item { id: ItemId(2), colour: RED, shape: arrow(0.0) },
-    ];
+    let server =
+        [Item::plain(ItemId(1), RED, text("before")), Item::plain(ItemId(2), RED, arrow(0.0))];
     let shown = ink.shown("main", "p1", &server);
     let shapes: Vec<&Shape> = shown.iter().map(|i| &i.shape).collect();
     let box_at = Shape::Box { frame, width: 2.0 };
@@ -377,7 +377,7 @@ fn ink_not_yet_written_can_be_erased_and_moved_and_the_change_names_the_server_s
         width: 2.0,
         bound: [Some(second), None],
     };
-    let follow = vec![Item { id: ItemId(8), colour: RED, shape: arrow }];
+    let follow = vec![Item::plain(ItemId(8), RED, arrow)];
     let (canvas, page) = here();
     ink.push(Change::Move { canvas, page, ids: vec![second], by: pt(0.0, 3.0), follow });
     assert_eq!(ids_of(&ink), [second], "erased at once");
