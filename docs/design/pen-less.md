@@ -104,6 +104,11 @@ paste and dictation at the caret.
 
 ### 2A. A pure editor in the scene
 
+Amended 2026-11-24 (`docs/design/writing-column.md`, Question 1): every
+canvas text is now edited in the user's nvim when nvim is there; this
+editor stays as the fallback (nvim missing or off) and for tests. Spell
+check comes from nvim; input methods are still absent.
+
 The text being typed holds the text, a caret and a selection anchor in a
 new pure module. Keys move the caret; the scene computes the caret bar and
 the selection rectangles from `glyphs` (the same measures every hit test,
