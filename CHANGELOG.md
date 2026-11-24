@@ -867,6 +867,9 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Canvas:** in a crop or a packet's picture, an underscore (`___`) sits
+  on its own line instead of touching the line below, where it read as a
+  bar over the word under it.
 - **Canvas:** a figure drawn by a script keeps its script and data in its
   canvas file, so `slinger canvas redraw` and `slinger canvas figure
   --script` still work after the canvas file is copied to another machine
