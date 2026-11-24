@@ -83,7 +83,7 @@ format (`crates/control/src/wire.rs`), the socket client
 | Module | Owns |
 |---|---|
 | `crates/daemon/src/lib.rs` | argv, startup, signals; the `--log` file is `crates/daemon/src/log.rs` |
-| `crates/daemon/src/server.rs` | the socket: a thread per connection; `crates/daemon/src/server/answer.rs` has one arm per verb, each handler beside it |
+| `crates/daemon/src/server.rs` | the socket: a thread per connection; `crates/daemon/src/server/answer.rs` has one arm per verb, each handler beside it; `crates/daemon/src/server/figure.rs` runs a drawing script (`crates/script`) outside the canvas's lock and hands its shapes to the core (`canvas_draw`) |
 | `crates/daemon/src/store.rs` | the record: one SQLite file, its schema and waiting slings; the only module that knows its layout |
 | `crates/daemon/src/canvases.rs` | canvas files, the only writer: a lock per canvas, append, sync, reply; the change feed |
 | `crates/daemon/src/workspaces.rs` | the open workspaces' files; kept pane views in `crates/daemon/src/views.rs` |
@@ -97,7 +97,8 @@ format (`crates/control/src/wire.rs`), the socket client
 
 `crates/script/src/lib.rs` is the one function, `run`, its types and its
 limits; `crates/script/src/engine.rs` is the QuickJS glue (a fresh runtime
-per run, the limits, the exception turned into `script:LINE:COL: message`).
+per run, the limits, the exception, or a promise rejected with nothing to
+catch it, turned into `script:LINE:COL: message`).
 The API a script calls (docs/design/figures.md, Appendix A) is JavaScript in
 `crates/script/src/prelude`, over one native emit; the colour names are
 `crates/script/src/colour.rs`.

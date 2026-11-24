@@ -4,6 +4,7 @@
 mod canvas;
 mod cli;
 mod daemon;
+mod draw;
 mod drive;
 mod edit;
 mod env;

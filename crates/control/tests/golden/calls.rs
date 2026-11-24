@@ -7,9 +7,9 @@ use std::time::Duration;
 
 use serde_json::json;
 use slinger_control::{
-    Backdrop, CanvasEdit, CanvasFold, CanvasOps, CanvasPut, CanvasStep, Client, EventFilter,
-    FeedbackNote, FoldAsk, NewEvent, NewTags, PacketAsk, PaneKind, PaneView, PaneViewed, Profile,
-    Put, RemoteError, SlingAsk, Touched, UiOpen,
+    Backdrop, CanvasDraw, CanvasEdit, CanvasFold, CanvasOps, CanvasPut, CanvasStep, Client,
+    EventFilter, FeedbackNote, FoldAsk, NewEvent, NewTags, PacketAsk, PaneKind, PaneView,
+    PaneViewed, Place, Profile, Put, RemoteError, SlingAsk, Touched, UiOpen,
 };
 
 type Call = fn(&Client) -> Result<(), RemoteError>;
@@ -40,6 +40,20 @@ fn fold(once: Option<&str>) -> CanvasFold {
 fn put(what: Put) -> CanvasPut {
     let (canvas, agent, beside) = ("main".into(), "scout".into(), "c12".into());
     CanvasPut { canvas, agent, beside, what, color: None, at: None, text_size: None, inside: None }
+}
+
+fn draw(place: Place) -> CanvasDraw {
+    CanvasDraw {
+        canvas: "main".into(),
+        by: "agent:scout".into(),
+        name: "worksheet".into(),
+        path: "/tmp/w.js".into(),
+        data: None,
+        place,
+        page: None,
+        dry_run: false,
+        png: None,
+    }
 }
 
 const TS: &str = "2026-11-11T14:02:09.120-08:00";
@@ -236,4 +250,15 @@ pub const CALLS: &[Call] = &[
     |c| c.daemon_stop().map(drop),
     |c| c.file_touched("scout", Touched::Path(Path::new("/p/w/a.rs"))).map(drop),
     |c| c.file_touched("scout", Touched::Hook(r#"{"tool_name":"Write"}"#)).map(drop),
+    |c| {
+        let draw = CanvasDraw {
+            data: Some("/tmp/d.json".into()),
+            page: Some("p2".into()),
+            dry_run: true,
+            png: Some("/tmp/w.png".into()),
+            ..draw(Place::At([10, -20]))
+        };
+        c.canvas_draw(draw).map(drop)
+    },
+    |c| c.canvas_draw(draw(Place::Beside("c12".into()))).map(drop),
 ];

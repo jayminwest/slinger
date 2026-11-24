@@ -41,6 +41,11 @@ pub(crate) fn run(script: &str, data: &str, input: &str) -> Result<Drawn, Script
     runtime.set_max_stack_size(STACK);
     let deadline = Instant::now() + TIME;
     runtime.set_interrupt_handler(Some(Box::new(move || Instant::now() >= deadline)));
+    let rejected = Rc::new(RefCell::new(Rejected::default()));
+    let tracker = Rc::clone(&rejected);
+    runtime.set_host_promise_rejection_tracker(Some(Box::new(move |_, _, reason, handled| {
+        tracker.borrow_mut().saw(reason, handled);
+    })));
     let context =
         Context::custom::<(Eval, Json, RegExpCompiler, RegExp, MapSet, Promise)>(&runtime)
             .map_err(internal)?;
@@ -66,6 +71,7 @@ pub(crate) fn run(script: &str, data: &str, input: &str) -> Result<Drawn, Script
     let jobs = drain(&runtime);
     let finish = ran?;
     jobs?;
+    rejected.take().check()?;
     context.with(|ctx| {
         let finish = finish.restore(&ctx).map_err(internal)?;
         finish.call::<_, ()>(()).catch(&ctx).map_err(|e| failed(&e))
@@ -96,6 +102,45 @@ fn drain(runtime: &Runtime) -> Result<(), ScriptError> {
                     }));
                 }
             }
+        }
+    }
+}
+
+/// The promises rejected with no handler, counted as `QuickJS` reports
+/// them: a handler added later takes one back. The first one's reason is
+/// the run's error, so a rejection nothing caught fails the draw as a throw
+/// would.
+#[derive(Default)]
+struct Rejected {
+    unhandled: usize,
+    first: Option<ScriptError>,
+}
+
+impl Rejected {
+    fn saw(&mut self, reason: rquickjs::Value<'_>, handled: bool) {
+        if handled {
+            self.unhandled = self.unhandled.saturating_sub(1);
+            if self.unhandled == 0 {
+                self.first = None;
+            }
+            return;
+        }
+        self.unhandled += 1;
+        if self.first.is_none() {
+            let caught = match reason.clone().into_exception() {
+                Some(x) => CaughtError::Exception(x),
+                None => CaughtError::Value(reason),
+            };
+            let mut e = failed(&caught);
+            e.message = format!("a promise was rejected and nothing caught it: {}", e.message);
+            self.first = Some(e);
+        }
+    }
+
+    fn check(self) -> Result<(), ScriptError> {
+        match self.first {
+            Some(e) if self.unhandled > 0 => Err(e),
+            _ => Ok(()),
         }
     }
 }

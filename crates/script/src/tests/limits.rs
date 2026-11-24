@@ -111,9 +111,23 @@ fn the_script_cannot_reach_a_clock_a_timer_the_console_or_eval() {
         assert!(e.message.contains(said), "{script}: {e}");
         assert_eq!(e.line, 1, "{script}: {e}");
     }
-    assert_eq!(draw("import('x');").map(|d| d.items.len()), Ok(0), "an import loads nothing");
+    let import = failed("import('x');").message;
+    assert!(import.contains("could not load module 'x'"), "an import loads nothing: {import}");
     let late = draw("async function later() {\n  await 1;\n  box(0, 0, 1, 1);\n}\nlater();\n");
     assert_eq!(late.map(|d| d.items.len()), Ok(1), "promise jobs run before the run ends");
+}
+
+#[test]
+fn a_rejection_nothing_catches_fails_the_draw_at_its_line() {
+    let e = failed(
+        "box(0, 0, 1, 1);\nasync function later() {\n  await 1;\n  throw new Error('no data');\n}\nlater();\n",
+    );
+    assert_eq!((e.line, e.col), (4, 13), "{e}");
+    assert!(e.message.contains("nothing caught it") && e.message.contains("no data"), "{e}");
+    let e = failed("Promise.reject('gone');\n");
+    assert!(e.message.ends_with("nothing caught it: gone"), "{e}");
+    let caught = "Promise.reject(new Error('x')).catch(() => box(0, 0, 1, 1));\n";
+    assert_eq!(draw(caught).map(|d| d.items.len()), Ok(1), "a rejection caught later is fine");
 }
 
 #[test]
