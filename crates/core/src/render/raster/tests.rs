@@ -1,5 +1,7 @@
 use super::*;
-use crate::canvas::{Action, Applied, Author, Canvas, Dash, End, Heads, Item, Op, Style, Time};
+use crate::canvas::{
+    Action, Applied, Author, Canvas, Dash, End, Heads, Item, Member, Op, Style, Time,
+};
 
 const WHITE: [u8; 3] = [255, 255, 255];
 const BLACK: [u8; 3] = [0, 0, 0];
@@ -287,7 +289,8 @@ fn laid(items: Vec<(Shape, Style)>) -> Raster {
     let page = canvas.pages().next().unwrap().id();
     let mut ids = Vec::new();
     for (shape, style) in items {
-        let op = Op { by: Author::User, at: Time(0), action: Action::Add { page, shape, style } };
+        let action = Action::Add { page, shape, style, member: Member::default() };
+        let op = Op { by: Author::User, at: Time(0), action };
         let Ok(Applied::Added(id)) = canvas.apply(op) else { panic!("not added") };
         ids.push(id);
     }

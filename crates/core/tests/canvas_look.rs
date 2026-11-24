@@ -82,8 +82,12 @@ fn an_agents_stroke_is_never_clustered() {
 fn bad_ids_missing_items_and_non_ink_fail_with_their_codes() {
     let text = json!({ "op": "add", "item": { "page": "p1", "kind": "text", "x": 0, "y": 0, "w": 100, "h": 50, "text": "hi" } });
     let log = canvas(&text, None);
-    for bad in ["", "i", "x1", "i1x", "c-1", "1"] {
+    for bad in ["", "x1", "1", "I1", "a b", "a/B"] {
         assert_eq!(code(log.crop(bad, "x")), "invalid", "{bad:?}");
+    }
+    // Shaped as a figure address (docs/design/figures.md), naming none.
+    for figure in ["i", "i1x", "c-1", "a/b"] {
+        assert_eq!(code(log.crop(figure, "x")), "not_found", "{figure:?}");
     }
     assert_eq!(code(log.crop("i9", "x")), "not_found");
     assert_eq!(code(log.strokes("c9")), "not_found");

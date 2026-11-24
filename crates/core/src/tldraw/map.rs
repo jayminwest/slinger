@@ -7,8 +7,8 @@ use serde_json::Value;
 
 use super::{Import, Report, path};
 use crate::canvas::{
-    Action, Applied, Author, Canvas, Colour, Dash, End, ItemId, Op, PageId, Point, Rect, Shape,
-    Style, TEXT_SIZE, TEXT_SIZES, Time, style::FILL_MAX_ALPHA,
+    Action, Applied, Author, Canvas, Colour, Dash, End, ItemId, Member, Op, PageId, Point, Rect,
+    Shape, Style, TEXT_SIZE, TEXT_SIZES, Time, style::FILL_MAX_ALPHA,
 };
 
 static NULL: Value = Value::Null;
@@ -183,7 +183,8 @@ impl Builder {
         };
         let style = style(n);
         for shape in shapes {
-            let add = Action::Add { page, style: style.fitted(&shape), shape: shape.clone() };
+            let (style, member) = (style.fitted(&shape), Member::default());
+            let add = Action::Add { page, style, member, shape: shape.clone() };
             let Some(Applied::Added(item)) = self.apply(add) else {
                 return self.skip(format!("{} (damaged)", n.kind));
             };

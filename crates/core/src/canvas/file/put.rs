@@ -271,12 +271,13 @@ impl Log {
     }
 
     /// The item an id names, the box around what it names (a whole cluster
-    /// for `c<n>` on ink) and its page.
+    /// for `c<n>` on ink, the joint frame of a figure or a part) and its
+    /// page. For a figure address the first item stands for them.
     pub(super) fn named(&self, id: &str) -> Result<(ItemId, Rect, PageId)> {
         let items = self.resolve(id)?;
         let canvas = self.canvas();
-        let number = id.get(1..).and_then(|n| n.parse().ok()).map(ItemId::new);
-        let found = number.and_then(|n| canvas.item(n));
+        let first = super::look::number(id).map(ItemId::new).or(items.first().copied());
+        let found = first.and_then(|n| canvas.item(n));
         match (found, canvas.bounds_of(items)) {
             (Some(item), Some(frame)) => Ok((item.id(), frame, item.page())),
             _ => Err(Error::NotFound { what: format!("item {id}"), hint: None }),

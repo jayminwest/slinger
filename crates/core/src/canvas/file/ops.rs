@@ -43,7 +43,8 @@ impl Log {
                 let page = json::text(&item, "page").and_then(json::parse_page).map_err(bad)?;
                 let shape = read_shape(&item)?;
                 let style = style::check(&item, &shape)?;
-                out.push(Action::Add { page, shape, style });
+                let member = style::check_member(&item)?;
+                out.push(Action::Add { page, shape, style, member });
                 if let Some(inside) = m.get("in") {
                     self.join(inside, out)?;
                 }
@@ -76,7 +77,15 @@ impl Log {
                 } else {
                     None
                 };
-                out.push(Action::Edit { item, shape, style });
+                // So does one that names no figure key, of its figure.
+                let member = if style::member_named(fields) {
+                    let mut merged = style::member_fields(current.member());
+                    merged.extend(fields.iter().map(|(k, v)| (k.clone(), v.clone())));
+                    Some(style::check_member(&merged)?)
+                } else {
+                    None
+                };
+                out.push(Action::Edit { item, shape, style, member });
             }
             "page.add" => out.push(Action::PageAdd { name: name().map_err(bad)? }),
             "page.rename" => {
