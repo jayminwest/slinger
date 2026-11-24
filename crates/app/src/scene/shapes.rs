@@ -179,7 +179,7 @@ impl Shapes {
         let cells = self.grid_frame();
         if let Some(editing) = &mut self.editing {
             let here = editing.canvas == canvas && editing.page == page;
-            // Inside Nvim's grid a press is Nvim's (slinger-b8e3d3): the text stays.
+            // Inside Nvim's grid a press is Nvim's mouse, which `canvases` hands it first: the text stays.
             if let Some(cells) = cells.filter(|_| here) {
                 if cells.outset(reach).contains(press.at) {
                     return true;

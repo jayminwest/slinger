@@ -210,3 +210,127 @@ fn a_paste_taller_than_the_grid_shows_the_text_from_its_top() {
         grid(s).is_some_and(|(g, _)| g.rows == 32 && g.row_text(0) == "plan")
     });
 }
+
+/// A Vim whose Nvim's clipboard is the file it returns too.
+fn clipped() -> Option<(Vim, tempfile::TempDir, std::path::PathBuf)> {
+    let program = nvim()?;
+    let dir = tempfile::tempdir().unwrap();
+    let clip = dir.path().join("clip");
+    let mut vim = Vim::new(&Wake::none());
+    vim.set(Setup::clean_in(program, dir.path()).clip(clip.clone()), READY);
+    Some((vim, dir, clip))
+}
+
+/// What Nvim's clipboard file holds, polling until `done` says so, at most 10 s.
+fn clip_holds(
+    vim: &mut Vim,
+    shapes: &mut Shapes,
+    ink: &mut Ink,
+    clip: &std::path::Path,
+    want: &str,
+) {
+    let clip = clip.to_path_buf();
+    let want = want.to_string();
+    until(vim, shapes, ink, move |_, _| std::fs::read_to_string(&clip).is_ok_and(|c| c == want));
+}
+
+const CMD_A: Chord = Chord::new(crate::commands::CMD, 'a');
+
+#[test]
+fn undo_and_redo_are_nvims_while_it_edits() {
+    let Some((mut vim, _dir)) = vim(READY) else { return };
+    let mut ink = Ink::named("t");
+    let mut shapes = opened("plan", &mut ink);
+    vim.typed("A ahead", &shapes);
+    vim.key(Chord::new(0, '\u{1b}'), &mut shapes, &mut ink);
+    until(&mut vim, &mut shapes, &mut ink, |_, s| s.typing_text().as_deref() == Some("plan ahead"));
+    assert!(vim.undo(false, &shapes));
+    until(&mut vim, &mut shapes, &mut ink, |_, s| s.typing_text().as_deref() == Some("plan"));
+    assert!(vim.undo(true, &shapes));
+    until(&mut vim, &mut shapes, &mut ink, |_, s| s.typing_text().as_deref() == Some("plan ahead"));
+    shapes.end(&mut ink);
+    vim.sync(&shapes);
+    assert!(!vim.undo(false, &shapes), "the text ended: undo is the canvas's");
+    assert_eq!(written(&mut ink).as_deref(), Some("plan ahead"), "one change for the whole edit");
+}
+
+#[test]
+fn select_all_copy_and_cut_go_through_nvims_clipboard() {
+    let Some((mut vim, _dir, clip)) = clipped() else { return };
+    let mut ink = Ink::named("t");
+    let mut shapes = opened("plan\nahead", &mut ink);
+    vim.sync(&shapes);
+    assert_eq!(vim.selects(), Some(false));
+    assert_eq!(vim.key(CMD_A, &mut shapes, &mut ink), Some(true));
+    until(&mut vim, &mut shapes, &mut ink, |v, _| v.selects() == Some(true));
+    assert!(vim.copy(false, &shapes));
+    clip_holds(&mut vim, &mut shapes, &mut ink, &clip, "plan\nahead\n");
+    vim.key(CMD_A, &mut shapes, &mut ink);
+    until(&mut vim, &mut shapes, &mut ink, |v, _| v.selects() == Some(true));
+    assert!(vim.copy(true, &shapes), "a cut");
+    until(&mut vim, &mut shapes, &mut ink, |_, s| s.typing_text().as_deref() == Some(""));
+    vim.pasted("back", &shapes);
+    until(&mut vim, &mut shapes, &mut ink, |_, s| s.typing_text().as_deref() == Some("back"));
+}
+
+#[test]
+fn a_yank_with_clipboard_unnamedplus_reaches_the_clipboard() {
+    let Some((mut vim, _dir, clip)) = clipped() else { return };
+    let mut ink = Ink::named("t");
+    let mut shapes = opened("plan ahead", &mut ink);
+    vim.typed(":set clipboard=unnamedplus", &shapes);
+    vim.key(Chord::new(0, '\r'), &mut shapes, &mut ink);
+    vim.typed("0yiw", &shapes);
+    clip_holds(&mut vim, &mut shapes, &mut ink, &clip, "plan");
+}
+
+#[test]
+fn new_texts_key_is_the_apps_and_a_command_chord_too() {
+    let Some((mut vim, _dir)) = vim(READY) else { return };
+    let mut ink = Ink::named("t");
+    let mut shapes = new_text(&mut ink);
+    let next = Chord::new(crate::commands::CTRL, '\r');
+    shapes.set_next(Some(next));
+    assert_eq!(vim.key(next, &mut shapes, &mut ink), Some(false));
+    until(&mut vim, &mut shapes, &mut ink, |_, s| grid(s).is_some());
+    let shown = shapes.shown(HERE, Vec::new(), 1.0, &Theme::default());
+    let hint = shown.iter().find_map(|item| match &item.shape {
+        Shape::Text { text, .. } if text.starts_with("esc in normal mode") => Some(text.clone()),
+        _ => None,
+    });
+    assert_eq!(
+        hint.as_deref(),
+        Some("esc in normal mode, :q or a tap outside ends the text · ⌃↩ new text"),
+        "the hint names the ways out"
+    );
+    assert_eq!(vim.key(Chord::new(crate::commands::CMD, 'z'), &mut shapes, &mut ink), Some(false));
+    shapes.set_next(None);
+    assert_eq!(vim.key(next, &mut shapes, &mut ink), Some(true), "unbound, it is Nvim's");
+}
+
+#[test]
+fn a_press_and_a_drag_in_the_grid_are_nvims_mouse() {
+    let Some((mut vim, _dir, clip)) = clipped() else { return };
+    let mut ink = Ink::named("t");
+    let mut shapes = opened("plan ahead", &mut ink);
+    until(&mut vim, &mut shapes, &mut ink, |_, s| grid(s).is_some());
+    // A cell is 12 wide and 24 tall at size 24: the fifth cell of the first row.
+    let cell = |col: f64| Point { x: col * 12.0 + 1.0, y: 5.0 };
+    assert!(!vim.press(HERE, (Point { x: 2000.0, y: 5.0 }, 8.0), false, &mut shapes), "outside");
+    assert!(!vim.drag(cell(1.0), true, &shapes), "no press is down");
+    assert!(vim.press(HERE, (cell(4.0), 8.0), false, &mut shapes));
+    assert!(vim.drag(cell(4.0), true, &shapes));
+    vim.typed("iX", &shapes);
+    vim.key(Chord::new(0, '\u{1b}'), &mut shapes, &mut ink);
+    // Nvim holds an escape for 'ttimeoutlen' to see whether a key follows it.
+    until(&mut vim, &mut shapes, &mut ink, |_, s| {
+        s.typing_text().as_deref() == Some("planX ahead")
+            && grid(s).is_some_and(|(g, _)| g.mode_name == "normal")
+    });
+    assert!(vim.press(HERE, (cell(0.0), 8.0), false, &mut shapes));
+    assert!(vim.drag(cell(2.0), false, &shapes));
+    assert!(vim.drag(cell(3.0), true, &shapes));
+    until(&mut vim, &mut shapes, &mut ink, |v, _| v.selects() == Some(true));
+    vim.copy(false, &shapes);
+    clip_holds(&mut vim, &mut shapes, &mut ink, &clip, "plan");
+}

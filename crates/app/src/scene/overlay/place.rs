@@ -30,10 +30,11 @@ pub(super) fn key_wide(key: Option<&str>) -> f64 {
     key.map_or_else(|| wide(NO_KEY, NOTE), chip_width)
 }
 
-/// For each section of [`Section::all`], in order, the narrowest column
-/// that shows its every row whole with `keys`: the title, the space and
-/// the key; never under [`MIN_COLUMN`].
-pub(super) fn widths(keys: &Keymap) -> Vec<f64> {
+/// For each section of [`Section::all`] (`nvim`: with Nvim's typing
+/// keys), in order, the narrowest column that shows its every row whole
+/// with `keys`: the title, the space and the key; never under
+/// [`MIN_COLUMN`].
+pub(super) fn widths(keys: &Keymap, nvim: bool) -> Vec<f64> {
     let row =
         |title: &str, key: Option<String>| wide(title, TITLE) + SPACE + key_wide(key.as_deref());
     let section = |section: Section| match section {
@@ -46,7 +47,7 @@ pub(super) fn widths(keys: &Keymap) -> Vec<f64> {
             rows.fold(MIN_COLUMN, f64::max)
         }
     };
-    Section::all().into_iter().map(section).collect()
+    Section::all(nvim).into_iter().map(section).collect()
 }
 
 /// The commands of `group`, in the registry's order.
@@ -62,10 +63,11 @@ pub(super) enum Section {
 }
 
 impl Section {
-    /// Every section, in order: the groups, then the fixed keys.
-    pub(super) fn all() -> Vec<Section> {
+    /// Every section, in order: the groups, then the fixed keys (`nvim`:
+    /// a typed text's are Nvim's).
+    pub(super) fn all(nvim: bool) -> Vec<Section> {
         let groups = Group::ALL.into_iter().map(Section::Commands);
-        groups.chain(fixed::ALL.into_iter().map(Section::Fixed)).collect()
+        groups.chain(fixed::all(nvim).into_iter().map(Section::Fixed)).collect()
     }
 
     pub(super) fn title(self) -> &'static str {
@@ -88,13 +90,18 @@ fn tall(section: Section) -> f64 {
     HEADING + ROW * f64::from(u32::try_from(section.rows()).unwrap_or(u32::MAX))
 }
 
-/// The columns' sections for the most columns, up to [`COLUMNS`], that
+/// The columns' sections (`nvim`: with Nvim's typing keys) for the most
+/// columns, up to [`COLUMNS`], that
 /// fit across `width` with `gap` between two, each as wide as its widest
 /// section in `widths` (one per section of [`Section::all`]; a section
 /// with none is [`MIN_COLUMN`] wide); never fewer than one. The tallest
 /// column's height, the columns and their widths.
-pub(super) fn columns(width: f64, gap: f64, widths: &[f64]) -> (f64, Vec<Vec<Section>>, Vec<f64>) {
-    let all = Section::all();
+pub(super) fn columns(
+    (width, gap): (f64, f64),
+    widths: &[f64],
+    nvim: bool,
+) -> (f64, Vec<Vec<Section>>, Vec<f64>) {
+    let all = Section::all(nvim);
     let need = |i: usize| widths.get(i).copied().unwrap_or(MIN_COLUMN).max(MIN_COLUMN);
     let laid = |n: u32| {
         let (tallest, runs) = split(&all, n);
@@ -155,12 +162,13 @@ pub(super) struct Place {
 /// The panel in a window of `size`, centred, as tall as its rows or the
 /// window allows, with its rows scrolled by `scroll` (kept in range). Its
 /// groups fill as many columns as fit, left to right, each as wide as its
-/// widest section in `widths` ([`columns`]); the panel is [`WIDTH`] wide,
+/// widest section in `widths` ([`columns`], `nvim` as there); the panel
+/// is [`WIDTH`] wide,
 /// or wider when its columns need it, and they share what is left over.
-pub(super) fn place(size: Size, scroll: f64, widths: &[f64]) -> Place {
+pub(super) fn place(size: Size, scroll: f64, widths: &[f64], nvim: bool) -> Place {
     let room = (size.width - 2.0 * MARGIN).max(0.0);
     let (pad, gap) = if room.min(WIDTH) < 600.0 { (NARROW_PAD, NARROW_GAP) } else { (PAD, GAP) };
-    let (content, runs, wide) = columns(room - 2.0 * pad, gap, widths);
+    let (content, runs, wide) = columns((room - 2.0 * pad, gap), widths, nvim);
     let n = count(runs.len());
     let need = wide.iter().sum::<f64>() + gap * (n - 1.0);
     let width = (need + 2.0 * pad).max(WIDTH).min(room);
