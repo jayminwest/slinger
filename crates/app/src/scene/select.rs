@@ -345,7 +345,12 @@ impl Select {
                         *item = Cow::Owned(after.clone());
                     } else if ids.contains(&item.id) {
                         let (id, colour) = (item.id, item.colour);
-                        *item = Cow::Owned(Item { id, colour, shape: item.shape.moved(*by) });
+                        *item = Cow::Owned(Item {
+                            id,
+                            colour,
+                            shape: item.shape.moved(*by),
+                            style: item.style,
+                        });
                     }
                 }
             }
@@ -364,16 +369,12 @@ impl Select {
         if let Some(Gesture::Lasso { points }) = gesture {
             let mut points = points.clone();
             points.extend(points.first().copied());
-            items.push(Cow::Owned(Item {
-                id: LOOP,
-                colour: theme.muted,
-                shape: Shape::Stroke { points, width },
-            }));
+            items.push(Cow::Owned(Item::plain(LOOP, theme.muted, Shape::Stroke { points, width })));
         }
         if let Some(&Gesture::Marquee { from, to, .. }) = gesture {
             let frame = pick::spanned(from, to);
             let shape = Shape::Panel { frame, fill: None, width, dashed: false };
-            items.push(Cow::Owned(Item { id: LOOP, colour: theme.muted, shape }));
+            items.push(Cow::Owned(Item::plain(LOOP, theme.muted, shape)));
         }
         items
     }
@@ -402,7 +403,7 @@ fn chrome(frame: Rect, count: usize, zoom: f64, theme: &Theme) -> Vec<Cow<'stati
     let focus = theme.focus;
     let tint = Fill { colour: focus, alpha: TINT };
     let shape = Shape::Panel { frame, fill: Some(tint), width: THIN / zoom, dashed: false };
-    let mut marks = vec![Item { id: BOX, colour: focus, shape }];
+    let mut marks = vec![Item::plain(BOX, focus, shape)];
     let side = HANDLE / zoom;
     let (right, bottom) = (frame.x + frame.width, frame.y + frame.height);
     let corners = [(frame.x, frame.y), (right, frame.y), (right, bottom), (frame.x, bottom)];
@@ -411,7 +412,7 @@ fn chrome(frame: Rect, count: usize, zoom: f64, theme: &Theme) -> Vec<Cow<'stati
         let paper = Fill { colour: theme.background, alpha: 1.0 };
         let width = HANDLE_LINE / zoom;
         let shape = Shape::Panel { frame: square, fill: Some(paper), width, dashed: false };
-        marks.push(Item { id: ItemId(id), colour: focus, shape });
+        marks.push(Item::plain(ItemId(id), focus, shape));
     }
     let text = if count == 1 { "1 item".to_string() } else { format!("{count} items") };
     let top = frame.y - side / 2.0 - COUNT_GAP / zoom - shapes::label_height(zoom);

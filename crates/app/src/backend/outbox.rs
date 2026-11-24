@@ -385,7 +385,7 @@ mod tests {
                 width: 2.0,
                 bound: [Some(ItemId(1)), Some(ItemId(2))],
             };
-            let follow = vec![Item { id: ItemId(3), colour, shape: arrow }];
+            let follow = vec![Item::plain(ItemId(3), colour, arrow)];
             let (canvas, page) = here();
             outbox.send(
                 5,

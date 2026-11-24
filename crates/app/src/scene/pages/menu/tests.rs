@@ -12,6 +12,7 @@ const T: Theme = Theme {
     error: Rgb { r: 3, g: 3, b: 3 },
     focus: Rgb { r: 4, g: 4, b: 4 },
     done: Rgb { r: 5, g: 5, b: 5 },
+    agent: Rgb { r: 6, g: 6, b: 6 },
 };
 const SIZE: Size = Size { width: 800.0, height: 600.0 };
 /// A footer's page name, at the window's bottom.

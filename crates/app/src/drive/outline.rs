@@ -10,7 +10,7 @@ use crate::commands::menu::Action;
 use crate::config::Rgb;
 use crate::layout::{Point, Rect};
 use crate::nvim::grid::Grid;
-use crate::scene::canvas::{Draw, Mark};
+use crate::scene::canvas::{Dash, Draw, Fill, Mark};
 use crate::scene::{Label, Scene};
 
 /// The most of a text one line says.
@@ -120,14 +120,23 @@ pub fn menu(popup: &Popup) -> String {
 /// and what it holds.
 fn mark(draw: &Draw) -> String {
     let what = match &draw.mark {
-        Mark::Stroke { curves, width, .. } => {
-            format!("stroke {} curves width {}", curves.len(), n(*width))
+        Mark::Stroke { curves, width, dash, fill, .. } => {
+            format!("stroke {} curves width {}{}", curves.len(), n(*width), styled(*dash, *fill))
         }
         Mark::Text { text, size, width, .. } => {
             format!("text size {} column {} {}", n(*size), n(*width), quoted(text))
         }
-        Mark::Box { width, .. } => format!("box width {}", n(*width)),
-        Mark::Arrow { from, to, .. } => format!("arrow {} to {}", point(*from), point(*to)),
+        Mark::Box { width, dash, fill, .. } => {
+            format!("box width {}{}", n(*width), styled(*dash, *fill))
+        }
+        Mark::Arrow { from, to, heads, dash, .. } => {
+            let heads = match heads.len() {
+                0 => " heads none",
+                1 => "",
+                _ => " heads both",
+            };
+            format!("arrow {} to {}{heads}{}", point(*from), point(*to), styled(*dash, None))
+        }
         Mark::Live { name, open, .. } => format!("live {name} {open}"),
         Mark::Button { label, .. } => format!("button {}", quoted(label)),
         Mark::Pdf { page, file, .. } => {
@@ -143,6 +152,23 @@ fn mark(draw: &Draw) -> String {
     // A mark that is no item of the page (a caret, a frame, a handle) has an id past any item's.
     let id = if draw.id.0 > u64::MAX / 2 { "~".to_string() } else { format!("i{}", draw.id.0) };
     format!("{id} {} {} {what}", rect(draw.bounds), colour(draw.colour))
+}
+
+/// A line's dash and its fill as drawn, each only when it has one:
+/// ` dashed` or ` dotted`, then ` filled #rrggbbaa` (the alpha painted).
+fn styled(dash: Dash, fill: Option<Fill>) -> String {
+    let dash = match dash {
+        Dash::Solid => "",
+        Dash::Dashed => " dashed",
+        Dash::Dotted => " dotted",
+    };
+    let fill = fill.map(|f| {
+        // The alpha is from 0 to 1, from a byte.
+        #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "0 to 255")]
+        let alpha = (f.alpha * 255.0).round() as u8;
+        format!(" filled {}{alpha:02x}", colour(f.colour))
+    });
+    format!("{dash}{}", fill.unwrap_or_default())
 }
 
 /// Nvim's grid over the text it edits: its size, mode and cursor (row,

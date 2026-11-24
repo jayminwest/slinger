@@ -17,7 +17,7 @@ pub fn label(id: ItemId, text: String, colour: Rgb, at: Point, zoom: f64) -> Ite
     let count = u32::try_from(text.chars().count()).map_or(f64::from(u32::MAX), f64::from);
     // A cell of the full size a character: the line never wraps.
     let frame = Rect { x: at.x, y: at.y, width: count.max(1.0) * size, height: label_height(zoom) };
-    Item { id, colour, shape: Shape::Text { frame, text, size, column: None } }
+    Item::plain(id, colour, Shape::Text { frame, text, size, column: None })
 }
 
 /// How tall a [`label`] is at `zoom`, in canvas units.
