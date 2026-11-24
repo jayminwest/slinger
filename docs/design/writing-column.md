@@ -410,6 +410,9 @@ same chord again. Alternative not taken: a pane of its own for the text
 Landed (slinger-9321cf): `crates/app/src/canvases/focus.rs` (`writing`, the
 pure view; `Focus` keeps the view it replaced and the count of texts ended,
 so any text ending gives it back); the top margin is one row (one size).
+The context menu of a text and of the text being typed offer it
+(slinger-668fd9); checked under nvim in a driven window: the chord and the
+pick type nothing into nvim, and the view comes back when the text ends.
 
 ### The rendered view (step 7, slinger-45d66c)
 

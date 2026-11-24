@@ -26,7 +26,8 @@ bullet with the area in bold.
   palette): while you type a text, or with one text selected, the pane zooms
   so the text's 80-character column fills its width, the text's top just
   under the pane's top. Ending the text, or the same key again, puts the
-  view back where it was.
+  view back where it was. The right-click menu of a text, typed or not,
+  offers it too.
 - **Canvas:** boxes and closed strokes take a fill, drawn as a light tint
   under all writing; boxes, strokes and arrows can be dashed or dotted; an
   arrow can have a head at both ends or none (a plain line); a stroke can

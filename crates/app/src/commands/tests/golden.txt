@@ -342,6 +342,8 @@ Item { kind: Text }
   run PickSize | Pick a text size | ⇧⌘A
   run SizeUp | Bigger text | -
   run SizeDown | Smaller text | -
+  --- |  | -
+  run WriteFocus | Focus on text | ⌥⌘↩ grey
 Item { kind: Box }
   run Sling | Sling selection | ⌘↩ grey
   --- |  | -
@@ -404,6 +406,8 @@ Typing
   native Cut | Cut | ⌘X
   native Copy | Copy | ⌘C
   native Paste | Paste | ⌘V
+  --- |  | -
+  run WriteFocus | Focus on text | ⌥⌘↩ grey
 Workspace { dir: "/w" }
   run CloseWorkspace | Close workspace | ⌥⌘W grey
   run ShowWorkspaceFolder | Show workspace folder in Finder | - grey

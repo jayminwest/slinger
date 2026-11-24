@@ -165,7 +165,8 @@ fn each_kind_of_item_s_items_in_order() {
     let item = |kind| titles(&of(&Subject::Item { kind }));
     assert_eq!(item(Kind::Stroke), with_any(&[]));
     assert_eq!(item(Kind::Arrow), with_any(&[]));
-    assert_eq!(item(Kind::Text), with_any(&["Pick a text size", "Bigger text", "Smaller text"]));
+    let text = ["Pick a text size", "Bigger text", "Smaller text", "-", "Focus on text"];
+    assert_eq!(item(Kind::Text), with_any(&text));
     let boxed = ["-", "Fold or unfold box", "Step into box", "Step into box beside"];
     assert_eq!(item(Kind::Box), with_any(&boxed));
     assert_eq!(item(Kind::Pdf), with_any(&["-", "Crop PDF", "Show canvas file in Finder"]));
@@ -173,14 +174,14 @@ fn each_kind_of_item_s_items_in_order() {
 }
 
 #[test]
-fn a_selection_offers_fold_only_with_a_box_and_typing_only_the_clipboard() {
+fn a_selection_offers_fold_only_with_a_box_and_typing_the_clipboard_and_write_focus() {
     let tail = ["Pick a colour", "Select nothing"];
     let plain = titles(&of(&Subject::Selection { boxed: false }));
     assert_eq!(plain, ANY_ITEM[..7].iter().chain(&tail).copied().collect::<Vec<_>>());
     let boxed = titles(&of(&Subject::Selection { boxed: true }));
     let fold = ANY_ITEM[..7].iter().chain(&["Fold or unfold box"]).chain(&tail);
     assert_eq!(boxed, fold.copied().collect::<Vec<_>>());
-    assert_eq!(titles(&of(&Subject::Typing)), ["Cut", "Copy", "Paste"]);
+    assert_eq!(titles(&of(&Subject::Typing)), ["Cut", "Copy", "Paste", "-", "Focus on text"]);
     let fold = |s| of(&s).iter().any(|i| i.action == Action::Run(Command::Fold));
     for kind in KINDS {
         assert_eq!(fold(Subject::Item { kind }), kind == Kind::Box, "{kind:?}");
