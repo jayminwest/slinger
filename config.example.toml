@@ -105,8 +105,8 @@
 # every text with slinger's own editor; or the path to nvim ("~/" allowed). Your own config
 # and plugins load; nvim's state and cache (logs, shada, undo, plugin caches) go to a folder
 # of slinger's in the temporary directory, never yours. With no nvim found, or one older
-# than 0.10, slinger's own editor types and says so once. Not yet in use: until nvim's
-# screen is drawn in the text, slinger's own editor types every text.
+# than 0.10, slinger's own editor types and says so once. nvim's screen is drawn in the
+# text's place, 80 cells wide, with no line numbers, sign column or ruler.
 #nvim = "auto"
 
 # --- keys: every action is a named command, bound to a key chord here.

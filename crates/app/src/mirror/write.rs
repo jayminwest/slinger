@@ -99,7 +99,7 @@ pub fn object(item: &Item) -> Option<Value> {
             o.insert("open".into(), open.as_str().into());
             o
         }
-        Shape::Panel { .. } | Shape::Caret { .. } => return None,
+        Shape::Panel { .. } | Shape::Caret { .. } | Shape::Cells { .. } => return None,
         shape => fields(shape),
     };
     o.insert("id".into(), item_ref(item.id).into());
@@ -261,7 +261,11 @@ fn fields(shape: &Shape) -> Map<String, Value> {
         }
         // Only an agent makes a live item; a resize sets its frame ([`reshape`]).
         // Chrome is the app's alone and never written.
-        Shape::Stroke { .. } | Shape::Live { .. } | Shape::Panel { .. } | Shape::Caret { .. } => {}
+        Shape::Stroke { .. }
+        | Shape::Live { .. }
+        | Shape::Panel { .. }
+        | Shape::Caret { .. }
+        | Shape::Cells { .. } => {}
     }
     o
 }

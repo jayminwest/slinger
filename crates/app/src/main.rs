@@ -287,6 +287,8 @@ fn canvas_panes(layout: Option<&control::PaneLayout>) -> Option<(&str, bool)> {
 fn canvases(socket: &Path, keep: bool, wake: Wake) -> Canvases {
     let daemon = control::Client::new(socket);
     let canvases = Canvases::waking(daemon, wake).rendering(platform::pdf::backdrop);
+    // A driven window types with Nvim only when SLINGER_NVIM says so.
+    let canvases = if keep { canvases } else { canvases.driven() };
     backend::Unsent::locate().filter(|_| keep).into_iter().fold(canvases, Canvases::keeping)
 }
 

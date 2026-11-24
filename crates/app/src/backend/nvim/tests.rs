@@ -37,11 +37,12 @@ fn slinger_nvim_turns_it_on_or_off_and_the_config_picks_which() {
     std::fs::create_dir(&bin).unwrap();
     let program = fake(&bin);
     let path = bin.to_str().unwrap();
-    let resolve = |nvim: &Nvim, pairs: &[(&str, &str)]| Setup::resolve(nvim, &env(pairs));
-    assert!(
-        resolve(&Nvim::Auto, &[("PATH", path)]).unwrap().is_none(),
-        "the grid is not drawn yet"
-    );
+    let resolve = |nvim: &Nvim, pairs: &[(&str, &str)]| Setup::resolve(nvim, true, &env(pairs));
+    let auto = resolve(&Nvim::Auto, &[("PATH", path)]).unwrap().unwrap();
+    assert_eq!((&auto.program, auto.clean), (&program, false), "the config turns it on");
+    assert!(resolve(&Nvim::Off, &[("PATH", path)]).unwrap().is_none());
+    let driven = Setup::resolve(&Nvim::Auto, false, &env(&[("PATH", path)])).unwrap();
+    assert!(driven.is_none(), "a driven window: only SLINGER_NVIM turns it on");
     assert!(resolve(&Nvim::Auto, &[("SLINGER_NVIM", "off"), ("PATH", path)]).unwrap().is_none());
     let on = resolve(&Nvim::Off, &[("SLINGER_NVIM", "clean"), ("PATH", path)]).unwrap().unwrap();
     assert_eq!((on.program, on.clean), (program.clone(), true));

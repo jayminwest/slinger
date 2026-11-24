@@ -142,7 +142,7 @@ impl Canvases {
     /// buttons' first), tap targets, and the
     /// answer's panel.
     pub fn sling_marks(&self, panes: &Panes, area: Rect, theme: &Theme) -> Marks {
-        let idle = self.flow.idle() && !self.typing();
+        let idle = self.flow.idle() && !self.typing() && !self.editing.text_open();
         let selected = self.selection_in(panes, area).filter(|(s, ..)| idle && !s.ids.is_empty());
         let buttons = selected.map(|(_, around, within)| buttons::buttons(around, within, theme));
         let seen = self.seen(panes, area);

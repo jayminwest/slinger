@@ -489,4 +489,5 @@ fn a_new_text_starts_at_the_size_set_and_keeps_it_while_typed() {
     assert_eq!(changes(&mut ink), vec![put(text)], "the tap is the middle of its first line");
 }
 
+mod cells;
 mod column;

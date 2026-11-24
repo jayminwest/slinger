@@ -68,6 +68,36 @@ fn until_marked(canvases: &mut Canvases, panes: &Panes, start: &str) -> Vec<Stri
     texts
 }
 
+/// slinger-be5d24: the selection's marks and buttons are not drawn over a
+/// text being typed; they come back when it ends.
+#[test]
+fn a_text_being_typed_hides_the_selections_marks_and_buttons() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        user_stroke(daemon, "notes");
+        let (mut canvases, panes) = (Canvases::new(daemon.clone()), notes());
+        arrived(&mut canvases, &panes);
+        select_the_stroke(&mut canvases, &panes);
+        let theme = Config::default().theme;
+        let marks = |canvases: &mut Canvases| {
+            let labels = canvases.sling_marks(&panes, WINDOW.rect(), &theme).labels.len();
+            let drawn = canvases.show(&panes, WINDOW.rect(), &theme);
+            let chrome = drawn[0].scene.draws.iter().filter(|d| d.id.0 > u64::MAX / 2).count();
+            (labels, chrome)
+        };
+        let (buttons, selected) = marks(&mut canvases);
+        assert_eq!(buttons, 3, "beside the selection");
+        let at = (panes.focus(), WINDOW.rect());
+        assert!(canvases.new_text(&panes, at, None, Rgb { r: 0, g: 0, b: 0 }));
+        assert!(canvases.typed("note"));
+        let (buttons, typing) = marks(&mut canvases);
+        assert_eq!(buttons, 0, "no buttons over the text");
+        assert!(typing < selected, "the text, its caret and frame, no handles: {typing}");
+        assert!(canvases.typed("\u{1b}"));
+        assert_eq!(marks(&mut canvases).0, 3, "the text ended: the buttons are back");
+    });
+}
+
 #[test]
 fn one_tap_slings_the_selection_with_the_config_s_words_and_the_pill_follows_the_agent() {
     let bin = tempfile::tempdir().unwrap();

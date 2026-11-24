@@ -268,6 +268,7 @@ fn paint(scene: &Scene, dirty: NSRect, texts: &mut HashMap<ItemId, Laid>) {
                 }
             }
             Mark::Caret { frame } => NSRectFill(ns_rect(*frame)),
+            Mark::Cells { at, size, zoom, grid } => super::cells::paint(grid, *at, *size, *zoom),
         }
     }
 }
