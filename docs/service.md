@@ -493,7 +493,10 @@ is not JSON is `invalid`.
 **`canvas_import`** reads the tldraw file at `path` (a `.tldraw` file or an
 older `.tldr`; its bytes travel as a file, as a blob's do) and makes a new
 canvas that holds it: tldraw's pages with their names, and its drawings, text,
-rectangles and arrows as items, all made by `user`. The file is written whole
+rectangles and arrows as items, all made by `user`. A shape's colour, `fill`
+(a tint of its colour: `solid` at the most a fill takes, `semi` and `pattern`
+at half) and `dash` (`dashed`, `dotted`; tldraw's hand-drawn `draw` is solid)
+carry over to the items that take them. The file is written whole
 before the reply, so a crash leaves the canvas complete or absent. Without
 `canvas`, the id is the file's name lowercased, with each run of other
 characters made one `-` (`My Board.tldraw` is `my-board`). `items` counts what

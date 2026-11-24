@@ -2,7 +2,9 @@
 #![cfg(test)]
 
 use serde_json::{Value, json};
-use slinger_core::canvas::{Author, Canvas, Colour, End, Item, Point, Rect, Shape, Time};
+use slinger_core::canvas::{
+    Author, Canvas, Colour, Dash, End, Item, Point, Rect, Shape, Style, Time,
+};
 use slinger_core::tldraw::{Import, import};
 
 const AT: Time = Time(1_700_000_000_000);
@@ -239,5 +241,47 @@ fn group_children_land_in_page_space_and_unmapped_shapes_are_counted() {
     assert_eq!(
         skipped,
         [("draw (damaged)", 1), ("geo:ellipse", 1), ("group", 1), ("note", 1), ("orphan", 1)]
+    );
+}
+
+#[test]
+fn fill_and_dash_carry_over_to_the_items_that_take_them() {
+    // The worksheet's scaffold: a dashed answer area and a dotted one, each
+    // a rectangle with a label, a filled box, a dashed pen stroke and a
+    // dotted arrow.
+    let geo = |fill: &str, dash: &str, label: &[&str]| {
+        json!({"geo": "rectangle", "w": 100, "h": 40, "color": "blue", "fill": fill,
+               "dash": dash, "richText": doc(label)})
+    };
+    let pen = json!({"segments": [{"type": "free", "points": [{"x": 0, "y": 0}, {"x": 10, "y": 0}]}],
+                     "dash": "dashed", "fill": "solid"});
+    let arrow = json!({"start": {"x": 0, "y": 0}, "end": {"x": 50, "y": 0}, "dash": "dotted"});
+    let file = tldr(&[
+        page("page:p", "P", "a1"),
+        shape("shape:a", "page:p", "a1", "geo", 0.0, 0.0, &geo("none", "dashed", &["1a"])),
+        shape("shape:b", "page:p", "a2", "geo", 0.0, 50.0, &geo("semi", "dotted", &[])),
+        shape("shape:c", "page:p", "a3", "geo", 0.0, 100.0, &geo("solid", "draw", &[])),
+        shape("shape:d", "page:p", "a4", "geo", 0.0, 150.0, &geo("pattern", "solid", &[])),
+        shape("shape:e", "page:p", "a5", "draw", 0.0, 200.0, &pen),
+        shape("shape:f", "page:p", "a6", "arrow", 0.0, 250.0, &arrow),
+    ]);
+    let Import { canvas, .. } = import(&file, AT).unwrap();
+    let styles: Vec<_> = items_of(&canvas).into_iter().map(|i| *i.style()).collect();
+    let blue = |a| Some(Colour { a, ..Colour::rgb(60, 100, 220) });
+    let plain = Style::default();
+    assert_eq!(
+        styles,
+        [
+            Style { dash: Dash::Dashed, ..plain },
+            // The label takes neither.
+            plain,
+            Style { fill: blue(0x33), dash: Dash::Dotted, ..plain },
+            // tldraw's hand-drawn dash is solid.
+            Style { fill: blue(0x66), ..plain },
+            Style { fill: blue(0x33), ..plain },
+            // An open stroke takes no fill.
+            Style { dash: Dash::Dashed, ..plain },
+            Style { dash: Dash::Dotted, ..plain },
+        ]
     );
 }
