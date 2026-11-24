@@ -9,7 +9,7 @@ use slinger_core::render::Image;
 use slinger_core::sling::{Block, Message, Sling, VERSION, Verb, message};
 
 const PACKET: &str = include_str!("fixtures/packet/packet-v1.txt");
-const ALL: &[Verb] = &[Verb::Put, Verb::Crop, Verb::Ui];
+const ALL: &[Verb] = &[Verb::Put, Verb::Draw, Verb::Crop, Verb::Ui];
 
 /// The stored v1 packet, with a stand-in image for each `img=` name.
 fn packet() -> Packet {
@@ -174,8 +174,11 @@ fn the_note_names_only_the_verbs_given() {
             names.sort_unstable();
             names
         };
-        assert_eq!(with(ALL), guide(vec!["canvas crop", "canvas put", "ui open", "ui put"]));
+        let all =
+            vec!["canvas crop", "canvas draw", "canvas put", "canvas redraw", "ui open", "ui put"];
+        assert_eq!(with(ALL), guide(all));
         assert_eq!(with(&[Verb::Put]), guide(vec!["canvas put"]));
+        assert_eq!(with(&[Verb::Draw]), guide(vec!["canvas draw", "canvas redraw"]));
         assert_eq!(with(&[Verb::Crop]), guide(vec!["canvas crop"]));
         assert_eq!(with(&[Verb::Ui]), guide(vec!["ui open", "ui put"]));
         assert_eq!(with(&[]), Vec::<String>::new());
@@ -202,15 +205,25 @@ fn a_listeners_sling_names_its_agent_and_says_what_a_listener_does_itself() {
             show(&m).replace("<image c42.png>\n", "").replace("<image c51.png>\n", "")
         );
         assert!(text.contains("img=c42.png") && text.ends_with("# prompt\nWhat is missing here?"));
-        let mut named =
-            vec!["canvas crop", "canvas put", "session listen", "status set", "ui open", "ui put"];
+        let mut named = vec![
+            "canvas crop",
+            "canvas draw",
+            "canvas put",
+            "canvas redraw",
+            "session listen",
+            "status set",
+            "ui open",
+            "ui put",
+        ];
         if first {
-            named.insert(2, "guide");
+            named.insert(4, "guide");
         }
         assert_eq!(commands(&text), named, "{text}");
         assert!(text.contains("`slinger status set done --agent scout`"));
         assert!(text.contains("`slinger session listen notes --pid $PPID`"));
-        assert!(!first || text.contains("`--agent scout` to each `canvas put`, `ui open` and"));
+        let each =
+            "`--agent scout` to each `canvas put`, `canvas draw`, `canvas redraw`, `ui open` and";
+        assert!(!first || text.contains(each), "{text}");
     }
     // With no verb to name, a later sling still tells a listener what to do.
     let bare = Sling { listener, verbs: &[], ..sling(&p, &[], false) };
@@ -296,5 +309,13 @@ fn a_sling_of_a_part_names_it_and_asks_for_the_answer_beside_it() {
     assert!(text.starts_with("slinger-sling 1 canvas=idea in=worksheet/1a-answer\n"), "{text}");
     assert!(text.contains("This sling is of worksheet/1a-answer: the packet holds only it"));
     assert!(text.contains("add `--beside worksheet/1a-answer` to each `canvas put`"), "{text}");
+    assert!(
+        text.contains(
+            "If you drew worksheet, change it with `slinger canvas redraw idea worksheet`"
+        )
+    );
     assert!(!text.contains("--in"), "{text}");
+    // Without a draw to run, the note offers no redraw.
+    let s = Sling { verbs: &[Verb::Put], ..sling(&p, &[], false) };
+    assert!(!show(&message(&s)).contains("redraw"));
 }

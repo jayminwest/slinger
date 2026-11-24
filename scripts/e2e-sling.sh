@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Three slings against the real Claude Code (SPEC section 14, Spike C pass line).
+# Four slings against the real Claude Code (SPEC section 14, Spike C pass line,
+# and a figure: docs/design/figures.md).
 #   scripts/e2e-sling.sh [--model NAME] [--timeout SECS] [--keep]
 #
 # NOT part of `cargo xtask check-all`: it needs a logged-in Claude Code (`claude`
@@ -8,14 +9,18 @@
 #
 # It builds slinger and slingerd, starts slingerd on a temporary socket and data
 # directory, opens a scratch workspace, starts its session, makes a canvas with
-# three text notes (and one ink stroke under note 1, so sling 1 carries an
-# image), and sends three slings: sling i selects note i. Sling 1 gives a code
-# word, sling 3 asks for it. Then it checks:
+# four text notes (and one ink stroke under note 1, so sling 1 carries an
+# image), and sends four slings: sling i selects note i. Sling 1 gives a code
+# word, sling 3 asks for it, sling 4 asks for a bar chart. Then it checks:
 #   - every sling went into one session id;
-#   - each reply landed as an item beside its selection (nearest that note);
-#   - the record has sling_sent, reply_landed and agent_done 3 times each and
-#     3 packet blobs;
-#   - the third answer has the code word.
+#   - each reply to slings 1-3 landed as an item beside its selection
+#     (nearest that note);
+#   - the record has sling_sent, reply_landed and agent_done 4 times each and
+#     4 packet blobs;
+#   - the third answer has the code word;
+#   - the fourth came back as a figure: a figure_drawn after sling 4, nearest
+#     note 4, which `canvas figure` lists by the agent, with its items in
+#     sling 4's reply_landed.
 # It prints the time from each sling to its reply and to the agent's done, and
 # the tokens of each turn read from the session's transcript.
 #
@@ -37,7 +42,7 @@ while [ $# -gt 0 ]; do
     --model) model="${2:?--model needs a name}"; shift 2 ;;
     --timeout) timeout="${2:?--timeout needs seconds}"; shift 2 ;;
     --keep) keep=1; shift ;;
-    -h | --help) sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "✗ unknown argument: $1" >&2; echo "  see scripts/e2e-sling.sh --help" >&2; exit 2 ;;
   esac
 done
@@ -93,26 +98,30 @@ notes=(
   "Names for the garden shed project"
   "What is 17 times 23?"
   "Recall check"
+  "Rain this spring in mm: March 90, April 40, May 65"
 )
-ops=$(jq -n --arg a "${notes[0]}" --arg b "${notes[1]}" --arg c "${notes[2]}" '[
+ops=$(jq -n --arg a "${notes[0]}" --arg b "${notes[1]}" --arg c "${notes[2]}" --arg d "${notes[3]}" '[
   {op: "add", item: {page: "p1", kind: "text", x: 0, y: 0, w: 3000, h: 400, text: $a}},
   {op: "add", item: {page: "p1", kind: "stroke", width: 20, pts: [0, 600, 1500, 0, 1500, 150]}},
   {op: "add", item: {page: "p1", kind: "text", x: 0, y: 6000, w: 3000, h: 400, text: $b}},
-  {op: "add", item: {page: "p1", kind: "text", x: 0, y: 12000, w: 3000, h: 400, text: $c}}
+  {op: "add", item: {page: "p1", kind: "text", x: 0, y: 12000, w: 3000, h: 400, text: $c}},
+  {op: "add", item: {page: "p1", kind: "text", x: 0, y: 18000, w: 3000, h: 400, text: $d}}
 ]')
 made=$(s --json canvas apply main "$ops" | jq -c '.made')
-note_ids=("$(jq -r '.[0]' <<<"$made")" "$(jq -r '.[2]' <<<"$made")" "$(jq -r '.[3]' <<<"$made")")
+note_ids=("$(jq -r '.[0]' <<<"$made")" "$(jq -r '.[2]' <<<"$made")" "$(jq -r '.[3]' <<<"$made")" "$(jq -r '.[4]' <<<"$made")")
 
 prompts=(
   "The code word is $word. Remember it: I will ask for it later. Put a short note beside this one that says you have it."
   "Answer the question in this note, beside it."
   "What was the code word I gave you in my first sling? Put it beside this note."
+  "Draw these numbers as a bar chart beside this note."
 )
+n=${#prompts[@]}
 
 count() { s --json record list --kind "$1" | jq '.events | length'; }
 
 sends=()
-for i in 0 1 2; do
+for i in $(seq 0 $((n - 1))); do
   # The packet names a text item i<n> as t<n>.
   sel="t${note_ids[$i]#i}"
   sends+=("$(s --json sling send main --select "$sel" --prompt "${prompts[$i]}")")
@@ -143,14 +152,17 @@ ids=$(printf '%s\n' "${sends[@]}" | jq -s -c '[.[].session_id]')
 sid=$(jq -r '.[0] // ""' <<<"$ids")
 
 check "$(jq --arg s "$sid" '$s != "" and all(. == $s)' <<<"$ids")" "one session id: $sid"
-for k in sling_sent reply_landed agent_done; do
-  n=$(jq --arg k "$k" '[.[] | select(.kind == $k)] | length' <<<"$events")
-  check "$([ "$n" = 3 ] && echo true || echo false)" "$k events: $n (want 3)"
+for k in sling_sent agent_done; do
+  m=$(jq --arg k "$k" '[.[] | select(.kind == $k)] | length' <<<"$events")
+  check "$([ "$m" = "$n" ] && echo true || echo false)" "$k events: $m (want $n)"
 done
+# One reply_landed per put or draw: a figure's sling may also bring a remark.
+m=$(jq '[.[] | select(.kind == "reply_landed") | .payload.sling] | unique | length' <<<"$events")
+check "$([ "$m" = "$n" ] && echo true || echo false)" "slings answered on the canvas: $m (want $n)"
 packets=$(jq -r '[.[] | select(.kind == "sling_sent") | .payload.packet] | unique | .[]' <<<"$events")
 np=0
 for p in $packets; do s blob get "$p" --out "$tmp/packet-$np.txt" && np=$((np + 1)); done
-check "$([ "$np" = 3 ] && echo true || echo false)" "packet blobs: $np (want 3)"
+check "$([ "$np" = "$n" ] && echo true || echo false)" "packet blobs: $np (want $n)"
 nimg=$(jq '[.[] | select(.kind == "sling_sent") | .payload.images // [] | length] | add' <<<"$events")
 echo "info  images sent: $nimg (sling 1 carries the stroke under note 1)"
 
@@ -172,6 +184,27 @@ for i in 0 1 2; do
     check "$(jq -n --arg t "$text" --arg w "$word" '$t | ascii_downcase | contains($w)')" "third answer has the code word $word"
   fi
 done
+
+# Sling 4 asked for a picture: it must come back as one figure, drawn by a
+# script after that sling, nearest note 4, listed by the agent, and landed as
+# sling 4's reply.
+ev=$(jq '.event' <<<"${sends[3]}")
+drawn=$(jq -c --argjson ev "$ev" '[.[] | select(.kind == "figure_drawn" and .number > $ev and .payload.canvas == "main") | .payload]' <<<"$events")
+figure=$(jq -r '.[0].figure // ""' <<<"$drawn")
+near=$(jq -n --argjson items "$items" --argjson drawn "$drawn" --argjson notes "$notes_json" --arg want "${note_ids[3]}" '
+  def centre: [(.x // 0) + (.w // 0) / 2, (.y // 0) + (.h // 0) / 2];
+  def dist(a; b): ((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]));
+  ($items | map({key: .id, value: .}) | from_entries) as $by
+  | if ($drawn | length) == 0 then false
+    else ($drawn[0].frame | {x: .[0], y: .[1], w: .[2], h: .[3]} | centre) as $c
+      | ($notes | min_by(dist($by[.] | centre; $c))) == $want end')
+check "$near" "sling 4: a figure_drawn ($figure) nearest ${note_ids[3]}"
+by=$(s --json canvas figure main | jq -r --arg f "$figure" '.figures[] | select(.name == $f) | .by')
+check "$([ "$by" = agent:e2e ] && echo true || echo false)" "sling 4: canvas figure lists $figure by $by"
+landed=$(jq -c --argjson ev "$ev" '[.[] | select(.kind == "reply_landed" and .payload.sling == $ev) | .payload.items[]]' <<<"$events")
+figured=$(jq -n --argjson items "$items" --argjson landed "$landed" --arg f "$figure" '
+  $f != "" and ([$items[] | select(.fig == $f) | .id] as $ids | ($landed | any(. as $l | $ids | index($l))))')
+check "$figured" "sling 4: its reply_landed $landed holds the figure's items"
 
 # Time from each sling to its first reply and to the agent's done, from the record.
 jq -r '

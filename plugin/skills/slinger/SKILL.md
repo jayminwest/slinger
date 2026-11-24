@@ -1,6 +1,6 @@
 ---
 name: slinger
-description: Operate the user's slinger canvas app through the `slinger` CLI. Read what the user drew or wrote on a canvas, answer on the canvas with text, boxes, arrows and ink, show an HTML UI in a pane, and manage workspaces, panes and agent sessions. Use when a task names slinger, a slinger canvas, workspace, pane or sling, or the daemon slingerd.
+description: Operate the user's slinger canvas app through the `slinger` CLI. Read what the user drew or wrote on a canvas, answer on the canvas with text, boxes, arrows and ink, draw a diagram, plot, table or worksheet as one figure, show an HTML UI in a pane, and manage workspaces, panes and agent sessions. Use when a task names slinger, a slinger canvas, workspace, pane or sling, or the daemon slingerd.
 ---
 
 # slinger
@@ -25,6 +25,12 @@ If you cannot run the guide, these rules hold:
   prints what the user put on one, with the directory of its images.
 - Answer on the canvas: `slinger canvas put <CANVAS> --beside <ITEM> --text
   "..." --agent <NAME>`. Leave out `--agent` when `SLINGER_AGENT` is set.
+- An answer that is a picture (a diagram, a plot, a table, a worksheet, or
+  marks over the user's work) is one figure: write a drawing script (the
+  guide's "Drawing scripts" has its API) and run `slinger canvas draw
+  <CANVAS> <FILE> --name <FIGURE> --beside <ITEM>`. Change it later with
+  `slinger canvas redraw <CANVAS> <FIGURE> --data <JSON>`, by its name. A short
+  remark stays a `canvas put`.
 - Change only the items you made. Never change the user's ink or text: reply
   beside it, in short texts (at most 12 rows each; longer exits 5,
   `too_long`).

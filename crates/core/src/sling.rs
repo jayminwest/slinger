@@ -77,6 +77,9 @@ pub enum Verb {
     Put,
     /// `canvas crop`: an image of one item.
     Crop,
+    /// `canvas draw` and `canvas redraw`: a figure drawn by a script, for
+    /// an answer that is a picture (docs/design/figures.md).
+    Draw,
     /// `ui put` and `ui open`: a page of the agent's own, shown in a pane,
     /// for when words on the canvas are not enough.
     Ui,
@@ -98,6 +101,13 @@ impl Verb {
                 "- `slinger canvas crop {canvas} --item <id>` gives an image of an item the \
                  packet shows only as a line.\n"
             ),
+            Self::Draw => format!(
+                "- An answer that is a picture (a diagram, a plot, a table, a worksheet, marks \
+                 over the user's work) is one figure, not many puts: write a drawing script and \
+                 run `slinger canvas draw {canvas} <file.js> --name <name> --beside <id>` (the \
+                 guide's \"Drawing scripts\" has its API). To change it later, \
+                 `slinger canvas redraw {canvas} <name> --data <json>`. A short remark is a put.\n"
+            ),
             Self::Ui => "- When words on the canvas are not enough, show a page: `slinger ui put \
                  <name> <file>` stores an HTML file and `slinger ui open <name>` opens it in a \
                  pane, `--data <json>` its data.\n"
@@ -112,6 +122,10 @@ impl Verb {
                 format!("answer with `slinger canvas put {canvas} --beside <id>`, not in chat")
             }
             Self::Crop => format!("`slinger canvas crop {canvas} --item <id>` for an image"),
+            Self::Draw => format!(
+                "`slinger canvas draw {canvas}` for a diagram, plot or table, \
+                 `slinger canvas redraw {canvas} <name>` to change it"
+            ),
             Self::Ui => "`slinger ui put` and `slinger ui open` for a page in a pane".to_string(),
         }
     }
@@ -150,11 +164,13 @@ impl Listener<'_> {
     /// The note's lines for a listener that can run `verbs`.
     fn note(self, verbs: &[Verb]) -> String {
         let Self { agent, workspace } = self;
+        let draw =
+            if verbs.contains(&Verb::Draw) { ", `canvas draw`, `canvas redraw`" } else { "" };
         let ui = if verbs.contains(&Verb::Ui) { ", `ui open`" } else { "" };
         format!(
             "You took this sling by listening, as agent `{agent}`. Each `img=` names a PNG in \
              the packet's `at=` directory: read the ones you need.\n\
-             - Add `--agent {agent}` to each `canvas put`{ui} and `status set`.\n\
+             - Add `--agent {agent}` to each `canvas put`{draw}{ui} and `status set`.\n\
              - When you have answered, run `slinger status set done --agent {agent}` (or \
              `blocked --note <what you need>`), then `slinger session listen {workspace} --pid \
              $PPID` for the next sling.\n"
@@ -289,7 +305,7 @@ fn note(
     verbs: &[Verb],
     listener: Option<Listener<'_>>,
 ) -> String {
-    let boxed = inside.map(|b| boxed(b, verbs)).unwrap_or_default();
+    let boxed = inside.map(|b| boxed(canvas, b, verbs)).unwrap_or_default();
     let theirs = boxed + &listener.map(|l| l.note(verbs)).unwrap_or_default();
     if first {
         let mut out = format!("# reply\n{INTRO}");
@@ -310,14 +326,22 @@ fn note(
 }
 
 /// The note's line for a sling of the box `inside`, or of a figure or a
-/// part: an answer goes beside that, as its one box may not hold it.
-fn boxed(inside: &str, verbs: &[Verb]) -> String {
-    if crate::canvas::Address::parse(inside).is_ok() {
-        let answer = if verbs.contains(&Verb::Put) {
+/// part: an answer goes beside that, as its one box may not hold it, or
+/// into the figure by a redraw when the agent drew it.
+fn boxed(canvas: &str, inside: &str, verbs: &[Verb]) -> String {
+    if let Ok(address) = crate::canvas::Address::parse(inside) {
+        let mut answer = if verbs.contains(&Verb::Put) {
             format!(" Answer by it: add `--beside {inside}` to each `canvas put`.")
         } else {
             String::new()
         };
+        if verbs.contains(&Verb::Draw) {
+            let name = &address.figure;
+            let _ = write!(
+                answer,
+                " If you drew {name}, change it with `slinger canvas redraw {canvas} {name}`."
+            );
+        }
         return format!(
             "This sling is of {inside}: the packet holds only it and what lies over it.{answer}\n"
         );
