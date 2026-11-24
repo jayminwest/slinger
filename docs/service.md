@@ -308,7 +308,10 @@ id, `bytes`), but `record_append` refuses that kind: only `ui_put` writes
 it, so a name's versions stay 1, 2, 3 in log order. The same holds for
 `ui_opened` (`name`, `version`, `hash`, `host`, `data`), which only
 `ui_open` writes, and `ui_reply` (`open`, `name`, `version`, `hash`,
-`value`), which only `ui_reply` writes (see "Showings").
+`value`), which only `ui_reply` writes (see "Showings"), and for
+`figure_drawn` (`canvas`, `figure`, `page`, `script`: blob id, `data`,
+`origin`: `[x, y]` and `frame`: `[x, y, w, h]` in tenths), which only the
+figure verbs write (docs/design/figures.md, "`figure_drawn`").
 
 **`record_list`** returns the events that match every filter given:
 `kind`, each tag, and `after` (only events numbered above it). No match
