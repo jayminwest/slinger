@@ -42,6 +42,22 @@ function where() {
   return m ? [Number(m[1]), Number(m[2])] : [0, 0];
 }
 
+// Where a shape was drawn: `where`, or inside a call that draws many
+// shapes (table) that call's own site, since the stack a trace keeps (10
+// frames) can end before the script when a cell is drawn in a part.
+let here = where;
+
+function from(fn) {
+  if (here !== where) return fn();
+  const site = where();
+  here = () => site;
+  try {
+    return fn();
+  } finally {
+    here = where;
+  }
+}
+
 function number(call, name, v) {
   if (typeof v !== 'number' || !Number.isFinite(v)) fail(call, `${name} must be a number, got ${show(v)}`);
   return v;
@@ -189,8 +205,8 @@ function put(call, item, style, frame, segments) {
   if (style.locked) item.locked = true;
   if (input.name) item.fig = input.name;
   if (part !== null) item.part = part;
-  const [line, col] = where();
-  drawn.push({ kind: item.kind, frame, segments, line, col, text: item.text });
+  const [line, col] = here();
+  drawn.push({ kind: item.kind, frame, segments, line, col, text: item.text, fill: item.fill !== undefined });
   emit(JSON.stringify(item));
   return { x: frame.x, y: frame.y, w: frame.w, h: frame.h };
 }
