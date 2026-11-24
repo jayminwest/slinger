@@ -5,7 +5,7 @@
 use serde_json::Value;
 use slinger_core::canvas::Figure;
 use slinger_core::canvas::file::{
-    Again, Draft, Drawn, Log, Placement, Surround, Written, parse_author,
+    Again, Draft, Drawn, Log, Placement, Script, Source, Surround, Written, parse_author,
 };
 
 use super::{Canvases, Result, Wrote, now};
@@ -79,9 +79,9 @@ impl Canvases {
         self.with(id, |log| Ok(log.draft_figure(&by, now(), name, items, at)?))
     }
 
-    /// Draws the figure `name` as `by`, as one undo step under the key
-    /// `once` (see [`Log::place_figure`]); a draw that changes nothing
-    /// writes nothing.
+    /// Draws the figure `name` as `by` from `script`, as one undo step
+    /// under the key `once` (see [`Log::place_figure`]); a draw that
+    /// changes nothing writes nothing.
     ///
     /// # Errors
     ///
@@ -90,29 +90,35 @@ impl Canvases {
         &self,
         id: &str,
         by: &str,
-        (name, items): (&str, &[Value]),
+        (name, items, script): (&str, &[Value], Script),
         at: &Placement,
         once: Option<&str>,
     ) -> Result<Drawn> {
         let by = parse_author(by)?;
-        self.change(id, |log: &mut Log| Ok(log.place_figure(&by, now(), name, items, at, once)?))
+        self.change(id, |log: &mut Log| {
+            Ok(log.place_figure(&by, now(), (name, items), at, once, Some(script))?)
+        })
     }
 
-    /// Where `by` draws the figure `name` again, whose last draw put its
-    /// (0,0) at `origin` and its frame at `frame` (see [`Log::again`]).
+    /// Where `by` draws the figure `name` again, from its last draw as
+    /// the canvas file keeps it (see [`Log::again`]).
     ///
     /// # Errors
     ///
     /// Those of [`Log::again`] and of the file.
-    pub fn again(
-        &self,
-        id: &str,
-        by: &str,
-        name: &str,
-        (origin, frame): ([i64; 2], [i64; 4]),
-    ) -> Result<Again> {
+    pub fn again(&self, id: &str, by: &str, name: &str) -> Result<Again> {
         let by = parse_author(by)?;
-        self.with(id, |log| Ok(log.again(&by, name, origin, frame)?))
+        self.with(id, |log| Ok(log.again(&by, name)?))
+    }
+
+    /// The last draw of the figure `name`, if a script drew it (see
+    /// [`Log::source`]).
+    ///
+    /// # Errors
+    ///
+    /// Those of the file.
+    pub fn source(&self, id: &str, name: &str) -> Result<Option<Source>> {
+        self.with(id, |log| Ok(log.source(name).cloned()))
     }
 
     /// The figures on the canvas, as [`slinger_core::canvas::Canvas::figures`] lists them.

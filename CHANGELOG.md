@@ -860,6 +860,13 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Canvas:** a figure drawn by a script keeps its script and data in its
+  canvas file, so `slinger canvas redraw` and `slinger canvas figure
+  --script` still work after the canvas file is copied to another machine
+  or data directory. `canvas draw` and `canvas redraw` list a figure's
+  parts in one order, top to bottom and left to right, as `canvas figure`
+  does, whether they wrote or not.
+
 - **App:** with a mouse or trackpad, picking the pen tool (⌘1) flashed
   "Pen" while the footer said "Select" and a press selected. The flash
   now names the select tool too, and says why: "Select ⌘7 · a mouse

@@ -15,13 +15,14 @@
 //! `p<n>`, items as the file's item objects (positions and lengths in tenths
 //! of a unit). See "Canvas operations" in docs/service.md.
 
+use std::collections::BTreeMap;
 use std::ops::Range;
 
 use serde_json::Value;
 
 use super::json;
 use super::once::Onces;
-use super::{File, Header, Line, read, snap};
+use super::{Change, File, Header, Line, Source, read, snap};
 use crate::canvas::{Action, Applied, Author, Canvas, History, Op, Page, Rebuild, Step, Time};
 use crate::{Error, Result};
 
@@ -127,6 +128,8 @@ pub struct Log {
     ends: Vec<u64>,
     /// The keys of the last changes applied once ([`Log::apply_once`]).
     pub(super) onces: Onces,
+    /// Each figure's last `figure` line: what a redraw needs.
+    pub(super) sources: BTreeMap<String, Source>,
 }
 
 impl Log {
@@ -147,6 +150,7 @@ impl Log {
             lines: Vec::new(),
             ends: vec![bytes.len() as u64],
             onces: Onces::default(),
+            sources: BTreeMap::new(),
         };
         Ok((log, bytes))
     }
@@ -198,7 +202,18 @@ impl Log {
         let ends = whole.iter().enumerate().filter(|(_, b)| **b == b'\n');
         let ends = ends.map(|(i, _)| i as u64 + 1).collect();
         let (history, onces) = (rebuild.finish(), Onces::default());
-        let log = Self { canvas, history, next: file.next(), ops, lines, ends, onces };
+        let sources = file
+            .lines
+            .iter()
+            .filter_map(|line| match line {
+                Line::Op { change: Change::Figure { name, source }, .. } => {
+                    Some((name.clone(), source.clone()))
+                }
+                _ => None,
+            })
+            .collect();
+        let next = file.next();
+        let log = Self { canvas, history, next, ops, lines, ends, onces, sources };
         Ok((log, file.torn))
     }
 
@@ -365,13 +380,18 @@ impl Log {
         if let Some(line) = Line::of(self.next, op, applied).map(|line| line.in_step(step)) {
             self.ops.push(op.clone());
             self.lines.push(self.next);
-            let line = line.encode();
-            written.bytes.push_str(&line);
-            let end = self.ends.last().copied().unwrap_or_default();
-            self.ends.push(end + line.len() as u64);
-            written.seq.push(self.next);
-            self.next += 1;
+            self.push(&line, written);
         }
+    }
+
+    /// Appends `line`, numbered [`Log::next`], to what `written` writes.
+    pub(super) fn push(&mut self, line: &Line, written: &mut Written) {
+        let line = line.encode();
+        written.bytes.push_str(&line);
+        let end = self.ends.last().copied().unwrap_or_default();
+        self.ends.push(end + line.len() as u64);
+        written.seq.push(self.next);
+        self.next += 1;
     }
 }
 

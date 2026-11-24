@@ -367,7 +367,8 @@ memory, stack, shapes, the script's or the data's size) exits 5 with code
 `limit`. The script reads the item it goes beside or over as `anchor`,
 and with `--over` or `--at` the items near it as `around`. A name another
 agent drew exits 4 (`conflict`).
-`canvas redraw` draws a figure again from its script on its last data
+`canvas redraw` draws a figure again from its script on its last data (both
+kept in the canvas file, so a canvas file copied elsewhere still redraws)
 with `--data` merged in as a JSON merge patch (an object merges key by key,
 `null` takes a key away, anything else replaces), where the figure now is,
 as one undo step; it needs `--data` or `--script` (a script to swap in).

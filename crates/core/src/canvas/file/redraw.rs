@@ -1,8 +1,8 @@
 //! A figure drawn again (docs/design/figures.md, "`canvas redraw`"): where
 //! the redraw puts it and the data it runs on. The script runs in the
-//! daemon, and the figure's last script, data, origin and frame are the
-//! record's (`figure_drawn`), handed in here; [`Log::place_figure`] then
-//! replaces the figure by match, so the user's ink is never touched.
+//! daemon, from the figure's last script, data, origin and frame, which its
+//! canvas file keeps ([`Source`], `source.rs`); [`Log::place_figure`]
+//! then replaces the figure by match, so the user's ink is never touched.
 //!
 //! The placement follows the user: the new origin is the last one moved as
 //! far as the figure's frame has moved since it was drawn, so a figure the
@@ -10,7 +10,7 @@
 
 use serde_json::{Map, Value};
 
-use super::{Log, Placement, json as file_json};
+use super::{Log, Placement, Source, json as file_json};
 use crate::canvas::{Author, Item, not_yours};
 use crate::{Error, Result};
 
@@ -26,27 +26,23 @@ pub struct Again {
     pub origin: [i64; 2],
     /// The joint frame of its items now, `[x, y, w, h]` in tenths.
     pub frame: [i64; 4],
-    /// Its part names, in reading order.
+    /// Its part names, in reading order of their frames.
     pub parts: Vec<String>,
     /// How many items it has.
     pub items: usize,
+    /// Its last draw: the script and data a redraw starts from.
+    pub source: Source,
 }
 
 impl Log {
-    /// Where `by` draws the figure `name` again, whose last draw put its
-    /// (0,0) at `origin` and its frame at `frame` (both in tenths).
+    /// Where `by` draws the figure `name` again, from its last draw.
     ///
     /// # Errors
     ///
-    /// `not_found` for a name no item on the canvas has; `invalid` (the
-    /// author rule) for a figure `by` may not change.
-    pub fn again(
-        &self,
-        by: &Author,
-        name: &str,
-        origin: [i64; 2],
-        frame: [i64; 4],
-    ) -> Result<Again> {
+    /// `not_found` for a name no item on the canvas has, or a figure no
+    /// script drew; `invalid` (the author rule) for a figure `by` may not
+    /// change.
+    pub fn again(&self, by: &Author, name: &str) -> Result<Again> {
         let canvas = self.canvas();
         let Some(figure) = canvas.figure(name) else {
             let hint = "draw it again with 'slinger canvas draw'";
@@ -55,9 +51,17 @@ impl Log {
                 hint: Some(hint.into()),
             });
         };
+        let Some(source) = self.source(name) else {
+            let hint = "only a figure a script drew is drawn again; 'slinger canvas figure' lists the figures";
+            return Err(Error::NotFound {
+                what: format!("figure {name}, drawn by a script"),
+                hint: Some(hint.into()),
+            });
+        };
         if !by.may_change(&figure.maker) {
             return Err(not_yours(by, &format!("figure {name}"), &figure.maker));
         }
+        let (origin, frame) = (source.origin, source.frame);
         // The frame as a draw measures it: every item, shown or not.
         let now = figure
             .items
@@ -71,7 +75,8 @@ impl Log {
         let page = file_json::page_id(figure.page);
         let at = Placement::At { page: Some(page.clone()), x: origin[0], y: origin[1] };
         let parts = figure.parts.into_iter().map(|p| p.name).collect();
-        Ok(Again { at, page, origin, frame: now, parts, items: figure.items.len() })
+        let (items, source) = (figure.items.len(), source.clone());
+        Ok(Again { at, page, origin, frame: now, parts, items, source })
     }
 }
 

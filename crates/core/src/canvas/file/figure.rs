@@ -29,9 +29,9 @@ use std::mem::{Discriminant, discriminant};
 
 use serde_json::{Map, Value, json};
 
-use super::{Log, Written, json as file_json, snap};
-use crate::canvas::figure::FIGURE_RULE;
+use super::{Log, Script, Source, Written, json as file_json, snap};
 use crate::canvas::figure::matching::{Pair, pair};
+use crate::canvas::figure::{FIGURE_RULE, parts_in_order};
 use crate::canvas::{
     Action, Author, Canvas, Item, ItemId, Member, Op, PageId, Point, Rect, Shape, Style, Time,
     figure_name,
@@ -69,7 +69,8 @@ pub struct Draft {
     pub origin: [i64; 2],
     /// The joint frame of its items as placed, `[x, y, w, h]` in tenths.
     pub frame: [i64; 4],
-    /// Its part names, in the order the shapes first name them.
+    /// Its part names, in reading order of their frames, as
+    /// [`Canvas::figure`] lists them.
     pub parts: Vec<String>,
     /// Its items as placed, in the order of the shapes: a kept item under
     /// its own id, maker and time; a new one under the id its add gives it.
@@ -203,12 +204,7 @@ impl Log {
             },
             other => other,
         })?;
-        let mut parts: Vec<String> = Vec::new();
-        for part in items.iter().filter_map(|i| i.member.part.as_ref()) {
-            if !parts.contains(part) {
-                parts.push(part.clone());
-            }
-        }
+        let parts = parts_in_order(&items);
         let frame = joint(items.iter().map(Item::bounds)).unwrap_or_default();
         Ok(Draft {
             name: name.to_owned(),
@@ -224,6 +220,8 @@ impl Log {
     /// Draws the figure `name` as [`Log::draft_figure`] drafts it, as one
     /// undo step of `by` at `time`, under the key `once` as
     /// [`Log::apply_once`] says. A draw that changes nothing writes nothing.
+    /// A draw from a `script` that writes keeps it after the step, as the
+    /// figure's [`Source`](super::Source) (`source.rs`).
     ///
     /// # Errors
     ///
@@ -233,15 +231,24 @@ impl Log {
         &mut self,
         by: &Author,
         time: Time,
-        name: &str,
-        items: &[Value],
+        (name, items): (&str, &[Value]),
         at: &Placement,
         once: Option<&str>,
+        script: Option<Script>,
     ) -> Result<Drawn> {
         let draft = self.draft_figure(by, time, name, items, at)?;
         let actions = draft.actions.clone();
+        let (origin, frame) = (draft.origin, draft.frame);
         let written = self.once(once, |log| {
-            if actions.is_empty() { Ok(Written::default()) } else { log.step(by, time, actions) }
+            if actions.is_empty() {
+                return Ok(Written::default());
+            }
+            let mut written = log.step(by, time, actions)?;
+            if let Some(script) = script {
+                let source = Source { script, origin, frame };
+                log.keep((by, time), name, source, &mut written);
+            }
+            Ok(written)
         })?;
         Ok(Drawn { draft, written })
     }
