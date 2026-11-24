@@ -64,8 +64,11 @@ fig.plot = entry(function (x, y, w, h, opts) {
   };
   const muted = { size, color: 'muted' };
   for (const [t, s] of tickList('xticks', x0, x1)) add(text(call, s, px(t), y + h + 4, Object.assign({ align: 'center' }, muted)));
+  // A y label centred on its tick, but never below the x axis, where the
+  // first x label is.
   for (const [t, s] of tickList('yticks', y0, y1)) {
-    add(text(call, s, x - 6, py(t) - textFrame(s, 0, size).h / 2, Object.assign({ align: 'right' }, muted)));
+    const th = textFrame(s, 0, size).h;
+    add(text(call, s, x - 6, Math.min(py(t) - th / 2, y + h - th), Object.assign({ align: 'right' }, muted)));
   }
   if (o.xlabel !== undefined) add(text(call, words(call, 'xlabel', o.xlabel), x + w / 2, y + h + 8 + size, { size, align: 'center' }));
   if (o.ylabel !== undefined) add(text(call, words(call, 'ylabel', o.ylabel), x + 6, y - 4 - size, { size }));

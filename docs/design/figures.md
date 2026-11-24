@@ -1031,6 +1031,39 @@ As built (step 10): positions in canvas units, `by=` the agent's name (or
 
 ### Fluency
 
+#### After the port to the owner's API (slinger-9ce9a6, 2026-11-24)
+
+The round again on the ported API (Appendix A as built, Appendix C), with
+`claude-haiku-5-5` (Claude Code subagents, model "haiku"; 8 runs of about
+30k tokens each, no tools used). Each run got only the guide's drawing text
+as `slinger guide` prints it (the "Pick the form of an answer" and draw and
+redraw paragraphs, "Drawing scripts", and the `canvas draw` usage line),
+the packet lines of the canvas, one task and the command line that would
+run it. Each script ran once through `canvas draw --dry-run --png` on a
+scratch daemon whose canvas held a text (t1), an answer box (b2, 300x150)
+and a second text (t3).
+
+| task | placement | first run | read in the PNG | fix |
+|---|---|---|---|---|
+| water cycle: four stages in a loop, labelled arrows, a part per stage | `--beside t3` | ran | correct: `fig.part` with a colour each, arrows between handles | none |
+| two temperature curves from data, month ticks, a legend | `--beside b2`, `--data @FILE` | ran | correct; the lowest y label ("-5") sat on the first x label (warned) | a y label never sits below the x axis (plot.js); the overlap warning names the other text |
+| multiplication sheet: a 5x5 table, a part per answer row, a slot | `--at 6000,400` (tenths) | ran | correct; used `parts` on the table | none |
+| timeline of six events from data, a part per event | `--beside t1`, `--data @FILE` | ran | correct; two parts' frames overlap (warned) | the part-overlap warning says why it matters (ink where the frames meet may be said to be over either) |
+| marks over b2: dotted outline, ruled lines, a label, a tick | `--over b2` | ran | correct, fitted to `fig.view.target`; six part-overlap warnings for parts inside a named frame | as the row above |
+| three fraction bars in the room of b2 | `--in b2` | ran | correct, fitted to `fig.view.target` | none |
+| vectors a, b and a + b on a plot, dots, a dashed line, a slot | `--beside t3` | ran | correct; "-1" on "-1" at the plot's corner (warned) | the plot fix above |
+| kanban board from data, filled cards, a part per column | `--beside t1`, `--data @FILE` | ran | correct: `measure` for each card's height | none |
+
+Result: eight of eight ran first time and read correctly; no run hit an
+error, so no error text changed from the round. What changed: the plot's
+lowest y label, and the wording of two warnings. Two of eight reached for
+`fig.view.target` (`--over`, `--in`), which Appendix A does not name; it
+stays (Differences, row 9). The acceptance run's endless recursion also
+showed ten copies of one stack frame: a repeated frame now shows once with a
+count.
+
+#### Before the port (step 12, slinger-b0b24a)
+
 Step 12 (slinger-b0b24a) ran its round on 2026-11-24 with `claude-haiku-5-5`
 (Claude Code subagents, model "haiku"; 7 runs of about 27k tokens each, no
 tools used). Each run got only the guide's drawing text, as `slinger guide`

@@ -69,6 +69,13 @@ bullet with the area in bold.
   pointer as one piece to move, duplicate or delete; it locks again when
   you deselect it. A duplicate is a new figure with its own name, one no
   other figure on the canvas has, on any page.
+- **CLI:** in a drawing script, a `fill` given as a colour is kept as that
+  colour (drawn at most 40% opaque), as everywhere else; `fill: true` is
+  still a light tint of the shape's colour. A plot's lowest y label sits
+  above the x axis, clear of the first x label. A warning about overlapping
+  texts names the other text, one about overlapping parts says why it
+  matters, and a script that recursed too deep shows the repeated call
+  once, with a count.
 - **CLI:** a drawing script stopped at its 1 s limit says the line it
   names is the loop's or one before it ("stopped at this line or in a loop
   after it"); it could name a line before the loop with no word of it.

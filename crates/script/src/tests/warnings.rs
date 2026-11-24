@@ -42,12 +42,21 @@ fn a_word_wider_than_its_frame_warns() {
 }
 
 #[test]
+fn a_plots_first_y_label_sits_above_its_x_axis_clear_of_the_first_x_label() {
+    let script = "fig.plot(40, 0, 300, 200, {xRange: [-1, 5], yRange: [-5, 30], ticks: 5, frame: 'axes'});";
+    assert_eq!(said(script), [] as [String; 0]);
+}
+
+#[test]
 fn two_parts_that_overlap_warn() {
     assert_eq!(
         said(
             "fig.box(0, 0, 100, 100, {name: 'a'});\nfig.box(50, 50, 100, 100, {name: 'b'});\nfig.box(150, 0, 10, 10, {name: 'c'});"
         ),
-        [r#"script:2:5: name: the part "b" overlaps the part "a" from line 1"#],
+        [concat!(
+            r#"script:2:5: name: the part "b" overlaps the part "a" from line 1: ink where "#,
+            "their frames meet may be said to be over either"
+        )],
         "touching is not overlapping"
     );
 }
@@ -63,7 +72,7 @@ fn warnings_name_text_over_a_line_overlapping_texts_and_a_far_shape() {
         [
             r#"script:2:5: fig.text: "crossed" is over the line from line 1"#,
             r#"script:3:5: fig.text: "again" is over the line from line 1"#,
-            r#"script:3:5: fig.text: "again" overlaps the text from line 2"#,
+            r#"script:3:5: fig.text: "again" overlaps the text "crossed" from line 2"#,
             "script:5:5: fig.box: is more than 5000 units from the other shapes",
         ]
     );

@@ -1,10 +1,12 @@
-//! Acceptance for figures (plan pl-9f74c2, slinger-9dcf50): the worksheet
-//! drawn by its one script through `canvas_draw` shows in the window as the
-//! core has it, the user's pen writes over its answer areas and the packet
-//! says which, the lasso takes only the ink, a `canvas_redraw` of the data
-//! fills the agent's areas by name with every pen stroke kept, the same
-//! redraw again writes nothing, and the agent's undo takes the figure away
-//! in one step. docs/design/figures-acceptance.md has the run by hand.
+//! Acceptance for figures (plan pl-9f74c2, slinger-9dcf50, slinger-9ce9a6):
+//! the worksheet (docs/design/figures.md, Appendix D) and the owner's
+//! softmax worksheet (Appendix B, unchanged) drawn each by its one script
+//! through `canvas_draw` show in the window as the core has them, the
+//! user's pen writes over their answer areas and the packet says which, the
+//! lasso takes only the ink, a `canvas_redraw` of the data fills the
+//! agent's areas by name with every pen stroke kept, the same redraw again
+//! writes nothing, and the agent's undo takes the figure away in one step.
+//! docs/design/figures-acceptance.md has the runs by hand.
 
 use std::path::Path;
 
@@ -59,16 +61,17 @@ fn letter(w: &mut World, x: f64, y: f64, when: f64) {
     w.send(Event::Lift(at(x + 10.0, y, when + 0.1)));
 }
 
-/// The worksheet, drawn by `agent:scout` at (20, 20).
-fn draw(daemon: &control::Client) {
+/// The figure `name` from `<name>.js` (and `<name>.json` when `data`),
+/// drawn by `agent:scout` at (20, 20): it has `count` items in 15 parts.
+fn draw(daemon: &control::Client, name: &str, data: bool, count: usize) {
     let dir = Path::new(SCRIPTS);
     let drawn = daemon
         .canvas_draw(control::CanvasDraw {
             canvas: "notes".into(),
             by: AGENT.into(),
-            name: "worksheet".into(),
-            path: dir.join("worksheet.js"),
-            data: Some(dir.join("worksheet.json")),
+            name: name.into(),
+            path: dir.join(format!("{name}.js")),
+            data: data.then(|| dir.join(format!("{name}.json"))),
             place: control::Place::At([200, 200]),
             page: None,
             dry_run: false,
@@ -76,13 +79,14 @@ fn draw(daemon: &control::Client) {
             once: None,
         })
         .unwrap();
-    assert_eq!((drawn.items, drawn.parts.len()), (56, 15));
+    assert_eq!((drawn.items, drawn.parts.len()), (count, 15));
 }
 
-/// The window draws every item the core has, locked, with the core's style.
-fn drawn_as_the_core_has_it(w: &mut World, daemon: &control::Client) {
+/// The window draws every item the core has, locked, with the core's
+/// style: `styled` items dashed or dotted and `filled` filled.
+fn drawn_as_the_core_has_it(w: &mut World, daemon: &control::Client, (styled, filled): (usize, usize)) {
     let sheet = items(daemon);
-    bounds(w, 56);
+    bounds(w, sheet.len() as u64);
     let out = said(w);
     for item in &sheet {
         let l = line(&out, &item["id"]);
@@ -93,13 +97,13 @@ fn drawn_as_the_core_has_it(w: &mut World, daemon: &control::Client) {
         assert_eq!(style.contains(" dotted"), item["dash"] == "dotted", "{l}");
         assert_eq!(style.contains(" filled"), item.get("fill").is_some(), "{l}");
     }
-    let styled = |key: &str| sheet.iter().filter(|i| i.get(key).is_some()).count();
-    assert_eq!((styled("dash"), styled("fill")), (6, 6), "dashed and dotted areas, filled cells");
+    let has = |key: &str| sheet.iter().filter(|i| i.get(key).is_some()).count();
+    assert_eq!((has("dash"), has("fill")), (styled, filled), "dashed and dotted areas, fills");
 }
 
-/// Three letters from the pen in each of the answer areas 1a and 1b.
-fn answer(w: &mut World) {
-    let (a, b) = (bounds(w, 21), bounds(w, 23));
+/// Three letters from the pen in each of the answer areas, the items `areas`.
+fn answer(w: &mut World, areas: [u64; 2]) {
+    let (a, b) = (bounds(w, areas[0]), bounds(w, areas[1]));
     for (when, area) in [(10.0, a), (20.0, b)] {
         for n in 0..3 {
             let x = area.x + 20.0 + 16.0 * f64::from(n);
@@ -111,7 +115,9 @@ fn answer(w: &mut World) {
 /// A lasso round the whole sheet, then escape; what it selected.
 fn lasso_all(w: &mut World) -> Vec<u64> {
     w.key(Chord::new(CMD, '3'), "3");
-    let around = [(1.0, 1.0), (1200.0, 1.0), (1200.0, 1600.0), (1.0, 1600.0)];
+    let crate::layout::Size { width, height } = w.shared.size;
+    let (right, bottom) = (width - 100.0, height - 100.0);
+    let around = [(1.0, 1.0), (right, 1.0), (right, bottom), (1.0, bottom)];
     assert!(w.send(Event::Press(at(1.0, 1.0, 40.0))));
     for (when, (x, y)) in
         [40.1, 40.2, 40.3, 40.4].into_iter().zip(around.into_iter().cycle().skip(1))
@@ -131,11 +137,11 @@ fn the_worksheet_from_one_script_takes_the_pen_and_is_redrawn_by_name() {
         let config = tempfile::tempdir().unwrap();
         let mut w = world(daemon, config.path());
         w.shared.size = crate::layout::Size { width: 1300.0, height: 1700.0 };
-        draw(daemon);
-        drawn_as_the_core_has_it(&mut w, daemon);
+        draw(daemon, "worksheet", true, 56);
+        drawn_as_the_core_has_it(&mut w, daemon, (6, 6));
 
         // The pen writes in two answer areas, over their locked boxes.
-        answer(&mut w);
+        answer(&mut w, [21, 23]);
         w.until(|_| ink(daemon).len() == 6);
         let ask = control::PacketAsk { canvas: "notes".into(), ..control::PacketAsk::default() };
         let packet = daemon.canvas_read(ask).unwrap().text;
@@ -169,5 +175,49 @@ fn the_worksheet_from_one_script_takes_the_pen_and_is_redrawn_by_name() {
         undo();
         assert_eq!(items(daemon), written, "the ink is all that is left");
         shows(&mut w, |out| !out.contains(" locked"));
+    });
+}
+
+#[test]
+fn the_owners_softmax_worksheet_takes_the_pen_and_a_redraw_of_it_writes_nothing() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        // Tall enough to show all of it at 100%: 1700 by 3802 units.
+        w.shared.size = crate::layout::Size { width: 2000.0, height: 4100.0 };
+        // Appendix B as the owner wrote it: 35 texts and 18 boxes, 9 dashed
+        // and 6 dotted, 3 filled bars.
+        draw(daemon, "softmax", false, 53);
+        drawn_as_the_core_has_it(&mut w, daemon, (15, 3));
+
+        // The pen writes in (a)'s and (b)'s answer boxes, items 5 and 9.
+        answer(&mut w, [5, 9]);
+        w.until(|_| ink(daemon).len() == 6);
+        let ask = control::PacketAsk { canvas: "notes".into(), ..control::PacketAsk::default() };
+        let packet = daemon.canvas_read(ask).unwrap().text;
+        assert!(packet.contains("over=softmax/p1a "), "{packet}");
+        assert!(packet.contains("over=softmax/p1b "), "{packet}");
+        assert!(packet.contains(" figure softmax 20,20 1700x3802 parts=15 by=scout"), "{packet}");
+        let ids: Vec<u64> =
+            ink(daemon).iter().map(|i| i["id"].as_str().unwrap()[1..].parse().unwrap()).collect();
+        assert_eq!(lasso_all(&mut w), ids, "the lasso takes the ink only");
+
+        // The script reads no data: a redraw with a patch draws the same
+        // items and writes nothing.
+        let patch = config.path().join("patch.json");
+        std::fs::write(&patch, json!({"note": 1}).to_string()).unwrap();
+        let next = daemon.canvas_show("notes", None).unwrap().next;
+        let ask = control::CanvasRedraw {
+            canvas: "notes".into(),
+            by: AGENT.into(),
+            name: "softmax".into(),
+            data: Some(patch),
+            path: None,
+            once: None,
+        };
+        let again = daemon.canvas_redraw(ask).unwrap();
+        assert_eq!((again.seq, again.items), (Vec::new(), 53));
+        assert_eq!(daemon.canvas_show("notes", None).unwrap().next, next);
     });
 }
