@@ -194,7 +194,8 @@ impl Vim {
             Ok(process) => {
                 let mut out = Vec::new();
                 let text = shapes.typing_text().unwrap_or_default();
-                let session = Session::start(&text, shapes.typing_new(), &mut out);
+                let caret = shapes.typing_caret().unwrap_or(text.len());
+                let session = Session::start(&text, (shapes.typing_new(), caret), &mut out);
                 let (text, pressed) = (shapes.ends(), false);
                 let mut open = Open { text, process, session, started, pressed };
                 open.send(&out);

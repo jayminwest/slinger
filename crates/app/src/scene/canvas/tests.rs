@@ -110,7 +110,8 @@ fn marks_are_in_screen_points_and_scale_with_the_zoom() {
             text: "hi".into(),
             size: 16.0,
             line: 0.0,
-            zoom: 2.0
+            zoom: 2.0,
+            written: None,
         }
     );
     let boxed = [item(9, Shape::Box { frame: rect(1.0, 2.0, 3.0, 4.0), width: 1.0 })];
@@ -303,7 +304,7 @@ fn chrome_scales_with_the_zoom_and_moves_like_an_item() {
 }
 
 /// slinger-f66a97: a canvas text draws in the core's rows for its stored
-/// column, a size apart, in the system font at a part of the size.
+/// column, a size apart, in Menlo at a part of the size.
 #[test]
 fn a_canvas_text_draws_in_the_core_s_rows_a_size_apart() {
     let frame = rect(0.0, 0.0, 30.0, 48.0);
@@ -312,6 +313,34 @@ fn a_canvas_text_draws_in_the_core_s_rows_a_size_apart() {
     let Mark::Text { width, ref text, size, line, .. } = scene.draws[0].mark else { panic!() };
     assert_eq!((text.as_str(), line), ("ab\ncd", 24.0), "two cells a row");
     assert_eq!((width, size), (glyphs::UNWRAPPED, 24.0 * glyphs::FONT), "its own breaks only");
+}
+
+/// slinger-45d66c: a canvas text is written in cells, its markdown styled
+/// in place; chrome's text is not.
+#[test]
+fn a_canvas_text_is_written_in_cells_with_its_markdown_and_chrome_is_not() {
+    let frame = rect(0.0, 0.0, 300.0, 48.0);
+    let text = Shape::Text { frame, text: "# Hi\n**b**".into(), size: 24.0, column: Some(1e7) };
+    let chrome = Shape::Text { frame, text: "# Hi".into(), size: 24.0, column: None };
+    let scene = at(&[item(1, text), item(2, chrome)], Viewport::default(), None);
+    let Mark::Text { written: Some(written), .. } = &scene.draws[0].mark else { panic!() };
+    let runs: Vec<(usize, usize, &str, bool, bool)> = written
+        .runs
+        .iter()
+        .map(|r| (r.row, r.col, r.text.as_str(), r.look.bold, r.look.dim))
+        .collect();
+    assert_eq!(
+        runs,
+        [
+            (0, 0, "#", false, true),
+            (0, 1, " Hi", true, false),
+            (1, 0, "**", false, true),
+            (1, 2, "b", true, false),
+            (1, 3, "**", false, true)
+        ]
+    );
+    assert_ne!(written.dim, scene.draws[0].colour, "a mark is faded");
+    assert!(matches!(scene.draws[1].mark, Mark::Text { written: None, .. }));
 }
 
 #[test]

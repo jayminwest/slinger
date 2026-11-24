@@ -16,6 +16,12 @@ impl Shapes {
         self.ends
     }
 
+    /// Where the caret of the text being typed is, as a byte index: Nvim
+    /// starts with its cursor there.
+    pub fn typing_caret(&self) -> Option<usize> {
+        self.editing.as_ref().map(|e| e.editor.caret())
+    }
+
     /// Whether the text being typed is a new one, not an item opened.
     pub fn typing_new(&self) -> bool {
         self.editing.as_ref().is_some_and(|e| e.item.is_none())
