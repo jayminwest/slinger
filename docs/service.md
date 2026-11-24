@@ -238,7 +238,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `ui_reply` | `open`: a showing's id, `value`: any JSON | `event`: the `ui_reply` appended, `agent`, `delivered`: whether its session took it |
 | `canvas_create` | `canvas`: canvas id, `path`: absolute path of a file of operations (optional), `by`: author of those operations (default `user`) | `canvas`: the id |
 | `canvas_list` | none | `canvases`: list of `{canvas}`, sorted by id |
-| `canvas_show` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `canvas`, `next`: the next operation's number, `page`: the page's id, `pages`: list of `{id, name}`, `items`: list of items, `path`: the absolute path of the canvas's file |
+| `canvas_show` | `canvas`: canvas id, `page`: page id or name (optional, default the first page) | `canvas`, `next`: the next operation's number, `page`: the page's id, `pages`: list of `{id, name}` (with `figures`, the names of the figures on that page, when it has any), `items`: list of items, `path`: the absolute path of the canvas's file |
 | `canvas_apply` | `canvas`: canvas id, `by`: author (default `user`), `ops`: one operation or a list, `once`: string (optional) | `seq`: list of numbers, `made`: list of ids |
 | `canvas_undo`, `canvas_redo` | `canvas`: canvas id, `by`: author (default `user`) | `seq`, `made` (always empty) |
 | `canvas_import` | `path`: absolute path of a tldraw file, `canvas`: canvas id (optional, default made from the file's name) | `canvas`, `pages`: number, `items`: count by kind, `skipped`: count by tldraw shape type |
@@ -257,7 +257,9 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_strokes` | `canvas`: canvas id, `item`: an item id | `strokes`: list of stroke items with `points` |
 | `canvas_find` | `canvas`: canvas id, `text`: string | `found`: list of text items that hold it, page by page in reading order |
 | `canvas_fold`, `canvas_unfold` | `canvas`: canvas id, `item`: a box's id, `by`: author (default `user`), `once`: string (optional) | `item`, `page`, `x`, `y`, `w`, `h`: the box's frame now (the miniature, or the open frame), `seq`: the numbers written (empty when nothing changed) |
-| `canvas_draw` | `canvas`: canvas id, `by`: author (default `user`), `name`: the figure's name, `path`: the script's file, then one of `beside`, `over`, `in`: an item id or address, `at`: `[x, y]` in tenths; optional `page` (with `at` only), `data`: a JSON file the script reads as `fig.data`, `dry_run`: `true` writes nothing, `png`: a file for a PNG of the figure alone | `name`, `page`, `origin`: `[x, y]`, `frame`: `[x, y, w, h]` in tenths, `parts`, `items`: how many, `seq`: the numbers written (empty on a dry run or when nothing changed), `warnings` (when any), `images` (with `png`), `event`: the `reply_landed` appended (absent when none) |
+| `canvas_draw` | `canvas`: canvas id, `by`: author (default `user`), `name`: the figure's name, `path`: the script's file, then one of `beside`, `over`, `in`: an item id or address, `at`: `[x, y]` in tenths; optional `page` (with `at` only), `data`: a JSON file the script reads as `fig.data`, `dry_run`: `true` writes nothing, `png`: a file for a PNG of the figure alone, `once`: a key, as `canvas_apply`'s | `name`, `page`, `origin`: `[x, y]`, `frame`: `[x, y, w, h]` in tenths, `parts`, `items`: how many, `seq`: the numbers written (empty on a dry run or when nothing changed), `warnings` (when any), `images` (with `png`), `event`: the `reply_landed` appended (absent when none) |
+| `canvas_redraw` | `canvas`, `by` (default `user`), `name`: a figure a script drew; optional `data`: a file holding a JSON merge patch on its last data, `path`: a script's file to swap in, `once`: a key, as `canvas_apply`'s | as `canvas_draw`; `seq` is empty when nothing changed |
+| `canvas_figure` | `canvas`; optional `name`: one figure | `figures`: each `{name, page, frame: [x, y, w, h] in tenths, by, locked, items: how many, parts: [{name, frame, items}]}`, page by page in reading order; with `name`, that one, with `script` (its blob id) and `data` when a script drew it |
 | `session_list` | none | `sessions`: list of sessions, sorted by agent |
 | `session_show` | `agent`: string | `session` |
 | `status_set` | `agent`: string, `status`: `working`, `blocked` or `done`, `note`: string (optional) | `agent`, `status`, `note` (absent when none), `event`: the number of the event appended (absent for `working`) |
@@ -311,7 +313,8 @@ it, so a name's versions stay 1, 2, 3 in log order. The same holds for
 `ui_open` writes, and `ui_reply` (`open`, `name`, `version`, `hash`,
 `value`), which only `ui_reply` writes (see "Showings"), and for
 `figure_drawn` (`canvas`, `figure`, `page`, `script`: blob id, `data`,
-`origin`: `[x, y]` and `frame`: `[x, y, w, h]` in tenths), which only the
+`origin`: `[x, y]` and `frame`: `[x, y, w, h]` in tenths, and `target`:
+the frame drawn over or in, when there was one), which only the
 figure verbs write (docs/design/figures.md, "`figure_drawn`").
 
 **`record_list`** returns the events that match every filter given:
@@ -843,6 +846,38 @@ app never sends it; a client writes it with `Client::canvas_draw`
 { "ok": true, "name": "worksheet", "page": "p1", "origin": [400, 400], "frame": [400, 400, 9000, 14000], "parts": ["1a", "1b"], "items": 56, "seq": [7, 8] }
 { "v": 1, "op": "canvas_draw", "canvas": "main", "name": "f", "path": "/tmp/bad.js", "beside": "c12", "dry_run": true }
 { "ok": false, "code": "invalid", "error": "script:2:1: box: w must be a number above 0, got \"wide\"", "hint": "fix the script there and try it with --dry-run; 'slinger guide' has the drawing API" }
+```
+
+`canvas_draw` takes `once` as `canvas_apply` does. **`canvas_redraw`**
+draws a figure again from its last `figure_drawn`: the script stored there
+(or the one `path` names, swapped in) runs on the data stored there with
+`data`, a file holding a JSON merge patch (RFC 7396), applied: an object
+merges key by key, `null` takes a key away, anything else (an array too)
+replaces. It sees the same `fig.view.target` as the first draw. The
+figure goes where it now is: the last origin moved as far as the figure's
+frame has moved since, so a figure the user moved is drawn again there. It
+replaces the figure by match, as a draw of the same name does, as one undo
+step, and the user's ink (in no figure) is never touched. The same script
+on the same data runs nothing and writes nothing (no op, no event, `seq`
+empty); a run that changes nothing writes nothing either. Only the maker
+(or the user) may redraw: another agent gets the author rule's `invalid`.
+A figure not on the canvas, or one no script drew, is `not_found`. The
+reply is `canvas_draw`'s, and a redraw that wrote appends `figure_drawn`
+(the merged data whole) and `reply_landed` as a draw does.
+
+**`canvas_figure`** lists a canvas's figures, page by page and in reading
+order on a page: each its `name`, `page`, `frame` (the items the page
+shows, in tenths), maker `by`, `locked` (any item is), how many `items`
+and its `parts`, each `{name, frame, items}` in reading order. With
+`name`, only that figure (`not_found` when it is not there), with its
+`script` (the blob id, for `blob_get`) and `data` from its last
+`figure_drawn`, when a script drew it.
+
+```json
+{ "v": 1, "op": "canvas_redraw", "canvas": "main", "by": "agent:scout", "name": "worksheet", "data": "/tmp/patch.json" }
+{ "ok": true, "name": "worksheet", "page": "p1", "origin": [700, 400], "frame": [700, 400, 9000, 14000], "parts": ["1a", "1b"], "items": 62, "seq": [12, 13] }
+{ "v": 1, "op": "canvas_figure", "canvas": "main", "name": "worksheet" }
+{ "ok": true, "figures": [{ "name": "worksheet", "page": "p1", "frame": [700, 400, 9000, 14000], "by": "agent:scout", "locked": true, "items": 62, "parts": [{ "name": "1a", "frame": [800, 1600, 2000, 800], "items": 3 }], "script": "sha256:…", "data": { "rate": 0.08 } }] }
 ```
 
 #### Sessions

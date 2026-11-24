@@ -34,6 +34,7 @@ mod button;
 mod clip;
 mod drag;
 mod editing;
+mod figure;
 mod find;
 mod focus;
 mod fold;

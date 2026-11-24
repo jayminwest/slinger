@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::layout::Size;
-use crate::scene::canvas::{Style, build};
+use crate::scene::canvas::build;
 
 const SIZE: f64 = 24.0;
 const INK: Rgb = Rgb { r: 0, g: 0, b: 0 };
@@ -20,12 +20,7 @@ fn text(n: usize, whole: bool) -> Item {
     let column = glyphs::column(glyphs::NEW_COLUMN * SIZE * glyphs::CELL, SIZE);
     let frame =
         if whole { glyphs::whole_frame } else { glyphs::rows_frame }(at, &text, SIZE, column);
-    Item {
-        id: ItemId(7),
-        colour: INK,
-        shape: Shape::Text { frame, text, size: SIZE, column: Some(column) },
-        style: Style::default(),
-    }
+    Item::plain(ItemId(7), INK, Shape::Text { frame, text, size: SIZE, column: Some(column) })
 }
 
 fn drawn(item: &Item) -> Vec<Draw> {

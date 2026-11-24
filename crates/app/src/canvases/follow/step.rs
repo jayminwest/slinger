@@ -10,7 +10,7 @@ use crate::canvases::canvas_of;
 use crate::canvases::step::{Typed, holds};
 use crate::layout::{PaneId, Point};
 use crate::panes::Panes;
-use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::canvas::{Item, ItemId, Shape, free};
 use crate::scene::glyphs;
 use crate::scene::ink::{Change, Ink};
 use crate::scene::select::Selection;
@@ -125,12 +125,18 @@ impl Follow {
         items: &[Cow<'_, Item>],
     ) -> Option<ItemId> {
         let mirror = self.mirror(canvas, page)?;
-        let on = |i: &&Cow<'_, Item>| match &i.shape {
-            Shape::Box { frame, .. } => mirror.box_folded(i.id) == Some(true) && holds(*frame, at),
-            Shape::Text { frame, text, size, column: Some(column) } => {
-                glyphs::more(*frame, text, *size, *column).is_some_and(|(row, _)| holds(row, at))
-            }
-            _ => false,
+        let on = |i: &&Cow<'_, Item>| {
+            free(i)
+                && match &i.shape {
+                    Shape::Box { frame, .. } => {
+                        mirror.box_folded(i.id) == Some(true) && holds(*frame, at)
+                    }
+                    Shape::Text { frame, text, size, column: Some(column) } => {
+                        glyphs::more(*frame, text, *size, *column)
+                            .is_some_and(|(row, _)| holds(row, at))
+                    }
+                    _ => false,
+                }
         };
         items.iter().rev().find(on).map(|i| i.id)
     }

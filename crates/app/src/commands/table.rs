@@ -145,6 +145,7 @@ pub(super) const TABLE: &[Row] = &[
     bare(C::RestartDaemon, "restart-daemon", "Restart slingerd", Window),
     row(C::ZoomToFit, "zoom-to-fit", "Zoom to fit", Canvas, CMD, '9'),
     bare(C::ReloadUi, "reload-ui", "Reload agent UI", File),
+    row(C::UnlockFigure, "unlock-figure", "Unlock figure", Canvas, CMD | ALT, 'u'),
     row(C::WriteFocus, "write-focus", "Focus on text", Canvas, CMD | ALT, '\r'),
 ];
 

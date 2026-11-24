@@ -364,7 +364,7 @@ fn an_address_that_names_nothing_or_is_not_one_fails_with_a_hint() {
     worksheet(&mut book);
     let err = book.log.crop("nothing", "n").unwrap_err();
     assert_eq!(err.code(), "not_found");
-    assert!(err.hint().unwrap_or_default().contains("canvas show"));
+    assert!(err.hint().unwrap_or_default().contains("slinger canvas figure"));
     assert_eq!(book.log.crop("worksheet/none", "n").unwrap_err().code(), "not_found");
     let err = book.log.crop("Not a name", "n").unwrap_err();
     assert_eq!(err.code(), "invalid");
@@ -383,4 +383,20 @@ fn remove_takes_a_whole_figure_as_one_undo_step() {
     book.log.undo(&claude(), AT);
     assert_eq!(book.log.canvas().figure("worksheet").unwrap().items.len(), 5);
     assert_eq!(book.log.remove(&claude(), AT, "nothing").unwrap().bytes, "");
+}
+
+#[test]
+fn show_lists_the_figures_of_each_page_so_a_new_name_can_avoid_every_one() {
+    let mut book = Book::new();
+    worksheet(&mut book);
+    book.apply_as(&Author::User, &json!({"op": "page.add", "name": "two"}));
+    book.apply_as(&Author::User, &json!({"op": "page.add", "name": "three"}));
+    book.apply_as(
+        &claude(),
+        &json!({"op": "add", "item": {"page": "p2", "kind": "box", "x": 0, "y": 0, "w": 10,
+                "h": 10, "fig": "plot"}}),
+    );
+    let shown = book.log.show(Some("p3")).unwrap();
+    let figures: Vec<Option<&Value>> = shown.pages.iter().map(|p| p.get("figures")).collect();
+    assert_eq!(figures, [Some(&json!(["worksheet"])), Some(&json!(["plot"])), None]);
 }

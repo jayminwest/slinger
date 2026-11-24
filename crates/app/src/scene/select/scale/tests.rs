@@ -5,7 +5,6 @@
 
 use super::*;
 use crate::config::{Rgb, Theme};
-use crate::scene::canvas::Style;
 use crate::scene::select::BOX;
 use crate::scene::tools::Tool;
 
@@ -29,7 +28,7 @@ fn frame(x: f64, y: f64, width: f64, height: f64) -> Rect {
 }
 
 fn item(id: u64, shape: Shape) -> Item {
-    Item { id: ItemId(id), colour: Rgb { r: 255, g: 0, b: 0 }, shape, style: Style::default() }
+    Item::plain(ItemId(id), Rgb { r: 255, g: 0, b: 0 }, shape)
 }
 
 fn boxed(id: u64, r: Rect) -> Item {

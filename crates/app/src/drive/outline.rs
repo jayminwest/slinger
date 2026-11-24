@@ -116,12 +116,17 @@ pub fn menu(popup: &Popup) -> String {
     out
 }
 
-/// One mark of a canvas pane: its item, its kind, the box its ink covers
-/// and what it holds.
+/// One mark of a canvas pane: its item, its kind, the box its ink covers,
+/// what it holds, and `locked` when the user's hands pass over its item.
 fn mark(draw: &Draw) -> String {
     let what = match &draw.mark {
         Mark::Stroke { curves, width, dash, fill, .. } => {
             format!("stroke {} curves width {}{}", curves.len(), n(*width), styled(*dash, *fill))
+        }
+        // A written text's rows are broken already, its font a part of
+        // its size: print the canvas text's size (its line), not those.
+        Mark::Text { text, line, written: Some(_), .. } => {
+            format!("text size {} written {}", n(*line), quoted(text))
         }
         Mark::Text { text, size, width, .. } => {
             format!("text size {} column {} {}", n(*size), n(*width), quoted(text))
@@ -151,7 +156,8 @@ fn mark(draw: &Draw) -> String {
     };
     // A mark that is no item of the page (a caret, a frame, a handle) has an id past any item's.
     let id = if draw.id.0 > u64::MAX / 2 { "~".to_string() } else { format!("i{}", draw.id.0) };
-    format!("{id} {} {} {what}", rect(draw.bounds), colour(draw.colour))
+    let locked = if draw.locked { " locked" } else { "" };
+    format!("{id} {} {} {what}{locked}", rect(draw.bounds), colour(draw.colour))
 }
 
 /// A line's dash and its fill as drawn, each only when it has one:

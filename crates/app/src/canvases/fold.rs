@@ -22,7 +22,7 @@ use crate::commands::Chord;
 use crate::config::Theme;
 use crate::layout::{Point, Rect};
 use crate::mirror::{LINE_WIDTH, Mirror};
-use crate::scene::canvas::{Fill, Item, ItemId, Shape};
+use crate::scene::canvas::{Fill, Item, ItemId, Shape, free};
 
 /// The draw ids of fold marks: this plus the box's id. Above every item's
 /// id, below the ink's own ([`crate::scene::ink::PENDING`]).
@@ -49,7 +49,7 @@ impl Canvases {
         let mirror = self.follow.mirror(here.0, here.1)?;
         let on = |i: &&Cow<'_, Item>| match i.shape {
             Shape::Box { frame, .. } => {
-                mirror.box_folded(i.id).is_some() && on_mark(frame, at, zoom)
+                free(i) && mirror.box_folded(i.id).is_some() && on_mark(frame, at, zoom)
             }
             _ => false,
         };

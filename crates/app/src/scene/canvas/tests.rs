@@ -18,7 +18,7 @@ fn rect(x: f64, y: f64, width: f64, height: f64) -> Rect {
 }
 
 fn item(id: u64, shape: Shape) -> Item {
-    Item { id: ItemId(id), colour: INK, shape, style: Style::default() }
+    Item::plain(ItemId(id), INK, shape)
 }
 
 fn stroke(id: u64, points: &[(f64, f64)]) -> Item {

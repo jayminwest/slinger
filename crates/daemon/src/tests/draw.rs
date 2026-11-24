@@ -29,6 +29,7 @@ fn ask(by: &str, name: &str, path: &Path, place: Place) -> CanvasDraw {
         page: None,
         dry_run: false,
         png: None,
+        once: None,
     }
 }
 

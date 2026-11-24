@@ -156,6 +156,37 @@ fn an_arrows_label_sits_beside_it_not_on_it() {
 }
 
 #[test]
+fn labels_of_two_arrows_into_one_box_do_not_cover_each_other() {
+    // The fluency round's state diagram: "cancel" and "refund" met at the middle.
+    let d = drawn(
+        "const a = box(0, 0, 150, 56);
+const b = box(240, 0, 150, 56);
+const c = box(120, 180, 150, 56);
+         arrow(a, c, {label: 'cancel'});
+arrow(b, c, {label: 'refund'});",
+    );
+    assert!(d.warnings.is_empty(), "{:?}", d.warnings);
+    let texts: Vec<&Value> = d.items.iter().filter(|i| kind(i) == "text").collect();
+    assert_eq!(texts.len(), 2);
+}
+
+#[test]
+fn a_plots_ticks_take_labels_and_a_title_stands_above_it() {
+    let d = drawn(
+        "plot(0, 100, 200, 100, {x: [0, 2], y: [0, 10], xticks: [[0, 'Jan'], [1, 'Feb'], 2],
+           ylabel: 'sales', title: 'Monthly'});",
+    );
+    let texts: Vec<&str> = d.items.iter().filter_map(|i| i["text"].as_str()).collect();
+    assert_eq!(texts, ["Jan", "Feb", "2", "sales", "Monthly"]);
+    let title = d.items.iter().find(|i| i["text"] == "Monthly").unwrap();
+    // Half as large again as the labels' 16: 24, the default, which is not stored.
+    assert_eq!((title.get("size"), &title["y"]), (None, &json!(1000 - 40 - 200 - 240)));
+    assert!(d.warnings.is_empty(), "{:?}", d.warnings);
+    let e = failed("plot(0, 0, 10, 10, {x: [0, 1], y: [0, 1], xticks: ['Jan']})");
+    assert!(e.message.contains(r#"[value, "label"] pairs, such as [[0, "Jan"]"#), "{e}");
+}
+
+#[test]
 fn warnings_name_text_over_a_line_overlapping_texts_and_a_far_shape() {
     let d = drawn(
         "line(0, 10, 100, 10);\ntext(0, 0, 'crossed');\ntext(5, 5, 'again');\nbox(0, 0, 1, 1);\nbox(90000, 0, 1, 1);",
@@ -171,6 +202,38 @@ fn warnings_name_text_over_a_line_overlapping_texts_and_a_far_shape() {
         ]
     );
     assert_eq!(d.items.len(), 5, "a warning never fails the draw");
+}
+
+#[test]
+fn a_box_drawn_again_on_a_tables_cell_warns_and_a_filled_one_does_not() {
+    // The fluency round's vector addition: each empty answer cell boxed twice.
+    let d = drawn(
+        "const t = table(0, 0, [['a', ''], ['b', '']], {cols: 60, parts: [[null, 'x'], [null, 'y']]});
+part('x', () => { const c = t.cell(0, 1); box(c.x, c.y, c.w, c.h); });
+const c = t.cell(1, 1);
+box(c.x, c.y, c.w, c.h, {fill: 'yellow'});",
+    );
+    let said: Vec<String> = d.warnings.iter().map(ToString::to_string).collect();
+    assert_eq!(
+        said,
+        ["script:2:62: box: is drawn again on the box from line 1; \
+          a table's cell is boxed already, draw in it with t.cell(r, c)"]
+    );
+}
+
+#[test]
+fn a_label_longer_than_its_arrow_warns() {
+    let d = drawn(
+        "arrow(0, 0, 40, 0, {label: 'much too long'});\narrow(0, 100, 0, 200, {label: 'fits'});",
+    );
+    let said: Vec<String> = d.warnings.iter().map(ToString::to_string).collect();
+    assert_eq!(
+        said,
+        [
+            r#"script:1:1: arrow: the label "much too long" is 156 long beside an arrow 40 long; lengthen the arrow or shorten the label"#
+        ]
+    );
+    assert_eq!(d.items.len(), 4, "a warning never fails the draw");
 }
 
 #[test]

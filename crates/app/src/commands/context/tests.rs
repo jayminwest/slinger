@@ -21,6 +21,7 @@ const ABLE: Facts = Facts {
     entry: false,
     sling_now: true,
     new_text: true,
+    figure: true,
     text: true,
     workspace: true,
     agent: Some(true),
@@ -32,8 +33,9 @@ const ABLE: Facts = Facts {
 const KINDS: [Kind; 7] =
     [Kind::Stroke, Kind::Text, Kind::Box, Kind::Arrow, Kind::Pdf, Kind::Live, Kind::LongText];
 
-const SUBJECTS: [Subject; 13] = [
+const SUBJECTS: [Subject; 14] = [
     Subject::Canvas,
+    Subject::Figure,
     Subject::Pane { ui: true },
     Subject::Pane { ui: false },
     Subject::Item { kind: KINDS[0] },

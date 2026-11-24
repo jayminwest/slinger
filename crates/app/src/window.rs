@@ -34,6 +34,7 @@ use crate::shared::Shared;
 pub mod button;
 pub mod context;
 mod facts;
+mod figure;
 mod items;
 pub mod launched;
 mod workspace;
@@ -236,6 +237,11 @@ pub fn selection(
             let under = tools.pointer().and_then(|at| pane_at(panes, area, at));
             let pane = under.unwrap_or_else(|| focus(panes, area));
             canvases.new_text(panes, pane, tools.pointer(), tools.colour())
+        }
+        Command::UnlockFigure => figure::unlock(canvases, panes, tools, area),
+        Command::ToolPen | Command::ToolEraser | Command::ToolText => {
+            canvases.relock();
+            true
         }
         c => items::run(c, shared, canvases, area),
     }

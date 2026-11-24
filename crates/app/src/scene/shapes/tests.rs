@@ -1,6 +1,5 @@
 use super::*;
 use crate::scene::canvas::Mark;
-use crate::scene::canvas::Style;
 use crate::scene::glyphs;
 use crate::scene::select::Select;
 
@@ -40,7 +39,7 @@ fn glyph(x: f64, y: f64, text: &str) -> Rect {
 const NEW: Option<f64> = Some(966.0);
 
 fn item(id: u64, shape: Shape) -> Item {
-    Item { id: ItemId(id), colour: BLUE, shape, style: Style::default() }
+    Item::plain(ItemId(id), BLUE, shape)
 }
 
 /// A box (i1), a text (i2), an arrow (i3) across the empty middle, and a
@@ -494,3 +493,4 @@ fn a_new_text_starts_at_the_size_set_and_keeps_it_while_typed() {
 
 mod cells;
 mod column;
+mod locked;

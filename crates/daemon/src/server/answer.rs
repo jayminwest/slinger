@@ -43,6 +43,8 @@ pub(super) fn answer(request: Request, store: &Store, here: &Here) -> Result<Val
         Request::CanvasFold(ask) => by(store, ask, fold::fold),
         Request::CanvasUnfold(ask) => by(store, ask, fold::unfold),
         Request::CanvasDraw(ask) => by(store, ask, figure::draw),
+        Request::CanvasRedraw(ask) => by(store, ask, figure::redraw),
+        Request::CanvasFigure(ask) => by(store, ask, figure::figures),
         Request::SessionList(ask) => by(store, ask, session::list),
         Request::SessionShow(ask) => by(store, ask, session::show),
         Request::StatusSet(ask) => by(store, ask, session::set),

@@ -61,7 +61,7 @@ fn drawn(
     let at = view.to_screen(Point { x: frame.x, y: frame.y });
     let (width, line, zoom) = (glyphs::UNWRAPPED, size, view.zoom());
     let mark = Mark::Text { at, width, text, size: size * glyphs::FONT, line, zoom, written };
-    Draw { id, bounds: view.rect_to_screen(bounds), colour, mark }
+    Draw { id, bounds: view.rect_to_screen(bounds), colour, mark, locked: false }
 }
 
 /// How tall `n` rows of `size` are.
