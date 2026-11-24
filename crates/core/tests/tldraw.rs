@@ -2,6 +2,7 @@
 #![cfg(test)]
 
 use serde_json::{Value, json};
+use slinger_core::canvas::style::FILL_MAX_ALPHA;
 use slinger_core::canvas::{
     Author, Canvas, Colour, Dash, End, Heads, Item, Point, Rect, Shape, Style, Time,
 };
@@ -276,8 +277,9 @@ fn fill_and_dash_carry_over_to_the_items_that_take_them() {
             // The label takes neither.
             plain,
             Style { fill: blue(0x33), dash: Dash::Dotted, ..plain },
-            // tldraw's hand-drawn dash is solid.
-            Style { fill: blue(0x66), ..plain },
+            // tldraw's hand-drawn dash is solid; a solid fill is the colour
+            // as given, drawn capped.
+            Style { fill: blue(0xff), ..plain },
             Style { fill: blue(0x33), ..plain },
             // An open stroke takes no fill.
             Style { dash: Dash::Dashed, ..plain },
@@ -321,8 +323,13 @@ fn a_closed_drawing_keeps_its_fill() {
     ]);
     let Import { canvas, .. } = import(&file, AT).unwrap();
     let styles: Vec<Style> = items_of(&canvas).into_iter().map(|i| *i.style()).collect();
-    let tint = Some(Colour { a: 0x66, ..Colour::rgb(60, 100, 220) });
-    assert_eq!(styles, [Style { fill: tint, closed: true, ..Style::default() }, Style::default()]);
+    let blue = Colour::rgb(60, 100, 220);
+    assert_eq!(
+        styles,
+        [Style { fill: Some(blue), closed: true, ..Style::default() }, Style::default()]
+    );
+    // Stored as given, drawn at most 40%.
+    assert_eq!(styles[0].tint(), Some(Colour { a: FILL_MAX_ALPHA, ..blue }));
 }
 
 #[test]
