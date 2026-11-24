@@ -141,8 +141,9 @@ impl Log {
     ///   [`FIGURE_ITEMS`], a shape that is not an `add` item object (the
     ///   message names its place, from 0) or that has a `page`, an `id` or
     ///   another `fig`, and `In` an item that is not a box.
-    /// - `conflict`: the name is a figure `by` may not change, or the box it
-    ///   goes in has no room.
+    /// - `conflict`: the name is a figure `by` may not change, another
+    ///   maker's items of it are on another page, or the box it goes in has
+    ///   no room.
     /// - `not_found`: an id or page that names nothing.
     /// - `too_long`: an agent's text over [`super::AGENT_ROWS`] rows.
     pub fn draft_figure(
@@ -181,6 +182,7 @@ impl Log {
             .collect();
         let local = joint(shapes.iter().map(|(_, shape, _)| shape.bounds())).unwrap_or_default();
         let (page, origin) = self.origin(at, local, &old)?;
+        self.one_page(by, name, page)?;
         let shift = Point::new(file_json::units(origin[0]), file_json::units(origin[1]));
         let new: Vec<Read> = shapes
             .into_iter()
@@ -242,6 +244,22 @@ impl Log {
             if actions.is_empty() { Ok(Written::default()) } else { log.step(by, time, actions) }
         })?;
         Ok(Drawn { draft, written })
+    }
+
+    /// Fails when drawing the figure `name` on `page` would leave items
+    /// of it that `by` may not change on another page: a figure's name is
+    /// unique on its canvas, so its items are on one page.
+    fn one_page(&self, by: &Author, name: &str, page: PageId) -> Result<()> {
+        let canvas = self.canvas();
+        let kept = canvas.items.values().find(|i| {
+            i.member.fig.as_deref() == Some(name) && i.page != page && !by.may_change(&i.author)
+        });
+        let Some(kept) = kept else { return Ok(()) };
+        let there = canvas.page(kept.page).map(|p| p.name().to_owned()).unwrap_or_default();
+        Err(Error::Conflict {
+            message: format!("figure {name} has {}'s items on page {there}", kept.author),
+            hint: Some(format!("draw it on page {there}, or pick another --name")),
+        })
     }
 
     /// The step that draws `new` (placed on `page`, as `at` says) over

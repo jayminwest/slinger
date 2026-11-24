@@ -809,6 +809,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **CLI:** `slinger canvas draw` by an agent onto another page no longer
+  splits a figure you drew over: it says the figure has your items on its
+  page and draws nothing, so a figure's name stays on one page.
+
 - **App:** a bigger or smaller text size keeps a wrapped text's rows: a
   new text stays 80 characters wide at any size, where a size change used
   to keep it about as wide and so change how many characters a row held.
