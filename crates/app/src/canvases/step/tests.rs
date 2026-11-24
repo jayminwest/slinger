@@ -55,6 +55,8 @@ fn the_room_draws_dashed_with_no_fill() {
     assert!(
         matches!(item.shape, Shape::Panel { fill: None, dashed: true, frame, .. } if frame == r)
     );
+    let Shape::Panel { width, .. } = item.shape else { unreachable!() };
+    assert!(width >= LINE_WIDTH, "no fainter than a box's own line");
 }
 
 /// A stroke carried from the left pane into the right one, stepped into a

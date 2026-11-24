@@ -261,6 +261,10 @@ pub(crate) mod tests {
             d.status_set("scout", "blocked", Some("which key?")).unwrap();
             let hooks = notes(d, Some(Status::Blocked), Some("which key?"));
             assert_eq!(workspaces(d), Ok(hooks), "never started: its hooks say");
+            // A session asks for scout's slings: it listens, whatever was said before.
+            assert!(d.session_listen("notes", std::time::Duration::ZERO).unwrap().sling.is_none());
+            let listening = notes(d, Some(Status::Listening), Some("which key?"));
+            assert_eq!(workspaces(d), Ok(listening), "a listener is there");
         });
     }
 

@@ -13,7 +13,7 @@ use crate::scene::sidebar::{Agent, Broken, Process, Status, Workspace};
 
 /// The open workspaces, by name, each with its agent's status from the
 /// daemon's sessions: what the agent last said, read against its process
-/// ([`Status::of`]); the profile a running process runs under, and the
+/// ([`Status::of`]), or against the session that listens for it; the profile a running process runs under, and the
 /// agent's profiles. Blocks until the daemon answers or its client gives up.
 pub fn workspaces(daemon: &Client) -> Result<Vec<Workspace>, Problem> {
     let sessions = daemon.session_list()?;
@@ -22,7 +22,10 @@ pub fn workspaces(daemon: &Client) -> Result<Vec<Workspace>, Problem> {
         let session = sessions.iter().find(|s| s.agent == name);
         let said = session.and_then(|s| Status::parse(s.status.as_deref()?));
         let started = session.is_some_and(|s| s.session_id.is_some());
-        let process = Process::named(session.and_then(|s| s.process.as_deref()), started);
+        // A session that listens takes the agent's slings, whatever process slingerd held.
+        let listener = session.is_some_and(|s| s.deliver == "listen" && s.listening == Some(true));
+        let held = Process::named(session.and_then(|s| s.process.as_deref()), started);
+        let process = if listener { Process::Listener } else { held };
         let pending = session.and_then(|s| s.pending).unwrap_or(0);
         let answered = session.is_some_and(|s| s.answer.is_some());
         let running = process == Process::Running;

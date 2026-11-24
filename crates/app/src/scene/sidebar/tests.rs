@@ -226,6 +226,22 @@ fn the_daemon_s_count_of_pending_messages_wins_over_what_the_agent_said() {
     );
 }
 
+/// An agent a session listens for is never "not running" (slinger-f566a9).
+#[test]
+fn an_agent_a_session_listens_for_is_listening_and_working_while_a_sling_is_out() {
+    use crate::scene::sidebar::Process::Listener;
+    use Status::{Blocked, Done, Listening, Working};
+    assert_eq!(Status::of(None, Listener, 0, false), Some(Listening), "it waits for a sling");
+    assert_eq!(Status::of(Some(Done), Listener, 0, true), Some(Listening), "it waits again");
+    assert_eq!(Status::of(Some(Working), Listener, 1, false), Some(Working), "it took one");
+    assert_eq!(Status::of(Some(Blocked), Listener, 1, false), Some(Blocked));
+    let listening = heard(vec![ws("ada", Some(Listening))]);
+    let rows = listening.rows(&T, WINDOW);
+    let said: Vec<_> = shown(&rows).iter().map(|(text, _)| text.to_string()).collect();
+    assert!(said.iter().any(|t| t == "ada · listening"), "{said:?}");
+    assert!(!said.iter().any(|t| t.contains("Start agent")), "nothing to start: {said:?}");
+}
+
 #[test]
 fn a_done_agent_leaves_the_notice_on_its_own_and_a_blocked_one_stays() {
     let start = std::time::Instant::now();

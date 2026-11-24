@@ -368,6 +368,9 @@ fn a_canvas_footer_names_its_agent_and_slings_in_one_tap() {
     let stopped = slinging(1200.0, Some(("scout", Some(Status::Stopped))));
     assert!(said_has(&stopped, "○ scout · not running"));
     assert_eq!(sling_run(&stopped).colour, T.muted, "nothing takes a sling");
+    let listening = slinging(1200.0, Some(("scout", Some(Status::Listening))));
+    assert!(said_has(&listening, "● scout · listening"), "{:?}", said_of(&listening));
+    assert_eq!(sling_run(&listening).colour, T.focus, "its listener takes a sling");
     let alone = slinging(1200.0, None);
     assert_eq!(sling_run(&alone).colour, T.muted, "no agent");
     assert!(!said_of(&alone).iter().any(|s| s.contains("scout")));
