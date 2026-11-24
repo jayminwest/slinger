@@ -25,7 +25,7 @@
 //! the pen's drag and lift and the pointer in [`drag`]; cut, copy and paste
 //! in [`clip`]; finding text on a canvas's pages in [`seek`]; folding boxes
 //! in [`fold`] and stepping into them in [`step`]; a PDF's canvas in reader
-//! mode, in [`reader`].
+//! mode, in [`reader`]; write focus on a text, in [`focus`].
 //!
 //! [`Ink`]: crate::scene::ink::Ink
 //! [`Outbox`]: crate::backend::Outbox
@@ -35,6 +35,7 @@ mod clip;
 mod drag;
 mod editing;
 mod find;
+mod focus;
 mod fold;
 mod follow;
 mod kept;
@@ -102,6 +103,8 @@ pub struct Canvases {
     zoomed: Option<String>,
     /// Whether every canvas pane shows the dotted grid.
     paper: Paper,
+    /// The pane in write focus, if any ([`focus`]).
+    focus: Option<focus::Focus>,
     /// Wakes the main thread when a backend thread has news.
     wake: Wake,
 }
@@ -141,6 +144,7 @@ impl Canvases {
             found: None,
             zoomed: None,
             paper: Paper::default(),
+            focus: None,
             wake,
             daemon,
         }
@@ -273,6 +277,7 @@ impl Canvases {
         if self.follow.within(panes.workspace()) {
             self.switched();
         }
+        self.keep_focus();
         // A canvas pane's canvas is what its footer leaves of it.
         let placed: Vec<_> = (panes.place(area).into_iter())
             .filter(|(_, p, _)| p.kind == Kind::Canvas)

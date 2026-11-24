@@ -230,6 +230,7 @@ const BAR: [(&str, Role, &[Action]); 8] = [
             R(Command::ZoomOut),
             R(Command::ZoomReset),
             R(Command::ZoomToFit),
+            R(Command::WriteFocus),
             R(Command::PanLeft),
             R(Command::PanRight),
             R(Command::PanUp),
