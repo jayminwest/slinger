@@ -377,11 +377,11 @@ tldraw importer keeping fill and dash (and lock, closed, heads).
 | 10 | Warnings: text taller than its box, a word wider than its frame, two named parts that overlap (and text over a line) | text over a line, arrow, stroke or box edge; texts overlapping; a box drawn again on a box; a label longer than its arrow; a shape far from the others. None of the owner's first three | `prelude/checks.js` | medium |
 | 11 | Acceptance: Appendix B (the 106 softmax worksheet, 56 items, 15 parts) is the script; redraw fills "actual top 5" by name | The acceptance fixture is another worksheet (compound growth, 56 items, 15 parts) written for the built API (Appendix D); Appendix B does not run (rows 1 to 4, 7, 8) | `crates/script/src/tests/worksheet.{js,json}`, `crates/daemon/src/tests/script.rs` | medium |
 | 12 | The data is the global `data` (`null` when none) | `fig.data` (`{}` when none); no global `data` | `prelude/base.js` | small |
-| 13 | Decision 4: a script uses whole units; the other verbs keep tenths | `canvas draw --at` takes canvas units (`40,40`, `PAGE:X,Y`) while `canvas put --at` takes tenths (the wire is tenths for both) | `crates/cli/src/draw.rs`, guide.md | small |
+| 13 | Decision 4: a script uses whole units; the other verbs keep tenths | Closed slinger-3b333f: now as designed. `canvas draw --at` takes tenths (`400,400`, `PAGE:X,Y`), as `canvas put --at` does | `crates/cli/src/draw.rs`, guide.md | small |
 | 14 | `width` on lines, paths and arrows (default 2) | `width` on `poly` and `circle` only; `line` and `arrow` refuse it | `prelude/shapes.js` | small |
 | 15 | `fill`: a colour ("use a light or translucent colour") | A name or `#rrggbb` is stored at 20% alpha (`33`), `true` is a tint of the shape's colour, `#rrggbbaa` as given; every renderer caps a fill at 40% (`FILL_MAX_ALPHA`) | `prelude/base.js` (`tint`), `crates/core/src/canvas/style.rs`, the app's fill pass | small |
 | 16 | Colour names, for example `accent`, `muted`, `good`, `bad`, `warn` and a plot series (exact names left to the design step) | `agent`, `ink`, `muted`, `accent`, `error`, `series1`..`series6` and nine CSS names; no `good`, `bad` or `warn` | `crates/script/src/colour.rs` | small |
-| 17 | Decision 3: no stored lock toggle | The app has none, but `locked` is an ordinary field: an agent may `set` it on its own items and the user on any, through `canvas apply` (undo, import and paste need it written) | `crates/core/src/canvas/file/ops.rs` | small |
+| 17 | Decision 3: no stored lock toggle | Closed slinger-3b333f: kept as built, the owner's call. The app has none, but `locked` is an ordinary field: an agent may `set` it on its own items and the user on any, through `canvas apply` (undo, import and paste need it written) | `crates/core/src/canvas/file/ops.rs` | small |
 
 Count: 6 contract, 5 medium, 6 small. The model, the verbs, the lock, the
 packet's meaning, placement and replace by match are as the owner decided;
@@ -902,7 +902,7 @@ slinger canvas draw <CANVAS> <FILE> --name N (--beside ID | --over ID | --at X,Y
   item (or address); `--over ID` puts the figure's origin (0,0) on the
   item's top left and moves nothing (the script sees the item's size in
   `fig.view.target`, to draw over it); `--at X,Y` puts the origin there, in
-  canvas units, on the first page or `<page>:X,Y`; `--in ID` puts the frame in a
+  tenths of a unit as `canvas put --at` (slinger-3b333f), on the first page or `<page>:X,Y`; `--in ID` puts the frame in a
   box's room (`Canvas::free_in`), as `put --in`.
 - **Reply:** the figure's name, page, frame, part names, item count, `seq`,
   and the warnings. Text output prints the warnings only (one a line,

@@ -78,7 +78,7 @@ bullet with the area in bold.
 - **CLI:** `slinger canvas draw <CANVAS> <FILE> --name NAME` runs an
   agent's drawing script (JavaScript) in the daemon and places what it
   draws as one named figure, beside an item, over it, in a box or at a
-  point, as one undo step. Drawing the same name again replaces the figure
+  point (`--at`, in tenths as for `canvas put`), as one undo step. Drawing the same name again replaces the figure
   in place and writes nothing when nothing changed. `--data` passes the
   script its data, `--dry-run` writes nothing, and `--png` writes the
   figure alone as an image. A script that fails says the line and column
