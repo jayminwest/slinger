@@ -20,13 +20,17 @@ process that slinger starts. You answer with your own tools and permissions.
    listen. Stop it with `slinger session stop <WORKSPACE>`; do not ask. Only
    when its `status` is `working`, tell the user first: the stop ends its
    turn.
-4. Wait for a sling. Run this in the background, so the user can still talk
-   to you, and act when it exits:
+4. Wait for a sling. Start this as a background command of your harness
+   (in Claude Code, the Bash tool's `run_in_background`), then end your
+   turn:
 
    ```bash
    slinger session listen <WORKSPACE> --pid $PPID
    ```
 
+   Do not wait for it yourself: no foreground run, no `sleep`, no reading
+   its output in a loop. Your turn is over while it waits, so the user can
+   talk to you, and your harness starts your next turn when it exits.
    `$PPID` is this session's process: if it ends while you work on a sling,
    slinger knows you are gone and keeps the sling for the next listener. It
    prints one sling and exits. The first line names your agent
@@ -40,21 +44,28 @@ process that slinger starts. You answer with your own tools and permissions.
    that is a picture (a diagram, a plot, a table, a worksheet, or marks over
    the user's work) is one figure: `slinger canvas draw <CANVAS> <FILE>
    --name <FIGURE> --beside <ITEM> --agent <NAME>` runs a drawing script (a
-   failure exits 5, `script` or `limit`, naming the line to fix); a
-   later change to it is `slinger canvas redraw <CANVAS> <FIGURE> --data <JSON>
+   failure exits 5, `script` or `limit`, naming the line to fix). Prefer a
+   figure to a long text: steps, parts and how they join, a comparison,
+   numbers or a layout are a picture, drawn with the script API's plots,
+   tables, grids, arrows and fills. A
+   later change to a figure is `slinger canvas redraw <CANVAS> <FIGURE> --data <JSON>
    --agent <NAME>`. A sling of a figure's part (`in=<figure>/<part>` on line
    1) wants its answer beside it: `--beside <figure>/<part>`. Run
    `slinger guide` for the script API and the other verbs.
 7. Say that you are done: `slinger status set done --agent <NAME>`, or
    `slinger status set blocked --note "what you need" --agent <NAME>`. Either
    ends your work on the sling.
-8. Go to step 4 at once, before you write anything to the user. Listen
-   until the user tells you to stop.
+8. Go to step 4 at once: start the background command again before you
+   write anything to the user, then end your turn. Listen until the user
+   tells you to stop.
 
 Rules:
 
 - A sling waits while you work: you get it when you listen again. Do not run
   two listeners for one workspace.
+- A harness with no background commands: run `slinger session listen
+  <WORKSPACE> --pid $PPID --wait 50` in the foreground, and again while it
+  prints nothing.
 - To stop, end the background command. For 10 seconds after that slinger
   still counts you as listening: a sling sent then waits for the next
   listener. A sling sent later starts the agent's process, resuming its
