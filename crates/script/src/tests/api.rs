@@ -229,7 +229,9 @@ fn a_label_longer_than_its_arrow_warns() {
     let said: Vec<String> = d.warnings.iter().map(ToString::to_string).collect();
     assert_eq!(
         said,
-        [r#"script:1:1: arrow: the label "much too long" is 156 long beside an arrow 40 long; lengthen the arrow or shorten the label"#]
+        [
+            r#"script:1:1: arrow: the label "much too long" is 156 long beside an arrow 40 long; lengthen the arrow or shorten the label"#
+        ]
     );
     assert_eq!(d.items.len(), 4, "a warning never fails the draw");
 }

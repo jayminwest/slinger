@@ -12,8 +12,8 @@
 //! - A text's size scales evenly, by the geometric mean of the two sides'
 //!   scales (their one scale when they scale together), kept within
 //!   [`TEXT_SIZES`]; its top left goes where the scale puts it, and its
-//!   column scales with it onto half a cell ([`glyphs::rewrapped`]), so
-//!   it never reads back as a text that does not wrap.
+//!   column scales with it, keeping its cells ([`glyphs::resized`]), on
+//!   half a cell, so it never reads back as a text that does not wrap.
 //! - A live item's corners scale, as a box's do: its page lays out again
 //!   at the new size as the pen goes.
 //! - A button keeps its size, and its top left goes where the scale puts it.
@@ -153,8 +153,7 @@ fn reshaped(
             let (at, after) = (placed(frame), grow(*size));
             let by = after / size;
             let frame = Rect { width: frame.width * by, height: frame.height * by, ..at };
-            // On half a cell of the new size; a text that does not wrap stays so.
-            let column = column.map(|c| glyphs::rewrapped(c * by, after));
+            let column = column.map(|c| glyphs::resized(c, *size, after));
             Shape::Text { frame, text: text.clone(), size: after, column }
         }
         Shape::Button { frame, status } => Shape::Button { frame: placed(frame), status: *status },

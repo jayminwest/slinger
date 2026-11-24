@@ -3,7 +3,8 @@
 //! The script runs outside the canvas's lock, between the two.
 
 use serde_json::Value;
-use slinger_core::canvas::file::{Draft, Drawn, Log, Placement, Written, parse_author};
+use slinger_core::canvas::Figure;
+use slinger_core::canvas::file::{Again, Draft, Drawn, Log, Placement, Written, parse_author};
 
 use super::{Canvases, Result, Wrote, now};
 
@@ -42,8 +43,9 @@ impl Canvases {
         self.with(id, |log| Ok(log.draft_figure(&by, now(), name, items, at)?))
     }
 
-    /// Draws the figure `name` as `by`, as one undo step (see
-    /// [`Log::place_figure`]); a draw that changes nothing writes nothing.
+    /// Draws the figure `name` as `by`, as one undo step under the key
+    /// `once` (see [`Log::place_figure`]); a draw that changes nothing
+    /// writes nothing.
     ///
     /// # Errors
     ///
@@ -52,11 +54,37 @@ impl Canvases {
         &self,
         id: &str,
         by: &str,
-        name: &str,
-        items: &[Value],
+        (name, items): (&str, &[Value]),
         at: &Placement,
+        once: Option<&str>,
     ) -> Result<Drawn> {
         let by = parse_author(by)?;
-        self.change(id, |log: &mut Log| Ok(log.place_figure(&by, now(), name, items, at, None)?))
+        self.change(id, |log: &mut Log| Ok(log.place_figure(&by, now(), name, items, at, once)?))
+    }
+
+    /// Where `by` draws the figure `name` again, whose last draw put its
+    /// (0,0) at `origin` and its frame at `frame` (see [`Log::again`]).
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Log::again`] and of the file.
+    pub fn again(
+        &self,
+        id: &str,
+        by: &str,
+        name: &str,
+        (origin, frame): ([i64; 2], [i64; 4]),
+    ) -> Result<Again> {
+        let by = parse_author(by)?;
+        self.with(id, |log| Ok(log.again(&by, name, origin, frame)?))
+    }
+
+    /// The figures on the canvas, as [`slinger_core::canvas::Canvas::figures`] lists them.
+    ///
+    /// # Errors
+    ///
+    /// Those of the file.
+    pub fn figures(&self, id: &str) -> Result<Vec<Figure>> {
+        self.with(id, |log| Ok(log.canvas().figures()))
     }
 }

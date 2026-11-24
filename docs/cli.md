@@ -64,6 +64,8 @@ a "did you mean" suggestion.
 | `canvas remove <ID> --item ITEM [--agent NAME]` | Nothing. `--json`: `seq` |
 | `canvas fold <ID> <ITEM> [--agent NAME]`, `canvas unfold <ID> <ITEM> [--agent NAME]` | Nothing. `--json`: `item`, `page`, `x`, `y`, `w`, `h` (the box's frame now), `seq` |
 | `canvas draw <ID> <FILE> --name NAME (--beside ID \| --over ID \| --in BOX \| --at [PAGE:]X,Y) [--data JSON\|@FILE] [--dry-run] [--png PATH] [--agent NAME]` | The path of each image `--png` wrote, one per line, then one line per warning of the script, `warning: script:LINE:COL: message`; else nothing. `--json`: `name`, `page`, `origin`, `frame`, `parts`, `items`, `seq`, `warnings`, `images`, `event` |
+| `canvas redraw <ID> <NAME> (--data JSON\|@FILE \| --script FILE) [--agent NAME]` | One line per warning of the script, `warning: script:LINE:COL: message`; else nothing. `--json`: as `canvas draw` |
+| `canvas figure <ID> [NAME] [--script \| --data]` | No name: one line per figure, `name page x,y wxh by=<maker> parts=<n>` (canvas units; the maker an agent's name or `user`). A name: one line per part, `part x,y wxh items=<n>`; `--script` prints its script, `--data` its data as one line of JSON. `--json`: `figures`, each `name`, `page`, `frame`, `by`, `locked`, `items`, `parts`, and with a name `script`, `data` |
 | `feedback add <TEXT>...` | The note's `ts`. `--json`: `path`, `entry` |
 | `feedback ls [--all] [--limit N]` | One line per note, newest first: `ts`, text and, with `--all`, `resolved` and its note for a resolved one, separated by tabs. `--limit` defaults to 20. `--json`: `path`, `entries` |
 | `feedback resolve <TS> [NOTE]...` | Nothing. `--json`: `path`, `resolves`, `ts`, `note` |
@@ -360,6 +362,14 @@ changed. `--dry-run` writes nothing and, with `--json`, says where the
 figure would go and its parts; `--png` writes the figure alone as an image.
 A script that fails exits 5 (`invalid`) with `script:LINE:COL` in its
 message; a name another agent drew exits 4 (`conflict`).
+`canvas redraw` draws a figure again from its script on its last data
+with `--data` merged in as a JSON merge patch (an object merges key by key,
+`null` takes a key away, anything else replaces), where the figure now is,
+as one undo step; it needs `--data` or `--script` (a script to swap in).
+The same data again writes nothing. A figure another agent drew exits 5
+(`invalid`); one not there, or that no script drew, exits 3.
+`canvas figure` lists the figures; with a name it prints that figure's
+parts, or its script (`--script`) or data (`--data`).
 
 `session start` starts the workspace's agent: a Claude Code process in its
 home that `slingerd` holds open, resuming the conversation it last had, even

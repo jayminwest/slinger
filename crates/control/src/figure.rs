@@ -1,7 +1,8 @@
-//! The figure verbs: `canvas_draw` (docs/service.md, "Drawing a figure";
-//! docs/design/figures.md, "The verbs"). An agent's drawing script runs in
-//! the daemon and its shapes land as one figure: items that share a name,
-//! with named parts.
+//! The figure verbs: `canvas_draw`, `canvas_redraw` and `canvas_figure`
+//! (docs/service.md, "Drawing a figure"; docs/design/figures.md, "The
+//! verbs"). An agent's drawing script runs in the daemon and its shapes land
+//! as one figure: items that share a name, with named parts. A figure is its
+//! script plus its data, so a redraw is a patch of its data.
 //!
 //! The script and its data cross as files, as a blob's bytes do: a request
 //! line is at most [`crate::MAX_LINE`], and data may be larger.
@@ -9,6 +10,7 @@
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::client::absolute;
 use crate::{CanvasImage, Client, RemoteError};
@@ -42,6 +44,9 @@ pub struct CanvasDraw {
     /// `<stem>-<n>.png`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub png: Option<PathBuf>,
+    /// A key the draw is written under once, as `canvas_apply`'s `once`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub once: Option<String>,
 }
 
 /// Where a figure goes.
@@ -78,6 +83,7 @@ struct DrawLine {
     #[serde(default)]
     dry_run: bool,
     png: Option<PathBuf>,
+    once: Option<String>,
 }
 
 impl TryFrom<DrawLine> for CanvasDraw {
@@ -94,8 +100,8 @@ impl TryFrom<DrawLine> for CanvasDraw {
         if line.page.is_some() && !matches!(place, Place::At(_)) {
             return Err("`page` goes only with `at`");
         }
-        let DrawLine { canvas, by, name, path, data, page, dry_run, png, .. } = line;
-        Ok(Self { canvas, by, name, path, data, place, page, dry_run, png })
+        let DrawLine { canvas, by, name, path, data, page, dry_run, png, once, .. } = line;
+        Ok(Self { canvas, by, name, path, data, place, page, dry_run, png, once })
     }
 }
 
@@ -129,6 +135,78 @@ pub struct CanvasDrawn {
     pub event: Option<u64>,
 }
 
+/// `canvas_redraw`: run the figure `name`'s script again on its last data
+/// patched, and replace the figure in place. The reply is a [`CanvasDrawn`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CanvasRedraw {
+    pub canvas: String,
+    /// Who redraws: `user` or `agent:<name>`. Only the maker (or the user).
+    #[serde(default = "crate::canvas::user")]
+    pub by: String,
+    /// The figure's name.
+    pub name: String,
+    /// A file holding a JSON merge patch (RFC 7396) on the figure's last
+    /// data; absent keeps the data.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<PathBuf>,
+    /// A script's file to swap in for the figure's; absent keeps its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<PathBuf>,
+    /// A key the redraw is written under once, as `canvas_apply`'s `once`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub once: Option<String>,
+}
+
+/// `canvas_figure`: the canvas's figures, or the one named, with its
+/// script and data.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CanvasFigureAsk {
+    pub canvas: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+/// The reply to `canvas_figure`: page by page, in reading order.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasFigures {
+    pub figures: Vec<FigureShown>,
+}
+
+/// One figure on a canvas.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FigureShown {
+    pub name: String,
+    /// Its page's id (`p1`).
+    pub page: String,
+    /// The joint frame of its items the page shows, `[x, y, w, h]` in tenths.
+    pub frame: [i64; 4],
+    /// Its maker: `user` or `agent:<name>`.
+    pub by: String,
+    /// Whether any of its items is locked against the user's pen.
+    pub locked: bool,
+    /// How many items it has.
+    pub items: usize,
+    /// Its parts, in reading order.
+    pub parts: Vec<PartShown>,
+    /// The blob id of its script, for one figure asked by name that a
+    /// script drew (`blob_get` reads it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub script: Option<String>,
+    /// The data its script last ran on, for one figure asked by name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<Value>,
+}
+
+/// A named part of a figure.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PartShown {
+    pub name: String,
+    /// The joint frame of its items, `[x, y, w, h]` in tenths.
+    pub frame: [i64; 4],
+    /// How many items it has.
+    pub items: usize,
+}
+
 impl Client {
     /// Runs the script `draw.path` names in the daemon and places what it
     /// draws as the figure `draw.name`, as one undo step; or, on a dry run,
@@ -149,6 +227,38 @@ impl Client {
         draw.png = draw.png.as_deref().map(absolute).transpose()?;
         self.call(draw)
     }
+
+    /// Runs the figure `redraw.name`'s script again (or the one
+    /// `redraw.path` names) on its last data patched by `redraw.data`, and
+    /// replaces the figure in place where it now is, as one undo step. The
+    /// same script on the same data runs nothing and writes nothing.
+    /// Relative paths are taken from this process's working directory.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Client::canvas_draw`]; `not_found` for a figure that is
+    /// not on the canvas or that no script drew, and `invalid` for one
+    /// another agent made.
+    pub fn canvas_redraw(&self, mut redraw: CanvasRedraw) -> Result<CanvasDrawn, RemoteError> {
+        redraw.data = redraw.data.as_deref().map(absolute).transpose()?;
+        redraw.path = redraw.path.as_deref().map(absolute).transpose()?;
+        self.call(redraw)
+    }
+
+    /// The figures on `canvas`, or the one called `name` with its script
+    /// and data.
+    ///
+    /// # Errors
+    ///
+    /// `not_found` for a canvas, or a figure `name`, that is not there, and
+    /// `unavailable` when the daemon does not answer.
+    pub fn canvas_figure(
+        &self,
+        canvas: &str,
+        name: Option<&str>,
+    ) -> Result<CanvasFigures, RemoteError> {
+        self.call(CanvasFigureAsk { canvas: canvas.into(), name: name.map(Into::into) })
+    }
 }
 
 #[cfg(test)]
@@ -168,6 +278,7 @@ mod tests {
             page: None,
             dry_run: false,
             png: None,
+            once: None,
         }
     }
 
@@ -175,7 +286,7 @@ mod tests {
     fn a_draw_reads_back_as_itself_for_each_place() {
         let mut full = draw(Place::At([10, -20]));
         (full.data, full.page) = (Some("/tmp/d.json".into()), Some("p2".into()));
-        (full.dry_run, full.png) = (true, Some("/tmp/w.png".into()));
+        (full.dry_run, full.png, full.once) = (true, Some("/tmp/w.png".into()), Some("k1".into()));
         for (ask, line) in [
             (
                 draw(Place::Beside("i4".into())),
@@ -191,7 +302,7 @@ mod tests {
             ),
             (
                 full,
-                r#"{"v":1,"op":"canvas_draw","canvas":"main","by":"agent:scout","name":"worksheet","path":"/tmp/w.js","data":"/tmp/d.json","at":[10,-20],"page":"p2","dry_run":true,"png":"/tmp/w.png"}"#,
+                r#"{"v":1,"op":"canvas_draw","canvas":"main","by":"agent:scout","name":"worksheet","path":"/tmp/w.js","data":"/tmp/d.json","at":[10,-20],"page":"p2","dry_run":true,"png":"/tmp/w.png","once":"k1"}"#,
             ),
         ] {
             let ask = Request::CanvasDraw(ask);

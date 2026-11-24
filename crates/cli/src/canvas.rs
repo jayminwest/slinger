@@ -115,6 +115,8 @@ pub enum Canvas {
     /// taken is a conflict (exit 4) naming what is in the way
     Unfold(crate::edit::Fold),
     Draw(crate::draw::Draw),
+    Redraw(crate::draw::Redraw),
+    Figure(crate::figure::Figure),
 }
 
 impl Canvas {
@@ -139,6 +141,8 @@ impl Canvas {
             Self::Fold(_) => "canvas fold",
             Self::Unfold(_) => "canvas unfold",
             Self::Draw(_) => "canvas draw",
+            Self::Redraw(_) => "canvas redraw",
+            Self::Figure(_) => "canvas figure",
         }
     }
 }
@@ -233,6 +237,8 @@ pub fn execute(
         Canvas::Fold(args) => crate::edit::fold(args, false, daemon, env),
         Canvas::Unfold(args) => crate::edit::fold(args, true, daemon, env),
         Canvas::Draw(args) => crate::draw::draw(args, daemon, env),
+        Canvas::Redraw(args) => crate::draw::redraw(args, daemon, env),
+        Canvas::Figure(args) => crate::figure::figure(args, daemon),
     }
 }
 
