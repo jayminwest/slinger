@@ -182,8 +182,7 @@ impl Builder {
             return self.skip(format!("{} (damaged)", n.kind));
         };
         for shape in shapes {
-            let Some(Applied::Added(item)) = self.apply(Action::Add { page, shape: shape.clone() })
-            else {
+            let Some(Applied::Added(item)) = self.apply(Action::add(page, shape.clone())) else {
                 return self.skip(format!("{} (damaged)", n.kind));
             };
             match shape {
@@ -235,7 +234,7 @@ impl Builder {
             .collect();
         edits.sort_by_key(|(item, _)| *item);
         for (item, shape) in edits {
-            self.apply(Action::Edit { item, shape });
+            self.apply(Action::edit(item, shape));
         }
     }
 }

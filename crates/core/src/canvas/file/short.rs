@@ -24,7 +24,7 @@ impl Log {
         for action in actions {
             let (shape, before) = match action {
                 Action::Add { shape, .. } => (shape, 0),
-                Action::Edit { item, shape } => {
+                Action::Edit { item, shape, .. } => {
                     (shape, self.canvas().item(*item).map_or(0, |i| rows(i.shape())))
                 }
                 _ => continue,

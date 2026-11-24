@@ -48,7 +48,7 @@ fn act(h: &mut History, c: &mut Canvas, by: &Author, action: Action) -> Option<I
 
 fn add(h: &mut History, c: &mut Canvas, by: &Author, shape: Shape) -> ItemId {
     let page = first(c);
-    act(h, c, by, Action::Add { page, shape }).unwrap()
+    act(h, c, by, Action::add(page, shape)).unwrap()
 }
 
 fn ids(c: &Canvas) -> Vec<ItemId> {
@@ -69,10 +69,10 @@ fn base() -> Canvas {
     let mut c = Canvas::new();
     let ops = [
         (user.clone(), Action::PageAdd { name: "spec".into() }),
-        (user.clone(), Action::Add { page: first(&c), shape: stroke(0.0) }),
-        (agent("scout"), Action::Add { page: first(&c), shape: text("note") }),
-        (user.clone(), Action::Add { page: PageId::new(2), shape: stroke(50.0) }),
-        (user.clone(), Action::Add { page: PageId::new(2), shape: stroke(60.0) }),
+        (user.clone(), Action::add(first(&c), stroke(0.0))),
+        (agent("scout"), Action::add(first(&c), text("note"))),
+        (user.clone(), Action::add(PageId::new(2), stroke(50.0))),
+        (user.clone(), Action::add(PageId::new(2), stroke(60.0))),
         (user.clone(), Action::Remove { item: ItemId::new(4) }),
     ];
     for (by, action) in ops {
@@ -83,8 +83,7 @@ fn base() -> Canvas {
         to: End::on(Point::new(10.0, 20.0), ItemId::new(2)),
         colour: Colour::BLACK,
     };
-    c.apply(Op { by: user, at: AT, action: Action::Add { page: first(&c), shape: arrow } })
-        .unwrap();
+    c.apply(Op { by: user, at: AT, action: Action::add(first(&c), arrow) }).unwrap();
     c
 }
 
@@ -106,8 +105,8 @@ fn undo_then_redo_returns_the_same_canvas_for_every_operation_kind() {
         w
     };
     let cases: Vec<(&str, Canvas, Action)> = vec![
-        ("add", c.clone(), Action::Add { page: first(&c), shape: stroke(9.0) }),
-        ("edit", c.clone(), Action::Edit { item: ItemId::new(1), shape: stroke(30.0) }),
+        ("add", c.clone(), Action::add(first(&c), stroke(9.0))),
+        ("edit", c.clone(), Action::edit(ItemId::new(1), stroke(30.0))),
         ("move", c.clone(), Action::Move { item: ItemId::new(1), by: Point::new(0.1, -0.7) }),
         (
             "move an arrow",
@@ -247,7 +246,7 @@ fn a_group_that_fails_changes_nothing_and_records_no_step() {
     let before = c.clone();
     let page = first(&c);
     let group = vec![
-        Action::Add { page, shape: stroke(1.0) },
+        Action::add(page, stroke(1.0)),
         Action::Move { item: ItemId::new(99), by: Point::new(1.0, 1.0) },
     ];
     let err = h.apply(&mut c, &user, AT, 0, group).unwrap_err();
@@ -347,7 +346,7 @@ fn an_edit_may_keep_an_arrow_on_a_removed_item_but_not_point_it_at_one() {
     c.apply(Op { by: user.clone(), at: AT, action: Action::Remove { item: ItemId::new(2) } })
         .unwrap();
     let shape = c.item(arrow).unwrap().shape().clone();
-    let edit = |shape| Op { by: user.clone(), at: AT, action: Action::Edit { item: arrow, shape } };
+    let edit = |shape| Op { by: user.clone(), at: AT, action: Action::edit(arrow, shape) };
     assert_eq!(c.apply(edit(shape)).unwrap(), Applied::Changed);
 
     let pointed = Shape::Arrow {

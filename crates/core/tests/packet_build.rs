@@ -50,7 +50,7 @@ fn board() -> (Vec<Op>, Vec<PageId>) {
                 end.item = end.item.and_then(|i| item_of.get(&i).copied());
             }
         }
-        let action = Action::Add { page: page_of[&item.page()], shape };
+        let action = Action::add(page_of[&item.page()], shape);
         let op = Op { by: item.author().clone(), at: item.time(), action };
         let Applied::Added(id) = fresh.apply(op.clone()).unwrap() else { panic!("not added") };
         item_of.insert(item.id(), id);
@@ -122,7 +122,7 @@ fn small() -> (Vec<Op>, PageId, u64) {
     let add = |shape, minutes: u64| Op {
         by: Author::User,
         at: Time(T0 + minutes * 60_000),
-        action: Action::Add { page, shape },
+        action: Action::add(page, shape),
     };
     let mut log = vec![add(stroke(0.0, Colour::BLACK), 0), add(stroke(30.0, Colour::BLACK), 0)];
     let marker = log.len() as u64;
@@ -141,7 +141,7 @@ fn small() -> (Vec<Op>, PageId, u64) {
     log.push(Op {
         by: Author::Agent("claude".into()),
         at: Time(T0),
-        action: Action::Add { page, shape: arrow },
+        action: Action::add(page, arrow),
     });
     (log, page, marker)
 }

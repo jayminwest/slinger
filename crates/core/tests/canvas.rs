@@ -39,7 +39,7 @@ fn first_page(c: &Canvas) -> PageId {
 
 fn add(c: &mut Canvas, by: &Author, shape: Shape) -> ItemId {
     let page = first_page(c);
-    match c.apply(op(by, Action::Add { page, shape })).unwrap() {
+    match c.apply(op(by, Action::add(page, shape))).unwrap() {
         Applied::Added(id) => id,
         other => panic!("expected Added, got {other:?}"),
     }
@@ -93,9 +93,9 @@ fn items_come_back_in_drawing_order_and_ids_are_never_reused() {
 fn replaying_the_same_ops_builds_the_same_canvas() {
     let ops = |page: PageId| {
         vec![
-            op(&Author::User, Action::Add { page, shape: stroke(&[(0.0, 0.0), (5.0, 5.0)]) }),
+            op(&Author::User, Action::add(page, stroke(&[(0.0, 0.0), (5.0, 5.0)]))),
             op(&Author::User, Action::PageAdd { name: "two".into() }),
-            op(&agent("claude"), Action::Add { page, shape: text("note") }),
+            op(&agent("claude"), Action::add(page, text("note"))),
             op(&Author::User, Action::Remove { item: ItemId::new(1) }),
         ]
     };
@@ -130,7 +130,7 @@ fn add_rejects_a_missing_page_a_missing_target_and_shapes_that_cannot_be_drawn()
     let mut c = Canvas::new();
     let page = first_page(&c);
     let user = Author::User;
-    let missing_page = op(&user, Action::Add { page: PageId::new(99), shape: text("x") });
+    let missing_page = op(&user, Action::add(PageId::new(99), text("x")));
     assert_eq!(c.apply(missing_page).unwrap_err().code(), "not_found");
 
     let dangling = Shape::Arrow {
@@ -138,7 +138,7 @@ fn add_rejects_a_missing_page_a_missing_target_and_shapes_that_cannot_be_drawn()
         to: End::on(Point::new(1.0, 1.0), ItemId::new(42)),
         colour: Colour::BLACK,
     };
-    let err = c.apply(op(&user, Action::Add { page, shape: dangling })).unwrap_err();
+    let err = c.apply(op(&user, Action::add(page, dangling))).unwrap_err();
     assert_eq!((err.code(), err.to_string().as_str()), ("not_found", "item 42 not found"));
 
     let bad = [
@@ -165,7 +165,7 @@ fn add_rejects_a_missing_page_a_missing_target_and_shapes_that_cannot_be_drawn()
         },
     ];
     for shape in bad {
-        let err = c.apply(op(&user, Action::Add { page, shape: shape.clone() })).unwrap_err();
+        let err = c.apply(op(&user, Action::add(page, shape.clone()))).unwrap_err();
         assert_eq!(err.code(), "invalid", "{shape:?}");
         assert!(err.hint().is_some());
     }
@@ -177,11 +177,8 @@ fn edit_replaces_the_shape_and_keeps_author_and_time() {
     let mut c = Canvas::new();
     let claude = agent("claude");
     let id = add(&mut c, &claude, text("draft"));
-    let later = Op {
-        by: claude.clone(),
-        at: Time(AT.0 + 5),
-        action: Action::Edit { item: id, shape: text("final") },
-    };
+    let later =
+        Op { by: claude.clone(), at: Time(AT.0 + 5), action: Action::edit(id, text("final")) };
     assert_eq!(c.apply(later).unwrap(), Applied::Changed);
     let item = c.item(id).unwrap();
     assert_eq!(item.shape(), &text("final"));
@@ -191,9 +188,7 @@ fn edit_replaces_the_shape_and_keeps_author_and_time() {
 #[test]
 fn edit_of_a_missing_item_is_not_found() {
     let mut c = Canvas::new();
-    let err = c
-        .apply(op(&Author::User, Action::Edit { item: ItemId::new(7), shape: text("x") }))
-        .unwrap_err();
+    let err = c.apply(op(&Author::User, Action::edit(ItemId::new(7), text("x")))).unwrap_err();
     assert_eq!(err.code(), "not_found");
     assert!(err.hint().is_some());
 }
@@ -282,7 +277,7 @@ fn an_agent_cannot_change_the_users_ink() {
     let before = c.clone();
     let claude = agent("claude");
     for action in [
-        Action::Edit { item: ink, shape: stroke(&[(9.0, 9.0)]) },
+        Action::edit(ink, stroke(&[(9.0, 9.0)])),
         Action::Move { item: ink, by: Point::new(1.0, 0.0) },
         Action::Remove { item: ink },
     ] {
@@ -314,7 +309,7 @@ fn the_user_may_change_an_agents_items() {
     assert_eq!(c.apply(op(&Author::User, moved)).unwrap(), Applied::Changed);
     assert_eq!(c.item(id).unwrap().author(), &agent("claude"));
     // New words make the text the user's.
-    let edit = Action::Edit { item: id, shape: text("fixed") };
+    let edit = Action::edit(id, text("fixed"));
     assert_eq!(c.apply(op(&Author::User, edit)).unwrap(), Applied::Changed);
     assert_eq!(c.item(id).unwrap().author(), &Author::User);
 }
@@ -323,7 +318,7 @@ fn the_user_may_change_an_agents_items() {
 fn an_agent_with_a_blank_name_is_rejected() {
     let mut c = Canvas::new();
     let page = first_page(&c);
-    let err = c.apply(op(&agent("  "), Action::Add { page, shape: text("t") })).unwrap_err();
+    let err = c.apply(op(&agent("  "), Action::add(page, text("t")))).unwrap_err();
     assert_eq!(err.code(), "invalid");
 }
 
@@ -370,11 +365,10 @@ fn page_remove_takes_the_page_and_its_items() {
     let first = first_page(&c);
     let second = add_page(&mut c, "two");
     let user = Author::User;
-    let on_second =
-        match c.apply(op(&user, Action::Add { page: second, shape: text("t") })).unwrap() {
-            Applied::Added(id) => id,
-            other => panic!("{other:?}"),
-        };
+    let on_second = match c.apply(op(&user, Action::add(second, text("t")))).unwrap() {
+        Applied::Added(id) => id,
+        other => panic!("{other:?}"),
+    };
     let on_first = add(&mut c, &user, text("stay"));
     assert_eq!(c.apply(op(&user, Action::PageRemove { page: second })).unwrap(), Applied::Changed);
     assert!(c.page(second).is_none());
@@ -407,7 +401,7 @@ fn an_agent_cannot_remove_a_page_that_holds_the_users_ink() {
     let mut c = Canvas::new();
     let claude = agent("claude");
     let second = add_page(&mut c, "two");
-    let add_to = |by: &Author| op(by, Action::Add { page: second, shape: text("t") });
+    let add_to = |by: &Author| op(by, Action::add(second, text("t")));
     c.apply(add_to(&claude)).unwrap();
     c.apply(add_to(&Author::User)).unwrap();
     let err = c.apply(op(&claude, Action::PageRemove { page: second })).unwrap_err();
@@ -415,7 +409,7 @@ fn an_agent_cannot_remove_a_page_that_holds_the_users_ink() {
     assert!(c.page(second).is_some());
 
     let third = add_page(&mut c, "three");
-    c.apply(op(&claude, Action::Add { page: third, shape: text("t") })).unwrap();
+    c.apply(op(&claude, Action::add(third, text("t")))).unwrap();
     let remove = op(&claude, Action::PageRemove { page: third });
     assert_eq!(c.apply(remove).unwrap(), Applied::Changed);
 }

@@ -3,8 +3,10 @@
 //! laid down once over what is under it, in its own colour.
 
 use super::{Backdrop, SCALE, png};
-use crate::canvas::{Colour, Item, Point, Rect, Shape};
+use crate::canvas::{Colour, Heads, Item, Point, Rect, Shape};
 
+mod dash;
+mod fill;
 mod glyph;
 #[cfg(test)]
 mod tests;
@@ -65,20 +67,28 @@ impl Raster {
         )
     }
 
-    /// Draws one item over what is already drawn.
+    /// Draws one item over what is already drawn, but for its fill
+    /// ([`Raster::fill`]): its line in its dash, an arrow's heads solid.
     pub fn item(&mut self, item: &Item) {
-        let (lines, radius, colour) = match item.shape() {
+        let style = item.style();
+        let (line, heads, radius, colour) = match item.shape() {
             Shape::Stroke { points, colour, width } => {
-                let points: Vec<Point> = points.iter().map(|&p| self.at(p)).collect();
-                (vec![points], width * SCALE / 2.0, *colour)
+                let mut points: Vec<Point> = points.iter().map(|&p| self.at(p)).collect();
+                if style.closed
+                    && let Some(&first) = points.first()
+                {
+                    points.push(first);
+                }
+                (points, Vec::new(), width * SCALE / 2.0, *colour)
             }
             Shape::Box { frame, colour, .. } => {
-                (vec![corners(self, *frame)], LINE_WIDTH * SCALE / 2.0, *colour)
+                (corners(self, *frame), Vec::new(), LINE_WIDTH * SCALE / 2.0, *colour)
             }
             Shape::Arrow { from, to, colour } => {
-                let lines = arrow(from.at, to.at).into_iter();
-                let lines = lines.map(|l| l.into_iter().map(|p| self.at(p)).collect()).collect();
-                (lines, LINE_WIDTH * SCALE / 2.0, *colour)
+                let (shaft, heads) = arrow(from.at, to.at, style.heads);
+                let at = |l: Vec<Point>| l.into_iter().map(|p| self.at(p)).collect::<Vec<_>>();
+                let heads = heads.into_iter().map(at).collect();
+                (at(shaft), heads, LINE_WIDTH * SCALE / 2.0, *colour)
             }
             Shape::Text { text, frame, colour, size } => {
                 return self.text(text, *frame, *colour, *size);
@@ -95,17 +105,19 @@ impl Raster {
                 let pad = TEXT_SIZE / 2.0;
                 let inside = Rect::new(frame.x + pad, frame.y + pad, frame.w - 2.0 * pad, frame.h);
                 self.text(&label, inside, colour, TEXT_SIZE);
-                (vec![corners(self, *frame)], LINE_WIDTH * SCALE / 2.0, colour)
+                (corners(self, *frame), Vec::new(), LINE_WIDTH * SCALE / 2.0, colour)
             }
         };
         let radius = radius.max(MIN_RADIUS);
+        let mut lines = dash::cut(line, style.dash, 2.0 * radius);
+        lines.extend(heads);
         let points = lines.iter().flatten().copied();
         let Some(bounds) = Rect::around(points) else { return };
         let Some(mut mask) = self.mask(bounds, radius + 1.0) else { return };
         for line in &lines {
             mask.line(line, radius);
         }
-        self.fill(&mask, colour);
+        self.paint(&mask, colour);
     }
 
     /// Paints `backdrop` over the pixels whose centre lies in `clip`, a
@@ -153,7 +165,7 @@ impl Raster {
                 }
             }
         }
-        self.fill(&mask, colour);
+        self.paint(&mask, colour);
     }
 
     /// An empty mask over the pixels of `bounds` grown by `pad`, cut to the
@@ -176,7 +188,7 @@ impl Raster {
     }
 
     /// Lays `colour` over the tile as much as `mask` covers each pixel.
-    fn fill(&mut self, mask: &Mask, colour: Colour) {
+    fn paint(&mut self, mask: &Mask, colour: Colour) {
         let alpha = f64::from(colour.a) / 255.0;
         for (n, &cover) in mask.cover.iter().enumerate().filter(|(_, c)| **c > 0.0) {
             let (col, row) = (mask.x0 + n % mask.width, mask.y0 + n / mask.width);
@@ -304,7 +316,6 @@ impl Mask {
     }
 }
 
-/// An arrow as lines: the shaft, then the head at `to`.
 /// The outline of `frame`, closed, in `tile`'s pixels.
 fn corners(tile: &Raster, frame: Rect) -> Vec<Point> {
     let [a, b, c, d] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
@@ -312,20 +323,31 @@ fn corners(tile: &Raster, frame: Rect) -> Vec<Point> {
     vec![a, b, c, d, a]
 }
 
-fn arrow(from: Point, to: Point) -> Vec<Vec<Point>> {
-    let (dx, dy) = (to.x - from.x, to.y - from.y);
-    let len = dx.hypot(dy);
-    if len == 0.0 {
-        return vec![vec![to]];
+/// An arrow as its shaft and its heads: at `to`, at both ends, or none.
+fn arrow(from: Point, to: Point, heads: Heads) -> (Vec<Point>, Vec<Vec<Point>>) {
+    if from == to {
+        return (vec![to], Vec::new());
     }
+    let ends = match heads {
+        Heads::End => vec![(from, to)],
+        Heads::None => Vec::new(),
+        Heads::Both => vec![(from, to), (to, from)],
+    };
+    (vec![from, to], ends.into_iter().map(|(back, tip)| head(back, tip)).collect())
+}
+
+/// An arrow's head at `tip`, for a shaft that comes from `back`.
+fn head(back: Point, tip: Point) -> Vec<Point> {
+    let (dx, dy) = (tip.x - back.x, tip.y - back.y);
+    let len = dx.hypot(dy);
     let (ux, uy) = (dx / len, dy / len);
     // Each side of the head is the shaft's direction turned back by 30 degrees.
     let (cos, sin) = (30f64.to_radians().cos(), 30f64.to_radians().sin());
     let side = |s: f64| {
         let (rx, ry) = (ux * cos - uy * sin * s, uy * cos + ux * sin * s);
-        Point::new(to.x - rx * HEAD, to.y - ry * HEAD)
+        Point::new(tip.x - rx * HEAD, tip.y - ry * HEAD)
     };
-    vec![vec![from, to], vec![side(1.0), to, side(-1.0)]]
+    vec![side(1.0), tip, side(-1.0)]
 }
 
 /// How many characters of `size` a line of text holds in a frame `w` wide:

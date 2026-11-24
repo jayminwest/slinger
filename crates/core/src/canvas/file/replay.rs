@@ -8,7 +8,7 @@
 
 use serde_json::Value;
 
-use super::{Change, File, Line, json};
+use super::{Change, File, Line, json, style};
 use crate::canvas::{Action, Canvas, Op, Step};
 use crate::{Error, Result};
 
@@ -52,9 +52,10 @@ impl File {
                 each(canvas, *n, Op { by: by.clone(), at: *at, action }, *step);
             };
             match change {
-                Change::Add { item, page, shape } => {
+                Change::Add { item, page, shape, style } => {
                     claim(&mut canvas.next_item, item.get(), at_line)?;
-                    apply(&mut canvas, Action::Add { page: *page, shape: shape.clone() });
+                    let (page, shape, style) = (*page, shape.clone(), *style);
+                    apply(&mut canvas, Action::Add { page, shape, style });
                     canvas.next_item = item.get().saturating_add(1);
                 }
                 Change::PageAdd { page, name } => {
@@ -94,10 +95,13 @@ impl File {
                     // A line lays its fields over whole; only a request's
                     // new text gets a new box (`json::laid_over`), and the
                     // line it writes carries that box.
+                    // A line that names no style key keeps the item's style.
                     let mut merged = json::fields(current.shape());
+                    merged.extend(style::fields(*current.style()));
                     merged.extend(fields.iter().map(|(k, v)| (k.clone(), v.clone())));
                     if let Ok(Some(shape)) = json::read_shape(&merged) {
-                        apply(&mut canvas, Action::Edit { item: *item, shape });
+                        let style = style::named(fields).then(|| style::read(&merged, &shape));
+                        apply(&mut canvas, Action::Edit { item: *item, shape, style });
                     }
                 }
             }
@@ -148,7 +152,7 @@ mod tests {
         let op = Op {
             by: crate::canvas::Author::User,
             at: crate::canvas::Time(0),
-            action: Action::Add { page, shape },
+            action: Action::add(page, shape),
         };
         assert!(matches!(canvas.apply(op), Ok(Applied::Added(id)) if id.get() == 5));
         assert_eq!(claim(&mut canvas.next_item, 5, 9).unwrap_err().code(), "canvas_corrupt");

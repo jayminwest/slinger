@@ -204,6 +204,28 @@ kind:
 | `button` | `x`, `y`, `w`, `h` (both above 0): the built-in "send to agent" button (SPEC section 8). It names no code: the app draws it, and a tap on it slings what is new on its page |
 | `pdf` | `x`, `y`, `w`, `h` (both above 0), `hash` (the PDF's blob id), `pdfpage` (the page number, from 1), `pagesize` (`[w, h]`, the whole page as displayed, in tenths of a PDF point, both above 0), then optional `crop` (`[x, y, w, h]` in tenths of a point from the page's top left, inside the page, `w` and `h` above 0; absent: the whole page) and optional `name` (the PDF's file name without its directory, 1 to 255 bytes, no `/`, no control character). One page of a PDF, or part of one, stretched to fill the frame (`docs/design/pdf.md`). A `set` carries `"crop":null` and `"name":null` to clear them |
 
+Style fields (`docs/design/figures.md`, "The model"). Optional, on the kinds that take
+them, written after the kind's own fields (and `fold`) in this order, and left out at
+their default, so a file without them reads and writes the same bytes:
+
+| field | on | value | default (absent or `null`) |
+|---|---|---|---|
+| `fill` | `box`; `stroke` with `closed` | `#rrggbb` or `#rrggbbaa` | no fill |
+| `dash` | `box`, `stroke`, `arrow` | `"dashed"` or `"dotted"` | solid |
+| `heads` | `arrow` | `"none"`, `"end"` or `"both"` | `"end"`, the arrow's head at `to`; written only when not `end` |
+| `closed` | `stroke` | `true`: the last point joins the first | open; written only when `true` |
+
+A fill is a tint: it is drawn at its alpha, at most `0x66` (40%), under every outline,
+stroke and text and above PDF pages, whatever the item order. A dash is four line
+widths on and three off (8 and 6 units on a box's edge), from a line's first point
+(a box's top left corner); a dot is as round as the line is wide, every three widths.
+An arrow's heads are solid on a dashed shaft. Reading never fails on them: a value of
+the wrong type, an unknown word, a colour that does not parse (no fill, never black)
+or a field the item's kind does not take reads as the default. A request that gives
+one is `invalid` with a hint. A `set` that names any of them carries all four, a
+default as `null`; one that names none keeps the item's style (a field the new shape
+cannot take is dropped).
+
 `color` is a string: a palette name the model defines, `#rrggbb`, or `#rrggbbaa` when
 the colour is not opaque. The model has no palette yet, so a reader reads any other
 string as black.
@@ -275,9 +297,13 @@ undo history (slinger-2628e5):
   not know without drawing it, and ignores fields it does not know. Because the file
   is never rewritten, all of them stay on disk.
 - Added so far without a `v` change: the text `size`, the `live`, `button` and `pdf`
-  kinds, and a box's `fold` (`docs/design/fold.md`). A reader from before `fold` shows
+  kinds, a box's `fold` (`docs/design/fold.md`), and the style fields `fill`, `dash`,
+  `heads` and `closed` (`docs/design/figures.md`). A reader from before `fold` shows
   a folded box as a small open box and every item it holds where it is: it loses
-  the fold, never an item.
+  the fold, never an item. A reader from before styles draws a filled box as an
+  outline, a dashed line solid, a headless arrow with a head and a closed stroke
+  open; its `set` keeps the fields, and its `restore` (undo of an erase) writes the
+  item back plain: it loses the style, never the item.
 - `v` goes up only when an old reader would misread the file (for example, a new
   coordinate unit). A new kind of thing is a new `op`, never a new meaning for an old
   one, as with CLI verbs (section 7).

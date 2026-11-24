@@ -11,6 +11,14 @@ bullet with the area in bold.
 
 ### Added
 
+- **Canvas:** boxes and closed strokes take a fill, drawn as a light tint
+  under all writing; boxes, strokes and arrows can be dashed or dotted; an
+  arrow can have a head at both ends or none (a plain line); a stroke can
+  be closed into a loop. Set them with `fill`, `dash`, `heads` and
+  `closed` in `canvas apply` (`canvas schema` lists them); crops and
+  packets draw them. Older versions of slinger open these canvases and lose
+  no item, drawing them plain.
+
 - **Agents:** an agent's text is at most 12 rows. A longer put or edit
   fails with `too_long` (exit 5) and the hint to split it into short puts,
   each beside its subject. Your own texts have no such limit.

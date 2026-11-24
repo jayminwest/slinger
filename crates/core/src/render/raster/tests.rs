@@ -1,5 +1,5 @@
 use super::*;
-use crate::canvas::{Action, Applied, Author, Canvas, End, Op, Time};
+use crate::canvas::{Action, Applied, Author, Canvas, Dash, End, Heads, Item, Op, Style, Time};
 
 const WHITE: [u8; 3] = [255, 255, 255];
 const BLACK: [u8; 3] = [0, 0, 0];
@@ -10,7 +10,7 @@ fn drawn(shapes: Vec<Shape>) -> Raster {
     let page = canvas.pages().next().unwrap().id();
     let mut raster = Raster::new(Rect::new(0.0, 0.0, 100.0, 100.0), 0, 0, 35, 35);
     for shape in shapes {
-        let op = Op { by: Author::User, at: Time(0), action: Action::Add { page, shape } };
+        let op = Op { by: Author::User, at: Time(0), action: Action::add(page, shape) };
         let Ok(Applied::Added(id)) = canvas.apply(op) else { panic!("not added") };
         raster.item(canvas.item(id).unwrap());
     }
@@ -279,4 +279,80 @@ fn a_pdf_page_is_a_grey_frame_with_nothing_drawn_inside_but_its_label() {
     // The left edge, at x = 10 units, is pixel 3.5; the frame is 2 units wide.
     assert_eq!(r.pixel(3, 28), [0x99, 0x99, 0x99]);
     assert_eq!(r.pixel(17, 28), WHITE, "the page's inside is not drawn");
+}
+
+/// A 100 by 100 canvas-unit picture with `items` drawn in the draw order.
+fn laid(items: Vec<(Shape, Style)>) -> Raster {
+    let mut canvas = Canvas::new();
+    let page = canvas.pages().next().unwrap().id();
+    let mut ids = Vec::new();
+    for (shape, style) in items {
+        let op = Op { by: Author::User, at: Time(0), action: Action::Add { page, shape, style } };
+        let Ok(Applied::Added(id)) = canvas.apply(op) else { panic!("not added") };
+        ids.push(id);
+    }
+    let found: Vec<&Item> = ids.iter().filter_map(|i| canvas.item(*i)).collect();
+    let mut raster = Raster::new(Rect::new(0.0, 0.0, 100.0, 100.0), 0, 0, 35, 35);
+    super::super::lay(&mut raster, &found);
+    raster
+}
+
+fn frame(x: f64, y: f64, w: f64, h: f64) -> Shape {
+    Shape::Box { frame: Rect::new(x, y, w, h), colour: Colour::BLACK, fold: None }
+}
+
+fn filled(colour: Colour) -> Style {
+    Style { fill: Some(colour), ..Style::default() }
+}
+
+#[test]
+fn a_fill_is_a_tint_capped_at_forty_percent_under_ink_drawn_before_it() {
+    let red = Colour::rgb(255, 0, 0);
+    // The ink comes first in item order, the filled box after: the fill is
+    // still under it.
+    let line = (stroke(&[(10.0, 50.0), (90.0, 50.0)], Colour::BLACK, 6.0), Style::default());
+    let r = laid(vec![line, (frame(5.0, 5.0, 90.0, 90.0), filled(red))]);
+    assert_eq!(r.pixel(17, 17), BLACK, "ink over the fill");
+    // White under red at 0x66 of 255.
+    assert_eq!(r.pixel(17, 8), [255, 153, 153]);
+    let faint = laid(vec![(frame(5.0, 5.0, 90.0, 90.0), filled(Colour { a: 0x33, ..red }))]);
+    assert_eq!(faint.pixel(17, 8), [255, 204, 204], "a lighter alpha is kept");
+    let plain = laid(vec![(frame(5.0, 5.0, 90.0, 90.0), Style::default())]);
+    assert_eq!(plain.pixel(17, 8), WHITE, "no fill, no tint");
+}
+
+#[test]
+fn a_closed_stroke_joins_its_ends_and_fills_its_inside() {
+    let corner = [(10.0, 10.0), (90.0, 10.0), (90.0, 90.0)];
+    let open = laid(vec![(stroke(&corner, Colour::BLACK, 2.0), Style::default())]);
+    let closed = Style { closed: true, fill: Some(Colour::rgb(0, 0, 255)), ..Style::default() };
+    let shut = laid(vec![(stroke(&corner, Colour::BLACK, 2.0), closed)]);
+    // On the line back from the last point to the first.
+    assert_eq!(open.pixel(17, 17), WHITE);
+    assert_eq!(shut.pixel(17, 17), BLACK);
+    // Inside the triangle, above the diagonal.
+    assert_eq!(shut.pixel(24, 10), [153, 153, 255]);
+    assert_eq!(open.pixel(24, 10), WHITE);
+}
+
+#[test]
+fn a_dashed_box_has_gaps_and_a_dotted_one_more() {
+    let solid = ink(&laid(vec![(frame(10.0, 10.0, 80.0, 80.0), Style::default())]));
+    let striped = Style { dash: Dash::Dashed, ..Style::default() };
+    let spotted = Style { dash: Dash::Dotted, ..Style::default() };
+    let dashes = ink(&laid(vec![(frame(10.0, 10.0, 80.0, 80.0), striped)]));
+    let dots = ink(&laid(vec![(frame(10.0, 10.0, 80.0, 80.0), spotted)]));
+    assert!(dashes < solid && dots < dashes, "{solid} {dashes} {dots}");
+    assert!(dots > 0);
+}
+
+#[test]
+fn an_arrow_draws_its_heads_at_the_end_at_both_ends_or_none() {
+    let free = |x: f64| End::free(Point::new(x, 50.0));
+    let arrow = Shape::Arrow { from: free(10.0), to: free(90.0), colour: Colour::BLACK };
+    let with = |heads| ink(&laid(vec![(arrow.clone(), Style { heads, ..Style::default() })]));
+    let (none, end, both) = (with(Heads::None), with(Heads::End), with(Heads::Both));
+    assert!(none < end && end < both, "{none} {end} {both}");
+    let plain = laid(vec![(arrow.clone(), Style { heads: Heads::None, ..Style::default() })]);
+    assert_eq!(plain.pixel(30, 15), WHITE, "no barb past the shaft at the end");
 }

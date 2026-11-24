@@ -95,7 +95,7 @@ impl Log {
         let written = if new == shape {
             Written::default()
         } else {
-            let actions = self.followed(by, self.carried(vec![Action::Edit { item, shape: new }]));
+            let actions = self.followed(by, self.carried(vec![Action::edit(item, new)]));
             self.step(by, at, actions)?
         };
         let frame = self.canvas().item(item).map(Item::bounds).unwrap_or_default();
@@ -118,7 +118,7 @@ impl Log {
         let mut touched = HashSet::new();
         for action in &actions {
             let (item, after) = match action {
-                Action::Edit { item, shape } => (*item, Some(shape.clone().fitted())),
+                Action::Edit { item, shape, .. } => (*item, Some(shape.clone().fitted())),
                 Action::Move { item, by } => {
                     let now = shapes.get(item).map(|(_, s)| s.clone());
                     let now = now.or_else(|| canvas.item(*item).map(|i| i.shape().clone()));
@@ -161,7 +161,7 @@ impl Log {
                 continue;
             }
             let shape = Shape::Arrow { from: new_from, to: new_to, colour: *colour };
-            actions.push(Action::Edit { item: arrow.id(), shape });
+            actions.push(Action::edit(arrow.id(), shape));
         }
         actions
     }

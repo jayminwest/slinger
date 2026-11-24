@@ -446,10 +446,10 @@ tenths of a unit.
 
 | `op` | fields |
 |---|---|
-| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000`. A `text` without `w` or `h` gets a frame that fits its words (the rule is in `docs/design/canvas-file.md`); a given size is kept. A `text`'s optional `size` (40 to 4000 tenths; missing, 240) is the size of its characters; outside that range it is `invalid`. An arrow's `from` or `to` may be `$n` (`$0`, `$1`, ...): the item that `made[n]` of this same request names, made by an `add` before it, so items and the arrows between them are added in one step; so may an id in a box's `fold.items`. Beside `item`, an optional `in` (`b4` or `i4`) names a folded box on the item's page that the item joins (docs/design/fold.md, "Step in"): the step writes the `add` and a `set` of the box's `fold` listing it, its open size grown right and down to hold it. An `in` an open box adds plainly; one that is not a box, or on another page, is `invalid` |
+| `add` | `item`: an item object with `page`, `kind` and the kind's fields, without `id`; `color` defaults to `#000000`. A `text` without `w` or `h` gets a frame that fits its words (the rule is in `docs/design/canvas-file.md`); a given size is kept. A `text`'s optional `size` (40 to 4000 tenths; missing, 240) is the size of its characters; outside that range it is `invalid`. An arrow's `from` or `to` may be `$n` (`$0`, `$1`, ...): the item that `made[n]` of this same request names, made by an `add` before it, so items and the arrows between them are added in one step; so may an id in a box's `fold.items`. Optional style fields (`docs/design/canvas-file.md`, "Item objects"): `fill` (`#rrggbb` or `#rrggbbaa`) on a `box` or a `stroke` with `closed`, `dash` (`dashed` or `dotted`) on a `box`, `stroke` or `arrow`, `heads` (`none`, `end` or `both`) on an `arrow`, `closed` (`true`) on a `stroke`; `null` is the default. A value of the wrong type, an unknown word, a colour that does not parse or a field the kind does not take is `invalid`, with a hint naming the field and what it takes. Beside `item`, an optional `in` (`b4` or `i4`) names a folded box on the item's page that the item joins (docs/design/fold.md, "Step in"): the step writes the `add` and a `set` of the box's `fold` listing it, its open size grown right and down to hold it. An `in` an open box adds plainly; one that is not a box, or on another page, is `invalid` |
 | `remove` | `ids`: list of item ids. Ids already gone are fine |
 | `move` | `ids`, `dx`, `dy` |
-| `set` | `id`, `fields`: item fields to replace, laid over the item's current ones. New `text` without `w` or `h` reads the missing one as 0, so the frame fits the new words (at the text's `size`) by the same rule; `"size": null` puts a text back to the usual 240 |
+| `set` | `id`, `fields`: item fields to replace, laid over the item's current ones. New `text` without `w` or `h` reads the missing one as 0, so the frame fits the new words (at the text's `size`) by the same rule; `"size": null` puts a text back to the usual 240. A `set` that names a style field (`fill`, `dash`, `heads`, `closed`) checks it as `add` does and writes all four; one that names none keeps the item's style |
 | `page.add` | `name`. The page goes last |
 | `page.rename` | `page`, `name` |
 | `page.remove` | `page`. Its items go with it; the last page stays |
@@ -726,7 +726,7 @@ tenths of a unit on the first page, or `<page>:x,y,w,h` on the page with
 that id or name; it is cut at its edges, and a box with nothing in it is a
 white image. A folded box `of` draws open: its open frame and what it
 holds directly (docs/design/fold.md); a box of the page draws only what
-the page shows, a folded box as its miniature. A `pdf` item draws as its frame in grey with `pdf p<page>`
+the page shows, a folded box as its miniature. Every fill draws under all ink and text, above PDF pages, at most 40% opaque; dashes, dots, an arrow's heads and a closed stroke draw as the app draws them (`docs/design/figures.md`, "Draw order"). A `pdf` item draws as its frame in grey with `pdf p<page>`
 at its top left: only the app can draw a PDF's page, and a crop takes no
 backdrop (docs/design/pdf.md). A crop is at most 16000 units a side (at most 4 by 4 tiles):
 a larger one, or a negative size, is `invalid` with a hint. The daemon

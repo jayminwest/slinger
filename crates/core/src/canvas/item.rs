@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use super::Fold;
+use super::{Colour, Fold, Style};
 use crate::{Error, Result};
 
 /// The size of a text item's characters, in canvas units, when it gives
@@ -152,38 +152,6 @@ impl Rect {
             ));
         }
         Ok(())
-    }
-}
-
-/// A colour, 8 bits a channel, alpha last.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Colour {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
-    pub a: u8,
-}
-
-impl Colour {
-    /// Opaque black, the default ink.
-    pub const BLACK: Self = Self::rgb(0, 0, 0);
-
-    /// An opaque colour.
-    #[must_use]
-    pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
-        Self { r, g, b, a: 255 }
-    }
-
-    /// `#rrggbb`, or `#rrggbbaa` with alpha; `None` for anything else.
-    #[must_use]
-    pub fn parse(s: &str) -> Option<Self> {
-        let hex = s.strip_prefix('#')?;
-        if !(hex.len() == 6 || hex.len() == 8) || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return None;
-        }
-        let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).unwrap_or(0);
-        let a = if hex.len() == 8 { byte(6) } else { 255 };
-        Some(Self { r: byte(0), g: byte(2), b: byte(4), a })
     }
 }
 
@@ -391,6 +359,7 @@ pub struct Item {
     pub(super) author: Author,
     pub(super) time: Time,
     pub(super) shape: Shape,
+    pub(super) style: Style,
 }
 
 impl Item {
