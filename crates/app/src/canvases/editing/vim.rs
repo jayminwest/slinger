@@ -6,8 +6,9 @@
 //! anywhere, with what Nvim holds; each grid Nvim flushed goes to the
 //! scene, which shows it in place of the text ([`Shapes::set_grid`]).
 //!
-//! No way of ending loses the text. Every end waits, at most [`SETTLE`],
-//! for Nvim to take the keys already sent ([`Vim::settle`]). A text ends
+//! No way of ending loses the text. Every end waits, at most [`SETTLE`]
+//! (an Nvim still starting: its time to be ready too), for Nvim to take
+//! the keys already sent and confirm its buffer ([`Vim::settle`]). A text ends
 //! with the buffer as last confirmed: escape in normal mode, Nvim exiting
 //! (`:q`, `ZZ`) or crashing, a press outside, `new-text`, the app
 //! quitting. With nothing confirmed (Nvim missing, too old, broken by the
@@ -247,19 +248,27 @@ impl Vim {
         changed
     }
 
-    /// Waits, at most [`SETTLE`], until Nvim has taken every key sent so
-    /// far, so its mode and the text are current. Call it before anything
-    /// that may end the text.
+    /// Waits until Nvim has taken every key sent so far and its buffer is
+    /// confirmed, so its mode and the text are current: at most [`SETTLE`],
+    /// or, for an Nvim not ready yet, until it has had its time to be
+    /// ready and [`SETTLE`] more. Call it before anything that may end the
+    /// text. Nvim takes keys (`nvim_input`) as they come but its buffer's
+    /// attach in turn, so the barrier may come back before the buffer.
     pub(super) fn settle(&mut self, shapes: &mut Shapes) {
         let Some(open) = &mut self.open else { return };
         let mut out = Vec::new();
         open.session.barrier(&mut out);
         open.send(&out);
-        let until = Instant::now() + SETTLE;
+        let mut until = Instant::now() + SETTLE;
+        if !open.session.ready() {
+            until = until.max(open.started + self.ready_within + SETTLE);
+        }
+        let mut taken = false;
         while let Some((message, at)) =
             open.process.wait(until.saturating_duration_since(Instant::now()))
         {
-            if open.take(&message, at, shapes) == Heard::Barrier {
+            taken |= open.take(&message, at, shapes) == Heard::Barrier;
+            if taken && open.session.text().is_some() {
                 break;
             }
         }
