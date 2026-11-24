@@ -388,7 +388,9 @@ The key overlay's "Typing a text" rows (`scene/overlay/fixed.rs`) say
   its whole frame; `step-in` takes a selected capped text when no box is
   selected (`Facts.steps`); two quick taps on the note's row step in
   (`Follow::miniature_under`). Slinger's own editor draws every row while
-  it types (`Editing::whole`).
+  it types (`Editing::whole`). Its context menu offers Step in and Step in
+  beside (`Kind::LongText`); the commands read "Step in", "Step in beside"
+  and "Step out" (slinger-69f995).
 - Landed with it: nvim 0.11 with `wrap`, `linebreak`, `breakat=" "` at
   80 columns moves a word that ends exactly at cell 80 to the next row when
   a space follows it (the space must fit too); at a line's end it stays.

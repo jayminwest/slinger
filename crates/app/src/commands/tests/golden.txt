@@ -81,9 +81,9 @@
 79 nudge-right-fine | Nudge right a point | Canvas | ⇧→
 80 nudge-up-fine | Nudge up a point | Canvas | ⇧↑
 81 nudge-down-fine | Nudge down a point | Canvas | ⇧↓
-82 step-in | Step into box | Canvas | ⌥⌘I
-83 step-in-beside | Step into box beside | Canvas | ⌥⇧⌘I
-84 step-out | Step out of box | Canvas | ⌥⌘O
+82 step-in | Step in | Canvas | ⌥⌘I
+83 step-in-beside | Step in beside | Canvas | ⌥⇧⌘I
+84 step-out | Step out | Canvas | ⌥⌘O
 85 start-slingerd | Start slingerd | Window | -
 86 restart-daemon | Restart slingerd | Window | -
 87 zoom-to-fit | Zoom to fit | Canvas | ⌘9
@@ -219,9 +219,9 @@ Edit Plain
   run ClearSelection | Select nothing | -
   run Duplicate | Duplicate | ⌘J
   run Fold | Fold or unfold box | ⌥⌘F
-  run StepIn | Step into box | ⌥⌘I
-  run StepInBeside | Step into box beside | ⌥⇧⌘I
-  run StepOut | Step out of box | ⌥⌘O
+  run StepIn | Step in | ⌥⌘I
+  run StepInBeside | Step in beside | ⌥⇧⌘I
+  run StepOut | Step out | ⌥⌘O
   run NextItem | Select next item | -
   run PreviousItem | Select previous item | -
   run NudgeLeft | Nudge left | -
@@ -309,7 +309,7 @@ Canvas
   run ToggleGrid | Dotted grid | ⌘'
   --- |  | -
   run NewPage | New page | ⌘N grey
-  run StepOut | Step out of box | ⌥⌘O grey
+  run StepOut | Step out | ⌥⌘O grey
 Pane { ui: false }
   run SplitRight | Split right | ⌘D
   run SplitDown | Split down | ⇧⌘D
@@ -344,6 +344,23 @@ Item { kind: Text }
   run SizeDown | Smaller text | -
   --- |  | -
   run WriteFocus | Focus on text | ⌥⌘↩ grey
+Item { kind: LongText }
+  run Sling | Sling selection | ⌘↩ grey
+  --- |  | -
+  native Cut | Cut | ⌘X
+  native Copy | Copy | ⌘C
+  run Duplicate | Duplicate | ⌘J grey
+  run DeleteSelection | Delete selection | - grey
+  --- |  | -
+  run PickColour | Pick a colour | ⇧⌘C
+  run PickSize | Pick a text size | ⇧⌘A
+  run SizeUp | Bigger text | -
+  run SizeDown | Smaller text | -
+  --- |  | -
+  run WriteFocus | Focus on text | ⌥⌘↩ grey
+  --- |  | -
+  run StepIn | Step in | ⌥⌘I grey
+  run StepInBeside | Step in beside | ⌥⇧⌘I grey
 Item { kind: Box }
   run Sling | Sling selection | ⌘↩ grey
   --- |  | -
@@ -355,8 +372,8 @@ Item { kind: Box }
   run PickColour | Pick a colour | ⇧⌘C
   --- |  | -
   run Fold | Fold or unfold box | ⌥⌘F grey
-  run StepIn | Step into box | ⌥⌘I grey
-  run StepInBeside | Step into box beside | ⌥⇧⌘I grey
+  run StepIn | Step in | ⌥⌘I grey
+  run StepInBeside | Step in beside | ⌥⇧⌘I grey
 Item { kind: Arrow }
   run Sling | Sling selection | ⌘↩ grey
   --- |  | -

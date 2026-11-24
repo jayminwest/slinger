@@ -53,6 +53,9 @@ pub enum Kind {
     Pdf,
     /// A live item, its page not taking presses (not come, or too small).
     Live,
+    /// A canvas text with more rows than it shows ("N more lines"): a
+    /// text's items, and stepping into it.
+    LongText,
 }
 
 /// A context menu to pop: where (in the window, from its top left) and
@@ -126,6 +129,16 @@ fn actions(subject: &Subject) -> Vec<Action> {
             R(Command::SizeDown),
             S,
             R(Command::WriteFocus),
+        ],
+        Subject::Item { kind: Kind::LongText } => &[
+            R(Command::PickSize),
+            R(Command::SizeUp),
+            R(Command::SizeDown),
+            S,
+            R(Command::WriteFocus),
+            S,
+            R(Command::StepIn),
+            R(Command::StepInBeside),
         ],
         Subject::Item { kind: Kind::Box } => {
             &[S, R(Command::Fold), R(Command::StepIn), R(Command::StepInBeside)]

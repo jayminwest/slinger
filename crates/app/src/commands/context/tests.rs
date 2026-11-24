@@ -29,9 +29,10 @@ const ABLE: Facts = Facts {
     old: false,
 };
 
-const KINDS: [Kind; 6] = [Kind::Stroke, Kind::Text, Kind::Box, Kind::Arrow, Kind::Pdf, Kind::Live];
+const KINDS: [Kind; 7] =
+    [Kind::Stroke, Kind::Text, Kind::Box, Kind::Arrow, Kind::Pdf, Kind::Live, Kind::LongText];
 
-const SUBJECTS: [Subject; 12] = [
+const SUBJECTS: [Subject; 13] = [
     Subject::Canvas,
     Subject::Pane { ui: true },
     Subject::Pane { ui: false },
@@ -41,6 +42,7 @@ const SUBJECTS: [Subject; 12] = [
     Subject::Item { kind: KINDS[3] },
     Subject::Item { kind: KINDS[4] },
     Subject::Item { kind: KINDS[5] },
+    Subject::Item { kind: KINDS[6] },
     Subject::Selection { boxed: true },
     Subject::Selection { boxed: false },
     Subject::Typing,
@@ -71,7 +73,7 @@ fn each_subject_s_items_in_order() {
         "Dotted grid",
         "-",
         "New page",
-        "Step out of box",
+        "Step out",
     ];
     assert_eq!(titles(&of(&Subject::Canvas)), canvas);
     let ui =
@@ -167,7 +169,10 @@ fn each_kind_of_item_s_items_in_order() {
     assert_eq!(item(Kind::Arrow), with_any(&[]));
     let text = ["Pick a text size", "Bigger text", "Smaller text", "-", "Focus on text"];
     assert_eq!(item(Kind::Text), with_any(&text));
-    let boxed = ["-", "Fold or unfold box", "Step into box", "Step into box beside"];
+    let long = ["Pick a text size", "Bigger text", "Smaller text", "-", "Focus on text", "-"];
+    let long = long.iter().chain(&["Step in", "Step in beside"]).copied().collect::<Vec<_>>();
+    assert_eq!(item(Kind::LongText), with_any(&long));
+    let boxed = ["-", "Fold or unfold box", "Step in", "Step in beside"];
     assert_eq!(item(Kind::Box), with_any(&boxed));
     assert_eq!(item(Kind::Pdf), with_any(&["-", "Crop PDF", "Show canvas file in Finder"]));
     assert_eq!(item(Kind::Live), ["Sling selection", "Delete selection"]);
