@@ -4,6 +4,7 @@
 use super::*;
 use crate::config::Rgb;
 use crate::scene::canvas::Shape;
+use crate::scene::canvas::Style;
 use crate::scene::ink::{Answer, LOCAL};
 
 const HERE: (&str, &str) = ("main", "p1");
@@ -14,7 +15,7 @@ fn pt(x: f64, y: f64) -> Point {
 
 fn stroke(id: u64, (x1, y1): (f64, f64), (x2, y2): (f64, f64)) -> Item {
     let shape = Shape::Stroke { points: vec![pt(x1, y1), pt(x2, y2)], width: 2.0 };
-    Item { id: ItemId(id), colour: Rgb { r: 255, g: 0, b: 0 }, shape }
+    Item { id: ItemId(id), colour: Rgb { r: 255, g: 0, b: 0 }, shape, style: Style::default() }
 }
 
 /// Drawn out of reading order: i1 low on the page, i2 at its top right,
@@ -32,7 +33,7 @@ fn page() -> Vec<Item> {
         stroke(2, (200.0, 0.0), (250.0, 0.0)),
         stroke(3, (0.0, 0.0), (50.0, 0.0)),
         stroke(4, (100.0, 150.0), (150.0, 150.0)),
-        Item { id: ItemId(5), colour: Rgb { r: 0, g: 0, b: 0 }, shape: arrow },
+        Item::plain(ItemId(5), Rgb { r: 0, g: 0, b: 0 }, arrow),
         stroke(LOCAL, (0.0, -50.0), (10.0, -50.0)),
     ]
 }
@@ -153,7 +154,7 @@ fn a_size_step_puts_a_selected_text_s_column_on_half_a_cell_of_its_new_size() {
     let column = glyphs::column(glyphs::NEW_COLUMN * 12.0, 24.0);
     let frame = glyphs::rows_frame(pt(0.0, 0.0), &text, 24.0, column);
     let shape = Shape::Text { frame, text, size: 24.0, column: Some(column) };
-    let page = [Item { id: ItemId(1), colour: Rgb { r: 0, g: 0, b: 0 }, shape }];
+    let page = [Item::plain(ItemId(1), Rgb { r: 0, g: 0, b: 0 }, shape)];
     let (mut select, mut ink) = (Select::default(), Ink::default());
     assert!(select.only(HERE, ItemId(1)));
     assert!(select.resize(Resize::To(12), &shown(&page), &mut ink));
@@ -178,10 +179,7 @@ fn an_arrow_bound_to_a_resized_text_follows_its_new_frame_in_the_same_step() {
         bound: [Some(ItemId(1)), None],
     };
     let black = Rgb { r: 0, g: 0, b: 0 };
-    let page = [
-        Item { id: ItemId(1), colour: black, shape: text },
-        Item { id: ItemId(2), colour: black, shape: arrow },
-    ];
+    let page = [Item::plain(ItemId(1), black, text), Item::plain(ItemId(2), black, arrow)];
     let (mut select, mut ink) = (Select::default(), Ink::default());
     assert!(select.only(HERE, ItemId(1)));
     assert!(select.resize(Resize::To(48), &shown(&page), &mut ink));

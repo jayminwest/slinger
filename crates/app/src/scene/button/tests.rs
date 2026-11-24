@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::layout::Size;
-use crate::scene::canvas::{self, Draw, ItemId, Scene};
+use crate::scene::canvas::{self, Draw, ItemId, Scene, Style};
 
 const SCREEN: Size = Size { width: 800.0, height: 600.0 };
 /// The size the core gives a workspace's button, in canvas points.
@@ -13,7 +13,12 @@ const FRAME: Rect = Rect { x: 100.0, y: 50.0, width: WIDTH, height: HEIGHT };
 
 fn button(id: u64, status: Option<Status>) -> Item {
     let colour = Rgb { r: 0, g: 0, b: 0 };
-    Item { id: ItemId(id), colour, shape: Shape::Button { frame: FRAME, status } }
+    Item {
+        id: ItemId(id),
+        colour,
+        shape: Shape::Button { frame: FRAME, status },
+        style: Style::default(),
+    }
 }
 
 fn scene(items: &[Item], view: Viewport, last: Option<&Scene>) -> Scene {
@@ -66,11 +71,11 @@ fn a_new_status_repaints_the_button_and_the_same_one_nothing() {
 
 #[test]
 fn shown_gives_each_button_the_status_and_leaves_the_rest() {
-    let text = Item {
-        id: ItemId(2),
-        colour: Rgb { r: 9, g: 9, b: 9 },
-        shape: Shape::Text { frame: FRAME, text: "hi".into(), size: 16.0, column: None },
-    };
+    let text = Item::plain(
+        ItemId(2),
+        Rgb { r: 9, g: 9, b: 9 },
+        Shape::Text { frame: FRAME, text: "hi".into(), size: 16.0, column: None },
+    );
     let (a, b) = (button(1, None), text.clone());
     let items = shown(vec![Cow::Borrowed(&a), Cow::Borrowed(&b)], Some(Status::Blocked));
     assert_eq!(items[0].shape, Shape::Button { frame: FRAME, status: Some(Status::Blocked) });

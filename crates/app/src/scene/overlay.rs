@@ -154,6 +154,8 @@ pub struct KeyOverlay {
     pointer: Option<Point>,
     held: Option<Held>,
     widths: Vec<f64>,
+    /// Whether Nvim edits the texts: a typed text's keys are its.
+    nvim: bool,
 }
 
 impl KeyOverlay {
@@ -161,11 +163,18 @@ impl KeyOverlay {
         self.open
     }
 
+    /// Whether Nvim edits the texts typed: the rows for a typed text name
+    /// its keys.
+    pub fn set_nvim(&mut self, on: bool) {
+        self.nvim = on;
+    }
+
     /// The `show-keys` command: opens the overlay at its top, or closes it.
     pub fn toggle(&mut self) {
         *self = KeyOverlay {
             open: !self.open,
             widths: std::mem::take(&mut self.widths),
+            nvim: self.nvim,
             ..KeyOverlay::default()
         };
     }
@@ -203,7 +212,7 @@ impl KeyOverlay {
         if !self.open {
             return Taken::No;
         }
-        let place = place(size, self.scroll, &self.widths);
+        let place = place(size, self.scroll, &self.widths, self.nvim);
         if !place.panel.contains(at) || place.close.contains(at) {
             self.toggle();
         } else {
@@ -221,7 +230,8 @@ impl KeyOverlay {
             let far = (at.x - held.from.x).hypot(at.y - held.from.y) > SLOP;
             held.dragged |= far;
             if held.dragged {
-                self.scroll = place(size, self.scroll + held.last.y - at.y, &self.widths).scroll;
+                self.scroll =
+                    place(size, self.scroll + held.last.y - at.y, &self.widths, self.nvim).scroll;
             }
             held.last = at;
         }
@@ -238,7 +248,7 @@ impl KeyOverlay {
             return Taken::No;
         }
         let Some(held) = self.held.take() else { return Taken::Yes };
-        let place = place(size, self.scroll, &self.widths);
+        let place = place(size, self.scroll, &self.widths, self.nvim);
         match place.row_at(held.from) {
             Some(command) if !held.dragged && place.row_at(at) == Some(command) => {
                 self.toggle();
@@ -254,7 +264,7 @@ impl KeyOverlay {
         if !self.open {
             return false;
         }
-        let place = place(size, self.scroll, &self.widths);
+        let place = place(size, self.scroll, &self.widths, self.nvim);
         let before = self.pointer.and_then(|p| place.row_at(p));
         self.pointer = Some(at);
         before != place.row_at(at)
@@ -264,7 +274,7 @@ impl KeyOverlay {
     /// rows follow it. True while open.
     pub fn scroll(&mut self, dy: f64, size: Size) -> bool {
         if self.open {
-            self.scroll = place(size, self.scroll - dy, &self.widths).scroll;
+            self.scroll = place(size, self.scroll - dy, &self.widths, self.nvim).scroll;
         }
         self.open
     }
@@ -274,7 +284,7 @@ impl KeyOverlay {
     /// as those keys need from now on, so a press finds the row it shows.
     pub fn shown(&mut self, keys: &Keymap, theme: &Theme, size: Size) -> Option<Overlay> {
         if self.open {
-            self.widths = place::widths(keys);
+            self.widths = place::widths(keys, self.nvim);
         }
         self.open.then(|| self.overlay(keys, theme, size))
     }
@@ -284,7 +294,7 @@ impl KeyOverlay {
     /// shown row with the command's title and its key's chip; and, when the
     /// rows do not all fit, where the shown ones are among them.
     fn overlay(&self, keys: &Keymap, theme: &Theme, size: Size) -> Overlay {
-        let place = place(size, self.scroll, &self.widths);
+        let place = place(size, self.scroll, &self.widths, self.nvim);
         let panel = Line {
             edge: Some(style::edge(theme)),
             ..Line::fill(style::panel(theme), place.panel, style::PANEL_RADIUS)

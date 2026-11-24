@@ -31,7 +31,7 @@ pub use error::ErrorKind;
 pub use pointer::Press;
 pub use sling::Prompt;
 pub use theme::Theme;
-use theme::rgb;
+use theme::{Colours, rgb};
 pub use widths::{Width, Widths};
 
 /// A colour, written `"#rrggbb"` in the file.
@@ -126,12 +126,7 @@ pub struct Config {
 /// What one file sets. Unset keys fall through to the layer below.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Layer {
-    background: Option<Rgb>,
-    text: Option<Rgb>,
-    muted: Option<Rgb>,
-    error: Option<Rgb>,
-    focus: Option<Rgb>,
-    done: Option<Rgb>,
+    colours: Colours,
     socket: Option<String>,
     workspace: Option<String>,
     palette: Option<Palette>,
@@ -155,12 +150,7 @@ impl Default for Layer {
     /// array of more than 32 keys.
     fn default() -> Self {
         Self {
-            background: None,
-            text: None,
-            muted: None,
-            error: None,
-            focus: None,
-            done: None,
+            colours: Colours::default(),
             socket: None,
             workspace: None,
             palette: None,
@@ -193,12 +183,7 @@ impl Layer {
             *key = top.or(*key);
         }
         Layer {
-            background: top.background.or(self.background),
-            text: top.text.or(self.text),
-            muted: top.muted.or(self.muted),
-            error: top.error.or(self.error),
-            focus: top.focus.or(self.focus),
-            done: top.done.or(self.done),
+            colours: self.colours.over(top.colours),
             socket: top.socket.or(self.socket),
             workspace: top.workspace.or(self.workspace),
             palette: top.palette.or(self.palette),
@@ -215,7 +200,6 @@ impl Layer {
 
     /// The config: each key this layer sets, and the default for the rest.
     pub fn resolve(self) -> Config {
-        let d = Theme::default();
         let mut keys = Keymap::default();
         for (&(command, _), chord) in Command::ALL.iter().zip(self.keys) {
             if let Some(chord) = chord {
@@ -223,14 +207,7 @@ impl Layer {
             }
         }
         Config {
-            theme: Theme {
-                background: self.background.unwrap_or(d.background),
-                text: self.text.unwrap_or(d.text),
-                muted: self.muted.unwrap_or(d.muted),
-                error: self.error.unwrap_or(d.error),
-                focus: self.focus.unwrap_or(d.focus),
-                done: self.done.unwrap_or(d.done),
-            },
+            theme: self.colours.resolve(),
             socket: self.socket,
             workspace: self.workspace,
             keys,
@@ -287,12 +264,7 @@ impl Layer {
             ("editor", "nvim") => {
                 return put(&mut self.nvim, Nvim::parse(&value).ok_or(ErrorKind::BadNvim)?);
             }
-            ("theme", "background") => &mut self.background,
-            ("theme", "text") => &mut self.text,
-            ("theme", "muted") => &mut self.muted,
-            ("theme", "error") => &mut self.error,
-            ("theme", "focus") => &mut self.focus,
-            ("theme", "done") => &mut self.done,
+            ("theme", key) => self.colours.slot(key).ok_or(ErrorKind::UnknownKey)?,
             _ => return Err(ErrorKind::UnknownKey),
         };
         put(slot, parse_colour(&value).ok_or(ErrorKind::BadColour)?)

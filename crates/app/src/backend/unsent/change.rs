@@ -33,11 +33,11 @@ pub(super) fn write(kept: &Kept) -> Value {
         Change::Move { page, ids: moved, by, follow, .. } => json!({"change": "move", "page": page,
             "ids": ids(moved), "by": [by.x, by.y], "follow": objects(follow)}),
         Change::Put { page, colour, shape, .. } => {
-            let put = Item { id: ItemId(0), colour: *colour, shape: shape.clone() };
+            let put = Item::plain(ItemId(0), *colour, shape.clone());
             json!({"change": "put", "page": page, "item": object(&put)})
         }
         Change::Set { page, id, shape, .. } => {
-            let set = Item { id: *id, colour: Rgb { r: 0, g: 0, b: 0 }, shape: shape.clone() };
+            let set = Item::plain(*id, Rgb { r: 0, g: 0, b: 0 }, shape.clone());
             json!({"change": "set", "page": page, "item": object(&set)})
         }
         Change::Reshape { page, items, .. } => {

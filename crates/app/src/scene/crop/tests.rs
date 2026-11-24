@@ -20,7 +20,7 @@ fn pdf(frame: Rect, crop: Option<Rect>) -> Shape {
 }
 
 fn item(id: u64, shape: Shape) -> Cow<'static, Item> {
-    Cow::Owned(Item { id: ItemId(id), colour: Rgb { r: 0, g: 0, b: 0 }, shape })
+    Cow::Owned(Item::plain(ItemId(id), Rgb { r: 0, g: 0, b: 0 }, shape))
 }
 
 fn press(at: Point) -> Press {

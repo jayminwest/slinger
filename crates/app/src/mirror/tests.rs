@@ -54,14 +54,14 @@ fn a_shown_page_reads_every_kind_in_units() {
     let items = m.items();
     assert_eq!(
         items[0],
-        Item {
-            id: ItemId(1),
-            colour: Rgb { r: 255, g: 0, b: 0 },
-            shape: Shape::Stroke {
+        Item::plain(
+            ItemId(1),
+            Rgb { r: 255, g: 0, b: 0 },
+            Shape::Stroke {
                 points: vec![pt(10.0, 20.0), pt(11.0, 18.0), pt(11.5, 18.5)],
                 width: 2.0
-            },
-        }
+            }
+        )
     );
     let frame = Rect { x: 1.0, y: 2.0, width: 30.0, height: 40.0 };
     assert_eq!(items[1].shape, Shape::Box { frame, width: LINE_WIDTH });
@@ -367,7 +367,7 @@ fn an_edit_is_a_set_and_a_move_sets_each_arrow_that_follows() {
         width: 2.0,
         bound: [None, Some(ItemId(1))],
     };
-    let follow = vec![Item { id: ItemId(4), colour: Rgb { r: 0, g: 0, b: 0 }, shape }];
+    let follow = vec![Item::plain(ItemId(4), Rgb { r: 0, g: 0, b: 0 }, shape)];
     let by = pt(1.0, 0.0);
     let moved = Change::Move { canvas, page, ids: vec![ItemId(1)], by, follow };
     assert_eq!(
@@ -435,25 +435,25 @@ fn carried_items_are_add_objects_on_the_other_page_moved_and_without_this_canvas
 fn a_resize_sets_each_item_a_stroke_by_its_points_and_colour_and_an_agent_ui_by_its_frame() {
     let mut m = Mirror::new(&shown(vec![stroke("i1", "p1")]));
     let red = Rgb { r: 255, g: 0, b: 0 };
-    let scaled = Item {
-        id: ItemId(1),
-        colour: red,
-        shape: Shape::Stroke { points: vec![pt(10.0, 20.0), pt(12.0, 16.0)], width: 2.0 },
-    };
-    let ui = Item {
-        id: ItemId(2),
-        colour: red,
-        shape: Shape::Live {
+    let scaled = Item::plain(
+        ItemId(1),
+        red,
+        Shape::Stroke { points: vec![pt(10.0, 20.0), pt(12.0, 16.0)], width: 2.0 },
+    );
+    let ui = Item::plain(
+        ItemId(2),
+        red,
+        Shape::Live {
             frame: Rect { x: 1.5, y: 2.0, width: 30.0, height: 20.0 },
             name: "pick".into(),
             open: "pick-slot#1".into(),
         },
-    };
-    let boxed = Item {
-        id: ItemId(3),
-        colour: red,
-        shape: Shape::Box { frame: Rect { x: 0.0, y: 0.0, width: 4.0, height: 2.0 }, width: 2.0 },
-    };
+    );
+    let boxed = Item::plain(
+        ItemId(3),
+        red,
+        Shape::Box { frame: Rect { x: 0.0, y: 0.0, width: 4.0, height: 2.0 }, width: 2.0 },
+    );
     let (canvas, page) = ("main".to_string(), "p1".to_string());
     let written = ops(&Change::Reshape { canvas, page, items: vec![scaled.clone(), ui, boxed] });
     assert_eq!(
