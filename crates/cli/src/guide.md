@@ -114,10 +114,23 @@ only what the box holds. Answer in the box: add `--in b4` to each put
 slinger canvas put <CANVAS> --beside c12 --in b4 --text "The answer" --agent claude
 ```
 
-Draw a picture with code when a few puts would not do (a diagram, a plot, a
-table, a worksheet): write a JavaScript file (its API is under "Drawing
-scripts" below) and run it as one figure, a
-named set of items the user's pen passes over. Look at it first with
+A sling of a figure or one of its parts names it the same way
+(`in=worksheet/1a-answer`). Answer beside it, `--beside worksheet/1a-answer`;
+when the figure is yours and the answer belongs in it, redraw it (below).
+
+Pick the form of an answer by what it is:
+
+- A short remark, a question, a word or a box beside the user's writing:
+  `canvas put`.
+- A picture: a diagram, a plot, a table, a worksheet, or marks over the
+  user's work. One `canvas draw` of a drawing script, never a run of puts.
+- A change to a figure you drew: `canvas redraw` by its name, never a new
+  draw beside the old one.
+- Something the user clicks or fills in: a UI (`ui open`).
+
+Draw a picture with code: write a JavaScript file (its API and an example
+are under "Drawing scripts" below) and run it as one figure, a named set of
+items the user's pen passes over. Look at it first with
 `--dry-run --png` (it writes nothing), then draw it; a draw of the same
 `--name` again replaces the figure in place. `--at` is in canvas units, the
 packet's:
@@ -327,3 +340,24 @@ is seeded: the same script and data draw the same figure.
 
 **Errors** name the call and the line: `script:12:7: box: w must be a number above 0, got "wide"`.
 Limits: 1 s, 32 MB, 5,000 shapes, a 1 MiB script, 256 KiB of data.
+
+**An example.** `bars.js` draws one bar per row of its data, each bar a
+part (`rain/bar-2`) that a later sling can name:
+
+```js
+const { title, rows } = fig.data;
+const top = Math.max(...rows.map(([, v]) => v));
+text(0, 0, title, { size: 28 });
+rows.forEach(([label, v], i) => {
+  part(`bar-${i + 1}`, () => {
+    const h = (v / top) * 200;
+    box(i * 60, 250 - h, 40, h, { fill: true });
+    text(i * 60, 260, label, { size: 16, color: 'muted' });
+  });
+});
+```
+
+```bash
+slinger canvas draw <CANVAS> bars.js --name rain --beside c12 --data '{"title": "Rain (mm)", "rows": [["Jan", 80], ["Feb", 65], ["Mar", 90]]}' --agent claude
+slinger canvas redraw <CANVAS> rain --data '{"rows": [["Jan", 80], ["Feb", 65], ["Mar", 90], ["Apr", 40]]}' --agent claude
+```

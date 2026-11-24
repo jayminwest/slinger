@@ -201,6 +201,8 @@ fn every_verb_the_note_names_is_served() {
                 "beside": "i1", "text": "t" }),
             Verb::Crop => json!({ "v": 1, "op": "canvas_crop", "canvas": "none", "of": "i1",
                 "path": "/tmp/none.png" }),
+            Verb::Draw => json!({ "v": 1, "op": "canvas_redraw", "canvas": "none",
+                "by": "agent:a", "name": "none" }),
             Verb::Ui => json!({ "v": 1, "op": "ui_open", "ui": "none", "workspace": "none",
                 "agent": "a" }),
         };
