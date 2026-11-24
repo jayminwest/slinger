@@ -375,8 +375,8 @@ impl Shape {
                     return Mark::Text { at, width, text, size, line: 0.0, zoom, written };
                 };
                 let ink = style::ink(colour, theme);
-                let runs = written::runs(text, *size, *column, (0, usize::MAX));
-                let written = Some(Arc::new(written::Written::new(runs, ink, theme)));
+                let written =
+                    Some(written::written(text, (*size, *column), (0, usize::MAX), ink, theme));
                 let (width, line) = (glyphs::UNWRAPPED, *size);
                 let (text, size) = (glyphs::rows(text, *size, *column), size * glyphs::FONT);
                 Mark::Text { at, width, text, size, line, zoom, written }

@@ -84,8 +84,9 @@ bullet with the area in bold.
   dotted line.
 - **App:** a canvas text you are not typing in shows its markdown, in the
   same monospaced cells nvim edits it in, so no word moves when you open it:
-  `#` headings are bold, `*em*` italic, `**strong**` bold, `code` and
-  fenced code sit on a tint, `>` quotes show a bar, `- [ ]` and `- [x]`
+  `#` headings are bold, `*em*` italic, `**strong**` bold, `code` sits on
+  a tint and a fenced block on one tint as wide as its widest line, `>`
+  quotes show a bar, `- [ ]` and `- [x]`
   show ☐ and ☑. The marks stay, dimmed. A double tap on a word (with the
   select tool, the lasso or a mouse) opens the text with the cursor on
   that word; the text tool's tap still opens it at its end.
@@ -811,6 +812,10 @@ bullet with the area in bold.
   remove that line.
 
 ### Fixed
+
+- **CLI:** `slinger canvas draw` by an agent onto another page no longer
+  splits a figure you drew over: it says the figure has your items on its
+  page and draws nothing, so a figure's name stays on one page.
 
 - **App:** a bigger or smaller text size keeps a wrapped text's rows: a
   new text stays 80 characters wide at any size, where a size change used
