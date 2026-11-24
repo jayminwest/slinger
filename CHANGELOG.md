@@ -69,6 +69,9 @@ bullet with the area in bold.
   pointer as one piece to move, duplicate or delete; it locks again when
   you deselect it. A duplicate is a new figure with its own name, one no
   other figure on the canvas has, on any page.
+- **CLI:** a drawing script now warns when it draws a box again on a
+  table cell's box (draw in the cell instead), and when an arrow's label
+  is longer than the arrow.
 - **CLI:** `slinger canvas draw <CANVAS> <FILE> --name NAME` runs an
   agent's drawing script (JavaScript) in the daemon and places what it
   draws as one named figure, beside an item, over it, in a box or at a
@@ -808,6 +811,14 @@ bullet with the area in bold.
   remove that line.
 
 ### Fixed
+
+- **CLI:** `slinger canvas draw` by an agent onto another page no longer
+  splits a figure you drew over: it says the figure has your items on its
+  page and draws nothing, so a figure's name stays on one page.
+
+- **App:** a bigger or smaller text size keeps a wrapped text's rows: a
+  new text stays 80 characters wide at any size, where a size change used
+  to keep it about as wide and so change how many characters a row held.
 
 - **App:** a canvas text you are typing when you quit the app is written to
   the canvas, not lost.

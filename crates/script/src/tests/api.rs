@@ -205,6 +205,38 @@ fn warnings_name_text_over_a_line_overlapping_texts_and_a_far_shape() {
 }
 
 #[test]
+fn a_box_drawn_again_on_a_tables_cell_warns_and_a_filled_one_does_not() {
+    // The fluency round's vector addition: each empty answer cell boxed twice.
+    let d = drawn(
+        "const t = table(0, 0, [['a', ''], ['b', '']], {cols: 60, parts: [[null, 'x'], [null, 'y']]});
+part('x', () => { const c = t.cell(0, 1); box(c.x, c.y, c.w, c.h); });
+const c = t.cell(1, 1);
+box(c.x, c.y, c.w, c.h, {fill: 'yellow'});",
+    );
+    let said: Vec<String> = d.warnings.iter().map(ToString::to_string).collect();
+    assert_eq!(
+        said,
+        ["script:2:62: box: is drawn again on the box from line 1; \
+          a table's cell is boxed already, draw in it with t.cell(r, c)"]
+    );
+}
+
+#[test]
+fn a_label_longer_than_its_arrow_warns() {
+    let d = drawn(
+        "arrow(0, 0, 40, 0, {label: 'much too long'});\narrow(0, 100, 0, 200, {label: 'fits'});",
+    );
+    let said: Vec<String> = d.warnings.iter().map(ToString::to_string).collect();
+    assert_eq!(
+        said,
+        [
+            r#"script:1:1: arrow: the label "much too long" is 156 long beside an arrow 40 long; lengthen the arrow or shorten the label"#
+        ]
+    );
+    assert_eq!(d.items.len(), 4, "a warning never fails the draw");
+}
+
+#[test]
 fn stacks_and_tables_place_one_thing_after_another() {
     let d = drawn(
         "const f = stack(10, 20, {gap: 4}, (s) => { s.text('one'); s.gap(10); s.box(30, 6); });
