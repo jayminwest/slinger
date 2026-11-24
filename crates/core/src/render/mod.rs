@@ -125,21 +125,33 @@ pub fn crop(canvas: &Canvas, page: PageId, area: Rect, id: &str) -> Vec<Image> {
 /// fills it there too (slinger-ce52ee). A cell is one size tall.
 pub const CELL: f64 = 0.5;
 
+/// The most rows a text's frame is tall (docs/design/writing-column.md, 3A).
+/// A longer text keeps every row in the item and in the packet, but its
+/// frame, its hit, the room a put keeps clear of and the crop stop here; the
+/// app shows the rest when stepped into.
+pub const MOST_ROWS: usize = 80;
+
 /// The frame size, in canvas units, that holds `text` as it is drawn at
 /// `size` when wrapped to at most `columns` characters a line (at least
 /// one): one character cell ([`CELL`] of `size` wide, `size` tall) per
-/// character, a line per row.
+/// character, a line per row, at most [`MOST_ROWS`] rows.
 #[must_use]
 pub fn text_size(text: &str, columns: usize, size: f64) -> (f64, f64) {
     let rows = raster::wrap(text, columns.max(1));
     let longest = rows.iter().map(Vec::len).max().unwrap_or(0);
     let cells = |n: usize| u32::try_from(n).map_or(f64::from(u32::MAX), f64::from);
-    (cells(longest) * size * CELL, cells(rows.len()) * size)
+    (cells(longest) * size * CELL, cells(rows.len().min(MOST_ROWS)) * size)
+}
+
+/// The tallest frame, in canvas units, of a text drawn at `size`:
+/// [`MOST_ROWS`] rows.
+fn most_height(size: f64) -> f64 {
+    f64::from(u32::try_from(MOST_ROWS).unwrap_or(u32::MAX)) * size
 }
 
 /// How many rows `text` drawn at `size` in a frame `w` wide takes: its
 /// lines wrapped at spaces to the frame's width, or unwrapped in a frame
-/// narrower than a character.
+/// narrower than a character. Every row, past [`MOST_ROWS`] too.
 #[must_use]
 pub fn text_rows(text: &str, w: f64, size: f64) -> usize {
     raster::wrap(text, raster::columns(w, size)).len()
@@ -155,13 +167,14 @@ pub(crate) fn text_drawn_width(text: &str, w: f64, size: f64) -> f64 {
 
 /// The frame size, in canvas units, that text drawn at `size` in a frame
 /// `w` by `h` has. A frame at least a character wide and with a height is kept as it
-/// is. One with no height keeps its width and gets the height of the text
-/// wrapped to it. One narrower than a character is drawn unwrapped, so it
-/// gets the unwrapped text's size, at least one character wide.
+/// is, but never taller than [`MOST_ROWS`] rows. One with no height keeps its
+/// width and gets the height of the text wrapped to it. One narrower than a
+/// character is drawn unwrapped, so it gets the unwrapped text's size, at
+/// least one character wide. Either is at most [`MOST_ROWS`] rows tall.
 #[must_use]
 pub fn text_frame(text: &str, w: f64, h: f64, size: f64) -> (f64, f64) {
     match (w >= size * CELL, h > 0.0) {
-        (true, true) => (w, h),
+        (true, true) => (w, h.min(most_height(size))),
         (true, false) => (w, text_size(text, raster::columns(w, size), size).1),
         (false, _) => {
             let (w, h) = text_size(text, usize::MAX, size);

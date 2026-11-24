@@ -18,6 +18,10 @@ bullet with the area in bold.
   fails with `too_long` (exit 5) and the hint to split it into short puts,
   each beside its subject. Your own texts have no such limit.
 
+- **Canvas:** a text is at most 80 rows tall on the page. A longer text keeps
+  every word, but past row 80 it takes no room: an agent's put beside it, a
+  lasso and the agent's picture of it stop at row 80.
+
 - **Canvas:** when you change the words of a text an agent wrote, the text
   becomes yours, and the agent can no longer change it. Moving it or
   changing its colour or size leaves it the agent's.
