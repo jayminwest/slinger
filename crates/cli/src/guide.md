@@ -42,7 +42,8 @@ guide comes from the `slinger` binary you run, so it fits that binary.
 - `--json` prints one JSON document: `success`, `command`, then the data. A
   failure has `error`, `code` and `hint`.
 - Exit codes: 0 ok, 1 error, 2 usage, 3 not found, 4 conflict, 5 invalid
-  (also `too_long`: your text is over 12 rows), 6 the daemon does not answer. `slinger` finds a running daemon on any
+  (also `too_long`: your text is over 12 rows; `script` and `limit`: a
+  drawing script failed or went over a limit), 6 the daemon does not answer. `slinger` finds a running daemon on any
   socket, so on 6 pass the hint on to the user (on a Mac, opening
   slinger.app starts `slingerd`; or retry or restart one that did not
   reply in time); do not start or restart it yourself unless the user
@@ -330,7 +331,12 @@ that sets it, then to `fig.color`:
 **Context.** `fig.name` (the figure's name), `fig.data` (the data, `{}` when
 none), `fig.view.target` (`{x: 0, y: 0, w, h}` of the `--over` or `--in`
 item, else `null`), `fig.view.page` (the page's name), `fig.color` (assign
-to change every later default). `warn(message)` adds a warning. The engine
+to change every later default). The global `anchor` is the item the
+figure goes beside or over, `{id, kind, w, h, text}` (`text` is `null` but
+for a text), else `null`; the global `around`, with `--over` or `--at`,
+holds the items within 500 units of that item or point, nearest first (at
+most 500), each `{id, kind, x, y, w, h}` in the figure's coordinates, else
+`[]`. `warn(message)` adds a warning. The engine
 warns, and still draws, on text over a line, texts overlapping, a box
 drawn again on the same frame without a fill, an arrow's label longer than
 the arrow, and a shape far from the others.
@@ -338,9 +344,12 @@ the arrow, and a shape far from the others.
 **Not there:** `Date`, timers, `console`, `import`, `fetch`, files. `Math.random`
 is seeded: the same script and data draw the same figure.
 
-**Errors** name the call and the line: `script:12:7: box: w must be a number above 0, got "wide"`.
+**Errors** name the call and the line: `script:12:7: box: w must be a number above 0, got "wide"`,
+then the source line with a `^` under the column and, inside a function,
+the calls it was in (`at row (script:12:7)`). Its code is `script` (exit 5).
 A script stopped at 1 s names a line its endless loop is at or after.
-Limits: 1 s, 32 MB, 5,000 shapes, a 1 MiB script, 256 KiB of data.
+Limits: 1 s, 32 MB, a 512 KB stack, 5,000 shapes, a 1 MiB script, 256 KiB
+of data. Over one is code `limit` (exit 5), and the message says which.
 
 **An example.** `bars.js` draws one bar per row of its data, each bar a
 part (`rain/bar-2`) that a later sling can name:

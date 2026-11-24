@@ -41,8 +41,9 @@ pub const DATA_BYTES: usize = 256 * 1024;
 pub const ITEMS: usize = 5_000;
 
 /// What the script may read besides its data. Read-only: the script sees it
-/// as `fig.name`, `fig.view` and the starting `fig.color`.
-#[derive(Debug, Clone, PartialEq)]
+/// as `fig.name`, `fig.view`, the starting `fig.color` and the globals
+/// `anchor` and `around` (docs/design/figures.md, rule 5).
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct View {
     /// The figure's name; every shape carries it as `fig`.
     pub name: String,
@@ -53,6 +54,40 @@ pub struct View {
     pub agent: String,
     /// The name of the page the figure goes on.
     pub page: String,
+    /// The item the figure goes beside or over: the global `anchor`
+    /// (`null` when none).
+    pub anchor: Option<Anchor>,
+    /// The bounds of the items around where the figure goes, with `--over`
+    /// or `--at`, in figure coordinates, nearest first: the global
+    /// `around` (`[]` when none).
+    pub around: Vec<Near>,
+}
+
+/// The item a figure goes beside or over. The script sees
+/// `{id, kind, w, h, text}` (`text` is `null` but for a text).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Anchor {
+    /// Its id, or the figure address it was named by.
+    pub id: String,
+    /// Its kind (`text`, `box`, `stroke`, ...), or `figure` or `part`.
+    pub kind: String,
+    /// Its size in canvas units.
+    pub w: f64,
+    pub h: f64,
+    /// Its words, for a text.
+    pub text: Option<String>,
+}
+
+/// An item near the figure. The script sees `{id, kind, x, y, w, h}`, in
+/// canvas units from the figure's origin.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Near {
+    pub id: String,
+    pub kind: String,
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
 }
 
 /// What a script drew.
@@ -76,12 +111,86 @@ pub struct Warning {
 
 /// Why a script drew nothing. `line` and `col` are where the script was
 /// (1-based), or 0 for a fault of the script as a whole (its size, its data).
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+/// It shows as one line, `script:L:C: message`; [`ScriptError::report`]
+/// adds the source line and the stack.
+#[derive(Debug, Clone, PartialEq, Eq, Default, thiserror::Error)]
 #[error("{}", place(*line, *col, message))]
 pub struct ScriptError {
+    /// A fault of the script, or a limit it went over.
+    pub kind: Fault,
     pub line: u32,
     pub col: u32,
     pub message: String,
+    /// The script's line `line` as written (the source line; cut round
+    /// `col` when it is long); empty with no line.
+    pub shown: String,
+    /// The calls the script was in, innermost first, each
+    /// `name (script:L:C)`; only frames in the script.
+    pub stack: Vec<String>,
+}
+
+/// What stopped a script: the two error codes, `script` and `limit`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Fault {
+    /// A throw, a bad argument to an API call, a syntax error.
+    #[default]
+    Script,
+    /// Over [`TIME`], [`MEMORY`], [`STACK`], [`SCRIPT_BYTES`],
+    /// [`DATA_BYTES`] or [`ITEMS`].
+    Limit,
+}
+
+/// The widest source line a report shows; a longer one is cut round the column.
+const SOURCE_CHARS: usize = 120;
+
+impl ScriptError {
+    pub(crate) fn new(kind: Fault, (line, col): (u32, u32), message: String) -> Self {
+        Self { kind, line, col, message, ..Self::default() }
+    }
+
+    /// The error for people and agents: the line `script:L:C: message`,
+    /// then the source line with a mark under the column, then the stack
+    /// when the script was inside a call of its own.
+    #[must_use]
+    pub fn report(&self) -> String {
+        let mut out = vec![self.to_string()];
+        if !self.shown.is_empty() {
+            let number = self.line.to_string();
+            out.push(format!("  {number} | {}", self.shown));
+            if let Some(at) = self.mark() {
+                out.push(format!("  {} | {}^", " ".repeat(number.len()), " ".repeat(at)));
+            }
+        }
+        if self.stack.len() > 1 {
+            out.extend(self.stack.iter().map(|frame| format!("  at {frame}")));
+        }
+        out.join("\n")
+    }
+
+    /// Where under the source line the column is, if the line was not cut.
+    fn mark(&self) -> Option<usize> {
+        let col = usize::try_from(self.col).ok()?.checked_sub(1)?;
+        (!self.shown.starts_with('…') && col <= self.shown.chars().count()).then_some(col)
+    }
+
+    /// Fills `shown` from `script`'s line `line`.
+    fn in_script(mut self, script: &str) -> Self {
+        let Some(n) = usize::try_from(self.line).ok().and_then(|n| n.checked_sub(1)) else {
+            return self;
+        };
+        let Some(text) = script.lines().nth(n) else { return self };
+        let chars: Vec<char> = text.trim_end().chars().collect();
+        self.shown = if chars.len() <= SOURCE_CHARS {
+            chars.into_iter().collect()
+        } else {
+            let col = usize::try_from(self.col).unwrap_or(0).saturating_sub(1).min(chars.len());
+            let start = col.saturating_sub(SOURCE_CHARS / 2).min(chars.len() - SOURCE_CHARS);
+            let cut: String = chars[start..start + SOURCE_CHARS].iter().collect();
+            let more = if start + SOURCE_CHARS < chars.len() { "…" } else { "" };
+            format!("…{cut}{more}")
+        };
+        self
+    }
 }
 
 impl fmt::Display for Warning {
@@ -98,11 +207,12 @@ fn place(line: u32, col: u32, message: &str) -> String {
 /// Runs `script` with `data` (the script's `fig.data`) and `view`.
 ///
 /// # Errors
-/// A [`ScriptError`] when the script is too long, the data too large, the
-/// script throws (a bad argument to an API call fails at the call, by the
-/// call's name), or a limit stops it.
+/// A [`ScriptError`]: a [`Fault::Script`] when the script throws (a bad
+/// argument to an API call fails at the call, by the call's name); a
+/// [`Fault::Limit`] when the script is too long, the data too large, or a
+/// limit stops it.
 pub fn run(script: &str, data: &Value, view: &View) -> Result<Drawn, ScriptError> {
-    let whole = |message: String| ScriptError { line: 0, col: 0, message };
+    let whole = |message: String| ScriptError::new(Fault::Limit, (0, 0), message);
     if script.len() > SCRIPT_BYTES {
         return Err(whole(format!(
             "the script is {} bytes, more than {SCRIPT_BYTES} (1 MiB)",
@@ -123,10 +233,15 @@ pub fn run(script: &str, data: &Value, view: &View) -> Result<Drawn, ScriptError
         "target": view.target,
         "agent": view.agent,
         "page": view.page,
+        "anchor": view.anchor.as_ref().map(|a| serde_json::json!({
+            "id": a.id, "kind": a.kind, "w": a.w, "h": a.h, "text": a.text,
+        })),
+        "around": view.around.iter().map(|n| serde_json::json!({
+            "id": n.id, "kind": n.kind, "x": n.x, "y": n.y, "w": n.w, "h": n.h,
+        })).collect::<Vec<_>>(),
         "colours": colours,
-        "items": ITEMS,
     });
-    engine::run(script, &data, &input.to_string())
+    engine::run(script, &data, &input.to_string()).map_err(|e| e.in_script(script))
 }
 
 #[cfg(test)]

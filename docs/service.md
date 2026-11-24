@@ -313,8 +313,9 @@ it, so a name's versions stay 1, 2, 3 in log order. The same holds for
 `ui_open` writes, and `ui_reply` (`open`, `name`, `version`, `hash`,
 `value`), which only `ui_reply` writes (see "Showings"), and for
 `figure_drawn` (`canvas`, `figure`, `page`, `script`: blob id, `data`,
-`origin`: `[x, y]` and `frame`: `[x, y, w, h]` in tenths, and `target`:
-the frame drawn over or in, when there was one), which only the
+`origin`: `[x, y]` and `frame`: `[x, y, w, h]` in tenths, `target`:
+the frame drawn over or in, when there was one, and `anchor`: the id or
+address of the item drawn beside or over, when there was one), which only the
 figure verbs write (docs/design/figures.md, "`figure_drawn`").
 
 **`record_list`** returns the events that match every filter given:
@@ -820,6 +821,11 @@ bytes do: the daemon reads `path` (UTF-8) and `data` (JSON; absent is
 the shapes as one undo step. `beside` puts the figure's frame beside an
 item where it covers nothing; `over` puts its (0,0) on an item's top left
 and moves nothing (the script reads the item's size as `fig.view.target`);
+`beside` and `over` give the script the item as the global `anchor`
+(`{id, kind, w, h, text}`), and `over` and `at` give it the items shown
+within 500 units of the item or the point, but the figure's own, as
+`around` (`[{id, kind, x, y, w, h}]` from the figure's origin, nearest
+first, at most 500);
 `in` puts its frame in a box's room, as `canvas_put`'s `in` does; `at`
 puts its (0,0) at a point, on `page` (id or name) or the first. A name the
 canvas has is drawn again in place, by match: an item that is the same
@@ -832,8 +838,14 @@ blob, the data whole) and, for an agent slung something on the canvas, a
 the draw would. `png` writes the figure alone on white as `canvas_crop`
 writes images (tiles beside it as `<stem>-<n>.png`), on a dry run or not.
 
-A script that fails is `invalid`, its message `script:LINE:COL: ...` where
-the script was and a hint; a script that runs but would not land (a shape
+A script that fails is `script`: its message `script:LINE:COL: ...` where
+the script was, then the source line (`  12 | ...`, with a `^` under the
+column when the line is shown whole) and, when the script was inside a
+function of its own, the calls it was in, innermost first (`  at row
+(script:12:7)`, the top level `top level`), and a hint. A script over a
+limit (1 s, 32 MB, a 512 KB stack, 5,000 shapes, a 1 MiB script, 256 KiB
+of data) is `limit`, the message saying which, with the same lines. A
+script that runs but would not land (a shape
 the canvas does not take, a name that is not a figure name) is `invalid`
 too, and an agent's text over 12 rows is `too_long`: a figure is not a way
 around `AGENT_ROWS`. `warnings` (text over a line, texts overlapping, a
@@ -845,7 +857,7 @@ app never sends it; a client writes it with `Client::canvas_draw`
 { "v": 1, "op": "canvas_draw", "canvas": "main", "by": "agent:scout", "name": "worksheet", "path": "/tmp/w.js", "data": "/tmp/w.json", "at": [400, 400] }
 { "ok": true, "name": "worksheet", "page": "p1", "origin": [400, 400], "frame": [400, 400, 9000, 14000], "parts": ["1a", "1b"], "items": 56, "seq": [7, 8] }
 { "v": 1, "op": "canvas_draw", "canvas": "main", "name": "f", "path": "/tmp/bad.js", "beside": "c12", "dry_run": true }
-{ "ok": false, "code": "invalid", "error": "script:2:1: box: w must be a number above 0, got \"wide\"", "hint": "fix the script there and try it with --dry-run; 'slinger guide' has the drawing API" }
+{ "ok": false, "code": "script", "error": "script:2:1: box: w must be a number above 0, got \"wide\"\n  2 | box(0, 0, 'wide', 10);\n    | ^", "hint": "fix the script there and try it with --dry-run; 'slinger guide' has the drawing API" }
 ```
 
 `canvas_draw` takes `once` as `canvas_apply` does. **`canvas_redraw`**
@@ -853,7 +865,9 @@ draws a figure again from its last `figure_drawn`: the script stored there
 (or the one `path` names, swapped in) runs on the data stored there with
 `data`, a file holding a JSON merge patch (RFC 7396), applied: an object
 merges key by key, `null` takes a key away, anything else (an array too)
-replaces. It sees the same `fig.view.target` as the first draw. The
+replaces. It sees the same `fig.view.target` as the first draw, the
+same `anchor` item read again (none when it is gone), and the items
+`around` where the figure now is. The
 figure goes where it now is: the last origin moved as far as the figure's
 frame has moved since, so a figure the user moved is drawn again there. It
 replaces the figure by match, as a draw of the same name does, as one undo
@@ -1412,8 +1426,9 @@ temporary directory, and removes the file after.
 
 The core's codes pass through unchanged (`not_found`, `conflict`, `invalid`, for
 a damaged or newer canvas file `canvas_corrupt` and `canvas_too_new`, for a
-packet of a version the core does not read `unsupported_version`, and for an
-agent's text over 12 rows `too_long`).
+packet of a version the core does not read `unsupported_version`, for an
+agent's text over 12 rows `too_long`, and for a drawing script that failed
+or went over a limit `script` and `limit`).
 The protocol adds:
 
 | Code | Meaning |

@@ -369,11 +369,11 @@ tldraw importer keeping fill and dash (and lock, closed, heads).
 | 2 | Rule 1: call shapes follow Canvas 2D and p5, `fig.text(str, x, y)`, `fig.path(points)` | `text(x, y, str)` (string last); the polyline is `poly(points)` | `prelude/shapes.js` | contract |
 | 3 | `fig.plot(x, y, w, h, {xRange, yRange, ticks, frame = 'dotted'})` with `p.x(v)`, `p.y(v)`, `p.bars(values, {labels})`, `p.fn(f)`, `p.vector(a, b, {label})`, `p.bounds` | `plot(x, y, w, h, {x, y, xticks, yticks, xlabel, ylabel, title})` with `p.at(x, y)`, `p.line(f or points)`, `p.dots(points)`; no bars, no vector, no dotted frame, no bounds handle | `prelude/plot.js` | contract |
 | 4 | `fig.stack([handles], {dir, gap = 24})` and `fig.grid([handles], {cols, gap, x, y})` move handles already built; `fig.table(rows, x, y, {size, header, widths})`; `fig.group(h1, h2, ...)` is one handle over several | `stack(x, y, opts, fn)` draws as it goes (`s.text`, `s.box`, `s.gap`; gap 8); no `grid`; `table(x, y, rows, {cols, rowH, header, parts})`; `group(opts, fn)` only sets defaults | `prelude/structure.js` | contract |
-| 5 | Errors: a `script` error with the message, line, column, the source line and the call stack; over a limit is one error, `limit`, that says which | Every script failure and every limit is `invalid` with `script:L:C: message` and a hint; no source line or stack (lane c adds the error line tonight) | `crates/daemon/src/server/figure.rs` (`run`), `crates/script/src/engine.rs`, docs/service.md, docs/cli.md | contract |
+| 5 | Errors: a `script` error with the message, line, column, the source line and the call stack; over a limit is one error, `limit`, that says which | **Closed (slinger-fad0bb).** A failure is code `script`: `script:L:C: message`, the source line with a `^` under the column, and the script's own frames of the stack; every limit (time, memory, stack, shapes, the script's and the data's size) is code `limit` and says which. Both exit 5 | `crates/script/src/{lib,engine}.rs` (`ScriptError::report`, `Fault`), `crates/core/src/error.rs`, `crates/daemon/src/server/figure.rs` | closed |
 | 6 | Packet: `f3 figure softmax 0,0 1700x3800 parts=15 by=teacher` (an id of its own, the name, a part count) | `softmax figure 0,0 1700x3800 by=teacher parts=p1a,p1b,... locked=yes "first line"` (the name is the id, the part names listed, a quote) | `crates/core/src/packet/figure.rs`, docs/design/packet.md | contract |
 | 7 | Shapes the reference has: `fig.ellipse`, `fig.slot(x, y, w, h, {label, by})` (dashed for the user, dotted for the agent), a box's `label` and `size`, a text's `align` | none of them; a slot is a dashed or dotted `box` and a label a separate `text` | `prelude/shapes.js` | medium |
 | 8 | A part is named by a `name` option on any call, `h.name()`, or `fig.part(name, {color}, fn)` | only `part(name, [opts], fn)`; `name` is an unknown option and fails the call | `prelude/structure.js`, `prelude/base.js` | medium |
-| 9 | Rule 5, inputs: `anchor` (the size and text of the item it goes beside or over) and, with `--over` or `--at`, the bounds of the items around it in figure coordinates | `fig.view.target` (`{x: 0, y: 0, w, h}` of the `--over` or `--in` item, else `null`) and `fig.view.page`; no text, nothing for `--beside`, no neighbours | `crates/script/src/lib.rs` (`View`), `crates/daemon/src/canvases/figure.rs`, `server/figure.rs` | medium |
+| 9 | Rule 5, inputs: `anchor` (the size and text of the item it goes beside or over) and, with `--over` or `--at`, the bounds of the items around it in figure coordinates | **Closed (slinger-fad0bb).** The globals `anchor` (`{id, kind, w, h, text}` for `--beside` and `--over`, else `null`) and `around` (with `--over` or `--at`, the shown items within 500 units, nearest first, at most 500, each `{id, kind, x, y, w, h}` in figure coordinates, else `[]`); `fig.view.target` stays; a redraw reads the anchor again from `figure_drawn`'s `anchor` | `crates/core/src/canvas/file/around.rs`, `crates/script/src/prelude/view.js`, `crates/daemon/src/canvases/figure.rs` | closed |
 | 10 | Warnings: text taller than its box, a word wider than its frame, two named parts that overlap (and text over a line) | text over a line, arrow, stroke or box edge; texts overlapping; a box drawn again on a box; a label longer than its arrow; a shape far from the others. None of the owner's first three | `prelude/checks.js` | medium |
 | 11 | Acceptance: Appendix B (the 106 softmax worksheet, 56 items, 15 parts) is the script; redraw fills "actual top 5" by name | The acceptance fixture is another worksheet (compound growth, 56 items, 15 parts) written for the built API (Appendix D); Appendix B does not run (rows 1 to 4, 7, 8) | `crates/script/src/tests/worksheet.{js,json}`, `crates/daemon/src/tests/script.rs` | medium |
 | 12 | The data is the global `data` (`null` when none) | `fig.data` (`{}` when none); no global `data` | `prelude/base.js` | small |
@@ -839,12 +839,14 @@ call emits shapes at once; nothing is returned to place later.
 - 1 s of run time (an interrupt handler), 32 MB of memory, 512 KB of stack,
   a script of at most 1 MiB, data of at most 256 KiB as JSON, at most 5,000
   items. Each limit fails with its own message and the line:col where the
-  script was.
+  script was, as the error code `limit` (slinger-fad0bb).
 - No `Date`, timers, `console`, `import`/`require`, `eval` of strings, or IO.
   `Math.random` is a seeded generator (seed 1 each run), so the same script
   and data give the same bytes out, which replace by match relies on.
-- Errors keep the script's line and column: `script:12:7: box: w must be a number above 0, got "wide"`.
-  A bad argument fails at the call, by the function's name. A run the
+- Errors keep the script's line and column: `script:12:7: box: w must be a number above 0, got "wide"`,
+  as the error code `script`, followed by the source line (a `^` under the
+  column) and the script's frames of the stack when it was inside a
+  function of its own (slinger-fad0bb). A bad argument fails at the call, by the function's name. A run the
   clock stopped names a line the loop is at or after, and says so
   (`script:3:1: the script ran longer than 1 s, stopped at this line or in
   a loop after it`): QuickJS checks the clock at a call, where the stack
@@ -873,10 +875,12 @@ call emits shapes at once; nothing is returned to place later.
 
 **Pick: A.** `crates/script`'s one function:
 `slinger_script::run(script: &str, data: &serde_json::Value, view: &View) -> Result<Drawn, ScriptError>`,
-with `View { name: String, target: Option<[f64; 4]>, agent: String, page: String }` (the
+with `View { name: String, target: Option<[f64; 4]>, agent: String, page: String, anchor: Option<Anchor>, around: Vec<Near> }` (the
 figure's name, which every shape carries as `fig`; the `--over`/`--in` item's frame, of which
-the script sees the size; the agent colour as hex; the page name) and
-`ScriptError { line: u32, col: u32, message: String }`. Text measure in the
+the script sees the size; the agent colour as hex; the page name; the globals `anchor` and
+`around`, which the core's `Log::surround` fills) and
+`ScriptError { kind: Fault, line: u32, col: u32, message: String, shown: String, stack: Vec<String> }`
+(`Fault::Script` or `Fault::Limit`, the two error codes; `report()` is the message the daemon sends). Text measure in the
 prelude is the core's rule (a cell is `render::CELL` of the size wide, one
 size tall); a daemon test pins it against `slinger_core::render::text_size`
 (slinger-ce52ee: the app draws text proportional, so a script's measured
@@ -1270,7 +1274,12 @@ that sets it, then to `fig.color`:
 **Context.** `fig.name` (the figure's name), `fig.data` (the data, `{}` when
 none), `fig.view.target` (`{x: 0, y: 0, w, h}` of the `--over` or `--in`
 item, else `null`), `fig.view.page` (the page's name), `fig.color` (assign
-to change every later default). `warn(message)` adds a warning. The engine
+to change every later default). The global `anchor` is the item the
+figure goes beside or over, `{id, kind, w, h, text}` (`text` is `null` but
+for a text), else `null`; the global `around`, with `--over` or `--at`,
+holds the items within 500 units of that item or point, nearest first (at
+most 500), each `{id, kind, x, y, w, h}` in the figure's coordinates, else
+`[]`. `warn(message)` adds a warning. The engine
 warns, and still draws, on text over a line, texts overlapping, a box
 drawn again on the same frame without a fill, an arrow's label longer than
 the arrow, and a shape far from the others.
@@ -1278,8 +1287,11 @@ the arrow, and a shape far from the others.
 **Not there:** `Date`, timers, `console`, `import`, `fetch`, files. `Math.random`
 is seeded: the same script and data draw the same figure.
 
-**Errors** name the call and the line: `script:12:7: box: w must be a number above 0, got "wide"`.
-Limits: 1 s, 32 MB, 5,000 shapes, a 1 MiB script, 256 KiB of data.
+**Errors** name the call and the line: `script:12:7: box: w must be a number above 0, got "wide"`,
+then the source line with a `^` under the column and, inside a function,
+the calls it was in (`at row (script:12:7)`). Its code is `script` (exit 5).
+Limits: 1 s, 32 MB, a 512 KB stack, 5,000 shapes, a 1 MiB script, 256 KiB
+of data. Over one is code `limit` (exit 5), and the message says which.
 
 ## Appendix D: the reference worksheet as built (written overnight)
 

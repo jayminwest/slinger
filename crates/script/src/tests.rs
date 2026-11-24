@@ -6,10 +6,11 @@ use crate::{AGENT, Drawn, ScriptError, View, run};
 
 mod api;
 mod limits;
+mod report;
 mod worksheet;
 
 fn view() -> View {
-    View { name: "fig".into(), target: None, agent: AGENT.into(), page: "p1".into() }
+    View { name: "fig".into(), agent: AGENT.into(), page: "p1".into(), ..View::default() }
 }
 
 fn draw(script: &str) -> Result<Drawn, ScriptError> {

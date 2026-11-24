@@ -21,6 +21,15 @@ pub enum Error {
     /// An agent's text is longer than an agent may write in one item.
     #[error("{message}")]
     TooLong { message: String, hint: Option<String> },
+    /// A drawing script failed: a throw, a bad argument to an API call, a
+    /// syntax error. The message names the line and column and shows the
+    /// source line and the calls the script was in.
+    #[error("{message}")]
+    Script { message: String },
+    /// A drawing script went over a limit: its time, memory, stack, size,
+    /// data or shapes. The message says which, and where.
+    #[error("{message}")]
+    Limit { message: String },
     /// A canvas file is damaged before its last line: it was changed outside
     /// slinger. `line` counts from 1.
     #[error("the canvas file is damaged at line {line}: {message}")]
@@ -42,6 +51,8 @@ impl Error {
             Self::Conflict { .. } => "conflict",
             Self::Invalid { .. } => "invalid",
             Self::TooLong { .. } => "too_long",
+            Self::Script { .. } => "script",
+            Self::Limit { .. } => "limit",
             Self::CanvasCorrupt { .. } => "canvas_corrupt",
             Self::CanvasTooNew { .. } => "canvas_too_new",
             Self::UnsupportedVersion { .. } => "unsupported_version",
@@ -56,6 +67,12 @@ impl Error {
             | Self::Conflict { hint, .. }
             | Self::Invalid { hint, .. }
             | Self::TooLong { hint, .. } => hint.as_deref(),
+            Self::Script { .. } => Some(
+                "fix the script there and try it with --dry-run; 'slinger guide' has the drawing API",
+            ),
+            Self::Limit { .. } => Some(
+                "do less in the script, or draw it as two figures; 'slinger guide' lists the limits",
+            ),
             Self::CanvasCorrupt { .. } => {
                 Some("the file was changed outside slinger; restore it from a backup")
             }
@@ -76,6 +93,8 @@ mod tests {
         assert_eq!(Error::Conflict { message: "x".into(), hint: hint.clone() }.code(), "conflict");
         assert_eq!(Error::Invalid { message: "x".into(), hint: hint.clone() }.code(), "invalid");
         assert_eq!(Error::TooLong { message: "x".into(), hint }.code(), "too_long");
+        assert_eq!(Error::Script { message: "x".into() }.code(), "script");
+        assert_eq!(Error::Limit { message: "x".into() }.code(), "limit");
     }
 
     #[test]
