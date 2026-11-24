@@ -70,6 +70,8 @@ fn written(ink: &mut Ink) -> Option<String> {
 
 use std::borrow::Cow;
 
+use super::super::Editing;
+
 #[test]
 fn keys_typed_before_nvim_is_ready_land_in_order_and_escape_twice_ends_the_text() {
     let Some((mut vim, _dir)) = vim(READY) else { return };
@@ -355,4 +357,38 @@ fn a_double_tap_on_a_word_opens_nvim_in_normal_mode_with_its_cursor_on_that_cell
     until(&mut vim, &mut shapes, &mut ink, |_, s| {
         grid(s).is_some_and(|(g, _)| g.mode_name == "normal" && g.cursor == (1, 8))
     });
+}
+
+/// The editing of a window whose Nvim starts as `vim`'s does, its text new or reading `text`.
+fn quit_editing(vim: Vim, text: Option<&str>) -> super::super::Editing {
+    let daemon = slinger_control::Client::new("/nonexistent/slinger.sock");
+    let mut editing = super::super::Editing::start(&daemon, &Wake::none());
+    editing.vim = vim;
+    editing.shapes = match text {
+        Some(text) => opened(text, &mut editing.ink),
+        None => new_text(&mut editing.ink),
+    };
+    editing
+}
+
+#[test]
+fn the_app_quitting_in_insert_mode_keeps_the_keys_just_typed() {
+    let Some((vim, _dir)) = vim(READY) else { return };
+    let mut editing = quit_editing(vim, Some("plan"));
+    let Editing { vim, shapes, ink, .. } = &mut editing;
+    until(vim, shapes, ink, |v, _| v.confirmed());
+    assert!(vim.typed("A ahead", shapes));
+    // As `Event::Quitting` does (`Canvases::quitting`): no poll in between.
+    assert!(editing.end_text());
+    assert!(!editing.shapes.editing());
+    assert_eq!(written(&mut editing.ink).as_deref(), Some("plan ahead"));
+}
+
+#[test]
+fn the_app_quitting_as_a_new_text_s_nvim_starts_keeps_what_was_typed() {
+    let Some((vim, _dir)) = vim(READY) else { return };
+    let mut editing = quit_editing(vim, None);
+    assert!(editing.vim.typed("first words", &editing.shapes));
+    assert!(editing.end_text());
+    assert_eq!(written(&mut editing.ink).as_deref(), Some("first words"));
 }

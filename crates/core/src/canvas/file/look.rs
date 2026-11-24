@@ -5,7 +5,8 @@
 //! Ids are the file's (`i12`) or the packet's (`c12`, `t12`, `b12`, `a12`):
 //! the number is the item's, so every letter names that item, except that
 //! `c<n>` on a stroke of the user's names the whole cluster it is in on the
-//! page as it is now (`packet::cluster`). Anything else is a figure address
+//! page as it is now (`packet::cluster`), and `f<n>` on an item of a figure
+//! names the whole figure, as the packet's `figure` line does. Anything else is a figure address
 //! (docs/design/figures.md, "The address"): `worksheet` names every item of
 //! that figure, `worksheet/1a-answer` the items of that part. A box is `x,y,w,h` in the file's
 //! units, integers in tenths of a unit, on the first page, or `<page>:x,y,w,h`
@@ -142,6 +143,9 @@ impl Log {
         let Some(item) = canvas.item(ItemId::new(n)) else {
             return Err(Error::NotFound { what: format!("item {id}"), hint: Some(ID_HINT.into()) });
         };
+        if let (true, Some(figure)) = (id.starts_with('f'), &item.member().fig) {
+            return Ok(canvas.part(&Address { figure: figure.clone(), part: None }));
+        }
         if !id.starts_with('c') || !is_ink(item) || *item.author() != Author::User {
             return Ok(vec![item.id()]);
         }
@@ -156,7 +160,7 @@ impl Log {
     }
 }
 
-/// The number of an item id (`i12`, `c12`), or `None` for anything else,
+/// The number of an item id (`i12`, `c12`, `f12`), or `None` for anything else,
 /// a figure address among them.
 pub(super) fn number(id: &str) -> Option<u64> {
     id.strip_prefix(super::packet::ID_LETTERS)
@@ -164,7 +168,7 @@ pub(super) fn number(id: &str) -> Option<u64> {
         .and_then(|d| d.parse().ok())
 }
 
-const ID_HINT: &str = "pass an id from 'slinger canvas show' (i12) or from a packet (c12, t12), \
+const ID_HINT: &str = "pass an id from 'slinger canvas show' (i12) or from a packet (c12, t12, f12), \
     or a figure address (worksheet, worksheet/1a-answer)";
 
 const FIGURE_HINT: &str = "list the figures with 'slinger canvas figure <canvas>'";

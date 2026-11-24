@@ -78,7 +78,7 @@ bullet with the area in bold.
 - **CLI:** `slinger canvas draw <CANVAS> <FILE> --name NAME` runs an
   agent's drawing script (JavaScript) in the daemon and places what it
   draws as one named figure, beside an item, over it, in a box or at a
-  point, as one undo step. Drawing the same name again replaces the figure
+  point (`--at`, in tenths as for `canvas put`), as one undo step. Drawing the same name again replaces the figure
   in place and writes nothing when nothing changed. `--data` passes the
   script its data, `--dry-run` writes nothing, and `--png` writes the
   figure alone as an image. A script that fails says the line and column
@@ -92,6 +92,12 @@ bullet with the area in bold.
   `--script` swaps the figure's script. `slinger canvas figure <CANVAS>`
   lists the figures; with a name it prints the figure's parts, or its script
   (`--script`) or data (`--data`).
+- **CLI:** a drawing script that fails exits with code `script` and shows
+  the line of the script it stopped at, with a mark under the column, and
+  the calls it was in; one over a limit (time, memory, stack, shapes, size)
+  exits with code `limit` and says which. A script reads the item it is
+  drawn beside or over as `anchor` (its size, kind and text), and with
+  `--over` or `--at` the items near it as `around`, in its own coordinates.
 - **CLI:** `slinger guide` now holds the drawing script API ("Drawing
   scripts"). In a script, a plot takes a `title` and named ticks
   (`xticks: [[0, "Jan"], [1, "Feb"]]`), and an arrow's label moves along
@@ -105,8 +111,8 @@ bullet with the area in bold.
   worked example script. A sling of a figure's part asks for the answer
   beside it, or a redraw when the figure is the agent's.
 
-- **Canvas:** boxes and closed strokes take a fill, drawn as a light tint
-  under all writing; boxes, strokes and arrows can be dashed or dotted; an
+- **Canvas:** boxes and closed strokes take a fill, kept as the colour
+  given and drawn as a light tint (at most 40% opaque) under all writing; boxes, strokes and arrows can be dashed or dotted; an
   arrow can have a head at both ends or none (a plain line); a stroke can
   be closed into a loop. Set them with `fill`, `dash`, `heads` and
   `closed` in `canvas apply` (`canvas schema` lists them); crops and
@@ -117,11 +123,10 @@ bullet with the area in bold.
   or duplicating such an item keeps its look. A new `[theme] agent` key
   (default `#8a5cf5`) sets the colour an agent's default-coloured ink and
   fills show in.
-- **Canvas:** a tldraw import keeps each rectangle's fill (as a light tint
-  of its colour) and each rectangle's, drawing's and arrow's dashed or
+- **Canvas:** a tldraw import keeps each rectangle's fill (its colour,
+  drawn as a light tint) and each rectangle's, drawing's and arrow's dashed or
   dotted line, a closed drawing's loop and fill, an arrow's heads (at the
   end, both ends or none) and a locked shape's lock.
-  dotted line.
 - **App:** a canvas text you are not typing in shows its markdown, in the
   same monospaced cells nvim edits it in, so no word moves when you open it:
   `#` headings are bold, `*em*` italic, `**strong**` bold, `code` sits on
@@ -145,8 +150,10 @@ bullet with the area in bold.
   item id does: `canvas put --beside`, `canvas edit`, `canvas remove` and
   `canvas crop --item`. Older versions of slinger open these canvases and
   lose no item.
-- **Packet:** a figure is one line, named by the figure, with its parts,
-  whether it is locked and its title, instead of a line per item; ink over
+- **Packet:** a figure is one line, `f3 figure worksheet 0,0 900x1400
+  parts=15 by=claude`: an id of its own (`f` and the number of its lowest
+  item, usable wherever an id is), its name and how many parts it has,
+  instead of a line per item; ink over
   a part of a figure says which (`over=worksheet/1a-answer`), and an arrow
   to an item of a figure names its part. `canvas read --in` and
   `sling send --in` take a figure or a part (`worksheet/1a-answer`): it,
@@ -853,6 +860,10 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **App:** with a mouse or trackpad, picking the pen tool (⌘1) flashed
+  "Pen" while the footer said "Select" and a press selected. The flash
+  now names the select tool too, and says why: "Select ⌘7 · a mouse
+  selects with the pen". With the tablet pen near, it flashes "Pen ⌘1".
 - **CLI:** `slinger canvas draw` by an agent onto another page no longer
   splits a figure you drew over: it says the figure has your items on its
   page and draws nothing, so a figure's name stays on one page.

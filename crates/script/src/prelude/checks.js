@@ -154,6 +154,7 @@ function parts(drawn) {
 }
 
 function finish() {
+  if (overflow) throw overflow;
   const drawn = leaves.map((leaf) => {
     const out = item(leaf);
     emit(JSON.stringify(out));

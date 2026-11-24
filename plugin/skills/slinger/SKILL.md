@@ -29,8 +29,10 @@ If you cannot run the guide, these rules hold:
   marks over the user's work) is one figure: write a drawing script (the
   guide's "Drawing scripts" has its API) and run `slinger canvas draw
   <CANVAS> <FILE> --name <FIGURE> --beside <ITEM>`. Change it later with
-  `slinger canvas redraw <CANVAS> <FIGURE> --data <JSON>`, by its name. A short
-  remark stays a `canvas put`.
+  `slinger canvas redraw <CANVAS> <FIGURE> --data <JSON>`, by its name. A script
+  that fails exits 5 with code `script` (its line, source line and calls) or,
+  over a limit, `limit`: fix it and try `--dry-run`. A short remark stays a
+  `canvas put`.
 - Change only the items you made. Never change the user's ink or text: reply
   beside it, in short texts (at most 12 rows each; longer exits 5,
   `too_long`).

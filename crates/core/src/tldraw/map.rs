@@ -254,13 +254,13 @@ impl Builder {
 /// the dash, a stroke the dash, and the fill when closed, an arrow the dash
 /// and the heads, a rectangle's label none. tldraw's hand-drawn `draw` dash
 /// is solid; a `solid` fill (and the newer `fill` and `lined-fill`) is
-/// the shape's colour as dense a tint as a fill gets, `semi` and
-/// `pattern` half that. Any arrowhead but `none` is a head; a head at the
+/// the shape's colour as given, which a renderer draws as dense as a fill
+/// gets ([`FILL_MAX_ALPHA`]), `semi` and `pattern` half that. Any arrowhead but `none` is a head; a head at the
 /// start only is a head at the end of the arrow turned round ([`flipped`]).
 fn style(n: &Node) -> Style {
     let tint = |a: u8| Some(Colour { a, ..n.colour("color") });
     let fill = match text(n.props, "fill") {
-        "solid" | "fill" | "lined-fill" => tint(FILL_MAX_ALPHA),
+        "solid" | "fill" | "lined-fill" => tint(u8::MAX),
         "semi" | "pattern" => tint(FILL_MAX_ALPHA / 2),
         _ => None,
     };

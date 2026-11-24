@@ -242,10 +242,10 @@ The images are in the directory the header's `at=` names: `--out`, or
 slingerd's own. `--select c42,t12` keeps only those items in the outline.
 A folded box is one line, `b4 box … folded=7 "its first text"`; `--in b4`
 reads what a box holds, open or folded, as if it were the page, and its
-header says so (`in=b4`). A figure is one line, `worksheet figure …
-parts=title,q1,1a-answer locked=yes "its title"`, and ink over a part
-says so (`over=worksheet/1a-answer`); `--in worksheet/1a-answer` reads
-that part (`--in worksheet` the whole figure) item by item, each with
+header says so (`in=b4`). A figure is one line, `f3 figure worksheet …
+parts=15 by=claude` (its id, its name, how many parts), and ink over a
+part says so (`over=worksheet/1a-answer`); `--in worksheet/1a-answer`
+reads that part (`--in worksheet` or `--in f3` the whole figure) item by item, each with
 `part=`, with every other item whose centre lies in its frame.
 A read changes nothing. The packet is stored as a blob (`packet` in
 `--json`), and so is each image (`images`), for `blob get`. A canvas or
@@ -269,8 +269,8 @@ the `next` of `--json`. An `--after` the canvas has not reached exits 5
 `canvas crop` writes an image of one item or one box at the packet's scale
 (`docs/service.md`, "Crops and strokes"). A folded box's `--item` draws it
 open, with what it holds. `--item` takes an id from `canvas
-show` (`i12`) or from a packet (`c12` is the whole cluster), or a figure
-address (`worksheet` or `worksheet/1a-answer`: the items with that `fig`,
+show` (`i12`) or from a packet (`c12` is the whole cluster, `f3` the
+whole figure), or a figure address (`worksheet` or `worksheet/1a-answer`: the items with that `fig`,
 and that `part`). `--box` is in
 tenths of a unit, like every canvas command, on the first page unless
 `--page` names another. The image goes to `--out` (default `<ITEM>.png` or
@@ -355,13 +355,18 @@ nothing and exits 0. `session show` of an agent with no session exits 3
 `canvas draw` runs a drawing script (JavaScript; `slinger guide` has its
 API) in the daemon and places what it draws as one figure named `--name`,
 as one undo step (`docs/service.md`, "Drawing a figure"). `--at` is in
-canvas units, the packet's, not tenths: `--at 40,40` or `--at "Page 2:40,40"`.
+tenths of a unit, as `canvas put --at`: `--at 400,400` or `--at "Page 2:400,400"`.
 `--data` is JSON, or `@FILE`; the script reads it as the global `data` (`null` without `--data`). Drawing a
 name again replaces that figure in place and writes nothing when nothing
 changed. `--dry-run` writes nothing and, with `--json`, says where the
 figure would go and its parts; `--png` writes the figure alone as an image.
-A script that fails exits 5 (`invalid`) with `script:LINE:COL` in its
-message; a name another agent drew exits 4 (`conflict`).
+A script that fails exits 5 with code `script`: its message is
+`script:LINE:COL: ...`, then the source line with a `^` under the column
+and, inside a function, the calls it was in. A script over a limit (time,
+memory, stack, shapes, the script's or the data's size) exits 5 with code
+`limit`. The script reads the item it goes beside or over as `anchor`,
+and with `--over` or `--at` the items near it as `around`. A name another
+agent drew exits 4 (`conflict`).
 `canvas redraw` draws a figure again from its script on its last data
 with `--data` merged in as a JSON merge patch (an object merges key by key,
 `null` takes a key away, anything else replaces), where the figure now is,
@@ -462,7 +467,7 @@ never on `error`.
 | 2 | usage | Bad arguments, unknown command or flag |
 | 3 | not_found | A named thing does not exist |
 | 4 | conflict | The thing exists or is in the wrong state |
-| 5 | invalid | Input was understood but rejected (also `too_long`: an agent's text over 12 rows) |
+| 5 | invalid | Input was understood but rejected (also `too_long`: an agent's text over 12 rows; `script` and `limit`: a drawing script that failed or went over a limit) |
 | 6 | unavailable | `slingerd` does not answer, or the agent's process is not running. The hint says how to start it, or, for a `slingerd` that took the request and did not reply in time, to try again or restart it |
 Add a code only when a caller needs to tell the failure apart from the
 others. Never renumber.

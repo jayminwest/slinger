@@ -365,12 +365,12 @@ tldraw importer keeping fill and dash (and lock, closed, heads).
 
 | # | The owner's decision | What was built | Where | How hard |
 |---|---|---|---|---|
-| 5 | Errors: a `script` error with the message, line, column, the source line and the call stack; over a limit is one error, `limit`, that says which | Every script failure and every limit is `invalid` with `script:L:C: message` and a hint; no source line or stack (lane c adds the error line tonight) | `crates/daemon/src/server/figure.rs` (`run`), `crates/script/src/engine.rs`, docs/service.md, docs/cli.md | contract |
-| 6 | Packet: `f3 figure softmax 0,0 1700x3800 parts=15 by=teacher` (an id of its own, the name, a part count) | `softmax figure 0,0 1700x3800 by=teacher parts=p1a,p1b,... locked=yes "first line"` (the name is the id, the part names listed, a quote) | `crates/core/src/packet/figure.rs`, docs/design/packet.md | contract |
-| 9 | Rule 5, inputs: `anchor` (the size and text of the item it goes beside or over) and, with `--over` or `--at`, the bounds of the items around it in figure coordinates | `fig.view.target` (`{x: 0, y: 0, w, h}` of the `--over` or `--in` item, else `null`) and `fig.view.page`; no text, nothing for `--beside`, no neighbours | `crates/script/src/lib.rs` (`View`), `crates/daemon/src/canvases/figure.rs`, `server/figure.rs` | medium |
-| 13 | Decision 4: a script uses whole units; the other verbs keep tenths | `canvas draw --at` takes canvas units (`40,40`, `PAGE:X,Y`) while `canvas put --at` takes tenths (the wire is tenths for both) | `crates/cli/src/draw.rs`, guide.md | small |
-| 15 | `fill`: a colour ("use a light or translucent colour") | A name or `#rrggbb` is stored at 20% alpha (`33`), `true` is a tint of the shape's colour, `#rrggbbaa` as given; every renderer caps a fill at 40% (`FILL_MAX_ALPHA`) | `prelude/base.js` (`tint`), `crates/core/src/canvas/style.rs`, the app's fill pass | small |
-| 17 | Decision 3: no stored lock toggle | The app has none, but `locked` is an ordinary field: an agent may `set` it on its own items and the user on any, through `canvas apply` (undo, import and paste need it written) | `crates/core/src/canvas/file/ops.rs` | small |
+| 5 | Errors: a `script` error with the message, line, column, the source line and the call stack; over a limit is one error, `limit`, that says which | **Closed (slinger-fad0bb).** A failure is code `script`: `script:L:C: message`, the source line with a `^` under the column, and the script's own frames of the stack; every limit (time, memory, stack, shapes, the script's and the data's size) is code `limit` and says which. Both exit 5 | `crates/script/src/{lib,engine}.rs` (`ScriptError::report`, `Fault`), `crates/core/src/error.rs`, `crates/daemon/src/server/figure.rs` | closed |
+| 6 | Packet: `f3 figure softmax 0,0 1700x3800 parts=15 by=teacher` (an id of its own, the name, a part count) | closed slinger-2c5bfe: built as the owner's line; `f<n>` (the lowest item's number) works wherever an id does, and the name and `figure/part` addresses still work | `crates/core/src/packet/figure.rs`, docs/design/packet.md | closed |
+| 9 | Rule 5, inputs: `anchor` (the size and text of the item it goes beside or over) and, with `--over` or `--at`, the bounds of the items around it in figure coordinates | **Closed (slinger-fad0bb).** The globals `anchor` (`{id, kind, w, h, text}` for `--beside` and `--over`, else `null`) and `around` (with `--over` or `--at`, the shown items within 500 units, nearest first, at most 500, each `{id, kind, x, y, w, h}` in figure coordinates, else `[]`); `fig.view.target` stays; a redraw reads the anchor again from `figure_drawn`'s `anchor` | `crates/core/src/canvas/file/around.rs`, `crates/script/src/prelude/view.js`, `crates/daemon/src/canvases/figure.rs` | closed |
+| 13 | Decision 4: a script uses whole units; the other verbs keep tenths | Closed slinger-3b333f: now as designed. `canvas draw --at` takes tenths (`400,400`, `PAGE:X,Y`), as `canvas put --at` does | `crates/cli/src/draw.rs`, guide.md | small |
+| 15 | `fill`: a colour ("use a light or translucent colour") | The core, the app and the tldraw import keep a fill as given and every renderer caps it at 40% when drawn (`FILL_MAX_ALPHA`; slinger-2c5bfe). Left: the script API still stores a name or `#rrggbb` at 20% alpha (`33`) and `true` as a tint of the shape's colour | `prelude/base.js` (`tint`) | small |
+| 17 | Decision 3: no stored lock toggle | Closed slinger-3b333f: kept as built, the owner's call. The app has none, but `locked` is an ordinary field: an agent may `set` it on its own items and the user on any, through `canvas apply` (undo, import and paste need it written) | `crates/core/src/canvas/file/ops.rs` | small |
 
 Closed by slinger-bee990 (the script API ported to the owner's design;
 rows keep the numbers they were written with): 1 (handles), 2
@@ -385,8 +385,7 @@ its heading says, see below; the redraw acceptance stays on Appendix D, since
 Appendix B's script reads no data), 12 (the global `data`, `null` when none),
 14 (`width` on lines, paths and arrows; an arrow with heads stays 2 wide, a line
 of another width is a two-point stroke) and 16 (`good`, `bad`, `warn`; `error`
-is gone). Row 9's `anchor` and nearby bounds wait for the View that
-slinger-fad0bb adds.
+is gone). Row 9 (`anchor`, `around`) closed with slinger-fad0bb.
 
 Appendix B's count: as the API reads, the script draws 35 texts and 18 boxes
 (4 headings, 5 paragraphs, 8 answer boxes with 7 labels, 4 plot titles, 4
@@ -395,7 +394,7 @@ boxes with their labels). The spike's prelude, which is not in the
 repository, drew 3 more; nothing in Appendix A says what (a value over each
 of the 3 bars would make 56).
 
-Count left: 2 contract (5, 6), 1 medium (9), 3 small (13, 15, 17).
+Count left open: 1 small (15, the 20% tint the script API stores).
 
 ## As built (written overnight 2026-11-24, not the owner's text)
 
@@ -806,21 +805,26 @@ passed over and, for the selection rows, that a grabbed one is not.
 
 ### In the packet
 
-- **A figure is one line**, `figure` kind, its id the figure's name, its box
-  the figure's frame, then `by`, then `parts=` (the part names, comma-joined,
-  in reading order of their frames), then `locked` when any item is
-  (`locked=yes`), then the quoted text: the first line of the text of part
-  `title` if there is one, else of its first text in reading order, cut at
-  80 characters as in `page`:
+- **A figure is one line**, `figure` kind, as the owner's line has it: its
+  id `f` and the number of its lowest item, the figure's name after the
+  kind, its box the figure's frame, then `parts=` (how many parts), then
+  `by` (its maker, when an agent), then `in` when a box holds it. No
+  quote and no `locked` (slinger-2c5bfe):
 
   ```
-  worksheet figure 40,40 900x1400 by=claude parts=title,name,q1,q1-plot,1a-answer,... locked=yes "Compound growth"
+  f1 figure worksheet 40,40 900x1400 parts=15 by=claude
   ```
 
   Its items make no lines of their own. A figure an agent drew or redrew in
   `from..=to` goes in `made`, else in `page`. The line goes where the
   figure's lowest item id would go: when that item is hidden in a folded
   box, the figure is one of the lines the box's `folded=<n>` counts.
+- **The id** works wherever an id does, as `c<n>` does for a cluster:
+  `f<n>` on any item of a figure names the whole figure (`canvas read
+  --in f1`, `canvas put --beside f1`, `canvas crop --item f1`,
+  `--select f1`). On an item of no figure it is that item, as any other
+  letter is. The name (`worksheet`) and `figure/part` addresses work too,
+  and are what `over=`, arrow ends and a read's header print.
 - **Ink over a part:** an `ink` line gains figure parts in `over`, after the
   `pdf` ids: each part whose frame holds the centre of the cluster's box,
   the smallest first, as `figure/part`: `over=worksheet/1a-answer`. A
@@ -831,10 +835,12 @@ passed over and, for the selection rows, that a grabbed one is not.
 - **`canvas read <ID> --in worksheet/1a-answer`** is the packet of that part as if
   it were a page: one line per item of the part (with `part=`), and every
   other item, the user's ink above all, whose box's centre lies inside the
-  part's frame. `--in worksheet` is the whole figure, item by item, each with
-  `part=`. The header says `in=worksheet/1a-answer`.
-- Packet version stays 1: a new kind and new fields (B5). Stored packet
-  snapshots without figures read and print the same.
+  part's frame. `--in worksheet` (or `--in f1`) is the whole figure, item
+  by item, each with `part=`; there the part names are listed. The header
+  says `in=worksheet/1a-answer`, or `in=worksheet` for `--in f1`.
+- Packet version stays 1: a new kind, new fields and the name slot after a
+  `figure` line's kind (B5; no older reader saw a figure line). Stored
+  packet snapshots without figures read and print the same.
 
 ### The script API
 
@@ -856,15 +862,17 @@ nearest group that holds it, then the `fig.part` it was drawn in, then
 - 1 s of run time (an interrupt handler), 32 MB of memory, 512 KB of stack,
   a script of at most 1 MiB, data of at most 256 KiB as JSON, at most 5,000
   items. Each limit fails with its own message and the line:col where the
-  script was.
+  script was, as the error code `limit` (slinger-fad0bb).
 - No `Date`, timers, `console`, `import`/`require`, `eval` of strings, or IO.
   `Math.random` is a seeded generator (seed 1 each run), so the same script
   and data give the same bytes out, which replace by match relies on.
-- Errors keep the script's line and column: `script:12:7: fig.box: w must be a number above 0, got "wide"`.
-  Each API call reads its site as it starts (`entry` in `base.js`) and an
-  error it throws leads its stack with that site, so a call deep in a plot
-  or a table still names the script's line.
-  A bad argument fails at the call, by the function's name. A run the
+- Errors keep the script's line and column: `script:12:7: fig.box: w must be a number above 0, got "wide"`,
+  as the error code `script`, followed by the source line (a `^` under the
+  column) and the script's frames of the stack when it was inside a
+  function of its own (slinger-fad0bb). Each API call reads its site as it
+  starts (`entry` in `base.js`) and an error it throws leads its stack
+  with that site, so a call deep in a plot or a table still names the
+  script's line. A bad argument fails at the call, by the function's name. A run the
   clock stopped names a line the loop is at or after, and says so
   (`script:3:1: the script ran longer than 1 s, stopped at this line or in
   a loop after it`): QuickJS checks the clock at a call, where the stack
@@ -895,10 +903,12 @@ nearest group that holds it, then the `fig.part` it was drawn in, then
 
 **Pick: A.** `crates/script`'s one function:
 `slinger_script::run(script: &str, data: &serde_json::Value, view: &View) -> Result<Drawn, ScriptError>`,
-with `View { name: String, target: Option<[f64; 4]>, agent: String, page: String }` (the
+with `View { name: String, target: Option<[f64; 4]>, agent: String, page: String, anchor: Option<Anchor>, around: Vec<Near> }` (the
 figure's name, which every shape carries as `fig`; the `--over`/`--in` item's frame, of which
-the script sees the size; the agent colour as hex; the page name) and
-`ScriptError { line: u32, col: u32, message: String }`. Text measure in the
+the script sees the size; the agent colour as hex; the page name; the globals `anchor` and
+`around`, which the core's `Log::surround` fills) and
+`ScriptError { kind: Fault, line: u32, col: u32, message: String, shown: String, stack: Vec<String> }`
+(`Fault::Script` or `Fault::Limit`, the two error codes; `report()` is the message the daemon sends). Text measure in the
 prelude is the core's rule (a cell is `render::CELL` of the size wide, one
 size tall); a daemon test pins it against `slinger_core::render::text_size`
 (slinger-ce52ee: the app draws text proportional, so a script's measured
@@ -924,7 +934,7 @@ slinger canvas draw <CANVAS> <FILE> --name N (--beside ID | --over ID | --at X,Y
   item (or address); `--over ID` puts the figure's origin (0,0) on the
   item's top left and moves nothing (the script sees the item's size in
   `fig.view.target`, to draw over it); `--at X,Y` puts the origin there, in
-  canvas units, on the first page or `<page>:X,Y`; `--in ID` puts the frame in a
+  tenths of a unit as `canvas put --at` (slinger-3b333f), on the first page or `<page>:X,Y`; `--in ID` puts the frame in a
   box's room (`Canvas::free_in`), as `put --in`.
 - **Reply:** the figure's name, page, frame, part names, item count, `seq`,
   and the warnings. Text output prints the warnings only (one a line,
@@ -1095,8 +1105,10 @@ that changes least of what the pen does today. Each line is also in
    predicate.
 8. **Paste and duplicate:** a whole figure keeps parts and lock and takes a
    free name; anything else drops `fig`, `part`, `locked`; styles stay.
-9. **The packet:** a figure is one `figure` line named by the figure; ink
-   gets `over=figure/part`; `read --in` takes a part or a figure.
+9. **The packet:** a figure is one `figure` line,
+   `f3 figure softmax 0,0 1700x3800 parts=15 by=teacher` (the owner's line;
+   `f<n>` is an id like `c<n>`); ink gets `over=figure/part`; `read --in`
+   takes a part or a figure.
 10. **Shapes cross as JSON item objects** in tenths, checked by the core's
     apply reader; `crates/script` links no core type.
 11. **Replace by match** on (part, kind, ordinal); redraw merges data by
@@ -1347,14 +1359,21 @@ p.bounds                                     // a handle over the whole plot: p.
 
 **Context.** `fig.name` (the figure's name), `fig.view.target`
 (`{x: 0, y: 0, w, h}` of the `--over` or `--in` item, else `null`),
-`fig.view.page` (the page's name). `warn(message)` adds a warning.
+`fig.view.page` (the page's name). The global `anchor` is the item the
+figure goes beside or over, `{id, kind, w, h, text}` (`text` is `null` but
+for a text), else `null`; the global `around`, with `--over` or `--at`,
+holds the items within 500 units of that item or point, nearest first (at
+most 500), each `{id, kind, x, y, w, h}` in the figure's coordinates, else
+`[]`. `warn(message)` adds a warning.
 
 **Warnings** do not fail the draw: a label taller than its box, a word wider
 than its text's frame (it is cut), two named parts that overlap, text over a
 line, texts overlapping, a box drawn again on the same frame without a fill,
 an arrow's label longer than the arrow, a shape far from the others.
 
-**Errors** name the call and the line: `script:12:7: fig.box: w must be a number above 0, got "wide"`.
+**Errors** name the call and the line: `script:12:7: fig.box: w must be a number above 0, got "wide"`,
+then the source line with a `^` under the column and, inside a function,
+the calls it was in (`at row (script:12:7)`). Its code is `script` (exit 5).
 A script stopped at 1 s names a line its endless loop is at or after.
 Limits: 1 s, 32 MB, 5,000 shapes, a 1 MiB script, 256 KiB of data.
 

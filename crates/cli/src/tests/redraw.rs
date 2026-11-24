@@ -14,7 +14,8 @@ fn redraw_patches_the_data_and_figure_prints_what_was_drawn() {
     let script = dir.path().join("f.js");
     std::fs::write(&script, SCRIPT).unwrap();
     let script = script.to_str().unwrap();
-    let draw = ["canvas", "draw", "main", script, "--name", "f", "--at", "4,4", "--agent", "scout"];
+    let draw =
+        ["canvas", "draw", "main", script, "--name", "f", "--at", "40,40", "--agent", "scout"];
     let runs = cli_each(&[
         &["canvas", "create", "main"],
         &[&draw[..], &["--data", r#"{"w": 30, "keep": 1}"#]].concat(),

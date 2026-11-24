@@ -20,12 +20,28 @@ fn text(flash: &Flash, now: Instant) -> Option<String> {
 fn the_first_tool_does_not_flash_and_a_new_one_does_with_its_key() {
     let (keys, now) = (Keymap::default(), Instant::now());
     let flash = Flash::new(Tool::Pen);
-    flash.follow(Tool::Pen, &keys, now);
+    flash.follow(Tool::Pen, Tool::Pen, &keys, now);
     assert_eq!(text(&flash, now), None);
-    flash.follow(Tool::Eraser, &keys, now);
+    flash.follow(Tool::Eraser, Tool::Eraser, &keys, now);
     assert_eq!(text(&flash, now).as_deref(), Some("Eraser ⌘2"));
-    flash.follow(Tool::Arrow, &keys, now);
+    flash.follow(Tool::Arrow, Tool::Arrow, &keys, now);
     assert_eq!(text(&flash, now).as_deref(), Some("Arrow ⌘6"), "the new flash takes its place");
+}
+
+#[test]
+fn the_pen_tool_picked_with_a_mouse_flashes_the_select_tool_it_acts_as() {
+    let (keys, now) = (Keymap::default(), Instant::now());
+    let flash = Flash::new(Tool::Box);
+    flash.follow(Tool::Pen, Tool::Select, &keys, now);
+    let said = format!("Select ⌘7{MOUSE_PEN}");
+    assert_eq!(text(&flash, now), Some(said), "as the footer names it, and why");
+    flash.say(String::new(), now);
+    flash.follow(Tool::Pen, Tool::Pen, &keys, now);
+    assert_eq!(
+        text(&flash, now).as_deref(),
+        Some(""),
+        "the pen came near: no new choice, no flash"
+    );
 }
 
 #[test]
@@ -34,7 +50,7 @@ fn a_command_with_no_key_flashes_its_title_alone() {
     keys.bind(Command::ToolLasso, None);
     let now = Instant::now();
     let flash = Flash::new(Tool::Pen);
-    flash.follow(Tool::Lasso, &keys, now);
+    flash.follow(Tool::Lasso, Tool::Lasso, &keys, now);
     assert_eq!(text(&flash, now).as_deref(), Some("Lasso"));
     flash.command(Command::ReloadConfig, &keys, now);
     assert_eq!(text(&flash, now).as_deref(), Some("Reload config ⌘R"));
@@ -45,7 +61,7 @@ fn it_shows_until_its_time_and_then_fades_once() {
     let (keys, now) = (Keymap::default(), Instant::now());
     let flash = Flash::new(Tool::Pen);
     assert!(!flash.fade(now), "nothing showing, nothing to fade");
-    flash.follow(Tool::Text, &keys, now);
+    flash.follow(Tool::Text, Tool::Text, &keys, now);
     let pill = flash.pill(PANE, &T, now).unwrap();
     assert_eq!(pill.until, now + SHOWN);
     let almost = now + SHOWN.saturating_sub(Duration::from_millis(1));
@@ -61,7 +77,7 @@ fn it_shows_until_its_time_and_then_fades_once() {
 fn the_pill_is_at_the_top_centre_of_the_pane_a_step_lighter() {
     let (keys, now) = (Keymap::default(), Instant::now());
     let flash = Flash::new(Tool::Pen);
-    flash.follow(Tool::Box, &keys, now);
+    flash.follow(Tool::Box, Tool::Box, &keys, now);
     let label = flash.pill(PANE, &T, now).unwrap().label;
     let f = label.frame;
     assert_eq!(f.x + f.width / 2.0, PANE.x + PANE.width / 2.0);
@@ -80,7 +96,7 @@ fn the_pill_is_at_the_top_centre_of_the_pane_a_step_lighter() {
 fn said_text_flashes_in_place_of_the_last_and_goes_after_its_time() {
     let (keys, now) = (Keymap::default(), Instant::now());
     let flash = Flash::new(Tool::Pen);
-    flash.follow(Tool::Eraser, &keys, now);
+    flash.follow(Tool::Eraser, Tool::Eraser, &keys, now);
     flash.say("Page 2 · 2/3".into(), now);
     assert_eq!(text(&flash, now).as_deref(), Some("Page 2 · 2/3"));
     assert!(!flash.fade(now + SHOWN / 2));

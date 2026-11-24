@@ -33,6 +33,7 @@ pub(super) fn line(
             n: i.id().get(),
             id: String::new(),
             kind: "text",
+            name: None,
             frame: i.bounds(),
             fields: Vec::new(),
             text: Some(text.clone()),

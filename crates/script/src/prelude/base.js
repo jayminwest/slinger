@@ -28,7 +28,8 @@ DrawError.prototype.name = 'DrawError';
 function fail(call, message) {
   const e = new DrawError(`${call}: ${message}`);
   const [line, col] = here();
-  if (line > 0) e.stack = `    at ${call} (script:${line}:${col})\n${e.stack || ''}`;
+  const site = `(script:${line}:${col})`;
+  if (line > 0 && !(e.stack || '').includes(site)) e.stack = `    at ${call} ${site}\n${e.stack || ''}`;
   throw e;
 }
 

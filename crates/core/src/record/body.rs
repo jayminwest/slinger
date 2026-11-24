@@ -178,6 +178,11 @@ pub struct FigureDrawn {
     /// figure drawn beside an item or at a point. A redraw shows it again.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target: Option<[i64; 4]>,
+    /// The id or figure address of the item it was drawn beside or over,
+    /// which the script read as `anchor`; absent for a figure drawn in a
+    /// box or at a point. A redraw reads that item again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
 }
 
 impl Body {

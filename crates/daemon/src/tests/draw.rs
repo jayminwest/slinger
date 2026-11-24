@@ -121,7 +121,7 @@ fn a_failing_script_names_its_line_and_writes_nothing() {
     let dir = TempDir::new().unwrap();
     let bad = script(&dir, "fig.box(0, 0, 10, 10);\nfig.box(0, 0, 'wide', 10);\n");
     let e = client.canvas_draw(ask("agent:scout", "f", &bad, Place::At([0, 0]))).unwrap_err();
-    assert_eq!(e.code(), "invalid");
+    assert_eq!(e.code(), "script");
     assert!(e.to_string().contains("script:2:5: fig.box: w must be a number above 0"), "{e}");
     assert!(e.hint().is_some_and(|h| h.contains("--dry-run")), "{e:?}");
     let missing = dir.path().join("none.js");
@@ -161,7 +161,7 @@ fn a_runaway_script_stops_at_its_limit_and_the_daemon_draws_on() {
     for (text, line, said) in runaway {
         let e = client.canvas_draw(ask("agent:scout", "r", &script(&dir, text), Place::At([0, 0])));
         let e = e.unwrap_err();
-        assert_eq!(e.code(), "invalid");
+        assert_eq!(e.code(), "limit");
         assert!(e.to_string().contains(line) && e.to_string().contains(said), "{e}");
     }
     assert_eq!(next(&client), 1, "nothing written");

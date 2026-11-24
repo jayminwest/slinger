@@ -1,5 +1,5 @@
 //! `slinger canvas draw` against a real daemon: silent on success but for
-//! the script's warnings, `--at` in canvas units, data inline or from a
+//! the script's warnings, `--at` in tenths, data inline or from a
 //! file, a dry run that writes nothing but the PNG, and a failing script's
 //! line in the error.
 
@@ -10,7 +10,7 @@ const SCRIPT: &str =
     "fig.box(0, 0, (data || {}).w || 10, 10, { name: 'a' });\nwarn('look at ' + fig.view.page);\n";
 
 #[test]
-fn draw_prints_only_the_warnings_and_places_the_figure_at_canvas_units() {
+fn draw_prints_only_the_warnings_and_places_the_figure_at_tenths() {
     let dir = tempfile::tempdir().unwrap();
     let script = dir.path().join("f.js");
     std::fs::write(&script, SCRIPT).unwrap();
@@ -27,7 +27,7 @@ fn draw_prints_only_the_warnings_and_places_the_figure_at_canvas_units() {
             "--name",
             "f",
             "--at",
-            "Page 1:4,4.5",
+            "Page 1:40,45",
             "--agent",
             "scout",
         ],
@@ -115,6 +115,7 @@ fn a_bad_script_or_a_bad_flag_gets_its_exit_code() {
         &["canvas", "draw", "main", script, "--name", "f"],
         &["canvas", "draw", "main", script, "--name", "f", "--at", "0,0", "--beside", "i1"],
         &["canvas", "draw", "main", script, "--name", "f", "--at", "zero"],
+        &["canvas", "draw", "main", script, "--name", "f", "--at", "4,4.5"],
         &["canvas", "draw", "main", script, "--name", "f", "--at", "0,0", "--data", "{nope"],
         &["canvas", "draw", "main", "/nonexistent/f.js", "--name", "f", "--at", "0,0"],
     ]);
@@ -124,6 +125,7 @@ fn a_bad_script_or_a_bad_flag_gets_its_exit_code() {
         [
             exit::OK,
             exit::INVALID,
+            exit::USAGE,
             exit::USAGE,
             exit::USAGE,
             exit::USAGE,

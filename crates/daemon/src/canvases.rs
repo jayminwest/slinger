@@ -17,6 +17,8 @@ mod feed;
 mod figure;
 mod read;
 
+pub use figure::Sight;
+
 use std::collections::HashMap;
 use std::fs::{self, DirBuilder, File};
 use std::io::{self, Write};

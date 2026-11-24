@@ -122,7 +122,8 @@ at the page's top left, y down.
 packet  = header "\n" section*
 header  = "slinger-packet" SP version (SP field)*
 section = "# " name "\n" line*
-line    = id SP kind SP box (SP field)* [SP quoted] "\n"
+line    = id SP kind [SP name] SP box (SP field)* [SP quoted] "\n"
+name    = value                ; a figure line's name; never holds ","
 box     = x "," y SP w "x" h
 field   = key "=" value        ; value has no space, no quote
 quoted  = '"' text '"'         ; escapes: \" \\ \n
@@ -190,7 +191,8 @@ are cut down to their ink (`c1986`, 10.9 to 4.0 million pixels).
 kind (`t12`, `b9`, `a13`, `l14`, `u15` for a button: `b` is a box's, and
 `d16` for a `pdf` item). A cluster's id is `c` plus the item number of its
 earliest stroke, so it stays the same across packets while that stroke does,
-and no two lines in a packet share a number. An arrow end bound to a stroke
+and a figure's is `f` plus the item number of its lowest item (`f3`), so
+no two lines in a packet share a number. An arrow end bound to a stroke
 names the stroke's cluster; one bound to an item hidden in a folded box
 names the outermost folded box that holds it.
 
@@ -203,13 +205,18 @@ folded, as if it were the page; the box's own line is not in it, and the
 header names the box: `slinger-packet 1 canvas=idea page=p1 in=b4 from=…`.
 
 **Figures** (docs/design/figures.md, "In the packet"): a figure is one
-`figure` line, its id the figure's name, its box the joint frame of the
-items the page shows, and its items make no line of their own:
-`worksheet figure 40,40 900x1400 by=claude parts=title,q1,1a-answer locked=yes "Compound growth"`.
+`figure` line, its id `f` and the number of its lowest item, the
+figure's name after the kind, its box the joint frame of the items the
+page shows, and its items make no line of their own:
+`f3 figure softmax 0,0 1700x3800 parts=15 by=teacher`. The id works
+wherever an id does, as `c` does for a cluster: `f<n>` on any item of a
+figure names the whole figure (`canvas read --in f3` is `--in softmax`,
+and the header names it by its name); the name and `figure/part`
+addresses work too.
 The line goes in `made` when an agent drew or changed any of its items in
 `from..=to`, else in `page`, and where its lowest item would go: a figure
 whose lowest item a folded box hides is one of the lines the box's
-`folded` counts, and the box's quote may be the figure's text. An arrow end
+`folded` counts, and the box's quote may be a text of the figure. An arrow end
 bound to an item of a figure names its address (`worksheet/q1`, or
 `worksheet` for an item of no part); `in` never names a box of a figure.
 A packet read `--in` a figure or a part (`worksheet/1a-answer`) holds the
@@ -224,9 +231,8 @@ figure's boxes, since they have lines.
 |---|---|---|
 | `colour` | ink | the cluster's stroke colour (clusters never mix colours): `black`, `white`, `red`, `green`, `blue`, `yellow`, `orange`, `purple` or `grey` for those exact CSS colours, else `#rrggbb`, or `#rrggbbaa` when not opaque |
 | `strokes` | ink | number of strokes |
-| `by` | made items | the agent's name; on a `figure`, its maker's, when an agent |
-| `parts` | figure | its part names, comma-separated, in reading order of their frames |
-| `locked` | figure | `yes` when any of its items is locked |
+| `by` | made items | the agent's name; on a `figure`, its maker's, when an agent, after `parts` |
+| `parts` | figure | how many parts it has (`canvas read --in` it, or `canvas figure`, lists them) |
 | `part` | any, read `--in` a figure | the part of the figure the item is in |
 | `from`, `to` | arrow | ids at the arrow's ends, when bound |
 | `to` | ink | the id an arrow drawn in this cluster points at: the first arrow whose start is bound to one of its strokes |
@@ -242,8 +248,7 @@ figure's boxes, since they have lines.
 | `img` | ink in `new` | image file names, comma-separated, tiles in reading order |
 
 The quoted text is last. On a folded `box` line: its first text's first
-line, as above. On a `figure` line: the first line of the text of its
-part `title`, else of its first text in reading order, cut as in `page`. On `text` lines: the full text in `new` and
+line, as above. A `figure` line has none. On `text` lines: the full text in `new` and
 `made`, the first 80 characters plus `…` in `page`. On an `ink` line in
 `new` over a PDF: the PDF's words under the ink, when the sling came with
 backdrops (below); `page` ink lines never carry words.

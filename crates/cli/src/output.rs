@@ -74,7 +74,7 @@ impl From<&anyhow::Error> for Failure {
         let exit = match known.code() {
             "not_found" => exit::NOT_FOUND,
             "conflict" => exit::CONFLICT,
-            "invalid" | "too_long" => exit::INVALID,
+            "invalid" | "too_long" | "script" | "limit" => exit::INVALID,
             "unavailable" => exit::UNAVAILABLE,
             "usage" => exit::USAGE,
             _ => exit::ERROR,

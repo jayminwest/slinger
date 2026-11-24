@@ -92,10 +92,22 @@ class Handle {
 // or a stroke, in figure units. `own` is what its call set (color, fill,
 // dash, locked, part); the rest comes from the handles that hold it, then
 // the part it was drawn in, then fig.color as it was when it was drawn.
+// One shape too many: the throw is kept, so a script that catches it
+// still fails, at the call that went over.
+let overflow = null;
+function full(call) {
+  try {
+    fail(call, `a figure holds at most ${input.items} shapes`);
+  } catch (e) {
+    overflow = overflow || e;
+    throw e;
+  }
+}
+
 class Leaf extends Handle {
   constructor(call, kind, geo, own) {
     super();
-    if (leaves.length >= input.items) fail(call, `a figure holds at most ${input.items} shapes`);
+    if (leaves.length >= input.items) full(call);
     this.call = call;
     this.kind = kind;
     this.geo = geo;
