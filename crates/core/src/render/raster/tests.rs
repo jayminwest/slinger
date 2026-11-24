@@ -251,12 +251,44 @@ fn rows(text: &str, columns: usize) -> Vec<String> {
 
 #[test]
 fn text_wraps_at_spaces_and_cuts_words_longer_than_a_line() {
-    assert_eq!(rows("one two three", 7), ["one two", "three"]);
+    // The space a row breaks at ends it, and must fit too.
+    assert_eq!(rows("one two three", 7), ["one ", "two ", "three"]);
+    assert_eq!(rows("one two three", 8), ["one two ", "three"]);
     assert_eq!(rows("abcdefghij", 4), ["abcd", "efgh", "ij"]);
     assert_eq!(rows("a\nb c", 10), ["a", "b c"]);
     assert_eq!(rows("  a", 10), ["  a"], "spaces are kept");
     assert_eq!(rows("", 10), [""]);
     assert_eq!(rows("no wrap at all", usize::MAX), ["no wrap at all"]);
+}
+
+/// Rows as nvim 0.11 shows them in 80 columns with `wrap`, `linebreak`
+/// and `breakat=" "` (docs/design/writing-column.md, step 5): a word
+/// that ends on the last cell goes down when a space follows it, and
+/// stays at the line's end.
+#[test]
+fn text_wraps_where_nvim_wraps_it() {
+    let a = |n| "a".repeat(n);
+    let x = |s: &str| format!("x {s}");
+    assert_eq!(
+        rows(&x(&format!("{} bb", a(78))), 80),
+        ["x ".into(), format!("{} ", a(78)), "bb".into()]
+    );
+    assert_eq!(rows(&x(&a(78)), 80), [x(&a(78))], "at the line's end it stays");
+    assert_eq!(rows(&x(&format!("{} bb", a(77))), 80), [x(&format!("{} ", a(77))), "bb".into()]);
+    let two = x(&format!("{}  bb", a(77)));
+    assert_eq!(rows(&two, 80), ["x ".into(), format!("{}  ", a(77)), "bb".into()], "both spaces");
+    assert_eq!(rows(&format!("{} bb", a(80)), 80), [a(80), " bb".into()], "no space: cut");
+    assert_eq!(
+        rows(&format!("  {}", a(89)), 80),
+        [format!("  {}", a(78)), a(11)],
+        "not in the indent"
+    );
+    let b = format!("{} {}", a(80), "b".repeat(85));
+    assert_eq!(
+        rows(&b, 80),
+        [a(80), " ".into(), "b".repeat(80), "b".repeat(5)],
+        "a row's first space"
+    );
 }
 
 #[test]

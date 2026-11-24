@@ -404,7 +404,7 @@ impl Shapes {
             if self.cells(&mut items, zoom, theme) {
                 return items;
             }
-            let (frame, text, size) = (editing.frame(), editing.editor.text(), editing.size);
+            let (frame, text, size) = (editing.whole(), editing.editor.text(), editing.size);
             let (caret, selected) = editing.marks(CARET / zoom);
             let fill = Some(Fill { colour: theme.focus, alpha: SELECTED_ALPHA });
             for (n, frame) in (0..).zip(selected) {

@@ -35,7 +35,7 @@ fn a_size_key_on_the_text_being_typed_is_a_step_its_undo_takes_back() {
     let (mut shapes, mut ink) = (Shapes::default(), Ink::default());
     let [(_, size, column), big] = resized(&mut shapes, &mut ink);
     assert_eq!((big.0.as_str(), big.1), ("notes", 36.0));
-    assert!(big.2 > column, "a wrapped text's column grows with it");
+    assert!(big.2.total_cmp(&column).is_ne(), "a wrapped text's column moves with its size");
 
     assert_eq!(step(&mut shapes, false), ("note".into(), 36.0, big.2), "the s typed after it");
     assert_eq!(step(&mut shapes, false), ("note".into(), size, column), "the size and column");

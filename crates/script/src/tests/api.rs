@@ -46,7 +46,8 @@ fn text_is_measured_by_the_cores_rule() {
     let d = drawn(
         "const m = measure('hello world', {w: 60});\nconst n = measure('hello world');\nwarn(JSON.stringify([m, n]));",
     );
-    assert_eq!(d.warnings[0].message, r#"[{"w":60,"h":48},{"w":132,"h":24}]"#);
+    // "hello" fills five cells; the space after it has a row of its own, as in nvim.
+    assert_eq!(d.warnings[0].message, r#"[{"w":60,"h":72},{"w":132,"h":24}]"#);
     assert_eq!(d.warnings[0].line, 3);
 }
 

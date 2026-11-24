@@ -2,32 +2,35 @@
 // shapes.js: box, line, arrow, poly, circle, text and measure.
 
 // Text measure, the core's rule (render::text_size and text_frame): a
-// character cell is half the size wide and the size tall, lines wrap at
-// spaces to the frame's width, and zero-width characters take no cell.
+// character cell is half the size wide and the size tall, lines wrap as
+// nvim wraps them (raster::wrap) to the frame's width, and zero-width
+// characters take no cell.
 const CELL = 0.5;
 const ZERO_WIDTH = /[\u200B\u200C\u200D\u2060\uFE0F\uFEFF]/gu;
 
+// The cells of each row: a row breaks after the last space in its cells
+// that a non-space follows, never in the line's leading spaces, the space
+// ending its row; with none, it is cut at the cells.
 function wrap(str, columns) {
   const rows = [];
   for (const paragraph of str.split('\n')) {
-    let row = 0;
-    paragraph.split(' ').forEach((w, i) => {
-      const word = Array.from(w.replace(ZERO_WIDTH, '')).length;
-      if (i > 0) {
-        if (row > 0 && row + 1 + word > columns) {
-          rows.push(row);
-          row = 0;
-        } else {
-          row += 1;
+    const chars = Array.from(paragraph.replace(ZERO_WIDTH, ''));
+    let lead = 0;
+    while (lead < chars.length && chars[lead] === ' ') lead += 1;
+    let first = 0;
+    while (chars.length - first > columns) {
+      const cut = first + columns;
+      let next = cut;
+      for (let i = cut - 1; i >= Math.max(first, lead + 1); i -= 1) {
+        if (chars[i] === ' ' && chars[i + 1] !== ' ') {
+          next = i + 1;
+          break;
         }
       }
-      row += word;
-      while (row > columns) {
-        rows.push(columns);
-        row -= columns;
-      }
-    });
-    rows.push(row);
+      rows.push(next - first);
+      first = next;
+    }
+    rows.push(chars.length - first);
   }
   return rows;
 }

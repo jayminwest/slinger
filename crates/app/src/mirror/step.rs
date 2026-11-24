@@ -1,7 +1,8 @@
 //! What a pane stepped into boxes shows of the page (docs/design/fold.md,
 //! "Step in"): inside a folded box, what it holds directly; inside an open
 //! box, what lies wholly inside its frame now, of what the level above
-//! shows. A trail is the boxes stepped into, outermost first, each with
+//! shows; inside a text (docs/design/writing-column.md, 3A), that text
+//! alone, framed whole. A trail is the boxes stepped into, outermost first, each with
 //! whether it was folded then: a box that is gone, has left the level
 //! above, or was folded or unfolded since, ends the trail there
 //! ([`Mirror::step`]). Pure.
@@ -9,6 +10,7 @@
 use super::Mirror;
 use crate::layout::Rect;
 use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::glyphs;
 
 /// How many characters of a box's first text its name in a trail keeps.
 const NAME: usize = 24;
@@ -22,8 +24,10 @@ pub struct Inside {
     /// Each open box after it, and its frame: an item shows only when it
     /// lies wholly inside each.
     open: Vec<(ItemId, Rect)>,
-    /// The innermost box's room: its open frame.
+    /// The innermost box's room: its open frame; a text's whole frame.
     pub room: Rect,
+    /// The text stepped into last, if any: the pane shows it alone.
+    text: Option<ItemId>,
 }
 
 impl Inside {
@@ -32,6 +36,9 @@ impl Inside {
     pub fn shows(&self, mirror: &Mirror, item: &Item) -> bool {
         if mirror.item(item.id).is_none() {
             return true;
+        }
+        if self.text.is_some_and(|t| t != item.id) {
+            return false;
         }
         let holder = mirror.holders.get(&item.id);
         let level = self.folded.map_or(holder.is_none(), |b| holder == Some(&b));
@@ -57,6 +64,12 @@ impl Inside {
     pub fn held(&self) -> bool {
         self.folded.is_some()
     }
+
+    /// The text the pane is stepped into, and the frame that holds all its
+    /// rows, which it shows in; `None` inside a box.
+    pub fn text(&self) -> Option<(ItemId, Rect)> {
+        self.text.map(|t| (t, self.room))
+    }
 }
 
 impl Mirror {
@@ -79,7 +92,6 @@ impl Mirror {
         let mut inside: Option<Inside> = None;
         for (n, &(id, was)) in trail.iter().enumerate() {
             let Some(item) = self.item(id) else { return (inside, n) };
-            let Shape::Box { frame, .. } = &item.shape else { return (inside, n) };
             let here = match &inside {
                 None => !self.holders.contains_key(&id),
                 Some(up) => up.shows(self, item),
@@ -88,12 +100,30 @@ impl Mirror {
             if !here || folded != was {
                 return (inside, n);
             }
+            let frame = match &item.shape {
+                Shape::Box { frame, .. } => *frame,
+                Shape::Text { frame, text, size, column: Some(column) } => {
+                    let at = crate::layout::Point { x: frame.x, y: frame.y };
+                    let room = glyphs::whole_frame(at, text, *size, *column);
+                    let up = inside.unwrap_or(Inside {
+                        folded: None,
+                        open: Vec::new(),
+                        room,
+                        text: None,
+                    });
+                    inside = Some(Inside { room, text: Some(id), ..up });
+                    continue;
+                }
+                _ => return (inside, n),
+            };
             inside = Some(match (inside, self.room(id)) {
-                (_, Some(room)) => Inside { folded: Some(id), open: Vec::new(), room },
-                (None, None) => Inside { folded: None, open: vec![(id, *frame)], room: *frame },
+                (_, Some(room)) => Inside { folded: Some(id), open: Vec::new(), room, text: None },
+                (None, None) => {
+                    Inside { folded: None, open: vec![(id, frame)], room: frame, text: None }
+                }
                 (Some(mut up), None) => {
-                    up.open.push((id, *frame));
-                    up.room = *frame;
+                    up.open.push((id, frame));
+                    up.room = frame;
                     up
                 }
             });

@@ -63,12 +63,13 @@ fn a_text_whose_rows_cross_the_edge_stays_out() {
 fn a_wrapped_paragraph_is_as_wide_as_its_longest_row() {
     let (mut log, _) = Log::create("c").unwrap();
     let b = boxed(&mut log, 0, 0, 3000, 1500);
-    // A 10-character column (120 units): rows "one two" and "three", 84 units.
+    // A 10-character column (120 units): rows "one two " (the space it breaks
+    // at ends it) and "three", 96 units.
     let words = add(
         &mut log,
         json!({"kind": "text", "x": 100, "y": 100, "w": 1200, "h": 480, "text": "one two three"}),
     );
-    let narrow = boxed(&mut log, 50, 50, 1000, 600);
+    let narrow = boxed(&mut log, 50, 50, 1100, 600);
     log.fold(&Author::User, AT, &narrow, None).unwrap();
     assert_eq!(log.canvas().contents(id(&narrow)), vec![id(&words)]);
     assert_eq!(shown(&log), vec![id(&b), id(&narrow)]);

@@ -35,8 +35,8 @@ fn glyph(x: f64, y: f64, text: &str) -> Rect {
     glyphs::rows_frame(pt(x, y), text, TEXT_SIZE, glyphs::UNWRAPPED)
 }
 
-/// The column a new text of the usual size wraps in: 48 cells of 12 and a half.
-const NEW: Option<f64> = Some(582.0);
+/// The column a new text of the usual size wraps in: 80 cells of 12 and a half.
+const NEW: Option<f64> = Some(966.0);
 
 fn item(id: u64, shape: Shape) -> Item {
     Item { id: ItemId(id), colour: BLUE, shape, style: Style::default() }
@@ -456,7 +456,7 @@ fn a_text_being_typed_shows_its_caret_frame_and_hint_sized_for_the_screen() {
     let caret = Shape::Caret { frame: bar };
     assert_eq!((showing[1].colour, &showing[1].shape), (THEME.focus, &caret), "2 points at zoom 2");
     // As wide as the column it wraps in.
-    let around = Rect { width: 582.0, ..text }.outset(2.0);
+    let around = Rect { width: 966.0, ..text }.outset(2.0);
     let dashed = Shape::Panel { frame: around, fill: None, width: 0.5, dashed: true };
     assert_eq!((showing[2].colour, &showing[2].shape), (THEME.muted, &dashed));
     let Shape::Text { frame: under, text, size, .. } = &showing[3].shape else { panic!() };
@@ -487,7 +487,7 @@ fn a_new_text_starts_at_the_size_set_and_keeps_it_while_typed() {
     assert!(shapes.typed("Hi\u{1b}", &mut ink));
     let half = glyphs::rows_frame(pt(0.0, 0.0), "", 48.0, glyphs::UNWRAPPED).height / 2.0;
     let frame = glyphs::rows_frame(snap(pt(10.0, 212.0 - half)), "Hi", 48.0, glyphs::UNWRAPPED);
-    let text = Shape::Text { frame, text: "Hi".into(), size: 48.0, column: Some(1164.0) };
+    let text = Shape::Text { frame, text: "Hi".into(), size: 48.0, column: Some(1932.0) };
     assert_eq!(changes(&mut ink), vec![put(text)], "the tap is the middle of its first line");
 }
 
