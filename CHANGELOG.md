@@ -839,6 +839,13 @@ bullet with the area in bold.
 
 ### Fixed
 
+- **Canvas:** a figure drawn by a script keeps its script and data in its
+  canvas file, so `slinger canvas redraw` and `slinger canvas figure
+  --script` still work after the canvas file is copied to another machine
+  or data directory. `canvas draw` and `canvas redraw` list a figure's
+  parts in one order, top to bottom and left to right, as `canvas figure`
+  does, whether they wrote or not.
+
 - **CLI:** `slinger canvas draw` by an agent onto another page no longer
   splits a figure you drew over: it says the figure has your items on its
   page and draws nothing, so a figure's name stays on one page.

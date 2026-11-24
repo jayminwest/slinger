@@ -362,7 +362,8 @@ changed. `--dry-run` writes nothing and, with `--json`, says where the
 figure would go and its parts; `--png` writes the figure alone as an image.
 A script that fails exits 5 (`invalid`) with `script:LINE:COL` in its
 message; a name another agent drew exits 4 (`conflict`).
-`canvas redraw` draws a figure again from its script on its last data
+`canvas redraw` draws a figure again from its script on its last data (both
+kept in the canvas file, so a canvas file copied elsewhere still redraws)
 with `--data` merged in as a JSON merge patch (an object merges key by key,
 `null` takes a key away, anything else replaces), where the figure now is,
 as one undo step; it needs `--data` or `--script` (a script to swap in).

@@ -219,6 +219,24 @@ impl Canvas {
     }
 }
 
+/// The part names of `items`, in reading order of each part's joint frame
+/// (then by name), as [`Figure::parts`] lists a figure's on the canvas.
+pub(crate) fn parts_in_order(items: &[Item]) -> Vec<String> {
+    let mut frames: BTreeMap<&str, Rect> = BTreeMap::new();
+    for item in items {
+        if let Some(part) = &item.member.part {
+            let bounds = item.bounds();
+            frames
+                .entry(part)
+                .and_modify(|f| *f = crate::render::union(*f, bounds))
+                .or_insert(bounds);
+        }
+    }
+    let mut parts: Vec<(&str, Rect)> = frames.into_iter().collect();
+    parts.sort_by(|a, b| by_place(a.1, b.1).then(a.0.cmp(b.0)));
+    parts.into_iter().map(|(name, _)| name.to_owned()).collect()
+}
+
 impl Item {
     /// Which figure and part the item is in, and whether it is locked.
     #[must_use]

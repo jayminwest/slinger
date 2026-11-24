@@ -257,7 +257,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_strokes` | `canvas`: canvas id, `item`: an item id | `strokes`: list of stroke items with `points` |
 | `canvas_find` | `canvas`: canvas id, `text`: string | `found`: list of text items that hold it, page by page in reading order |
 | `canvas_fold`, `canvas_unfold` | `canvas`: canvas id, `item`: a box's id, `by`: author (default `user`), `once`: string (optional) | `item`, `page`, `x`, `y`, `w`, `h`: the box's frame now (the miniature, or the open frame), `seq`: the numbers written (empty when nothing changed) |
-| `canvas_draw` | `canvas`: canvas id, `by`: author (default `user`), `name`: the figure's name, `path`: the script's file, then one of `beside`, `over`, `in`: an item id or address, `at`: `[x, y]` in tenths; optional `page` (with `at` only), `data`: a JSON file the script reads as `fig.data`, `dry_run`: `true` writes nothing, `png`: a file for a PNG of the figure alone, `once`: a key, as `canvas_apply`'s | `name`, `page`, `origin`: `[x, y]`, `frame`: `[x, y, w, h]` in tenths, `parts`, `items`: how many, `seq`: the numbers written (empty on a dry run or when nothing changed), `warnings` (when any), `images` (with `png`), `event`: the `reply_landed` appended (absent when none) |
+| `canvas_draw` | `canvas`: canvas id, `by`: author (default `user`), `name`: the figure's name, `path`: the script's file, then one of `beside`, `over`, `in`: an item id or address, `at`: `[x, y]` in tenths; optional `page` (with `at` only), `data`: a JSON file the script reads as `fig.data`, `dry_run`: `true` writes nothing, `png`: a file for a PNG of the figure alone, `once`: a key, as `canvas_apply`'s | `name`, `page`, `origin`: `[x, y]`, `frame`: `[x, y, w, h]` in tenths, `parts`: the part names in reading order of their frames (as `canvas_figure` lists them), `items`: how many, `seq`: the numbers written (the figure's `figure` line among them) (empty on a dry run or when nothing changed), `warnings` (when any), `images` (with `png`), `event`: the `reply_landed` appended (absent when none) |
 | `canvas_redraw` | `canvas`, `by` (default `user`), `name`: a figure a script drew; optional `data`: a file holding a JSON merge patch on its last data, `path`: a script's file to swap in, `once`: a key, as `canvas_apply`'s | as `canvas_draw`; `seq` is empty when nothing changed |
 | `canvas_figure` | `canvas`; optional `name`: one figure | `figures`: each `{name, page, frame: [x, y, w, h] in tenths, by, locked, items: how many, parts: [{name, frame, items}]}`, page by page in reading order; with `name`, that one, with `script` (its blob id) and `data` when a script drew it |
 | `session_list` | none | `sessions`: list of sessions, sorted by agent |
@@ -849,8 +849,10 @@ app never sends it; a client writes it with `Client::canvas_draw`
 ```
 
 `canvas_draw` takes `once` as `canvas_apply` does. **`canvas_redraw`**
-draws a figure again from its last `figure_drawn`: the script stored there
-(or the one `path` names, swapped in) runs on the data stored there with
+draws a figure again from its last draw as its canvas file keeps it (the
+figure's last `figure` line, docs/design/canvas-file.md), so a canvas file
+copied to another data directory or machine redraws there: the script kept
+there (or the one `path` names, swapped in) runs on the data kept there with
 `data`, a file holding a JSON merge patch (RFC 7396), applied: an object
 merges key by key, `null` takes a key away, anything else (an array too)
 replaces. It sees the same `fig.view.target` as the first draw. The
@@ -858,7 +860,7 @@ figure goes where it now is: the last origin moved as far as the figure's
 frame has moved since, so a figure the user moved is drawn again there. It
 replaces the figure by match, as a draw of the same name does, as one undo
 step, and the user's ink (in no figure) is never touched. The same script
-on the same data runs nothing and writes nothing (no op, no event, `seq`
+on the same data runs nothing and writes nothing (no line, no event, `seq`
 empty); a run that changes nothing writes nothing either. Only the maker
 (or the user) may redraw: another agent gets the author rule's `invalid`.
 A figure not on the canvas, or one no script drew, is `not_found`. The
@@ -870,8 +872,9 @@ order on a page: each its `name`, `page`, `frame` (the items the page
 shows, in tenths), maker `by`, `locked` (any item is), how many `items`
 and its `parts`, each `{name, frame, items}` in reading order. With
 `name`, only that figure (`not_found` when it is not there), with its
-`script` (the blob id, for `blob_get`) and `data` from its last
-`figure_drawn`, when a script drew it.
+`script` (the blob id, for `blob_get`; the daemon stores the script kept
+in the canvas file as a blob first) and `data` from its last draw, when a
+script drew it.
 
 ```json
 { "v": 1, "op": "canvas_redraw", "canvas": "main", "by": "agent:scout", "name": "worksheet", "data": "/tmp/patch.json" }

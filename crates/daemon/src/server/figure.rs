@@ -3,9 +3,10 @@
 //! `slinger_script` (outside the canvas's lock) and the core places what it
 //! drew as one figure; `canvas_figure` lists the figures. A draw that wrote
 //! appends `figure_drawn` (the script as a blob, the data whole) and, for
-//! an agent slung something on the canvas, `reply_landed`. The last
-//! `figure_drawn` of a figure is its script and data: a redraw starts from
-//! it. A dry run writes nothing at all.
+//! an agent slung something on the canvas, `reply_landed`. The canvas file
+//! keeps each figure's last script and data (its `figure` line): a redraw
+//! starts from it, so a canvas file moved elsewhere still redraws, and the
+//! record's events are its history. A dry run writes nothing at all.
 
 use std::fs;
 use std::path::Path;
@@ -15,14 +16,16 @@ use slinger_control::{
     CanvasDraw, CanvasDrawn, CanvasFigureAsk, CanvasFigures, CanvasRedraw, FigureShown, PartShown,
     Place, RemoteError,
 };
-use slinger_core::canvas::file::{Draft, Placement, merge_patch, parse_author, rect_tenths};
+use slinger_core::canvas::file::{
+    Draft, Placement, Script, merge_patch, parse_author, rect_tenths,
+};
 use slinger_core::canvas::{Author, Figure};
 use slinger_core::record::{Body, Event, FigureDrawn, Tags};
 use slinger_core::render;
 use slinger_script::{AGENT, View};
 
-use super::{absolute, agent, drawn, look, missing, remote, stored, unreadable};
-use crate::store::{Query, Store};
+use super::{absolute, agent, drawn, look, remote, stored, unreadable};
+use crate::store::Store;
 
 pub(super) fn draw(store: &Store, ask: CanvasDraw) -> Result<CanvasDrawn, RemoteError> {
     let CanvasDraw { canvas, by: who, name, path, data, place, page, dry_run, png: out, once } =
@@ -52,25 +55,18 @@ pub(super) fn draw(store: &Store, ask: CanvasDraw) -> Result<CanvasDrawn, Remote
 pub(super) fn redraw(store: &Store, ask: CanvasRedraw) -> Result<CanvasDrawn, RemoteError> {
     let CanvasRedraw { canvas, by: who, name, data: patch, path: swap, once } = ask;
     parse_author(&who).map_err(|e| remote(&e))?;
-    let last = last_drawn(store, &canvas, &name)?.ok_or_else(|| {
-        let what = format!("figure {name} on canvas {canvas}, drawn by a script");
-        let hint = "draw it with 'slinger canvas draw'; 'slinger canvas figure' lists the figures";
-        RemoteError::new("not_found", format!("{what} is not there"), Some(hint.into()))
-    })?;
     let canvases = store.canvases();
-    let again =
-        canvases.again(&canvas, &who, &name, (last.origin, last.frame)).map_err(|e| drawn(&e))?;
+    let again = canvases.again(&canvas, &who, &name).map_err(|e| drawn(&e))?;
+    let last = again.source.script.clone();
     let mut data = last.data.clone();
     if let Some(patch) = patch.as_deref() {
         merge_patch(&mut data, &read_data(patch)?);
     }
-    let kept =
-        store.blob(last.script).map_err(|e| stored(&e))?.ok_or_else(|| missing(last.script))?;
     let script = match swap.as_deref() {
         Some(file) => read_script(file)?,
-        None => utf8(kept.clone(), "the figure's script")?,
+        None => last.text.clone(),
     };
-    if script.as_bytes() == kept && data == last.data {
+    if script == last.text && data == last.data {
         let (page, origin, frame, parts, items) =
             (again.page, again.origin, again.frame, again.parts, again.items);
         let (seq, warnings, images, event) = (Vec::new(), Vec::new(), Vec::new(), None);
@@ -107,8 +103,10 @@ pub(super) fn figures(store: &Store, ask: CanvasFigureAsk) -> Result<CanvasFigur
         RemoteError::new("not_found", format!("figure {name} is not on {canvas}"), Some(hint))
     })?;
     let mut one = shown(figure);
-    if let Some(last) = last_drawn(store, &canvas, &name)? {
-        (one.script, one.data) = (Some(last.script.to_string()), Some(last.data));
+    if let Some(last) = store.canvases().source(&canvas, &name).map_err(|e| drawn(&e))? {
+        // The wire names a script by its blob: store it, for a file from elsewhere.
+        let blob = store.put_blob(last.script.text.as_bytes()).map_err(|e| stored(&e))?;
+        (one.script, one.data) = (Some(blob.to_string()), Some(last.script.data));
     }
     Ok(CanvasFigures { figures: vec![one] })
 }
@@ -137,8 +135,9 @@ fn land(
 ) -> Result<(CanvasDrawn, Draft), RemoteError> {
     let Drawing { canvas, who, name, script, .. } = *figure;
     let blob = store.put_blob(script.as_bytes()).map_err(|e| stored(&e))?;
+    let kept = Script { text: script.into(), data: figure.data.clone(), target: figure.target };
     let done =
-        store.canvases().draw(canvas, who, (name, items), at, once).map_err(|e| drawn(&e))?;
+        store.canvases().draw(canvas, who, (name, items, kept), at, once).map_err(|e| drawn(&e))?;
     let draft = done.draft;
     if draft.unchanged() {
         return Ok((reply(draft.clone(), Vec::new(), Vec::new(), Vec::new(), None), draft));
@@ -186,20 +185,6 @@ fn run(
             "fix the script there and try it with --dry-run; 'slinger guide' has the drawing API";
         RemoteError::new("invalid", e.to_string(), Some(hint.into()))
     })
-}
-
-/// The last `figure_drawn` of the figure `name` on `canvas`: its script and data.
-fn last_drawn(store: &Store, canvas: &str, name: &str) -> Result<Option<FigureDrawn>, RemoteError> {
-    let query = Query {
-        kind: Some("figure_drawn".into()),
-        canvas: Some(canvas.into()),
-        ..Query::default()
-    };
-    let events = store.events(&query).map_err(|e| stored(&e))?;
-    Ok(events.into_iter().rev().find_map(|e| match e.body {
-        Body::FigureDrawn(drawn) if drawn.figure == name => Some(drawn),
-        _ => None,
-    }))
 }
 
 /// A figure as `canvas_figure` gives it, without its script and data.

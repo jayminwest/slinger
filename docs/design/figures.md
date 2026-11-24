@@ -382,8 +382,9 @@ tldraw importer keeping fill and dash (and lock, closed, heads).
 | 15 | `fill`: a colour ("use a light or translucent colour") | The core, the app and the tldraw import keep a fill as given and every renderer caps it at 40% when drawn (`FILL_MAX_ALPHA`; slinger-2c5bfe). Left: the script API still stores a name or `#rrggbb` at 20% alpha (`33`) and `true` as a tint of the shape's colour | `prelude/base.js` (`tint`) | small |
 | 16 | Colour names, for example `accent`, `muted`, `good`, `bad`, `warn` and a plot series (exact names left to the design step) | `agent`, `ink`, `muted`, `accent`, `error`, `series1`..`series6` and nine CSS names; no `good`, `bad` or `warn` | `crates/script/src/colour.rs` | small |
 | 17 | Decision 3: no stored lock toggle | The app has none, but `locked` is an ordinary field: an agent may `set` it on its own items and the user on any, through `canvas apply` (undo, import and paste need it written) | `crates/core/src/canvas/file/ops.rs` | small |
+| 18 | Figure and part: the script and data are in the record (`figure_drawn`); "The canvas file holds only items" | decided by the owner (2026-11-24 19:12): a canvas file moved to another data directory must not lose redraw. The canvas file also keeps each draw's script, data, origin, frame and target (op `figure`); the record keeps `figure_drawn` as history (slinger-55aa85) | `crates/core/src/canvas/file/source.rs`, docs/design/canvas-file.md | decided |
 
-Count: 6 contract, 5 medium, 6 small. The model, the verbs, the lock, the
+Count: 6 contract, 5 medium, 6 small; row 18 is the owner's later decision, built. The model, the verbs, the lock, the
 packet's meaning, placement and replace by match are as the owner decided;
 the difference is the script API's surface (rows 1 to 4, 7, 8, 12, 14), so
 the owner's Appendices A and B do not run on the build.
@@ -938,13 +939,40 @@ A record event, written by `draw` and `redraw` only (so not in `KINDS`, as
 - `script`: the blob id of the script's bytes. `data`: the data in full (after
   a redraw's merge), inline. `origin`: where figure (0,0) was placed;
   `frame`: the figure's frame as placed; both in tenths, as the canvas file.
-- The last `figure_drawn` of a (canvas, figure) is the figure's script and
-  data. `canvas figure --script`/`--data` print it; `redraw` starts from it.
+- The record's history of a figure's draws. Since slinger-55aa85 a redraw
+  and `canvas figure --script`/`--data` start from the canvas file's last
+  `figure` line (below), not from this event.
 - `target` (since step 10, absent when none): the frame of the item drawn
   over or in, in tenths, so a redraw shows the script the same
   `fig.view.target` as the first draw.
 - The payload type is `FigureDrawn` in `crates/core/src/record/body.rs`
   (`payload`, `kind`, `from_parts`); `crates/core/tests/record.rs` pins it.
+
+#### Where a figure's script and data live (slinger-55aa85)
+
+The owner decided (2026-11-24 19:12) that a canvas file moved to another
+data directory must not lose redraw; with the script and data only in the
+record's `figure_drawn`, it did. Built: a draw from a script that writes
+appends one `figure` line to the canvas file after its step's lines, in
+the same write: `{"op":"figure","fig":"worksheet","origin":[..],"frame":[..],"target":[..],"data":{..},"script":"…"}`
+(docs/design/canvas-file.md). It changes no item and is no undo step. The
+figure's last `figure` line is its source (`Log::source`, `Log::again`):
+`canvas redraw` and `canvas figure --script`/`--data` read it, and the
+record's `figure_drawn` stays as history (and is still written). A reader
+from before it skips the line (B5). An undo takes the items back, and with
+them the redraw (`not_found`) until a redo; the line stays.
+
+- **Inline (picked):** the script's text and the data whole on the line.
+  Scripts are a few KB and data at most 256 KiB, so the file is one thing to
+  move; each draw or redraw that writes adds one such line.
+- **A blob beside the canvas** (`<dir>/.slinger/blobs/`, storage.md Q3 A):
+  not built for PDFs either, and a canvas in the data directory has no
+  folder beside it; the line would name the script by its hash. Later, with
+  Q3, the line can name a hash instead of the text without a `v` change.
+- **Parts in one order:** `canvas_draw`'s and `canvas_redraw`'s `parts`
+  are in reading order of the parts' frames, as `canvas figure` lists
+  them, whether the call wrote or not (before, a call that wrote listed
+  them in the order the script first named them).
 
 #### `canvas redraw` (step 10)
 
@@ -958,9 +986,9 @@ slinger canvas redraw <CANVAS> <NAME> --data JSON|@FILE [--script FILE] [--agent
 - Only the maker may redraw (the author rule's error, `not_yours`). A figure
   with no item left on the canvas is `not_found`, hint: draw it again.
 - **Placement follows the user:** the new origin is the last `origin` plus
-  how far the figure's frame's top left has moved since the last
-  `figure_drawn` (the user moves a grabbed figure as one unit).
-- Same merged data and same script as the last `figure_drawn`: nothing runs,
+  how far the figure's frame's top left has moved since the last draw (the
+  user moves a grabbed figure as one unit).
+- Same merged data and same script as the last draw: nothing runs,
   nothing is written, no event. Otherwise the script runs and the result
   replaces the figure by match; `figure_drawn` is written only when at least
   one op was.
@@ -1090,7 +1118,9 @@ that changes least of what the pen does today. Each line is also in
     JSON merge patch, follows a user's move, and writes nothing (no event
     either) for the same script and data.
 12. **`figure_drawn`** holds the script as a blob id and the data inline
-    (at most 256 KiB), with origin and frame in tenths.
+    (at most 256 KiB), with origin and frame in tenths. Since slinger-55aa85
+    the canvas file's `figure` line holds them too, inline, and a redraw
+    reads that (owner's decision; see "Where a figure's script and data live").
 13. **`Math.random`** is seeded, not removed.
 
 ## Appendix A: the reference the agents were given

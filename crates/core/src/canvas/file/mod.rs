@@ -60,6 +60,7 @@ mod put;
 mod redraw;
 mod replay;
 mod short;
+mod source;
 mod style;
 mod synthetic;
 mod time;
@@ -75,6 +76,7 @@ pub use put::{How, INK_WIDTH, Placed, Put, TEXT_COLUMNS};
 pub use redraw::{Again, merge_patch};
 use serde_json::{Map, Value};
 pub use short::AGENT_ROWS;
+pub use source::{Script, Source};
 pub use synthetic::{SESSIONS, Synthetic};
 
 use super::{
@@ -177,6 +179,12 @@ pub enum Change {
         page: Page,
         index: usize,
         items: Vec<Item>,
+    },
+    /// The figure `name` was drawn from `source`: what a redraw needs. It
+    /// changes no item and is no undo step.
+    Figure {
+        name: String,
+        source: Source,
     },
 }
 
@@ -284,6 +292,7 @@ impl Line {
                     .raw("index", &index.to_string())
                     .raw("items", &format!("[{}]", items.join(",")))
             }
+            Change::Figure { name, source } => source::write(o, name, source),
         };
         let o = match step {
             Step::None => o,

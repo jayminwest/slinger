@@ -7,7 +7,7 @@
 
 use serde_json::{Value, json};
 use slinger_core::Error;
-use slinger_core::canvas::file::{Again, Drawn, Log, Placement};
+use slinger_core::canvas::file::{Again, Drawn, Log, Placement, Script, Source};
 use slinger_core::canvas::{Author, GAP, Item, ItemId, Shape, Time};
 use slinger_core::render;
 
@@ -51,14 +51,30 @@ impl Book {
 
     fn draw(&mut self, by: &Author, name: &str, shapes: &Value, at: &Placement) -> Drawn {
         let shapes = shapes.as_array().unwrap();
-        let drawn = self.log.place_figure(by, AT, name, shapes, at, None).unwrap();
+        let drawn = self.log.place_figure(by, AT, (name, shapes), at, None, None).unwrap();
+        self.bytes.push_str(&drawn.written.bytes);
+        drawn
+    }
+
+    /// As [`Book::draw`], from a script whose text is `text`, on `data`.
+    fn script(
+        &mut self,
+        name: &str,
+        shapes: &Value,
+        at: &Placement,
+        (text, data): (&str, Value),
+    ) -> Drawn {
+        let shapes = shapes.as_array().unwrap();
+        let script = Script { text: text.into(), data, target: None };
+        let drawn = self.log.place_figure(&claude(), AT, (name, shapes), at, None, Some(script));
+        let drawn = drawn.unwrap();
         self.bytes.push_str(&drawn.written.bytes);
         drawn
     }
 
     fn fails(&self, by: &Author, name: &str, shapes: &Value, at: &Placement) -> Error {
         let shapes = shapes.as_array().unwrap();
-        self.log.clone().place_figure(by, AT, name, shapes, at, None).unwrap_err()
+        self.log.clone().place_figure(by, AT, (name, shapes), at, None, None).unwrap_err()
     }
 
     fn item(&self, item: ItemId) -> &Item {
@@ -353,8 +369,10 @@ fn a_draw_under_a_key_it_was_written_under_is_not_written_twice() {
     let mut book = Book::new();
     let shapes = sheet("?");
     let (list, at) = (shapes.as_array().unwrap(), beside("i1"));
-    let first = book.log.place_figure(&claude(), AT, "worksheet", list, &at, Some("k1")).unwrap();
-    let again = book.log.place_figure(&claude(), AT, "worksheet", list, &at, Some("k1")).unwrap();
+    let first =
+        book.log.place_figure(&claude(), AT, ("worksheet", list), &at, Some("k1"), None).unwrap();
+    let again =
+        book.log.place_figure(&claude(), AT, ("worksheet", list), &at, Some("k1"), None).unwrap();
     assert_eq!(again.written.bytes, "");
     assert_eq!(again.written.seq, first.written.seq);
     assert_eq!(again.written.made, first.written.made);
@@ -363,11 +381,13 @@ fn a_draw_under_a_key_it_was_written_under_is_not_written_twice() {
 #[test]
 fn a_redraw_follows_the_figure_where_it_was_moved_and_keeps_the_author_rule() {
     let mut book = Book::new();
-    let drawn = book.draw(&claude(), "worksheet", &sheet("?"), &beside("i1"));
+    let drawn = book.script("worksheet", &sheet("?"), &beside("i1"), ("sheet()", json!({})));
     let (origin, frame) = (drawn.draft.origin, drawn.draft.frame);
-    let again = book.log.again(&claude(), "worksheet", origin, frame).unwrap();
+    let again = book.log.again(&claude(), "worksheet").unwrap();
     let at = Placement::At { page: Some("p1".into()), x: origin[0], y: origin[1] };
-    let want = Again { at, page: "p1".into(), origin, frame, parts: vec![], items: 5 };
+    let source = book.log.source("worksheet").unwrap().clone();
+    let (page, parts) = ("p1".into(), vec![]);
+    let want = Again { at, page, origin, frame, parts, items: 5, source };
     assert_eq!(Again { parts: vec![], ..again.clone() }, want, "nothing moved");
     assert_eq!(again.parts, ["title", "1a-answer"]);
     let unmoved = book.draw(&claude(), "worksheet", &sheet("?"), &again.at);
@@ -375,17 +395,73 @@ fn a_redraw_follows_the_figure_where_it_was_moved_and_keeps_the_author_rule() {
 
     let ids: Vec<String> = ids(&drawn).iter().map(|i| format!("i{}", i.get())).collect();
     book.apply(&Author::User, &json!({"op": "move", "ids": ids, "dx": 300, "dy": -200}));
-    let moved = book.log.again(&claude(), "worksheet", origin, frame).unwrap();
+    let moved = book.log.again(&claude(), "worksheet").unwrap();
     assert_eq!(moved.origin, [origin[0] + 300, origin[1] - 200]);
     assert_eq!(moved.frame, [frame[0] + 300, frame[1] - 200, frame[2], frame[3]]);
     let redrawn = book.draw(&claude(), "worksheet", &sheet("42"), &moved.at);
-    assert_eq!(redrawn.written.seq.len(), 1, "only the answer's text is set");
+    assert_eq!(redrawn.written.seq.len(), 1, "only the answer's text is set, from no script");
     assert_eq!(redrawn.draft.frame[..2], moved.frame[..2], "drawn where it was moved to");
 
     let ada = Author::Agent("ada".into());
-    let e = book.log.again(&ada, "worksheet", origin, frame).unwrap_err();
+    let e = book.log.again(&ada, "worksheet").unwrap_err();
     assert_eq!(e.code(), "invalid", "the author rule: {e}");
-    assert!(book.log.again(&Author::User, "worksheet", origin, frame).is_ok(), "the user may");
-    let e = book.log.again(&claude(), "nothing", origin, frame).unwrap_err();
+    assert!(book.log.again(&Author::User, "worksheet").is_ok(), "the user may");
+    let e = book.log.again(&claude(), "nothing").unwrap_err();
     assert_eq!(e.code(), "not_found");
+}
+
+#[test]
+fn the_canvas_file_keeps_what_a_redraw_needs_and_a_reader_finds_it_there() {
+    let mut book = Book::new();
+    let data = json!({"answer": "?", "rate": 0.08});
+    let drawn = book.script("worksheet", &sheet("?"), &beside("i1"), ("sheet(data)", data.clone()));
+    let line = book.bytes.lines().last().unwrap();
+    assert!(line.contains(r#""op":"figure","fig":"worksheet""#), "{line}");
+    assert!(
+        line.ends_with(r#""data":{"answer":"?","rate":0.08},"script":"sheet(data)"}"#),
+        "{line}"
+    );
+    assert!(!line.contains("step"), "no undo step: {line}");
+    assert_eq!(drawn.written.seq.len(), 6, "five adds and the figure line");
+    let want = Source {
+        script: Script { text: "sheet(data)".into(), data, target: None },
+        origin: drawn.draft.origin,
+        frame: drawn.draft.frame,
+    };
+    assert_eq!(book.log.source("worksheet"), Some(&want));
+
+    // The file alone, opened anywhere, redraws: no record is needed.
+    let copied = book.reopened();
+    assert_eq!(copied.source("worksheet"), Some(&want));
+    assert_eq!(copied.again(&claude(), "worksheet").unwrap().source, want);
+    assert_eq!(copied.canvas(), book.log.canvas(), "the line changes no item");
+
+    // The same draw again writes nothing, and no figure line either.
+    let next = book.log.next();
+    let same = book.script("worksheet", &sheet("?"), &beside("i1"), ("sheet(data)", json!({})));
+    assert!(same.draft.unchanged() && same.written.bytes.is_empty());
+    assert_eq!(
+        (book.log.next(), &book.log.source("worksheet").unwrap().script.data),
+        (next, &want.script.data)
+    );
+
+    // The last line wins; undo takes the items, and with them the redraw.
+    let at = Placement::At { page: Some("p1".into()), x: want.origin[0], y: want.origin[1] };
+    book.script("worksheet", &sheet("42"), &at, ("sheet(data)", json!({"answer": "42"})));
+    let last = book.reopened().source("worksheet").unwrap().script.data.clone();
+    assert_eq!(last, json!({"answer": "42"}));
+    book.log.undo(&claude(), AT);
+    book.log.undo(&claude(), AT);
+    assert_eq!(book.log.again(&claude(), "worksheet").unwrap_err().code(), "not_found");
+    let user = book.log.again(&claude(), "i1").unwrap_err();
+    assert_eq!(user.code(), "not_found", "{user}");
+}
+
+#[test]
+fn a_figure_no_script_drew_is_not_drawn_again() {
+    let mut book = Book::new();
+    book.draw(&claude(), "worksheet", &sheet("?"), &beside("i1"));
+    let e = book.log.again(&claude(), "worksheet").unwrap_err();
+    assert_eq!(e.code(), "not_found");
+    assert!(e.to_string().contains("drawn by a script"), "{e}");
 }
