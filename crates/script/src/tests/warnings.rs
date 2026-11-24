@@ -43,7 +43,8 @@ fn a_word_wider_than_its_frame_warns() {
 
 #[test]
 fn a_plots_first_y_label_sits_above_its_x_axis_clear_of_the_first_x_label() {
-    let script = "fig.plot(40, 0, 300, 200, {xRange: [-1, 5], yRange: [-5, 30], ticks: 5, frame: 'axes'});";
+    let script =
+        "fig.plot(40, 0, 300, 200, {xRange: [-1, 5], yRange: [-5, 30], ticks: 5, frame: 'axes'});";
     assert_eq!(said(script), [] as [String; 0]);
 }
 

@@ -84,7 +84,11 @@ fn draw(daemon: &control::Client, name: &str, data: bool, count: usize) {
 
 /// The window draws every item the core has, locked, with the core's
 /// style: `styled` items dashed or dotted and `filled` filled.
-fn drawn_as_the_core_has_it(w: &mut World, daemon: &control::Client, (styled, filled): (usize, usize)) {
+fn drawn_as_the_core_has_it(
+    w: &mut World,
+    daemon: &control::Client,
+    (styled, filled): (usize, usize),
+) {
     let sheet = items(daemon);
     bounds(w, sheet.len() as u64);
     let out = said(w);
