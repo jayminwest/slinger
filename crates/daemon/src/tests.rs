@@ -37,6 +37,7 @@ mod process;
 mod profile;
 mod put;
 mod read;
+mod redraw;
 mod script;
 mod session;
 mod showing;

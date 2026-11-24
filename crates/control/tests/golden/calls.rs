@@ -7,8 +7,8 @@ use std::time::Duration;
 
 use serde_json::json;
 use slinger_control::{
-    Backdrop, CanvasDraw, CanvasEdit, CanvasFold, CanvasOps, CanvasPut, CanvasStep, Client,
-    EventFilter, FeedbackNote, FoldAsk, NewEvent, NewTags, PacketAsk, PaneKind, PaneView,
+    Backdrop, CanvasDraw, CanvasEdit, CanvasFold, CanvasOps, CanvasPut, CanvasRedraw, CanvasStep,
+    Client, EventFilter, FeedbackNote, FoldAsk, NewEvent, NewTags, PacketAsk, PaneKind, PaneView,
     PaneViewed, Place, Profile, Put, RemoteError, SlingAsk, Touched, UiOpen,
 };
 
@@ -53,7 +53,13 @@ fn draw(place: Place) -> CanvasDraw {
         page: None,
         dry_run: false,
         png: None,
+        once: None,
     }
+}
+
+fn redraw(by: &str) -> CanvasRedraw {
+    let (canvas, name) = ("main".into(), "worksheet".into());
+    CanvasRedraw { canvas, by: by.into(), name, data: None, path: None, once: None }
 }
 
 const TS: &str = "2026-11-11T14:02:09.120-08:00";
@@ -261,4 +267,23 @@ pub const CALLS: &[Call] = &[
         c.canvas_draw(draw).map(drop)
     },
     |c| c.canvas_draw(draw(Place::Beside("c12".into()))).map(drop),
+    |c| {
+        c.canvas_draw(CanvasDraw { once: Some("k1".into()), ..draw(Place::Over("b4".into())) })
+            .map(drop)
+    },
+    |c| {
+        let redraw = CanvasRedraw {
+            data: Some("/tmp/p.json".into()),
+            path: Some("/tmp/w2.js".into()),
+            once: Some("k2".into()),
+            ..redraw("agent:scout")
+        };
+        c.canvas_redraw(redraw).map(drop)
+    },
+    |c| {
+        c.canvas_redraw(CanvasRedraw { data: Some("/tmp/p.json".into()), ..redraw("user") })
+            .map(drop)
+    },
+    |c| c.canvas_figure("main", None).map(drop),
+    |c| c.canvas_figure("main", Some("worksheet")).map(drop),
 ];

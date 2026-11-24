@@ -3,15 +3,15 @@
 
 use slinger_control::{
     BlobGetAsk, BlobPutAsk, CanvasChangesAsk, CanvasCreateAsk, CanvasCropAsk, CanvasDraw,
-    CanvasEdit, CanvasFindAsk, CanvasFoldAsk, CanvasImportAsk, CanvasListAsk, CanvasOps, CanvasPut,
-    CanvasRedoAsk, CanvasRemove, CanvasShowAsk, CanvasStrokesAsk, CanvasUndoAsk, CanvasUnfoldAsk,
-    DaemonInfoAsk, DaemonStopAsk, EventFilter, FeedbackListAsk, FeedbackNote, FeedbackPathAsk,
-    FeedbackResolveAsk, FileTouchedAsk, NewEvent, PacketAsk, PaneCloseAsk, PaneListAsk,
-    PaneOpenAsk, PaneResizeAsk, PaneViewAsk, ProfileListAsk, ProfileRemoveAsk, ProfileSetAsk,
-    SessionListAsk, SessionListenAsk, SessionSendAsk, SessionShowAsk, SessionStartAsk,
-    SessionStopAsk, SlingAsk, SlingBackdropsAsk, StatusSetAsk, UiExportAsk, UiListAsk, UiOpen,
-    UiPutAsk, UiReplyAsk, UiShowAsk, UiShownAsk, Verb, WorkspaceCloseAsk, WorkspaceListAsk,
-    WorkspaceOpenAsk, WorkspaceShowAsk, write_reply,
+    CanvasEdit, CanvasFigureAsk, CanvasFindAsk, CanvasFoldAsk, CanvasImportAsk, CanvasListAsk,
+    CanvasOps, CanvasPut, CanvasRedoAsk, CanvasRedraw, CanvasRemove, CanvasShowAsk,
+    CanvasStrokesAsk, CanvasUndoAsk, CanvasUnfoldAsk, DaemonInfoAsk, DaemonStopAsk, EventFilter,
+    FeedbackListAsk, FeedbackNote, FeedbackPathAsk, FeedbackResolveAsk, FileTouchedAsk, NewEvent,
+    PacketAsk, PaneCloseAsk, PaneListAsk, PaneOpenAsk, PaneResizeAsk, PaneViewAsk, ProfileListAsk,
+    ProfileRemoveAsk, ProfileSetAsk, SessionListAsk, SessionListenAsk, SessionSendAsk,
+    SessionShowAsk, SessionStartAsk, SessionStopAsk, SlingAsk, SlingBackdropsAsk, StatusSetAsk,
+    UiExportAsk, UiListAsk, UiOpen, UiPutAsk, UiReplyAsk, UiShowAsk, UiShownAsk, Verb,
+    WorkspaceCloseAsk, WorkspaceListAsk, WorkspaceOpenAsk, WorkspaceShowAsk, write_reply,
 };
 
 /// Reads `line` as the reply of the verb `V` and writes it back as the
@@ -86,4 +86,6 @@ pub const REPLIES: &[(&str, Round)] = &[
     (DaemonStopAsk::OP, round::<DaemonStopAsk>),
     (FileTouchedAsk::OP, round::<FileTouchedAsk>),
     (CanvasDraw::OP, round::<CanvasDraw>),
+    (CanvasRedraw::OP, round::<CanvasRedraw>),
+    (CanvasFigureAsk::OP, round::<CanvasFigureAsk>),
 ];

@@ -88,3 +88,8 @@
 {"v":1,"op":"file_touched","agent":"scout","hook":"{\"tool_name\":\"Write\"}"}
 {"v":1,"op":"canvas_draw","canvas":"main","by":"agent:scout","name":"worksheet","path":"/tmp/w.js","data":"/tmp/d.json","at":[10,-20],"page":"p2","dry_run":true,"png":"/tmp/w.png"}
 {"v":1,"op":"canvas_draw","canvas":"main","by":"agent:scout","name":"worksheet","path":"/tmp/w.js","beside":"c12"}
+{"v":1,"op":"canvas_draw","canvas":"main","by":"agent:scout","name":"worksheet","path":"/tmp/w.js","over":"b4","once":"k1"}
+{"v":1,"op":"canvas_redraw","canvas":"main","by":"agent:scout","name":"worksheet","data":"/tmp/p.json","path":"/tmp/w2.js","once":"k2"}
+{"v":1,"op":"canvas_redraw","canvas":"main","by":"user","name":"worksheet","data":"/tmp/p.json"}
+{"v":1,"op":"canvas_figure","canvas":"main"}
+{"v":1,"op":"canvas_figure","canvas":"main","name":"worksheet"}

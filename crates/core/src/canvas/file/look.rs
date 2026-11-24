@@ -167,8 +167,7 @@ pub(super) fn number(id: &str) -> Option<u64> {
 const ID_HINT: &str = "pass an id from 'slinger canvas show' (i12) or from a packet (c12, t12), \
     or a figure address (worksheet, worksheet/1a-answer)";
 
-const FIGURE_HINT: &str =
-    "the figures are the fig and part fields of the items 'slinger canvas show' lists";
+const FIGURE_HINT: &str = "list the figures with 'slinger canvas figure <canvas>'";
 
 const BOX_HINT: &str = "give a box as x,y,w,h in tenths of a unit, after <page>: for another page";
 

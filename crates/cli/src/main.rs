@@ -9,6 +9,7 @@ mod drive;
 mod edit;
 mod env;
 mod feedback;
+mod figure;
 mod guide;
 mod look;
 mod output;

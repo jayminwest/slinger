@@ -173,6 +173,11 @@ pub struct FigureDrawn {
     pub origin: [i64; 2],
     /// The figure's frame as placed, `[x, y, w, h]` in tenths.
     pub frame: [i64; 4],
+    /// The frame of the item it was drawn over or in, `[x, y, w, h]` in
+    /// tenths, which the script read as `fig.view.target`; absent for a
+    /// figure drawn beside an item or at a point. A redraw shows it again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<[i64; 4]>,
 }
 
 impl Body {

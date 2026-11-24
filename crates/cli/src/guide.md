@@ -126,6 +126,18 @@ slinger canvas draw <CANVAS> plot.js --name growth --beside c12 --dry-run --png 
 slinger canvas draw <CANVAS> plot.js --name growth --beside c12 --data '{"rate": 0.3}' --agent claude
 ```
 
+Change a figure you drew by its data, not by drawing it anew: a redraw runs
+its script again on its last data with yours merged in (an object merges key
+by key, `null` takes a key away, anything else replaces), where the figure
+now is, and writes only what changed; the user's writing on it stays. List
+the figures, and read one's parts, script or data, with `canvas figure`:
+
+```bash
+slinger canvas redraw <CANVAS> growth --data '{"rate": 0.5}' --agent claude
+slinger canvas figure <CANVAS>                    # name page x,y wxh by= parts=
+slinger canvas figure <CANVAS> growth --data      # the data it last ran on
+```
+
 Keep each text short: at most 12 rows, or the put exits 5 (`too_long`). Use
 more puts, each beside its subject, in place of one long text. A question, a
 box or an arrow often says more than prose. Answer the user's writing beside
