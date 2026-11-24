@@ -79,8 +79,9 @@ pub enum Canvas {
         /// The page, by id (p1) or name [default: the first page]
         #[arg(long)]
         page: Option<String>,
-        /// Read what this box holds, open or folded, as if it were the page: an id such as b4
-        #[arg(long = "in", value_name = "BOX")]
+        /// Read what this box holds, open or folded, as if it were the page: an id such as b4;
+        /// or a figure or part and what lies over it: worksheet, worksheet/1a-answer
+        #[arg(long = "in", value_name = "BOX|FIGURE")]
         inside: Option<String>,
         /// Operations numbered above this are new [default: the canvas's last sling]
         #[arg(long, value_name = "NUMBER")]

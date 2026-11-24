@@ -2,6 +2,7 @@
 //! (`canvases::editing::vim`) and hands back its buffer. Pure.
 
 use super::Shapes;
+use crate::layout::Point;
 use crate::scene::editor::Editor;
 
 impl Shapes {
@@ -14,6 +15,13 @@ impl Shapes {
     /// when this changed.
     pub fn ends(&self) -> u64 {
         self.ends
+    }
+
+    /// Where the text being typed is: its canvas, page, top left (in
+    /// canvas units) and size.
+    pub fn typing_place(&self) -> Option<(&str, &str, Point, f64)> {
+        let e = self.editing.as_ref()?;
+        Some((e.canvas.as_str(), e.page.as_str(), e.at, e.size))
     }
 
     /// Whether the text being typed is a new one, not an item opened.

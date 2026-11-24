@@ -31,6 +31,11 @@ bullet with the area in bold.
   or a drag in the text is nvim's mouse. The key overlay lists these. The new
   `[editor] nvim` config key (`"auto"`, `"off"` or the path to nvim)
   picks which nvim; with none found, slinger's own editor types and says so.
+- **App:** write focus (⌥⌘↩, "Focus on text" in the Canvas menu and the
+  palette): while you type a text, or with one text selected, the pane zooms
+  so the text's 80-character column fills its width, the text's top just
+  under the pane's top. Ending the text, or the same key again, puts the
+  view back where it was.
 - **Canvas:** boxes and closed strokes take a fill, drawn as a light tint
   under all writing; boxes, strokes and arrows can be dashed or dotted; an
   arrow can have a head at both ends or none (a plain line); a stroke can
@@ -45,7 +50,16 @@ bullet with the area in bold.
   fills show in.
 - **Canvas:** a tldraw import keeps each rectangle's fill (as a light tint
   of its colour) and each rectangle's, drawing's and arrow's dashed or
+  dotted line, a closed drawing's loop and fill, an arrow's heads (at the
+  end, both ends or none) and a locked shape's lock.
   dotted line.
+- **App:** a canvas text is a writing column 80 characters wide and grows
+  to 80 lines. A longer text shows its first lines, the last few fading,
+  and "N more lines" in its last row; two quick taps on that row, or
+  step-in with the text selected, show it whole; escape steps back out.
+- **Canvas:** a text wraps where nvim wraps it: a word that ends on the
+  column's last cell with a space after it goes to the next line, as the
+  space must fit too. Some long texts break a line differently.
 
 - **Canvas:** items can belong to a named figure and a named part of it
   (`fig`, `part`) and can be locked (`locked`), set through
@@ -54,6 +68,12 @@ bullet with the area in bold.
   item id does: `canvas put --beside`, `canvas edit`, `canvas remove` and
   `canvas crop --item`. Older versions of slinger open these canvases and
   lose no item.
+- **Packet:** a figure is one line, named by the figure, with its parts,
+  whether it is locked and its title, instead of a line per item; ink over
+  a part of a figure says which (`over=worksheet/1a-answer`), and an arrow
+  to an item of a figure names its part. `canvas read --in` and
+  `sling send --in` take a figure or a part (`worksheet/1a-answer`): it,
+  item by item, and the writing over it.
 
 - **App:** a new `[editor] nvim` config key (`"auto"`, `"off"` or the path
   to nvim) picks the nvim that will edit canvas texts. The app reads it now;

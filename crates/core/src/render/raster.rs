@@ -362,29 +362,32 @@ pub(super) fn columns(w: f64, size: f64) -> usize {
     if w >= cell { (w / cell) as usize } else { usize::MAX }
 }
 
-/// Lines of characters: `text` cut at each `\n`, and wrapped at spaces to at
-/// most `columns` characters. A word longer than a line is cut. Zero-width
-/// characters draw nothing, so they are left out and take no cell.
+/// Lines of characters: `text` cut at each `\n`, and wrapped as nvim wraps
+/// it with `wrap`, `linebreak` and `breakat=" "` in `columns` cells
+/// (docs/design/writing-column.md): a row that does not fit breaks after
+/// the last space in its first `columns` characters that a character
+/// other than a space follows, and that comes after the line's first
+/// other character; so a word ending on the last cell with a space after
+/// it goes to the next row. The space a row breaks at ends that row. A row
+/// with no such space is cut at `columns`. Zero-width characters draw
+/// nothing, so they are left out and take no cell.
 pub(super) fn wrap(text: &str, columns: usize) -> Vec<Vec<char>> {
+    let columns = columns.max(1);
     let mut rows = Vec::new();
     for paragraph in text.split('\n') {
-        let mut row: Vec<char> = Vec::new();
-        for (i, word) in paragraph.split(' ').enumerate() {
-            let word: Vec<char> = word.chars().filter(|&c| !zero_width(c)).collect();
-            if i > 0 {
-                // The space before a word that does not fit becomes the line break.
-                if !row.is_empty() && row.len() + 1 + word.len() > columns {
-                    rows.push(std::mem::take(&mut row));
-                } else {
-                    row.push(' ');
-                }
-            }
-            row.extend(word);
-            while row.len() > columns {
-                rows.push(row.drain(..columns).collect());
-            }
+        let chars: Vec<char> = paragraph.chars().filter(|&c| !zero_width(c)).collect();
+        // No break in the spaces a line starts with.
+        let lead = chars.iter().take_while(|&&c| c == ' ').count();
+        let mut first = 0;
+        while chars.len() - first > columns {
+            let cut = first + columns;
+            let after =
+                (first.max(lead + 1)..cut).rev().find(|&i| chars[i] == ' ' && chars[i + 1] != ' ');
+            let next = after.map_or(cut, |i| i + 1);
+            rows.push(chars[first..next].to_vec());
+            first = next;
         }
-        rows.push(row);
+        rows.push(chars[first..].to_vec());
     }
     rows
 }

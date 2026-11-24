@@ -48,11 +48,13 @@ const NONE: Facts = Facts {
     items: false,
     selected: false,
     boxed: false,
+    steps: false,
     inside: false,
     sling: false,
     entry: false,
     sling_now: false,
     new_text: false,
+    text: false,
     workspace: false,
     agent: None,
     notice: false,
@@ -64,9 +66,9 @@ const NONE: Facts = Facts {
 fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
     use Command as C;
     let selected = Facts { selected: true, ..PAGE };
-    let boxed = Facts { boxed: true, ..selected };
+    let boxed = Facts { boxed: true, steps: true, ..selected };
     let shown = Facts { workspace: true, ..PAGE };
-    vec![
+    let mut rules: Vec<(&'static [Command], Facts, Facts)> = vec![
         (
             &[
                 C::ClosePane,
@@ -126,11 +128,14 @@ fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
         (&[C::ClearSelection], Facts { inside: true, ..PAGE }, Facts { items: false, ..PAGE }),
         (&[C::Fold, C::StepIn, C::StepInBeside], boxed, selected),
         (&[C::Fold], boxed, Facts { items: false, ..boxed }),
+        (&[C::StepIn, C::StepInBeside], Facts { steps: true, ..selected }, selected), // long text
+        (&[C::Fold], boxed, Facts { steps: true, ..selected }),
         (&[C::StepIn, C::StepInBeside], Facts { items: false, ..boxed }, PAGE),
         (&[C::Sling, C::Dictate], Facts { sling: true, ..PAGE }, PAGE),
         (&[C::Dictate], Facts { entry: true, ..NONE }, NONE),
         (&[C::SlingNow], Facts { sling_now: true, ..PAGE }, PAGE),
         (&[C::NewText], Facts { new_text: true, ..NONE }, PAGE),
+        (&[C::WriteFocus], Facts { text: true, ..PAGE }, PAGE),
         (&[C::CloseWorkspace, C::ShowWorkspaceFolder], shown, PAGE),
         (&[C::StartAgent, C::RestartAgent], Facts { agent: Some(false), ..shown }, shown),
         (&[C::StopAgent, C::RestartAgent], Facts { agent: Some(true), ..shown }, shown),
@@ -152,6 +157,15 @@ fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
         (&[C::ExportUi], Facts { ui: true, ..NONE }, Facts { canvas: true, ..NONE }),
         (&[C::ExportUi], Facts { ui: true, ..NONE }, Facts { ui_pane: true, ..NONE }),
         (&[C::ReloadUi], Facts { ui_pane: true, ..NONE }, Facts { canvas: true, ..NONE }),
+    ];
+    rules.extend(daemon_rules());
+    rules
+}
+
+/// The rules of the bundled slingerd's commands.
+fn daemon_rules() -> [(&'static [Command], Facts, Facts); 3] {
+    use Command as C;
+    [
         (&[C::StartSlingerd, C::RestartDaemon], Facts { managed: true, ..NONE }, NONE),
         (&[C::StartSlingerd], Facts { managed: true, old: true, ..NONE }, NONE),
         (

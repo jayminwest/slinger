@@ -34,6 +34,9 @@ pub struct Facts {
     pub selected: bool,
     /// The selection there holds a box to step into or fold.
     pub boxed: bool,
+    /// The selection there holds a box, or a text with more rows than it
+    /// shows, to step into.
+    pub steps: bool,
     /// The focused pane is stepped into a box.
     pub inside: bool,
     /// `sling` has something to open its entry at: the selection, a
@@ -46,6 +49,9 @@ pub struct Facts {
     pub sling_now: bool,
     /// `new-text` has a canvas page to start a text on.
     pub new_text: bool,
+    /// `write-focus` has a text to focus on in the focused pane, or the
+    /// pane is in write focus.
+    pub text: bool,
     /// A workspace shows.
     pub workspace: bool,
     /// Its agent, and whether it runs; `None` without one.
@@ -136,13 +142,14 @@ pub fn can(command: Command, facts: &Facts) -> bool {
         // With nothing selected it steps out.
         Command::ClearSelection => f.items && (f.selected || f.inside),
         Command::Fold => f.items && f.boxed,
-        Command::StepIn | Command::StepInBeside => f.boxed,
+        Command::StepIn | Command::StepInBeside => f.steps,
         Command::StepOut => f.inside,
         Command::Sling => f.sling,
         // With an entry open it speaks into it.
         Command::Dictate => f.entry || f.sling,
         Command::SlingNow => f.sling_now,
         Command::NewText => f.new_text,
+        Command::WriteFocus => f.text,
         Command::CloseWorkspace | Command::ShowWorkspaceFolder => f.workspace,
         Command::StartAgent => f.workspace && f.agent == Some(false),
         Command::StopAgent => f.workspace && f.agent == Some(true),

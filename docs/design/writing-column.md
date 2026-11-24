@@ -380,12 +380,23 @@ The key overlay's "Typing a text" rows (`scene/overlay/fixed.rs`) say
   is. Quoting the user's texts whole in `page` takes the whole-board packet
   in `crates/core/tests/packet_build.rs` from under 55 700 to 64 971
   tokens: a ratchet, so it waits for the owner.
-- Found, not done: nvim 0.11 with `wrap`, `linebreak`, `breakat=" "` at
+- Landed (app half, slinger-93b7c8): `glyphs::NEW_COLUMN` = 80;
+  `glyphs::MOST_ROWS`, `rows_frame` capped and `whole_frame` not,
+  `hidden`, `more` (the note's row); `scene/canvas/capped.rs` draws rows
+  1 to 76, rows 77 to 79 fading, the note in row 80; `Mirror::step` takes
+  a text as the last step (`Inside::text`), and the pane shows it alone in
+  its whole frame; `step-in` takes a selected capped text when no box is
+  selected (`Facts.steps`); two quick taps on the note's row step in
+  (`Follow::miniature_under`). Slinger's own editor draws every row while
+  it types (`Editing::whole`).
+- Landed with it: nvim 0.11 with `wrap`, `linebreak`, `breakat=" "` at
   80 columns moves a word that ends exactly at cell 80 to the next row when
   a space follows it (the space must fit too); at a line's end it stays.
-  The core's `raster::wrap` and the app's `glyphs::layout` keep it on
-  the row. Moving to nvim's rule changes both in one commit, with the app
-  half.
+  Measured against nvim on 7,000 random lines: a row breaks after the last
+  space in its cells that a non-space follows, never in the line's leading
+  spaces, the space ending its row; with none, it is cut at the cells. The
+  core's `raster::wrap` (rows keep that space) and the app's
+  `glyphs::layout` follow it.
 
 ### Write focus (step 6, slinger-9321cf)
 
@@ -396,6 +407,9 @@ pane's width less a margin of 4 cells each side, its top a cell below the
 pane's top; the view the pane had comes back when the text ends or on the
 same chord again. Alternative not taken: a pane of its own for the text
 (cuts the writing off from the ink around it).
+Landed (slinger-9321cf): `crates/app/src/canvases/focus.rs` (`writing`, the
+pure view; `Focus` keeps the view it replaced and the count of texts ended,
+so any text ending gives it back); the top margin is one row (one size).
 
 ### The rendered view (step 7, slinger-45d66c)
 

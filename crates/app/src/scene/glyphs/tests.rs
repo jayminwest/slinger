@@ -51,8 +51,9 @@ fn a_measure_is_kept_once_taken() {
 #[test]
 fn a_canvas_text_breaks_into_the_core_s_rows() {
     let rows = |text: &str, cells: f64| rows(text, 10.0, cells * 10.0 * CELL);
-    assert_eq!(rows("one two three", 7.0), "one two\nthree");
-    assert_eq!(rows("ab cd ef gh", 5.0), "ab cd\nef gh", "a space takes a cell");
+    assert_eq!(rows("one two three", 7.0), "one\ntwo\nthree", "the break's space must fit");
+    assert_eq!(rows("one two three", 8.0), "one two\nthree");
+    assert_eq!(rows("ab cd ef gh", 6.0), "ab cd\nef gh", "a space takes a cell");
     assert_eq!(rows("abcdefghij", 4.0), "abcd\nefgh\nij", "a word longer than a line is cut");
     assert_eq!(rows("a\nb c", 10.0), "a\nb c");
     assert_eq!(rows("  a", 10.0), "  a", "spaces are kept");
@@ -62,6 +63,40 @@ fn a_canvas_text_breaks_into_the_core_s_rows() {
     // Zero-width characters draw and take no cell, but are kept.
     assert_eq!(rows("ab\u{200D}cd\u{200B}ef", 6.0), "ab\u{200D}cd\u{200B}ef");
     assert_eq!(rows("one\u{2060} two", 7.0), "one\u{2060} two");
+}
+
+/// nvim's rows (0.11, `wrap`, `linebreak`, `breakat=" "`, 80 columns), as
+/// the core's `raster::wrap` test holds them: a word that ends on the last
+/// cell goes down when a space follows it, and stays at the line's end.
+#[test]
+fn a_canvas_text_breaks_where_nvim_breaks_it() {
+    let rows = |text: &str| rows(text, 10.0, NEW_COLUMN * 10.0 * CELL);
+    let a = |n| "a".repeat(n);
+    assert_eq!(rows(&format!("x {} bb", a(78))), format!("x\n{}\nbb", a(78)));
+    assert_eq!(rows(&format!("x {}", a(78))), format!("x {}", a(78)), "at the line's end");
+    assert_eq!(rows(&format!("x {} bb", a(77))), format!("x {}\nbb", a(77)));
+    assert_eq!(rows(&format!("x {}  bb", a(77))), format!("x\n{} \nbb", a(77)), "both spaces");
+    assert_eq!(rows(&format!("{} bb", a(80))), format!("{}\n bb", a(80)), "no space: cut");
+    let indent = format!("  {}", a(89));
+    assert_eq!(rows(&indent), format!("  {}\n{}", a(78), a(11)), "not in the indent");
+    let b = format!("{} {}", a(80), "b".repeat(85));
+    assert_eq!(rows(&b), format!("{}\n\n{}\n{}", a(80), "b".repeat(80), "b".repeat(5)));
+}
+
+#[test]
+fn a_text_past_most_rows_is_framed_at_most_rows_and_says_what_is_hidden() {
+    let text = (1..=100).map(|i| format!("row {i}")).collect::<Vec<_>>().join("\n");
+    let column = column(NEW_COLUMN * 10.0 * CELL, 10.0);
+    let capped = rows_frame(AT, &text, 10.0, column);
+    let whole = whole_frame(AT, &text, 10.0, column);
+    assert_eq!((capped.height, whole.height), (800.0, 1000.0), "80 rows; all 100");
+    assert_eq!(hidden(100), 21, "the rows past the 79th");
+    assert_eq!((hidden(80), hidden(81)), (0, 2));
+    let row = Rect { y: AT.y + 790.0, height: 10.0, ..capped };
+    assert_eq!(more(capped, &text, 10.0, column), Some((row, 21)), "the 80th row says it");
+    assert_eq!(more(whole, &text, 10.0, column), None, "framed whole, it shows whole");
+    let short = rows_frame(AT, "row 1", 10.0, column);
+    assert_eq!(more(short, "row 1", 10.0, column), None);
 }
 
 /// slinger-f66a97: a canvas text is as tall as the box the core gives it,
