@@ -39,6 +39,10 @@ impl Editing {
         (tool, colour): (Tool, crate::config::Rgb),
     ) -> bool {
         let Press { at, when, zoom, shift } = press;
+        if self.vim_press(here, at, zoom, shift) {
+            self.pen = Some((pane, frame));
+            return true;
+        }
         follow.pen_in(pane, here, self.ink.mark());
         let items = follow.pane_shown(&self.ink, panes, pane);
         if self.shapes.down((tool, colour), here, press, &items, &mut self.ink) {
@@ -71,6 +75,9 @@ impl Editing {
     ) -> bool {
         let Some((pane, frame)) = self.pen else { return false };
         let at = to_canvas(follow.view(pane).viewport, frame, pen.at);
+        if self.vim_drag(at, false) {
+            return true;
+        }
         self.unshown = Some(self.unshown.map_or(pen.when, |t| t.min(pen.when)));
         if self.ink.drag(at) || self.shapes.drag(at) || self.crop.drag(at) {
             return true;
@@ -99,6 +106,9 @@ impl Editing {
     ) -> bool {
         let Some((pane, frame)) = self.pen.take() else { return false };
         let at = to_canvas(follow.view(pane).viewport, frame, pen.at);
+        if self.vim_drag(at, true) {
+            return true;
+        }
         let landing = landing(follow, panes, under, pen.at);
         self.select.keep_ratio(pen.shift);
         let mark = self.ink.mark();

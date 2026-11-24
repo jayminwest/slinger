@@ -12,7 +12,7 @@ impl Canvases {
     /// ink, and sends the next stroke. Returns whether anything a pane
     /// shows changed.
     pub fn poll(&mut self) -> bool {
-        let changed = self.follow.hear();
+        let changed = self.follow.hear() | self.editing.vim_poll(&mut self.follow);
         let (sent, dictated) = (self.send(), self.flow.poll_dictation());
         let came = self.follow.poll_lives();
         self.poll_sling() || sent || changed || dictated || came | self.follow.poll_pdfs()

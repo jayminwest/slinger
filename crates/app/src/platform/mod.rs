@@ -37,6 +37,7 @@
 #![expect(unsafe_code, reason = "the FFI boundary: AppKit is reached through objc2")]
 
 mod canvas;
+mod cells;
 mod chrome;
 pub mod drive;
 mod entry;

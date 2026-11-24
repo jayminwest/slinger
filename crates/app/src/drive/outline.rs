@@ -137,6 +137,17 @@ fn mark(draw: &Draw) -> String {
             format!("panel{edge}{}", if fill.is_some() { " filled" } else { "" })
         }
         Mark::Caret { .. } => "caret".to_string(),
+        Mark::Cells { grid, .. } => {
+            let mut said = format!(
+                "cells {}x{} mode {} cursor {},{}",
+                grid.cols, grid.rows, grid.mode_name, grid.cursor.0, grid.cursor.1
+            );
+            for row in 0..grid.rows {
+                // Writing to a string cannot fail.
+                let _ = write!(said, "\n      |{}", grid.row_text(row));
+            }
+            said
+        }
     };
     // A mark that is no item of the page (a caret, a frame, a handle) has an id past any item's.
     let id = if draw.id.0 > u64::MAX / 2 { "~".to_string() } else { format!("i{}", draw.id.0) };

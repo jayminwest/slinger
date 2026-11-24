@@ -124,6 +124,9 @@ pub struct Shapes {
     waiting: Option<(Editing, Point, f64)>,
     size: Option<f64>,
     next: Option<Chord>,
+    /// Whether an Nvim edits the text being typed, and its grid ([`cells`]).
+    vim: bool,
+    grid: Option<std::sync::Arc<crate::nvim::grid::Grid>>,
 }
 
 impl Shapes {
@@ -171,14 +174,19 @@ impl Shapes {
                 && press.when - last.when <= DOUBLE_TAP
                 && distance(press.at, last.at) <= reach
         });
+        let cells = self.grid_frame();
         if let Some(editing) = &mut self.editing {
             let here = editing.canvas == canvas && editing.page == page;
-            if here && on_edge(editing, press.at, press.zoom) {
+            if let Some(cells) = cells {
+                if here && cells.outset(reach).contains(press.at) {
+                    return true;
+                }
+            } else if here && on_edge(editing, press.at, press.zoom) {
                 let bounds = editing.bounds();
                 self.widening = Some((press.at.x - (bounds.x + bounds.width), editing.column));
                 return true;
             }
-            if here && editing.bounds().outset(reach).contains(press.at) {
+            if cells.is_none() && here && editing.bounds().outset(reach).contains(press.at) {
                 self.taps = if double { taps.saturating_add(1) } else { 1 };
                 editing.tap(press.at, press.shift, self.taps);
                 self.selecting = true;
@@ -357,6 +365,7 @@ impl Shapes {
     /// being edited.
     pub fn end(&mut self, ink: &mut Ink) -> bool {
         (self.selecting, self.widening) = (false, None);
+        (self.vim, self.grid) = (false, None);
         let Some(editing) = self.editing.take() else { return false };
         self.ended = Some((editing.canvas.clone(), editing.page.clone(), editing.frame()));
         if let Some(change) = start::ended(editing) {
@@ -388,6 +397,9 @@ impl Shapes {
         if let Some(editing) = self.editing.as_ref().filter(|e| here(&e.canvas, &e.page)) {
             if let Some(was) = &editing.item {
                 items.retain(|i| i.id != was.id);
+            }
+            if self.cells(&mut items, zoom, theme) {
+                return items;
             }
             let (frame, text, size) = (editing.frame(), editing.editor.text(), editing.size);
             let (caret, selected) = editing.marks(CARET / zoom);
@@ -473,6 +485,7 @@ fn snap(p: Point) -> Point {
     Point { x: tenth(p.x), y: tenth(p.y) }
 }
 
+mod cells;
 mod start;
 #[cfg(test)]
 mod tests;

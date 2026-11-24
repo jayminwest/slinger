@@ -22,6 +22,9 @@ impl Editing {
     /// Typed `text` goes into the text being typed; escape ends it, and the
     /// text goes to the daemon. Returns false when none is open.
     pub(in crate::canvases) fn typed(&mut self, follow: &mut Follow, text: &str) -> bool {
+        if self.vim_typed(text) {
+            return true;
+        }
         let used = self.shapes.typed(text, &mut self.ink);
         if used {
             self.send(follow);
@@ -33,6 +36,9 @@ impl Editing {
     /// ([`crate::scene::editor`]). False when none is typed, or the key is
     /// not one of them.
     pub(in crate::canvases) fn key(&mut self, follow: &mut Follow, chord: Chord) -> bool {
+        if let Some(used) = self.vim_key(follow, chord) {
+            return used;
+        }
         let used = self.shapes.key(chord);
         if used {
             self.send(follow);
@@ -42,7 +48,7 @@ impl Editing {
 
     /// Pasted `text` goes into the text being typed. False when none is.
     pub(in crate::canvases) fn pasted(&mut self, text: &str) -> bool {
-        self.shapes.pasted(text)
+        self.vim_pasted(text) || self.shapes.pasted(text)
     }
 
     /// Whether `pane` of `panes` shows the selection's page in `follow`.

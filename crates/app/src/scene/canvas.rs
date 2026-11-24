@@ -12,6 +12,7 @@
 use std::collections::HashMap;
 use std::f64::consts::FRAC_PI_6;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use super::sidebar::Status;
 use super::{button, glyphs};
@@ -71,6 +72,8 @@ pub enum Shape {
     /// The caret of a text being typed, also chrome: a bar filling `frame`
     /// ([`crate::scene::editor`] places it).
     Caret { frame: Rect },
+    /// SPIKE (slinger-dd9b7b): Nvim's cell grid in `frame`, cells `size` tall.
+    Cells { frame: Rect, size: f64, grid: Arc<crate::nvim::grid::Grid> },
 }
 
 /// The paint inside a [`Shape::Panel`]: `colour` at `alpha` (0 to 1), over
@@ -161,6 +164,13 @@ pub enum Mark {
     /// A text's caret: a bar filling `frame`.
     Caret {
         frame: Rect,
+    },
+    /// Nvim's cell grid from `at`: cells `size` tall, drawn `zoom` times that.
+    Cells {
+        at: Point,
+        size: f64,
+        zoom: f64,
+        grid: Arc<crate::nvim::grid::Grid>,
     },
 }
 
@@ -348,7 +358,8 @@ impl Shape {
             | Self::Live { frame, .. }
             | Self::Button { frame, .. }
             | Self::Pdf { frame, .. }
-            | Self::Caret { frame } => Some(*frame),
+            | Self::Caret { frame }
+            | Self::Cells { frame, .. } => Some(*frame),
             Self::Box { frame, width } | Self::Panel { frame, width, .. } => {
                 Some(frame.outset(width / 2.0))
             }
@@ -382,6 +393,9 @@ impl Shape {
                 Self::Panel { frame: shift(frame), fill: *fill, width: *width, dashed: *dashed }
             }
             Self::Caret { frame } => Self::Caret { frame: shift(frame) },
+            Self::Cells { frame, size, grid } => {
+                Self::Cells { frame: shift(frame), size: *size, grid: Arc::clone(grid) }
+            }
         }
     }
 
@@ -446,6 +460,12 @@ impl Shape {
                 dashed: *dashed,
             },
             Self::Caret { frame } => Mark::Caret { frame: view.rect_to_screen(*frame) },
+            Self::Cells { frame, size, grid } => Mark::Cells {
+                at: view.to_screen(Point { x: frame.x, y: frame.y }),
+                size: *size,
+                zoom,
+                grid: Arc::clone(grid),
+            },
         }
     }
 }

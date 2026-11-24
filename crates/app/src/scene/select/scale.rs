@@ -166,6 +166,7 @@ fn reshaped(
             Shape::Panel { frame: placed(frame), fill: *fill, width: *width, dashed: *dashed }
         }
         Shape::Caret { frame } => Shape::Caret { frame: placed(frame) },
+        Shape::Cells { .. } => shape.clone(),
     }
 }
 

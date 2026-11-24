@@ -20,6 +20,7 @@ pub(super) mod kept;
 mod keys;
 mod pen;
 mod start;
+mod vim;
 
 use std::borrow::Cow;
 
@@ -57,6 +58,11 @@ pub(super) struct Editing {
     unshown: Option<f64>,
     /// The pane the pointer is on a selection handle in, and its cursor.
     handle: Option<(PaneId, Cursor)>,
+    /// The Nvim that edits the text being typed, how one starts, and the
+    /// wake its thread takes ([`vim`]).
+    vim: Option<vim::Vim>,
+    vim_setup: Option<crate::backend::nvim::Setup>,
+    wake: Wake,
 }
 
 impl Editing {
@@ -74,6 +80,9 @@ impl Editing {
             pen: None,
             unshown: None,
             handle: None,
+            vim: None,
+            vim_setup: crate::backend::nvim::Setup::from_env(),
+            wake: wake.clone(),
         }
     }
 
@@ -152,6 +161,10 @@ impl Editing {
 
     /// A paint showed ink `delay` seconds after its pen event.
     pub(super) fn painted(&mut self, delay: f64) {
+        // Not a number: the paint of Nvim's grid ([`Editing::vim_unpainted`]).
+        if delay.is_nan() {
+            return self.vim_painted();
+        }
         self.ink.painted(delay);
     }
 
@@ -178,6 +191,9 @@ impl Editing {
     /// Undoes the text being typed's last edit, or redoes the last undone.
     /// False when none is typed, or it has none left.
     pub(super) fn undo_text(&mut self, redo: bool) -> bool {
+        if self.vim_undo(redo) {
+            return true;
+        }
         self.shapes.undo(redo)
     }
 
@@ -272,6 +288,9 @@ impl Editing {
     /// When the oldest pen event no scene has shown yet happened, once,
     /// for a scene of `pane` while the pen draws in it.
     pub(super) fn pen_event(&mut self, pane: PaneId) -> Option<f64> {
+        if self.vim_unpainted() {
+            return Some(f64::NAN);
+        }
         if self.pen.is_some_and(|(p, _)| p == pane) { self.unshown.take() } else { None }
     }
 
@@ -304,6 +323,7 @@ impl Editing {
     /// follows of their canvas now holds, and hands the next change to the
     /// outbox. Returns whether there were answers.
     pub(super) fn send(&mut self, follow: &mut Follow) -> bool {
+        self.vim_sync();
         if !self.shapes.editing() {
             follow.text_joined(&mut self.ink);
         }
