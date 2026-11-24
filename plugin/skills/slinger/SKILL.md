@@ -25,7 +25,9 @@ If you cannot run the guide, these rules hold:
   prints what the user put on one, with the directory of its images.
 - Answer on the canvas: `slinger canvas put <CANVAS> --beside <ITEM> --text
   "..." --agent <NAME>`. Leave out `--agent` when `SLINGER_AGENT` is set.
-- Change only the items you made. Never change the user's ink.
+- Change only the items you made. Never change the user's ink or text: reply
+  beside it, in short texts (at most 12 rows each; longer exits 5,
+  `too_long`).
 - Exit code 6 means no daemon `slingerd` answers. Tell the user (on a Mac,
   opening slinger.app starts it); do not start it unless the user asks.
 - If `slinger` is not installed: `cargo install --locked --git

@@ -416,12 +416,21 @@ undo with nothing to undo) writes nothing and succeeds.
 
 **Authors.** `by` is `user` or `agent:<name>`. The user may change anything.
 An agent may move, edit or remove only items it made, and gets `invalid` with a
-hint for anything else. That stays `invalid` rather than a code of its own:
+hint for anything else. The user's edit of the words of an agent's text makes
+that text the user's (its `by` becomes `user`, read from the log), so an
+agent never changes words the user wrote. That stays `invalid` rather than a code of its own:
 the caller does the same thing either way (make a new item instead), and a
 new code would need a new CLI exit code (docs/cli.md: add one only when a
 caller must tell the failure apart). Undo and redo are per author. Each line
 says which step it belongs to, so a restart keeps what each author can undo
 and redo (`docs/design/canvas-file.md`, "Undo steps").
+
+**Short replies.** An agent's text is at most 12 rows at its column
+(`AGENT_ROWS`). An agent's `add`, `set`, `canvas_put` or `canvas_edit`
+that makes a longer text, or makes an older long text longer, fails with
+`too_long` and the hint "split it: one short put beside each subject". The
+check is made when a change is written, never on replay, so a canvas holding
+an older long text still opens. The user's texts have no such limit.
 
 **Canvas operations.** `ops` of `canvas_apply` is one operation object or a
 list of them, applied in order as one undo step: all of them apply, or none
@@ -1309,8 +1318,9 @@ temporary directory, and removes the file after.
 ### Error codes
 
 The core's codes pass through unchanged (`not_found`, `conflict`, `invalid`, for
-a damaged or newer canvas file `canvas_corrupt` and `canvas_too_new`, and for a
-packet of a version the core does not read `unsupported_version`).
+a damaged or newer canvas file `canvas_corrupt` and `canvas_too_new`, for a
+packet of a version the core does not read `unsupported_version`, and for an
+agent's text over 12 rows `too_long`).
 The protocol adds:
 
 | Code | Meaning |

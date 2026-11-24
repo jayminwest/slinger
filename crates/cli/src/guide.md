@@ -31,7 +31,9 @@ guide comes from the `slinger` binary you run, so it fits that binary.
   for yourself, such as `--agent claude`. The user sees that name as the
   maker of your items.
 - **Ownership.** You can edit and remove only the items your agent name made.
-  Never change the user's ink.
+  Never change the user's ink or the user's text. A text is the user's when
+  the user wrote it or changed its words, and slinger refuses your edit:
+  answer beside it.
 
 ## Output
 
@@ -39,8 +41,8 @@ guide comes from the `slinger` binary you run, so it fits that binary.
   succeeds with nothing to say prints nothing.
 - `--json` prints one JSON document: `success`, `command`, then the data. A
   failure has `error`, `code` and `hint`.
-- Exit codes: 0 ok, 1 error, 2 usage, 3 not found, 4 conflict, 5 invalid,
-  6 the daemon does not answer. `slinger` finds a running daemon on any
+- Exit codes: 0 ok, 1 error, 2 usage, 3 not found, 4 conflict, 5 invalid
+  (also `too_long`: your text is over 12 rows), 6 the daemon does not answer. `slinger` finds a running daemon on any
   socket, so on 6 pass the hint on to the user (on a Mac, opening
   slinger.app starts `slingerd`; or retry or restart one that did not
   reply in time); do not start or restart it yourself unless the user
@@ -72,7 +74,9 @@ slinger canvas changes <CANVAS> --after 40 --wait 30000   # wait for the user's 
 ```
 
 Read the images of a packet before you answer about handwriting: the lines
-give only the place of the ink, the images give the words.
+give only the place of the ink, the images give the words. A text is never
+an image: its line quotes it whole, but in the `page` section a text over
+80 characters ends in `…`; `canvas show` gives it whole.
 
 Ink on a PDF: the packet's `pdf` line names the page and the PDF's blob,
 `d3 pdf 0,0 1600x2071 pdfpage=1 name=paper.pdf blob=sha256:…`, and the ink's
@@ -109,8 +113,10 @@ only what the box holds. Answer in the box: add `--in b4` to each put
 slinger canvas put <CANVAS> --beside c12 --in b4 --text "The answer" --agent claude
 ```
 
-Keep each text short: a few lines. Use more puts, each beside its subject,
-in place of one long text. Leave out `--color` and `--size`: a put matches
+Keep each text short: at most 12 rows, or the put exits 5 (`too_long`). Use
+more puts, each beside its subject, in place of one long text. A question, a
+box or an arrow often says more than prose. Answer the user's writing beside
+it with `--beside`, never over it with `--at`, and never by editing it. Leave out `--color` and `--size`: a put matches
 the colour and size of the user's writing it goes beside, so it shows on
 their page. Give them only to stand out on purpose. Each put prints the new item's id and its box.
 

@@ -276,7 +276,8 @@ impl Log {
     pub(super) fn step(&mut self, by: &Author, at: Time, actions: Vec<Action>) -> Result<Written> {
         let ops: Vec<Op> =
             actions.into_iter().map(|action| snap(Op { by: by.clone(), at, action })).collect();
-        let actions = ops.iter().map(|op| op.action.clone()).collect();
+        let actions: Vec<Action> = ops.iter().map(|op| op.action.clone()).collect();
+        self.short(by, &actions)?;
         let mark = self.next;
         let applied = self.history.apply(&mut self.canvas, by, at, mark, actions)?;
         let mut written = Written::default();
