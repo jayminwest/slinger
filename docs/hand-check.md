@@ -76,3 +76,7 @@ Checks that need the owner, the bundled app (`scripts/bundle.sh && open target/s
 
 - [ ] (bundle) with `SLINGER_NVIM=user` (`open -n --env SLINGER_NVIM=user …`) and your own nvim config, open and end a few canvas texts: nothing of yours is written outside slinger's state and cache (`$TMPDIR/slinger-nvim/{state,cache}`): `lazy-lock.json` in ~/.config/nvim, plugin data under ~/.local/share/nvim, ~/.local/state/nvim and ~/.cache/nvim keep their mtimes (tests hold it for `--clean` with all four homes redirected); the bundle opened from the Finder finds nvim on a nix or Homebrew PATH (slinger-c6e898)
 - [ ] (bundle) with your own nvim config, type a few paragraphs in a canvas text on a real display: your colorscheme, render-markdown and spell (undercurls) paint in the grid; Nerd Font icons (which-key, file icons) are not boxes; no gutter, ruler or status line; the cursor shape follows the mode; key to paint feels instant in a release build; say whether the opaque grid over ink under it is right (a driven window passed with `SLINGER_NVIM=clean`) (slinger-be5d24)
+
+## Figures (plan pl-9f74c2)
+
+- [ ] (bundle) on a canvas with an agent's figure (`slinger canvas apply` with `locked`, `fig`): write across it with a real pen and erase your ink with the pen's eraser end: the figure never moves, selects or erases, and nothing under the pen feels "grabbed"; then opt+cmd+U and a right-click on it: the dashed selection with no handles reads as "held as one", a drag moves it, escape lets go (a driven window and tests passed every gesture) (slinger-dd5add)

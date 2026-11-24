@@ -46,6 +46,8 @@ pub struct Facts {
     pub sling_now: bool,
     /// `new-text` has a canvas page to start a text on.
     pub new_text: bool,
+    /// A locked item is under the pointer: `unlock-figure` has a figure to grab.
+    pub figure: bool,
     /// A workspace shows.
     pub workspace: bool,
     /// Its agent, and whether it runs; `None` without one.
@@ -143,6 +145,7 @@ pub fn can(command: Command, facts: &Facts) -> bool {
         Command::Dictate => f.entry || f.sling,
         Command::SlingNow => f.sling_now,
         Command::NewText => f.new_text,
+        Command::UnlockFigure => f.figure,
         Command::CloseWorkspace | Command::ShowWorkspaceFolder => f.workspace,
         Command::StartAgent => f.workspace && f.agent == Some(false),
         Command::StopAgent => f.workspace && f.agent == Some(true),

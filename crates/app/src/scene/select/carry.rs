@@ -174,8 +174,13 @@ impl Select {
         }
         let present: HashSet<ItemId> = items.iter().map(|i| i.id).collect();
         if ids.iter().all(|id| present.contains(id)) {
+            // Items all locked are a whole figure (a grab's duplicate or
+            // carry, docs/design/figures.md): they arrive grabbed.
+            let locked = items.iter().filter(|i| !crate::scene::canvas::free(i));
+            let figure = ids.iter().all(|id| locked.clone().any(|i| i.id == *id));
             let (canvas, page, ids) = (c.clone(), p.clone(), ids.clone());
             self.selection = Some(Selection { canvas, page, ids });
+            self.grab = self.selection.clone().filter(|_| figure);
             self.arriving = None;
         }
     }

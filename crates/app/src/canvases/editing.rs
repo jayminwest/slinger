@@ -16,6 +16,7 @@
 //! Runs on the main thread and never waits.
 
 mod context;
+mod figure;
 pub(super) mod kept;
 mod keys;
 mod pen;
@@ -58,6 +59,8 @@ pub(super) struct Editing {
     unshown: Option<f64>,
     /// The pane the pointer is on a selection handle in, and its cursor.
     handle: Option<(PaneId, Cursor)>,
+    /// What to flash once: an unlock with no figure there.
+    said: Option<&'static str>,
     /// The Nvim that edits the text being typed, if one does ([`vim`]).
     vim: vim::Vim,
 }
@@ -77,6 +80,7 @@ impl Editing {
             pen: None,
             unshown: None,
             handle: None,
+            said: None,
             vim: vim::Vim::new(wake),
         }
     }
@@ -193,7 +197,7 @@ impl Editing {
 
     /// Why no Nvim edits the text, once.
     pub(super) fn take_flash(&mut self) -> Option<String> {
-        self.vim.take_flash()
+        self.vim.take_flash().or_else(|| self.said.take().map(str::to_string))
     }
 
     /// Takes the news of the text's Nvim: a text it ended goes to the

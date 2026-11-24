@@ -15,7 +15,7 @@ use std::borrow::Cow;
 
 use crate::config::Theme;
 use crate::layout::{Point, Rect};
-use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::canvas::{Item, ItemId, Shape, free};
 use crate::scene::shapes::{MIN_DRAG, Press};
 use crate::scene::tools::Tool;
 
@@ -152,7 +152,7 @@ pub fn cropped(source: &Shape, area: Rect) -> Option<Shape> {
 /// The topmost `pdf` item of `items` whose frame `meets`: `pdf` items draw
 /// under every other kind, in item order among themselves.
 fn topmost<'b>(items: &'b [Cow<'_, Item>], meets: impl Fn(Rect) -> bool) -> Option<&'b Shape> {
-    let mut shapes = items.iter().map(|i| &i.shape);
+    let mut shapes = items.iter().filter(|i| free(i)).map(|i| &i.shape);
     shapes.rfind(|s| matches!(s, Shape::Pdf { frame, .. } if meets(*frame)))
 }
 

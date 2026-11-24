@@ -370,3 +370,8 @@
 # slingerd that answers is another build runs it. It ends the agents' processes slingerd
 # runs. No key by default: the palette and the Window menu run it.
 #restart-daemon = ""
+# Grab the figure under the pointer, an agent's drawing that your pen, eraser and lasso
+# pass over (a locked item), as one selection: drag, nudge, duplicate, copy or delete it
+# whole; it has no resize handles. It locks again when the selection ends. A secondary
+# click on a locked item offers it first.
+#unlock-figure = "cmd+alt+u"

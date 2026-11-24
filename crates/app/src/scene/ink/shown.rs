@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 
 use super::{Change, Ink, PENDING, Pending, Stroke};
-use crate::scene::canvas::{Item, ItemId, Shape, Style};
+use crate::scene::canvas::{Item, ItemId, Shape};
 
 impl Ink {
     /// `items`, the server's copy of `page` of `canvas`, as the user should
@@ -50,13 +50,8 @@ impl Ink {
                         if let Some(after) = follow.iter().find(|f| f.id == item.id) {
                             *item = Cow::Owned(after.clone());
                         } else if ids.contains(&item.id) {
-                            let (id, colour) = (item.id, item.colour);
-                            *item = Cow::Owned(Item {
-                                id,
-                                colour,
-                                shape: item.shape.moved(*by),
-                                style: item.style,
-                            });
+                            let shape = item.shape.moved(*by);
+                            *item = Cow::Owned(Item { shape, ..item.as_ref().clone() });
                         }
                     }
                 }
@@ -67,13 +62,8 @@ impl Ink {
                 }
                 Change::Set { id, shape, .. } => {
                     for item in shown.iter_mut().filter(|i| i.id == *id) {
-                        let colour = item.colour;
-                        *item = Cow::Owned(Item {
-                            id: *id,
-                            colour,
-                            shape: shape.clone(),
-                            style: item.style,
-                        });
+                        let shape = shape.clone();
+                        *item = Cow::Owned(Item { id: *id, shape, ..item.as_ref().clone() });
                     }
                 }
                 Change::Reshape { items: after, .. } => {
@@ -124,10 +114,6 @@ fn paper_first(items: Vec<Cow<'_, Item>>) -> Vec<Cow<'_, Item>> {
 
 /// A stroke of local ink as an item, under `id`.
 fn local(id: ItemId, stroke: &Stroke) -> Item {
-    Item {
-        id,
-        colour: stroke.colour,
-        shape: Shape::Stroke { points: stroke.points.clone(), width: stroke.width },
-        style: Style::default(),
-    }
+    let shape = Shape::Stroke { points: stroke.points.clone(), width: stroke.width };
+    Item::plain(id, stroke.colour, shape)
 }

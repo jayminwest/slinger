@@ -10,7 +10,7 @@ use crate::canvases::canvas_of;
 use crate::canvases::step::{Typed, holds};
 use crate::layout::{PaneId, Point};
 use crate::panes::Panes;
-use crate::scene::canvas::{Item, ItemId, Shape};
+use crate::scene::canvas::{Item, ItemId, Shape, free};
 use crate::scene::ink::{Change, Ink};
 use crate::scene::select::Selection;
 use crate::scene::shapes::{DOUBLE_TAP, Shapes};
@@ -123,7 +123,9 @@ impl Follow {
     ) -> Option<ItemId> {
         let mirror = self.mirror(canvas, page)?;
         let on = |i: &&Cow<'_, Item>| match i.shape {
-            Shape::Box { frame, .. } => mirror.box_folded(i.id) == Some(true) && holds(frame, at),
+            Shape::Box { frame, .. } => {
+                free(i) && mirror.box_folded(i.id) == Some(true) && holds(frame, at)
+            }
             _ => false,
         };
         items.iter().rev().find(on).map(|i| i.id)

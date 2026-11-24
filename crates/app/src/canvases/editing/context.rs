@@ -5,7 +5,9 @@
 //! then act on the selection as they always do. A click on the text being
 //! typed is that text's; one anywhere else ends it first, as a press does.
 //! The hit is the select tool's own ([`topmost`]), on what the pane shows:
-//! inside the box it is stepped into, a folded box's contents hidden.
+//! inside the box it is stepped into, a folded box's contents hidden. A
+//! locked item is not hit: a click on one, with nothing else there, is on
+//! its figure, whose menu offers `unlock-figure` (the pointer is there).
 
 use std::borrow::Cow;
 
@@ -15,7 +17,7 @@ use crate::commands::context::{Kind, Subject};
 use crate::layout::{PaneId, Point, Rect};
 use crate::panes::Panes;
 use crate::scene::canvas::{Item, ItemId, Shape};
-use crate::scene::select::{REACH, topmost};
+use crate::scene::select::{REACH, figure_at, topmost};
 
 /// What the pane shows under a context click, before the selection moves.
 enum Found {
@@ -25,6 +27,8 @@ enum Found {
     Kept(Vec<Kind>),
     /// An item outside the selection, of this kind.
     Hit(ItemId, Kind),
+    /// No item a click takes, but a locked one ([`figure_at`]).
+    Figure,
     /// No item, and no text being typed elsewhere to end first.
     Nothing,
 }
@@ -51,7 +55,9 @@ impl Editing {
                     Found::Kept(ids.iter().filter_map(|id| kind_of(items, *id)).collect())
                 } else {
                     let id = topmost(here.0, items, at, REACH / zoom);
+                    let locked = || figure_at(items, at, REACH / zoom).map(|_| Found::Figure);
                     id.and_then(|id| Some(Found::Hit(id, kind_of(items, id)?)))
+                        .or_else(locked)
                         .unwrap_or(Found::Nothing)
                 };
                 (found, (here.0.to_string(), here.1.to_string()))
@@ -70,6 +76,7 @@ impl Editing {
                 self.select.only((&here.0, &here.1), id);
                 Subject::Item { kind }
             }
+            Found::Figure => Subject::Figure,
             Found::Nothing => Subject::Canvas,
         })
     }

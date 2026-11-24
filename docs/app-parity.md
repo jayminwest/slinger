@@ -63,6 +63,7 @@ same thing by drawing, or never needs to.
 | `canvas fold`, `canvas unfold` | `fold` (opt+cmd+F, Edit menu, palette) on the selected boxes, and a press on a box's fold mark: a folded box draws as a miniature of what it holds; an unfold into a taken room (`conflict`) peeks. Its reply reads as `CanvasChange`, which the app already decodes, slinger-1350e7 |
 | `canvas apply` with `"in"` on an `add` | `step-in` (opt+cmd+I, two taps on a miniature), `step-out` (opt+cmd+O, escape), `step-in-beside` (opt+shift+cmd+I): what the pen or a text adds in a pane inside a folded box is sent with `in`, slinger-b1ccf1 |
 | `canvas find` | `find` (cmd+F, Edit menu, palette) and `find-next` (cmd+G): the entry for the words, then the pane turns to the text's page, centred, and selects the text (slinger-458db9). Its reply (`CanvasFound`) is a list of item objects, which the app already reads, slinger-78d1de |
+| `locked`, `fig`, `part` on an item (`canvas apply`, figure scripts) | The pen, eraser, lasso, select tool, select all, next item, text tool, arrow binding, fold mark and crop tool all pass over a locked item; `unlock-figure` (opt+cmd+U, Edit menu, palette, a context click on the figure) grabs the figure under the pointer as one unit to move, duplicate or delete, locked again when deselected; `drive scene` says ` locked`, slinger-dd5add |
 
 ## Gaps
 

@@ -23,6 +23,7 @@ mod context;
 mod context_items;
 mod context_rows;
 mod drive;
+mod figure;
 mod fold;
 mod items;
 mod keyboard;

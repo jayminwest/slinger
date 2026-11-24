@@ -18,6 +18,7 @@ use crate::config::{Rgb, Theme};
 use crate::layout::{Point, Rect, Size, Viewport};
 use crate::nvim::grid::Grid;
 use changed::changed_between;
+pub use member::{Member, free, in_figure};
 use style::HEAD_LENGTH;
 pub use style::{Dash, Heads, Style};
 #[cfg(test)]
@@ -36,12 +37,14 @@ pub struct Item {
     pub shape: Shape,
     /// Its fill, dash, heads and closed ([`style`]).
     pub style: Style,
+    /// Its figure and whether it is locked ([`member`]).
+    pub member: Member,
 }
 
 impl Item {
     /// An item drawn plain: no fill, solid, as every item before styles.
     pub fn plain(id: ItemId, colour: Rgb, shape: Shape) -> Item {
-        Item { id, colour, shape, style: Style::default() }
+        Item { id, colour, shape, style: Style::default(), member: Member::default() }
     }
 }
 
@@ -154,6 +157,8 @@ pub struct Draw {
     pub bounds: Rect,
     pub colour: Rgb,
     pub mark: Mark,
+    /// Its item is locked: the user's hands pass over it ([`member`]).
+    pub locked: bool,
 }
 
 /// One canvas pane, fully decided.
@@ -232,6 +237,7 @@ pub fn build_with<'a>(
                     }
                     mark => mark,
                 },
+                locked: item.member.locked,
             })
         })
         .collect();
@@ -408,6 +414,7 @@ impl Shape {
 }
 
 mod changed;
+mod member;
 mod smooth;
 pub mod style;
 

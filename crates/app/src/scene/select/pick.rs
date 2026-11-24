@@ -18,7 +18,7 @@ use std::borrow::Cow;
 
 use super::{Gesture, Select, Selection, hit, takes};
 use crate::layout::{Point, Rect};
-use crate::scene::canvas::{Item, ItemId};
+use crate::scene::canvas::{Item, ItemId, free};
 use crate::scene::ink::on_server;
 
 /// How far from an item a press still picks it, in screen points.
@@ -63,7 +63,11 @@ impl Select {
 
     /// Adds `id` on `page` of `canvas` to the selection, or takes it out;
     /// a selection elsewhere gives way to it.
+    /// A grabbed figure gives way to `id` alone: it is held whole or not at all.
     fn toggle(&mut self, (canvas, page): (&str, &str), id: ItemId) {
+        if self.grabbed() {
+            self.selection = None;
+        }
         let here = |s: &Selection| s.canvas == canvas && s.page == page;
         match self.selection.as_mut().filter(|s| here(s)) {
             Some(selection) if selection.ids.contains(&id) => {
@@ -98,6 +102,7 @@ impl Select {
             ids.extend(innermost(items, &area));
         }
         let here = |s: &Selection| s.canvas == canvas && s.page == page;
+        let adding = adding && !self.grabbed();
         if let Some(kept) = self.selection.take().filter(|s| adding && here(s)) {
             let new: Vec<ItemId> = ids.into_iter().filter(|id| !kept.ids.contains(id)).collect();
             ids = kept.ids.into_iter().chain(new).collect();
@@ -117,7 +122,7 @@ pub fn topmost(canvas: &str, items: &[Cow<'_, Item>], at: Point, radius: f64) ->
 /// the last drawn of equals.
 fn innermost(items: &[Cow<'_, Item>], area: &Rect) -> Option<ItemId> {
     let size = |i: &Item| i.shape.bounds().map_or(0.0, |f| f.width * f.height);
-    let ours = items.iter().filter(|i| on_server(i.id) && hit::inside(area, &i.shape));
+    let ours = items.iter().filter(|i| on_server(i.id) && free(i) && hit::inside(area, &i.shape));
     ours.fold(None, |best: Option<&Cow<'_, Item>>, i| match best {
         Some(b) if size(b) < size(i) => best,
         _ => Some(i),

@@ -205,6 +205,10 @@ pub enum Command {
     /// Load the agent UI the focused pane shows again, from a fresh fetch
     /// of its showing: its page starts over, as a new one does.
     ReloadUi,
+    /// Grab the figure under the pointer, an agent's locked drawing, as one
+    /// selection: move, duplicate or delete it whole. It locks again when
+    /// the selection ends (docs/design/figures.md, "The unlock").
+    UnlockFigure,
 }
 
 /// How many commands there are.

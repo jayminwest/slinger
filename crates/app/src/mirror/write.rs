@@ -104,6 +104,7 @@ pub fn object(item: &Item) -> Option<Value> {
     };
     o.insert("id".into(), item_ref(item.id).into());
     super::style::write(&mut o, item.style);
+    super::style::write_member(&mut o, &item.member);
     // A `pdf` item has no colour (docs/design/pdf.md).
     if !matches!(item.shape, Shape::Pdf { .. }) {
         o.insert("color".into(), hex(item.colour).into());

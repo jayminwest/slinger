@@ -19,7 +19,7 @@ use super::Canvases;
 use crate::layout::{PaneId, Point, Rect, Viewport};
 use crate::mirror::{Inside, LINE_WIDTH, Mirror};
 use crate::panes::Panes;
-use crate::scene::canvas::{Item, ItemId, Shape, Style};
+use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::ink::Ink;
 
 /// The draw id of the dashed frame round the room a pane is inside: below
@@ -119,7 +119,7 @@ pub(super) fn present<'a>(mirror: &'a Mirror, ink: &Ink, canvas: &str) -> Vec<Co
 /// The dashed frame round `room`, the box a pane is inside, in `colour`.
 pub(super) fn room(room: Rect, colour: crate::config::Rgb) -> Item {
     let shape = Shape::Panel { frame: room, fill: None, width: LINE_WIDTH / 2.0, dashed: true };
-    Item { id: ROOM, colour, shape, style: Style::default() }
+    Item::plain(ROOM, colour, shape)
 }
 
 impl Canvases {

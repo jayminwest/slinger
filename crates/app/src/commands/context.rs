@@ -22,6 +22,9 @@ use Action::{Native as N, Run as R, Separator as S};
 pub enum Subject {
     /// The empty part of a canvas pane.
     Canvas,
+    /// A locked item, which no click selects: the canvas's menu, with
+    /// `unlock-figure` first (docs/design/figures.md, "The unlock").
+    Figure,
     /// A pane's footer; `ui` when the pane shows an agent UI.
     Pane { ui: bool },
     /// One item, selected alone (Finder's rule), of this kind.
@@ -135,6 +138,10 @@ fn actions(subject: &Subject) -> Vec<Action> {
         }
         Subject::Divider { .. } => return vec![R(Command::GrowPane), R(Command::ShrinkPane)],
         Subject::Sidebar => return vec![R(Command::OpenWorkspace), R(Command::ToggleSidebar)],
+        Subject::Figure => {
+            let canvas = panes(&Subject::Canvas).iter().copied();
+            return [R(Command::UnlockFigure), S].into_iter().chain(canvas).collect();
+        }
         Subject::Canvas | Subject::Pane { .. } => return panes(subject).to_vec(),
     };
     ANY.into_iter().chain([R(Command::PickColour)]).chain(extra.iter().copied()).collect()

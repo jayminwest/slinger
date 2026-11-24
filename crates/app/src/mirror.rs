@@ -391,8 +391,8 @@ fn read(o: &Map<String, Value>) -> Option<Item> {
         _ => return None,
     };
     let colour = o.get("color").and_then(Value::as_str).and_then(colour);
-    let style = style::read(o, &shape);
-    Some(Item { id, colour: colour.unwrap_or(Rgb { r: 0, g: 0, b: 0 }), shape, style })
+    let (style, member) = (style::read(o, &shape), style::member(o));
+    Some(Item { id, colour: colour.unwrap_or(Rgb { r: 0, g: 0, b: 0 }), shape, style, member })
 }
 
 /// A `pdf` item in `frame` (docs/design/pdf.md); `None` without the

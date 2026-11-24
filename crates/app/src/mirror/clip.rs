@@ -7,6 +7,14 @@
 //! arrow still bound to the items pasted with it; plain text alone, from
 //! another app, comes as one new text item ([`text_items`]). The crop
 //! tool's snippet of a PDF goes there as one such object ([`snippet`]). Pure.
+//!
+//! A figure's items (docs/design/figures.md, "Paste and duplicate") keep
+//! `fig`, `part` and `locked` only when the clip holds one whole figure,
+//! and its paste is a new figure under a free name ([`free_name`]); a copy
+//! of part of a figure, or of two, drops them, so the copies are the user's
+//! free items. Fill, dash, heads and closed are the look, and always stay.
+
+use std::collections::HashSet;
 
 use serde_json::{Map, Value};
 
@@ -33,14 +41,41 @@ impl Mirror {
             .collect();
         let text = texts.join("\n");
         let mut objects = Vec::new();
-        for Carried { mut object, .. } in carried {
+        let whole = self.whole(ink, ids);
+        for Carried { mut object, item } in carried {
             if let Some(o) = object.as_object_mut() {
                 o.remove("page");
+                if item.member.fig.as_ref().is_some_and(|fig| !whole.contains(fig)) {
+                    loose(o);
+                }
             }
             objects.push(object);
         }
         let items = (!objects.is_empty()).then(|| Value::Array(objects).to_string());
         items.map(|items| Clip::new(Some(text), Some(items)))
+    }
+}
+
+impl Mirror {
+    /// The figures of this page as the user sees it, `canvas`'s `ink` laid
+    /// over it, that `ids` hold whole: every item of each is among them.
+    fn whole(&self, (canvas, ink): (&str, &Ink), ids: &[ItemId]) -> HashSet<String> {
+        let shown = ink.shown(canvas, &self.page, &self.items);
+        let figs = shown.iter().filter_map(|i| i.member.fig.as_ref().map(|f| (f, i.id)));
+        let mut whole: HashSet<String> = figs.clone().map(|(f, _)| f.clone()).collect();
+        for (fig, id) in figs {
+            if !ids.contains(&id) {
+                whole.remove(fig);
+            }
+        }
+        whole
+    }
+
+    /// The names of the figures on this page, folded away or not: a paste
+    /// does not take one of them ([`free_name`]).
+    pub fn figures(&self) -> HashSet<String> {
+        let items = self.items.iter().chain(&self.held);
+        items.filter_map(|i| i.member.fig.clone()).collect()
     }
 }
 
@@ -50,8 +85,9 @@ impl Mirror {
 /// the clip's object `n`, renumbered for its place in the adds, when that
 /// object is pasted before the arrow; any other end is let go. Nothing for
 /// text that is not a JSON array; an object that does not read as an item
-/// is left out.
-pub fn pasted(items: &str, page: &str, centre: Point) -> Vec<Carried> {
+/// is left out. One whole figure is pasted as a new one, named apart from
+/// `taken` ([`free_name`]); any other figure's items come free.
+pub fn pasted(items: &str, page: &str, centre: Point, taken: &HashSet<String>) -> Vec<Carried> {
     let Ok(Value::Array(objects)) = serde_json::from_str::<Value>(items) else {
         return Vec::new();
     };
@@ -62,6 +98,7 @@ pub fn pasted(items: &str, page: &str, centre: Point) -> Vec<Carried> {
             _ => None,
         })
         .collect();
+    let objects = renamed(objects, taken);
     // An object reads only with an id: each its place in the clip, which
     // the ink shows under one of its own.
     let item = |n: usize, o: &Map<String, Value>| {
@@ -99,6 +136,63 @@ pub fn pasted(items: &str, page: &str, centre: Point) -> Vec<Carried> {
     }
     out
 }
+
+/// `objects` as a paste adds them: of one figure, that figure under a free
+/// name, its parts and lock kept; of two or more, every one let loose.
+fn renamed(
+    mut objects: Vec<Map<String, Value>>,
+    taken: &HashSet<String>,
+) -> Vec<Map<String, Value>> {
+    let fig = |o: &Map<String, Value>| o.get("fig").and_then(Value::as_str).map(str::to_string);
+    let figs: HashSet<String> = objects.iter().filter_map(fig).collect();
+    let mut figs = figs.into_iter();
+    let new = match (figs.next(), figs.next()) {
+        (Some(one), None) => Some(free_name(&one, taken)),
+        _ => None,
+    };
+    for o in objects.iter_mut().filter(|o| o.contains_key("fig")) {
+        match &new {
+            Some(name) => {
+                o.insert("fig".into(), name.as_str().into());
+            }
+            None => loose(o),
+        }
+    }
+    objects
+}
+
+/// Takes item object `o` out of its figure: no `fig`, `part` or `locked`.
+fn loose(o: &mut Map<String, Value>) {
+    for key in ["fig", "part", "locked"] {
+        o.remove(key);
+    }
+}
+
+/// The name a copy of figure `fig` takes (docs/design/figures.md, "A
+/// clash"): `fig` with a trailing `-<n>` taken off, then `-2`, `-3`, ...,
+/// the first not in `taken`, cut to the 40 characters a name may have.
+pub fn free_name(fig: &str, taken: &HashSet<String>) -> String {
+    let base = match fig.rsplit_once('-') {
+        Some((base, n))
+            if !base.is_empty() && !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) =>
+        {
+            base
+        }
+        _ => fig,
+    };
+    // One of these is free: `taken` cannot hold them all.
+    (2..=taken.len() + 2)
+        .map(|n| {
+            let tail = format!("-{n}");
+            let room = NAME_MAX.saturating_sub(tail.len()).min(base.len());
+            format!("{}{tail}", base[..room].trim_end_matches('-'))
+        })
+        .find(|name| !taken.contains(name))
+        .unwrap_or_else(|| fig.to_string())
+}
+
+/// The longest figure name, in characters (the core's `figure::NAME_MAX`).
+const NAME_MAX: usize = 40;
 
 /// A snippet of a PDF ([`crate::scene::crop`]) as a copy puts it on the
 /// clipboard: its file object, without an id, alone in the array, and no

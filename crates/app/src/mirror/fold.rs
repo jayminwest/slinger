@@ -216,7 +216,7 @@ impl Mirror {
                 continue;
             }
             let Some(shape) = scaled(&m.shape, fit) else { continue };
-            out.push(Item { id: m.id, colour: m.colour, shape, style: m.style });
+            out.push(Item { shape, ..m.clone() });
             if let (Some(inner), Some((frame, _))) = (self.room(m.id), self.fold_of(m.id))
                 && depth > 0
             {

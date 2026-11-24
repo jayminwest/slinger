@@ -182,7 +182,7 @@ impl Select {
         items: &[Cow<'_, Item>],
     ) -> Option<Grip> {
         let selection = self.selection.as_ref()?;
-        if selection.canvas != canvas || selection.page != page {
+        if selection.canvas != canvas || selection.page != page || self.grabbed() {
             return None;
         }
         let b = bounds(items, &selection.ids)?;
