@@ -116,6 +116,15 @@ pub(super) fn edit(
     })
 }
 
+/// `editing`'s caret goes before the character whose cell holds `at`, as
+/// the text was drawn (docs/design/writing-column.md, 4A): a double tap
+/// on a word edits at that word.
+pub(super) fn on_cell(editing: &mut Editing, at: Point) {
+    let text = editing.editor.text();
+    let index = glyphs::Laid::new(text, editing.at, editing.size, editing.column).cell_at(at);
+    editing.editor.place(index, false);
+}
+
 /// The one change that ending `editing` makes: a new text's `add`, an
 /// edited text's `set`, or its `remove` when emptied; none for blank new
 /// text or an unchanged edit. An edit that moved the text's frame (a size

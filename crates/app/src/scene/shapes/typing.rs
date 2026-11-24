@@ -17,6 +17,12 @@ impl Shapes {
         self.ends
     }
 
+    /// Where the caret of the text being typed is, as a byte index: Nvim
+    /// starts with its cursor there.
+    pub fn typing_caret(&self) -> Option<usize> {
+        self.editing.as_ref().map(|e| e.editor.caret())
+    }
+
     /// Where the text being typed is: its canvas, page, top left (in
     /// canvas units) and size.
     pub fn typing_place(&self) -> Option<(&str, &str, Point, f64)> {

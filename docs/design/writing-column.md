@@ -422,6 +422,15 @@ A pure `scene/markdown.rs`: one stored line in, a list of (cell range,
 style) out, for the subset of 4A; tested without AppKit. The painter is
 `platform/cells.rs` with the styles mapped to the theme's ink.
 
+- Landed (slinger-45d66c): `scene/canvas/markdown.rs` (a line's looks,
+  fences carried line to line) and `scene/canvas/written.rs` (the rows'
+  runs, `Written`), under `scene/canvas` because `scene.rs` is full; a
+  canvas text's `Mark::Text` carries them as `written`, painted by
+  `platform::cells::write`. Every canvas text's measure is its cells
+  (`glyphs::Laid`, `rows_frame`), so slinger's own editor draws in the
+  same cells too. A double tap on a word edits at its cell
+  (`Laid::cell_at`; nvim's seed takes the cursor's line and byte).
+
 ### The agent rule (step 8, slinger-99a379)
 
 - Core: a test that an agent's `set`, edit, move and remove of a user's

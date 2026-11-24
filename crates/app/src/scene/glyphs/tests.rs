@@ -108,6 +108,6 @@ fn a_canvas_text_is_a_size_tall_a_row_as_the_core_boxes_it() {
     let words = ["abcdefghi"; 12].join(" ");
     let frame = rows_frame(AT, &words, 70.0, 2800.0);
     assert_eq!(frame.height, 2.0 * 70.0, "the core's rows, a size apart");
-    assert_eq!(frame.width, 79.0 * 10.0 + 1.0, "its widest row's glyphs, a point more");
+    assert_eq!(frame.width, 79.0 * 35.0 + 1.0, "its widest row's cells, a point more");
     assert_eq!(rows_frame(AT, "", 70.0, UNWRAPPED).height, 70.0, "empty is one row");
 }

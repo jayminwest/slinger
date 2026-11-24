@@ -12,6 +12,8 @@ use crate::layout::{Point, Rect};
 use crate::nvim::grid::Grid;
 use crate::scene::canvas::{Item, ItemId, Shape};
 use crate::scene::ink::Change;
+use crate::scene::shapes::Press;
+use crate::scene::tools::Tool;
 
 const HERE: (&str, &str) = ("main", "p1");
 const RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
@@ -333,4 +335,24 @@ fn a_press_and_a_drag_in_the_grid_are_nvims_mouse() {
     until(&mut vim, &mut shapes, &mut ink, |v, _| v.selects() == Some(true));
     vim.copy(false, &shapes);
     clip_holds(&mut vim, &mut shapes, &mut ink, &clip, "plan");
+}
+
+#[test]
+fn a_double_tap_on_a_word_opens_nvim_in_normal_mode_with_its_cursor_on_that_cell() {
+    let Some((mut vim, _dir)) = vim(READY) else { return };
+    let mut ink = Ink::named("t");
+    let frame = Rect { x: 0.0, y: 0.0, width: 200.0, height: 48.0 };
+    let shape = Shape::Text { frame, text: "one\ntwo three".into(), size: 24.0, column: Some(1e7) };
+    let items = [Cow::Owned(Item::plain(ItemId(7), RED, shape))];
+    let mut shapes = Shapes::default();
+    // Cells are 12 wide: x 100 is cell 8 of the second row, the "h" of three.
+    let press = |when| Press { at: Point { x: 100.0, y: 30.0 }, when, zoom: 1.0, shift: false };
+    for when in [0.0, 0.2] {
+        shapes.down((Tool::Select, RED), HERE, press(when), &items, &mut ink);
+    }
+    assert!(shapes.tapped(Point { x: 100.0, y: 30.0 }));
+    vim.sync(&shapes);
+    until(&mut vim, &mut shapes, &mut ink, |_, s| {
+        grid(s).is_some_and(|(g, _)| g.mode_name == "normal" && g.cursor == (1, 8))
+    });
 }
