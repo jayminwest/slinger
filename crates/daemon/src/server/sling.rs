@@ -41,7 +41,7 @@ use crate::store::{Query, Store};
 
 /// The agent canvas verbs this daemon serves, which the message's note
 /// names. A test ties each one to a request the daemon answers.
-pub(crate) const VERBS: [Verb; 3] = [Verb::Put, Verb::Crop, Verb::Ui];
+pub(crate) const VERBS: [Verb; 4] = [Verb::Put, Verb::Draw, Verb::Crop, Verb::Ui];
 
 pub(super) fn send(store: &Store, ask: SlingAsk) -> Result<Slung, RemoteError> {
     let sessions = store.sessions();

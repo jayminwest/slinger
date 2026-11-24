@@ -36,7 +36,14 @@ process that slinger starts. You answer with your own tools and permissions.
    lines give only the place of the ink, the images give the words.
 6. Do what the prompt asks. Answer on the canvas, not in chat: `slinger
    canvas put <CANVAS> --beside <ITEM> --text "..." --agent <NAME>`. Keep
-   each text short: at most 12 rows, one beside each subject. Run `slinger guide` for the other verbs.
+   each text short: at most 12 rows, one beside each subject. An answer
+   that is a picture (a diagram, a plot, a table, a worksheet, or marks over
+   the user's work) is one figure: `slinger canvas draw <CANVAS> <FILE>
+   --name <FIGURE> --beside <ITEM> --agent <NAME>` runs a drawing script; a
+   later change to it is `slinger canvas redraw <CANVAS> <FIGURE> --data <JSON>
+   --agent <NAME>`. A sling of a figure's part (`in=<figure>/<part>` on line
+   1) wants its answer beside it: `--beside <figure>/<part>`. Run
+   `slinger guide` for the script API and the other verbs.
 7. Say that you are done: `slinger status set done --agent <NAME>`, or
    `slinger status set blocked --note "what you need" --agent <NAME>`. Either
    ends your work on the sling.

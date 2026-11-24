@@ -1142,9 +1142,11 @@ selection as `canvas_read` takes it. The message
 (`slinger_core::sling::message`) is line 1 `slinger-sling 1` with the
 selection as packet ids (a stroke is named by its cluster), the packet with
 each image under the line that names it, a `# reply` note naming only the
-agent verbs this daemon serves (`canvas put`, `canvas crop`, `ui put` with
-`ui open`), and the
-prompt last. With `in` (a box, `b4`), the sling is of that box (docs/design/fold.md, "Sling a
+agent verbs this daemon serves (`canvas put`, `canvas draw` with
+`canvas redraw`, `canvas crop`, `ui put` with `ui open`), and the
+prompt last. A sling of a figure or a part (`in=worksheet/1a-answer`) asks
+for the answer beside it (`canvas_put` with `beside`) and, when the agent
+drew that figure, for a `canvas redraw` of it by name. With `in` (a box, `b4`), the sling is of that box (docs/design/fold.md, "Sling a
 box"): the packet is `canvas_read`'s with `in`, only what the box holds,
 its header naming the box; line 1 names it too (`in=b4`), and the note on
 every sling of it asks for the answer in it (`canvas_put` with `in`). A

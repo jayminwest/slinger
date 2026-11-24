@@ -40,6 +40,13 @@ bullet with the area in bold.
   (`xticks: [[0, "Jan"], [1, "Feb"]]`), and an arrow's label moves along
   the arrow or to its other side when its spot would cover another label
   or line.
+- **Agents:** an agent now knows when to draw. The guide, both skills and
+  the note on each sling say that a picture (a diagram, a plot, a table, a
+  worksheet, or marks over your work) comes back as one figure from
+  `slinger canvas draw`, that a later change to it is a `slinger canvas
+  redraw` by name, and that a short remark stays a text. The guide has a
+  worked example script. A sling of a figure's part asks for the answer
+  beside it, or a redraw when the figure is the agent's.
 
 - **App:** a canvas text you type is edited in your own nvim, drawn in the
   text's place: 80 cells wide, as tall as the text, with your colorscheme,
