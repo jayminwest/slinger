@@ -63,6 +63,7 @@ same thing by drawing, or never needs to.
 | `ui export` (the version a pane shows) | `export-ui` (File menu, palette; no default key): a folder picked, the file `<name>.v<version>.html` revealed. It writes the bytes the pane already has, so it calls no verb (slinger-401aa5) |
 | `canvas fold`, `canvas unfold` | `fold` (opt+cmd+F, Edit menu, palette) on the selected boxes, and a press on a box's fold mark: a folded box draws as a miniature of what it holds; an unfold into a taken room (`conflict`) peeks. Its reply reads as `CanvasChange`, which the app already decodes, slinger-1350e7 |
 | `canvas apply` with `"in"` on an `add` | `step-in` (opt+cmd+I, two taps on a miniature), `step-out` (opt+cmd+O, escape), `step-in-beside` (opt+shift+cmd+I): what the pen or a text adds in a pane inside a folded box is sent with `in`, slinger-b1ccf1 |
+| `canvas edit --text`, `--size` (on the person's own text) | Typing in the text: in the person's own nvim when it is there (`[editor] nvim`), else slinger's editor; a double tap on a word opens it there. `pick-size`, `size-up`, `size-down` resize it (slinger-34a2ae). A text over 80 rows is read whole by `step-in` (two taps on its "N more lines" row); no new verb (docs/design/writing-column.md) |
 | `canvas find` | `find` (cmd+F, Edit menu, palette) and `find-next` (cmd+G): the entry for the words, then the pane turns to the text's page, centred, and selects the text (slinger-458db9). Its reply (`CanvasFound`) is a list of item objects, which the app already reads, slinger-78d1de |
 | `locked`, `fig`, `part` on an item (`canvas apply`, figure scripts) | The pen, eraser, lasso, select tool, select all, next item, text tool, arrow binding, fold mark and crop tool all pass over a locked item; `unlock-figure` (opt+cmd+U, Edit menu, palette, a context click on the figure) grabs the figure under the pointer as one unit to move, duplicate or delete, locked again when deselected; `drive scene` says ` locked`, slinger-dd5add |
 
@@ -78,7 +79,6 @@ a rough size. Known ones name their seed.
 | Set or remove an agent's profiles | `profile_set`, `profile_remove` | design | slinger-fbd4d3 |
 | Show a stored agent UI in a pane | `pane_open` (`ui`), `ui_list` | ui | new |
 | Make a new empty canvas, or show another canvas in a pane | `canvas_create`, `canvas_list`, `pane_open` (`canvas`) | design | slinger-16a66e |
-| Pick the size of a new text, or resize a text's characters | `canvas_put`/`canvas_edit` `size` (agent side); the app's own text tool | design | slinger-34a2ae |
 | Read the thinking record (what was slung, answered, touched) | `record_list` | design | slinger-895bde |
 | Browse a UI's versions (`ui list NAME`, `ui show`), or export one that no pane shows | `ui_list`, `ui_show`, `ui_export` | ui | slinger-401aa5 |
 | See which slingerd build serves the window, stop it or restart it (`daemon info`, `daemon stop`) | `daemon_info`, `daemon_stop` | app | the bundled app reads `daemon_info` and offers "Restart slingerd" for another build (`restart-daemon`, slinger-866657); starting one is its own (`start-slingerd` after a stop, slinger-5e8b60); no app view of the daemon's info yet |
