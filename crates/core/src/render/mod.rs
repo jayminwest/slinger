@@ -137,6 +137,14 @@ pub fn text_size(text: &str, columns: usize, size: f64) -> (f64, f64) {
     (cells(longest) * size * CELL, cells(rows.len()) * size)
 }
 
+/// How many rows `text` drawn at `size` in a frame `w` wide takes: its
+/// lines wrapped at spaces to the frame's width, or unwrapped in a frame
+/// narrower than a character.
+#[must_use]
+pub fn text_rows(text: &str, w: f64, size: f64) -> usize {
+    raster::wrap(text, raster::columns(w, size)).len()
+}
+
 /// The width, in canvas units, that `text` drawn at `size` in a frame `w`
 /// wide fills: its longest row's cells. No more than `w` when `w` holds a
 /// character; a frame narrower draws the text unwrapped.

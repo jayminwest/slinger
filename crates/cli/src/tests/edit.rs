@@ -97,3 +97,18 @@ fn fold_and_unfold_print_nothing_and_a_taken_room_is_a_conflict() {
     assert!(folded["w"].as_i64().unwrap() < 1000, "{folded}");
     assert!(runs[7].err.contains("i3"), "{}", runs[7].err);
 }
+
+#[test]
+fn an_agents_long_text_exits_invalid_as_too_long() {
+    let long = (1..=13).map(|i| format!("row {i}")).collect::<Vec<_>>().join("\n");
+    let put = ["canvas", "put", "main", "--beside", "i1", "--text", &long, "--agent", "scout"];
+    let runs = cli_each(&[
+        &["canvas", "create", "main"],
+        &["canvas", "apply", "main", BOX],
+        &[&put[..], &["--json"]].concat(),
+    ]);
+    assert_eq!(runs[2].code, exit::INVALID, "{}", runs[2].err);
+    let failed = json(&runs[2]);
+    assert_eq!(failed["code"], "too_long", "{failed}");
+    assert_eq!(failed["hint"], "split it: one short put beside each subject");
+}

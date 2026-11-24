@@ -18,6 +18,9 @@ pub enum Error {
     /// The input was understood but rejected.
     #[error("{message}")]
     Invalid { message: String, hint: Option<String> },
+    /// An agent's text is longer than an agent may write in one item.
+    #[error("{message}")]
+    TooLong { message: String, hint: Option<String> },
     /// A canvas file is damaged before its last line: it was changed outside
     /// slinger. `line` counts from 1.
     #[error("the canvas file is damaged at line {line}: {message}")]
@@ -38,6 +41,7 @@ impl Error {
             Self::NotFound { .. } => "not_found",
             Self::Conflict { .. } => "conflict",
             Self::Invalid { .. } => "invalid",
+            Self::TooLong { .. } => "too_long",
             Self::CanvasCorrupt { .. } => "canvas_corrupt",
             Self::CanvasTooNew { .. } => "canvas_too_new",
             Self::UnsupportedVersion { .. } => "unsupported_version",
@@ -50,7 +54,8 @@ impl Error {
         match self {
             Self::NotFound { hint, .. }
             | Self::Conflict { hint, .. }
-            | Self::Invalid { hint, .. } => hint.as_deref(),
+            | Self::Invalid { hint, .. }
+            | Self::TooLong { hint, .. } => hint.as_deref(),
             Self::CanvasCorrupt { .. } => {
                 Some("the file was changed outside slinger; restore it from a backup")
             }
@@ -69,7 +74,8 @@ mod tests {
         let hint = None;
         assert_eq!(Error::NotFound { what: "x".into(), hint: hint.clone() }.code(), "not_found");
         assert_eq!(Error::Conflict { message: "x".into(), hint: hint.clone() }.code(), "conflict");
-        assert_eq!(Error::Invalid { message: "x".into(), hint }.code(), "invalid");
+        assert_eq!(Error::Invalid { message: "x".into(), hint: hint.clone() }.code(), "invalid");
+        assert_eq!(Error::TooLong { message: "x".into(), hint }.code(), "too_long");
     }
 
     #[test]
