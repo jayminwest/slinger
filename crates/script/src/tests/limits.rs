@@ -68,6 +68,17 @@ fn an_endless_loop_stops_after_the_time_limit_at_or_before_its_line() {
 }
 
 #[test]
+fn a_loop_on_the_second_line_is_named_by_the_line_before_it_and_says_so() {
+    // QuickJS's jump back polls the clock without saving its place: the
+    // stop names the instruction before the loop's head (slinger-a0f694).
+    let e = failed("let w = 0;\nwhile (true) {\n  w += 1;\n}\n");
+    assert_eq!(
+        e.to_string(),
+        "script:1:1: the script ran longer than 1 s, stopped at this line or in a loop after it"
+    );
+}
+
+#[test]
 fn a_loop_that_catches_the_interrupt_still_stops() {
     let start = Instant::now();
     let e = failed("for (;;) {\n  try { for (;;) {} } catch (e) {}\n}\n");

@@ -238,6 +238,12 @@ fn failed(e: &CaughtError<'_>) -> ScriptError {
 /// of the loop, so a line before the loop (the first of its function when
 /// nothing came before), which moves with whatever ran before. Either way
 /// the loop is at that line or after it, and the message says no more.
+/// The loop's own line is not to be had (slinger-a0f694): `QuickJS`'s jump
+/// back (`OP_goto` in rquickjs-sys 0.14) polls the clock without saving
+/// its place (`cur_pc`), so the stack the interrupt builds names the last
+/// place a call saved, and where nothing did it names `pc - 1` of the
+/// jump's target, the instruction before the loop. The interrupt handler
+/// sees no context or frame to ask; only a patched `QuickJS` could say more.
 const STOPPED: &str = ", stopped at this line or in a loop after it";
 
 /// The fault and the message for an exception named `name`: a limit says

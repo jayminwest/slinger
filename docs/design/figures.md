@@ -884,7 +884,10 @@ nearest group that holds it, then the `fig.part` it was drawn in, then
   position recorded before the loop's head (a line before the loop, or the
   first line of its function). Which check fires moves with any work run
   before, the loop's own calls included, so no loop is named inside its
-  body every time (slinger-71c6cb). Warnings
+  body every time (slinger-71c6cb). The loop's own line cannot be had
+  from QuickJS: its jump back checks the clock without saving its place,
+  and the interrupt handler gets no frame to ask, so only a patched
+  QuickJS could name it (slinger-a0f694). Warnings
   (the owner's three: a label taller than its box, a word wider than its
   text's frame, two named parts that overlap; and text over a line, texts
   overlapping, a box drawn again on another's frame, a label longer than
