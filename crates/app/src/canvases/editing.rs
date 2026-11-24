@@ -113,9 +113,10 @@ impl Editing {
         self.shapes.editing()
     }
 
-    /// Whether characters are selected in the text being typed.
+    /// Whether characters are selected in the text being typed (Nvim's
+    /// visual mode, while Nvim edits it).
     pub(super) fn text_selects(&self) -> bool {
-        self.shapes.selects()
+        self.vim.selects().unwrap_or_else(|| self.shapes.selects())
     }
 
     /// The canvas and page of the text being typed, if any.
@@ -191,6 +192,11 @@ impl Editing {
         self.vim.follow(nvim);
     }
 
+    /// Whether an Nvim edits the texts typed from now on.
+    pub(super) fn nvim_on(&self) -> bool {
+        self.vim.on()
+    }
+
     /// Why no Nvim edits the text, once.
     pub(super) fn take_flash(&mut self) -> Option<String> {
         self.vim.take_flash()
@@ -208,13 +214,18 @@ impl Editing {
 
     /// Undoes the text being typed's last edit, or redoes the last undone.
     /// False when none is typed, or it has none left.
+    /// While Nvim edits the text, its undo and redo, always true.
     pub(super) fn undo_text(&mut self, redo: bool) -> bool {
-        self.shapes.undo(redo)
+        self.vim.undo(redo, &self.shapes) || self.shapes.undo(redo)
     }
 
     /// Copies the characters selected in the text being typed; with `cut`,
-    /// takes them out of it.
+    /// takes them out of it. While Nvim edits the text, Nvim puts them on
+    /// the clipboard itself, and this is `None`.
     pub(super) fn copy_text(&mut self, cut: bool) -> Option<String> {
+        if self.vim.copy(cut, &self.shapes) {
+            return None;
+        }
         self.shapes.copy(cut)
     }
 

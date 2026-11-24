@@ -14,7 +14,12 @@ bullet with the area in bold.
 - **App:** a canvas text you type is edited in your own nvim, drawn in the
   text's place: 80 cells wide, as tall as the text, with your colorscheme,
   modes, cursor and `:` line, and no line numbers, sign column or ruler.
-  Escape in normal mode, `:q` or a tap outside ends the text. The new
+  Escape in normal mode, `:q` or a tap outside ends the text, and
+  ctrl+return ends it and starts the next. Every key without ⌘ is nvim's;
+  ⌘Z and ⇧⌘Z are nvim's undo and redo, ⌘A selects the whole text, ⌘C and
+  ⌘X copy and cut what visual mode selects to the system clipboard, and a
+  paste or a dictation goes in at nvim's cursor as one undo step. A click
+  or a drag in the text is nvim's mouse. The key overlay lists these. The new
   `[editor] nvim` config key (`"auto"`, `"off"` or the path to nvim)
   picks which nvim; with none found, slinger's own editor types and says so.
 - **Canvas:** boxes and closed strokes take a fill, drawn as a light tint

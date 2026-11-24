@@ -14,14 +14,22 @@
 //! config, quitting or not ready within [`READY`]) the text keeps what it
 //! had, the app's own editor types on, the flash says why, and no Nvim
 //! starts again this run.
+//!
+//! While it edits, every key without command is Nvim's, but `new-text`'s;
+//! the app's undo, redo, select all, copy and cut are Nvim's `undo`,
+//! `redo`, `ggVG`, `"+y` and `"+d` (its clipboard is the system's), a
+//! paste and a dictation are `nvim_paste`, and a press in the grid with
+//! its drag and lift is Nvim's mouse (docs/design/writing-column.md, "The
+//! keys").
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::backend::Wake;
 use crate::backend::nvim::{Process, Setup};
-use crate::commands::Chord;
+use crate::commands::{CMD, Chord};
 use crate::config::Nvim;
+use crate::layout::Point;
 use crate::nvim::pack::Value;
 use crate::nvim::{Heard, Session, keys};
 use crate::scene::ink::Ink;
@@ -58,6 +66,9 @@ struct Open {
     process: Process,
     session: Session,
     started: Instant,
+    /// Whether the button went down in the grid and is not up yet: the
+    /// drag and the lift are Nvim's too.
+    pressed: bool,
 }
 
 impl Open {
@@ -149,6 +160,11 @@ impl Vim {
         }
     }
 
+    /// Whether an Nvim edits the texts typed from now on.
+    pub(super) fn on(&self) -> bool {
+        self.setup.is_some()
+    }
+
     /// What to flash, once.
     pub(super) fn take_flash(&mut self) -> Option<String> {
         self.flash.take()
@@ -179,7 +195,8 @@ impl Vim {
                 let mut out = Vec::new();
                 let text = shapes.typing_text().unwrap_or_default();
                 let session = Session::start(&text, shapes.typing_new(), &mut out);
-                let mut open = Open { text: shapes.ends(), process, session, started };
+                let (text, pressed) = (shapes.ends(), false);
+                let mut open = Open { text, process, session, started, pressed };
                 open.send(&out);
                 open.say(&format!("spawned_us {}", started.elapsed().as_micros()));
                 self.open = Some(open);
@@ -249,11 +266,16 @@ impl Vim {
 
     /// A key press, as its chord: `None` when no Nvim edits a text. Escape
     /// in normal mode ends the text (to `ink`); a named key or a control
-    /// chord goes to Nvim. Any other chord is not Nvim's (false): a key
-    /// that types comes again as its text, a command chord is the app's.
+    /// chord goes to Nvim, and cmd+A selects the whole buffer. Any other
+    /// chord is not Nvim's (false): `new-text`'s, a key that types (it
+    /// comes again as its text) and a command chord (the app's).
     pub(super) fn key(&mut self, chord: Chord, shapes: &mut Shapes, ink: &mut Ink) -> Option<bool> {
         self.sync(shapes);
         self.open.as_ref()?;
+        // `new-text`'s key ends the text and starts the next: the app's.
+        if shapes.next_key() == Some(chord) {
+            return Some(false);
+        }
         if chord == Chord::new(0, '\u{1b}') {
             self.settle(shapes);
             let open = self.open.as_mut()?;
@@ -264,21 +286,84 @@ impl Vim {
                 return Some(true);
             }
         }
-        let open = self.open.as_mut()?;
-        let Some(keys) = keys::chord(chord) else { return Some(false) };
+        // Select all: the whole buffer, linewise, from any mode.
+        let keys = if chord == Chord::new(CMD, 'a') {
+            "<C-\\><C-N>ggVG".to_string()
+        } else {
+            let Some(keys) = keys::chord(chord) else { return Some(false) };
+            keys
+        };
+        Some(self.input(&keys, shapes))
+    }
+
+    /// Types `keys` (Nvim's notation). False when no Nvim edits a text.
+    fn input(&mut self, keys: &str, shapes: &Shapes) -> bool {
+        self.sync(shapes);
+        let Some(open) = &mut self.open else { return false };
         let mut out = Vec::new();
-        open.session.input(&keys, &mut out);
+        open.session.input(keys, &mut out);
         open.send(&out);
-        Some(true)
+        true
     }
 
     /// Typed `text` goes to Nvim. False when no Nvim edits a text.
     pub(super) fn typed(&mut self, text: &str, shapes: &Shapes) -> bool {
-        self.sync(shapes);
+        self.input(&keys::text(text), shapes)
+    }
+
+    /// The app's undo (`redo`: redo) is Nvim's while it edits a text, in
+    /// turn with the keys. False when none does.
+    pub(super) fn undo(&mut self, redo: bool, shapes: &Shapes) -> bool {
+        self.input(if redo { "<Cmd>silent! redo<CR>" } else { "<Cmd>silent! undo<CR>" }, shapes)
+    }
+
+    /// Whether Nvim selects something to copy (visual mode): `None` when
+    /// no Nvim edits a text.
+    pub(super) fn selects(&self) -> Option<bool> {
+        self.open.as_ref().map(|open| open.session.visual())
+    }
+
+    /// Copies what visual mode selects to Nvim's clipboard, the system's
+    /// (`"+y`); with `cut`, takes it out too (`"+d`). False when no Nvim
+    /// edits a text.
+    pub(super) fn copy(&mut self, cut: bool, shapes: &Shapes) -> bool {
+        self.input(if cut { "\"+d" } else { "\"+y" }, shapes)
+    }
+
+    /// A press at `at` on `here`, a canvas and its page, with `shift`
+    /// held: within `reach` of the grid it is Nvim's mouse at that cell,
+    /// and so are the drag and the lift after it (true). False, and
+    /// nothing is sent, anywhere else.
+    pub(super) fn press(
+        &mut self,
+        here: (&str, &str),
+        (at, reach): (Point, f64),
+        shift: bool,
+        shapes: &mut Shapes,
+    ) -> bool {
         let Some(open) = &mut self.open else { return false };
+        let Some(cell) = shapes.cell_at(here, at, reach) else { return false };
+        open.pressed = true;
         let mut out = Vec::new();
-        open.session.input(&keys::text(text), &mut out);
+        open.session.mouse("press", shift, cell, &mut out);
         open.send(&out);
+        // Nvim takes a drag queued with its press as no drag: it takes the press first.
+        self.settle(shapes);
+        true
+    }
+
+    /// The pen moved to `at` (`lift`: and lifted) after a press
+    /// [`Vim::press`] took: it drags in the grid, to the nearest cell.
+    /// False when no such press is down.
+    pub(super) fn drag(&mut self, at: Point, lift: bool, shapes: &Shapes) -> bool {
+        let Some(open) = self.open.as_mut().filter(|open| open.pressed) else { return false };
+        open.pressed = !lift;
+        let here = shapes.typing_on();
+        if let Some(cell) = here.and_then(|here| shapes.cell_at(here, at, f64::MAX)) {
+            let mut out = Vec::new();
+            open.session.mouse(if lift { "release" } else { "drag" }, false, cell, &mut out);
+            open.send(&out);
+        }
         true
     }
 

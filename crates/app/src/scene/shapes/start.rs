@@ -63,6 +63,11 @@ impl Shapes {
         self.next = key;
     }
 
+    /// The key `new-text` is on, if any: it is the app's while Nvim edits a text.
+    pub fn next_key(&self) -> Option<Chord> {
+        self.next
+    }
+
     /// The hint under the text being typed: how it ends, and the key that
     /// starts the next, when there is one.
     pub(super) fn hint(&self) -> String {

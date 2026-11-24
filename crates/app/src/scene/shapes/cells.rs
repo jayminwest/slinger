@@ -9,6 +9,9 @@
 //! as the editor it is, so nothing under the text being typed shows through
 //! it (the owner's colorscheme decides how it looks). What lies under it
 //! shows again once the text ends.
+//!
+//! A press inside the grid is a cell's ([`Shapes::cell_at`]): Nvim's
+//! mouse takes it (slinger-b8e3d3).
 
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -38,6 +41,27 @@ impl Shapes {
         Some(Rect { x: editing.at.x, y: editing.at.y, width: cols * width, height: rows * height })
     }
 
+    /// The grid's cell (row, column) at `at` on `page` of `canvas`, or the
+    /// nearest one when `at` is within `reach` of the grid; `None` outside
+    /// it, and when no grid shows there.
+    #[expect(clippy::cast_possible_truncation, reason = "clamped to the grid")]
+    #[expect(clippy::cast_sign_loss, reason = "clamped to the grid")]
+    pub fn cell_at(
+        &self,
+        (canvas, page): (&str, &str),
+        at: Point,
+        reach: f64,
+    ) -> Option<(usize, usize)> {
+        let editing = self.editing.as_ref().filter(|e| e.canvas == canvas && e.page == page)?;
+        let (frame, grid) = self.grid_frame().zip(self.grid.as_ref())?;
+        if !frame.outset(reach).contains(at) {
+            return None;
+        }
+        let col = ((at.x - frame.x) / (editing.size * glyphs::CELL)).floor().max(0.0) as usize;
+        let row = ((at.y - frame.y) / editing.size).floor().max(0.0) as usize;
+        Some((row.min(grid.rows.saturating_sub(1)), col.min(grid.cols.saturating_sub(1))))
+    }
+
     /// The grid in place of the text being typed, with the dashed frame
     /// and the hint, sized for `zoom` in `theme`'s colours. False when no
     /// grid shows.
@@ -54,7 +78,11 @@ impl Shapes {
             Shape::Panel { frame: around, fill: None, width: FRAME_LINE / zoom, dashed: true };
         items.push(Cow::Owned(Item { id: FRAME_ID, colour: theme.muted, shape }));
         let under = Point { x: around.x, y: around.y + around.height + HINT_GAP / zoom };
-        items.push(Cow::Owned(label(HINT_ID, HINT.to_string(), theme.muted, under, zoom)));
+        let hint = match self.next {
+            Some(key) => format!("{HINT} · {} new text", key.glyphs()),
+            None => HINT.to_string(),
+        };
+        items.push(Cow::Owned(label(HINT_ID, hint, theme.muted, under, zoom)));
         true
     }
 }
