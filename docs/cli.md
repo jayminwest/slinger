@@ -242,10 +242,10 @@ The images are in the directory the header's `at=` names: `--out`, or
 slingerd's own. `--select c42,t12` keeps only those items in the outline.
 A folded box is one line, `b4 box … folded=7 "its first text"`; `--in b4`
 reads what a box holds, open or folded, as if it were the page, and its
-header says so (`in=b4`). A figure is one line, `worksheet figure …
-parts=title,q1,1a-answer locked=yes "its title"`, and ink over a part
-says so (`over=worksheet/1a-answer`); `--in worksheet/1a-answer` reads
-that part (`--in worksheet` the whole figure) item by item, each with
+header says so (`in=b4`). A figure is one line, `f3 figure worksheet …
+parts=15 by=claude` (its id, its name, how many parts), and ink over a
+part says so (`over=worksheet/1a-answer`); `--in worksheet/1a-answer`
+reads that part (`--in worksheet` or `--in f3` the whole figure) item by item, each with
 `part=`, with every other item whose centre lies in its frame.
 A read changes nothing. The packet is stored as a blob (`packet` in
 `--json`), and so is each image (`images`), for `blob get`. A canvas or
@@ -269,8 +269,8 @@ the `next` of `--json`. An `--after` the canvas has not reached exits 5
 `canvas crop` writes an image of one item or one box at the packet's scale
 (`docs/service.md`, "Crops and strokes"). A folded box's `--item` draws it
 open, with what it holds. `--item` takes an id from `canvas
-show` (`i12`) or from a packet (`c12` is the whole cluster), or a figure
-address (`worksheet` or `worksheet/1a-answer`: the items with that `fig`,
+show` (`i12`) or from a packet (`c12` is the whole cluster, `f3` the
+whole figure), or a figure address (`worksheet` or `worksheet/1a-answer`: the items with that `fig`,
 and that `part`). `--box` is in
 tenths of a unit, like every canvas command, on the first page unless
 `--page` names another. The image goes to `--out` (default `<ITEM>.png` or
