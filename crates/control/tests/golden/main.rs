@@ -29,7 +29,7 @@ use serde_json::Value;
 use slinger_control::{Client, OPS, read_request};
 
 /// How many verbs the protocol has. A new verb raises it, with its lines.
-const VERBS: usize = 56;
+const VERBS: usize = 57;
 
 fn fixture(name: &str) -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name);

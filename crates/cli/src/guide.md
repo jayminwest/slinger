@@ -114,6 +114,18 @@ only what the box holds. Answer in the box: add `--in b4` to each put
 slinger canvas put <CANVAS> --beside c12 --in b4 --text "The answer" --agent claude
 ```
 
+Draw a picture with code when a few puts would not do (a diagram, a plot, a
+table, a worksheet): write a JavaScript file and run it as one figure, a
+named set of items the user's pen passes over. Look at it first with
+`--dry-run --png` (it writes nothing), then draw it; a draw of the same
+`--name` again replaces the figure in place. `--at` is in canvas units, the
+packet's:
+
+```bash
+slinger canvas draw <CANVAS> plot.js --name growth --beside c12 --dry-run --png /tmp/growth.png --agent claude
+slinger canvas draw <CANVAS> plot.js --name growth --beside c12 --data '{"rate": 0.3}' --agent claude
+```
+
 Keep each text short: at most 12 rows, or the put exits 5 (`too_long`). Use
 more puts, each beside its subject, in place of one long text. A question, a
 box or an arrow often says more than prose. Answer the user's writing beside
