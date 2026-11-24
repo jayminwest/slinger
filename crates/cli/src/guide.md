@@ -67,6 +67,7 @@ Read a canvas:
 ```bash
 slinger canvas read <CANVAS>                 # the packet; `at=` names the directory of its images
 slinger canvas read <CANVAS> --in b4         # what box b4 holds: a folded box is one line, `folded=7`
+slinger canvas read <CANVAS> --in worksheet/1a-answer  # one part of a figure, item by item, and the ink over it
 slinger canvas show <CANVAS>                 # every item as JSON, in tenths
 slinger canvas crop <CANVAS> --item c12      # an image of one item; read the file it prints
 slinger canvas find <CANVAS> "the plan"     # page, item and text of each text that holds it ("i7 in i4": folded in box i4)

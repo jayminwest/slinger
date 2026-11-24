@@ -3,7 +3,7 @@
 
 use serde_json::{Value, json};
 use slinger_core::canvas::{
-    Author, Canvas, Colour, Dash, End, Item, Point, Rect, Shape, Style, Time,
+    Author, Canvas, Colour, Dash, End, Heads, Item, Point, Rect, Shape, Style, Time,
 };
 use slinger_core::tldraw::{Import, import};
 
@@ -284,4 +284,71 @@ fn fill_and_dash_carry_over_to_the_items_that_take_them() {
             Style { dash: Dash::Dotted, ..plain },
         ]
     );
+}
+
+#[test]
+fn a_locked_shape_imports_locked() {
+    let mut locked = shape(
+        "shape:a",
+        "page:p",
+        "a1",
+        "geo",
+        0.0,
+        0.0,
+        &json!({"geo": "rectangle", "w": 100, "h": 40, "richText": doc(&["1a"])}),
+    );
+    locked["isLocked"] = true.into();
+    let free =
+        shape("shape:b", "page:p", "a2", "text", 0.0, 50.0, &json!({"richText": doc(&["x"])}));
+    let Import { canvas, .. } =
+        import(&tldr(&[page("page:p", "P", "a1"), locked, free]), AT).unwrap();
+    let locks: Vec<bool> = items_of(&canvas).into_iter().map(|i| i.member().locked).collect();
+    // The rectangle's box and its label, then the free text.
+    assert_eq!(locks, [true, true, false]);
+}
+
+#[test]
+fn a_closed_drawing_keeps_its_fill() {
+    let pen = |closed: bool| {
+        let points = [(0, 0), (10, 0), (10, 10)].map(|(x, y)| json!({"x": x, "y": y}));
+        json!({"segments": [{"type": "free", "points": points}], "color": "blue",
+               "fill": "solid", "isClosed": closed})
+    };
+    let file = tldr(&[
+        page("page:p", "P", "a1"),
+        shape("shape:a", "page:p", "a1", "draw", 0.0, 0.0, &pen(true)),
+        shape("shape:b", "page:p", "a2", "draw", 0.0, 50.0, &pen(false)),
+    ]);
+    let Import { canvas, .. } = import(&file, AT).unwrap();
+    let styles: Vec<Style> = items_of(&canvas).into_iter().map(|i| *i.style()).collect();
+    let tint = Some(Colour { a: 0x66, ..Colour::rgb(60, 100, 220) });
+    assert_eq!(styles, [Style { fill: tint, closed: true, ..Style::default() }, Style::default()]);
+}
+
+#[test]
+fn arrowheads_carry_over_and_a_head_at_the_start_only_turns_the_arrow_round() {
+    let arrow = |start: &str, end: &str| {
+        json!({"start": {"x": 0, "y": 0}, "end": {"x": 50, "y": 0},
+               "arrowheadStart": start, "arrowheadEnd": end})
+    };
+    let target = json!({"geo": "rectangle", "w": 20, "h": 20});
+    let file = tldr(&[
+        page("page:p", "P", "a1"),
+        shape("shape:a", "page:p", "a1", "arrow", 0.0, 0.0, &arrow("triangle", "arrow")),
+        shape("shape:b", "page:p", "a2", "arrow", 0.0, 10.0, &arrow("none", "none")),
+        shape("shape:c", "page:p", "a3", "arrow", 0.0, 20.0, &arrow("none", "bar")),
+        shape("shape:d", "page:p", "a4", "arrow", 0.0, 30.0, &arrow("dot", "none")),
+        shape("shape:t", "page:p", "a5", "geo", 100.0, 100.0, &target),
+        json!({"typeName": "binding", "id": "binding:1", "type": "arrow", "fromId": "shape:d",
+               "toId": "shape:t", "props": {"terminal": "start",
+               "normalizedAnchor": {"x": 0.5, "y": 0.5}}}),
+    ]);
+    let Import { canvas, .. } = import(&file, AT).unwrap();
+    let items = items_of(&canvas);
+    let heads: Vec<Heads> = items[..4].iter().map(|i| i.style().heads).collect();
+    assert_eq!(heads, [Heads::Both, Heads::None, Heads::End, Heads::End]);
+    // The start-only head is now at the end, bound to the rectangle.
+    let Shape::Arrow { from, to, .. } = items[3].shape() else { panic!("not an arrow") };
+    assert_eq!(from.at, Point::new(50.0, 30.0));
+    assert_eq!((to.at, to.item), (Point::new(110.0, 110.0), Some(items[4].id())));
 }

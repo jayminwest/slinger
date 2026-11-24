@@ -15,6 +15,10 @@
 //! place in `new` (docs/design/fold.md, [`fold`]). An end of an arrow bound
 //! to a hidden item names the folded box that holds it.
 //!
+//! A figure (docs/design/figures.md) is one `figure` line, named by the
+//! figure; its items make none, and ink over a part names it in `over`
+//! ([`figure`]).
+//!
 //! [`cluster`] groups strokes into the clusters the index takes. What counts
 //! as changed is decided elsewhere and passed in; the index decides the ids,
 //! the lines and their order.
@@ -26,6 +30,7 @@
 mod areas;
 mod build;
 mod cluster;
+mod figure;
 mod fold;
 mod format;
 mod line;
@@ -33,11 +38,11 @@ mod words;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use crate::canvas::{Author, Canvas, Item, ItemId, PageId, Rect, Shape};
+use crate::canvas::{Author, Canvas, Figure, Item, ItemId, PageId, Rect, Shape};
 use line::{Line, colour_name, reading_order};
 
 pub use areas::{Area, backdrops};
-pub use build::{Ask, build};
+pub use build::{Ask, Inside, build};
 pub use cluster::cluster;
 pub use format::{Header, Packet, VERSION};
 pub use line::Entry;
@@ -87,19 +92,21 @@ impl Index {
         clusters: &[Vec<ItemId>],
         changed: impl Fn(ItemId) -> bool,
     ) -> Self {
-        Self::of(canvas, page, canvas.visible(page).collect(), clusters, &changed)
+        Self::of(canvas, page, canvas.visible(page).collect(), clusters, &changed, None)
     }
 
     /// The index of `items` of `page`, as [`Index::new`] builds a page's:
-    /// the visible items, or what one box holds (`canvas read --in`).
+    /// the visible items, or what one box or part holds (`canvas read
+    /// --in`). The items of figure `open` make a line each, with `part=`.
     pub(crate) fn of(
         canvas: &Canvas,
         page: PageId,
         items: Vec<&Item>,
         clusters: &[Vec<ItemId>],
         changed: &dyn Fn(ItemId) -> bool,
+        open: Option<&str>,
     ) -> Self {
-        let page = Page::new(canvas, page, items, clusters);
+        let page = Page::new(canvas, page, items, clusters, open);
         let (mut new, mut made, mut rest) = (Vec::new(), Vec::new(), Vec::new());
         for (&n, strokes) in &page.clusters {
             let line = page.ink_line(n, strokes);
@@ -118,6 +125,13 @@ impl Index {
                 _ => rest.push(line),
             }
         }
+        for figure in &page.figures {
+            let line = page.figure_line(figure);
+            match figure.maker {
+                Author::Agent(_) if figure.items.iter().any(|i| changed(*i)) => made.push(line),
+                _ => rest.push(line),
+            }
+        }
         let new = reading_order(new);
         let render = new
             .iter()
@@ -131,6 +145,13 @@ impl Index {
         let (rest, unnamed) =
             rest.into_iter().partition(|l| l.kind != "pdf" || named.contains(&l.id));
         Self { new, made: reading_order(made), page: reading_order(rest), unnamed, render }
+    }
+
+    /// The id of the line whose item number is `n` (a cluster's is its
+    /// earliest stroke's, a figure's its lowest item's), if there is one.
+    fn id(&self, n: u64) -> Option<&str> {
+        let mut lines = self.new.iter().chain(&self.made).chain(&self.page);
+        lines.find(|l| l.n == n).map(|l| l.id.as_str())
     }
 
     /// How many lines the three sections hold.
@@ -191,7 +212,17 @@ struct Page<'a> {
     canvas: &'a Canvas,
     /// The page the items are on.
     on: PageId,
+    /// The items that make lines of their own: the items read, but for
+    /// those of a figure that makes one line.
     items: Vec<&'a Item>,
+    /// Every item read, for the ids arrow ends name.
+    all: Vec<&'a Item>,
+    /// The figures that make one line each.
+    figures: Vec<Figure>,
+    /// The figure whose items make a line each, read `--in` it.
+    open: Option<&'a str>,
+    /// The parts of the page's figures, smallest first ([`figure::parts`]).
+    parts: Vec<(String, Rect)>,
     /// Each item a folded box on the page holds, with that box.
     holders: HashMap<ItemId, ItemId>,
     /// By cluster number (its earliest stroke's), the strokes in drawing order.
@@ -204,7 +235,14 @@ struct Page<'a> {
 }
 
 impl<'a> Page<'a> {
-    fn new(canvas: &'a Canvas, page: PageId, items: Vec<&'a Item>, given: &[Vec<ItemId>]) -> Self {
+    fn new(
+        canvas: &'a Canvas,
+        page: PageId,
+        all: Vec<&'a Item>,
+        given: &[Vec<ItemId>],
+        open: Option<&'a str>,
+    ) -> Self {
+        let (items, figures) = figure::split(canvas, all.clone(), open);
         let here: HashSet<ItemId> = items.iter().map(|i| i.id()).collect();
         let is_stroke = |i: &Item| matches!(i.shape(), Shape::Stroke { .. });
         let mut cluster_of = BTreeMap::new();
@@ -241,22 +279,40 @@ impl<'a> Page<'a> {
         };
         let (boxes, pdfs) = (kind(false), kind(true));
         let holders = canvas.holders(page);
-        Self { canvas, on: page, items, holders, clusters, cluster_of, boxes, pdfs }
+        let parts = figure::parts(canvas, page);
+        Self {
+            canvas,
+            on: page,
+            items,
+            all,
+            figures,
+            open,
+            parts,
+            holders,
+            clusters,
+            cluster_of,
+            boxes,
+            pdfs,
+        }
     }
 
     /// The packet id of an item here, if it is still there: for an item
-    /// hidden in a folded box, the outermost folded box here that holds it.
+    /// hidden in a folded box, the outermost folded box here that holds it;
+    /// for an item of a figure that makes one line, its address.
     fn id_of(&self, item: ItemId) -> Option<String> {
         if let Some(n) = self.cluster_of.get(&item) {
             return Some(format!("c{n}"));
         }
         let mut item = item;
         let found = loop {
-            match self.items.iter().find(|i| i.id() == item) {
+            match self.all.iter().find(|i| i.id() == item) {
                 Some(found) => break found,
                 None => item = *self.holders.get(&item)?,
             }
         };
+        if figure::shut(found, self.open) {
+            return figure::address(found);
+        }
         let prefix = match found.shape() {
             Shape::Stroke { .. } => "c",
             Shape::Text { .. } => "t",
@@ -307,6 +363,9 @@ impl<'a> Page<'a> {
             .filter(|p| overlaps(p.bounds(), frame))
             .map(|p| format!("d{}", p.id().get()))
             .collect();
+        // And the parts of figures it lies in, by the centre of its box.
+        let parts = self.parts.iter().filter(|(_, part)| figure::centred(*part, frame));
+        let under: Vec<String> = under.into_iter().chain(parts.map(|(a, _)| a.clone())).collect();
         if !under.is_empty() {
             fields.push(("over", under.join(",")));
         }
@@ -318,6 +377,9 @@ impl<'a> Page<'a> {
         let mut fields = Vec::new();
         if let Author::Agent(name) = item.author() {
             fields.push(("by", name.clone()));
+        }
+        if self.open.is_some() {
+            fields.extend(item.member().part.clone().map(|p| ("part", p)));
         }
         let (kind, text) = match item.shape() {
             Shape::Text { text, .. } => ("text", Some(text.clone())),

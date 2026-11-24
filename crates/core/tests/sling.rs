@@ -287,3 +287,14 @@ fn a_sling_of_a_box_names_it_and_asks_for_the_answer_in_it_every_time() {
     // A sling of a page names no box.
     assert!(!show(&message(&sling(&packet(), &[], true))).contains("box b4"));
 }
+
+#[test]
+fn a_sling_of_a_part_names_it_and_asks_for_the_answer_beside_it() {
+    let mut p = packet();
+    p.header.inside = Some("worksheet/1a-answer".into());
+    let text = show(&message(&sling(&p, &[], false)));
+    assert!(text.starts_with("slinger-sling 1 canvas=idea in=worksheet/1a-answer\n"), "{text}");
+    assert!(text.contains("This sling is of worksheet/1a-answer: the packet holds only it"));
+    assert!(text.contains("add `--beside worksheet/1a-answer` to each `canvas put`"), "{text}");
+    assert!(!text.contains("--in"), "{text}");
+}

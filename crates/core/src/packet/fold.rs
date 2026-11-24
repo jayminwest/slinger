@@ -20,7 +20,7 @@ pub(super) fn line(
         canvas.contents(folded.id()).into_iter().filter_map(|i| canvas.item(i)).collect();
     let strokes = members.iter().filter(|i| is_stroke(i)).map(|i| i.id());
     let clusters = cluster(canvas, strokes);
-    let lines = Index::of(canvas, page, members.clone(), &clusters, changed).len();
+    let lines = Index::of(canvas, page, members.clone(), &clusters, changed, None).len();
     let mut fields = vec![("folded", lines.to_string())];
     let held = canvas.held(folded.id()).into_iter().filter_map(|i| canvas.item(i));
     let new = held.filter(|i| is_stroke(i) && *i.author() == Author::User && changed(i.id()));
@@ -46,7 +46,7 @@ pub(super) fn line(
 /// The first line of `text`, cut to [`PAGE_TEXT_CHARS`] characters plus
 /// `…` when longer: the same cut the `page` section makes, so cutting
 /// again there changes nothing.
-fn first_line(text: &str) -> String {
+pub(super) fn first_line(text: &str) -> String {
     let line = text.lines().next().unwrap_or_default();
     if line.chars().count() <= PAGE_TEXT_CHARS {
         return line.to_string();

@@ -11,9 +11,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::format::{Header, Packet};
-use super::{Index, cluster, words};
+use super::{Index, cluster, figure, words};
 use crate::canvas::{
-    Canvas, Changes, Item, ItemId, Marker, Op, PageId, Shape, changes_since, replay,
+    Address, Canvas, Changes, Item, ItemId, Marker, Op, PageId, Shape, changes_since, replay,
 };
 use crate::render::Backdrop;
 use crate::{Error, Result, render};
@@ -36,10 +36,39 @@ pub struct Ask<'a> {
     /// is drawn over the ones that meet it, and the words near a cluster's
     /// ink end its line. Empty: ink on white, no words.
     pub backdrops: &'a [Backdrop],
-    /// A box on the page to read as if it were the page (`canvas read
-    /// --in`): its direct contents ([`Canvas::contents`]), open or folded,
-    /// without the box's own line. `None` reads the page.
-    pub inside: Option<ItemId>,
+    /// What on the page to read as if it were the page (`canvas read
+    /// --in`). `None` reads the page.
+    pub inside: Option<&'a Inside>,
+}
+
+/// What a packet read `--in` reads.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Inside {
+    /// A box's direct contents ([`Canvas::contents`]), open or folded,
+    /// without the box's own line.
+    Box(ItemId),
+    /// The items of a figure or of one part, a line each with `part=`, and
+    /// every other item the page shows whose box's centre lies in their
+    /// frame, the user's ink over them above all.
+    Figure(Address),
+}
+
+impl Inside {
+    /// How the header's `in` names it: `b4`, or the address.
+    fn name(&self) -> String {
+        match self {
+            Self::Box(b) => format!("b{}", b.get()),
+            Self::Figure(address) => address.to_string(),
+        }
+    }
+
+    /// The figure whose items make a line each.
+    fn open(&self) -> Option<&str> {
+        match self {
+            Self::Box(_) => None,
+            Self::Figure(address) => Some(&address.figure),
+        }
+    }
 }
 
 /// What a packet and its backdrops are read from: the canvas the log
@@ -66,17 +95,22 @@ impl Read {
             let items = scope(&canvas, ask)?;
             let clusters = cluster(&canvas, items.iter().map(|i| i.id()));
             let changed = |id| changed.contains(&id);
-            let index = Index::of(&canvas, ask.page, items, &clusters, &changed);
+            let open = ask.inside.and_then(Inside::open);
+            let index = Index::of(&canvas, ask.page, items, &clusters, &changed, open);
             (clusters, index)
         };
         Ok(Self { canvas, page_name, delta, clusters, index })
     }
 }
 
-/// The items a packet reads: what the page shows, or what the box
-/// `ask.inside` holds directly.
+/// The items a packet reads: what the page shows, what the box
+/// `ask.inside` holds directly, or what a figure or part holds.
 fn scope<'c>(canvas: &'c Canvas, ask: &Ask<'_>) -> Result<Vec<&'c Item>> {
-    let Some(inside) = ask.inside else { return Ok(canvas.visible(ask.page).collect()) };
+    let inside = match ask.inside {
+        None => return Ok(canvas.visible(ask.page).collect()),
+        Some(Inside::Figure(address)) => return figure::scope(canvas, ask.page, address),
+        Some(Inside::Box(b)) => *b,
+    };
     let found = canvas.item(inside).filter(|i| i.page() == ask.page);
     let Some(item) = found else {
         return Err(Error::NotFound {
@@ -103,12 +137,20 @@ fn scope<'c>(canvas: &'c Canvas, ask: &Ask<'_>) -> Result<Vec<&'c Item>> {
 /// [`Error::NotFound`] when the page is not on the canvas.
 pub fn build(log: &[Op], ask: &Ask<'_>) -> Result<Packet> {
     let Read { canvas, page_name, delta, clusters, mut index } = Read::new(log, ask)?;
-    // A selected stroke stands for its cluster, whose number is its first stroke's.
+    // A selected stroke stands for its cluster, whose number is its first
+    // stroke's, and an item of a figure for the figure, whose number is its
+    // lowest item's.
     let first: BTreeMap<ItemId, u64> =
         clusters.iter().flat_map(|c| c.iter().map(|s| (*s, c[0].get()))).collect();
+    let open = ask.inside.and_then(Inside::open);
+    let lowest = |id: &ItemId| {
+        let item = canvas.item(*id).filter(|i| figure::shut(i, open))?;
+        let fig = canvas.figure(item.member().fig.as_deref()?)?;
+        fig.items.first().map(|i| i.get())
+    };
     let mut selected: Vec<u64> = Vec::new();
     for id in ask.selection {
-        let n = first.get(id).copied().unwrap_or(id.get());
+        let n = first.get(id).copied().or_else(|| lowest(id)).unwrap_or(id.get());
         if !selected.contains(&n) {
             selected.push(n);
         }
@@ -136,7 +178,7 @@ pub fn build(log: &[Op], ask: &Ask<'_>) -> Result<Packet> {
     let header = Header {
         canvas: ask.canvas.to_string(),
         page: page_name,
-        inside: ask.inside.map(|b| format!("b{}", b.get())),
+        inside: ask.inside.map(Inside::name),
         from: delta.from.0 + 1,
         to: delta.to.0,
         scale: render::SCALE,
@@ -146,13 +188,7 @@ pub fn build(log: &[Op], ask: &Ask<'_>) -> Result<Packet> {
     let body = index.text(|id| names.get(id).cloned().unwrap_or_default());
     let mut packet = Packet::read(&format!("{}{body}", Packet::header_line(&header)))?;
     packet.images = images;
-    // Every number in a packet is on one line, so a number names its line's id.
-    let lines = || packet.new.iter().chain(&packet.made).chain(&packet.page);
-    let number = |id: &str| id.trim_start_matches(|c: char| c.is_ascii_alphabetic()).parse().ok();
-    packet.selected = selected
-        .iter()
-        .filter_map(|n| lines().find(|e| number(&e.id) == Some(*n)).map(|e| e.id.clone()))
-        .collect();
+    packet.selected = selected.iter().filter_map(|n| index.id(*n).map(str::to_owned)).collect();
     packet.count();
     Ok(packet)
 }

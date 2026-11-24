@@ -119,7 +119,9 @@ fn a_read_in_something_else_fails_with_a_code() {
     };
     assert_eq!(read("t2", None), "invalid");
     assert_eq!(read("b99", None), "not_found");
-    assert_eq!(read("zz", None), "invalid");
+    assert_eq!(read("Not a box!", None), "invalid");
+    // A name that is not an id is a figure address, and there is no such figure.
+    assert_eq!(read("zz", None), "not_found");
     assert!(log.packet("folds", Some("p1"), Some("b1"), 0, &[], &[]).is_ok());
     let page = json!({"op": "page.add", "name": "two"});
     let (mut two, _) = Log::create("two").unwrap();
