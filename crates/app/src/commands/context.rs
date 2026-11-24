@@ -28,7 +28,8 @@ pub enum Subject {
     Item { kind: Kind },
     /// A selection of more than one item; `boxed` when it holds a box.
     Selection { boxed: bool },
-    /// A canvas text being typed: its own cut, copy and paste.
+    /// A canvas text being typed: its own cut, copy and paste, and
+    /// write focus on it.
     Typing,
     /// A workspace's rows in the sidebar, by its folder (what closes it,
     /// whatever its file holds), never by its row, which can move.
@@ -52,6 +53,9 @@ pub enum Kind {
     Pdf,
     /// A live item, its page not taking presses (not come, or too small).
     Live,
+    /// A canvas text with more rows than it shows ("N more lines"): a
+    /// text's items, and stepping into it.
+    LongText,
 }
 
 /// A context menu to pop: where (in the window, from its top left) and
@@ -109,11 +113,33 @@ fn actions(subject: &Subject) -> Vec<Action> {
         Subject::Item { kind: Kind::Live } => {
             return vec![R(Command::Sling), R(Command::DeleteSelection)];
         }
-        Subject::Typing => return vec![N(Native::Cut), N(Native::Copy), N(Native::Paste)],
-        Subject::Item { kind: Kind::Stroke | Kind::Arrow } => &[],
-        Subject::Item { kind: Kind::Text } => {
-            &[R(Command::PickSize), R(Command::SizeUp), R(Command::SizeDown)]
+        Subject::Typing => {
+            return vec![
+                N(Native::Cut),
+                N(Native::Copy),
+                N(Native::Paste),
+                S,
+                R(Command::WriteFocus),
+            ];
         }
+        Subject::Item { kind: Kind::Stroke | Kind::Arrow } => &[],
+        Subject::Item { kind: Kind::Text } => &[
+            R(Command::PickSize),
+            R(Command::SizeUp),
+            R(Command::SizeDown),
+            S,
+            R(Command::WriteFocus),
+        ],
+        Subject::Item { kind: Kind::LongText } => &[
+            R(Command::PickSize),
+            R(Command::SizeUp),
+            R(Command::SizeDown),
+            S,
+            R(Command::WriteFocus),
+            S,
+            R(Command::StepIn),
+            R(Command::StepInBeside),
+        ],
         Subject::Item { kind: Kind::Box } => {
             &[S, R(Command::Fold), R(Command::StepIn), R(Command::StepInBeside)]
         }

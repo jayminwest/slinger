@@ -1,9 +1,11 @@
 //! A text with more rows than its frame shows (docs/design/writing-column.md,
 //! 3A): the pane draws "N more lines" in its last row; two quick taps on
 //! that row, or `step-in` with it selected, show it whole; escape steps out.
+//! Its context menu offers Step in (slinger-69f995).
 
 use super::step::{STEP_IN, apply, select_all};
 use super::*;
+use crate::commands::context::{Kind, Subject};
 use crate::layout::Rect;
 use crate::scene::canvas::{Draw, Mark};
 
@@ -81,5 +83,25 @@ fn a_long_text_says_how_many_more_lines_and_steps_in_by_two_taps_or_step_in() {
         assert!(whole(&inside) && !inside.iter().any(|d| d.id.0 == 2), "{inside:?}");
         assert!(w.send(Event::Key(ESCAPE)));
         assert!(note(&shown(&mut w).1).is_some());
+    });
+}
+
+#[test]
+fn a_long_text_s_context_menu_offers_step_in_and_its_pick_steps_in() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        page(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        wait_until(|| note(&shown(&mut w).1).is_some());
+        let (frame, draws) = shown(&mut w);
+        let text = draws.iter().find(|d| d.id.0 == 1).expect("the text").bounds;
+        let popup = w.context(frame.x + text.x + 10.0, frame.y + text.y + 10.0).expect("a menu");
+        assert_eq!(popup.subject, Subject::Item { kind: Kind::LongText });
+        let step = popup.items.iter().find(|i| i.title == "Step in").expect("offered");
+        assert!(step.enabled);
+        assert!(w.send(Event::Picked(Command::StepIn, popup.subject)), "the pick");
+        let (_, inside) = shown(&mut w);
+        assert!(whole(&inside) && !inside.iter().any(|d| d.id.0 == 2), "stepped in: {inside:?}");
     });
 }

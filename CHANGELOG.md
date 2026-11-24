@@ -35,7 +35,12 @@ bullet with the area in bold.
   palette): while you type a text, or with one text selected, the pane zooms
   so the text's 80-character column fills its width, the text's top just
   under the pane's top. Ending the text, or the same key again, puts the
-  view back where it was.
+  view back where it was. The right-click menu of a text, typed or not,
+  offers it too.
+- **App:** the right-click menu of a text too long to show whole (one that
+  says "N more lines") offers Step in and Step in beside. The step commands
+  now read "Step in", "Step in beside" and "Step out", as they work on such
+  a text as well as on a box.
 - **Canvas:** boxes and closed strokes take a fill, drawn as a light tint
   under all writing; boxes, strokes and arrows can be dashed or dotted; an
   arrow can have a head at both ends or none (a plain line); a stroke can

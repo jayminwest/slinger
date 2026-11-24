@@ -2,7 +2,7 @@
 //! selects the clicked item alone unless the click is on the selection,
 //! the menu is the item's kind's or the selection's, and its pick acts on
 //! the selection; a click on a text being typed offers its clipboard and
-//! leaves it typed.
+//! leaves it typed, and write focus.
 
 use super::step::{STEP_IN, apply};
 use super::*;
@@ -142,7 +142,7 @@ fn a_click_on_a_text_being_typed_offers_its_clipboard_and_it_is_still_typed() {
         w.type_word(700.0, 1.0);
         let popup = w.context(710.0, 310.0);
         let menu = super::context::titles(&popup.expect("a menu"));
-        assert_eq!(menu, ["Cut", "Copy", "Paste"]);
+        assert_eq!(menu, ["Cut", "Copy", "Paste", "Focus on text"]);
         assert!(w.canvases.editing(), "the text is still typed");
 
         click(&mut w, open, true);
