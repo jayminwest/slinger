@@ -32,8 +32,7 @@ pub(super) fn draws(item: &Item, view: Viewport, theme: &Theme) -> Option<Vec<Dr
     let row = |n: usize| Rect { y: frame.y + rows_tall(n, *size), height: *size, ..*frame };
     let piece = |id: ItemId, from: usize, to: usize, colour: Rgb| {
         let lines: Vec<&str> = rows[from..to].iter().map(|r| &text[r.start..r.end]).collect();
-        let runs = written::runs(text, *size, *column, (from, to));
-        let runs = Some(Written::new(runs, colour, theme));
+        let runs = Some(written::written(text, (*size, *column), (from, to), colour, theme));
         drawn(id, (row(from), to - from), (lines.join("\n"), *size, runs), colour, view)
     };
     let tail = |k: usize| ItemId(TAIL + (item.id.0 & ((1 << 50) - 1)) * 4 + k as u64);
@@ -54,14 +53,13 @@ pub(super) fn draws(item: &Item, view: Viewport, theme: &Theme) -> Option<Vec<Dr
 fn drawn(
     id: ItemId,
     (frame, n): (Rect, usize),
-    (text, size, written): (String, f64, Option<Written>),
+    (text, size, written): (String, f64, Option<Arc<Written>>),
     colour: Rgb,
     view: Viewport,
 ) -> Draw {
     let bounds = Rect { height: rows_tall(n, size), ..frame };
     let at = view.to_screen(Point { x: frame.x, y: frame.y });
-    let (width, line, zoom, written) =
-        (glyphs::UNWRAPPED, size, view.zoom(), written.map(Arc::new));
+    let (width, line, zoom) = (glyphs::UNWRAPPED, size, view.zoom());
     let mark = Mark::Text { at, width, text, size: size * glyphs::FONT, line, zoom, written };
     Draw { id, bounds: view.rect_to_screen(bounds), colour, mark, locked: false }
 }

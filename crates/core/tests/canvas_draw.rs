@@ -269,6 +269,29 @@ fn only_the_maker_or_the_user_may_draw_over_a_name() {
 }
 
 #[test]
+fn a_draw_never_leaves_one_name_on_two_pages() {
+    let mut book = Book::new();
+    book.apply(&Author::User, &json!({"op": "page.add", "name": "Two"}));
+    book.draw(&claude(), "worksheet", &sheet("?"), &beside("i1"));
+    // The user's answer is the user's now: the agent may not move it.
+    book.draw(&Author::User, "worksheet", &sheet("!"), &beside("i1"));
+    let two = Placement::At { page: Some("Two".into()), x: 0, y: 0 };
+    let err = book.fails(&claude(), "worksheet", &sheet("?"), &two);
+    assert_eq!(err.code(), "conflict", "{err}");
+    assert_eq!(err.hint(), Some("draw it on page Page 1, or pick another --name"), "{err}");
+    let err =
+        book.log.draft_figure(&claude(), AT, "worksheet", sheet("?").as_array().unwrap(), &two);
+    assert_eq!(err.unwrap_err().code(), "conflict", "a dry run says the same");
+    // On its own page the agent still draws, and the user moves it whole.
+    book.draw(&claude(), "worksheet", &sheet("!"), &beside("i1"));
+    let moved = book.draw(&Author::User, "worksheet", &sheet("!"), &two);
+    let figure = book.log.canvas().figure("worksheet").unwrap();
+    assert_eq!(figure.items, ids(&moved));
+    assert_eq!(moved.draft.page, "p2");
+    assert!(figure.items.iter().all(|i| book.item(*i).page() == book.item(figure.items[0]).page()));
+}
+
+#[test]
 fn a_bad_shape_is_invalid_and_names_its_place() {
     let book = Book::new();
     let at = beside("i1");
