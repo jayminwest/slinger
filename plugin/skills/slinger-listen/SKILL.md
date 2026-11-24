@@ -39,7 +39,8 @@ process that slinger starts. You answer with your own tools and permissions.
    each text short: at most 12 rows, one beside each subject. An answer
    that is a picture (a diagram, a plot, a table, a worksheet, or marks over
    the user's work) is one figure: `slinger canvas draw <CANVAS> <FILE>
-   --name <FIGURE> --beside <ITEM> --agent <NAME>` runs a drawing script; a
+   --name <FIGURE> --beside <ITEM> --agent <NAME>` runs a drawing script (a
+   failure exits 5, `script` or `limit`, naming the line to fix); a
    later change to it is `slinger canvas redraw <CANVAS> <FIGURE> --data <JSON>
    --agent <NAME>`. A sling of a figure's part (`in=<figure>/<part>` on line
    1) wants its answer beside it: `--beside <figure>/<part>`. Run

@@ -78,7 +78,7 @@ bullet with the area in bold.
 - **CLI:** `slinger canvas draw <CANVAS> <FILE> --name NAME` runs an
   agent's drawing script (JavaScript) in the daemon and places what it
   draws as one named figure, beside an item, over it, in a box or at a
-  point, as one undo step. Drawing the same name again replaces the figure
+  point (`--at`, in tenths as for `canvas put`), as one undo step. Drawing the same name again replaces the figure
   in place and writes nothing when nothing changed. `--data` passes the
   script its data, `--dry-run` writes nothing, and `--png` writes the
   figure alone as an image. A script that fails says the line and column
@@ -92,6 +92,12 @@ bullet with the area in bold.
   `--script` swaps the figure's script. `slinger canvas figure <CANVAS>`
   lists the figures; with a name it prints the figure's parts, or its script
   (`--script`) or data (`--data`).
+- **CLI:** a drawing script that fails exits with code `script` and shows
+  the line of the script it stopped at, with a mark under the column, and
+  the calls it was in; one over a limit (time, memory, stack, shapes, size)
+  exits with code `limit` and says which. A script reads the item it is
+  drawn beside or over as `anchor` (its size, kind and text), and with
+  `--over` or `--at` the items near it as `around`, in its own coordinates.
 - **CLI:** `slinger guide` now holds the drawing script API ("Drawing
   scripts"). In a script, a plot takes a `title` and named ticks
   (`xticks: [[0, "Jan"], [1, "Feb"]]`), and an arrow's label moves along
@@ -695,6 +701,21 @@ bullet with the area in bold.
 
 ### Changed
 
+- **Agents:** drawing scripts now use the owner's API (`slinger guide`,
+  "Drawing scripts"): every call is on `fig` and returns a handle you can
+  read (`x`, `y`, `w`, `h`, `right`, `bottom`, `cx`, `cy`) and move
+  (`moveTo`, `moveBy`, `below`, `rightOf`, `centerIn`), so a script builds
+  a thing, measures it, then places it. Text is `fig.text(str, x, y)`;
+  `fig.path`, `fig.ellipse`, `fig.slot` (an area for the user or the agent
+  to fill in), box labels, `align`, `fig.stack`, `fig.grid`,
+  `fig.table(rows, x, y)` and `fig.plot` with `xRange`, `yRange`, `ticks`,
+  `p.bars`, `p.fn` and `p.vector` are new. `name` names a part on any
+  call; `fig.part(name, {color}, fn)` sets defaults for what it draws. The
+  data is the global `data` (`null` when none). Colours `good`, `bad` and
+  `warn` replace `error`; lines and paths take a `width`. New warnings: a
+  label taller than its box, a word wider than its text, and two named
+  parts that overlap. Scripts written for the old calls (`box(...)`,
+  `text(x, y, str)`, `fig.data`) no longer run.
 - **App:** a split pane starts where the pane it came from looks: the same
   page, pan, zoom and box, instead of the first page at 100%. Step in
   beside, then escape, shows that place too.
@@ -846,6 +867,10 @@ bullet with the area in bold.
   parts in one order, top to bottom and left to right, as `canvas figure`
   does, whether they wrote or not.
 
+- **App:** with a mouse or trackpad, picking the pen tool (⌘1) flashed
+  "Pen" while the footer said "Select" and a press selected. The flash
+  now names the select tool too, and says why: "Select ⌘7 · a mouse
+  selects with the pen". With the tablet pen near, it flashes "Pen ⌘1".
 - **CLI:** `slinger canvas draw` by an agent onto another page no longer
   splits a figure you drew over: it says the figure has your items on its
   page and draws nothing, so a figure's name stays on one page.

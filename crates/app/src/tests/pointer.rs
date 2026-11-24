@@ -51,6 +51,39 @@ fn with_the_pen_tool_a_mouse_drag_draws_no_line_and_a_tablet_drag_draws() {
     });
 }
 
+/// The focused pane's footer and the flash as drawn now: whether the
+/// footer names `tool`, and the flash's text.
+fn named(w: &mut World, tool: &str) -> (bool, Option<String>) {
+    let scene = view(&w.settings, &mut w.shared, &w.tools, &w.sidebar, &mut w.canvases);
+    let parts = &scene.footers[0].parts;
+    let footer =
+        parts.iter().any(|p| p.runs.iter().map(|r| r.text.as_str()).collect::<String>() == tool);
+    (footer, scene.flash.map(|f| f.label.text))
+}
+
+#[test]
+fn the_pen_tool_picked_with_a_mouse_flashes_what_the_footer_says_and_a_press_does() {
+    with_store(None, |daemon| {
+        let _home = open_notes(daemon);
+        let config = tempfile::tempdir().unwrap();
+        let mut w = world(daemon, config.path());
+        assert!(w.send(Event::Command(Command::ToolBox)));
+        assert_eq!(named(&mut w, "Box ⌘5"), (true, Some("Box ⌘5".into())));
+        stroke(&mut w, mouse, 300.0, 1.0);
+        assert!(w.send(Event::Command(Command::ToolPen)));
+        let mouse_pen = format!("Select ⌘7{}", crate::scene::flash::MOUSE_PEN);
+        assert_eq!(named(&mut w, "Select ⌘7"), (true, Some(mouse_pen)), "slinger-aa9117");
+        assert_eq!(w.tools.tool(), Tool::Select, "and a press selects");
+
+        assert!(w.send(Event::Proximity { near: true, eraser: false }), "the pen came near");
+        assert!(w.send(Event::Command(Command::ToolBox)));
+        assert!(named(&mut w, "Box ⌘5").0);
+        assert!(w.send(Event::Command(Command::ToolPen)));
+        assert_eq!(named(&mut w, "Pen ⌘1"), (true, Some("Pen ⌘1".into())));
+        assert_eq!(w.tools.tool(), Tool::Pen);
+    });
+}
+
 #[test]
 fn a_trackpad_press_is_a_mouse_press_and_a_palm_only_while_the_pen_is_near() {
     with_store(None, |daemon| {

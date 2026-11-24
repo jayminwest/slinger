@@ -34,7 +34,7 @@ pub struct Draw {
     /// Put the figure in this box's room, where it covers nothing the box holds
     #[arg(long = "in", value_name = "BOX")]
     inside: Option<String>,
-    /// Put the figure's 0,0 here, in canvas units (the packet's), on the first page or on PAGE:X,Y
+    /// Put the figure's 0,0 here, in tenths of a unit like 'canvas put --at', on the first page or on PAGE:X,Y
     #[arg(long, value_name = "X,Y", value_parser = at, allow_hyphen_values = true)]
     at: Option<At>,
     /// The script's data, as fig.data: JSON, or @FILE to read it from a file [default: {}]
@@ -136,28 +136,12 @@ fn data(arg: Option<&str>) -> anyhow::Result<(Option<PathBuf>, Option<Scratch>)>
     Ok((Some(scratch.0.clone()), Some(scratch)))
 }
 
-/// `X,Y` or `PAGE:X,Y` in canvas units, kept in tenths.
+/// `X,Y` or `PAGE:X,Y` in tenths of a unit, as `canvas put --at` takes.
 fn at(text: &str) -> Result<At, String> {
-    let bad = || format!("{text:?} is not X,Y or PAGE:X,Y in canvas units, such as 40,40");
     let (page, point) = match text.rsplit_once(':') {
         Some((page, point)) if !page.is_empty() => (Some(page.to_string()), point),
-        Some(_) => return Err(bad()),
+        Some(_) => return Err(format!("{text:?} is not X,Y or PAGE:X,Y in tenths of a unit")),
         None => (None, text),
     };
-    let numbers: Vec<f64> = point
-        .split(',')
-        .map(|n| n.trim().parse::<f64>())
-        .collect::<Result<_, _>>()
-        .map_err(|_| bad())?;
-    let tenths = |n: f64| {
-        let t = (n * 10.0).round();
-        (t.is_finite() && t.abs() < 1e12).then(|| format!("{t:.0}").parse::<i64>().ok()).flatten()
-    };
-    match numbers.as_slice() {
-        [x, y] => match (tenths(*x), tenths(*y)) {
-            (Some(x), Some(y)) => Ok(At { page, tenths: [x, y] }),
-            _ => Err(bad()),
-        },
-        _ => Err(bad()),
-    }
+    Ok(At { page, tenths: crate::put::point(point)? })
 }

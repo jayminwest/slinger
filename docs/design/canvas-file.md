@@ -190,7 +190,7 @@ Operation kinds in v1 (their fields follow the envelope):
 | `set` | `id`, `fields` (object of item fields to replace whole, e.g. `{"text":"..."}`) |
 | `restore` | `item`: a removed item put back whole, under its own id. The item object adds `by` and `t` (its maker and time) after `page`. Undo and redo write it. |
 | `page.restore` | `page`, `name`, `index` (0-based position), `items` (whole items, as in `restore`). Undo writes it. |
-| `figure` | `fig` (a figure name), `origin` (`[x, y]`), `frame` (`[x, y, w, h]`), optional `target` (`[x, y, w, h]`), `data` (any JSON), `script` (the script's text); positions in tenths. What a redraw of the figure needs (`docs/design/figures.md`, "Where a figure's script and data live"): a draw from a script that writes appends it after its step's lines, in the same write. It changes no item and is no undo step; the figure's last one is its source. A line missing a field, or with one of the wrong type, reads as an unknown line. |
+| `figure` | `fig` (a figure name), `origin` (`[x, y]`), `frame` (`[x, y, w, h]`), optional `target` (`[x, y, w, h]`: the frame it was drawn over or in), optional `anchor` (the id or address it was drawn beside or over), `data` (any JSON), `script` (the script's text); positions in tenths. What a redraw of the figure needs (`docs/design/figures.md`, "Where a figure's script and data live"): a draw from a script that writes appends it after its step's lines, in the same write. It changes no item and is no undo step; the figure's last one is its source. A line missing a field, or with one of the wrong type, reads as an unknown line. |
 
 Item objects. Every item has `id`, `page`, `kind` and, but for `live`, `button` and `pdf`, `color`; then by
 kind:

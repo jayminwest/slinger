@@ -44,6 +44,7 @@
 //! author this reader does not know comes back as [`Line::Unknown`], whole,
 //! and replay skips it. Fields this reader does not know are ignored.
 
+mod around;
 mod decode;
 mod edit;
 mod figure;
@@ -66,6 +67,7 @@ mod synthetic;
 mod time;
 mod whole;
 
+pub use around::{AROUND, Anchor, Near, REACH, Surround};
 pub use edit::Edit;
 pub use figure::{Draft, Drawn, FIGURE_ITEMS, Placement};
 pub use log::{Log, Shown, Span, Written, check_id, id_from_name, lines, parse_author};

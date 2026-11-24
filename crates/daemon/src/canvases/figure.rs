@@ -5,10 +5,18 @@
 use serde_json::Value;
 use slinger_core::canvas::Figure;
 use slinger_core::canvas::file::{
-    Again, Draft, Drawn, Log, Placement, Script, Source, Written, parse_author,
+    Again, Draft, Drawn, Log, Placement, Script, Source, Surround, Written, parse_author,
 };
 
 use super::{Canvases, Result, Wrote, now};
+
+/// What a script sees before it runs: its page's name, the frame it draws
+/// over or in (tenths), its anchor and the items around it.
+pub struct Sight {
+    pub page: String,
+    pub target: Option<[i64; 4]>,
+    pub surround: Surround,
+}
 
 impl Wrote for Drawn {
     fn written(&self) -> &Written {
@@ -17,14 +25,40 @@ impl Wrote for Drawn {
 }
 
 impl Canvases {
-    /// The name of the page a figure placed as `at` says goes on, and the
-    /// frame it draws over or in (see [`Log::target`]), in tenths.
+    /// What the script of the figure `name` placed as `at` sees: the
+    /// name of the page it goes on, the frame it draws over or in (see
+    /// [`Log::target`]) in tenths, and its anchor and the items around it
+    /// (see [`Log::surround`]).
     ///
     /// # Errors
     ///
-    /// Those of [`Log::figure_page`] and [`Log::target`] and of the file.
-    pub fn figure_view(&self, id: &str, at: &Placement) -> Result<(String, Option<[i64; 4]>)> {
-        self.with(id, |log| Ok((log.figure_page(at)?, log.target(at)?)))
+    /// Those of [`Log::figure_page`], [`Log::target`] and
+    /// [`Log::surround`] and of the file.
+    pub fn figure_view(&self, id: &str, name: &str, at: &Placement) -> Result<Sight> {
+        self.with(id, |log| {
+            let (page, target) = (log.figure_page(at)?, log.target(at)?);
+            Ok(Sight { page, target, surround: log.surround(name, at)? })
+        })
+    }
+
+    /// What the script of the figure `name` sees when it is drawn `again`,
+    /// its first draw beside or over `anchor` and over or in `target`
+    /// (see [`Log::surround_again`]).
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Log::figure_page`] and of the file.
+    pub fn figure_view_again(
+        &self,
+        id: &str,
+        name: &str,
+        again: &Again,
+        (anchor, target): (Option<&str>, Option<[i64; 4]>),
+    ) -> Result<Sight> {
+        self.with(id, |log| {
+            let surround = log.surround_again(name, again, anchor, target);
+            Ok(Sight { page: log.figure_page(&again.at)?, target, surround })
+        })
     }
 
     /// The figure `name` that `items` make, as `by` would draw it, without

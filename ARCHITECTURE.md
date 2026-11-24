@@ -98,9 +98,14 @@ format (`crates/control/src/wire.rs`), the socket client
 `crates/script/src/lib.rs` is the one function, `run`, its types and its
 limits; `crates/script/src/engine.rs` is the QuickJS glue (a fresh runtime
 per run, the limits, the exception, or a promise rejected with nothing to
-catch it, turned into `script:LINE:COL: message`).
+catch it, turned into a `ScriptError`: `script:LINE:COL: message`, the
+source line and the script's frames, a `Fault::Script` or a `Fault::Limit`,
+which the daemon sends as the codes `script` and `limit`; the emit itself
+refuses the shape after 5,000).
 The API a script calls (docs/design/figures.md, Appendix C) is JavaScript in
-`crates/script/src/prelude`, over one native emit; the colour names are
+`crates/script/src/prelude`, over one native emit (`view.js` sets the
+globals `anchor` and `around`, which the core's
+`crates/core/src/canvas/file/around.rs` finds); the colour names are
 `crates/script/src/colour.rs`.
 
 ### `crates/cli/src`

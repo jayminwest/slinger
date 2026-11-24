@@ -11,20 +11,22 @@
 use std::fs;
 use std::path::Path;
 
-use serde_json::{Value, json};
+use serde_json::Value;
 use slinger_control::{
     CanvasDraw, CanvasDrawn, CanvasFigureAsk, CanvasFigures, CanvasRedraw, FigureShown, PartShown,
     Place, RemoteError,
 };
+use slinger_core::canvas::Rect;
 use slinger_core::canvas::file::{
     Draft, Placement, Script, merge_patch, parse_author, rect_tenths,
 };
 use slinger_core::canvas::{Author, Figure};
 use slinger_core::record::{Body, Event, FigureDrawn, Tags};
 use slinger_core::render;
-use slinger_script::{AGENT, View};
+use slinger_script::{AGENT, Anchor, Fault, Near, View};
 
 use super::{absolute, agent, drawn, look, remote, stored, unreadable};
+use crate::canvases::Sight;
 use crate::store::Store;
 
 pub(super) fn draw(store: &Store, ask: CanvasDraw) -> Result<CanvasDrawn, RemoteError> {
@@ -33,10 +35,15 @@ pub(super) fn draw(store: &Store, ask: CanvasDraw) -> Result<CanvasDrawn, Remote
     parse_author(&who).map_err(|e| remote(&e))?;
     let at = placement(place, page);
     let script = read_script(&path)?;
-    let data = data.as_deref().map_or_else(|| Ok(json!({})), read_data)?;
+    let data = data.as_deref().map_or(Ok(Value::Null), read_data)?;
     let canvases = store.canvases();
-    let (page, target) = canvases.figure_view(&canvas, &at).map_err(|e| drawn(&e))?;
-    let shapes = run(&script, &data, &name, page, target)?;
+    let sight = canvases.figure_view(&canvas, &name, &at).map_err(|e| drawn(&e))?;
+    let target = sight.target;
+    let anchor = match &at {
+        Placement::Beside(id) | Placement::Over(id) => Some(id.clone()),
+        Placement::In(_) | Placement::At { .. } => None,
+    };
+    let shapes = run(&script, &data, &name, sight)?;
     let warnings: Vec<String> = shapes.warnings.iter().map(ToString::to_string).collect();
     if dry_run {
         let draft = canvases
@@ -45,7 +52,8 @@ pub(super) fn draw(store: &Store, ask: CanvasDraw) -> Result<CanvasDrawn, Remote
         let images = png(out.as_deref(), &draft)?;
         return Ok(reply(draft, Vec::new(), warnings, images, None));
     }
-    let figure = Drawing { canvas: &canvas, who: &who, name: &name, script: &script, data, target };
+    let figure =
+        Drawing { canvas: &canvas, who: &who, name: &name, script: &script, data, target, anchor };
     let (mut reply, draft) = land(store, &figure, &shapes.items, &at, once.as_deref())?;
     reply.warnings = warnings;
     reply.images = png(out.as_deref(), &draft)?;
@@ -83,10 +91,12 @@ pub(super) fn redraw(store: &Store, ask: CanvasRedraw) -> Result<CanvasDrawn, Re
             event,
         });
     }
-    let (page, _) = canvases.figure_view(&canvas, &again.at).map_err(|e| drawn(&e))?;
-    let shapes = run(&script, &data, &name, page, last.target)?;
-    let target = last.target;
-    let figure = Drawing { canvas: &canvas, who: &who, name: &name, script: &script, data, target };
+    let seen = (last.anchor.as_deref(), last.target);
+    let sight = canvases.figure_view_again(&canvas, &name, &again, seen).map_err(|e| drawn(&e))?;
+    let shapes = run(&script, &data, &name, sight)?;
+    let (target, anchor) = (last.target, last.anchor);
+    let figure =
+        Drawing { canvas: &canvas, who: &who, name: &name, script: &script, data, target, anchor };
     let (mut reply, _) = land(store, &figure, &shapes.items, &again.at, once.as_deref())?;
     reply.warnings = shapes.warnings.iter().map(ToString::to_string).collect();
     Ok(reply)
@@ -120,6 +130,8 @@ struct Drawing<'a> {
     data: Value,
     /// The frame it is drawn over or in, in tenths.
     target: Option<[i64; 4]>,
+    /// The item it is drawn beside or over.
+    anchor: Option<String>,
 }
 
 /// Places `items`, what `figure`'s script drew, as `at` says, under the
@@ -135,7 +147,8 @@ fn land(
 ) -> Result<(CanvasDrawn, Draft), RemoteError> {
     let Drawing { canvas, who, name, script, .. } = *figure;
     let blob = store.put_blob(script.as_bytes()).map_err(|e| stored(&e))?;
-    let kept = Script { text: script.into(), data: figure.data.clone(), target: figure.target };
+    let (data, target, anchor) = (figure.data.clone(), figure.target, figure.anchor.clone());
+    let kept = Script { text: script.into(), data, target, anchor };
     let done =
         store.canvases().draw(canvas, who, (name, items, kept), at, once).map_err(|e| drawn(&e))?;
     let draft = done.draft;
@@ -155,6 +168,7 @@ fn land(
         origin: draft.origin,
         frame: draft.frame,
         target: figure.target,
+        anchor: figure.anchor.clone(),
     });
     let tags = Tags { agent: maker.clone(), canvas: Some(canvas.into()), ..Tags::on("") };
     let source = maker.clone().unwrap_or_else(|| "user".into());
@@ -169,21 +183,39 @@ fn land(
     Ok((reply(draft.clone(), done.written.seq, Vec::new(), Vec::new(), event), draft))
 }
 
-/// Runs `script` on `data` as the figure `name` on the page called
-/// `page`, drawn over or in `target` (tenths) if any.
+/// Runs `script` on `data` as the figure `name`, seeing what `sight`
+/// says. A failure is `script` or `limit`, its message the whole report
+/// (the line, the source line, the stack).
 fn run(
     script: &str,
     data: &Value,
     name: &str,
-    page: String,
-    target: Option<[i64; 4]>,
+    sight: Sight,
 ) -> Result<slinger_script::Drawn, RemoteError> {
-    let view =
-        View { name: name.into(), target: target.map(|t| t.map(units)), agent: AGENT.into(), page };
+    let Sight { page, target, surround } = sight;
+    let anchor = surround.anchor.map(|a| Anchor {
+        id: a.id,
+        kind: a.kind.into(),
+        w: a.w,
+        h: a.h,
+        text: a.text,
+    });
+    let around = surround
+        .around
+        .into_iter()
+        .map(|n| {
+            let Rect { x, y, w, h } = n.frame;
+            Near { id: n.id, kind: n.kind.into(), x, y, w, h }
+        })
+        .collect();
+    let target = target.map(|t| t.map(units));
+    let view = View { name: name.into(), target, agent: AGENT.into(), page, anchor, around };
     slinger_script::run(script, data, &view).map_err(|e| {
-        let hint =
-            "fix the script there and try it with --dry-run; 'slinger guide' has the drawing API";
-        RemoteError::new("invalid", e.to_string(), Some(hint.into()))
+        let message = e.report();
+        remote(&match e.kind {
+            Fault::Script => slinger_core::Error::Script { message },
+            Fault::Limit => slinger_core::Error::Limit { message },
+        })
     })
 }
 

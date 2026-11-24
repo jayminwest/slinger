@@ -257,7 +257,7 @@ and `error` is for people. Branch on `code`, never on `error`.
 | `canvas_strokes` | `canvas`: canvas id, `item`: an item id | `strokes`: list of stroke items with `points` |
 | `canvas_find` | `canvas`: canvas id, `text`: string | `found`: list of text items that hold it, page by page in reading order |
 | `canvas_fold`, `canvas_unfold` | `canvas`: canvas id, `item`: a box's id, `by`: author (default `user`), `once`: string (optional) | `item`, `page`, `x`, `y`, `w`, `h`: the box's frame now (the miniature, or the open frame), `seq`: the numbers written (empty when nothing changed) |
-| `canvas_draw` | `canvas`: canvas id, `by`: author (default `user`), `name`: the figure's name, `path`: the script's file, then one of `beside`, `over`, `in`: an item id or address, `at`: `[x, y]` in tenths; optional `page` (with `at` only), `data`: a JSON file the script reads as `fig.data`, `dry_run`: `true` writes nothing, `png`: a file for a PNG of the figure alone, `once`: a key, as `canvas_apply`'s | `name`, `page`, `origin`: `[x, y]`, `frame`: `[x, y, w, h]` in tenths, `parts`: the part names in reading order of their frames (as `canvas_figure` lists them), `items`: how many, `seq`: the numbers written (the figure's `figure` line among them) (empty on a dry run or when nothing changed), `warnings` (when any), `images` (with `png`), `event`: the `reply_landed` appended (absent when none) |
+| `canvas_draw` | `canvas`: canvas id, `by`: author (default `user`), `name`: the figure's name, `path`: the script's file, then one of `beside`, `over`, `in`: an item id or address, `at`: `[x, y]` in tenths; optional `page` (with `at` only), `data`: a JSON file the script reads as the global `data` (`null` when none), `dry_run`: `true` writes nothing, `png`: a file for a PNG of the figure alone, `once`: a key, as `canvas_apply`'s | `name`, `page`, `origin`: `[x, y]`, `frame`: `[x, y, w, h]` in tenths, `parts`: the part names in reading order of their frames (as `canvas_figure` lists them), `items`: how many, `seq`: the numbers written (the figure's `figure` line among them; empty on a dry run or when nothing changed), `warnings` (when any), `images` (with `png`), `event`: the `reply_landed` appended (absent when none) |
 | `canvas_redraw` | `canvas`, `by` (default `user`), `name`: a figure a script drew; optional `data`: a file holding a JSON merge patch on its last data, `path`: a script's file to swap in, `once`: a key, as `canvas_apply`'s | as `canvas_draw`; `seq` is empty when nothing changed |
 | `canvas_figure` | `canvas`; optional `name`: one figure | `figures`: each `{name, page, frame: [x, y, w, h] in tenths, by, locked, items: how many, parts: [{name, frame, items}]}`, page by page in reading order; with `name`, that one, with `script` (its blob id) and `data` when a script drew it |
 | `session_list` | none | `sessions`: list of sessions, sorted by agent |
@@ -313,8 +313,9 @@ it, so a name's versions stay 1, 2, 3 in log order. The same holds for
 `ui_open` writes, and `ui_reply` (`open`, `name`, `version`, `hash`,
 `value`), which only `ui_reply` writes (see "Showings"), and for
 `figure_drawn` (`canvas`, `figure`, `page`, `script`: blob id, `data`,
-`origin`: `[x, y]` and `frame`: `[x, y, w, h]` in tenths, and `target`:
-the frame drawn over or in, when there was one), which only the
+`origin`: `[x, y]` and `frame`: `[x, y, w, h]` in tenths, `target`:
+the frame drawn over or in, when there was one, and `anchor`: the id or
+address of the item drawn beside or over, when there was one), which only the
 figure verbs write (docs/design/figures.md, "`figure_drawn`").
 
 **`record_list`** returns the events that match every filter given:
@@ -820,6 +821,11 @@ bytes do: the daemon reads `path` (UTF-8) and `data` (JSON; absent is
 the shapes as one undo step. `beside` puts the figure's frame beside an
 item where it covers nothing; `over` puts its (0,0) on an item's top left
 and moves nothing (the script reads the item's size as `fig.view.target`);
+`beside` and `over` give the script the item as the global `anchor`
+(`{id, kind, w, h, text}`), and `over` and `at` give it the items shown
+within 500 units of the item or the point, but the figure's own, as
+`around` (`[{id, kind, x, y, w, h}]` from the figure's origin, nearest
+first, at most 500);
 `in` puts its frame in a box's room, as `canvas_put`'s `in` does; `at`
 puts its (0,0) at a point, on `page` (id or name) or the first. A name the
 canvas has is drawn again in place, by match: an item that is the same
@@ -832,8 +838,14 @@ blob, the data whole) and, for an agent slung something on the canvas, a
 the draw would. `png` writes the figure alone on white as `canvas_crop`
 writes images (tiles beside it as `<stem>-<n>.png`), on a dry run or not.
 
-A script that fails is `invalid`, its message `script:LINE:COL: ...` where
-the script was and a hint; a script that runs but would not land (a shape
+A script that fails is `script`: its message `script:LINE:COL: ...` where
+the script was, then the source line (`  12 | ...`, with a `^` under the
+column when the line is shown whole) and, when the script was inside a
+function of its own, the calls it was in, innermost first (`  at row
+(script:12:7)`, the top level `top level`), and a hint. A script over a
+limit (1 s, 32 MB, a 512 KB stack, 5,000 shapes, a 1 MiB script, 256 KiB
+of data) is `limit`, the message saying which, with the same lines. A
+script that runs but would not land (a shape
 the canvas does not take, a name that is not a figure name) is `invalid`
 too, and an agent's text over 12 rows is `too_long`: a figure is not a way
 around `AGENT_ROWS`. `warnings` (text over a line, texts overlapping, a
@@ -845,7 +857,7 @@ app never sends it; a client writes it with `Client::canvas_draw`
 { "v": 1, "op": "canvas_draw", "canvas": "main", "by": "agent:scout", "name": "worksheet", "path": "/tmp/w.js", "data": "/tmp/w.json", "at": [400, 400] }
 { "ok": true, "name": "worksheet", "page": "p1", "origin": [400, 400], "frame": [400, 400, 9000, 14000], "parts": ["1a", "1b"], "items": 56, "seq": [7, 8] }
 { "v": 1, "op": "canvas_draw", "canvas": "main", "name": "f", "path": "/tmp/bad.js", "beside": "c12", "dry_run": true }
-{ "ok": false, "code": "invalid", "error": "script:2:1: box: w must be a number above 0, got \"wide\"", "hint": "fix the script there and try it with --dry-run; 'slinger guide' has the drawing API" }
+{ "ok": false, "code": "script", "error": "script:2:5: fig.box: w must be a number above 0, got \"wide\"\n  2 | fig.box(0, 0, 'wide', 10);\n    |     ^", "hint": "fix the script there and try it with --dry-run; 'slinger guide' has the drawing API" }
 ```
 
 `canvas_draw` takes `once` as `canvas_apply` does. **`canvas_redraw`**
@@ -855,7 +867,9 @@ copied to another data directory or machine redraws there: the script kept
 there (or the one `path` names, swapped in) runs on the data kept there with
 `data`, a file holding a JSON merge patch (RFC 7396), applied: an object
 merges key by key, `null` takes a key away, anything else (an array too)
-replaces. It sees the same `fig.view.target` as the first draw. The
+replaces. It sees the same `fig.view.target` as the first draw, the
+same `anchor` item read again (none when it is gone), and the items
+`around` where the figure now is. The
 figure goes where it now is: the last origin moved as far as the figure's
 frame has moved since, so a figure the user moved is drawn again there. It
 replaces the figure by match, as a draw of the same name does, as one undo
@@ -1415,8 +1429,9 @@ temporary directory, and removes the file after.
 
 The core's codes pass through unchanged (`not_found`, `conflict`, `invalid`, for
 a damaged or newer canvas file `canvas_corrupt` and `canvas_too_new`, for a
-packet of a version the core does not read `unsupported_version`, and for an
-agent's text over 12 rows `too_long`).
+packet of a version the core does not read `unsupported_version`, for an
+agent's text over 12 rows `too_long`, and for a drawing script that failed
+or went over a limit `script` and `limit`).
 The protocol adds:
 
 | Code | Meaning |

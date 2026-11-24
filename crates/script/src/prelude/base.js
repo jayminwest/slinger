@@ -23,8 +23,14 @@ Math.random = function random() {
 class DrawError extends Error {}
 DrawError.prototype.name = 'DrawError';
 
+// Throws at the call being made: its site leads the stack, so the error
+// names the script's line even when the call ran deep in the prelude.
 function fail(call, message) {
-  throw new DrawError(`${call}: ${message}`);
+  const e = new DrawError(`${call}: ${message}`);
+  const [line, col] = here();
+  const site = `(script:${line}:${col})`;
+  if (line > 0 && !(e.stack || '').includes(site)) e.stack = `    at ${call} ${site}\n${e.stack || ''}`;
+  throw e;
 }
 
 function show(v) {
@@ -42,20 +48,25 @@ function where() {
   return m ? [Number(m[1]), Number(m[2])] : [0, 0];
 }
 
-// Where a shape was drawn: `where`, or inside a call that draws many
-// shapes (table) that call's own site, since the stack a trace keeps (10
-// frames) can end before the script when a cell is drawn in a part.
+// Where the call being made is: `where`, or, inside a call the script made
+// to the API, that call's site, read once as it starts (the stack a trace
+// keeps, 10 frames, can end before the script deep in a plot or a table).
 let here = where;
 
-function from(fn) {
-  if (here !== where) return fn();
-  const site = where();
-  here = () => site;
-  try {
-    return fn();
-  } finally {
-    here = where;
-  }
+// The API function `fn` as the script calls it: its site is read as it
+// starts. The prelude calls `fn` itself, never the entry, so a site is the
+// script's; a callback of the script's that calls the API reads its own.
+function entry(fn) {
+  return function (...args) {
+    const before = here;
+    const site = where();
+    here = () => site;
+    try {
+      return fn.apply(this, args);
+    } finally {
+      here = before;
+    }
+  };
 }
 
 function number(call, name, v) {
@@ -97,45 +108,6 @@ function tint(call, v, own) {
   return hex.length === 7 ? hex + '33' : hex;
 }
 
-// Defaults that nest: each part, group, stack, table and plot pushes its
-// options; the nearest that sets a key wins, then fig.color, then the built-in.
-const STYLE = ['color', 'fill', 'dash', 'size', 'locked'];
-const scopes = [];
-let part = null;
-
-function options(call, opts, allowed) {
-  if (opts === undefined || opts === null) return {};
-  if (typeof opts !== 'object' || Array.isArray(opts)) fail(call, `options must be an object, got ${show(opts)}`);
-  for (const k of Object.keys(opts)) {
-    if (!allowed.includes(k)) fail(call, `unknown option ${k}; ${call} takes ${allowed.join(', ')}`);
-  }
-  return opts;
-}
-
-function within(call, opts, fn) {
-  const style = {};
-  for (const k of STYLE) if (opts[k] !== undefined) style[k] = opts[k];
-  if (style.color !== undefined) colour(call, 'color', style.color);
-  if (style.dash !== undefined) dashed(call, style.dash);
-  if (style.size !== undefined) checkSize(call, style.size);
-  if (style.locked !== undefined && typeof style.locked !== 'boolean') {
-    fail(call, `locked must be true or false, got ${show(style.locked)}`);
-  }
-  scopes.push(style);
-  try {
-    return fn();
-  } finally {
-    scopes.pop();
-  }
-}
-
-// The value of `key` for a shape: its own option, else the nearest scope's.
-function inherited(opts, key) {
-  if (opts[key] !== undefined) return opts[key];
-  for (let i = scopes.length - 1; i >= 0; i -= 1) if (scopes[i][key] !== undefined) return scopes[i][key];
-  return undefined;
-}
-
 function dashed(call, v) {
   if (v !== 'dashed' && v !== 'dotted' && v !== 'solid') {
     fail(call, `dash must be "dashed", "dotted" or "solid", got ${show(v)}`);
@@ -148,76 +120,54 @@ function checkSize(call, v) {
   return v;
 }
 
-// The style a shape of `kind` gets. A shape's own fill or dash that its kind
-// cannot take fails; an inherited one is left off.
-function styled(call, opts, kind) {
-  const own = opts.color !== undefined ? colour(call, 'color', opts.color) : undefined;
-  const near = inherited(opts, 'color');
-  const color = own || (near !== undefined ? colour(call, 'color', near) : colour(call, 'fig.color', fig.color));
-  const style = { color, locked: true };
-  const locked = inherited(opts, 'locked');
-  if (locked !== undefined) {
-    if (typeof locked !== 'boolean') fail(call, `locked must be true or false, got ${show(locked)}`);
-    style.locked = locked;
+function bool(call, key, v) {
+  if (typeof v !== 'boolean') fail(call, `${key} must be true or false, got ${show(v)}`);
+  return v;
+}
+
+const NAME = /^[a-z0-9-]{1,40}$/;
+
+function partName(call, name) {
+  if (typeof name !== 'string' || !NAME.test(name)) {
+    fail(call, `a part name is 1 to 40 of a-z, 0-9 and -, got ${show(name)}`);
   }
-  const fills = kind === 'box' || kind === 'closed';
-  if (opts.fill !== undefined && opts.fill !== false && opts.fill !== null && !fills) {
-    fail(call, 'fill takes box, circle and poly with closed: true');
+  return name;
+}
+
+function options(call, opts, allowed) {
+  if (opts === undefined || opts === null) return {};
+  if (typeof opts !== 'object' || Array.isArray(opts) || opts instanceof Handle) {
+    fail(call, `options must be an object, got ${show(opts)}`);
   }
-  const fill = inherited(opts, 'fill');
-  if (fills && fill !== undefined && fill !== false && fill !== null) style.fill = tint(call, fill, color);
-  if (opts.dash !== undefined && kind === 'text') fail(call, 'dash takes box, line, arrow, poly and circle');
-  const dash = inherited(opts, 'dash');
-  if (kind !== 'text' && dash !== undefined && dashed(call, dash) !== 'solid') style.dash = dash;
-  return style;
-}
-
-// Canvas units to stored tenths, rounded half away from zero as the core does.
-function T(v) {
-  return Math.sign(v) * Math.round(Math.abs(v) * 10);
-}
-
-// A point list as the core stores it: the first pair absolute, each later
-// pair the change from the one before, between rounded values.
-function pts(points) {
-  const out = [];
-  let px = 0;
-  let py = 0;
-  for (const [x, y] of points) {
-    const tx = T(x);
-    const ty = T(y);
-    out.push(tx - px, ty - py);
-    px = tx;
-    py = ty;
+  for (const k of Object.keys(opts)) {
+    if (!allowed.includes(k)) fail(call, `unknown option ${k}; ${call} takes ${allowed.join(', ')}`);
   }
-  return out;
+  return opts;
 }
 
-// Every shape the script drew, for the checks after it: kind, frame, segments, call site.
-const drawn = [];
+// The style options a shape, a group or a part may set, checked as given;
+// `name` comes back as `part`. Fill and dash are checked again for the
+// kind when the shape is made.
+const STYLE = ['color', 'fill', 'dash', 'locked'];
 
-// Emits one shape: `fields` are its kind's, in tenths; `frame` and
-// `segments` in units for the checks.
-function put(call, item, style, frame, segments) {
-  if (drawn.length >= input.items) fail(call, `a figure holds at most ${input.items} shapes`);
-  if (style.fill !== undefined) item.fill = style.fill;
-  if (style.dash !== undefined) item.dash = style.dash;
-  if (style.locked) item.locked = true;
-  if (input.name) item.fig = input.name;
-  if (part !== null) item.part = part;
-  const [line, col] = here();
-  drawn.push({ kind: item.kind, frame, segments, line, col, text: item.text, fill: item.fill !== undefined });
-  emit(JSON.stringify(item));
-  return { x: frame.x, y: frame.y, w: frame.w, h: frame.h };
+function style(call, o) {
+  const s = {};
+  if (o.color !== undefined) s.color = colour(call, 'color', o.color);
+  if (o.fill !== undefined && o.fill !== null && o.fill !== false) {
+    if (o.fill !== true) colour(call, 'fill', o.fill);
+    s.fill = o.fill;
+  }
+  if (o.dash !== undefined) s.dash = dashed(call, o.dash);
+  if (o.locked !== undefined) s.locked = bool(call, 'locked', o.locked);
+  if (o.name !== undefined) s.part = partName(call, o.name);
+  return s;
 }
 
-function warning(line, col, message) {
-  emit(JSON.stringify({ warning: message, line, col }));
-}
+// The part a function passed to fig.part draws in: its name and defaults.
+let scope = null;
 
 const fig = {
   name: input.name,
-  data: input.data,
   view: Object.freeze({
     target: input.target === null ? null : Object.freeze({ x: 0, y: 0, w: input.target[2], h: input.target[3] }),
     page: input.page,
@@ -225,6 +175,11 @@ const fig = {
   color: input.agent,
 };
 Object.defineProperty(G, 'fig', { value: fig, enumerable: true });
+Object.defineProperty(G, 'data', { value: input.data, enumerable: true });
+
+function warning(line, col, message) {
+  emit(JSON.stringify({ warning: message, line, col }));
+}
 
 G.warn = function warn(message) {
   const [line, col] = where();

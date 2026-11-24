@@ -6,7 +6,7 @@ run for real on 2026-11-24 (seed slinger-9dcf50): a scratch daemon
 (`slinger-app --drive`, `slinger drive`) at 1160 by 1480 points. The
 script is the worksheet of docs/design/figures.md, Appendix B
 (`crates/script/src/tests/worksheet.{js,json}`), drawn by `agent:scout`
-with `slinger canvas draw ws worksheet.js --name worksheet --at 20,20
+with `slinger canvas draw ws worksheet.js --name worksheet --at 200,200
 --data @worksheet.json`.
 
 | # | Item | Result | Evidence |

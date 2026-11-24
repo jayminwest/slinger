@@ -203,11 +203,17 @@ fn figure_drawn_is_read_typed_but_only_its_verbs_write_it() {
         origin: [400, 400],
         frame: [400, 400, 9000, 14000],
         target: None,
+        anchor: None,
     };
     let tags = Tags { agent: Some("claude".into()), canvas: Some("main".into()), ..Tags::on("m") };
-    let over = FigureDrawn { target: Some([400, 400, 3000, 1500]), ..drawn.clone() };
+    let over = FigureDrawn {
+        target: Some([400, 400, 3000, 1500]),
+        anchor: Some("b4".into()),
+        ..drawn.clone()
+    };
     let over = Event::new(2, "slingerd", tags.clone(), Body::FigureDrawn(over));
     assert_eq!(to_value(&over)["payload"]["target"], json!([400, 400, 3000, 1500]));
+    assert_eq!(to_value(&over)["payload"]["anchor"], "b4");
     assert_eq!(decode(&encode(&over)).unwrap(), over, "a drawing over an item keeps its frame");
     let event = Event::new(1, "slingerd", tags, Body::FigureDrawn(drawn));
     let doc = to_value(&event);

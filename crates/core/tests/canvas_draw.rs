@@ -65,7 +65,7 @@ impl Book {
         (text, data): (&str, Value),
     ) -> Drawn {
         let shapes = shapes.as_array().unwrap();
-        let script = Script { text: text.into(), data, target: None };
+        let script = Script { text: text.into(), data, target: None, anchor: Some("i1".into()) };
         let drawn = self.log.place_figure(&claude(), AT, (name, shapes), at, None, Some(script));
         let drawn = drawn.unwrap();
         self.bytes.push_str(&drawn.written.bytes);
@@ -422,9 +422,15 @@ fn the_canvas_file_keeps_what_a_redraw_needs_and_a_reader_finds_it_there() {
         "{line}"
     );
     assert!(!line.contains("step"), "no undo step: {line}");
+    assert!(line.contains(r#""anchor":"i1","data""#), "{line}");
     assert_eq!(drawn.written.seq.len(), 6, "five adds and the figure line");
     let want = Source {
-        script: Script { text: "sheet(data)".into(), data, target: None },
+        script: Script {
+            text: "sheet(data)".into(),
+            data,
+            target: None,
+            anchor: Some("i1".into()),
+        },
         origin: drawn.draft.origin,
         frame: drawn.draft.frame,
     };

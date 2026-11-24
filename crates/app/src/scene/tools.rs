@@ -202,9 +202,11 @@ impl Tools {
     }
 
     /// The window is drawn at `now`: a new tool or width since the last
-    /// draw flashes, with its key in `keys`.
+    /// draw flashes, with its key in `keys`. A new tool flashes as the
+    /// footer shows it: the tool a press of the device last seen uses
+    /// (slinger-aa9117).
     pub fn follow(&self, keys: &Keymap, now: Instant) {
-        self.flash.follow(self.tool, keys, now);
+        self.flash.follow(self.tool, self.for_device(), keys, now);
         self.flash.follow_width(self.width, keys, now);
         self.flash.follow_size(self.size(), keys, now);
     }
@@ -223,8 +225,14 @@ impl Tools {
     /// the select tool for a mouse or a trackpad with the pen tool chosen
     /// (unless [`Press::Tool`]); else the chosen tool.
     pub fn tool(&self) -> Tool {
+        if self.eraser_end { Tool::Eraser } else { self.for_device() }
+    }
+
+    /// The chosen tool as a press of the device last seen uses it: the
+    /// select tool for a mouse or a trackpad with the pen tool chosen
+    /// (unless [`Press::Tool`]), else the chosen tool.
+    fn for_device(&self) -> Tool {
         match self.tool {
-            _ if self.eraser_end => Tool::Eraser,
             Tool::Pen if !self.tablet && self.press == Press::Select => Tool::Select,
             tool => tool,
         }
