@@ -844,10 +844,15 @@ call emits shapes at once; nothing is returned to place later.
   `Math.random` is a seeded generator (seed 1 each run), so the same script
   and data give the same bytes out, which replace by match relies on.
 - Errors keep the script's line and column: `script:12:7: box: w must be a number above 0, got "wide"`.
-  A bad argument fails at the call, by the function's name. The line of
-  a stopped run is where QuickJS last recorded a position: a loop whose body
-  calls nothing (`while (true) n += 1`) can be named at the line before the
-  loop; a loop that calls anything is named inside its body. Warnings
+  A bad argument fails at the call, by the function's name. A run the
+  clock stopped names a line the loop is at or after, and says so
+  (`script:3:1: the script ran longer than 1 s, stopped at this line or in
+  a loop after it`): QuickJS checks the clock at a call, where the stack
+  names the call, and at a loop's jump back, where it names the last
+  position recorded before the loop's head (a line before the loop, or the
+  first line of its function). Which check fires moves with any work run
+  before, the loop's own calls included, so no loop is named inside its
+  body every time (slinger-71c6cb). Warnings
   (text over a line, texts overlapping, a box drawn again on another's
   frame, a label longer than its arrow, a shape far outside the others)
   come back beside the shapes, with their line, and never fail a draw.

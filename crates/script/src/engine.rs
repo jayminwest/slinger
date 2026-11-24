@@ -200,8 +200,20 @@ fn failed(e: &CaughtError<'_>) -> ScriptError {
         CaughtError::Error(e) => (String::new(), e.to_string(), String::new()),
     };
     let (line, col) = at(&stack).unwrap_or((0, 0));
-    ScriptError { line, col, message: said(&name, &message) }
+    let mut said = said(&name, &message);
+    if message == "interrupted" && line != 0 {
+        said.push_str(STOPPED);
+    }
+    ScriptError { line, col, message: said }
 }
+
+/// Where a run the clock stopped was. `QuickJS` checks the clock at a call
+/// and at a jump back: at a call the stack names the call; at a jump back
+/// it names the last position recorded before the jump's target, the head
+/// of the loop, so a line before the loop (the first of its function when
+/// nothing came before), which moves with whatever ran before. Either way
+/// the loop is at that line or after it, and the message says no more.
+const STOPPED: &str = ", stopped at this line or in a loop after it";
 
 /// The message for an exception named `name`: a limit says which, the
 /// prelude's own errors stand as they are, anything else keeps its name.

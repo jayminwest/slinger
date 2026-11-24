@@ -69,6 +69,9 @@ bullet with the area in bold.
   pointer as one piece to move, duplicate or delete; it locks again when
   you deselect it. A duplicate is a new figure with its own name, one no
   other figure on the canvas has, on any page.
+- **CLI:** a drawing script stopped at its 1 s limit says the line it
+  names is the loop's or one before it ("stopped at this line or in a loop
+  after it"); it could name a line before the loop with no word of it.
 - **CLI:** a drawing script now warns when it draws a box again on a
   table cell's box (draw in the cell instead), and when an arrow's label
   is longer than the arrow.

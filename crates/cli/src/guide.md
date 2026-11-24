@@ -339,6 +339,7 @@ the arrow, and a shape far from the others.
 is seeded: the same script and data draw the same figure.
 
 **Errors** name the call and the line: `script:12:7: box: w must be a number above 0, got "wide"`.
+A script stopped at 1 s names a line its endless loop is at or after.
 Limits: 1 s, 32 MB, 5,000 shapes, a 1 MiB script, 256 KiB of data.
 
 **An example.** `bars.js` draws one bar per row of its data, each bar a
