@@ -21,15 +21,50 @@ fn stops(script: &str, said: &str, lines: RangeInclusive<u32>) {
     assert!(e.line == 0 || e.to_string().starts_with(&format!("script:{}:", e.line)), "{e}");
 }
 
+/// Endless loops after three lines (shapes, `seen`, `w`), each with the
+/// last line its loop runs: a stop can be anywhere up to there.
+const LOOPS: [(&str, u32); 6] = [
+    ("for (;;) {\n  w += 1;\n}\n", 6),
+    ("for (;;) {\n  seen.reverse();\n}\n", 6),
+    ("while (w >= 0) {\n  w += measure('abc').w;\n}\n", 6),
+    ("for (let i = 0; i >= 0; i++) {\n  w = i;\n}\n", 6),
+    ("function spin() {\n  do {\n    w += 1;\n  } while (w > 0);\n}\nspin();\n", 7),
+    (
+        "for (let i = 0; ; i++) {\n  if (i > 5) {\n    while (true) { w += 1; }\n  }\n  seen.reverse();\n}\n",
+        6,
+    ),
+];
+
 #[test]
-fn an_endless_loop_stops_after_the_time_limit_at_its_line() {
-    let start = Instant::now();
-    stops(
-        "box(0, 0, 10, 10);\nconst seen = [1, 2];\nfor (;;) {\n  seen.reverse();\n}\n",
-        "ran longer than 1 s",
-        4..=4,
-    );
-    assert!(start.elapsed() >= TIME);
+fn an_endless_loop_stops_after_the_time_limit_at_or_before_its_line() {
+    // Where QuickJS checks the clock moves with the work run before the
+    // loop (the shapes drawn, the prelude's own branches): at a call or at
+    // a jump back to the loop's head, which names a line before the loop.
+    // So a call-free loop, one calling a native or a prelude function, one
+    // in a function and a nested one, each after an odd and an even number
+    // of shapes, name a line at or before the loop and say so
+    // (slinger-71c6cb).
+    std::thread::scope(|threads| {
+        for shapes in [0, 1, 2, 7] {
+            for (body, last) in LOOPS {
+                threads.spawn(move || {
+                    let script = format!(
+                        "for (let i = 0; i < {shapes}; i += 1) box(i, 0, 1, 1);\nconst seen = [1, 2];\nlet w = 0;\n{body}"
+                    );
+                    let start = Instant::now();
+                    let e = failed(&script);
+                    let took = start.elapsed();
+                    assert!(took >= TIME && took < SOON, "{script} took {took:?}");
+                    assert!((1..=last).contains(&e.line), "{script}: {e}");
+                    let said = format!(
+                        "script:{}:{}: the script ran longer than 1 s, stopped at this line or in a loop after it",
+                        e.line, e.col
+                    );
+                    assert_eq!(e.to_string(), said, "{script}");
+                });
+            }
+        }
+    });
 }
 
 #[test]
