@@ -213,6 +213,9 @@ pub enum Command {
     /// (or the one text selected) fills its width; the view comes back
     /// when a text ends, or on the same command again.
     WriteFocus,
+    /// Stop slingerd, then open the app again, which starts the slingerd it
+    /// holds: both on the installed build (a bundled app only: `crate::launch`).
+    RestartSlinger,
 }
 
 /// How many commands there are.

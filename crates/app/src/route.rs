@@ -50,7 +50,8 @@ pub enum Routed {
     Watch(Option<String>, Step),
     /// Look at the news (a wake or a tick); `true` draws whether or not there is any.
     News(bool),
-    /// `start-slingerd` or `restart-daemon`: for the launcher, then draw.
+    /// `start-slingerd`, `restart-daemon` or `restart-slinger`: for the
+    /// launcher, then draw.
     Launch(Command),
     /// `reload-ui` forgot the focused pane's agent UI: the watch fetches
     /// it again, then draw.
@@ -160,9 +161,7 @@ pub fn route(
             Step::Draw(view(settings, shared, tools, sidebar, canvases))
         }
         (Ask::Run(Command::Quit), _) => Step::Quit,
-        (Ask::Run(c @ (Command::StartSlingerd | Command::RestartDaemon)), _) => {
-            return Routed::Launch(c);
-        }
+        (Ask::Run(c), _) if crate::scene::daemon::launches(c) => return Routed::Launch(c),
         (Ask::Run(Command::ReloadUi), _) if shared.reload_ui() => return Routed::Refetch,
         // It flashes, and the window is drawn whether or not the files changed.
         (Ask::Run(Command::ReloadConfig), _) => {

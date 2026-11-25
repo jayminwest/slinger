@@ -158,10 +158,14 @@ fn rules() -> Vec<(&'static [Command], Facts, Facts)> {
 fn daemon_rules() -> [(&'static [Command], Facts, Facts); 3] {
     use Command as C;
     [
-        (&[C::StartSlingerd, C::RestartDaemon], Facts { managed: true, ..NONE }, NONE),
+        (
+            &[C::StartSlingerd, C::RestartDaemon, C::RestartSlinger],
+            Facts { managed: true, ..NONE },
+            NONE,
+        ),
         (&[C::StartSlingerd], Facts { managed: true, old: true, ..NONE }, NONE),
         (
-            &[C::RestartDaemon],
+            &[C::RestartDaemon, C::RestartSlinger],
             Facts { managed: true, ..NONE },
             Facts { managed: true, old: true, ..NONE },
         ),

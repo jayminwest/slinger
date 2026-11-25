@@ -25,7 +25,7 @@ slinger --help
 
 The bundle holds `slingerd` and `slinger` beside the app, so one install holds one copy of each: `--install` replaces whatever is at `~/.local/bin/slingerd` and `~/.local/bin/slinger` (a copy from an older install, or a link) with a link into `/Applications/slinger.app`.
 
-To update, run `scripts/bundle.sh --install` again and reopen the app. The install stops and starts nothing, so the slingerd that runs keeps the old build. The app sees this and offers "Restart slingerd", naming both builds and the running agents a restart ends. Accept it when those agents can stop.
+To update, run `scripts/bundle.sh --install` again, then choose Restart slinger in the slinger menu (or the command palette): it stops slingerd and opens the app again, both on the new build. It ends the running agents; canvases and waiting slings stay. The install itself stops and starts nothing. If you only reopen the app, the slingerd that runs keeps the old build: the app sees this and offers "Restart slingerd", naming both builds and the running agents a restart ends.
 
 Teach your agents to use it. In Claude Code, install the plugin:
 

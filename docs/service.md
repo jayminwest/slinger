@@ -181,7 +181,10 @@ write at a time, so any thread may write to it while the daemon serves.
   the version or build is not its own, the window offers "Restart slingerd"
   (naming both builds and the agents' processes a restart would end). It
   never restarts unasked: `restart-daemon` sends `daemon_stop`, then starts
-  its own once the old one is gone. A daemon that answers `bad_request`
+  its own once the old one is gone. `restart-slinger` restarts the app
+  too: it sends `daemon_stop`, waits until the daemon is gone (it sends
+  nothing when none answers), then quits and opens its bundle again, and
+  that app starts the daemon it holds. A daemon that answers `bad_request`
   predates the verbs and must be stopped with SIGTERM once.
 - There is no network transport.
 
