@@ -147,6 +147,7 @@ pub(super) const TABLE: &[Row] = &[
     bare(C::ReloadUi, "reload-ui", "Reload agent UI", File),
     row(C::UnlockFigure, "unlock-figure", "Unlock figure", Canvas, CMD | ALT, 'u'),
     row(C::WriteFocus, "write-focus", "Focus on text", Canvas, CMD | ALT, '\r'),
+    bare(C::RestartSlinger, "restart-slinger", "Restart slinger", Window),
 ];
 
 // Each row is at its command's index: `Command as usize` finds its row.

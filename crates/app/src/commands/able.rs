@@ -160,7 +160,7 @@ pub fn can(command: Command, facts: &Facts) -> bool {
         Command::ExportUi => f.ui,
         // One that could not show tries again.
         Command::ReloadUi => f.ui_pane,
-        Command::StartSlingerd | Command::RestartDaemon => {
+        Command::StartSlingerd | Command::RestartDaemon | Command::RestartSlinger => {
             launching(command, f.managed, f.old).is_ok()
         }
     }

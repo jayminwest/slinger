@@ -374,6 +374,11 @@
 # slingerd that answers is another build runs it. It ends the agents' processes slingerd
 # runs. No key by default: the palette and the Window menu run it.
 #restart-daemon = ""
+# Restart slinger whole: stop slingerd, then open the app again, which starts the slingerd
+# it holds. After an update both run the new build. It ends the agents' processes slingerd
+# runs; canvases and waiting slings stay. No key by default: the palette and the slinger
+# menu run it.
+#restart-slinger = ""
 # Grab the figure under the pointer, an agent's drawing that your pen, eraser and lasso
 # pass over (a locked item), as one selection: drag, nudge, duplicate, copy or delete it
 # whole; it has no resize handles. It locks again when the selection ends. A secondary

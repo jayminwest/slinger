@@ -179,6 +179,7 @@ fn the_app_menu_and_the_window_menu_hold_what_every_mac_app_has() {
         "Hide Others",
         "Show All",
         "-",
+        "Restart slinger",
         "Quit slinger",
     ];
     assert_eq!(titles(&menus[0]), app);

@@ -11,6 +11,12 @@ bullet with the area in bold.
 
 ### Added
 
+- **App:** Restart slinger (the slinger menu and the command palette,
+  `restart-slinger`) restarts everything from the window: it stops
+  slingerd, then opens the app again, which starts the slingerd it holds.
+  After an update both run the new build, with no terminal. It ends the
+  running agents; canvases and waiting slings stay.
+
 - **App:** the writing column: a canvas text is a column 80 characters
   wide that grows to 80 lines, so several paragraphs fit in one text. A new
   text starts that wide, and a bigger or smaller size keeps its 80

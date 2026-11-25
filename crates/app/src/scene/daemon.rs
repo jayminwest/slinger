@@ -35,14 +35,28 @@ pub const NOT_STARTED: &str = "slinger did not start this slingerd: restart it w
 /// What `restart-daemon` flashes for a daemon older than `daemon_stop`.
 pub const OLD: &str = "This slingerd is too old to stop from here: stop it once with SIGTERM";
 
-/// What `start-slingerd` and `restart-daemon` ask of the launcher.
+/// What `restart-slinger` flashes in an app that starts no daemon.
+pub const NOT_RESTARTED: &str =
+    "Only slinger.app restarts slinger, when its config names no socket";
+/// What `restart-slinger` flashes while slingerd stops.
+pub const RESTARTING: &str = "Restarting slinger…";
+
+/// What `start-slingerd`, `restart-daemon` and `restart-slinger` ask of
+/// the launcher.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Launching {
     Start,
     Restart,
+    /// Stop the daemon, then open the app again.
+    Reboot,
 }
 
-/// What `command` (`start-slingerd` or `restart-daemon`) does in an app
+/// Whether `command` is one the launcher runs.
+pub const fn launches(command: Command) -> bool {
+    matches!(command, Command::StartSlingerd | Command::RestartDaemon | Command::RestartSlinger)
+}
+
+/// What `command` (`start-slingerd`, `restart-daemon` or `restart-slinger`) does in an app
 /// that is `managed` or not, with the daemon that answers `old` (it
 /// predates `daemon_stop`) or not: what to ask the launcher, or why not.
 ///
@@ -52,8 +66,10 @@ pub enum Launching {
 pub fn launching(command: Command, managed: bool, old: bool) -> Result<Launching, &'static str> {
     match (command, managed) {
         (Command::RestartDaemon, false) => Err(NOT_STARTED),
-        (Command::RestartDaemon, true) if old => Err(OLD),
+        (Command::RestartDaemon | Command::RestartSlinger, true) if old => Err(OLD),
         (Command::RestartDaemon, true) => Ok(Launching::Restart),
+        (Command::RestartSlinger, false) => Err(NOT_RESTARTED),
+        (Command::RestartSlinger, true) => Ok(Launching::Reboot),
         (_, false) => Err(NOT_MANAGED),
         (_, true) => Ok(Launching::Start),
     }
@@ -217,6 +233,7 @@ mod tests {
     #[test]
     fn start_and_restart_in_a_managed_app_or_not() {
         let (start, restart) = (Command::StartSlingerd, Command::RestartDaemon);
+        let reboot = Command::RestartSlinger;
         let table = [
             ((start, true, false), Ok(Launching::Start)),
             ((start, true, true), Ok(Launching::Start)),
@@ -225,6 +242,9 @@ mod tests {
             ((restart, true, true), Err(OLD)),
             ((restart, false, false), Err(NOT_STARTED)),
             ((restart, false, true), Err(NOT_STARTED)),
+            ((reboot, true, false), Ok(Launching::Reboot)),
+            ((reboot, true, true), Err(OLD)),
+            ((reboot, false, false), Err(NOT_RESTARTED)),
         ];
         for ((command, managed, old), want) in table {
             assert_eq!(launching(command, managed, old), want, "{command:?} {managed} {old}");

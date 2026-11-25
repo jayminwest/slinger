@@ -5,7 +5,9 @@
 //! daemon comes to answer, or answers on another socket, it asks
 //! `daemon_info` and tells the window when the build is another
 //! ([`Offer`]); `restart-daemon` stops it ([`Launcher::restart`]) and the
-//! same loop starts the bundled one.
+//! same loop starts the bundled one. `restart-slinger` stops it too
+//! ([`Launcher::reboot`]), then the app opens itself again ([`relaunch`])
+//! and that app starts the bundled one.
 //!
 //! The daemon it starts takes the defaults (no `--socket`, no
 //! `--data-dir`, never `--scratch`) and writes its log in its record. It
@@ -27,8 +29,10 @@ use slinger_control::{self as control, Client, DaemonInfo, RemoteError};
 use super::Settings;
 use super::wake::Wake;
 use crate::launch::{self, Build, Found, Launch, Managed, Seen, Skew};
-use crate::scene::daemon::{self as said, Daemon};
+use crate::scene::daemon::{self as said, Daemon, Launching};
 use crate::scene::sidebar::launched::Offer;
+
+mod relaunch;
 
 /// How often the launcher looks at the socket.
 const EVERY: Duration = Duration::from_secs(1);
@@ -115,12 +119,30 @@ fn offer(info: &Result<DaemonInfo, RemoteError>, skew: Skew) -> Option<Offer> {
     (skew != Skew::Same).then_some(Offer { pid, skew })
 }
 
+/// Does what the user asked of the daemon on `at`: what to tell the window,
+/// if anything. A reboot with no daemon to stop opens the app again at
+/// once; one that stopped it sets `rebooting`, for when it is gone.
+fn act(ask: Launching, at: &Path, launch: &mut Launch, rebooting: &mut bool) -> Option<Said> {
+    match ask {
+        Launching::Start => launch.ask(),
+        Launching::Reboot if !launch.is_up() => return Some(Said::Relaunch),
+        Launching::Restart | Launching::Reboot => match Client::new(at).daemon_stop() {
+            Ok(_) if ask == Launching::Reboot => *rebooting = true,
+            Ok(_) => launch.restart(),
+            Err(e) => return Some(Said::Refused(said::refused(e.code(), &e.to_string()))),
+        },
+    }
+    None
+}
+
 /// The thread that keeps a bundled app's daemon running, and what it last
 /// said. The thread ends once the launcher is dropped.
 #[derive(Debug)]
 pub struct Launcher {
     asked: Arc<Asked>,
     news: Receiver<Said>,
+    /// The `.app` that holds the daemon's program.
+    bundle: Option<PathBuf>,
 }
 
 /// What the launcher tells the window.
@@ -133,14 +155,17 @@ pub enum Said {
     Offer(Option<Offer>),
     /// The daemon did not stop for a restart: what to flash.
     Refused(String),
+    /// The daemon stopped for `restart-slinger`, or none answered: open
+    /// the app again ([`Launcher::relaunch`]) and quit.
+    Relaunch,
 }
 
 /// What the user asked since the thread last looked, and whether the
 /// launcher is gone.
 #[derive(Debug, Default, Clone, Copy)]
 struct Asks {
-    start: bool,
-    restart: bool,
+    /// The last one asked.
+    ask: Option<Launching>,
     gone: bool,
 }
 
@@ -166,7 +191,7 @@ impl Asked {
     fn next(&self, every: Duration) -> Option<Asks> {
         let (mut now, _) = self
             .bell
-            .wait_timeout_while(self.lock(), every, |a| !a.start && !a.restart && !a.gone)
+            .wait_timeout_while(self.lock(), every, |a| a.ask.is_none() && !a.gone)
             .unwrap_or_else(PoisonError::into_inner);
         let asks = std::mem::take(&mut *now);
         (!asks.gone).then_some(asks)
@@ -200,15 +225,25 @@ impl Launcher {
         let asked = Arc::new(Asked::default());
         let (tell, news) = wake.channel();
         let theirs = Arc::clone(&asked);
+        let bundle = managed.program.ancestors().nth(3).map(Path::to_path_buf);
         std::thread::spawn(move || {
             let (mut launch, mut child) = (Launch::new(), None::<Box<dyn Started>>);
             let mut told = Told::default();
+            // The daemon agreed to stop for `restart-slinger`.
+            let mut rebooting = false;
             loop {
                 if let Some(exit) = child.as_mut().and_then(|c| c.exited()) {
                     child = None;
                     launch.exited(exit.0, exit.1, Instant::now());
                 }
                 let (seen, at) = look(&managed.data_dir, &socket);
+                // Gone: the app that opens next starts the bundled one.
+                if rebooting && !seen.answers {
+                    rebooting = false;
+                    if tell.send(Said::Relaunch).is_err() {
+                        return;
+                    }
+                }
                 if launch.look(seen, Instant::now()) {
                     match spawn(&managed) {
                         Ok(started) => child = Some(started),
@@ -239,35 +274,44 @@ impl Launcher {
                     told.offer = offered;
                 }
                 let Some(asks) = theirs.next(every) else { return };
-                if asks.restart {
-                    match Client::new(&at).daemon_stop() {
-                        Ok(_) => launch.restart(),
-                        Err(e) => {
-                            let why = said::refused(e.code(), &e.to_string());
-                            if tell.send(Said::Refused(why)).is_err() {
-                                return;
-                            }
-                        }
-                    }
-                } else if asks.start {
-                    launch.ask();
+                let say = asks.ask.and_then(|ask| act(ask, &at, &mut launch, &mut rebooting));
+                if say.is_some_and(|say| tell.send(say).is_err()) {
+                    return;
                 }
             }
         });
-        Self { asked, news }
+        Self { asked, news, bundle }
     }
 
     /// The user asks for a daemon (`start-slingerd`): one starts at once,
     /// even one stopped on purpose.
     pub fn ask(&self) {
-        self.asked.ring(|now| now.start = true);
+        self.asked.ring(|now| now.ask = Some(Launching::Start));
     }
 
     /// The user asks for a restart (`restart-daemon`): the daemon that
     /// answers is stopped, and the bundled one started once it is gone.
     /// Its agents' processes end with it.
     pub fn restart(&self) {
-        self.asked.ring(|now| now.restart = true);
+        self.asked.ring(|now| now.ask = Some(Launching::Restart));
+    }
+
+    /// The user asks for a restart of slinger (`restart-slinger`): the
+    /// daemon that answers is stopped and, once it is gone (or at once
+    /// when none answers), the launcher says [`Said::Relaunch`]. Its
+    /// agents' processes end with it.
+    pub fn reboot(&self) {
+        self.asked.ring(|now| now.ask = Some(Launching::Reboot));
+    }
+
+    /// Opens the app again once this one has quit: the caller quits next.
+    ///
+    /// # Errors
+    ///
+    /// The daemon's program is in no bundle, or the helper could not run.
+    pub fn relaunch(&self) -> io::Result<()> {
+        let bundle = self.bundle.as_deref().ok_or_else(|| io::Error::other("no app bundle"))?;
+        relaunch::after(std::process::id(), Path::new("/usr/bin/open"), bundle)
     }
 
     /// What the launcher told since the last call, oldest first. Never blocks.

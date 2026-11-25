@@ -139,6 +139,7 @@ const BAR: [(&str, Role, &[Action]); 8] = [
             N(Native::HideOthers),
             N(Native::ShowAll),
             S,
+            R(Command::RestartSlinger),
             R(Command::Quit),
         ],
     ),

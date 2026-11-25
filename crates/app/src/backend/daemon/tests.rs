@@ -186,6 +186,42 @@ fn a_restart_stops_the_daemon_and_the_bundled_one_answers_in_its_place() {
     }
 }
 
+#[test]
+fn a_reboot_stops_the_daemon_starts_none_and_says_to_open_the_app_again() {
+    let (record, _sockets, socket) = places();
+    let stoppers = Arc::new(Mutex::new(Vec::new()));
+    let (theirs, at, dir) = (Arc::clone(&stoppers), socket.clone(), record.path().to_owned());
+    let in_process: Spawn = Box::new(move |_: &Managed| {
+        let store = daemon::Store::open(&dir, "my-laptop").map_err(io::Error::other)?;
+        let server = daemon::Server::bind(&at).map_err(io::Error::other)?;
+        theirs.lock().unwrap().push(server.stopper());
+        let serving = thread::spawn(move || server.serve(&store));
+        Ok(Box::new(Served(Some(serving))) as Box<dyn Started>)
+    });
+    let managed = Managed { program: stand_in(), data_dir: record.path().to_owned() };
+    let launcher = Launcher::with(managed, socket.clone(), in_process, QUICK, &Wake::none());
+    assert_eq!(heard(&launcher, Option::is_none), [Some(Daemon::Starting), None]);
+
+    launcher.reboot();
+    let mut said = told(&launcher, |s| *s == Said::Relaunch);
+    assert!(said.contains(&Said::Relaunch), "{said:?}");
+    assert!(started(&socket).is_none(), "the daemon is gone");
+    assert!(control::stop_mark(record.path()).exists(), "it stopped on purpose");
+    // Several looks later: the app that opens next starts one, not this one.
+    thread::sleep(QUICK * 10);
+    assert_eq!(stoppers.lock().unwrap().len(), 1, "no second daemon");
+    said.extend(launcher.news());
+    assert!(said.contains(&Said::Daemon(Some(Daemon::Stopped))), "{said:?}");
+
+    // With none to stop, the app opens again at once.
+    launcher.reboot();
+    assert_eq!(told(&launcher, |s| *s == Said::Relaunch), [Said::Relaunch]);
+    drop(launcher);
+    for stopper in stoppers.lock().unwrap().drain(..) {
+        stopper.stop();
+    }
+}
+
 /// A daemon older than `daemon_info`: it answers `bad_request` to every
 /// request, on `socket`, until the test ends.
 fn old_daemon(socket: &Path) {

@@ -90,6 +90,7 @@
 88 reload-ui | Reload agent UI | File | -
 89 unlock-figure | Unlock figure | Canvas | ⌥⌘U
 90 write-focus | Focus on text | Canvas | ⌥⌘↩
+91 restart-slinger | Restart slinger | Window | -
 # config.example.toml [keys]
 #quit = "cmd+q"
 #reload-config = "cmd+r"
@@ -181,6 +182,7 @@
 #step-out = "cmd+alt+o"
 #start-slingerd = ""
 #restart-daemon = ""
+#restart-slinger = ""
 #unlock-figure = "cmd+alt+u"
 # menu bar (checked: tool-pen; every command can act)
 slinger App
@@ -194,6 +196,7 @@ slinger App
   native HideOthers | Hide Others | ⌥⌘H
   native ShowAll | Show All | -
   --- |  | -
+  run RestartSlinger | Restart slinger | - grey
   run Quit | Quit slinger | ⌘Q
 File Plain
   run OpenWorkspace | Open workspace… | ⇧⌘O
